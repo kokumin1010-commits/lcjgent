@@ -11490,6 +11490,74 @@ export async function getTiktokTapVideoTopVideos(brandId: number = 0, month?: st
 }
 
 // ============================================
+// ファイナンス司令塔: クリエイター×商品ベストマッチ分析
+// ============================================
+
+export async function getTiktokTapCreatorProductMatrix(brandId: number = 0, month?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (brandId > 0) conditions.push(eq(tiktokTapReports.brandId, brandId));
+  if (month) conditions.push(eq(tiktokTapReports.reportMonth, month));
+  
+  return db.select({
+    creatorUsername: tiktokTapReports.creatorUsername,
+    productId: tiktokTapReports.productId,
+    productName: tiktokTapReports.productName,
+    shopName: sql<string>`MAX(shopName)`,
+    totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
+    totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
+    totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
+    totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
+    totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+    totalLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
+    totalVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
+    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
+    totalEstimatedCreatorCommission: sql<number>`COALESCE(SUM(estimatedCreatorCommission), 0)`,
+    totalActualCreatorCommission: sql<number>`COALESCE(SUM(actualCreatorCommission), 0)`,
+    totalGmvRefund: sql<number>`COALESCE(SUM(gmvRefund), 0)`,
+    totalSettledGmv: sql<number>`COALESCE(SUM(settledGmv), 0)`,
+  }).from(tiktokTapReports)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(tiktokTapReports.creatorUsername, tiktokTapReports.productId, tiktokTapReports.productName)
+    .orderBy(sql`SUM(affiliateGmv) DESC`);
+}
+
+// ============================================
+// ファイナンス司令塔: LIVE配信効率分析（配信時間含む）
+// ============================================
+
+export async function getTiktokTapLiveEfficiency(brandId: number = 0, month?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (brandId > 0) conditions.push(eq(tiktokTapLiveReports.brandId, brandId));
+  if (month) conditions.push(eq(tiktokTapLiveReports.reportMonth, month));
+  
+  return db.select({
+    creatorUsername: tiktokTapLiveReports.creatorUsername,
+    totalGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
+    totalOrders: sql<number>`COALESCE(SUM(liveOrders), 0)`,
+    totalViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
+    totalLikes: sql<number>`COALESCE(SUM(liveLikes), 0)`,
+    totalBroadcastTime: sql<number>`COALESCE(SUM(broadcastTime), 0)`,
+    totalPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
+    totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+    totalSessions: sql<number>`COUNT(DISTINCT liveRoomId)`,
+    avgRpm: sql<number>`CASE WHEN COALESCE(SUM(liveViews), 0) > 0 THEN ROUND(COALESCE(SUM(liveGmv), 0) / COALESCE(SUM(liveViews), 0) * 1000, 2) ELSE 0 END`,
+    gmvPerHour: sql<number>`CASE WHEN COALESCE(SUM(broadcastTime), 0) > 0 THEN ROUND(COALESCE(SUM(liveGmv), 0) / (COALESCE(SUM(broadcastTime), 0) / 3600), 0) ELSE 0 END`,
+    ordersPerHour: sql<number>`CASE WHEN COALESCE(SUM(broadcastTime), 0) > 0 THEN ROUND(COALESCE(SUM(liveOrders), 0) / (COALESCE(SUM(broadcastTime), 0) / 3600), 1) ELSE 0 END`,
+    cvr: sql<number>`CASE WHEN COALESCE(SUM(liveViews), 0) > 0 THEN ROUND(COALESCE(SUM(liveOrders), 0) / COALESCE(SUM(liveViews), 0) * 100, 4) ELSE 0 END`,
+    productCount: sql<number>`COUNT(DISTINCT productId)`,
+  }).from(tiktokTapLiveReports)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(tiktokTapLiveReports.creatorUsername)
+    .orderBy(sql`SUM(liveGmv) DESC`);
+}
+
+// ============================================
 // Livestream Sets (セット組み) functions
 // ============================================
 

@@ -14,7 +14,8 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, BarChart3, Calendar, Download,
   Loader2, Eye, RefreshCw, Store, Video, ShoppingBag,
   AlertTriangle, CheckCircle, Clock, Wallet, Building2,
-  ArrowUpRight, ArrowDownRight, Crown, Medal, Award, CalendarDays
+  ArrowUpRight, ArrowDownRight, Crown, Medal, Award, CalendarDays,
+  Target, Zap, Activity, Percent, GitBranch
 } from "lucide-react";
 
 function formatCurrency(val: number | string | null | undefined): string {
@@ -51,7 +52,7 @@ function getPrevMonth(month: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments' | 'tap' | 'tap-creators' | 'tap-shops' | 'tap-products' | 'tap-live' | 'tap-videos';
+type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments' | 'tap' | 'tap-creators' | 'tap-shops' | 'tap-products' | 'tap-live' | 'tap-videos' | 'tap-profitability' | 'tap-bestmatch' | 'tap-shop-analysis' | 'tap-live-efficiency' | 'tap-growth';
 
 export default function FinanceManagement() {
   const [, navigate] = useLocation();
@@ -164,15 +165,15 @@ export default function FinanceManagement() {
   );
   const tapShopsQuery = trpc.tiktokFinance.getTapShopSummary.useQuery(
     { brandId: 0, month: (activeTab === 'shops' ? selectedMonth : tapMonth) || undefined },
-    { enabled: activeTab === 'tap' || activeTab === 'tap-shops' || activeTab === 'dashboard' || activeTab === 'shops' }
+    { enabled: activeTab === 'tap' || activeTab === 'tap-shops' || activeTab === 'dashboard' || activeTab === 'shops' || activeTab === 'tap-shop-analysis' }
   );
   const tapProductsQuery = trpc.tiktokFinance.getTapProductSummary.useQuery(
     { brandId: 0, month: (activeTab === 'products' ? selectedMonth : tapMonth) || undefined },
-    { enabled: activeTab === 'tap-products' || activeTab === 'products' }
+    { enabled: activeTab === 'tap-products' || activeTab === 'products' || activeTab === 'tap-profitability' }
   );
   const tapMonthlyQuery = trpc.tiktokFinance.getTapMonthlySummary.useQuery(
     { brandId: 0 },
-    { enabled: activeTab === 'tap' || activeTab === 'dashboard' }
+    { enabled: activeTab === 'tap' || activeTab === 'dashboard' || activeTab === 'tap-growth' }
   );
   const tapAvailableMonthsQuery = trpc.tiktokFinance.getTapAvailableMonths.useQuery(
     { brandId: 0 },
@@ -211,6 +212,16 @@ export default function FinanceManagement() {
   const tapVideoTopVideosQuery = trpc.tiktokFinance.getTapVideoTopVideos.useQuery(
     { brandId: 0, month: tapMonth || undefined, limit: 50 },
     { enabled: activeTab === 'tap-videos' }
+  );
+
+  // 司令塔 Queries
+  const tapCreatorProductMatrixQuery = trpc.tiktokFinance.getTapCreatorProductMatrix.useQuery(
+    { brandId: 0, month: tapMonth || undefined },
+    { enabled: activeTab === 'tap-bestmatch' }
+  );
+  const tapLiveEfficiencyQuery = trpc.tiktokFinance.getTapLiveEfficiency.useQuery(
+    { brandId: 0, month: tapMonth || undefined },
+    { enabled: activeTab === 'tap-live-efficiency' }
   );
 
   // Month detail inline expansion queries
@@ -1646,6 +1657,27 @@ export default function FinanceManagement() {
                 {sub.label}
               </button>
             ))}
+            <div className="border-l mx-1" />
+            {[
+              { key: 'tap-profitability' as TabType, label: '商品利益率', icon: Percent },
+              { key: 'tap-bestmatch' as TabType, label: 'ベストマッチ', icon: Target },
+              { key: 'tap-shop-analysis' as TabType, label: 'ショップ収益性', icon: Building2 },
+              { key: 'tap-live-efficiency' as TabType, label: 'LIVE効率', icon: Zap },
+              { key: 'tap-growth' as TabType, label: '成長トレンド', icon: Activity },
+            ].map(sub => (
+              <button
+                key={sub.key}
+                onClick={() => setActiveTab(sub.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  activeTab === sub.key
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                }`}
+              >
+                <sub.icon className="h-3.5 w-3.5" />
+                {sub.label}
+              </button>
+            ))}
           </div>
 
           {/* TAP Monthly Trend */}
@@ -2112,7 +2144,7 @@ export default function FinanceManagement() {
       )}
 
       {/* TAP sub-tabs redirect */}
-      {(activeTab === 'tap-creators' || activeTab === 'tap-shops' || activeTab === 'tap-products' || activeTab === 'tap-live' || activeTab === 'tap-videos') && (
+      {(activeTab === 'tap-creators' || activeTab === 'tap-shops' || activeTab === 'tap-products' || activeTab === 'tap-live' || activeTab === 'tap-videos' || activeTab === 'tap-profitability' || activeTab === 'tap-bestmatch' || activeTab === 'tap-shop-analysis' || activeTab === 'tap-live-efficiency' || activeTab === 'tap-growth') && (
         <div className="space-y-6">
           {/* TAP Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -2155,6 +2187,27 @@ export default function FinanceManagement() {
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                   activeTab === sub.key
                     ? 'bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                }`}
+              >
+                <sub.icon className="h-3.5 w-3.5" />
+                {sub.label}
+              </button>
+            ))}
+            <div className="border-l mx-1" />
+            {[
+              { key: 'tap-profitability' as TabType, label: '商品利益率', icon: Percent },
+              { key: 'tap-bestmatch' as TabType, label: 'ベストマッチ', icon: Target },
+              { key: 'tap-shop-analysis' as TabType, label: 'ショップ収益性', icon: Building2 },
+              { key: 'tap-live-efficiency' as TabType, label: 'LIVE効率', icon: Zap },
+              { key: 'tap-growth' as TabType, label: '成長トレンド', icon: Activity },
+            ].map(sub => (
+              <button
+                key={sub.key}
+                onClick={() => setActiveTab(sub.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  activeTab === sub.key
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 }`}
               >
@@ -2511,6 +2564,407 @@ export default function FinanceManagement() {
                         </tbody>
                       </table>
                     </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* ===== ファイナンス司令塔 分析タブ ===== */}
+
+          {/* 1. 商品利益率ランキング */}
+          {activeTab === 'tap-profitability' && (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Percent className="h-4 w-4 text-amber-600" />
+                    商品利益率ランキング
+                    <Badge variant="outline" className="text-xs">司令塔</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {tapProductsQuery.isLoading ? (
+                    <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                  ) : tapProductsQuery.data && tapProductsQuery.data.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            <th className="text-left py-2 px-2">#</th>
+                            <th className="text-left py-2 px-2">商品名</th>
+                            <th className="text-left py-2 px-2">ショップ</th>
+                            <th className="text-right py-2 px-2">アフィリGMV</th>
+                            <th className="text-right py-2 px-2">LCJ手数料(見込)</th>
+                            <th className="text-right py-2 px-2">C手数料(見込)</th>
+                            <th className="text-right py-2 px-2">純利益</th>
+                            <th className="text-right py-2 px-2">LCJ手数料率</th>
+                            <th className="text-right py-2 px-2">純利益率</th>
+                            <th className="text-right py-2 px-2">返金率</th>
+                            <th className="text-right py-2 px-2">注文数</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[...tapProductsQuery.data]
+                            .map((p: any) => {
+                              const gmv = Number(p.totalAffiliateGmv) || 0;
+                              const lcjFee = Number(p.totalEstimatedPartnerCommission) || 0;
+                              const cFee = Number(p.totalEstimatedCreatorCommission) || 0;
+                              const netProfit = lcjFee - cFee;
+                              const lcjRate = gmv > 0 ? (lcjFee / gmv * 100) : 0;
+                              const netRate = gmv > 0 ? (netProfit / gmv * 100) : 0;
+                              const refund = Number(p.totalGmvRefund) || 0;
+                              const refundRate = gmv > 0 ? (refund / gmv * 100) : 0;
+                              return { ...p, gmv, lcjFee, cFee, netProfit, lcjRate, netRate, refundRate };
+                            })
+                            .sort((a: any, b: any) => b.netProfit - a.netProfit)
+                            .map((p: any, i: number) => (
+                              <tr key={i} className="border-b hover:bg-muted/30">
+                                <td className="py-1.5 px-2 text-muted-foreground">{i + 1}</td>
+                                <td className="py-1.5 px-2 font-medium max-w-[200px] truncate" title={p.productName}>{p.productName}</td>
+                                <td className="py-1.5 px-2 text-muted-foreground max-w-[120px] truncate" title={p.shopName}>{p.shopName}</td>
+                                <td className="py-1.5 px-2 text-right">{formatCurrency(p.gmv)}</td>
+                                <td className="py-1.5 px-2 text-right text-blue-600">{formatCurrency(p.lcjFee)}</td>
+                                <td className="py-1.5 px-2 text-right text-orange-600">{formatCurrency(p.cFee)}</td>
+                                <td className="py-1.5 px-2 text-right font-semibold" style={{ color: p.netProfit >= 0 ? '#16a34a' : '#dc2626' }}>{formatCurrency(p.netProfit)}</td>
+                                <td className="py-1.5 px-2 text-right">{p.lcjRate.toFixed(1)}%</td>
+                                <td className="py-1.5 px-2 text-right font-semibold" style={{ color: p.netRate >= 0 ? '#16a34a' : '#dc2626' }}>{p.netRate.toFixed(1)}%</td>
+                                <td className="py-1.5 px-2 text-right" style={{ color: p.refundRate > 20 ? '#dc2626' : p.refundRate > 10 ? '#f59e0b' : 'inherit' }}>{p.refundRate.toFixed(1)}%</td>
+                                <td className="py-1.5 px-2 text-right">{formatNumber(p.totalOrders)}</td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-4 text-center">データがありません</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* 2. クリエイター×商品ベストマッチ */}
+          {activeTab === 'tap-bestmatch' && (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Target className="h-4 w-4 text-amber-600" />
+                    クリエイター×商品 ベストマッチ分析
+                    <Badge variant="outline" className="text-xs">司令塔</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {tapCreatorProductMatrixQuery.isLoading ? (
+                    <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                  ) : tapCreatorProductMatrixQuery.data && tapCreatorProductMatrixQuery.data.length > 0 ? (() => {
+                    const data = tapCreatorProductMatrixQuery.data as any[];
+                    // クリエイターごとにグループ化
+                    const creatorMap = new Map<string, any[]>();
+                    data.forEach((row: any) => {
+                      const key = row.creatorUsername;
+                      if (!creatorMap.has(key)) creatorMap.set(key, []);
+                      creatorMap.get(key)!.push(row);
+                    });
+                    // クリエイターを総アフィリGMV順にソート
+                    const creators = Array.from(creatorMap.entries())
+                      .map(([name, products]) => ({
+                        name,
+                        products: products.sort((a: any, b: any) => Number(b.totalAffiliateGmv) - Number(a.totalAffiliateGmv)),
+                        totalGmv: products.reduce((s: number, p: any) => s + Number(p.totalAffiliateGmv || 0), 0),
+                        totalOrders: products.reduce((s: number, p: any) => s + Number(p.totalOrders || 0), 0),
+                        totalLcjFee: products.reduce((s: number, p: any) => s + Number(p.totalEstimatedPartnerCommission || 0), 0),
+                      }))
+                      .sort((a, b) => b.totalGmv - a.totalGmv);
+                    return (
+                      <div className="space-y-6">
+                        {creators.map((creator) => (
+                          <div key={creator.name} className="border rounded-lg p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <Crown className="h-4 w-4 text-amber-500" />
+                                <span className="font-semibold text-sm">{creator.name}</span>
+                                <Badge variant="secondary" className="text-xs">総GMV: {formatCurrency(creator.totalGmv)}</Badge>
+                                <Badge variant="outline" className="text-xs">注文: {formatNumber(creator.totalOrders)}</Badge>
+                              </div>
+                              <span className="text-xs text-muted-foreground">TOP商品 {Math.min(creator.products.length, 10)}件</span>
+                            </div>
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="border-b bg-muted/30">
+                                  <th className="text-left py-1.5 px-2">#</th>
+                                  <th className="text-left py-1.5 px-2">商品名</th>
+                                  <th className="text-left py-1.5 px-2">ショップ</th>
+                                  <th className="text-right py-1.5 px-2">アフィリGMV</th>
+                                  <th className="text-right py-1.5 px-2">LIVE GMV</th>
+                                  <th className="text-right py-1.5 px-2">LCJ手数料</th>
+                                  <th className="text-right py-1.5 px-2">注文数</th>
+                                  <th className="text-right py-1.5 px-2">CVR</th>
+                                  <th className="text-right py-1.5 px-2">RPM</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {creator.products.slice(0, 10).map((p: any, i: number) => {
+                                  const views = Number(p.totalLiveViews || 0) + Number(p.totalVideoViews || 0);
+                                  const orders = Number(p.totalOrders || 0);
+                                  const gmv = Number(p.totalAffiliateGmv || 0);
+                                  const cvr = views > 0 ? (orders / views * 100) : 0;
+                                  const rpm = views > 0 ? (gmv / views * 1000) : 0;
+                                  return (
+                                    <tr key={i} className="border-b hover:bg-muted/20">
+                                      <td className="py-1 px-2 text-muted-foreground">{i + 1}</td>
+                                      <td className="py-1 px-2 max-w-[180px] truncate" title={p.productName}>{p.productName}</td>
+                                      <td className="py-1 px-2 text-muted-foreground max-w-[100px] truncate" title={p.shopName}>{p.shopName}</td>
+                                      <td className="py-1 px-2 text-right font-medium">{formatCurrency(gmv)}</td>
+                                      <td className="py-1 px-2 text-right">{formatCurrency(p.totalLiveGmv)}</td>
+                                      <td className="py-1 px-2 text-right text-blue-600">{formatCurrency(p.totalEstimatedPartnerCommission)}</td>
+                                      <td className="py-1 px-2 text-right">{formatNumber(orders)}</td>
+                                      <td className="py-1 px-2 text-right">{cvr.toFixed(2)}%</td>
+                                      <td className="py-1 px-2 text-right">{formatCurrency(rpm)}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })() : (
+                    <p className="text-sm text-muted-foreground py-4 text-center">データがありません</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* 3. ショップ収益性分析 */}
+          {activeTab === 'tap-shop-analysis' && (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-amber-600" />
+                    ショップ収益性分析
+                    <Badge variant="outline" className="text-xs">司令塔</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {tapShopsQuery.isLoading ? (
+                    <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                  ) : tapShopsQuery.data && tapShopsQuery.data.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            <th className="text-left py-2 px-2">#</th>
+                            <th className="text-left py-2 px-2">ショップ名</th>
+                            <th className="text-right py-2 px-2">アフィリGMV</th>
+                            <th className="text-right py-2 px-2">LCJ手数料(見込)</th>
+                            <th className="text-right py-2 px-2">LCJ手数料(実績)</th>
+                            <th className="text-right py-2 px-2">返金GMV</th>
+                            <th className="text-right py-2 px-2">決済済GMV</th>
+                            <th className="text-right py-2 px-2">LCJ手数料率</th>
+                            <th className="text-right py-2 px-2">返金率</th>
+                            <th className="text-right py-2 px-2">決済率</th>
+                            <th className="text-right py-2 px-2">注文数</th>
+                            <th className="text-center py-2 px-2">ステータス</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[...tapShopsQuery.data]
+                            .map((s: any) => {
+                              const gmv = Number(s.totalAffiliateGmv) || 0;
+                              const lcjFee = Number(s.totalEstimatedPartnerCommission) || 0;
+                              const lcjFeeActual = Number(s.totalActualPartnerCommission) || 0;
+                              const refund = Number(s.totalGmvRefund) || 0;
+                              const settled = Number(s.totalSettledGmv) || 0;
+                              const lcjRate = gmv > 0 ? (lcjFee / gmv * 100) : 0;
+                              const refundRate = gmv > 0 ? (refund / gmv * 100) : 0;
+                              const settledRate = gmv > 0 ? (settled / gmv * 100) : 0;
+                              let status: 'good' | 'warning' | 'danger' = 'good';
+                              if (refundRate > 20) status = 'danger';
+                              else if (refundRate > 10) status = 'warning';
+                              return { ...s, gmv, lcjFee, lcjFeeActual, refund, settled, lcjRate, refundRate, settledRate, status };
+                            })
+                            .sort((a: any, b: any) => b.gmv - a.gmv)
+                            .map((s: any, i: number) => (
+                              <tr key={i} className={`border-b hover:bg-muted/30 ${s.status === 'danger' ? 'bg-red-50 dark:bg-red-950/20' : s.status === 'warning' ? 'bg-amber-50 dark:bg-amber-950/20' : ''}`}>
+                                <td className="py-1.5 px-2 text-muted-foreground">{i + 1}</td>
+                                <td className="py-1.5 px-2 font-medium max-w-[180px] truncate" title={s.shopName}>{s.shopName}</td>
+                                <td className="py-1.5 px-2 text-right">{formatCurrency(s.gmv)}</td>
+                                <td className="py-1.5 px-2 text-right text-blue-600">{formatCurrency(s.lcjFee)}</td>
+                                <td className="py-1.5 px-2 text-right text-green-600">{formatCurrency(s.lcjFeeActual)}</td>
+                                <td className="py-1.5 px-2 text-right" style={{ color: s.refundRate > 20 ? '#dc2626' : s.refundRate > 10 ? '#f59e0b' : 'inherit' }}>{formatCurrency(s.refund)}</td>
+                                <td className="py-1.5 px-2 text-right">{formatCurrency(s.settled)}</td>
+                                <td className="py-1.5 px-2 text-right">{s.lcjRate.toFixed(1)}%</td>
+                                <td className="py-1.5 px-2 text-right font-semibold" style={{ color: s.refundRate > 20 ? '#dc2626' : s.refundRate > 10 ? '#f59e0b' : '#16a34a' }}>{s.refundRate.toFixed(1)}%</td>
+                                <td className="py-1.5 px-2 text-right">{s.settledRate.toFixed(1)}%</td>
+                                <td className="py-1.5 px-2 text-right">{formatNumber(s.totalOrders)}</td>
+                                <td className="py-1.5 px-2 text-center">
+                                  {s.status === 'danger' ? <AlertTriangle className="h-3.5 w-3.5 text-red-500 mx-auto" /> :
+                                   s.status === 'warning' ? <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mx-auto" /> :
+                                   <CheckCircle className="h-3.5 w-3.5 text-green-500 mx-auto" />}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-4 text-center">データがありません</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* 4. LIVE配信効率分析 */}
+          {activeTab === 'tap-live-efficiency' && (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-amber-600" />
+                    LIVE配信効率分析
+                    <Badge variant="outline" className="text-xs">司令塔</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {tapLiveEfficiencyQuery.isLoading ? (
+                    <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                  ) : tapLiveEfficiencyQuery.data && tapLiveEfficiencyQuery.data.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            <th className="text-left py-2 px-2">#</th>
+                            <th className="text-left py-2 px-2">クリエイター</th>
+                            <th className="text-right py-2 px-2">LIVE GMV</th>
+                            <th className="text-right py-2 px-2">配信時間</th>
+                            <th className="text-right py-2 px-2">GMV/時間</th>
+                            <th className="text-right py-2 px-2">注文/時間</th>
+                            <th className="text-right py-2 px-2">RPM</th>
+                            <th className="text-right py-2 px-2">CVR</th>
+                            <th className="text-right py-2 px-2">配信数</th>
+                            <th className="text-right py-2 px-2">視聴数</th>
+                            <th className="text-right py-2 px-2">注文数</th>
+                            <th className="text-right py-2 px-2">商品数</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[...tapLiveEfficiencyQuery.data]
+                            .sort((a: any, b: any) => Number(b.gmvPerHour || 0) - Number(a.gmvPerHour || 0))
+                            .map((c: any, i: number) => {
+                              const broadcastHours = Number(c.totalBroadcastTime || 0) / 3600;
+                              const broadcastDisplay = broadcastHours >= 1 
+                                ? `${broadcastHours.toFixed(1)}時間` 
+                                : `${Math.round(Number(c.totalBroadcastTime || 0) / 60)}分`;
+                              return (
+                                <tr key={i} className="border-b hover:bg-muted/30">
+                                  <td className="py-1.5 px-2 text-muted-foreground">{i + 1}</td>
+                                  <td className="py-1.5 px-2 font-medium">{c.creatorUsername}</td>
+                                  <td className="py-1.5 px-2 text-right">{formatCurrency(c.totalGmv)}</td>
+                                  <td className="py-1.5 px-2 text-right">{broadcastDisplay}</td>
+                                  <td className="py-1.5 px-2 text-right font-semibold text-green-600">{formatCurrency(c.gmvPerHour)}</td>
+                                  <td className="py-1.5 px-2 text-right">{Number(c.ordersPerHour || 0).toFixed(1)}</td>
+                                  <td className="py-1.5 px-2 text-right">{formatCurrency(c.avgRpm)}</td>
+                                  <td className="py-1.5 px-2 text-right">{Number(c.cvr || 0).toFixed(2)}%</td>
+                                  <td className="py-1.5 px-2 text-right">{formatNumber(c.totalSessions)}</td>
+                                  <td className="py-1.5 px-2 text-right">{formatNumber(c.totalViews)}</td>
+                                  <td className="py-1.5 px-2 text-right">{formatNumber(c.totalOrders)}</td>
+                                  <td className="py-1.5 px-2 text-right">{formatNumber(c.productCount)}</td>
+                                </tr>
+                              );
+                            })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-4 text-center">データがありません</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* 5. 月次成長率トレンド */}
+          {activeTab === 'tap-growth' && (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-amber-600" />
+                    月次成長率トレンド
+                    <Badge variant="outline" className="text-xs">司令塔</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {tapMonthlyQuery.isLoading ? (
+                    <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                  ) : tapMonthlyQuery.data && tapMonthlyQuery.data.length > 1 ? (() => {
+                    const sorted = [...tapMonthlyQuery.data].sort((a: any, b: any) => a.reportMonth.localeCompare(b.reportMonth));
+                    const growthData = sorted.map((m: any, idx: number) => {
+                      if (idx === 0) return { ...m, gmvGrowth: null, ordersGrowth: null, creatorsGrowth: null, feeGrowth: null };
+                      const prev = sorted[idx - 1];
+                      const calcGrowth = (curr: number, prev: number) => prev > 0 ? ((curr - prev) / prev * 100) : (curr > 0 ? 100 : 0);
+                      return {
+                        ...m,
+                        gmvGrowth: calcGrowth(Number(m.totalAffiliateGmv), Number(prev.totalAffiliateGmv)),
+                        ordersGrowth: calcGrowth(Number(m.totalOrders), Number(prev.totalOrders)),
+                        creatorsGrowth: calcGrowth(Number(m.creatorCount), Number(prev.creatorCount)),
+                        feeGrowth: calcGrowth(Number(m.totalEstimatedPartnerCommission), Number(prev.totalEstimatedPartnerCommission)),
+                      };
+                    }).reverse();
+                    return (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b bg-muted/50">
+                              <th className="text-left py-2 px-2">月</th>
+                              <th className="text-right py-2 px-2">アフィリGMV</th>
+                              <th className="text-right py-2 px-2">GMV成長率</th>
+                              <th className="text-right py-2 px-2">LCJ手数料</th>
+                              <th className="text-right py-2 px-2">手数料成長率</th>
+                              <th className="text-right py-2 px-2">注文数</th>
+                              <th className="text-right py-2 px-2">注文成長率</th>
+                              <th className="text-right py-2 px-2">クリエイター数</th>
+                              <th className="text-right py-2 px-2">C数成長率</th>
+                              <th className="text-right py-2 px-2">ショップ数</th>
+                              <th className="text-right py-2 px-2">商品数</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {growthData.map((m: any, i: number) => {
+                              const renderGrowth = (val: number | null) => {
+                                if (val === null) return <span className="text-muted-foreground">-</span>;
+                                const color = val >= 0 ? '#16a34a' : '#dc2626';
+                                const icon = val >= 0 ? '▲' : '▼';
+                                return <span style={{ color, fontWeight: 600 }}>{icon} {Math.abs(val).toFixed(1)}%</span>;
+                              };
+                              return (
+                                <tr key={i} className="border-b hover:bg-muted/30">
+                                  <td className="py-1.5 px-2 font-medium">{m.reportMonth}</td>
+                                  <td className="py-1.5 px-2 text-right">{formatCurrency(m.totalAffiliateGmv)}</td>
+                                  <td className="py-1.5 px-2 text-right">{renderGrowth(m.gmvGrowth)}</td>
+                                  <td className="py-1.5 px-2 text-right text-blue-600">{formatCurrency(m.totalEstimatedPartnerCommission)}</td>
+                                  <td className="py-1.5 px-2 text-right">{renderGrowth(m.feeGrowth)}</td>
+                                  <td className="py-1.5 px-2 text-right">{formatNumber(m.totalOrders)}</td>
+                                  <td className="py-1.5 px-2 text-right">{renderGrowth(m.ordersGrowth)}</td>
+                                  <td className="py-1.5 px-2 text-right">{formatNumber(m.creatorCount)}</td>
+                                  <td className="py-1.5 px-2 text-right">{renderGrowth(m.creatorsGrowth)}</td>
+                                  <td className="py-1.5 px-2 text-right">{formatNumber(m.shopCount)}</td>
+                                  <td className="py-1.5 px-2 text-right">{formatNumber(m.productCount)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })() : (
+                    <p className="text-sm text-muted-foreground py-4 text-center">成長率計算には2ヶ月以上のデータが必要です</p>
                   )}
                 </CardContent>
               </Card>

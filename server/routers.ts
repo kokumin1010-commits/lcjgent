@@ -423,6 +423,8 @@ import {
   getTiktokTapVideoCreatorSummary,
   getTiktokTapVideoMonthlySummary,
   getTiktokTapVideoTopVideos,
+  getTiktokTapCreatorProductMatrix,
+  getTiktokTapLiveEfficiency,
   createLivestreamSet,
   createLivestreamSetItem,
   getLivestreamSetsByLivestreamId,
@@ -17779,6 +17781,22 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional(), limit: z.number().optional().default(20) }))
       .query(async ({ input }) => {
         return getTiktokTapVideoTopVideos(input.brandId, input.month, input.limit);
+      }),
+
+    // === ファイナンス司令塔 エンドポイント ===
+
+    // クリエイター×商品ベストマッチ分析
+    getTapCreatorProductMatrix: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getTiktokTapCreatorProductMatrix(input.brandId, input.month);
+      }),
+
+    // LIVE配信効率分析
+    getTapLiveEfficiency: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getTiktokTapLiveEfficiency(input.brandId, input.month);
       }),
   }),
 
