@@ -64,6 +64,8 @@ export default function TspContractTab() {
 
   // Form state for new contract
   const [form, setForm] = useState({
+    brandId: "" as string, // brand.id as string for Select
+    lcjStaffId: "" as string, // staff.id as string for Select
     shopName: "",
     companyName: "",
     contactName: "",
@@ -95,6 +97,12 @@ export default function TspContractTab() {
   const dashboardQuery = trpc.tsp.getDashboard.useQuery();
   const contractsQuery = trpc.tsp.listContracts.useQuery();
   const invoicesQuery = trpc.tsp.listInvoices.useQuery();
+  const brandsQuery = trpc.brand.list.useQuery();
+  const staffQuery = trpc.staff.list.useQuery();
+
+  // Brand/Staff lookup maps
+  const brandsMap = new Map((brandsQuery.data || []).map((b: any) => [b.id, b]));
+  const staffMap = new Map((staffQuery.data || []).map((s: any) => [s.id, s]));
 
   // Mutations
   const createContractMutation = trpc.tsp.createContract.useMutation({
@@ -170,6 +178,7 @@ export default function TspContractTab() {
 
   function resetForm() {
     setForm({
+      brandId: "", lcjStaffId: "",
       shopName: "", companyName: "", contactName: "", contactEmail: "",
       contactPhone: "", postalCode: "", address: "", monthlyAmount: "",
       taxRate: "10", contractStartDate: new Date().toISOString().split("T")[0],
@@ -184,6 +193,8 @@ export default function TspContractTab() {
       return;
     }
     createContractMutation.mutate({
+      brandId: form.brandId ? parseInt(form.brandId) : undefined,
+      lcjStaffId: form.lcjStaffId ? parseInt(form.lcjStaffId) : undefined,
       shopName: form.shopName,
       companyName: form.companyName || undefined,
       contactName: form.contactName || undefined,
@@ -447,6 +458,8 @@ export default function TspContractTab() {
                       <span>支払期限: {c.paymentDueDays}日後</span>
                       <span>消費税: {c.taxRate}%</span>
                       {c.tapShopName && <span>TAPショップ: {c.tapShopName}</span>}
+                      {c.brandId && brandsMap.get(c.brandId) && <span className="text-indigo-600">ブランド: {(brandsMap.get(c.brandId) as any)?.name}</span>}
+                      {c.lcjStaffId && staffMap.get(c.lcjStaffId) && <span className="text-blue-600">LCJ担当: {(staffMap.get(c.lcjStaffId) as any)?.name}</span>}
                       {c.stripeCustomerId && <span className="text-green-600">Stripe連携済</span>}
                     </div>
                   </CardContent>
@@ -549,6 +562,45 @@ export default function TspContractTab() {
             <DialogDescription>TikTok Shop Partner の月額契約を作成します。Stripe Customer/Product が自動作成されます。</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* ブランド選択 */}
+            <div>
+              <Label>ブランド（紐付け）</Label>
+              <Select value={form.brandId} onValueChange={v => {
+                setForm(f => ({ ...f, brandId: v }));
+                // ブランド選択時に会社名・メール・電話を自動入力
+                const brand = brandsMap.get(parseInt(v));
+                if (brand) {
+                  setForm(f => ({
+                    ...f,
+                    brandId: v,
+                    shopName: f.shopName || brand.name || "",
+                    companyName: f.companyName || brand.companyName || "",
+                    contactEmail: f.contactEmail || brand.email || "",
+                    contactPhone: f.contactPhone || brand.phoneNumber || "",
+                    contactName: f.contactName || brand.contactPerson || "",
+                  }));
+                }
+              }}>
+                <SelectTrigger><SelectValue placeholder="ブランドを選択（任意）" /></SelectTrigger>
+                <SelectContent>
+                  {(brandsQuery.data || []).filter((b: any) => !b.deletedAt).map((b: any) => (
+                    <SelectItem key={b.id} value={String(b.id)}>{b.name}{b.companyName ? ` (${b.companyName})` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* LCJ担当者選択 */}
+            <div>
+              <Label>LCJ担当者</Label>
+              <Select value={form.lcjStaffId} onValueChange={v => setForm(f => ({ ...f, lcjStaffId: v }))}>
+                <SelectTrigger><SelectValue placeholder="担当者を選択（任意）" /></SelectTrigger>
+                <SelectContent>
+                  {(staffQuery.data || []).filter((s: any) => s.isActive === "active").map((s: any) => (
+                    <SelectItem key={s.id} value={String(s.id)}>{s.name}{s.department ? ` (${s.department})` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label>ショップ名 <span className="text-red-500">*</span></Label>
               <Input value={form.shopName} onChange={e => setForm(f => ({ ...f, shopName: e.target.value }))} placeholder="例: ABC Beauty Shop" />
@@ -658,6 +710,30 @@ export default function TspContractTab() {
           {editingContract && (
             <div className="space-y-4">
               <div>
+                <Label>ブランド（紐付け）</Label>
+                <Select value={editingContract.brandId ? String(editingContract.brandId) : "none"} onValueChange={v => setEditingContract((c: any) => ({ ...c, brandId: v === "none" ? null : parseInt(v) }))}>
+                  <SelectTrigger><SelectValue placeholder="ブランドを選択" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">なし</SelectItem>
+                    {(brandsQuery.data || []).filter((b: any) => !b.deletedAt).map((b: any) => (
+                      <SelectItem key={b.id} value={String(b.id)}>{b.name}{b.companyName ? ` (${b.companyName})` : ""}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>LCJ担当者</Label>
+                <Select value={editingContract.lcjStaffId ? String(editingContract.lcjStaffId) : "none"} onValueChange={v => setEditingContract((c: any) => ({ ...c, lcjStaffId: v === "none" ? null : parseInt(v) }))}>
+                  <SelectTrigger><SelectValue placeholder="担当者を選択" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">なし</SelectItem>
+                    {(staffQuery.data || []).filter((s: any) => s.isActive === "active").map((s: any) => (
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name}{s.department ? ` (${s.department})` : ""}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label>ショップ名</Label>
                 <Input value={editingContract.shopName} onChange={e => setEditingContract((c: any) => ({ ...c, shopName: e.target.value }))} />
               </div>
@@ -688,6 +764,8 @@ export default function TspContractTab() {
               if (editingContract) {
                 updateContractMutation.mutate({
                   id: editingContract.id,
+                  brandId: editingContract.brandId,
+                  lcjStaffId: editingContract.lcjStaffId,
                   shopName: editingContract.shopName,
                   monthlyAmount: editingContract.monthlyAmount,
                   status: editingContract.status,

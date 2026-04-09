@@ -4452,6 +4452,9 @@ export type InsertAgency = typeof agencies.$inferInsert;
  */
 export const tspContracts = mysqlTable("tsp_contracts", {
   id: int("id").autoincrement().primaryKey(),
+  // ブランド・LCJ担当者紐付け
+  brandId: int("brandId"), // brands.id への参照（任意）
+  lcjStaffId: int("lcjStaffId"), // staff.id への参照（LCJ担当者、任意）
   // 取引先情報
   shopName: varchar("shopName", { length: 255 }).notNull(),
   companyName: varchar("companyName", { length: 255 }),

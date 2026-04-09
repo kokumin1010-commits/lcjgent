@@ -71,6 +71,8 @@ export const tspRouter = router({
   // ========================================
   createContract: protectedProcedure
     .input(z.object({
+      brandId: z.number().optional(),
+      lcjStaffId: z.number().optional(),
       shopName: z.string().min(1),
       companyName: z.string().optional(),
       contactName: z.string().optional(),
@@ -156,6 +158,8 @@ export const tspRouter = router({
 
       // 4. DB に契約を保存
       const result = await db.insert(tspContracts).values({
+        brandId: input.brandId || null,
+        lcjStaffId: input.lcjStaffId || null,
         shopName: input.shopName,
         companyName: input.companyName || null,
         contactName: input.contactName || null,
@@ -190,6 +194,8 @@ export const tspRouter = router({
   updateContract: protectedProcedure
     .input(z.object({
       id: z.number(),
+      brandId: z.number().nullable().optional(),
+      lcjStaffId: z.number().nullable().optional(),
       shopName: z.string().optional(),
       companyName: z.string().optional(),
       contactName: z.string().optional(),
