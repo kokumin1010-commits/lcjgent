@@ -11287,14 +11287,15 @@ export async function getTiktokTapLiveSummary(brandId: number = 0, month?: strin
   if (month) conditions.push(eq(tiktokTapLiveReports.reportMonth, month));
   
   const result = await db.select({
-    totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
-    totalLiveOrders: sql<number>`COALESCE(SUM(liveOrders), 0)`,
-    totalLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
-    totalLiveLikes: sql<number>`COALESCE(SUM(liveLikes), 0)`,
-    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
+    totalOrders: sql<number>`COALESCE(SUM(liveOrders), 0)`,
+    totalViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
+    totalLikes: sql<number>`COALESCE(SUM(liveLikes), 0)`,
+    totalPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
     totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
     totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
-    liveSessionCount: sql<number>`COUNT(DISTINCT liveRoomId)`,
+    totalSessions: sql<number>`COUNT(DISTINCT liveRoomId)`,
+    avgRpm: sql<number>`CASE WHEN COALESCE(SUM(liveViews), 0) > 0 THEN ROUND(COALESCE(SUM(liveGmv), 0) / COALESCE(SUM(liveViews), 0) * 1000, 2) ELSE 0 END`,
     creatorCount: sql<number>`COUNT(DISTINCT creatorUsername)`,
     productCount: sql<number>`COUNT(DISTINCT productId)`,
     shopCount: sql<number>`COUNT(DISTINCT shopName)`,
@@ -11313,14 +11314,15 @@ export async function getTiktokTapLiveCreatorSummary(brandId: number = 0, month?
   
   return db.select({
     creatorUsername: tiktokTapLiveReports.creatorUsername,
-    totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
-    totalLiveOrders: sql<number>`COALESCE(SUM(liveOrders), 0)`,
-    totalLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
-    totalLiveLikes: sql<number>`COALESCE(SUM(liveLikes), 0)`,
-    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
+    totalOrders: sql<number>`COALESCE(SUM(liveOrders), 0)`,
+    totalViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
+    totalLikes: sql<number>`COALESCE(SUM(liveLikes), 0)`,
+    totalPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
     totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
     totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
-    liveSessionCount: sql<number>`COUNT(DISTINCT liveRoomId)`,
+    totalSessions: sql<number>`COUNT(DISTINCT liveRoomId)`,
+    avgRpm: sql<number>`CASE WHEN COALESCE(SUM(liveViews), 0) > 0 THEN ROUND(COALESCE(SUM(liveGmv), 0) / COALESCE(SUM(liveViews), 0) * 1000, 2) ELSE 0 END`,
     productCount: sql<number>`COUNT(DISTINCT productId)`,
   }).from(tiktokTapLiveReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -11336,14 +11338,15 @@ export async function getTiktokTapLiveMonthlySummary(brandId: number = 0) {
   
   return db.select({
     reportMonth: tiktokTapLiveReports.reportMonth,
-    totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
-    totalLiveOrders: sql<number>`COALESCE(SUM(liveOrders), 0)`,
-    totalLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
-    totalLiveLikes: sql<number>`COALESCE(SUM(liveLikes), 0)`,
-    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
+    totalOrders: sql<number>`COALESCE(SUM(liveOrders), 0)`,
+    totalViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
+    totalLikes: sql<number>`COALESCE(SUM(liveLikes), 0)`,
+    totalPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
     totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
     totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
-    liveSessionCount: sql<number>`COUNT(DISTINCT liveRoomId)`,
+    totalSessions: sql<number>`COUNT(DISTINCT liveRoomId)`,
+    avgRpm: sql<number>`CASE WHEN COALESCE(SUM(liveViews), 0) > 0 THEN ROUND(COALESCE(SUM(liveGmv), 0) / COALESCE(SUM(liveViews), 0) * 1000, 2) ELSE 0 END`,
     creatorCount: sql<number>`COUNT(DISTINCT creatorUsername)`,
   }).from(tiktokTapLiveReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -11362,13 +11365,15 @@ export async function getTiktokTapLiveTopSessions(brandId: number = 0, month?: s
     liveRoomId: tiktokTapLiveReports.liveRoomId,
     liveName: sql<string>`MAX(liveName)`,
     liveTimeInfo: sql<string>`MAX(liveTimeInfo)`,
+    reportMonth: sql<string>`MAX(reportMonth)`,
     creatorUsername: tiktokTapLiveReports.creatorUsername,
-    totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
-    totalLiveOrders: sql<number>`COALESCE(SUM(liveOrders), 0)`,
-    totalLiveViews: sql<number>`MAX(liveViews)`,
-    totalLiveLikes: sql<number>`MAX(liveLikes)`,
-    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
+    totalOrders: sql<number>`COALESCE(SUM(liveOrders), 0)`,
+    totalViews: sql<number>`MAX(liveViews)`,
+    totalLikes: sql<number>`MAX(liveLikes)`,
+    totalPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
     totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+    avgRpm: sql<number>`CASE WHEN MAX(liveViews) > 0 THEN ROUND(COALESCE(SUM(liveGmv), 0) / MAX(liveViews) * 1000, 2) ELSE 0 END`,
     productCount: sql<number>`COUNT(DISTINCT productId)`,
   }).from(tiktokTapLiveReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -11389,14 +11394,15 @@ export async function getTiktokTapVideoSummary(brandId: number = 0, month?: stri
   if (month) conditions.push(eq(tiktokTapVideoReports.reportMonth, month));
   
   const result = await db.select({
-    totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
-    totalVideoOrders: sql<number>`COALESCE(SUM(videoOrders), 0)`,
-    totalVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
-    totalVideoLikes: sql<number>`COALESCE(SUM(videoLikes), 0)`,
-    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
+    totalOrders: sql<number>`COALESCE(SUM(videoOrders), 0)`,
+    totalViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
+    totalLikes: sql<number>`COALESCE(SUM(videoLikes), 0)`,
+    totalPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
     totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
     totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
-    videoCount: sql<number>`COUNT(DISTINCT videoId)`,
+    totalVideos: sql<number>`COUNT(DISTINCT videoId)`,
+    avgRpm: sql<number>`CASE WHEN COALESCE(SUM(videoViews), 0) > 0 THEN ROUND(COALESCE(SUM(videoGmv), 0) / COALESCE(SUM(videoViews), 0) * 1000, 2) ELSE 0 END`,
     creatorCount: sql<number>`COUNT(DISTINCT creatorUsername)`,
     productCount: sql<number>`COUNT(DISTINCT productId)`,
     shopCount: sql<number>`COUNT(DISTINCT shopName)`,
@@ -11415,14 +11421,15 @@ export async function getTiktokTapVideoCreatorSummary(brandId: number = 0, month
   
   return db.select({
     creatorUsername: tiktokTapVideoReports.creatorUsername,
-    totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
-    totalVideoOrders: sql<number>`COALESCE(SUM(videoOrders), 0)`,
-    totalVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
-    totalVideoLikes: sql<number>`COALESCE(SUM(videoLikes), 0)`,
-    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
+    totalOrders: sql<number>`COALESCE(SUM(videoOrders), 0)`,
+    totalViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
+    totalLikes: sql<number>`COALESCE(SUM(videoLikes), 0)`,
+    totalPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
     totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
     totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
-    videoCount: sql<number>`COUNT(DISTINCT videoId)`,
+    totalVideos: sql<number>`COUNT(DISTINCT videoId)`,
+    avgRpm: sql<number>`CASE WHEN COALESCE(SUM(videoViews), 0) > 0 THEN ROUND(COALESCE(SUM(videoGmv), 0) / COALESCE(SUM(videoViews), 0) * 1000, 2) ELSE 0 END`,
     productCount: sql<number>`COUNT(DISTINCT productId)`,
   }).from(tiktokTapVideoReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -11438,14 +11445,15 @@ export async function getTiktokTapVideoMonthlySummary(brandId: number = 0) {
   
   return db.select({
     reportMonth: tiktokTapVideoReports.reportMonth,
-    totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
-    totalVideoOrders: sql<number>`COALESCE(SUM(videoOrders), 0)`,
-    totalVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
-    totalVideoLikes: sql<number>`COALESCE(SUM(videoLikes), 0)`,
-    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
+    totalOrders: sql<number>`COALESCE(SUM(videoOrders), 0)`,
+    totalViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
+    totalLikes: sql<number>`COALESCE(SUM(videoLikes), 0)`,
+    totalPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
     totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
     totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
-    videoCount: sql<number>`COUNT(DISTINCT videoId)`,
+    totalVideos: sql<number>`COUNT(DISTINCT videoId)`,
+    avgRpm: sql<number>`CASE WHEN COALESCE(SUM(videoViews), 0) > 0 THEN ROUND(COALESCE(SUM(videoGmv), 0) / COALESCE(SUM(videoViews), 0) * 1000, 2) ELSE 0 END`,
     creatorCount: sql<number>`COUNT(DISTINCT creatorUsername)`,
   }).from(tiktokTapVideoReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -11464,13 +11472,15 @@ export async function getTiktokTapVideoTopVideos(brandId: number = 0, month?: st
     videoId: tiktokTapVideoReports.videoId,
     videoName: sql<string>`MAX(videoName)`,
     postTime: sql<string>`MAX(postTime)`,
+    reportMonth: sql<string>`MAX(reportMonth)`,
     creatorUsername: tiktokTapVideoReports.creatorUsername,
-    totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
-    totalVideoOrders: sql<number>`COALESCE(SUM(videoOrders), 0)`,
-    totalVideoViews: sql<number>`MAX(videoViews)`,
-    totalVideoLikes: sql<number>`MAX(videoLikes)`,
-    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
+    totalOrders: sql<number>`COALESCE(SUM(videoOrders), 0)`,
+    totalViews: sql<number>`MAX(videoViews)`,
+    totalLikes: sql<number>`MAX(videoLikes)`,
+    totalPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
     totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+    avgRpm: sql<number>`CASE WHEN MAX(videoViews) > 0 THEN ROUND(COALESCE(SUM(videoGmv), 0) / MAX(videoViews) * 1000, 2) ELSE 0 END`,
     productCount: sql<number>`COUNT(DISTINCT productId)`,
   }).from(tiktokTapVideoReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
