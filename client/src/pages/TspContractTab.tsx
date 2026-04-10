@@ -99,6 +99,7 @@ export default function TspContractTab() {
     billingMonth: "",
     customAmount: "", // カスタム金額（税抜）
     customTaxRate: "", // カスタム消費税率
+    recipientEmail: "", // 送り先メールアドレス
     description: "",
     notes: "",
   });
@@ -256,6 +257,7 @@ export default function TspContractTab() {
       billingMonth: invoiceForm.billingMonth,
       customAmount: invoiceForm.customAmount ? parseInt(invoiceForm.customAmount) : undefined,
       customTaxRate: invoiceForm.customTaxRate ? parseInt(invoiceForm.customTaxRate) : undefined,
+      recipientEmail: invoiceForm.recipientEmail || undefined,
       description: invoiceForm.description || undefined,
       notes: invoiceForm.notes || undefined,
     });
@@ -496,6 +498,7 @@ export default function TspContractTab() {
                               billingMonth: bulkMonth,
                               customAmount: String(c.monthlyAmount),
                               customTaxRate: String(c.taxRate),
+                              recipientEmail: c.contactEmail || "",
                               description: "",
                               notes: "",
                             });
@@ -1008,6 +1011,7 @@ export default function TspContractTab() {
                   contractId: parseInt(v),
                   customAmount: selected ? String(selected.monthlyAmount) : f.customAmount,
                   customTaxRate: selected ? String(selected.taxRate) : f.customTaxRate,
+                  recipientEmail: selected ? (selected.contactEmail || "") : f.recipientEmail,
                 }));
               }}>
                 <SelectTrigger><SelectValue placeholder="契約を選択" /></SelectTrigger>
@@ -1028,6 +1032,19 @@ export default function TspContractTab() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label>送り先メールアドレス</Label>
+              <div className="flex gap-2">
+                <Mail className="h-4 w-4 mt-2.5 text-muted-foreground shrink-0" />
+                <Input
+                  type="email"
+                  value={invoiceForm.recipientEmail}
+                  onChange={e => setInvoiceForm(f => ({ ...f, recipientEmail: e.target.value }))}
+                  placeholder="例: info@example.com"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">契約のメールアドレスがデフォルトで入力されます。変更も可能です。</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

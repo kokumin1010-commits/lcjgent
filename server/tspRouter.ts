@@ -308,6 +308,7 @@ export const tspRouter = router({
       billingMonth: z.string().regex(/^\d{4}-\d{2}$/), // YYYY-MM
       customAmount: z.number().optional(), // カスタム金額（税抜・円）。未指定時は契約の月額料金を使用
       customTaxRate: z.number().optional(), // カスタム消費税率（%）。未指定時は契約の税率を使用
+      recipientEmail: z.string().email().optional(), // 送り先メールアドレス（未指定時は契約のcontactEmail）
       description: z.string().optional(),
       notes: z.string().optional(),
     }))
@@ -326,7 +327,7 @@ export const tspRouter = router({
         try {
           const customer = await stripe.customers.create({
             name: contract.companyName || contract.shopName,
-            email: contract.contactEmail,
+            email: input.recipientEmail || contract.contactEmail,
             phone: contract.contactPhone || undefined,
             metadata: {
               shopName: contract.shopName,
@@ -368,6 +369,17 @@ export const tspRouter = router({
         } catch (autoErr: any) {
           console.error(`[TSP] Stripe自動作成失敗: ${autoErr.message}`);
           throw new Error(`Stripe Customerの自動作成に失敗しました: ${autoErr.message}`);
+        }
+      }
+
+      // 送り先メールアドレス（カスタム指定がある場合はStripe Customerのメールも更新）
+      const recipientEmail = input.recipientEmail || contract.contactEmail;
+      if (input.recipientEmail && input.recipientEmail !== contract.contactEmail && contract.stripeCustomerId) {
+        try {
+          await stripe.customers.update(contract.stripeCustomerId, { email: input.recipientEmail });
+          console.log(`[TSP] Stripe Customer email updated to: ${input.recipientEmail}`);
+        } catch (emailErr: any) {
+          console.warn(`[TSP] Stripe Customer email update failed: ${emailErr.message}`);
         }
       }
 
