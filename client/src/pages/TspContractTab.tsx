@@ -273,7 +273,7 @@ export default function TspContractTab() {
       amount: inv.amount || 0,
       totalAmount: inv.totalAmount || 0,
       emailSubject: `【株式会社Live Commerce Japan】請求書のご送付（${billingMonth}分）`,
-      emailBody: `${shopName} 御中\n\n平素より大変お世話になっております。\n株式会社Live Commerce Japanです。\n\n${billingMonth}分の請求書をお送りいたします。\n下記リンクよりご確認ください。\n\nご不明な点がございましたら、お気軽にお問い合わせください。\n\n今後ともよろしくお願いいたします。`,
+      emailBody: `${shopName} 御中\n\n平素より大変お世話になっております。\n株式会社Live Commerce Japanです。\n\n${billingMonth}分の請求書をお送りいたします。\n下記リンクよりご確認ください。\n\nお支払いは、リンク先のカード決済または下記口座へのお振込にてお願いいたします。\n\n【振込先】\n銀行名: 三井住友銀行\n支店名: トランクNORTH支店（店番号: 403）\n口座種別: 普通\n口座番号: 0292809\n口座名義: カ）ライブコマースジャパン\n\nご不明な点がございましたら、お気軽にお問い合わせください。\n\n今後ともよろしくお願いいたします。`,
     });
     setShowSendEmailDialog(true);
   }

@@ -22,10 +22,20 @@ const stripe = new Stripe(ENV.stripeSecretKey, {
 // LCJ会社情報（請求書に記載）
 const LCJ_COMPANY_INFO = {
   name: "株式会社Live Commerce Japan",
-  address: "〒150-0001 東京都渋谷区神宮前5丁目46-20 Stonse Court表参道2階",
+  address: "〒150-0001 東京都渋谷区神宮前五丁目46番20号 Stones Court 表参道 2階",
   tel: "03-6803-8471",
   invoiceRegistrationNumber: "T5011101112942", // 適格請求書登録番号
-  bankInfo: "三井住友銀行 トランクNORTH支店 403 普通0292809",
+  bankName: "三井住友銀行",
+  bankBranch: "トランクNORTH支店（店番号: 403）",
+  bankAccountType: "普通",
+  bankAccountNumber: "0292809",
+  bankAccountHolder: "カ）ライブコマースジャパン",
+  get bankInfo() {
+    return `${this.bankName} ${this.bankBranch} ${this.bankAccountType} ${this.bankAccountNumber} ${this.bankAccountHolder}`;
+  },
+  get bankInfoFormatted() {
+    return `【振込先】\n銀行名: ${this.bankName}\n支店名: ${this.bankBranch}\n口座種別: ${this.bankAccountType}\n口座番号: ${this.bankAccountNumber}\n口座名義: ${this.bankAccountHolder}`;
+  },
 };
 
 export const tspRouter = router({
@@ -410,6 +420,18 @@ export const tspRouter = router({
           customer: contract.stripeCustomerId,
           collection_method: contract.paymentMethod === "auto_charge" ? "charge_automatically" : "send_invoice",
           days_until_due: contract.paymentMethod === "bank_transfer" ? contract.paymentDueDays : undefined,
+          // 銀行振込（Japan Bank Transfer）を支払い方法として有効化
+          payment_settings: {
+            payment_method_types: ["card", "customer_balance"],
+            payment_method_options: {
+              customer_balance: {
+                funding_type: "bank_transfer",
+                bank_transfer: {
+                  type: "jp_bank_transfer",
+                },
+              },
+            },
+          },
           metadata: {
             contractId: String(contract.id),
             billingMonth: input.billingMonth,
@@ -420,7 +442,7 @@ export const tspRouter = router({
             { name: "請求書番号", value: invoiceNumber },
             { name: "適格請求書登録番号", value: LCJ_COMPANY_INFO.invoiceRegistrationNumber },
           ],
-          footer: `${LCJ_COMPANY_INFO.name}\n${LCJ_COMPANY_INFO.address}\nTEL: ${LCJ_COMPANY_INFO.tel}\n振込先: ${LCJ_COMPANY_INFO.bankInfo}`,
+          footer: `${LCJ_COMPANY_INFO.name}\n${LCJ_COMPANY_INFO.address}\nTEL: ${LCJ_COMPANY_INFO.tel}\n\n${LCJ_COMPANY_INFO.bankInfoFormatted}`,
         });
 
         // Invoice Item を明示的に invoice ID 指定で追加（税抜金額）
@@ -623,6 +645,18 @@ export const tspRouter = router({
             customer: contract.stripeCustomerId,
             collection_method: contract.paymentMethod === "auto_charge" ? "charge_automatically" : "send_invoice",
             days_until_due: contract.paymentMethod === "bank_transfer" ? contract.paymentDueDays : undefined,
+            // 銀行振込（Japan Bank Transfer）を支払い方法として有効化
+            payment_settings: {
+              payment_method_types: ["card", "customer_balance"],
+              payment_method_options: {
+                customer_balance: {
+                  funding_type: "bank_transfer",
+                  bank_transfer: {
+                    type: "jp_bank_transfer",
+                  },
+                },
+              },
+            },
             metadata: {
               contractId: String(contract.id),
               billingMonth: input.billingMonth,
@@ -633,7 +667,7 @@ export const tspRouter = router({
               { name: "請求書番号", value: invoiceNumber },
               { name: "適格請求書登録番号", value: LCJ_COMPANY_INFO.invoiceRegistrationNumber },
             ],
-            footer: `${LCJ_COMPANY_INFO.name}\n${LCJ_COMPANY_INFO.address}\nTEL: ${LCJ_COMPANY_INFO.tel}\n振込先: ${LCJ_COMPANY_INFO.bankInfo}`,
+            footer: `${LCJ_COMPANY_INFO.name}\n${LCJ_COMPANY_INFO.address}\nTEL: ${LCJ_COMPANY_INFO.tel}\n\n${LCJ_COMPANY_INFO.bankInfoFormatted}`,
           });
 
           await stripe.invoiceItems.create({
