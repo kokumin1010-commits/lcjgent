@@ -316,10 +316,57 @@ export const tspRouter = router({
       // 契約情報を取得
       const contracts = await db.select().from(tspContracts).where(eq(tspContracts.id, input.contractId)).limit(1);
       if (contracts.length === 0) throw new Error("Contract not found");
-      const contract = contracts[0];
+      let contract = contracts[0];
 
+      // Stripe Customerが未設定の場合、自動で作成する
       if (!contract.stripeCustomerId) {
-        throw new Error("Stripe Customer IDが設定されていません。先に契約のStripe連携を完了してください。");
+        console.log(`[TSP] Stripe Customer未設定のため自動作成: contract=${contract.id}`);
+        try {
+          const customer = await stripe.customers.create({
+            name: contract.companyName || contract.shopName,
+            email: contract.contactEmail,
+            phone: contract.contactPhone || undefined,
+            metadata: {
+              shopName: contract.shopName,
+              contactName: contract.contactName || "",
+              type: "tsp_contract",
+            },
+            address: contract.address ? {
+              line1: contract.address,
+              postal_code: contract.postalCode || undefined,
+              country: "JP",
+            } : undefined,
+            invoice_settings: {
+              custom_fields: [
+                { name: "適格請求書登録番号", value: LCJ_COMPANY_INFO.invoiceRegistrationNumber },
+                { name: "振込先", value: LCJ_COMPANY_INFO.bankInfo },
+              ],
+            },
+          });
+          const product = await stripe.products.create({
+            name: `TSP月額契約 - ${contract.shopName}`,
+            description: contract.description || `TikTok Shop Partner 月額契約（${contract.shopName}）`,
+            metadata: { shopName: contract.shopName, type: "tsp_monthly" },
+          });
+          const price = await stripe.prices.create({
+            product: product.id,
+            unit_amount: contract.monthlyAmount,
+            currency: "jpy",
+            recurring: { interval: "month" },
+            metadata: { shopName: contract.shopName, type: "tsp_monthly" },
+          });
+          // DB更新
+          await db.update(tspContracts).set({
+            stripeCustomerId: customer.id,
+            stripeProductId: product.id,
+            stripePriceId: price.id,
+          }).where(eq(tspContracts.id, contract.id));
+          contract = { ...contract, stripeCustomerId: customer.id, stripeProductId: product.id, stripePriceId: price.id };
+          console.log(`[TSP] Stripe自動作成完了: Customer=${customer.id}, Product=${product.id}`);
+        } catch (autoErr: any) {
+          console.error(`[TSP] Stripe自動作成失敗: ${autoErr.message}`);
+          throw new Error(`Stripe Customerの自動作成に失敗しました: ${autoErr.message}`);
+        }
       }
 
       // 金額計算
@@ -653,6 +700,83 @@ export const tspRouter = router({
       const successCount = results.filter(r => r.success).length;
       console.log(`[TSP] Bulk send: ${successCount}/${results.length} invoices sent for ${input.billingMonth}`);
       return { results, successCount, failCount: results.length - successCount };
+    }),
+
+  // ========================================
+  // Stripe連携再実行（既存契約にStripe Customer/Product/Priceを作成）
+  // ========================================
+  linkStripe: protectedProcedure
+    .input(z.object({ contractId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const contracts = await db.select().from(tspContracts).where(eq(tspContracts.id, input.contractId)).limit(1);
+      if (contracts.length === 0) throw new Error("Contract not found");
+      const contract = contracts[0];
+
+      if (contract.stripeCustomerId) {
+        return { success: true, message: "既にStripe連携済みです", stripeCustomerId: contract.stripeCustomerId };
+      }
+
+      try {
+        // Stripe Customer 作成
+        const customer = await stripe.customers.create({
+          name: contract.companyName || contract.shopName,
+          email: contract.contactEmail,
+          phone: contract.contactPhone || undefined,
+          metadata: {
+            shopName: contract.shopName,
+            contactName: contract.contactName || "",
+            type: "tsp_contract",
+          },
+          address: contract.address ? {
+            line1: contract.address,
+            postal_code: contract.postalCode || undefined,
+            country: "JP",
+          } : undefined,
+          invoice_settings: {
+            custom_fields: [
+              { name: "適格請求書登録番号", value: LCJ_COMPANY_INFO.invoiceRegistrationNumber },
+              { name: "振込先", value: LCJ_COMPANY_INFO.bankInfo },
+            ],
+          },
+        });
+
+        // Stripe Product 作成
+        const product = await stripe.products.create({
+          name: `TSP月額契約 - ${contract.shopName}`,
+          description: contract.description || `TikTok Shop Partner 月額契約（${contract.shopName}）`,
+          metadata: { shopName: contract.shopName, type: "tsp_monthly" },
+        });
+
+        // Stripe Price 作成
+        const price = await stripe.prices.create({
+          product: product.id,
+          unit_amount: contract.monthlyAmount,
+          currency: "jpy",
+          recurring: { interval: "month" },
+          metadata: { shopName: contract.shopName, type: "tsp_monthly" },
+        });
+
+        // DB更新
+        await db.update(tspContracts).set({
+          stripeCustomerId: customer.id,
+          stripeProductId: product.id,
+          stripePriceId: price.id,
+        }).where(eq(tspContracts.id, contract.id));
+
+        console.log(`[TSP] Stripe連携完了: contract=${contract.id}, customer=${customer.id}`);
+        return {
+          success: true,
+          stripeCustomerId: customer.id,
+          stripeProductId: product.id,
+          stripePriceId: price.id,
+        };
+      } catch (err: any) {
+        console.error(`[TSP] Stripe連携エラー: ${err.message}`);
+        throw new Error(`Stripe連携に失敗しました: ${err.message}`);
+      }
     }),
 
   // ========================================

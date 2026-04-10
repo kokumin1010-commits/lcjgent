@@ -183,6 +183,15 @@ export default function TspContractTab() {
     onError: (err) => toast.error(`一括送信エラー: ${err.message}`),
   });
 
+  const linkStripeMutation = trpc.tsp.linkStripe.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message || `Stripe連携完了（Customer: ${data.stripeCustomerId}）`);
+      contractsQuery.refetch();
+      dashboardQuery.refetch();
+    },
+    onError: (err) => toast.error(`Stripe連携エラー: ${err.message}`),
+  });
+
   function resetForm() {
     setForm({
       brandId: "", lcjStaffId: "",
@@ -467,7 +476,23 @@ export default function TspContractTab() {
                       {c.tapShopName && <span>TAPショップ: {c.tapShopName}</span>}
                       {c.brandId && brandsMap.get(c.brandId) && <span className="text-indigo-600">ブランド: {(brandsMap.get(c.brandId) as any)?.name}</span>}
                       {c.lcjStaffId && staffMap.get(c.lcjStaffId) && <span className="text-blue-600">LCJ担当: {(staffMap.get(c.lcjStaffId) as any)?.name}</span>}
-                      {c.stripeCustomerId && <span className="text-green-600">Stripe連携済</span>}
+                      {c.stripeCustomerId ? (
+                        <span className="text-green-600">Stripe連携済</span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-5 text-xs px-2 text-orange-600 border-orange-300 hover:bg-orange-50"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            linkStripeMutation.mutate({ contractId: c.id });
+                          }}
+                          disabled={linkStripeMutation.isPending}
+                        >
+                          {linkStripeMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CreditCard className="h-3 w-3 mr-1" />}
+                          Stripe連携
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
