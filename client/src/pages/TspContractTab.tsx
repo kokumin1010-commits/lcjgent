@@ -21,7 +21,8 @@ import {
   Building2, Plus, Send, FileText, DollarSign, Users,
   Loader2, Eye, ExternalLink, CheckCircle, Clock, AlertTriangle,
   XCircle, CreditCard, Landmark, Calendar, ChevronDown, ChevronUp,
-  ReceiptText, Trash2, Pencil, RefreshCw, ChevronsUpDown, Check, Search
+  ReceiptText, Trash2, Pencil, RefreshCw, ChevronsUpDown, Check, Search,
+  Mail
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -96,8 +97,22 @@ export default function TspContractTab() {
   const [invoiceForm, setInvoiceForm] = useState({
     contractId: 0,
     billingMonth: "",
+    customAmount: "", // カスタム金額（税抜）
+    customTaxRate: "", // カスタム消費税率
     description: "",
     notes: "",
+  });
+
+  // メール編集ダイアログ用state
+  const [showSendEmailDialog, setShowSendEmailDialog] = useState(false);
+  const [sendEmailForm, setSendEmailForm] = useState({
+    invoiceId: 0,
+    invoiceNumber: "",
+    shopName: "",
+    amount: 0,
+    totalAmount: 0,
+    emailSubject: "",
+    emailBody: "",
   });
 
   // Queries
@@ -239,9 +254,35 @@ export default function TspContractTab() {
     createInvoiceMutation.mutate({
       contractId: invoiceForm.contractId,
       billingMonth: invoiceForm.billingMonth,
+      customAmount: invoiceForm.customAmount ? parseInt(invoiceForm.customAmount) : undefined,
+      customTaxRate: invoiceForm.customTaxRate ? parseInt(invoiceForm.customTaxRate) : undefined,
       description: invoiceForm.description || undefined,
       notes: invoiceForm.notes || undefined,
     });
+  }
+
+  function openSendEmailDialog(inv: any, contract: any) {
+    const shopName = contract?.shopName || "";
+    const billingMonth = inv.billingMonth || "";
+    setSendEmailForm({
+      invoiceId: inv.id,
+      invoiceNumber: inv.invoiceNumber || "",
+      shopName,
+      amount: inv.amount || 0,
+      totalAmount: inv.totalAmount || 0,
+      emailSubject: `【株式会社Live Commerce Japan】請求書のご送付（${billingMonth}分）`,
+      emailBody: `${shopName} 御中\n\n平素より大変お世話になっております。\n株式会社Live Commerce Japanです。\n\n${billingMonth}分の請求書をお送りいたします。\n下記リンクよりご確認ください。\n\nご不明な点がございましたら、お気軽にお問い合わせください。\n\n今後ともよろしくお願いいたします。`,
+    });
+    setShowSendEmailDialog(true);
+  }
+
+  function handleSendWithEmail() {
+    sendInvoiceMutation.mutate({
+      invoiceId: sendEmailForm.invoiceId,
+      emailSubject: sendEmailForm.emailSubject || undefined,
+      emailBody: sendEmailForm.emailBody || undefined,
+    });
+    setShowSendEmailDialog(false);
   }
 
   function getMonthOptions() {
@@ -453,6 +494,8 @@ export default function TspContractTab() {
                             setInvoiceForm({
                               contractId: c.id,
                               billingMonth: bulkMonth,
+                              customAmount: String(c.monthlyAmount),
+                              customTaxRate: String(c.taxRate),
                               description: "",
                               notes: "",
                             });
@@ -556,7 +599,7 @@ export default function TspContractTab() {
                         <td className="py-3 px-3 text-center">
                           <div className="flex items-center justify-center gap-1">
                             {inv.status === "draft" && (
-                              <Button size="sm" variant="ghost" onClick={() => sendInvoiceMutation.mutate({ invoiceId: inv.id })} disabled={sendInvoiceMutation.isPending}>
+                              <Button size="sm" variant="ghost" onClick={() => openSendEmailDialog(inv, contract)} disabled={sendInvoiceMutation.isPending}>
                                 <Send className="h-3.5 w-3.5" />
                               </Button>
                             )}
@@ -958,7 +1001,15 @@ export default function TspContractTab() {
           <div className="space-y-4">
             <div>
               <Label>契約</Label>
-              <Select value={String(invoiceForm.contractId)} onValueChange={v => setInvoiceForm(f => ({ ...f, contractId: parseInt(v) }))}>
+              <Select value={String(invoiceForm.contractId)} onValueChange={v => {
+                const selected = contracts.find((c: any) => c.id === parseInt(v));
+                setInvoiceForm(f => ({
+                  ...f,
+                  contractId: parseInt(v),
+                  customAmount: selected ? String(selected.monthlyAmount) : f.customAmount,
+                  customTaxRate: selected ? String(selected.taxRate) : f.customTaxRate,
+                }));
+              }}>
                 <SelectTrigger><SelectValue placeholder="契約を選択" /></SelectTrigger>
                 <SelectContent>
                   {contracts.filter((c: any) => c.status === "active").map((c: any) => (
@@ -978,6 +1029,33 @@ export default function TspContractTab() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>請求金額（税抜・円）</Label>
+                <Input
+                  type="number"
+                  value={invoiceForm.customAmount}
+                  onChange={e => setInvoiceForm(f => ({ ...f, customAmount: e.target.value }))}
+                  placeholder="例: 150000"
+                />
+                {invoiceForm.customAmount && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    税込: {formatCurrency(
+                      parseInt(invoiceForm.customAmount) + Math.floor(parseInt(invoiceForm.customAmount) * (parseInt(invoiceForm.customTaxRate) || 10) / 100)
+                    )}
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label>消費税率（%）</Label>
+                <Input
+                  type="number"
+                  value={invoiceForm.customTaxRate}
+                  onChange={e => setInvoiceForm(f => ({ ...f, customTaxRate: e.target.value }))}
+                  placeholder="10"
+                />
+              </div>
+            </div>
             <div>
               <Label>明細（任意）</Label>
               <Textarea value={invoiceForm.description} onChange={e => setInvoiceForm(f => ({ ...f, description: e.target.value }))} placeholder="請求書に記載する明細内容" rows={2} />
@@ -988,6 +1066,47 @@ export default function TspContractTab() {
             <Button onClick={handleCreateInvoice} disabled={createInvoiceMutation.isPending}>
               {createInvoiceMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ReceiptText className="h-4 w-4 mr-2" />}
               作成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========== Send Email Dialog ========== */}
+      <Dialog open={showSendEmailDialog} onOpenChange={setShowSendEmailDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Mail className="h-5 w-5" />請求書送信</DialogTitle>
+            <DialogDescription>
+              {sendEmailForm.invoiceNumber} - {sendEmailForm.shopName}（{formatCurrency(sendEmailForm.totalAmount)}）
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>メール件名</Label>
+              <Input
+                value={sendEmailForm.emailSubject}
+                onChange={e => setSendEmailForm(f => ({ ...f, emailSubject: e.target.value }))}
+                placeholder="請求書のメール件名"
+              />
+            </div>
+            <div>
+              <Label>メール本文</Label>
+              <Textarea
+                value={sendEmailForm.emailBody}
+                onChange={e => setSendEmailForm(f => ({ ...f, emailBody: e.target.value }))}
+                placeholder="請求書に添付するメッセージ"
+                rows={8}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Stripeから送信されるメールにこの内容が含まれます。支払いリンクは自動で付与されます。
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSendEmailDialog(false)}>キャンセル</Button>
+            <Button onClick={handleSendWithEmail} disabled={sendInvoiceMutation.isPending}>
+              {sendInvoiceMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+              送信
             </Button>
           </DialogFooter>
         </DialogContent>

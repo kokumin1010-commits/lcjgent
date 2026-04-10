@@ -306,6 +306,8 @@ export const tspRouter = router({
     .input(z.object({
       contractId: z.number(),
       billingMonth: z.string().regex(/^\d{4}-\d{2}$/), // YYYY-MM
+      customAmount: z.number().optional(), // カスタム金額（税抜・円）。未指定時は契約の月額料金を使用
+      customTaxRate: z.number().optional(), // カスタム消費税率（%）。未指定時は契約の税率を使用
       description: z.string().optional(),
       notes: z.string().optional(),
     }))
@@ -369,9 +371,10 @@ export const tspRouter = router({
         }
       }
 
-      // 金額計算
-      const amount = contract.monthlyAmount;
-      const taxAmount = Math.floor(amount * contract.taxRate / 100);
+      // 金額計算（カスタム金額が指定されている場合はそちらを優先）
+      const amount = input.customAmount ?? contract.monthlyAmount;
+      const taxRate = input.customTaxRate ?? contract.taxRate;
+      const taxAmount = Math.floor(amount * taxRate / 100);
       const totalAmount = amount + taxAmount;
 
       // 支払期限計算
@@ -387,25 +390,10 @@ export const tspRouter = router({
       let stripeInvoicePdf: string | undefined;
 
       try {
-        // Stripe Invoice Item 追加
         const descriptionText = input.description || contract.description || `TikTok Shop Partner 月額契約（${contract.shopName}）${input.billingMonth}分`;
 
-        await stripe.invoiceItems.create({
-          customer: contract.stripeCustomerId,
-          amount: amount, // 税抜金額
-          currency: "jpy",
-          description: descriptionText,
-        });
-
-        // 消費税を別行として追加
-        await stripe.invoiceItems.create({
-          customer: contract.stripeCustomerId,
-          amount: taxAmount,
-          currency: "jpy",
-          description: `消費税（${contract.taxRate}%）`,
-        });
-
-        // Stripe Invoice 作成
+        // ★ 修正: Stripe Invoice を先に作成し、InvoiceItem を invoice パラメータで明示的に紐付ける
+        // （pending items の自動紐付けに依存しない確実な方法）
         const stripeInvoice = await stripe.invoices.create({
           customer: contract.stripeCustomerId,
           collection_method: contract.paymentMethod === "auto_charge" ? "charge_automatically" : "send_invoice",
@@ -423,8 +411,26 @@ export const tspRouter = router({
           footer: `${LCJ_COMPANY_INFO.name}\n${LCJ_COMPANY_INFO.address}\nTEL: ${LCJ_COMPANY_INFO.tel}\n振込先: ${LCJ_COMPANY_INFO.bankInfo}`,
         });
 
+        // Invoice Item を明示的に invoice ID 指定で追加（税抜金額）
+        await stripe.invoiceItems.create({
+          customer: contract.stripeCustomerId,
+          invoice: stripeInvoice.id,
+          amount: amount,
+          currency: "jpy",
+          description: descriptionText,
+        });
+
+        // 消費税を別行として追加
+        await stripe.invoiceItems.create({
+          customer: contract.stripeCustomerId,
+          invoice: stripeInvoice.id,
+          amount: taxAmount,
+          currency: "jpy",
+          description: `消費税（${taxRate}%）`,
+        });
+
         stripeInvoiceId = stripeInvoice.id;
-        console.log(`[TSP] Stripe Invoice created: ${stripeInvoice.id} for ${contract.shopName} (${input.billingMonth})`);
+        console.log(`[TSP] Stripe Invoice created: ${stripeInvoice.id} for ${contract.shopName} (${input.billingMonth}), amount=${amount}, tax=${taxAmount}, total=${totalAmount}`);
 
       } catch (stripeErr: any) {
         console.error("[TSP] Stripe Invoice creation error:", stripeErr.message);
@@ -457,7 +463,11 @@ export const tspRouter = router({
   // 請求書送信（Stripe Invoice を finalize & send）
   // ========================================
   sendInvoice: protectedProcedure
-    .input(z.object({ invoiceId: z.number() }))
+    .input(z.object({
+      invoiceId: z.number(),
+      emailSubject: z.string().optional(), // カスタムメール件名
+      emailBody: z.string().optional(), // カスタムメール本文（Stripe description として設定）
+    }))
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
@@ -475,6 +485,19 @@ export const tspRouter = router({
       }
 
       try {
+        // メール件名・本文のカスタマイズ（finalize前に設定）
+        if (input.emailSubject || input.emailBody) {
+          const updateParams: any = {};
+          if (input.emailBody) {
+            updateParams.description = input.emailBody;
+          }
+          if (input.emailSubject) {
+            updateParams.statement_descriptor = input.emailSubject.substring(0, 22); // Stripe制限: 22文字
+            updateParams.metadata = { ...updateParams.metadata, emailSubject: input.emailSubject };
+          }
+          await stripe.invoices.update(invoice.stripeInvoiceId, updateParams);
+        }
+
         // Stripe Invoice を確定 (finalize)
         const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoice.stripeInvoiceId);
 
@@ -581,22 +604,8 @@ export const tspRouter = router({
           const dueDate = new Date(year, month - 1, contract.billingDay + contract.paymentDueDays);
           const invoiceNumber = `LCJ-TSP-${input.billingMonth.replace("-", "")}-${String(contract.id).padStart(3, "0")}`;
 
-          // Stripe Invoice 作成
+          // Stripe Invoice 作成（先にInvoiceを作成し、InvoiceItemをinvoice指定で紐付け）
           const descriptionText = contract.description || `TikTok Shop Partner 月額契約（${contract.shopName}）${input.billingMonth}分`;
-
-          await stripe.invoiceItems.create({
-            customer: contract.stripeCustomerId,
-            amount: amount,
-            currency: "jpy",
-            description: descriptionText,
-          });
-
-          await stripe.invoiceItems.create({
-            customer: contract.stripeCustomerId,
-            amount: taxAmount,
-            currency: "jpy",
-            description: `消費税（${contract.taxRate}%）`,
-          });
 
           const stripeInvoice = await stripe.invoices.create({
             customer: contract.stripeCustomerId,
@@ -613,6 +622,22 @@ export const tspRouter = router({
               { name: "適格請求書登録番号", value: LCJ_COMPANY_INFO.invoiceRegistrationNumber },
             ],
             footer: `${LCJ_COMPANY_INFO.name}\n${LCJ_COMPANY_INFO.address}\nTEL: ${LCJ_COMPANY_INFO.tel}\n振込先: ${LCJ_COMPANY_INFO.bankInfo}`,
+          });
+
+          await stripe.invoiceItems.create({
+            customer: contract.stripeCustomerId,
+            invoice: stripeInvoice.id,
+            amount: amount,
+            currency: "jpy",
+            description: descriptionText,
+          });
+
+          await stripe.invoiceItems.create({
+            customer: contract.stripeCustomerId,
+            invoice: stripeInvoice.id,
+            amount: taxAmount,
+            currency: "jpy",
+            description: `消費税（${contract.taxRate}%）`,
           });
 
           // DB保存
