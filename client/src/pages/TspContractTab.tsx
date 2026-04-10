@@ -14,13 +14,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { toast } from "sonner";
 import {
   Building2, Plus, Send, FileText, DollarSign, Users,
   Loader2, Eye, ExternalLink, CheckCircle, Clock, AlertTriangle,
   XCircle, CreditCard, Landmark, Calendar, ChevronDown, ChevronUp,
-  ReceiptText, Trash2, Pencil, RefreshCw
+  ReceiptText, Trash2, Pencil, RefreshCw, ChevronsUpDown, Check, Search
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function formatCurrency(val: number | null | undefined): string {
   return `¥${(val || 0).toLocaleString()}`;
@@ -56,6 +59,10 @@ export default function TspContractTab() {
   const [showBulkCreateDialog, setShowBulkCreateDialog] = useState(false);
   const [selectedContractId, setSelectedContractId] = useState<number | null>(null);
   const [editingContract, setEditingContract] = useState<any | null>(null);
+  const [brandPopoverOpen, setBrandPopoverOpen] = useState(false);
+  const [staffPopoverOpen, setStaffPopoverOpen] = useState(false);
+  const [editBrandPopoverOpen, setEditBrandPopoverOpen] = useState(false);
+  const [editStaffPopoverOpen, setEditStaffPopoverOpen] = useState(false);
   const [expandedInvoiceContract, setExpandedInvoiceContract] = useState<number | null>(null);
   const [bulkMonth, setBulkMonth] = useState(() => {
     const now = new Date();
@@ -562,44 +569,112 @@ export default function TspContractTab() {
             <DialogDescription>TikTok Shop Partner の月額契約を作成します。Stripe Customer/Product が自動作成されます。</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* ブランド選択 */}
+            {/* ブランド選択（検索付き） */}
             <div>
               <Label>ブランド（紐付け）</Label>
-              <Select value={form.brandId} onValueChange={v => {
-                setForm(f => ({ ...f, brandId: v }));
-                // ブランド選択時に会社名・メール・電話を自動入力
-                const brand = brandsMap.get(parseInt(v));
-                if (brand) {
-                  setForm(f => ({
-                    ...f,
-                    brandId: v,
-                    shopName: f.shopName || brand.name || "",
-                    companyName: f.companyName || brand.companyName || "",
-                    contactEmail: f.contactEmail || brand.email || "",
-                    contactPhone: f.contactPhone || brand.phoneNumber || "",
-                    contactName: f.contactName || brand.contactPerson || "",
-                  }));
-                }
-              }}>
-                <SelectTrigger><SelectValue placeholder="ブランドを選択（任意）" /></SelectTrigger>
-                <SelectContent>
-                  {(brandsQuery.data || []).filter((b: any) => !b.deletedAt).map((b: any) => (
-                    <SelectItem key={b.id} value={String(b.id)}>{b.name}{b.companyName ? ` (${b.companyName})` : ""}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={brandPopoverOpen} onOpenChange={setBrandPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" aria-expanded={brandPopoverOpen} className="w-full justify-between font-normal">
+                    {form.brandId
+                      ? (brandsMap.get(parseInt(form.brandId)) as any)?.name || "選択済み"
+                      : "ブランドを検索・選択（任意）"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[350px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="ブランド名で検索..." />
+                    <CommandList>
+                      <CommandEmpty>見つかりません</CommandEmpty>
+                      <CommandGroup>
+                        {form.brandId && (
+                          <CommandItem
+                            value="__clear__"
+                            onSelect={() => {
+                              setForm(f => ({ ...f, brandId: "" }));
+                              setBrandPopoverOpen(false);
+                            }}
+                          >
+                            <XCircle className="mr-2 h-4 w-4 text-muted-foreground" />
+                            選択解除
+                          </CommandItem>
+                        )}
+                        {(brandsQuery.data || []).filter((b: any) => !b.deletedAt).map((b: any) => (
+                          <CommandItem
+                            key={b.id}
+                            value={`${b.name} ${b.companyName || ""}`}
+                            onSelect={() => {
+                              const v = String(b.id);
+                              setForm(f => ({
+                                ...f,
+                                brandId: v,
+                                shopName: f.shopName || b.name || "",
+                                companyName: f.companyName || b.companyName || "",
+                                contactEmail: f.contactEmail || b.email || "",
+                                contactPhone: f.contactPhone || b.phoneNumber || "",
+                                contactName: f.contactName || b.contactPerson || "",
+                              }));
+                              setBrandPopoverOpen(false);
+                            }}
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", form.brandId === String(b.id) ? "opacity-100" : "opacity-0")} />
+                            {b.name}{b.companyName ? ` (${b.companyName})` : ""}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
-            {/* LCJ担当者選択 */}
+            {/* LCJ担当者選択（検索付き） */}
             <div>
               <Label>LCJ担当者</Label>
-              <Select value={form.lcjStaffId} onValueChange={v => setForm(f => ({ ...f, lcjStaffId: v }))}>
-                <SelectTrigger><SelectValue placeholder="担当者を選択（任意）" /></SelectTrigger>
-                <SelectContent>
-                  {(staffQuery.data || []).filter((s: any) => s.isActive === "active").map((s: any) => (
-                    <SelectItem key={s.id} value={String(s.id)}>{s.name}{s.department ? ` (${s.department})` : ""}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={staffPopoverOpen} onOpenChange={setStaffPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" aria-expanded={staffPopoverOpen} className="w-full justify-between font-normal">
+                    {form.lcjStaffId
+                      ? (staffMap.get(parseInt(form.lcjStaffId)) as any)?.name || "選択済み"
+                      : "担当者を検索・選択（任意）"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[350px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="担当者名で検索..." />
+                    <CommandList>
+                      <CommandEmpty>見つかりません</CommandEmpty>
+                      <CommandGroup>
+                        {form.lcjStaffId && (
+                          <CommandItem
+                            value="__clear_staff__"
+                            onSelect={() => {
+                              setForm(f => ({ ...f, lcjStaffId: "" }));
+                              setStaffPopoverOpen(false);
+                            }}
+                          >
+                            <XCircle className="mr-2 h-4 w-4 text-muted-foreground" />
+                            選択解除
+                          </CommandItem>
+                        )}
+                        {(staffQuery.data || []).filter((s: any) => s.isActive === "active").map((s: any) => (
+                          <CommandItem
+                            key={s.id}
+                            value={`${s.name} ${s.department || ""}`}
+                            onSelect={() => {
+                              setForm(f => ({ ...f, lcjStaffId: String(s.id) }));
+                              setStaffPopoverOpen(false);
+                            }}
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", form.lcjStaffId === String(s.id) ? "opacity-100" : "opacity-0")} />
+                            {s.name}{s.department ? ` (${s.department})` : ""}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label>ショップ名 <span className="text-red-500">*</span></Label>
@@ -711,27 +786,95 @@ export default function TspContractTab() {
             <div className="space-y-4">
               <div>
                 <Label>ブランド（紐付け）</Label>
-                <Select value={editingContract.brandId ? String(editingContract.brandId) : "none"} onValueChange={v => setEditingContract((c: any) => ({ ...c, brandId: v === "none" ? null : parseInt(v) }))}>
-                  <SelectTrigger><SelectValue placeholder="ブランドを選択" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">なし</SelectItem>
-                    {(brandsQuery.data || []).filter((b: any) => !b.deletedAt).map((b: any) => (
-                      <SelectItem key={b.id} value={String(b.id)}>{b.name}{b.companyName ? ` (${b.companyName})` : ""}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={editBrandPopoverOpen} onOpenChange={setEditBrandPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={editBrandPopoverOpen} className="w-full justify-between font-normal">
+                      {editingContract.brandId
+                        ? (brandsMap.get(editingContract.brandId) as any)?.name || "選択済み"
+                        : "ブランドを検索・選択"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[350px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="ブランド名で検索..." />
+                      <CommandList>
+                        <CommandEmpty>見つかりません</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value="__clear_edit_brand__"
+                            onSelect={() => {
+                              setEditingContract((c: any) => ({ ...c, brandId: null }));
+                              setEditBrandPopoverOpen(false);
+                            }}
+                          >
+                            <XCircle className="mr-2 h-4 w-4 text-muted-foreground" />
+                            なし（解除）
+                          </CommandItem>
+                          {(brandsQuery.data || []).filter((b: any) => !b.deletedAt).map((b: any) => (
+                            <CommandItem
+                              key={b.id}
+                              value={`${b.name} ${b.companyName || ""}`}
+                              onSelect={() => {
+                                setEditingContract((c: any) => ({ ...c, brandId: b.id }));
+                                setEditBrandPopoverOpen(false);
+                              }}
+                            >
+                              <Check className={cn("mr-2 h-4 w-4", editingContract.brandId === b.id ? "opacity-100" : "opacity-0")} />
+                              {b.name}{b.companyName ? ` (${b.companyName})` : ""}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div>
                 <Label>LCJ担当者</Label>
-                <Select value={editingContract.lcjStaffId ? String(editingContract.lcjStaffId) : "none"} onValueChange={v => setEditingContract((c: any) => ({ ...c, lcjStaffId: v === "none" ? null : parseInt(v) }))}>
-                  <SelectTrigger><SelectValue placeholder="担当者を選択" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">なし</SelectItem>
-                    {(staffQuery.data || []).filter((s: any) => s.isActive === "active").map((s: any) => (
-                      <SelectItem key={s.id} value={String(s.id)}>{s.name}{s.department ? ` (${s.department})` : ""}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={editStaffPopoverOpen} onOpenChange={setEditStaffPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={editStaffPopoverOpen} className="w-full justify-between font-normal">
+                      {editingContract.lcjStaffId
+                        ? (staffMap.get(editingContract.lcjStaffId) as any)?.name || "選択済み"
+                        : "担当者を検索・選択"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[350px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="担当者名で検索..." />
+                      <CommandList>
+                        <CommandEmpty>見つかりません</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value="__clear_edit_staff__"
+                            onSelect={() => {
+                              setEditingContract((c: any) => ({ ...c, lcjStaffId: null }));
+                              setEditStaffPopoverOpen(false);
+                            }}
+                          >
+                            <XCircle className="mr-2 h-4 w-4 text-muted-foreground" />
+                            なし（解除）
+                          </CommandItem>
+                          {(staffQuery.data || []).filter((s: any) => s.isActive === "active").map((s: any) => (
+                            <CommandItem
+                              key={s.id}
+                              value={`${s.name} ${s.department || ""}`}
+                              onSelect={() => {
+                                setEditingContract((c: any) => ({ ...c, lcjStaffId: s.id }));
+                                setEditStaffPopoverOpen(false);
+                              }}
+                            >
+                              <Check className={cn("mr-2 h-4 w-4", editingContract.lcjStaffId === s.id ? "opacity-100" : "opacity-0")} />
+                              {s.name}{s.department ? ` (${s.department})` : ""}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div>
                 <Label>ショップ名</Label>
