@@ -94,6 +94,8 @@ export default function FinanceManagement() {
   const [drilldownSort, setDrilldownSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'lcjFee', dir: 'desc' });
   const [prodDrilldownSort, setProdDrilldownSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'lcjFee', dir: 'desc' });
   const [capTapHelpOpen, setCapTapHelpOpen] = useState(false);
+  const [productTableSort, setProductTableSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'brandFee', dir: 'desc' });
+  const [creatorTableSort, setCreatorTableSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'netProfit', dir: 'desc' });
   const pageSize = 50;
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
@@ -2626,21 +2628,30 @@ export default function FinanceManagement() {
                           <tr className="border-b bg-muted/50">
                             <th className="text-left py-2 px-2">#</th>
                             <th className="text-left py-2 px-2">ライバー</th>
-                            <th className="text-right py-2 px-2">アフィリGMV</th>
-                            <th className="text-right py-2 px-2">ブランド手数料</th>
-                            <th className="text-right py-2 px-2">ブランド手数料率</th>
-                            <th className="text-right py-2 px-2">C手数料</th>
-                            <th className="text-right py-2 px-2">C手数料率</th>
-                            <th className="text-right py-2 px-2">LCJ手数料(純利益)</th>
-                            <th className="text-right py-2 px-2">LCJ手数料率(純利益率)</th>
-                            <th className="text-right py-2 px-2">返金率</th>
-                            <th className="text-right py-2 px-2">注文数</th>
-                            <th className="text-right py-2 px-2">商品数</th>
+                            {[
+                              { key: 'gmv', label: 'アフィリGMV' },
+                              { key: 'brandFee', label: 'ブランド手数料' },
+                              { key: 'brandRate', label: 'ブランド手数料率' },
+                              { key: 'cFee', label: 'C手数料' },
+                              { key: 'cRate', label: 'C手数料率' },
+                              { key: 'netProfit', label: 'LCJ手数料(純利益)' },
+                              { key: 'netRate', label: 'LCJ手数料率(純利益率)' },
+                              { key: 'refundRate', label: '返金率' },
+                              { key: 'orders', label: '注文数' },
+                              { key: 'productCount', label: '商品数' },
+                            ].map(col => (
+                              <th key={col.key} className="text-right py-2 px-2 cursor-pointer select-none hover:bg-muted/70 transition-colors" onClick={() => setCreatorTableSort(prev => prev.key === col.key ? { key: col.key, dir: prev.dir === 'desc' ? 'asc' : 'desc' } : { key: col.key, dir: 'desc' })}>
+                                <span className="inline-flex items-center gap-0.5">
+                                  {col.label}
+                                  {creatorTableSort.key === col.key ? (creatorTableSort.dir === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}
+                                </span>
+                              </th>
+                            ))}
                             <th className="text-center py-2 px-2">展開</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {(tapCreatorProfitQuery.data as any[]).map((c: any, i: number) => {
+                          {[...(tapCreatorProfitQuery.data as any[])].map((c: any) => {
                             const gmv = Number(c.totalAffiliateGmv) || 0;
                             const lcjFee = Number(c.totalEstimatedPartnerCommission) || 0;
                             const cFee = Number(c.totalEstimatedCreatorCommission) || 0;
@@ -2651,6 +2662,27 @@ export default function FinanceManagement() {
                             const netRate = gmv > 0 ? (netProfit / gmv * 100) : 0;
                             const refund = Number(c.totalGmvRefund) || 0;
                             const refundRate = gmv > 0 ? (refund / gmv * 100) : 0;
+                            return { ...c, gmv, lcjFee, cFee, brandFee, brandRate, cRate, netProfit, netRate, refundRate };
+                          }).sort((a: any, b: any) => {
+                            const getVal = (item: any) => {
+                              switch (creatorTableSort.key) {
+                                case 'gmv': return item.gmv;
+                                case 'brandFee': return item.brandFee;
+                                case 'brandRate': return item.brandRate;
+                                case 'cFee': return item.cFee;
+                                case 'cRate': return item.cRate;
+                                case 'netProfit': return item.netProfit;
+                                case 'netRate': return item.netRate;
+                                case 'refundRate': return item.refundRate;
+                                case 'orders': return Number(item.totalOrders) || 0;
+                                case 'productCount': return Number(item.productCount) || 0;
+                                default: return item.netProfit;
+                              }
+                            };
+                            const va = getVal(a), vb = getVal(b);
+                            return creatorTableSort.dir === 'desc' ? vb - va : va - vb;
+                          }).map((c: any, i: number) => {
+                            const { gmv, lcjFee, cFee, brandFee, brandRate, cRate, netProfit, netRate, refundRate } = c;
                             const isExpanded = expandedCreator === c.creatorUsername;
                             return (
                               <React.Fragment key={c.creatorUsername}>
@@ -2803,15 +2835,24 @@ export default function FinanceManagement() {
                             <th className="text-left py-2 px-2">#</th>
                             <th className="text-left py-2 px-2">商品名</th>
                             <th className="text-left py-2 px-2">ショップ</th>
-                            <th className="text-right py-2 px-2">アフィリGMV</th>
-                            <th className="text-right py-2 px-2">ブランド手数料</th>
-                            <th className="text-right py-2 px-2">ブランド手数料率</th>
-                            <th className="text-right py-2 px-2">C手数料</th>
-                            <th className="text-right py-2 px-2">C手数料率</th>
-                            <th className="text-right py-2 px-2">LCJ手数料(純利益)</th>
-                            <th className="text-right py-2 px-2">LCJ手数料率(純利益率)</th>
-                            <th className="text-right py-2 px-2">返金率</th>
-                            <th className="text-right py-2 px-2">注文数</th>
+                            {[
+                              { key: 'gmv', label: 'アフィリGMV' },
+                              { key: 'brandFee', label: 'ブランド手数料' },
+                              { key: 'brandRate', label: 'ブランド手数料率' },
+                              { key: 'cFee', label: 'C手数料' },
+                              { key: 'cRate', label: 'C手数料率' },
+                              { key: 'netProfit', label: 'LCJ手数料(純利益)' },
+                              { key: 'netRate', label: 'LCJ手数料率(純利益率)' },
+                              { key: 'refundRate', label: '返金率' },
+                              { key: 'orders', label: '注文数' },
+                            ].map(col => (
+                              <th key={col.key} className="text-right py-2 px-2 cursor-pointer select-none hover:bg-muted/70 transition-colors" onClick={() => setProductTableSort(prev => prev.key === col.key ? { key: col.key, dir: prev.dir === 'desc' ? 'asc' : 'desc' } : { key: col.key, dir: 'desc' })}>
+                                <span className="inline-flex items-center gap-0.5">
+                                  {col.label}
+                                  {productTableSort.key === col.key ? (productTableSort.dir === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}
+                                </span>
+                              </th>
+                            ))}
                             <th className="text-center py-2 px-2">展開</th>
                           </tr>
                         </thead>
@@ -2830,7 +2871,24 @@ export default function FinanceManagement() {
                               const refundRate = gmv > 0 ? (refund / gmv * 100) : 0;
                               return { ...p, gmv, lcjFee, cFee, brandFee, brandRate, cRate, netProfit, netRate, refundRate };
                             })
-                            .sort((a: any, b: any) => b.brandFee - a.brandFee)
+                            .sort((a: any, b: any) => {
+                              const getVal = (item: any) => {
+                                switch (productTableSort.key) {
+                                  case 'gmv': return item.gmv;
+                                  case 'brandFee': return item.brandFee;
+                                  case 'brandRate': return item.brandRate;
+                                  case 'cFee': return item.cFee;
+                                  case 'cRate': return item.cRate;
+                                  case 'netProfit': return item.netProfit;
+                                  case 'netRate': return item.netRate;
+                                  case 'refundRate': return item.refundRate;
+                                  case 'orders': return Number(item.totalOrders) || 0;
+                                  default: return item.brandFee;
+                                }
+                              };
+                              const va = getVal(a), vb = getVal(b);
+                              return productTableSort.dir === 'desc' ? vb - va : va - vb;
+                            })
                             .map((p: any, i: number) => {
                               const isProdExpanded = expandedProduct === p.productName;
                               return (
