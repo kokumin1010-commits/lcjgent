@@ -20277,7 +20277,7 @@ export async function getTiktokTapCreatorProfitability(brandId: number = 0, mont
   }).from(tiktokTapReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .groupBy(tiktokTapReports.creatorUsername)
-    .orderBy(sql`(COALESCE(SUM(estimatedPartnerCommission), 0) - COALESCE(SUM(estimatedCreatorCommission), 0)) DESC`);
+    .orderBy(sql`COALESCE(SUM(estimatedPartnerCommission), 0) DESC`);
 }
 
 // ライバー別 商品内訳ドリルダウン
@@ -20304,7 +20304,7 @@ export async function getTiktokTapCreatorProductBreakdown(creatorUsername: strin
   }).from(tiktokTapReports)
     .where(and(...conditions))
     .groupBy(tiktokTapReports.productId, tiktokTapReports.productName)
-    .orderBy(sql`(COALESCE(SUM(estimatedPartnerCommission), 0) - COALESCE(SUM(estimatedCreatorCommission), 0)) DESC`);
+    .orderBy(sql`COALESCE(SUM(estimatedPartnerCommission), 0) DESC`);
 }
 
 // 商品別 ライバー内訳ドリルダウン（商品利益率ランキングの行クリック用）
@@ -20329,5 +20329,5 @@ export async function getTiktokTapProductCreatorBreakdown(productName: string, b
   }).from(tiktokTapReports)
     .where(and(...conditions))
     .groupBy(tiktokTapReports.creatorUsername)
-    .orderBy(sql`(COALESCE(SUM(estimatedPartnerCommission), 0) - COALESCE(SUM(estimatedCreatorCommission), 0)) DESC`);
+    .orderBy(sql`COALESCE(SUM(estimatedPartnerCommission), 0) DESC`);
 }

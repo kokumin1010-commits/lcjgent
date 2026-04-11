@@ -2621,6 +2621,7 @@ export default function FinanceManagement() {
                             <th className="text-left py-2 px-2">ライバー</th>
                             <th className="text-right py-2 px-2">アフィリGMV</th>
                             <th className="text-right py-2 px-2">LCJ手数料(見込)</th>
+                            <th className="text-right py-2 px-2">LCJ手数料率</th>
                             <th className="text-right py-2 px-2">C手数料(見込)</th>
                             <th className="text-right py-2 px-2">純利益</th>
                             <th className="text-right py-2 px-2">純利益率</th>
@@ -2636,6 +2637,7 @@ export default function FinanceManagement() {
                             const lcjFee = Number(c.totalEstimatedPartnerCommission) || 0;
                             const cFee = Number(c.totalEstimatedCreatorCommission) || 0;
                             const netProfit = lcjFee - cFee;
+                            const lcjRate = gmv > 0 ? (lcjFee / gmv * 100) : 0;
                             const netRate = gmv > 0 ? (netProfit / gmv * 100) : 0;
                             const refund = Number(c.totalGmvRefund) || 0;
                             const refundRate = gmv > 0 ? (refund / gmv * 100) : 0;
@@ -2655,6 +2657,7 @@ export default function FinanceManagement() {
                                   </td>
                                   <td className="py-1.5 px-2 text-right">{formatCurrency(gmv)}</td>
                                   <td className="py-1.5 px-2 text-right text-blue-600">{formatCurrency(lcjFee)}</td>
+                                  <td className="py-1.5 px-2 text-right">{lcjRate.toFixed(1)}%</td>
                                   <td className="py-1.5 px-2 text-right text-orange-600">{formatCurrency(cFee)}</td>
                                   <td className="py-1.5 px-2 text-right font-semibold" style={{ color: netProfit >= 0 ? '#16a34a' : '#dc2626' }}>{formatCurrency(netProfit)}</td>
                                   <td className="py-1.5 px-2 text-right font-semibold" style={{ color: netRate >= 0 ? '#16a34a' : '#dc2626' }}>{netRate.toFixed(1)}%</td>
@@ -2667,7 +2670,7 @@ export default function FinanceManagement() {
                                 </tr>
                                 {isExpanded && (
                                   <tr>
-                                    <td colSpan={11} className="p-0">
+                                    <td colSpan={12} className="p-0">
                                       <div className="bg-muted/20 border-l-4 border-amber-400 px-4 py-3">
                                         <div className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2 flex items-center gap-1">
                                           <ShoppingBag className="h-3.5 w-3.5" />
@@ -2683,6 +2686,7 @@ export default function FinanceManagement() {
                                                 <th className="text-left py-1.5 px-2">ショップ</th>
                                                 <th className="text-right py-1.5 px-2">アフィリGMV</th>
                                                 <th className="text-right py-1.5 px-2">LCJ手数料</th>
+                                                <th className="text-right py-1.5 px-2">LCJ手数料率</th>
                                                 <th className="text-right py-1.5 px-2">C手数料</th>
                                                 <th className="text-right py-1.5 px-2">純利益</th>
                                                 <th className="text-right py-1.5 px-2">純利益率</th>
@@ -2695,6 +2699,7 @@ export default function FinanceManagement() {
                                                 const pLcj = Number(p.totalEstimatedPartnerCommission) || 0;
                                                 const pC = Number(p.totalEstimatedCreatorCommission) || 0;
                                                 const pNet = pLcj - pC;
+                                                const pLcjRate = pGmv > 0 ? (pLcj / pGmv * 100) : 0;
                                                 const pNetRate = pGmv > 0 ? (pNet / pGmv * 100) : 0;
                                                 return (
                                                   <tr key={j} className="border-b hover:bg-muted/20">
@@ -2702,6 +2707,7 @@ export default function FinanceManagement() {
                                                     <td className="py-1 px-2 text-muted-foreground max-w-[100px] truncate" title={p.shopName}>{p.shopName}</td>
                                                     <td className="py-1 px-2 text-right">{formatCurrency(pGmv)}</td>
                                                     <td className="py-1 px-2 text-right text-blue-600">{formatCurrency(pLcj)}</td>
+                                                    <td className="py-1 px-2 text-right">{pLcjRate.toFixed(1)}%</td>
                                                     <td className="py-1 px-2 text-right text-orange-600">{formatCurrency(pC)}</td>
                                                     <td className="py-1 px-2 text-right font-semibold" style={{ color: pNet >= 0 ? '#16a34a' : '#dc2626' }}>{formatCurrency(pNet)}</td>
                                                     <td className="py-1 px-2 text-right" style={{ color: pNetRate >= 0 ? '#16a34a' : '#dc2626' }}>{pNetRate.toFixed(1)}%</td>
