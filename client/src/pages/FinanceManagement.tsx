@@ -3820,24 +3820,83 @@ export default function FinanceManagement() {
             <DialogDescription>TikTokアフィリエイトの手数料構造を理解するためのガイド</DialogDescription>
           </DialogHeader>
           <div className="space-y-6 text-sm">
-            {/* TAP説明 */}
-            <div className="bg-blue-50 rounded-lg p-4 space-y-2">
-              <h3 className="font-bold text-blue-900 flex items-center gap-2">
-                <span className="bg-blue-600 text-white px-2 py-0.5 rounded text-xs">TAP</span>
-                TikTok Affiliate Program
-              </h3>
-              <p className="text-blue-800">ブランドが設定した手数料が、TikTokを通じてパートナー（LCJ）とクリエイター（ライバー）に分配される仕組みです。</p>
-              <p className="text-blue-800">LCJがTAPリンクを発行する際に、Partner（LCJ）とCreator（ライバー）の分配率を自由に設定できます。</p>
+            {/* まずCAPとTAPの概念を明確に区別 */}
+            <div className="border-2 border-indigo-200 rounded-xl p-5 space-y-4 bg-gradient-to-br from-indigo-50/50 to-white">
+              <h3 className="font-bold text-base text-indigo-900 text-center">まず知っておくべき２つの概念</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* CAP */}
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-green-600 text-white px-2.5 py-1 rounded-md text-xs font-bold">CAP</span>
+                    <span className="font-bold text-green-900 text-sm">総契約ルール</span>
+                  </div>
+                  <p className="text-green-800 text-xs leading-relaxed">LCJ（事務所）とライバー間の<strong>トップレベルの分配契約</strong>です。</p>
+                  <div className="bg-green-100/70 rounded p-2 space-y-1">
+                    <p className="text-green-900 text-xs font-semibold">CAPが決めること：</p>
+                    <ul className="text-green-800 text-xs space-y-0.5 list-disc list-inside">
+                      <li>LCJとライバーの<strong>最終的な分配比率</strong></li>
+                      <li>どの収益を分配対象にするか</li>
+                      <li>最終的に誰がいくら受け取るか</li>
+                    </ul>
+                  </div>
+                  <div className="bg-green-600 text-white rounded-md px-3 py-1.5 text-center text-xs font-bold">→ 「最終的な帰属」を決める総ルール</div>
+                </div>
+                {/* TAP */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-blue-600 text-white px-2.5 py-1 rounded-md text-xs font-bold">TAP</span>
+                    <span className="font-bold text-blue-900 text-sm">プラットフォーム上の分配設定</span>
+                  </div>
+                  <p className="text-blue-800 text-xs leading-relaxed">TikTok Affiliate Program。<strong>商品単位・リンク単位</strong>で手数料のPartner/Creator分流を設定する機能です。</p>
+                  <div className="bg-blue-100/70 rounded p-2 space-y-1">
+                    <p className="text-blue-900 text-xs font-semibold">TAPの特徴：</p>
+                    <ul className="text-blue-800 text-xs space-y-0.5 list-disc list-inside">
+                      <li><strong>商品単位</strong>・リンク単位の設定</li>
+                      <li>TikTokプラットフォーム内の技術的な分配</li>
+                      <li>「この手数料をバックエンドでどう振り分けるか」を決定</li>
+                    </ul>
+                  </div>
+                  <div className="bg-blue-600 text-white rounded-md px-3 py-1.5 text-center text-xs font-bold">→ 「プラットフォーム上の経路」を決める実行ツール</div>
+                </div>
+              </div>
+              {/* 二層構造の図解 */}
+              <div className="bg-white border border-indigo-200 rounded-lg p-4 space-y-3">
+                <h4 className="font-bold text-indigo-900 text-sm text-center">二層構造の関係</h4>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-3 w-full max-w-md">
+                    <div className="bg-green-100 border-2 border-green-400 rounded-lg px-4 py-2 flex-1 text-center">
+                      <div className="text-xs text-green-600 font-semibold">第1層</div>
+                      <div className="font-bold text-green-800">CAP</div>
+                      <div className="text-xs text-green-700">最終的な分配を決定</div>
+                    </div>
+                    <div className="text-indigo-400 font-bold text-lg">≥</div>
+                    <div className="bg-blue-100 border-2 border-blue-400 rounded-lg px-4 py-2 flex-1 text-center">
+                      <div className="text-xs text-blue-600 font-semibold">第2層</div>
+                      <div className="font-bold text-blue-800">TAP</div>
+                      <div className="text-xs text-blue-700">プラットフォーム上の経路</div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-indigo-700 text-center bg-indigo-50 rounded-md px-3 py-1.5">つまり、<strong>CAPが「最終的に誰のものか」</strong>を決め、<strong>TAPが「TikTok上でどう流れるか」</strong>を決めます</p>
+              </div>
+              </div>
             </div>
 
-            {/* CAP説明 */}
-            <div className="bg-green-50 rounded-lg p-4 space-y-2">
-              <h3 className="font-bold text-green-900 flex items-center gap-2">
-                <span className="bg-green-600 text-white px-2 py-0.5 rounded text-xs">CAP</span>
-                キャスティング契約
-              </h3>
-              <p className="text-green-800">LCJとライバー間のビジネス契約です。C手数料（クリエイター報酬）をCAP契約の比率で再分配します。</p>
-              <p className="text-green-800">CAP契約のライバーでも、TAPリンクで分配率を設定できます。</p>
+            {/* 手数料の流れ */}
+            <div className="border rounded-lg p-4 space-y-3">
+              <h3 className="font-bold text-base">手数料の流れ（TAPデータの見方）</h3>
+              <div className="bg-gray-50 rounded-lg p-3 space-y-1">
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="bg-orange-100 text-orange-800 font-bold px-2 py-1 rounded">ブランド手数料</span>
+                  <span className="text-muted-foreground">＝</span>
+                  <span className="bg-blue-100 text-blue-800 font-bold px-2 py-1 rounded">LCJ手数料</span>
+                  <span className="text-muted-foreground">＋</span>
+                  <span className="bg-purple-100 text-purple-800 font-bold px-2 py-1 rounded">C手数料</span>
+                </div>
+                <ul className="text-xs text-muted-foreground space-y-0.5 mt-2 list-disc list-inside">
+                  <li><strong>LCJ手数料</strong> ＝ TikTok上でLCJ（Partner）が受け取る金額</li>
+                  <li><strong>C手数料</strong> ＝ TikTok上でライバー（Creator）が受け取る金額</li>
+                </ul>
+              </div>
             </div>
 
             {/* 具体例 */}
