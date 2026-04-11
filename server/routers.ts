@@ -425,6 +425,9 @@ import {
   getTiktokTapVideoTopVideos,
   getTiktokTapCreatorProductMatrix,
   getTiktokTapLiveEfficiency,
+  getTiktokTapCreatorProfitability,
+  getTiktokTapCreatorProductBreakdown,
+  getTiktokTapProductCreatorBreakdown,
   createLivestreamSet,
   createLivestreamSetItem,
   getLivestreamSetsByLivestreamId,
@@ -17798,6 +17801,27 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokTapLiveEfficiency(input.brandId, input.month);
+      }),
+
+    // ライバー収益分析: クリエイター別純利益ランキング
+    getTapCreatorProfitability: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getTiktokTapCreatorProfitability(input.brandId, input.month);
+      }),
+
+    // ライバー収益分析: クリエイター別 商品内訳ドリルダウン
+    getTapCreatorProductBreakdown: protectedProcedure
+      .input(z.object({ creatorUsername: z.string(), brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getTiktokTapCreatorProductBreakdown(input.creatorUsername, input.brandId, input.month);
+      }),
+
+    // 商品利益率ランキング: 商品別 ライバー内訳ドリルダウン
+    getTapProductCreatorBreakdown: protectedProcedure
+      .input(z.object({ productName: z.string(), brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getTiktokTapProductCreatorBreakdown(input.productName, input.brandId, input.month);
       }),
   }),
 

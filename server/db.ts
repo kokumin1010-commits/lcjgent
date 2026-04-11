@@ -20240,3 +20240,94 @@ export async function deleteStreamingLocation(id: number) {
   await db.update(streamingLocations).set({ isActive: false }).where(eq(streamingLocations.id, id));
   return { id, deleted: true };
 }
+
+
+// ============================================
+// ライバー収益分析（TAP: クリエイター別 純利益ランキング）
+// ============================================
+
+export async function getTiktokTapCreatorProfitability(brandId: number = 0, month?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (brandId > 0) conditions.push(eq(tiktokTapReports.brandId, brandId));
+  if (month) conditions.push(eq(tiktokTapReports.reportMonth, month));
+  
+  return db.select({
+    creatorUsername: tiktokTapReports.creatorUsername,
+    totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
+    totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
+    totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
+    totalEstimatedCreatorCommission: sql<number>`COALESCE(SUM(estimatedCreatorCommission), 0)`,
+    totalActualCreatorCommission: sql<number>`COALESCE(SUM(actualCreatorCommission), 0)`,
+    totalGmvRefund: sql<number>`COALESCE(SUM(gmvRefund), 0)`,
+    totalSettledGmv: sql<number>`COALESCE(SUM(settledGmv), 0)`,
+    totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
+    totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
+    totalLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
+    totalVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
+    totalLiveCount: sql<number>`COALESCE(SUM(liveCount), 0)`,
+    totalVideoCount: sql<number>`COALESCE(SUM(videoCount), 0)`,
+    productCount: sql<number>`COUNT(DISTINCT productId)`,
+    shopCount: sql<number>`COUNT(DISTINCT shopName)`,
+    // 純利益 = LCJ手数料(見込) - C手数料(見込)
+    netProfit: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0) - COALESCE(SUM(estimatedCreatorCommission), 0)`,
+  }).from(tiktokTapReports)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(tiktokTapReports.creatorUsername)
+    .orderBy(sql`(COALESCE(SUM(estimatedPartnerCommission), 0) - COALESCE(SUM(estimatedCreatorCommission), 0)) DESC`);
+}
+
+// ライバー別 商品内訳ドリルダウン
+export async function getTiktokTapCreatorProductBreakdown(creatorUsername: string, brandId: number = 0, month?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [eq(tiktokTapReports.creatorUsername, creatorUsername)];
+  if (brandId > 0) conditions.push(eq(tiktokTapReports.brandId, brandId));
+  if (month) conditions.push(eq(tiktokTapReports.reportMonth, month));
+  
+  return db.select({
+    productId: tiktokTapReports.productId,
+    productName: tiktokTapReports.productName,
+    shopName: sql<string>`MAX(shopName)`,
+    totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
+    totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
+    totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalEstimatedCreatorCommission: sql<number>`COALESCE(SUM(estimatedCreatorCommission), 0)`,
+    totalGmvRefund: sql<number>`COALESCE(SUM(gmvRefund), 0)`,
+    totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
+    totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
+    netProfit: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0) - COALESCE(SUM(estimatedCreatorCommission), 0)`,
+  }).from(tiktokTapReports)
+    .where(and(...conditions))
+    .groupBy(tiktokTapReports.productId, tiktokTapReports.productName)
+    .orderBy(sql`(COALESCE(SUM(estimatedPartnerCommission), 0) - COALESCE(SUM(estimatedCreatorCommission), 0)) DESC`);
+}
+
+// 商品別 ライバー内訳ドリルダウン（商品利益率ランキングの行クリック用）
+export async function getTiktokTapProductCreatorBreakdown(productName: string, brandId: number = 0, month?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [eq(tiktokTapReports.productName, productName)];
+  if (brandId > 0) conditions.push(eq(tiktokTapReports.brandId, brandId));
+  if (month) conditions.push(eq(tiktokTapReports.reportMonth, month));
+  
+  return db.select({
+    creatorUsername: tiktokTapReports.creatorUsername,
+    totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
+    totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
+    totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalEstimatedCreatorCommission: sql<number>`COALESCE(SUM(estimatedCreatorCommission), 0)`,
+    totalGmvRefund: sql<number>`COALESCE(SUM(gmvRefund), 0)`,
+    totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
+    totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
+    netProfit: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0) - COALESCE(SUM(estimatedCreatorCommission), 0)`,
+  }).from(tiktokTapReports)
+    .where(and(...conditions))
+    .groupBy(tiktokTapReports.creatorUsername)
+    .orderBy(sql`(COALESCE(SUM(estimatedPartnerCommission), 0) - COALESCE(SUM(estimatedCreatorCommission), 0)) DESC`);
+}

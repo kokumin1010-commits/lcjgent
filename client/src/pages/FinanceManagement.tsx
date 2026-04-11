@@ -53,7 +53,7 @@ function getPrevMonth(month: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments' | 'tap' | 'tap-creators' | 'tap-shops' | 'tap-products' | 'tap-live' | 'tap-videos' | 'tap-profitability' | 'tap-bestmatch' | 'tap-shop-analysis' | 'tap-live-efficiency' | 'tap-growth' | 'tsp';
+type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments' | 'tap' | 'tap-creators' | 'tap-shops' | 'tap-products' | 'tap-live' | 'tap-videos' | 'tap-profitability' | 'tap-bestmatch' | 'tap-shop-analysis' | 'tap-live-efficiency' | 'tap-growth' | 'tap-creator-profit' | 'tsp';
 
 export default function FinanceManagement() {
   const [, navigate] = useLocation();
@@ -89,6 +89,8 @@ export default function FinanceManagement() {
   const [deleteConfirmStep, setDeleteConfirmStep] = useState(0); // 0=initial, 1=password entered, 2=first confirm clicked
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
   const [expandedMonthTab, setExpandedMonthTab] = useState<'overview' | 'creators' | 'shops' | 'products'>('overview');
+  const [expandedCreator, setExpandedCreator] = useState<string | null>(null);
+  const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const pageSize = 50;
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
@@ -225,6 +227,20 @@ export default function FinanceManagement() {
   const tapLiveEfficiencyQuery = trpc.tiktokFinance.getTapLiveEfficiency.useQuery(
     { brandId: 0, month: tapMonth || undefined },
     { enabled: activeTab === 'tap-live-efficiency' }
+  );
+
+  // ライバー収益分析 Queries
+  const tapCreatorProfitQuery = trpc.tiktokFinance.getTapCreatorProfitability.useQuery(
+    { brandId: 0, month: tapMonth || undefined },
+    { enabled: activeTab === 'tap-creator-profit' }
+  );
+  const tapCreatorProductBreakdownQuery = trpc.tiktokFinance.getTapCreatorProductBreakdown.useQuery(
+    { creatorUsername: expandedCreator || '', brandId: 0, month: tapMonth || undefined },
+    { enabled: !!expandedCreator && activeTab === 'tap-creator-profit' }
+  );
+  const tapProductCreatorBreakdownQuery = trpc.tiktokFinance.getTapProductCreatorBreakdown.useQuery(
+    { productName: expandedProduct || '', brandId: 0, month: tapMonth || undefined },
+    { enabled: !!expandedProduct && activeTab === 'tap-profitability' }
   );
 
   // Month detail inline expansion queries
@@ -1666,6 +1682,7 @@ export default function FinanceManagement() {
             ))}
             <div className="border-l mx-1" />
             {[
+              { key: 'tap-creator-profit' as TabType, label: 'ライバー収益分析', icon: Crown },
               { key: 'tap-profitability' as TabType, label: '商品利益率', icon: Percent },
               { key: 'tap-bestmatch' as TabType, label: 'ベストマッチ', icon: Target },
               { key: 'tap-shop-analysis' as TabType, label: 'ショップ収益性', icon: Building2 },
@@ -2151,7 +2168,7 @@ export default function FinanceManagement() {
       )}
 
       {/* TAP sub-tabs redirect */}
-      {(activeTab === 'tap-creators' || activeTab === 'tap-shops' || activeTab === 'tap-products' || activeTab === 'tap-live' || activeTab === 'tap-videos' || activeTab === 'tap-profitability' || activeTab === 'tap-bestmatch' || activeTab === 'tap-shop-analysis' || activeTab === 'tap-live-efficiency' || activeTab === 'tap-growth') && (
+      {(activeTab === 'tap-creators' || activeTab === 'tap-shops' || activeTab === 'tap-products' || activeTab === 'tap-live' || activeTab === 'tap-videos' || activeTab === 'tap-profitability' || activeTab === 'tap-bestmatch' || activeTab === 'tap-shop-analysis' || activeTab === 'tap-live-efficiency' || activeTab === 'tap-growth' || activeTab === 'tap-creator-profit') && (
         <div className="space-y-6">
           {/* TAP Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -2203,6 +2220,7 @@ export default function FinanceManagement() {
             ))}
             <div className="border-l mx-1" />
             {[
+              { key: 'tap-creator-profit' as TabType, label: 'ライバー収益分析', icon: Crown },
               { key: 'tap-profitability' as TabType, label: '商品利益率', icon: Percent },
               { key: 'tap-bestmatch' as TabType, label: 'ベストマッチ', icon: Target },
               { key: 'tap-shop-analysis' as TabType, label: 'ショップ収益性', icon: Building2 },
@@ -2579,6 +2597,141 @@ export default function FinanceManagement() {
 
           {/* ===== ファイナンス司令塔 分析タブ ===== */}
 
+          {/* 0. ライバー収益分析 */}
+          {activeTab === 'tap-creator-profit' && (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Crown className="h-4 w-4 text-amber-600" />
+                    ライバー収益分析
+                    <Badge variant="outline" className="text-xs">司令塔</Badge>
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">ライバー別のGMV・LCJ手数料・C手数料・純利益・利益率を一覧表示。行クリックで商品別内訳を確認できます。</p>
+                </CardHeader>
+                <CardContent>
+                  {tapCreatorProfitQuery.isLoading ? (
+                    <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                  ) : tapCreatorProfitQuery.data && tapCreatorProfitQuery.data.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            <th className="text-left py-2 px-2">#</th>
+                            <th className="text-left py-2 px-2">ライバー</th>
+                            <th className="text-right py-2 px-2">アフィリGMV</th>
+                            <th className="text-right py-2 px-2">LCJ手数料(見込)</th>
+                            <th className="text-right py-2 px-2">C手数料(見込)</th>
+                            <th className="text-right py-2 px-2">純利益</th>
+                            <th className="text-right py-2 px-2">純利益率</th>
+                            <th className="text-right py-2 px-2">返金率</th>
+                            <th className="text-right py-2 px-2">注文数</th>
+                            <th className="text-right py-2 px-2">商品数</th>
+                            <th className="text-center py-2 px-2">展開</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(tapCreatorProfitQuery.data as any[]).map((c: any, i: number) => {
+                            const gmv = Number(c.totalAffiliateGmv) || 0;
+                            const lcjFee = Number(c.totalEstimatedPartnerCommission) || 0;
+                            const cFee = Number(c.totalEstimatedCreatorCommission) || 0;
+                            const netProfit = lcjFee - cFee;
+                            const netRate = gmv > 0 ? (netProfit / gmv * 100) : 0;
+                            const refund = Number(c.totalGmvRefund) || 0;
+                            const refundRate = gmv > 0 ? (refund / gmv * 100) : 0;
+                            const isExpanded = expandedCreator === c.creatorUsername;
+                            return (
+                              <React.Fragment key={c.creatorUsername}>
+                                <tr
+                                  className={`border-b cursor-pointer transition-colors ${isExpanded ? 'bg-amber-50 dark:bg-amber-950/30' : 'hover:bg-muted/30'}`}
+                                  onClick={() => setExpandedCreator(isExpanded ? null : c.creatorUsername)}
+                                >
+                                  <td className="py-1.5 px-2 text-muted-foreground">{i + 1}</td>
+                                  <td className="py-1.5 px-2 font-medium">
+                                    <div className="flex items-center gap-1">
+                                      {i < 3 ? [<Crown key="c" className="h-3.5 w-3.5 text-amber-500" />, <Medal key="m" className="h-3.5 w-3.5 text-gray-400" />, <Award key="a" className="h-3.5 w-3.5 text-amber-700" />][i] : null}
+                                      {c.creatorUsername}
+                                    </div>
+                                  </td>
+                                  <td className="py-1.5 px-2 text-right">{formatCurrency(gmv)}</td>
+                                  <td className="py-1.5 px-2 text-right text-blue-600">{formatCurrency(lcjFee)}</td>
+                                  <td className="py-1.5 px-2 text-right text-orange-600">{formatCurrency(cFee)}</td>
+                                  <td className="py-1.5 px-2 text-right font-semibold" style={{ color: netProfit >= 0 ? '#16a34a' : '#dc2626' }}>{formatCurrency(netProfit)}</td>
+                                  <td className="py-1.5 px-2 text-right font-semibold" style={{ color: netRate >= 0 ? '#16a34a' : '#dc2626' }}>{netRate.toFixed(1)}%</td>
+                                  <td className="py-1.5 px-2 text-right" style={{ color: refundRate > 20 ? '#dc2626' : refundRate > 10 ? '#f59e0b' : 'inherit' }}>{refundRate.toFixed(1)}%</td>
+                                  <td className="py-1.5 px-2 text-right">{formatNumber(c.totalOrders)}</td>
+                                  <td className="py-1.5 px-2 text-right">{formatNumber(c.productCount)}</td>
+                                  <td className="py-1.5 px-2 text-center">
+                                    <ChevronDown className={`h-3.5 w-3.5 inline transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                  </td>
+                                </tr>
+                                {isExpanded && (
+                                  <tr>
+                                    <td colSpan={11} className="p-0">
+                                      <div className="bg-muted/20 border-l-4 border-amber-400 px-4 py-3">
+                                        <div className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2 flex items-center gap-1">
+                                          <ShoppingBag className="h-3.5 w-3.5" />
+                                          {c.creatorUsername} の商品別内訳
+                                        </div>
+                                        {tapCreatorProductBreakdownQuery.isLoading ? (
+                                          <div className="flex justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
+                                        ) : tapCreatorProductBreakdownQuery.data && tapCreatorProductBreakdownQuery.data.length > 0 ? (
+                                          <table className="w-full text-xs">
+                                            <thead>
+                                              <tr className="border-b bg-muted/30">
+                                                <th className="text-left py-1.5 px-2">商品名</th>
+                                                <th className="text-left py-1.5 px-2">ショップ</th>
+                                                <th className="text-right py-1.5 px-2">アフィリGMV</th>
+                                                <th className="text-right py-1.5 px-2">LCJ手数料</th>
+                                                <th className="text-right py-1.5 px-2">C手数料</th>
+                                                <th className="text-right py-1.5 px-2">純利益</th>
+                                                <th className="text-right py-1.5 px-2">純利益率</th>
+                                                <th className="text-right py-1.5 px-2">注文数</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {(tapCreatorProductBreakdownQuery.data as any[]).map((p: any, j: number) => {
+                                                const pGmv = Number(p.totalAffiliateGmv) || 0;
+                                                const pLcj = Number(p.totalEstimatedPartnerCommission) || 0;
+                                                const pC = Number(p.totalEstimatedCreatorCommission) || 0;
+                                                const pNet = pLcj - pC;
+                                                const pNetRate = pGmv > 0 ? (pNet / pGmv * 100) : 0;
+                                                return (
+                                                  <tr key={j} className="border-b hover:bg-muted/20">
+                                                    <td className="py-1 px-2 max-w-[180px] truncate" title={p.productName}>{p.productName}</td>
+                                                    <td className="py-1 px-2 text-muted-foreground max-w-[100px] truncate" title={p.shopName}>{p.shopName}</td>
+                                                    <td className="py-1 px-2 text-right">{formatCurrency(pGmv)}</td>
+                                                    <td className="py-1 px-2 text-right text-blue-600">{formatCurrency(pLcj)}</td>
+                                                    <td className="py-1 px-2 text-right text-orange-600">{formatCurrency(pC)}</td>
+                                                    <td className="py-1 px-2 text-right font-semibold" style={{ color: pNet >= 0 ? '#16a34a' : '#dc2626' }}>{formatCurrency(pNet)}</td>
+                                                    <td className="py-1 px-2 text-right" style={{ color: pNetRate >= 0 ? '#16a34a' : '#dc2626' }}>{pNetRate.toFixed(1)}%</td>
+                                                    <td className="py-1 px-2 text-right">{formatNumber(p.totalOrders)}</td>
+                                                  </tr>
+                                                );
+                                              })}
+                                            </tbody>
+                                          </table>
+                                        ) : (
+                                          <p className="text-xs text-muted-foreground py-2">商品データがありません</p>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-4 text-center">データがありません</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
           {/* 1. 商品利益率ランキング */}
           {activeTab === 'tap-profitability' && (
             <div className="space-y-4">
@@ -2609,6 +2762,7 @@ export default function FinanceManagement() {
                             <th className="text-right py-2 px-2">純利益率</th>
                             <th className="text-right py-2 px-2">返金率</th>
                             <th className="text-right py-2 px-2">注文数</th>
+                            <th className="text-center py-2 px-2">展開</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2625,21 +2779,83 @@ export default function FinanceManagement() {
                               return { ...p, gmv, lcjFee, cFee, netProfit, lcjRate, netRate, refundRate };
                             })
                             .sort((a: any, b: any) => b.netProfit - a.netProfit)
-                            .map((p: any, i: number) => (
-                              <tr key={i} className="border-b hover:bg-muted/30">
-                                <td className="py-1.5 px-2 text-muted-foreground">{i + 1}</td>
-                                <td className="py-1.5 px-2 font-medium max-w-[200px] truncate" title={p.productName}>{p.productName}</td>
-                                <td className="py-1.5 px-2 text-muted-foreground max-w-[120px] truncate" title={p.shopName}>{p.shopName}</td>
-                                <td className="py-1.5 px-2 text-right">{formatCurrency(p.gmv)}</td>
-                                <td className="py-1.5 px-2 text-right text-blue-600">{formatCurrency(p.lcjFee)}</td>
-                                <td className="py-1.5 px-2 text-right text-orange-600">{formatCurrency(p.cFee)}</td>
-                                <td className="py-1.5 px-2 text-right font-semibold" style={{ color: p.netProfit >= 0 ? '#16a34a' : '#dc2626' }}>{formatCurrency(p.netProfit)}</td>
-                                <td className="py-1.5 px-2 text-right">{p.lcjRate.toFixed(1)}%</td>
-                                <td className="py-1.5 px-2 text-right font-semibold" style={{ color: p.netRate >= 0 ? '#16a34a' : '#dc2626' }}>{p.netRate.toFixed(1)}%</td>
-                                <td className="py-1.5 px-2 text-right" style={{ color: p.refundRate > 20 ? '#dc2626' : p.refundRate > 10 ? '#f59e0b' : 'inherit' }}>{p.refundRate.toFixed(1)}%</td>
-                                <td className="py-1.5 px-2 text-right">{formatNumber(p.totalOrders)}</td>
-                              </tr>
-                            ))}
+                            .map((p: any, i: number) => {
+                              const isProdExpanded = expandedProduct === p.productName;
+                              return (
+                                <React.Fragment key={i}>
+                                  <tr
+                                    className={`border-b cursor-pointer transition-colors ${isProdExpanded ? 'bg-violet-50 dark:bg-violet-950/30' : 'hover:bg-muted/30'}`}
+                                    onClick={() => setExpandedProduct(isProdExpanded ? null : p.productName)}
+                                  >
+                                    <td className="py-1.5 px-2 text-muted-foreground">{i + 1}</td>
+                                    <td className="py-1.5 px-2 font-medium max-w-[200px] truncate" title={p.productName}>{p.productName}</td>
+                                    <td className="py-1.5 px-2 text-muted-foreground max-w-[120px] truncate" title={p.shopName}>{p.shopName}</td>
+                                    <td className="py-1.5 px-2 text-right">{formatCurrency(p.gmv)}</td>
+                                    <td className="py-1.5 px-2 text-right text-blue-600">{formatCurrency(p.lcjFee)}</td>
+                                    <td className="py-1.5 px-2 text-right text-orange-600">{formatCurrency(p.cFee)}</td>
+                                    <td className="py-1.5 px-2 text-right font-semibold" style={{ color: p.netProfit >= 0 ? '#16a34a' : '#dc2626' }}>{formatCurrency(p.netProfit)}</td>
+                                    <td className="py-1.5 px-2 text-right">{p.lcjRate.toFixed(1)}%</td>
+                                    <td className="py-1.5 px-2 text-right font-semibold" style={{ color: p.netRate >= 0 ? '#16a34a' : '#dc2626' }}>{p.netRate.toFixed(1)}%</td>
+                                    <td className="py-1.5 px-2 text-right" style={{ color: p.refundRate > 20 ? '#dc2626' : p.refundRate > 10 ? '#f59e0b' : 'inherit' }}>{p.refundRate.toFixed(1)}%</td>
+                                    <td className="py-1.5 px-2 text-right">{formatNumber(p.totalOrders)}</td>
+                                    <td className="py-1.5 px-2 text-center">
+                                      <ChevronDown className={`h-3.5 w-3.5 inline transition-transform ${isProdExpanded ? 'rotate-180' : ''}`} />
+                                    </td>
+                                  </tr>
+                                  {isProdExpanded && (
+                                    <tr>
+                                      <td colSpan={12} className="p-0">
+                                        <div className="bg-muted/20 border-l-4 border-violet-400 px-4 py-3">
+                                          <div className="text-xs font-semibold text-violet-700 dark:text-violet-400 mb-2 flex items-center gap-1">
+                                            <Users className="h-3.5 w-3.5" />
+                                            {p.productName} のライバー別内訳
+                                          </div>
+                                          {tapProductCreatorBreakdownQuery.isLoading ? (
+                                            <div className="flex justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
+                                          ) : tapProductCreatorBreakdownQuery.data && tapProductCreatorBreakdownQuery.data.length > 0 ? (
+                                            <table className="w-full text-xs">
+                                              <thead>
+                                                <tr className="border-b bg-muted/30">
+                                                  <th className="text-left py-1.5 px-2">ライバー</th>
+                                                  <th className="text-right py-1.5 px-2">アフィリGMV</th>
+                                                  <th className="text-right py-1.5 px-2">LCJ手数料</th>
+                                                  <th className="text-right py-1.5 px-2">C手数料</th>
+                                                  <th className="text-right py-1.5 px-2">純利益</th>
+                                                  <th className="text-right py-1.5 px-2">純利益率</th>
+                                                  <th className="text-right py-1.5 px-2">注文数</th>
+                                                </tr>
+                                              </thead>
+                                              <tbody>
+                                                {(tapProductCreatorBreakdownQuery.data as any[]).map((cr: any, j: number) => {
+                                                  const crGmv = Number(cr.totalAffiliateGmv) || 0;
+                                                  const crLcj = Number(cr.totalEstimatedPartnerCommission) || 0;
+                                                  const crC = Number(cr.totalEstimatedCreatorCommission) || 0;
+                                                  const crNet = crLcj - crC;
+                                                  const crNetRate = crGmv > 0 ? (crNet / crGmv * 100) : 0;
+                                                  return (
+                                                    <tr key={j} className="border-b hover:bg-muted/20">
+                                                      <td className="py-1 px-2 font-medium">{cr.creatorUsername}</td>
+                                                      <td className="py-1 px-2 text-right">{formatCurrency(crGmv)}</td>
+                                                      <td className="py-1 px-2 text-right text-blue-600">{formatCurrency(crLcj)}</td>
+                                                      <td className="py-1 px-2 text-right text-orange-600">{formatCurrency(crC)}</td>
+                                                      <td className="py-1 px-2 text-right font-semibold" style={{ color: crNet >= 0 ? '#16a34a' : '#dc2626' }}>{formatCurrency(crNet)}</td>
+                                                      <td className="py-1 px-2 text-right" style={{ color: crNetRate >= 0 ? '#16a34a' : '#dc2626' }}>{crNetRate.toFixed(1)}%</td>
+                                                      <td className="py-1 px-2 text-right">{formatNumber(cr.totalOrders)}</td>
+                                                    </tr>
+                                                  );
+                                                })}
+                                              </tbody>
+                                            </table>
+                                          ) : (
+                                            <p className="text-xs text-muted-foreground py-2">ライバーデータがありません</p>
+                                          )}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
                         </tbody>
                       </table>
                     </div>
