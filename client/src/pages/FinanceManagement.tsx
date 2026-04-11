@@ -2620,11 +2620,12 @@ export default function FinanceManagement() {
                             <th className="text-left py-2 px-2">#</th>
                             <th className="text-left py-2 px-2">ライバー</th>
                             <th className="text-right py-2 px-2">アフィリGMV</th>
-                            <th className="text-right py-2 px-2">LCJ手数料(見込)</th>
-                            <th className="text-right py-2 px-2">LCJ手数料率</th>
-                            <th className="text-right py-2 px-2">C手数料(見込)</th>
-                            <th className="text-right py-2 px-2">純利益</th>
-                            <th className="text-right py-2 px-2">純利益率</th>
+                            <th className="text-right py-2 px-2">ブランド手数料</th>
+                            <th className="text-right py-2 px-2">ブランド手数料率</th>
+                            <th className="text-right py-2 px-2">C手数料</th>
+                            <th className="text-right py-2 px-2">C手数料率</th>
+                            <th className="text-right py-2 px-2">LCJ手数料(純利益)</th>
+                            <th className="text-right py-2 px-2">LCJ手数料率(純利益率)</th>
                             <th className="text-right py-2 px-2">返金率</th>
                             <th className="text-right py-2 px-2">注文数</th>
                             <th className="text-right py-2 px-2">商品数</th>
@@ -2636,8 +2637,10 @@ export default function FinanceManagement() {
                             const gmv = Number(c.totalAffiliateGmv) || 0;
                             const lcjFee = Number(c.totalEstimatedPartnerCommission) || 0;
                             const cFee = Number(c.totalEstimatedCreatorCommission) || 0;
-                            const netProfit = lcjFee - cFee;
-                            const lcjRate = gmv > 0 ? (lcjFee / gmv * 100) : 0;
+                            const brandFee = lcjFee + cFee;
+                            const brandRate = gmv > 0 ? (brandFee / gmv * 100) : 0;
+                            const cRate = gmv > 0 ? (cFee / gmv * 100) : 0;
+                            const netProfit = lcjFee;
                             const netRate = gmv > 0 ? (netProfit / gmv * 100) : 0;
                             const refund = Number(c.totalGmvRefund) || 0;
                             const refundRate = gmv > 0 ? (refund / gmv * 100) : 0;
@@ -2656,10 +2659,11 @@ export default function FinanceManagement() {
                                     </div>
                                   </td>
                                   <td className="py-1.5 px-2 text-right">{formatCurrency(gmv)}</td>
-                                  <td className="py-1.5 px-2 text-right text-blue-600">{formatCurrency(lcjFee)}</td>
-                                  <td className="py-1.5 px-2 text-right">{lcjRate.toFixed(1)}%</td>
+                                  <td className="py-1.5 px-2 text-right text-purple-600">{formatCurrency(brandFee)}</td>
+                                  <td className="py-1.5 px-2 text-right">{brandRate.toFixed(1)}%</td>
                                   <td className="py-1.5 px-2 text-right text-orange-600">{formatCurrency(cFee)}</td>
-                                  <td className="py-1.5 px-2 text-right font-semibold" style={{ color: netProfit >= 0 ? '#16a34a' : '#dc2626' }}>{formatCurrency(netProfit)}</td>
+                                  <td className="py-1.5 px-2 text-right">{cRate.toFixed(1)}%</td>
+                                  <td className="py-1.5 px-2 text-right font-semibold text-blue-600">{formatCurrency(netProfit)}</td>
                                   <td className="py-1.5 px-2 text-right font-semibold" style={{ color: netRate >= 0 ? '#16a34a' : '#dc2626' }}>{netRate.toFixed(1)}%</td>
                                   <td className="py-1.5 px-2 text-right" style={{ color: refundRate > 20 ? '#dc2626' : refundRate > 10 ? '#f59e0b' : 'inherit' }}>{refundRate.toFixed(1)}%</td>
                                   <td className="py-1.5 px-2 text-right">{formatNumber(c.totalOrders)}</td>
@@ -2670,7 +2674,7 @@ export default function FinanceManagement() {
                                 </tr>
                                 {isExpanded && (
                                   <tr>
-                                    <td colSpan={12} className="p-0">
+                                    <td colSpan={13} className="p-0">
                                       <div className="bg-muted/20 border-l-4 border-amber-400 px-4 py-3">
                                         <div className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2 flex items-center gap-1">
                                           <ShoppingBag className="h-3.5 w-3.5" />
@@ -2685,11 +2689,12 @@ export default function FinanceManagement() {
                                                 <th className="text-left py-1.5 px-2">商品名</th>
                                                 <th className="text-left py-1.5 px-2">ショップ</th>
                                                 <th className="text-right py-1.5 px-2">アフィリGMV</th>
-                                                <th className="text-right py-1.5 px-2">LCJ手数料</th>
-                                                <th className="text-right py-1.5 px-2">LCJ手数料率</th>
+                                                <th className="text-right py-1.5 px-2">ブランド手数料</th>
+                                                <th className="text-right py-1.5 px-2">ブランド手数料率</th>
                                                 <th className="text-right py-1.5 px-2">C手数料</th>
-                                                <th className="text-right py-1.5 px-2">純利益</th>
-                                                <th className="text-right py-1.5 px-2">純利益率</th>
+                                                <th className="text-right py-1.5 px-2">C手数料率</th>
+                                                <th className="text-right py-1.5 px-2">LCJ手数料(純利益)</th>
+                                                <th className="text-right py-1.5 px-2">LCJ手数料率(純利益率)</th>
                                                 <th className="text-right py-1.5 px-2">注文数</th>
                                               </tr>
                                             </thead>
@@ -2698,19 +2703,21 @@ export default function FinanceManagement() {
                                                 const pGmv = Number(p.totalAffiliateGmv) || 0;
                                                 const pLcj = Number(p.totalEstimatedPartnerCommission) || 0;
                                                 const pC = Number(p.totalEstimatedCreatorCommission) || 0;
-                                                const pNet = pLcj - pC;
+                                                const pBrand = pLcj + pC;
+                                                const pBrandRate = pGmv > 0 ? (pBrand / pGmv * 100) : 0;
+                                                const pCRate = pGmv > 0 ? (pC / pGmv * 100) : 0;
                                                 const pLcjRate = pGmv > 0 ? (pLcj / pGmv * 100) : 0;
-                                                const pNetRate = pGmv > 0 ? (pNet / pGmv * 100) : 0;
                                                 return (
                                                   <tr key={j} className="border-b hover:bg-muted/20">
                                                     <td className="py-1 px-2 max-w-[180px] truncate" title={p.productName}>{p.productName}</td>
                                                     <td className="py-1 px-2 text-muted-foreground max-w-[100px] truncate" title={p.shopName}>{p.shopName}</td>
                                                     <td className="py-1 px-2 text-right">{formatCurrency(pGmv)}</td>
-                                                    <td className="py-1 px-2 text-right text-blue-600">{formatCurrency(pLcj)}</td>
-                                                    <td className="py-1 px-2 text-right">{pLcjRate.toFixed(1)}%</td>
+                                                    <td className="py-1 px-2 text-right text-purple-600">{formatCurrency(pBrand)}</td>
+                                                    <td className="py-1 px-2 text-right">{pBrandRate.toFixed(1)}%</td>
                                                     <td className="py-1 px-2 text-right text-orange-600">{formatCurrency(pC)}</td>
-                                                    <td className="py-1 px-2 text-right font-semibold" style={{ color: pNet >= 0 ? '#16a34a' : '#dc2626' }}>{formatCurrency(pNet)}</td>
-                                                    <td className="py-1 px-2 text-right" style={{ color: pNetRate >= 0 ? '#16a34a' : '#dc2626' }}>{pNetRate.toFixed(1)}%</td>
+                                                    <td className="py-1 px-2 text-right">{pCRate.toFixed(1)}%</td>
+                                                    <td className="py-1 px-2 text-right font-semibold text-blue-600">{formatCurrency(pLcj)}</td>
+                                                    <td className="py-1 px-2 text-right font-semibold" style={{ color: pLcjRate >= 0 ? '#16a34a' : '#dc2626' }}>{pLcjRate.toFixed(1)}%</td>
                                                     <td className="py-1 px-2 text-right">{formatNumber(p.totalOrders)}</td>
                                                   </tr>
                                                 );
@@ -2761,11 +2768,12 @@ export default function FinanceManagement() {
                             <th className="text-left py-2 px-2">商品名</th>
                             <th className="text-left py-2 px-2">ショップ</th>
                             <th className="text-right py-2 px-2">アフィリGMV</th>
-                            <th className="text-right py-2 px-2">LCJ手数料(見込)</th>
-                            <th className="text-right py-2 px-2">C手数料(見込)</th>
-                            <th className="text-right py-2 px-2">純利益</th>
-                            <th className="text-right py-2 px-2">LCJ手数料率</th>
-                            <th className="text-right py-2 px-2">純利益率</th>
+                            <th className="text-right py-2 px-2">ブランド手数料</th>
+                            <th className="text-right py-2 px-2">ブランド手数料率</th>
+                            <th className="text-right py-2 px-2">C手数料</th>
+                            <th className="text-right py-2 px-2">C手数料率</th>
+                            <th className="text-right py-2 px-2">LCJ手数料(純利益)</th>
+                            <th className="text-right py-2 px-2">LCJ手数料率(純利益率)</th>
                             <th className="text-right py-2 px-2">返金率</th>
                             <th className="text-right py-2 px-2">注文数</th>
                             <th className="text-center py-2 px-2">展開</th>
@@ -2777,14 +2785,16 @@ export default function FinanceManagement() {
                               const gmv = Number(p.totalAffiliateGmv) || 0;
                               const lcjFee = Number(p.totalEstimatedPartnerCommission) || 0;
                               const cFee = Number(p.totalEstimatedCreatorCommission) || 0;
-                              const netProfit = lcjFee - cFee;
-                              const lcjRate = gmv > 0 ? (lcjFee / gmv * 100) : 0;
+                              const brandFee = lcjFee + cFee;
+                              const brandRate = gmv > 0 ? (brandFee / gmv * 100) : 0;
+                              const cRate = gmv > 0 ? (cFee / gmv * 100) : 0;
+                              const netProfit = lcjFee;
                               const netRate = gmv > 0 ? (netProfit / gmv * 100) : 0;
                               const refund = Number(p.totalGmvRefund) || 0;
                               const refundRate = gmv > 0 ? (refund / gmv * 100) : 0;
-                              return { ...p, gmv, lcjFee, cFee, netProfit, lcjRate, netRate, refundRate };
+                              return { ...p, gmv, lcjFee, cFee, brandFee, brandRate, cRate, netProfit, netRate, refundRate };
                             })
-                            .sort((a: any, b: any) => b.netProfit - a.netProfit)
+                            .sort((a: any, b: any) => b.brandFee - a.brandFee)
                             .map((p: any, i: number) => {
                               const isProdExpanded = expandedProduct === p.productName;
                               return (
@@ -2797,10 +2807,11 @@ export default function FinanceManagement() {
                                     <td className="py-1.5 px-2 font-medium max-w-[200px] truncate" title={p.productName}>{p.productName}</td>
                                     <td className="py-1.5 px-2 text-muted-foreground max-w-[120px] truncate" title={p.shopName}>{p.shopName}</td>
                                     <td className="py-1.5 px-2 text-right">{formatCurrency(p.gmv)}</td>
-                                    <td className="py-1.5 px-2 text-right text-blue-600">{formatCurrency(p.lcjFee)}</td>
+                                    <td className="py-1.5 px-2 text-right text-purple-600">{formatCurrency(p.brandFee)}</td>
+                                    <td className="py-1.5 px-2 text-right">{p.brandRate.toFixed(1)}%</td>
                                     <td className="py-1.5 px-2 text-right text-orange-600">{formatCurrency(p.cFee)}</td>
-                                    <td className="py-1.5 px-2 text-right font-semibold" style={{ color: p.netProfit >= 0 ? '#16a34a' : '#dc2626' }}>{formatCurrency(p.netProfit)}</td>
-                                    <td className="py-1.5 px-2 text-right">{p.lcjRate.toFixed(1)}%</td>
+                                    <td className="py-1.5 px-2 text-right">{p.cRate.toFixed(1)}%</td>
+                                    <td className="py-1.5 px-2 text-right font-semibold text-blue-600">{formatCurrency(p.netProfit)}</td>
                                     <td className="py-1.5 px-2 text-right font-semibold" style={{ color: p.netRate >= 0 ? '#16a34a' : '#dc2626' }}>{p.netRate.toFixed(1)}%</td>
                                     <td className="py-1.5 px-2 text-right" style={{ color: p.refundRate > 20 ? '#dc2626' : p.refundRate > 10 ? '#f59e0b' : 'inherit' }}>{p.refundRate.toFixed(1)}%</td>
                                     <td className="py-1.5 px-2 text-right">{formatNumber(p.totalOrders)}</td>
@@ -2810,7 +2821,7 @@ export default function FinanceManagement() {
                                   </tr>
                                   {isProdExpanded && (
                                     <tr>
-                                      <td colSpan={12} className="p-0">
+                                      <td colSpan={13} className="p-0">
                                         <div className="bg-muted/20 border-l-4 border-violet-400 px-4 py-3">
                                           <div className="text-xs font-semibold text-violet-700 dark:text-violet-400 mb-2 flex items-center gap-1">
                                             <Users className="h-3.5 w-3.5" />
@@ -2824,10 +2835,12 @@ export default function FinanceManagement() {
                                                 <tr className="border-b bg-muted/30">
                                                   <th className="text-left py-1.5 px-2">ライバー</th>
                                                   <th className="text-right py-1.5 px-2">アフィリGMV</th>
-                                                  <th className="text-right py-1.5 px-2">LCJ手数料</th>
+                                                  <th className="text-right py-1.5 px-2">ブランド手数料</th>
+                                                  <th className="text-right py-1.5 px-2">ブランド手数料率</th>
                                                   <th className="text-right py-1.5 px-2">C手数料</th>
-                                                  <th className="text-right py-1.5 px-2">純利益</th>
-                                                  <th className="text-right py-1.5 px-2">純利益率</th>
+                                                  <th className="text-right py-1.5 px-2">C手数料率</th>
+                                                  <th className="text-right py-1.5 px-2">LCJ手数料(純利益)</th>
+                                                  <th className="text-right py-1.5 px-2">LCJ手数料率(純利益率)</th>
                                                   <th className="text-right py-1.5 px-2">注文数</th>
                                                 </tr>
                                               </thead>
@@ -2836,16 +2849,20 @@ export default function FinanceManagement() {
                                                   const crGmv = Number(cr.totalAffiliateGmv) || 0;
                                                   const crLcj = Number(cr.totalEstimatedPartnerCommission) || 0;
                                                   const crC = Number(cr.totalEstimatedCreatorCommission) || 0;
-                                                  const crNet = crLcj - crC;
-                                                  const crNetRate = crGmv > 0 ? (crNet / crGmv * 100) : 0;
+                                                  const crBrand = crLcj + crC;
+                                                  const crBrandRate = crGmv > 0 ? (crBrand / crGmv * 100) : 0;
+                                                  const crCRate = crGmv > 0 ? (crC / crGmv * 100) : 0;
+                                                  const crLcjRate = crGmv > 0 ? (crLcj / crGmv * 100) : 0;
                                                   return (
                                                     <tr key={j} className="border-b hover:bg-muted/20">
                                                       <td className="py-1 px-2 font-medium">{cr.creatorUsername}</td>
                                                       <td className="py-1 px-2 text-right">{formatCurrency(crGmv)}</td>
-                                                      <td className="py-1 px-2 text-right text-blue-600">{formatCurrency(crLcj)}</td>
+                                                      <td className="py-1 px-2 text-right text-purple-600">{formatCurrency(crBrand)}</td>
+                                                      <td className="py-1 px-2 text-right">{crBrandRate.toFixed(1)}%</td>
                                                       <td className="py-1 px-2 text-right text-orange-600">{formatCurrency(crC)}</td>
-                                                      <td className="py-1 px-2 text-right font-semibold" style={{ color: crNet >= 0 ? '#16a34a' : '#dc2626' }}>{formatCurrency(crNet)}</td>
-                                                      <td className="py-1 px-2 text-right" style={{ color: crNetRate >= 0 ? '#16a34a' : '#dc2626' }}>{crNetRate.toFixed(1)}%</td>
+                                                      <td className="py-1 px-2 text-right">{crCRate.toFixed(1)}%</td>
+                                                      <td className="py-1 px-2 text-right font-semibold text-blue-600">{formatCurrency(crLcj)}</td>
+                                                      <td className="py-1 px-2 text-right font-semibold" style={{ color: crLcjRate >= 0 ? '#16a34a' : '#dc2626' }}>{crLcjRate.toFixed(1)}%</td>
                                                       <td className="py-1 px-2 text-right">{formatNumber(cr.totalOrders)}</td>
                                                     </tr>
                                                   );
