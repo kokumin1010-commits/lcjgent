@@ -4208,6 +4208,20 @@ export default function FinanceManagement() {
                 <li>返金によりGMVが減少し、手数料率が実際の設定値と異なる場合があります</li>
               </ul>
             </div>
+
+            {/* CAPとTAPのGMVの違い */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+              <h3 className="font-bold text-blue-900 flex items-center gap-2">
+                <Info className="h-4 w-4" />
+                CAPとTAPのGMVの違いについて
+              </h3>
+              <ul className="text-blue-800 space-y-1 list-disc list-inside">
+                <li><strong>TAP（T）のGMV</strong> ＝ アフィリエイトリンク経由の売上のみ（LIVE配信・動画経由）</li>
+                <li><strong>CAP（C）のGMV</strong> ＝ アフィリエイト売上に加え、<strong>ダイレクト販売</strong>（商品カード直接購入、LIVE直接購入等）も含む</li>
+                <li>そのため、<strong>CAPのGMVはTAPのGMVより大きくなる</strong>のが通常です</li>
+                <li>CAPデータには「推定成果報酬額」が含まれ、これがCreatorへの実際の支払い額となります</li>
+              </ul>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
