@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -20330,4 +20330,150 @@ export async function getTiktokTapProductCreatorBreakdown(productName: string, b
     .where(and(...conditions))
     .groupBy(tiktokTapReports.creatorUsername)
     .orderBy(sql`COALESCE(SUM(estimatedPartnerCommission), 0) DESC`);
+}
+
+
+// =============================================
+// TikTok CAP Report Functions
+// =============================================
+
+// CAP Creator Reports - 一括挿入
+export async function bulkInsertCapCreatorReports(rows: InsertTiktokCapCreatorReport[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (rows.length === 0) return;
+  // batch insert in chunks of 100
+  for (let i = 0; i < rows.length; i += 100) {
+    const chunk = rows.slice(i, i + 100);
+    await db.insert(tiktokCapCreatorReports).values(chunk);
+  }
+}
+
+// CAP Product Reports - 一括挿入
+export async function bulkInsertCapProductReports(rows: InsertTiktokCapProductReport[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (rows.length === 0) return;
+  for (let i = 0; i < rows.length; i += 100) {
+    const chunk = rows.slice(i, i + 100);
+    await db.insert(tiktokCapProductReports).values(chunk);
+  }
+}
+
+// CAP Creator Reports - 月+ブランドで既存データ削除（再インポート用）
+export async function deleteCapCreatorReportsByMonth(brandId: number, reportMonth: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(tiktokCapCreatorReports).where(
+    and(eq(tiktokCapCreatorReports.brandId, brandId), eq(tiktokCapCreatorReports.reportMonth, reportMonth))
+  );
+}
+
+// CAP Product Reports - 月+ブランドで既存データ削除（再インポート用）
+export async function deleteCapProductReportsByMonth(brandId: number, reportMonth: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(tiktokCapProductReports).where(
+    and(eq(tiktokCapProductReports.brandId, brandId), eq(tiktokCapProductReports.reportMonth, reportMonth))
+  );
+}
+
+// CAP Creator Summary - ライバー別集計（TAPと突合用）
+export async function getCapCreatorSummary(brandId: number = 0, month?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (brandId > 0) conditions.push(eq(tiktokCapCreatorReports.brandId, brandId));
+  if (month) conditions.push(eq(tiktokCapCreatorReports.reportMonth, month));
+
+  return db.select({
+    creatorUsername: tiktokCapCreatorReports.creatorUsername,
+    capAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
+    capEstimatedCommission: sql<number>`COALESCE(SUM(estimatedCommission), 0)`,
+    capCommissionBase: sql<number>`COALESCE(SUM(commissionBase), 0)`,
+    capOrders: sql<number>`COALESCE(SUM(affiliateOrders), 0)`,
+    capSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+    capLiveGmv: sql<number>`COALESCE(SUM(affiliateLiveGmv), 0)`,
+    capVideoGmv: sql<number>`COALESCE(SUM(affiliateVideoGmv), 0)`,
+    capLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
+    capVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
+  }).from(tiktokCapCreatorReports)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(tiktokCapCreatorReports.creatorUsername);
+}
+
+// CAP Product Summary - 商品別集計（商品利益率ランキング用）
+export async function getCapProductSummary(brandId: number = 0, month?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (brandId > 0) conditions.push(eq(tiktokCapProductReports.brandId, brandId));
+  if (month) conditions.push(eq(tiktokCapProductReports.reportMonth, month));
+
+  return db.select({
+    productId: tiktokCapProductReports.productId,
+    productName: sql<string>`MAX(productName)`,
+    shopName: sql<string>`MAX(shopName)`,
+    capAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
+    capOrders: sql<number>`COALESCE(SUM(affiliateOrders), 0)`,
+    capDirectRefundGmv: sql<number>`COALESCE(SUM(directRefundGmv), 0)`,
+    capRefundedItems: sql<number>`COALESCE(SUM(refundedItems), 0)`,
+    capSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+  }).from(tiktokCapProductReports)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(tiktokCapProductReports.productId);
+}
+
+// CAP Creator-Product Breakdown - ライバー別の商品内訳（ドリルダウン用）
+export async function getCapCreatorProductBreakdown(creatorUsername: string, brandId: number = 0, month?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [eq(tiktokCapProductReports.creatorUsername, creatorUsername)];
+  if (brandId > 0) conditions.push(eq(tiktokCapProductReports.brandId, brandId));
+  if (month) conditions.push(eq(tiktokCapProductReports.reportMonth, month));
+
+  return db.select({
+    productId: tiktokCapProductReports.productId,
+    productName: sql<string>`MAX(productName)`,
+    shopName: sql<string>`MAX(shopName)`,
+    capAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
+    capOrders: sql<number>`COALESCE(SUM(affiliateOrders), 0)`,
+    capDirectRefundGmv: sql<number>`COALESCE(SUM(directRefundGmv), 0)`,
+    capRefundedItems: sql<number>`COALESCE(SUM(refundedItems), 0)`,
+  }).from(tiktokCapProductReports)
+    .where(and(...conditions))
+    .groupBy(tiktokCapProductReports.productId);
+}
+
+// CAP Product-Creator Breakdown - 商品別のライバー内訳（ドリルダウン用）
+export async function getCapProductCreatorBreakdown(productName: string, brandId: number = 0, month?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [sql`productName = ${productName}`];
+  if (brandId > 0) conditions.push(eq(tiktokCapProductReports.brandId, brandId));
+  if (month) conditions.push(eq(tiktokCapProductReports.reportMonth, month));
+
+  return db.select({
+    creatorUsername: tiktokCapProductReports.creatorUsername,
+    capAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
+    capOrders: sql<number>`COALESCE(SUM(affiliateOrders), 0)`,
+    capDirectRefundGmv: sql<number>`COALESCE(SUM(directRefundGmv), 0)`,
+    capRefundedItems: sql<number>`COALESCE(SUM(refundedItems), 0)`,
+  }).from(tiktokCapProductReports)
+    .where(and(...conditions))
+    .groupBy(tiktokCapProductReports.creatorUsername);
+}
+
+// CAP Available Months - 利用可能な月一覧
+export async function getCapAvailableMonths(brandId: number = 0) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (brandId > 0) conditions.push(eq(tiktokCapCreatorReports.brandId, brandId));
+
+  return db.selectDistinct({
+    month: tiktokCapCreatorReports.reportMonth,
+  }).from(tiktokCapCreatorReports)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(tiktokCapCreatorReports.reportMonth));
 }

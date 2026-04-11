@@ -4522,3 +4522,117 @@ export const tspInvoices = mysqlTable("tsp_invoices", {
 });
 export type TspInvoice = typeof tspInvoices.$inferSelect;
 export type InsertTspInvoice = typeof tspInvoices.$inferInsert;
+
+
+// =============================================
+// TikTok CAP (Creator Affiliate Program) Reports
+// =============================================
+
+/**
+ * TikTok CAP Creator Reports - CAPレポート（Creator単位）
+ * CAPはLCJとライバー間の総契約ルール。推定成果報酬額・手数料ベースを含む。
+ */
+export const tiktokCapCreatorReports = mysqlTable("tiktok_cap_creator_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(),
+  importHistoryId: int("importHistoryId"),
+
+  // 期間情報
+  dateRange: varchar("dateRange", { length: 50 }).notNull(),
+  reportMonth: varchar("reportMonth", { length: 7 }).notNull(),
+
+  // クリエイター情報
+  creatorUsername: varchar("creatorUsername", { length: 255 }).notNull(),
+
+  // GMVデータ（円）
+  affiliateGmv: bigint("affiliateGmv", { mode: "number" }).default(0),
+  affiliateLiveGmv: bigint("affiliateLiveGmv", { mode: "number" }).default(0),
+  affiliateVideoGmv: bigint("affiliateVideoGmv", { mode: "number" }).default(0),
+  directGmv: bigint("directGmv", { mode: "number" }).default(0),
+  liveDirectGmv: bigint("liveDirectGmv", { mode: "number" }).default(0),
+  videoDirectGmv: bigint("videoDirectGmv", { mode: "number" }).default(0),
+
+  // 注文データ
+  affiliateOrders: int("affiliateOrders").default(0),
+  affiliateLiveOrders: int("affiliateLiveOrders").default(0),
+  affiliateVideoOrders: int("affiliateVideoOrders").default(0),
+  directOrders: int("directOrders").default(0),
+  liveDirectOrders: int("liveDirectOrders").default(0),
+  videoDirectOrders: int("videoDirectOrders").default(0),
+  salesCount: int("salesCount").default(0),
+
+  // 手数料データ（円）- CAP固有
+  estimatedCommission: bigint("estimatedCommission", { mode: "number" }).default(0), // 推定成果報酬額
+  commissionBase: bigint("commissionBase", { mode: "number" }).default(0), // 手数料ベース
+
+  // パフォーマンスデータ
+  liveViews: bigint("liveViews", { mode: "number" }).default(0),
+  videoViews: bigint("videoViews", { mode: "number" }).default(0),
+  liveCount: int("liveCount").default(0),
+  videoCount: int("videoCount").default(0),
+
+  // CTR
+  liveCtr: varchar("liveCtr", { length: 20 }),
+  videoCtr: varchar("videoCtr", { length: 20 }),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type TiktokCapCreatorReport = typeof tiktokCapCreatorReports.$inferSelect;
+export type InsertTiktokCapCreatorReport = typeof tiktokCapCreatorReports.$inferInsert;
+
+/**
+ * TikTok CAP Product Reports - CAPレポート（Creator×Product×Shop単位）
+ * 商品単位の返金GMV・返金アイテム数を含む。手数料データは含まない。
+ */
+export const tiktokCapProductReports = mysqlTable("tiktok_cap_product_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(),
+  importHistoryId: int("importHistoryId"),
+
+  // 期間情報
+  dateRange: varchar("dateRange", { length: 50 }).notNull(),
+  reportMonth: varchar("reportMonth", { length: 7 }).notNull(),
+
+  // クリエイター情報
+  creatorUsername: varchar("creatorUsername", { length: 255 }).notNull(),
+
+  // 商品情報
+  productId: varchar("productId", { length: 64 }).notNull(),
+  productName: text("productName").notNull(),
+  shopId: varchar("shopId", { length: 64 }),
+  shopName: varchar("shopName", { length: 255 }),
+
+  // GMVデータ（円）
+  affiliateGmv: bigint("affiliateGmv", { mode: "number" }).default(0),
+  affiliateLiveGmv: bigint("affiliateLiveGmv", { mode: "number" }).default(0),
+  affiliateVideoGmv: bigint("affiliateVideoGmv", { mode: "number" }).default(0),
+  directGmv: bigint("directGmv", { mode: "number" }).default(0),
+  liveDirectGmv: bigint("liveDirectGmv", { mode: "number" }).default(0),
+  videoDirectGmv: bigint("videoDirectGmv", { mode: "number" }).default(0),
+  productCardDirectGmv: bigint("productCardDirectGmv", { mode: "number" }).default(0),
+
+  // 注文データ
+  affiliateOrders: int("affiliateOrders").default(0),
+  affiliateLiveOrders: int("affiliateLiveOrders").default(0),
+  affiliateVideoOrders: int("affiliateVideoOrders").default(0),
+  directOrders: int("directOrders").default(0),
+  liveDirectOrders: int("liveDirectOrders").default(0),
+  videoDirectOrders: int("videoDirectOrders").default(0),
+  productCardOrders: int("productCardOrders").default(0),
+  salesCount: int("salesCount").default(0),
+  liveSalesCount: int("liveSalesCount").default(0),
+  videoSalesCount: int("videoSalesCount").default(0),
+  productCardSalesCount: int("productCardSalesCount").default(0),
+
+  // 返金データ（CAP固有）
+  directRefundGmv: bigint("directRefundGmv", { mode: "number" }).default(0),
+  refundedItems: int("refundedItems").default(0),
+
+  // CTR
+  ctr: varchar("ctr", { length: 20 }),
+  ctor: varchar("ctor", { length: 20 }),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type TiktokCapProductReport = typeof tiktokCapProductReports.$inferSelect;
+export type InsertTiktokCapProductReport = typeof tiktokCapProductReports.$inferInsert;

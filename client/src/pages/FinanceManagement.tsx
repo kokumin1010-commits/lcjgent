@@ -96,6 +96,14 @@ export default function FinanceManagement() {
   const [capTapHelpOpen, setCapTapHelpOpen] = useState(false);
   const [productTableSort, setProductTableSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'brandFee', dir: 'desc' });
   const [creatorTableSort, setCreatorTableSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'netProfit', dir: 'desc' });
+  // CAP states
+  const [capUploadDialogOpen, setCapUploadDialogOpen] = useState(false);
+  const [capUploading, setCapUploading] = useState(false);
+  const [capUploadMonth, setCapUploadMonth] = useState<string>('');
+  const capCreatorFileRef = useRef<HTMLInputElement>(null);
+  const capProductFileRef = useRef<HTMLInputElement>(null);
+  const [capCreatorFile, setCapCreatorFile] = useState<File | null>(null);
+  const [capProductFile, setCapProductFile] = useState<File | null>(null);
   const pageSize = 50;
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
@@ -248,6 +256,38 @@ export default function FinanceManagement() {
     { enabled: !!expandedProduct && activeTab === 'tap-profitability' }
   );
 
+  // CAP Queries
+  const capCreatorSummaryQuery = trpc.tiktokFinance.getCapCreatorSummary.useQuery(
+    { brandId: 0, month: tapMonth || undefined },
+    { enabled: activeTab === 'tap-creator-profit' || activeTab === 'tap-profitability' }
+  );
+  const capAvailableMonthsQuery = trpc.tiktokFinance.getCapAvailableMonths.useQuery(
+    { brandId: 0 },
+    { enabled: activeTab === 'tap-creator-profit' || activeTab === 'tap-profitability' || activeTab === 'imports' }
+  );
+
+  // CAP Upload Mutations
+  const uploadCapCreatorMutation = trpc.tiktokFinance.uploadCapCreatorXlsx.useMutation({
+    onSuccess: (result) => {
+      toast.success(`CAPクリエイターデータ${result.importedRows}件インポート（${result.reportMonth}）`);
+      capCreatorSummaryQuery.refetch();
+      capAvailableMonthsQuery.refetch();
+    },
+    onError: (error) => {
+      toast.error(`CAPクリエイターアップロード失敗: ${error.message}`);
+    },
+  });
+  const uploadCapProductMutation = trpc.tiktokFinance.uploadCapProductXlsx.useMutation({
+    onSuccess: (result) => {
+      toast.success(`CAP商品データ${result.importedRows}件インポート（${result.reportMonth}）`);
+      capCreatorSummaryQuery.refetch();
+      capAvailableMonthsQuery.refetch();
+    },
+    onError: (error) => {
+      toast.error(`CAP商品アップロード失敗: ${error.message}`);
+    },
+  });
+
   // Month detail inline expansion queries
   const monthDetailSummaryQuery = trpc.tiktokFinance.getTapSummary.useQuery(
     { brandId: 0, month: expandedMonth || undefined },
@@ -372,6 +412,50 @@ export default function FinanceManagement() {
       setTapUploading(false);
     } finally {
       if (tapFileInputRef.current) tapFileInputRef.current.value = '';
+    }
+  };
+
+  // CAP Upload Handler
+  const fileToBase64 = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary);
+  };
+
+  const handleCapUpload = async () => {
+    if (!capUploadMonth) {
+      toast.error('レポート月を選択してください');
+      return;
+    }
+    if (!capCreatorFile && !capProductFile) {
+      toast.error('少なくとも1つのファイルを選択してください');
+      return;
+    }
+    setCapUploading(true);
+    try {
+      if (capCreatorFile) {
+        const base64 = await fileToBase64(capCreatorFile);
+        await uploadCapCreatorMutation.mutateAsync({ brandId: 0, fileContent: base64, reportMonth: capUploadMonth });
+      }
+      if (capProductFile) {
+        const base64 = await fileToBase64(capProductFile);
+        await uploadCapProductMutation.mutateAsync({ brandId: 0, fileContent: base64, reportMonth: capUploadMonth });
+      }
+      setCapUploadDialogOpen(false);
+      setCapCreatorFile(null);
+      setCapProductFile(null);
+      setCapUploadMonth('');
+      if (capCreatorFileRef.current) capCreatorFileRef.current.value = '';
+      if (capProductFileRef.current) capProductFileRef.current.value = '';
+    } catch (err: any) {
+      toast.error(`CAPアップロード失敗: ${err.message}`);
+    } finally {
+      setCapUploading(false);
     }
   };
 
@@ -1600,7 +1684,13 @@ export default function FinanceManagement() {
               </Select>
               <Button variant="outline" size="sm" onClick={() => setTapUploadDialogOpen(true)}>
                 <Upload className="h-4 w-4 mr-2" />
-                TAPアップロード
+                <Badge variant="secondary" className="mr-1 text-[10px] px-1 py-0">T</Badge>
+                TAP
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setCapUploadDialogOpen(true)} className="border-green-300 text-green-700 hover:bg-green-50">
+                <Upload className="h-4 w-4 mr-2" />
+                <Badge className="mr-1 text-[10px] px-1 py-0 bg-green-100 text-green-700">C</Badge>
+                CAP
               </Button>
             </div>
           </div>
@@ -2662,7 +2752,12 @@ export default function FinanceManagement() {
                             const netRate = gmv > 0 ? (netProfit / gmv * 100) : 0;
                             const refund = Number(c.totalGmvRefund) || 0;
                             const refundRate = gmv > 0 ? (refund / gmv * 100) : 0;
-                            return { ...c, gmv, lcjFee, cFee, brandFee, brandRate, cRate, netProfit, netRate, refundRate };
+                            // CAP data lookup
+                            const capData = (capCreatorSummaryQuery.data || []).find((cap: any) => cap.creatorUsername === c.creatorUsername);
+                            const capGmv = capData ? Number(capData.capAffiliateGmv) || 0 : null;
+                            const capCommission = capData ? Number(capData.capEstimatedCommission) || 0 : null;
+                            const hasCap = capData !== undefined && capData !== null;
+                            return { ...c, gmv, lcjFee, cFee, brandFee, brandRate, cRate, netProfit, netRate, refundRate, capGmv, capCommission, hasCap };
                           }).sort((a: any, b: any) => {
                             const getVal = (item: any) => {
                               switch (creatorTableSort.key) {
@@ -2697,12 +2792,45 @@ export default function FinanceManagement() {
                                       {c.creatorUsername}
                                     </div>
                                   </td>
-                                  <td className="py-1.5 px-2 text-right">{formatCurrency(gmv)}</td>
+                                  <td className="py-1.5 px-2 text-right">
+                                    <div className="flex items-center justify-end gap-1">
+                                      {formatCurrency(gmv)}
+                                      <span className="text-[9px] font-bold px-1 rounded bg-blue-100 text-blue-600">T</span>
+                                    </div>
+                                    {c.hasCap && c.capGmv !== null && (
+                                      <div className="flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
+                                        {formatCurrency(c.capGmv)}
+                                        <span className="text-[9px] font-bold px-1 rounded bg-green-100 text-green-600">C</span>
+                                      </div>
+                                    )}
+                                  </td>
                                   <td className="py-1.5 px-2 text-right text-purple-600">{formatCurrency(brandFee)}</td>
                                   <td className="py-1.5 px-2 text-right">{brandRate.toFixed(1)}%</td>
-                                  <td className="py-1.5 px-2 text-right text-orange-600">{formatCurrency(cFee)}</td>
+                                  <td className="py-1.5 px-2 text-right text-orange-600">
+                                    <div className="flex items-center justify-end gap-1">
+                                      {formatCurrency(cFee)}
+                                      <span className="text-[9px] font-bold px-1 rounded bg-blue-100 text-blue-600">T</span>
+                                    </div>
+                                    {c.hasCap && c.capCommission !== null && (
+                                      <div className="flex items-center justify-end gap-1 text-[10px]">
+                                        {formatCurrency(c.capCommission)}
+                                        <span className="text-[9px] font-bold px-1 rounded bg-green-100 text-green-600">C</span>
+                                      </div>
+                                    )}
+                                  </td>
                                   <td className="py-1.5 px-2 text-right">{cRate.toFixed(1)}%</td>
-                                  <td className="py-1.5 px-2 text-right font-semibold text-blue-600">{formatCurrency(netProfit)}</td>
+                                  <td className="py-1.5 px-2 text-right font-semibold text-blue-600">
+                                    <div className="flex items-center justify-end gap-1">
+                                      {formatCurrency(netProfit)}
+                                      <span className="text-[9px] font-bold px-1 rounded bg-blue-100 text-blue-600">T</span>
+                                    </div>
+                                    {c.hasCap && c.capCommission !== null && (
+                                      <div className="flex items-center justify-end gap-1 text-[10px] font-semibold text-green-700">
+                                        {formatCurrency(brandFee - c.capCommission)}
+                                        <span className="text-[9px] font-bold px-1 rounded bg-green-100 text-green-600">C</span>
+                                      </div>
+                                    )}
+                                  </td>
                                   <td className="py-1.5 px-2 text-right font-semibold" style={{ color: netRate >= 0 ? '#16a34a' : '#dc2626' }}>{netRate.toFixed(1)}%</td>
                                   <td className="py-1.5 px-2 text-right" style={{ color: refundRate > 20 ? '#dc2626' : refundRate > 10 ? '#f59e0b' : 'inherit' }}>{refundRate.toFixed(1)}%</td>
                                   <td className="py-1.5 px-2 text-right">{formatNumber(c.totalOrders)}</td>
@@ -2900,12 +3028,27 @@ export default function FinanceManagement() {
                                     <td className="py-1.5 px-2 text-muted-foreground">{i + 1}</td>
                                     <td className="py-1.5 px-2 font-medium max-w-[200px] truncate" title={p.productName}>{p.productName}</td>
                                     <td className="py-1.5 px-2 text-muted-foreground max-w-[120px] truncate" title={p.shopName}>{p.shopName}</td>
-                                    <td className="py-1.5 px-2 text-right">{formatCurrency(p.gmv)}</td>
+                                    <td className="py-1.5 px-2 text-right">
+                                      <div className="flex items-center justify-end gap-1">
+                                        {formatCurrency(p.gmv)}
+                                        <span className="text-[9px] font-bold px-1 rounded bg-blue-100 text-blue-600">T</span>
+                                      </div>
+                                    </td>
                                     <td className="py-1.5 px-2 text-right text-purple-600">{formatCurrency(p.brandFee)}</td>
                                     <td className="py-1.5 px-2 text-right">{p.brandRate.toFixed(1)}%</td>
-                                    <td className="py-1.5 px-2 text-right text-orange-600">{formatCurrency(p.cFee)}</td>
+                                    <td className="py-1.5 px-2 text-right text-orange-600">
+                                      <div className="flex items-center justify-end gap-1">
+                                        {formatCurrency(p.cFee)}
+                                        <span className="text-[9px] font-bold px-1 rounded bg-blue-100 text-blue-600">T</span>
+                                      </div>
+                                    </td>
                                     <td className="py-1.5 px-2 text-right">{p.cRate.toFixed(1)}%</td>
-                                    <td className="py-1.5 px-2 text-right font-semibold text-blue-600">{formatCurrency(p.netProfit)}</td>
+                                    <td className="py-1.5 px-2 text-right font-semibold text-blue-600">
+                                      <div className="flex items-center justify-end gap-1">
+                                        {formatCurrency(p.netProfit)}
+                                        <span className="text-[9px] font-bold px-1 rounded bg-blue-100 text-blue-600">T</span>
+                                      </div>
+                                    </td>
                                     <td className="py-1.5 px-2 text-right font-semibold" style={{ color: p.netRate >= 0 ? '#16a34a' : '#dc2626' }}>{p.netRate.toFixed(1)}%</td>
                                     <td className="py-1.5 px-2 text-right" style={{ color: p.refundRate > 20 ? '#dc2626' : p.refundRate > 10 ? '#f59e0b' : 'inherit' }}>{p.refundRate.toFixed(1)}%</td>
                                     <td className="py-1.5 px-2 text-right">{formatNumber(p.totalOrders)}</td>
@@ -3574,6 +3717,72 @@ export default function FinanceManagement() {
                 アップロード中...
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* CAP Upload Dialog */}
+      <Dialog open={capUploadDialogOpen} onOpenChange={setCapUploadDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">CAP</Badge>
+              CAPデータアップロード
+            </DialogTitle>
+            <DialogDescription>
+              TikTok CAP（Creator Affiliate Program）のレポートXLSXファイルをアップロードします。同じ月のデータは上書きされます。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">レポート月</label>
+              <Select value={capUploadMonth} onValueChange={setCapUploadMonth}>
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue placeholder="月を選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthOptions.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">1</Badge>
+                Creator単位レポート（CustomReport_Creator）
+              </label>
+              <input
+                ref={capCreatorFileRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={(e) => setCapCreatorFile(e.target.files?.[0] || null)}
+                disabled={capUploading}
+                className="w-full mt-1 text-sm"
+              />
+              {capCreatorFile && <p className="text-xs text-green-600 mt-1">✓ {capCreatorFile.name}</p>}
+            </div>
+            <div>
+              <label className="text-sm font-medium flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">2</Badge>
+                Product×Shop単位レポート（CustomReport_Creator_Product_Shop）
+              </label>
+              <input
+                ref={capProductFileRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={(e) => setCapProductFile(e.target.files?.[0] || null)}
+                disabled={capUploading}
+                className="w-full mt-1 text-sm"
+              />
+              {capProductFile && <p className="text-xs text-green-600 mt-1">✓ {capProductFile.name}</p>}
+            </div>
+            <div className="flex items-center justify-between pt-2">
+              <p className="text-xs text-muted-foreground">両方アップロード推奨。片方のみでもOK。</p>
+              <Button onClick={handleCapUpload} disabled={capUploading || !capUploadMonth || (!capCreatorFile && !capProductFile)} size="sm">
+                {capUploading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />アップロード中...</> : <><Upload className="h-4 w-4 mr-2" />アップロード</>}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

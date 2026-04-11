@@ -428,6 +428,15 @@ import {
   getTiktokTapCreatorProfitability,
   getTiktokTapCreatorProductBreakdown,
   getTiktokTapProductCreatorBreakdown,
+  bulkInsertCapCreatorReports,
+  bulkInsertCapProductReports,
+  deleteCapCreatorReportsByMonth,
+  deleteCapProductReportsByMonth,
+  getCapCreatorSummary,
+  getCapProductSummary,
+  getCapCreatorProductBreakdown,
+  getCapProductCreatorBreakdown,
+  getCapAvailableMonths,
   createLivestreamSet,
   createLivestreamSetItem,
   getLivestreamSetsByLivestreamId,
@@ -17822,6 +17831,202 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({ productName: z.string(), brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokTapProductCreatorBreakdown(input.productName, input.brandId, input.month);
+      }),
+
+    // =============================================
+    // CAP (Creator Affiliate Program) Endpoints
+    // =============================================
+
+    // CAPデータアップロード（Creator単位）
+    uploadCapCreatorXlsx: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        fileContent: z.string(), // Base64 encoded XLSX
+        reportMonth: z.string(), // YYYY-MM
+      }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const XLSX = await import('xlsx');
+          const buffer = Buffer.from(input.fileContent, 'base64');
+          const workbook = XLSX.read(buffer, { type: 'buffer' });
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+          if (rows.length === 0) throw new Error('CAPデータが空です');
+
+          const parseNum = (val: any): number => {
+            if (val === '' || val === null || val === undefined) return 0;
+            if (typeof val === 'number') return Math.round(val);
+            const str = String(val).replace(/[¥,$%円,]/g, '').trim();
+            const num = parseFloat(str);
+            return isNaN(num) ? 0 : Math.round(num);
+          };
+
+          const reports: any[] = [];
+          for (const row of rows) {
+            const dateVal = String(row['日付'] || '').trim();
+            if (dateVal === '概要' || dateVal === '' || dateVal === 'Summary') continue;
+
+            const creatorUsername = String(row['クリエイターのユーザー名'] || row['Creator username'] || '').trim();
+            if (!creatorUsername) continue;
+
+            reports.push({
+              brandId: input.brandId,
+              reportMonth: input.reportMonth,
+              dateRange: dateVal,
+              creatorUsername,
+              affiliateGmv: parseNum(row['アフィリエイトGMV']),
+              affiliateLiveGmv: parseNum(row['アフィリエイトLIVE GMV']),
+              affiliateVideoGmv: parseNum(row['アフィリエイト動画GMV']),
+              directGmv: parseNum(row['ダイレクトGMV']),
+              liveDirectGmv: parseNum(row['LIVEダイレクトGMV']),
+              videoDirectGmv: parseNum(row['動画ダイレクトGMV']),
+              affiliateOrders: parseNum(row['アフィリエイト注文数']),
+              affiliateLiveOrders: parseNum(row['アフィリエイトLIVE注文']),
+              affiliateVideoOrders: parseNum(row['アフィリエイト動画注文']),
+              directOrders: parseNum(row['直接注文']),
+              liveDirectOrders: parseNum(row['LIVE直接注文']),
+              videoDirectOrders: parseNum(row['動画直接注文']),
+              salesCount: parseNum(row['販売数'] || row['商品販売数']),
+              estimatedCommission: parseNum(row['推定成果報酬額']),
+              commissionBase: parseNum(row['手数料ベース']),
+              liveViews: parseNum(row['LIVE視聴数']),
+              videoViews: parseNum(row['視聴数']),
+              liveCount: parseNum(row['LIVE']),
+              videoCount: parseNum(row['動画']),
+              liveCtr: String(row['LIVE CTR'] || ''),
+              videoCtr: String(row['動画CTR'] || ''),
+            });
+          }
+
+          await deleteCapCreatorReportsByMonth(input.brandId, input.reportMonth);
+          await bulkInsertCapCreatorReports(reports);
+
+          return { totalRows: reports.length, importedRows: reports.length, reportMonth: input.reportMonth };
+        } catch (error: any) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `CAPクリエイターデータインポートに失敗: ${error.message}`,
+          });
+        }
+      }),
+
+    // CAPデータアップロード（Product×Shop単位）
+    uploadCapProductXlsx: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        fileContent: z.string(), // Base64 encoded XLSX
+        reportMonth: z.string(), // YYYY-MM
+      }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const XLSX = await import('xlsx');
+          const buffer = Buffer.from(input.fileContent, 'base64');
+          const workbook = XLSX.read(buffer, { type: 'buffer' });
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+          if (rows.length === 0) throw new Error('CAPデータが空です');
+
+          const parseNum = (val: any): number => {
+            if (val === '' || val === null || val === undefined) return 0;
+            if (typeof val === 'number') return Math.round(val);
+            const str = String(val).replace(/[¥,$%円,]/g, '').trim();
+            const num = parseFloat(str);
+            return isNaN(num) ? 0 : Math.round(num);
+          };
+
+          const reports: any[] = [];
+          for (const row of rows) {
+            const dateVal = String(row['日付'] || '').trim();
+            if (dateVal === '概要' || dateVal === '' || dateVal === 'Summary') continue;
+
+            const creatorUsername = String(row['クリエイターのユーザー名'] || row['Creator username'] || '').trim();
+            const productId = String(row['商品ID'] || row['Product ID'] || '').trim();
+            const productName = String(row['商品情報'] || row['Product name'] || '').trim();
+            if (!creatorUsername || !productId) continue;
+
+            reports.push({
+              brandId: input.brandId,
+              reportMonth: input.reportMonth,
+              dateRange: dateVal,
+              creatorUsername,
+              productId,
+              productName,
+              shopId: String(row['ショップID'] || '').trim(),
+              shopName: String(row['ショップ名'] || '').trim(),
+              affiliateGmv: parseNum(row['アフィリエイトGMV']),
+              affiliateLiveGmv: parseNum(row['アフィリエイトLIVE GMV']),
+              affiliateVideoGmv: parseNum(row['アフィリエイト動画GMV']),
+              directGmv: parseNum(row['ダイレクトGMV']),
+              liveDirectGmv: parseNum(row['LIVEダイレクトGMV']),
+              videoDirectGmv: parseNum(row['動画ダイレクトGMV']),
+              productCardDirectGmv: parseNum(row['商品カードダイレクトGMV']),
+              affiliateOrders: parseNum(row['アフィリエイト注文数']),
+              affiliateLiveOrders: parseNum(row['アフィリエイトLIVE注文']),
+              affiliateVideoOrders: parseNum(row['アフィリエイト動画注文']),
+              directOrders: parseNum(row['直接注文']),
+              liveDirectOrders: parseNum(row['LIVE直接注文']),
+              videoDirectOrders: parseNum(row['動画直接注文']),
+              productCardOrders: parseNum(row['商品カードからの注文数']),
+              salesCount: parseNum(row['販売数']),
+              liveSalesCount: parseNum(row['LIVEからの商品販売数']),
+              videoSalesCount: parseNum(row['動画からの商品販売数']),
+              productCardSalesCount: parseNum(row['商品カードでの商品販売数']),
+              directRefundGmv: parseNum(row['直接返金GMV']),
+              refundedItems: parseNum(row['返金されたアイテム']),
+              ctr: String(row['CTR'] || ''),
+              ctor: String(row['CTOR'] || ''),
+            });
+          }
+
+          await deleteCapProductReportsByMonth(input.brandId, input.reportMonth);
+          await bulkInsertCapProductReports(reports);
+
+          return { totalRows: reports.length, importedRows: reports.length, reportMonth: input.reportMonth };
+        } catch (error: any) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `CAP商品データインポートに失敗: ${error.message}`,
+          });
+        }
+      }),
+
+    // CAPクリエイター別サマリー
+    getCapCreatorSummary: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getCapCreatorSummary(input.brandId, input.month);
+      }),
+
+    // CAP商品別サマリー
+    getCapProductSummary: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getCapProductSummary(input.brandId, input.month);
+      }),
+
+    // CAPライバー別商品内訳
+    getCapCreatorProductBreakdown: protectedProcedure
+      .input(z.object({ creatorUsername: z.string(), brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getCapCreatorProductBreakdown(input.creatorUsername, input.brandId, input.month);
+      }),
+
+    // CAP商品別ライバー内訳
+    getCapProductCreatorBreakdown: protectedProcedure
+      .input(z.object({ productName: z.string(), brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getCapProductCreatorBreakdown(input.productName, input.brandId, input.month);
+      }),
+
+    // CAP利用可能月一覧
+    getCapAvailableMonths: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0) }))
+      .query(async ({ input }) => {
+        return getCapAvailableMonths(input.brandId);
       }),
   }),
 
