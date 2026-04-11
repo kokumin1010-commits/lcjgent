@@ -16,7 +16,7 @@ import {
   Loader2, Eye, RefreshCw, Store, Video, ShoppingBag,
   AlertTriangle, CheckCircle, Clock, Wallet, Building2,
   ArrowUpRight, ArrowDownRight, Crown, Medal, Award, CalendarDays,
-  Target, Zap, Activity, Percent, GitBranch, Lock, ShieldAlert
+  Target, Zap, Activity, Percent, GitBranch, Lock, ShieldAlert, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle
 } from "lucide-react";
 
 function formatCurrency(val: number | string | null | undefined): string {
@@ -91,6 +91,9 @@ export default function FinanceManagement() {
   const [expandedMonthTab, setExpandedMonthTab] = useState<'overview' | 'creators' | 'shops' | 'products'>('overview');
   const [expandedCreator, setExpandedCreator] = useState<string | null>(null);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+  const [drilldownSort, setDrilldownSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'lcjFee', dir: 'desc' });
+  const [prodDrilldownSort, setProdDrilldownSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'lcjFee', dir: 'desc' });
+  const [capTapHelpOpen, setCapTapHelpOpen] = useState(false);
   const pageSize = 50;
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
@@ -517,6 +520,10 @@ export default function FinanceManagement() {
             ファイナンス管理
           </h1>
           <p className="text-muted-foreground text-sm mt-1">全ブランド横断 TikTok成果報酬ダッシュボード</p>
+          <button onClick={() => setCapTapHelpOpen(true)} className="flex items-center gap-1.5 mt-2 text-xs text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full">
+            <HelpCircle className="h-3.5 w-3.5" />
+            CAP / TAP 手数料の考え方
+          </button>
         </div>
         <div className="flex items-center gap-3">
           {/* Month selector */}
@@ -2688,18 +2695,47 @@ export default function FinanceManagement() {
                                               <tr className="border-b bg-muted/30">
                                                 <th className="text-left py-1.5 px-2">商品名</th>
                                                 <th className="text-left py-1.5 px-2">ショップ</th>
-                                                <th className="text-right py-1.5 px-2">アフィリGMV</th>
-                                                <th className="text-right py-1.5 px-2">ブランド手数料</th>
-                                                <th className="text-right py-1.5 px-2">ブランド手数料率</th>
-                                                <th className="text-right py-1.5 px-2">C手数料</th>
-                                                <th className="text-right py-1.5 px-2">C手数料率</th>
-                                                <th className="text-right py-1.5 px-2">LCJ手数料(純利益)</th>
-                                                <th className="text-right py-1.5 px-2">LCJ手数料率(純利益率)</th>
-                                                <th className="text-right py-1.5 px-2">注文数</th>
+                                                {[
+                                                  { key: 'gmv', label: 'アフィリGMV' },
+                                                  { key: 'brand', label: 'ブランド手数料' },
+                                                  { key: 'brandRate', label: 'ブランド手数料率' },
+                                                  { key: 'cFee', label: 'C手数料' },
+                                                  { key: 'cRate', label: 'C手数料率' },
+                                                  { key: 'lcjFee', label: 'LCJ手数料(純利益)' },
+                                                  { key: 'lcjRate', label: 'LCJ手数料率(純利益率)' },
+                                                  { key: 'orders', label: '注文数' },
+                                                ].map(col => (
+                                                  <th key={col.key} className="text-right py-1.5 px-2 cursor-pointer select-none hover:bg-muted/50 transition-colors" onClick={() => setDrilldownSort(prev => prev.key === col.key ? { key: col.key, dir: prev.dir === 'desc' ? 'asc' : 'desc' } : { key: col.key, dir: 'desc' })}>
+                                                    <span className="inline-flex items-center gap-0.5">
+                                                      {col.label}
+                                                      {drilldownSort.key === col.key ? (drilldownSort.dir === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}
+                                                    </span>
+                                                  </th>
+                                                ))}
                                               </tr>
                                             </thead>
                                             <tbody>
-                                              {(tapCreatorProductBreakdownQuery.data as any[]).map((p: any, j: number) => {
+                                              {[...(tapCreatorProductBreakdownQuery.data as any[])].sort((a: any, b: any) => {
+                                                const getVal = (item: any) => {
+                                                  const g = Number(item.totalAffiliateGmv) || 0;
+                                                  const l = Number(item.totalEstimatedPartnerCommission) || 0;
+                                                  const c = Number(item.totalEstimatedCreatorCommission) || 0;
+                                                  const br = l + c;
+                                                  switch (drilldownSort.key) {
+                                                    case 'gmv': return g;
+                                                    case 'brand': return br;
+                                                    case 'brandRate': return g > 0 ? br / g : 0;
+                                                    case 'cFee': return c;
+                                                    case 'cRate': return g > 0 ? c / g : 0;
+                                                    case 'lcjFee': return l;
+                                                    case 'lcjRate': return g > 0 ? l / g : 0;
+                                                    case 'orders': return Number(item.totalOrders) || 0;
+                                                    default: return l;
+                                                  }
+                                                };
+                                                const va = getVal(a), vb = getVal(b);
+                                                return drilldownSort.dir === 'desc' ? vb - va : va - vb;
+                                              }).map((p: any, j: number) => {
                                                 const pGmv = Number(p.totalAffiliateGmv) || 0;
                                                 const pLcj = Number(p.totalEstimatedPartnerCommission) || 0;
                                                 const pC = Number(p.totalEstimatedCreatorCommission) || 0;
@@ -2834,18 +2870,47 @@ export default function FinanceManagement() {
                                               <thead>
                                                 <tr className="border-b bg-muted/30">
                                                   <th className="text-left py-1.5 px-2">ライバー</th>
-                                                  <th className="text-right py-1.5 px-2">アフィリGMV</th>
-                                                  <th className="text-right py-1.5 px-2">ブランド手数料</th>
-                                                  <th className="text-right py-1.5 px-2">ブランド手数料率</th>
-                                                  <th className="text-right py-1.5 px-2">C手数料</th>
-                                                  <th className="text-right py-1.5 px-2">C手数料率</th>
-                                                  <th className="text-right py-1.5 px-2">LCJ手数料(純利益)</th>
-                                                  <th className="text-right py-1.5 px-2">LCJ手数料率(純利益率)</th>
-                                                  <th className="text-right py-1.5 px-2">注文数</th>
+                                                  {[
+                                                    { key: 'gmv', label: 'アフィリGMV' },
+                                                    { key: 'brand', label: 'ブランド手数料' },
+                                                    { key: 'brandRate', label: 'ブランド手数料率' },
+                                                    { key: 'cFee', label: 'C手数料' },
+                                                    { key: 'cRate', label: 'C手数料率' },
+                                                    { key: 'lcjFee', label: 'LCJ手数料(純利益)' },
+                                                    { key: 'lcjRate', label: 'LCJ手数料率(純利益率)' },
+                                                    { key: 'orders', label: '注文数' },
+                                                  ].map(col => (
+                                                    <th key={col.key} className="text-right py-1.5 px-2 cursor-pointer select-none hover:bg-muted/50 transition-colors" onClick={() => setProdDrilldownSort(prev => prev.key === col.key ? { key: col.key, dir: prev.dir === 'desc' ? 'asc' : 'desc' } : { key: col.key, dir: 'desc' })}>
+                                                      <span className="inline-flex items-center gap-0.5">
+                                                        {col.label}
+                                                        {prodDrilldownSort.key === col.key ? (prodDrilldownSort.dir === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}
+                                                      </span>
+                                                    </th>
+                                                  ))}
                                                 </tr>
                                               </thead>
                                               <tbody>
-                                                {(tapProductCreatorBreakdownQuery.data as any[]).map((cr: any, j: number) => {
+                                                {[...(tapProductCreatorBreakdownQuery.data as any[])].sort((a: any, b: any) => {
+                                                  const getVal = (item: any) => {
+                                                    const g = Number(item.totalAffiliateGmv) || 0;
+                                                    const l = Number(item.totalEstimatedPartnerCommission) || 0;
+                                                    const c = Number(item.totalEstimatedCreatorCommission) || 0;
+                                                    const br = l + c;
+                                                    switch (prodDrilldownSort.key) {
+                                                      case 'gmv': return g;
+                                                      case 'brand': return br;
+                                                      case 'brandRate': return g > 0 ? br / g : 0;
+                                                      case 'cFee': return c;
+                                                      case 'cRate': return g > 0 ? c / g : 0;
+                                                      case 'lcjFee': return l;
+                                                      case 'lcjRate': return g > 0 ? l / g : 0;
+                                                      case 'orders': return Number(item.totalOrders) || 0;
+                                                      default: return l;
+                                                    }
+                                                  };
+                                                  const va = getVal(a), vb = getVal(b);
+                                                  return prodDrilldownSort.dir === 'desc' ? vb - va : va - vb;
+                                                }).map((cr: any, j: number) => {
                                                   const crGmv = Number(cr.totalAffiliateGmv) || 0;
                                                   const crLcj = Number(cr.totalEstimatedPartnerCommission) || 0;
                                                   const crC = Number(cr.totalEstimatedCreatorCommission) || 0;
@@ -3683,6 +3748,141 @@ export default function FinanceManagement() {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setDeletePaymentDialogOpen(false); setDeletePassword(''); setDeleteConfirmStep(0); }}>キャンセル</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* CAP/TAP 手数料の考え方 ヘルプダイアログ */}
+      <Dialog open={capTapHelpOpen} onOpenChange={setCapTapHelpOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <HelpCircle className="h-5 w-5 text-blue-600" />
+              CAP / TAP 手数料の考え方
+            </DialogTitle>
+            <DialogDescription>TikTokアフィリエイトの手数料構造を理解するためのガイド</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 text-sm">
+            {/* TAP説明 */}
+            <div className="bg-blue-50 rounded-lg p-4 space-y-2">
+              <h3 className="font-bold text-blue-900 flex items-center gap-2">
+                <span className="bg-blue-600 text-white px-2 py-0.5 rounded text-xs">TAP</span>
+                TikTok Affiliate Program
+              </h3>
+              <p className="text-blue-800">ブランドが設定した手数料が、TikTokを通じてパートナー（LCJ）とクリエイター（ライバー）に分配される仕組みです。</p>
+              <p className="text-blue-800">LCJがTAPリンクを発行する際に、Partner（LCJ）とCreator（ライバー）の分配率を自由に設定できます。</p>
+            </div>
+
+            {/* CAP説明 */}
+            <div className="bg-green-50 rounded-lg p-4 space-y-2">
+              <h3 className="font-bold text-green-900 flex items-center gap-2">
+                <span className="bg-green-600 text-white px-2 py-0.5 rounded text-xs">CAP</span>
+                キャスティング契約
+              </h3>
+              <p className="text-green-800">LCJとライバー間のビジネス契約です。C手数料（クリエイター報酬）をCAP契約の比率で再分配します。</p>
+              <p className="text-green-800">CAP契約のライバーでも、TAPリンクで分配率を設定できます。</p>
+            </div>
+
+            {/* 具体例 */}
+            <div className="border rounded-lg p-4 space-y-4">
+              <h3 className="font-bold text-base">💡 具体例：1万円の商品を売った場合</h3>
+              <p className="text-muted-foreground">ブランドが手数料率 <span className="font-bold text-foreground">40%</span> に設定 → 手数料総額 <span className="font-bold text-foreground">¥4,000</span></p>
+
+              {/* パターン1 */}
+              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                <h4 className="font-semibold text-sm">パターン①　TAPリンク：LCJ 20% / ライバー 20%</h4>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-orange-100 rounded p-2">
+                    <div className="text-xs text-orange-600">ブランド手数料</div>
+                    <div className="font-bold text-orange-800">¥4,000</div>
+                    <div className="text-xs text-orange-600">（GMVの40%）</div>
+                  </div>
+                  <div className="bg-blue-100 rounded p-2">
+                    <div className="text-xs text-blue-600">LCJ手数料</div>
+                    <div className="font-bold text-blue-800">¥2,000</div>
+                    <div className="text-xs text-blue-600">（GMVの20%）</div>
+                  </div>
+                  <div className="bg-purple-100 rounded p-2">
+                    <div className="text-xs text-purple-600">C手数料</div>
+                    <div className="font-bold text-purple-800">¥2,000</div>
+                    <div className="text-xs text-purple-600">（GMVの20%）</div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mt-1">
+                  <span className="bg-orange-200 px-1.5 py-0.5 rounded">ブランド ¥4,000</span>
+                  <span>＝</span>
+                  <span className="bg-blue-200 px-1.5 py-0.5 rounded">LCJ ¥2,000</span>
+                  <span>＋</span>
+                  <span className="bg-purple-200 px-1.5 py-0.5 rounded">ライバー ¥2,000</span>
+                </div>
+              </div>
+
+              {/* パターン2 CAP */}
+              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                <h4 className="font-semibold text-sm">パターン②　CAP契約あり（LCJ 30% / ライバー 70%）の場合</h4>
+                <p className="text-xs text-muted-foreground">TAPリンク：LCJ 20% / ライバー 20% で発行</p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="bg-blue-100 rounded p-2 flex-1 text-center">
+                      <div className="text-xs text-blue-600">TikTokからLCJへ</div>
+                      <div className="font-bold text-blue-800">¥2,000</div>
+                    </div>
+                    <div className="bg-purple-100 rounded p-2 flex-1 text-center">
+                      <div className="text-xs text-purple-600">TikTokからライバーへ</div>
+                      <div className="font-bold text-purple-800">¥2,000</div>
+                    </div>
+                  </div>
+                  <div className="text-center text-xs text-muted-foreground">↓ CAP契約により C手数料¥2,000 を再分配 ↓</div>
+                  <div className="flex items-center gap-2">
+                    <div className="bg-purple-100 rounded p-2 flex-1 text-center">
+                      <div className="text-xs text-purple-600">ライバー実取り分（70%）</div>
+                      <div className="font-bold text-purple-800">¥1,400</div>
+                    </div>
+                    <div className="bg-blue-100 rounded p-2 flex-1 text-center">
+                      <div className="text-xs text-blue-600">LCJ追加取り分（30%）</div>
+                      <div className="font-bold text-blue-800">¥600</div>
+                    </div>
+                  </div>
+                  <div className="bg-emerald-50 border border-emerald-200 rounded p-2 text-center">
+                    <span className="text-xs text-emerald-700">LCJ実際の利益 ＝ LCJ手数料 ¥2,000 ＋ CAP分 ¥600 ＝</span>
+                    <span className="font-bold text-emerald-800"> ¥2,600</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* パターン3 CAP 100% */}
+              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                <h4 className="font-semibold text-sm">パターン③　CAP契約（LCJ 0% / ライバー 100%）の場合</h4>
+                <p className="text-xs text-muted-foreground">TAPリンク：LCJ 0% / ライバー 40% で発行</p>
+                <div className="grid grid-cols-2 gap-2 text-center">
+                  <div className="bg-blue-100 rounded p-2">
+                    <div className="text-xs text-blue-600">LCJ手数料</div>
+                    <div className="font-bold text-blue-800">¥0</div>
+                    <div className="text-xs text-blue-600">（0%）</div>
+                  </div>
+                  <div className="bg-purple-100 rounded p-2">
+                    <div className="text-xs text-purple-600">C手数料（ライバー全額）</div>
+                    <div className="font-bold text-purple-800">¥4,000</div>
+                    <div className="text-xs text-purple-600">（40%）</div>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground text-center">※ この場合、TikTok上のLCJ手数料は¥0ですが、CAP契約の内容次第でLCJの取り分が発生する場合があります</p>
+              </div>
+            </div>
+
+            {/* 本画面の数値について */}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
+              <h3 className="font-bold text-amber-900 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                本画面の数値について
+              </h3>
+              <ul className="text-amber-800 space-y-1 list-disc list-inside">
+                <li><strong>LCJ手数料</strong> ＝ TikTok上でLCJが受け取る金額（CAP契約による追加収益は含まれません）</li>
+                <li><strong>C手数料</strong> ＝ TikTok上でライバーが受け取る金額</li>
+                <li><strong>ブランド手数料</strong> ＝ LCJ手数料 ＋ C手数料（ブランドが設定した総手数料）</li>
+                <li>返金によりGMVが減少し、手数料率が実際の設定値と異なる場合があります</li>
+              </ul>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
