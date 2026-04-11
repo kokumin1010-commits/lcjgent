@@ -16,7 +16,7 @@ import {
   Loader2, Eye, RefreshCw, Store, Video, ShoppingBag,
   AlertTriangle, CheckCircle, Clock, Wallet, Building2,
   ArrowUpRight, ArrowDownRight, Crown, Medal, Award, CalendarDays,
-  Target, Zap, Activity, Percent, GitBranch, Lock, ShieldAlert, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle
+  Target, Zap, Activity, Percent, GitBranch, Lock, ShieldAlert, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Settings, Info
 } from "lucide-react";
 
 function formatCurrency(val: number | string | null | undefined): string {
@@ -54,6 +54,84 @@ function getPrevMonth(month: string): string {
 }
 
 type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments' | 'tap' | 'tap-creators' | 'tap-shops' | 'tap-products' | 'tap-live' | 'tap-videos' | 'tap-profitability' | 'tap-bestmatch' | 'tap-shop-analysis' | 'tap-live-efficiency' | 'tap-growth' | 'tap-creator-profit' | 'tsp';
+
+// CAP契約比率設定行コンポーネント
+function CapRateRow({ liver, onSave }: { liver: any; onSave: (data: any) => void }) {
+  const [capEnabled, setCapEnabled] = useState(liver.capEnabled || false);
+  const [lcjRate, setLcjRate] = useState(String(liver.capLcjRate || 0));
+  const [creatorRate, setCreatorRate] = useState(String(liver.capCreatorRate || 100));
+  const [dirty, setDirty] = useState(false);
+
+  const handleLcjChange = (val: string) => {
+    setLcjRate(val);
+    const num = parseFloat(val) || 0;
+    setCreatorRate(String(Math.max(0, 100 - num)));
+    setDirty(true);
+  };
+
+  const handleCreatorChange = (val: string) => {
+    setCreatorRate(val);
+    const num = parseFloat(val) || 0;
+    setLcjRate(String(Math.max(0, 100 - num)));
+    setDirty(true);
+  };
+
+  return (
+    <tr className={`border-b hover:bg-muted/50 ${capEnabled ? 'bg-green-50/50' : ''}`}>
+      <td className="py-2 px-2 font-medium">{liver.name}</td>
+      <td className="py-2 px-2 text-xs text-muted-foreground">{liver.tiktokAccount || '-'}</td>
+      <td className="py-2 px-2 text-center">
+        <button
+          onClick={() => { setCapEnabled(!capEnabled); setDirty(true); }}
+          className={`px-2 py-0.5 rounded text-xs font-semibold transition-colors ${
+            capEnabled ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-gray-100 text-gray-500 border border-gray-200'
+          }`}
+        >
+          {capEnabled ? 'ON' : 'OFF'}
+        </button>
+      </td>
+      <td className="py-2 px-2 text-center">
+        <input
+          type="number"
+          value={lcjRate}
+          onChange={(e) => handleLcjChange(e.target.value)}
+          disabled={!capEnabled}
+          className="w-16 text-center border rounded px-1 py-0.5 text-sm disabled:opacity-40"
+          min={0} max={100} step={0.5}
+        />
+      </td>
+      <td className="py-2 px-2 text-center">
+        <input
+          type="number"
+          value={creatorRate}
+          onChange={(e) => handleCreatorChange(e.target.value)}
+          disabled={!capEnabled}
+          className="w-16 text-center border rounded px-1 py-0.5 text-sm disabled:opacity-40"
+          min={0} max={100} step={0.5}
+        />
+      </td>
+      <td className="py-2 px-2 text-center">
+        <button
+          onClick={() => {
+            onSave({
+              liverId: liver.id,
+              capEnabled,
+              capLcjRate: parseFloat(lcjRate) || 0,
+              capCreatorRate: parseFloat(creatorRate) || 100,
+            });
+            setDirty(false);
+          }}
+          disabled={!dirty}
+          className={`px-2 py-0.5 rounded text-xs font-semibold transition-colors ${
+            dirty ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-100 text-gray-400'
+          }`}
+        >
+          保存
+        </button>
+      </td>
+    </tr>
+  );
+}
 
 export default function FinanceManagement() {
   const [, navigate] = useLocation();
@@ -97,6 +175,7 @@ export default function FinanceManagement() {
   const [productTableSort, setProductTableSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'brandFee', dir: 'desc' });
   const [creatorTableSort, setCreatorTableSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'netProfit', dir: 'desc' });
   // CAP states
+  const [capRateDialogOpen, setCapRateDialogOpen] = useState(false);
   const [capUploadDialogOpen, setCapUploadDialogOpen] = useState(false);
   const [capUploading, setCapUploading] = useState(false);
   const [capUploadMonth, setCapUploadMonth] = useState<string>('');
@@ -265,6 +344,20 @@ export default function FinanceManagement() {
     { brandId: 0 },
     { enabled: activeTab === 'tap-creator-profit' || activeTab === 'tap-profitability' || activeTab === 'imports' }
   );
+
+  // CAP契約比率取得
+  const capRatesQuery = trpc.tiktokFinance.getCapRates.useQuery(undefined, {
+    enabled: activeTab === 'tap-creator-profit' || activeTab === 'tap-profitability' || capRateDialogOpen,
+  });
+  const updateCapRateMutation = trpc.tiktokFinance.updateCapRate.useMutation({
+    onSuccess: () => {
+      toast.success('CAP契約比率を更新しました');
+      capRatesQuery.refetch();
+    },
+    onError: (error: any) => {
+      toast.error(`CAP契約比率更新失敗: ${error.message}`);
+    },
+  });
 
   // CAP Upload Mutations
   const uploadCapCreatorMutation = trpc.tiktokFinance.uploadCapCreatorXlsx.useMutation({
@@ -628,6 +721,10 @@ export default function FinanceManagement() {
           <Button onClick={() => setSmartUploadDialogOpen(true)} variant="outline">
             <Upload className="h-4 w-4 mr-2" />
             データアップロード
+          </Button>
+          <Button onClick={() => setCapRateDialogOpen(true)} variant="outline">
+            <Settings className="h-4 w-4 mr-2" />
+            CAP契約比率
           </Button>
         </div>
       </div>
@@ -2757,7 +2854,15 @@ export default function FinanceManagement() {
                             const capGmv = capData ? Number(capData.capAffiliateGmv) || 0 : null;
                             const capCommission = capData ? Number(capData.capEstimatedCommission) || 0 : null;
                             const hasCap = capData !== undefined && capData !== null;
-                            return { ...c, gmv, lcjFee, cFee, brandFee, brandRate, cRate, netProfit, netRate, refundRate, capGmv, capCommission, hasCap };
+                            // CAP契約比率を取得（tiktokAccountとcreatorUsernameを突合）
+                            const capRateInfo = (capRatesQuery.data || []).find((r: any) => 
+                              r.tiktokAccount && c.creatorUsername && 
+                              r.tiktokAccount.toLowerCase().replace('@', '') === c.creatorUsername.toLowerCase().replace('@', '')
+                            );
+                            const capLcjRate = capRateInfo?.capEnabled ? (capRateInfo.capLcjRate || 0) : 0;
+                            // CAP側LCJ実質利益 = CAP推定成果報酬額 × LCJ比率
+                            const capNetProfit = hasCap && capCommission !== null ? capCommission * capLcjRate / 100 : null;
+                            return { ...c, gmv, lcjFee, cFee, brandFee, brandRate, cRate, netProfit, netRate, refundRate, capGmv, capCommission, hasCap, capNetProfit, capLcjRate };
                           }).sort((a: any, b: any) => {
                             const getVal = (item: any) => {
                               switch (creatorTableSort.key) {
@@ -2824,10 +2929,11 @@ export default function FinanceManagement() {
                                       {formatCurrency(netProfit)}
                                       <span className="text-[9px] font-bold px-1 rounded bg-blue-100 text-blue-600">T</span>
                                     </div>
-                                    {c.hasCap && c.capCommission !== null && (
+                                    {c.hasCap && c.capNetProfit !== null && (
                                       <div className="flex items-center justify-end gap-1 text-[10px] font-semibold text-green-700">
-                                        {formatCurrency(brandFee - c.capCommission)}
+                                        {formatCurrency(c.capNetProfit)}
                                         <span className="text-[9px] font-bold px-1 rounded bg-green-100 text-green-600">C</span>
+                                        {c.capLcjRate > 0 && <span className="text-[8px] text-muted-foreground">({c.capLcjRate}%)</span>}
                                       </div>
                                     )}
                                   </td>
@@ -4222,6 +4328,48 @@ export default function FinanceManagement() {
                 <li>CAPデータには「推定成果報酬額」が含まれ、これがCreatorへの実際の支払い額となります</li>
               </ul>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* CAP契約比率設定ダイアログ */}
+      <Dialog open={capRateDialogOpen} onOpenChange={setCapRateDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>ライバー別 CAP契約比率設定</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-blue-800">
+                  <p className="font-semibold mb-1">CAP契約比率とは？</p>
+                  <p>CAP契約で「LCJ取り分」と「Creator取り分」の比率を設定します。</p>
+                  <p>例: LCJ 20% / Creator 80% → CAP推定成果報酬額の20%がLCJの利益になります。</p>
+                  <p>LCJ 0% / Creator 100% → LCJは取り分なし（全額Creatorへ）</p>
+                </div>
+              </div>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 px-2">ライバー</th>
+                  <th className="text-left py-2 px-2">TikTok</th>
+                  <th className="text-center py-2 px-2">CAP契約</th>
+                  <th className="text-center py-2 px-2">LCJ%</th>
+                  <th className="text-center py-2 px-2">Creator%</th>
+                  <th className="text-center py-2 px-2">保存</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(capRatesQuery.data || []).map((liver: any) => (
+                  <CapRateRow key={liver.id} liver={liver} onSave={(data: any) => updateCapRateMutation.mutate(data)} />
+                ))}
+                {(!capRatesQuery.data || capRatesQuery.data.length === 0) && (
+                  <tr><td colSpan={6} className="text-center py-4 text-muted-foreground">ライバーがいません</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </DialogContent>
       </Dialog>

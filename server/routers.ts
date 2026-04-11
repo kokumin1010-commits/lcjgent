@@ -18028,6 +18028,37 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .query(async ({ input }) => {
         return getCapAvailableMonths(input.brandId);
       }),
+
+    // CAP契約比率一覧取得（全ライバーのcapEnabled, capLcjRate, capCreatorRate）
+    getCapRates: protectedProcedure
+      .query(async () => {
+        const allLivers = await getAllActiveLivers();
+        return allLivers.map((l: any) => ({
+          id: l.id,
+          name: l.name,
+          tiktokAccount: l.tiktokAccount,
+          capEnabled: l.capEnabled ?? false,
+          capLcjRate: l.capLcjRate ? parseFloat(l.capLcjRate) : 0,
+          capCreatorRate: l.capCreatorRate ? parseFloat(l.capCreatorRate) : 100,
+        }));
+      }),
+
+    // CAP契約比率更新
+    updateCapRate: protectedProcedure
+      .input(z.object({
+        liverId: z.number(),
+        capEnabled: z.boolean(),
+        capLcjRate: z.number().min(0).max(100),
+        capCreatorRate: z.number().min(0).max(100),
+      }))
+      .mutation(async ({ input }) => {
+        await updateLiver(input.liverId, {
+          capEnabled: input.capEnabled,
+          capLcjRate: String(input.capLcjRate),
+          capCreatorRate: String(input.capCreatorRate),
+        } as any);
+        return { success: true };
+      }),
   }),
 
   // セット組み管理

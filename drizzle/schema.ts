@@ -873,6 +873,10 @@ export const livers = mysqlTable("livers", {
   lineLinkCodeExpiresAt: timestamp("lineLinkCodeExpiresAt"), // LINE連携コードの有効期限
    // 事務所（エージェンシー）
   agencyId: int("agencyId"), // References agencies.id（NULLの場合はLCJ直属）
+  // CAP契約設定
+  capEnabled: boolean("capEnabled").default(false), // CAP契約があるかどうか
+  capLcjRate: decimal("capLcjRate", { precision: 5, scale: 2 }).default("0"), // CAP契約のLCJ取り分比率（%）例: 20.00 = 20%
+  capCreatorRate: decimal("capCreatorRate", { precision: 5, scale: 2 }).default("100"), // CAP契約のCreator取り分比率（%）例: 80.00 = 80%
   // タイムスタンプ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
