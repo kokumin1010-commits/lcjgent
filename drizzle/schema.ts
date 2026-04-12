@@ -446,6 +446,7 @@ export const brandContracts = mysqlTable("brand_contracts", {
   plannedLivestreamCount: int("plannedLivestreamCount"), // 予定配信回数
   status: mysqlEnum("status", ["契約中", "完了", "保留", "終了"]).default("契約中").notNull(), // ステータス
   memo: text("memo"), // メモ
+  tspContractId: int("tspContractId"), // tsp_contracts.id への参照（TSP契約連携）
   createdBy: int("createdBy").notNull(), // 作成者（user ID）
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

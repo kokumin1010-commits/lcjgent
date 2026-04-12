@@ -7828,6 +7828,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
           status: z.enum(["契約中", "完了", "保留", "終了"]).default("契約中"),
           memo: z.string().optional(),
           plannedLivestreamCount: z.number().optional(),
+          tspContractId: z.number().nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -7896,6 +7897,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
           status: z.enum(["契約中", "完了", "保留", "終了"]).optional(),
           memo: z.string().optional(),
           plannedLivestreamCount: z.number().nullable().optional(),
+          tspContractId: z.number().nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {

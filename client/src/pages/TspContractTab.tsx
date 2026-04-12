@@ -520,7 +520,7 @@ export default function TspContractTab() {
                       <span>支払期限: {c.paymentDueDays}日後</span>
                       <span>消費税: {c.taxRate}%</span>
                       {c.tapShopName && <span>TAPショップ: {c.tapShopName}</span>}
-                      {c.brandId && brandsMap.get(c.brandId) && <span className="text-indigo-600">ブランド: {(brandsMap.get(c.brandId) as any)?.name}</span>}
+                      {c.brandId && brandsMap.get(c.brandId) && <a href={`/master/brands/${c.brandId}`} className="text-indigo-600 hover:underline cursor-pointer" onClick={(e) => e.stopPropagation()}>ブランド: {(brandsMap.get(c.brandId) as any)?.name} ↗</a>}
                       {c.lcjStaffId && staffMap.get(c.lcjStaffId) && <span className="text-blue-600">LCJ担当: {(staffMap.get(c.lcjStaffId) as any)?.name}</span>}
                       {c.stripeCustomerId ? (
                         <span className="text-green-600">Stripe連携済</span>

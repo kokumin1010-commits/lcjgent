@@ -798,7 +798,7 @@ export default function BrandDetail() {
   const [addContractDialogOpen, setAddContractDialogOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "", liverIds: [] as number[] });
   const [newLivestream, setNewLivestream] = useState({ livestreamDate: "", livestreamStartTime: "", streamerName: "", liverId: null as number | null, platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null as number | null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
-  const [newContract, setNewContract] = useState({ serviceType: "単発ライブ契約" as "単発ライブ契約" | "期間契約" | "運用代行型（TSP）" | "パッケージ／複合契約", fixedFee: 0, status: "契約中" as "契約中" | "完了" | "保留" | "終了", startDate: "", endDate: "", memo: "", linkedLivestreamIds: [] as number[], plannedLivestreamCount: undefined as number | undefined });
+  const [newContract, setNewContract] = useState({ serviceType: "単発ライブ契約" as "単発ライブ契約" | "期間契約" | "運用代行型（TSP）" | "パッケージ／複合契約", fixedFee: 0, status: "契約中" as "契約中" | "完了" | "保留" | "終了", startDate: "", endDate: "", memo: "", linkedLivestreamIds: [] as number[], plannedLivestreamCount: undefined as number | undefined, tspContractId: null as number | null, createNewTsp: false });
   // Delete states
   const [deleteProductDialogOpen, setDeleteProductDialogOpen] = useState(false);
   const [deleteLivestreamDialogOpen, setDeleteLivestreamDialogOpen] = useState(false);
@@ -914,6 +914,11 @@ export default function BrandDetail() {
 
   // MALL商品データ取得
   const { data: mallProductsList = [], refetch: refetchMallProducts } = trpc.mall.getProductsByBrandId.useQuery({ brandId }, { enabled: brandId > 0 });
+  const { data: tspContracts = [] } = trpc.tsp.listContracts.useQuery({ status: "all" });
+  const createTspContractMutation = trpc.tsp.createContract.useMutation({
+    onSuccess: () => { toast.success(language === 'ja' ? 'TSP契約を作成しました' : 'TSP合同已创建'); },
+    onError: (err: any) => { toast.error(language === 'ja' ? 'TSP契約作成に失敗: ' + err.message : 'TSP合同创建失败: ' + err.message); },
+  });
   const updateMallProductMutation = trpc.mall.updateProduct.useMutation({
     onSuccess: () => { refetchMallProducts(); toast.success(language === 'ja' ? '成果報酬を更新しました' : '成果报酬已更新'); },
     onError: () => { toast.error(language === 'ja' ? '更新に失敗しました' : '更新失败'); },
@@ -2362,6 +2367,16 @@ ${proposal.proposalContent}
                         <span>{t.commissionRate}:</span>
                         <span className="text-purple-400 font-mono">{contract.commissionRate.replace(/[^0-9.]/g, '')}%</span>
                       </div>
+                    )}
+                    {(contract as any).tspContractId && (
+                      <a 
+                        href="/master/finance" 
+                        className="flex items-center gap-1 text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span>TSP契約 #{(contract as any).tspContractId}</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
                     )}
                   </div>
                   {/* ROAS表示コンポーネント */}
@@ -4960,6 +4975,61 @@ ${proposal.proposalContent}
                 rows={3}
               />
             </div>
+
+            {/* TSP契約連携セクション */}
+            {(newContract.serviceType === '運用代行型（TSP）' || newContract.serviceType === '期間契約') && (
+              <div className="border-t border-red-900/30 pt-4">
+                <Label className="text-gray-400 flex items-center gap-2 mb-2">
+                  <DollarSign className="h-4 w-4" />
+                  {language === 'zh' ? 'TSP合同关联' : 'TSP契約連携'}
+                </Label>
+                <div className="space-y-2">
+                  <Select
+                    value={newContract.tspContractId ? String(newContract.tspContractId) : "none"}
+                    onValueChange={(value) => {
+                      if (value === "none") {
+                        setNewContract({ ...newContract, tspContractId: null, createNewTsp: false });
+                      } else if (value === "new") {
+                        setNewContract({ ...newContract, tspContractId: null, createNewTsp: true });
+                      } else {
+                        setNewContract({ ...newContract, tspContractId: parseInt(value), createNewTsp: false });
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-black/60 border-red-900/50 text-white">
+                      <SelectValue placeholder={language === 'ja' ? 'TSP契約を選択...' : '选择TSP合同...'} />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-900 border-red-900/50">
+                      <SelectItem value="none" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">
+                        {language === 'ja' ? '連携なし' : '不关联'}
+                      </SelectItem>
+                      <SelectItem value="new" className="text-amber-400 hover:bg-red-900/30 focus:bg-red-900/30 focus:text-amber-400">
+                        {language === 'ja' ? '➕ 新規TSP契約も同時作成' : '➕ 同时创建TSP合同'}
+                      </SelectItem>
+                      {tspContracts.filter((tc: any) => tc.brandId === brandId || !tc.brandId).map((tc: any) => (
+                        <SelectItem key={tc.id} value={String(tc.id)} className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">
+                          #{tc.id} {tc.shopName} - ¥{(tc.monthlyAmount || 0).toLocaleString()}/月
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {newContract.createNewTsp && (
+                    <p className="text-xs text-amber-400">
+                      {language === 'ja' ? '※ 契約保存時にファイナンス管理のTSP契約も自動作成されます' : '※ 保存时将自动创建财务管理的TSP合同'}
+                    </p>
+                  )}
+                  {newContract.tspContractId && (
+                    <a 
+                      href="/master/finance" 
+                      target="_blank"
+                      className="text-xs text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1"
+                    >
+                      TSP契約 #{newContract.tspContractId} をファイナンス管理で確認 <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
             
             {/* ライブ選択セクション */}
             <div className="border-t border-red-900/30 pt-4">
@@ -5025,22 +5095,45 @@ ${proposal.proposalContent}
             </Button>
             <Button
               onClick={async () => {
-                const result = await createContractMutation.mutateAsync({
-                  brandId,
-                  serviceType: newContract.serviceType,
-                  fixedFee: newContract.fixedFee,
-                  status: newContract.status,
-                  startDate: newContract.startDate ? new Date(newContract.startDate) : undefined,
-                  endDate: newContract.endDate ? new Date(newContract.endDate) : undefined,
-                  memo: newContract.memo || undefined,
-                  plannedLivestreamCount: newContract.plannedLivestreamCount,
-                });
-                // ライブ紐付けがあれば実行
-                if (newContract.linkedLivestreamIds.length > 0 && result.contractId) {
-                  bulkLinkLivestreamsMutation.mutate({
-                    contractId: result.contractId,
-                    livestreamIds: newContract.linkedLivestreamIds,
+                try {
+                  let tspId = newContract.tspContractId;
+                  
+                  // TSP契約自動作成
+                  if (newContract.createNewTsp && brand) {
+                    const tspResult = await createTspContractMutation.mutateAsync({
+                      brandId,
+                      shopName: brand.name || `Brand #${brandId}`,
+                      contactEmail: (brand as any).email || 'info@lcjmall.com',
+                      monthlyAmount: newContract.fixedFee || 0,
+                      contractStartDate: newContract.startDate || new Date().toISOString().split('T')[0],
+                      contractEndDate: newContract.endDate || undefined,
+                      description: `ブランド契約から自動作成 - ${brand.name}`,
+                    });
+                    if (tspResult?.id) {
+                      tspId = tspResult.id;
+                    }
+                  }
+
+                  const result = await createContractMutation.mutateAsync({
+                    brandId,
+                    serviceType: newContract.serviceType,
+                    fixedFee: newContract.fixedFee,
+                    status: newContract.status,
+                    startDate: newContract.startDate ? new Date(newContract.startDate) : undefined,
+                    endDate: newContract.endDate ? new Date(newContract.endDate) : undefined,
+                    memo: newContract.memo || undefined,
+                    plannedLivestreamCount: newContract.plannedLivestreamCount,
+                    tspContractId: tspId,
                   });
+                  // ライブ紐付けがあれば実行
+                  if (newContract.linkedLivestreamIds.length > 0 && result.contractId) {
+                    bulkLinkLivestreamsMutation.mutate({
+                      contractId: result.contractId,
+                      livestreamIds: newContract.linkedLivestreamIds,
+                    });
+                  }
+                } catch (err: any) {
+                  toast.error(err.message || '契約作成に失敗しました');
                 }
               }}
               className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white"
