@@ -18061,10 +18061,26 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         
         return allLivers.map((l: any) => {
           // tiktokAccountとcreatorUsernameを突合してCAP契約を自動判定
-          const tiktok = (l.tiktokAccount || '').toLowerCase().replace(/@/g, '').replace(/\s/g, '').trim();
-          const hasCapData = tiktok && capUsernames.some(cu => 
+          let tiktok = (l.tiktokAccount || '').toLowerCase().replace(/@/g, '').replace(/\s/g, '').trim();
+          // URL形式の場合、ユーザー名部分を抽出
+          if (tiktok.includes('tiktok.com/')) {
+            const parts = tiktok.split('tiktok.com/');
+            tiktok = (parts[parts.length - 1] || '').split('?')[0].replace(/@/g, '').trim();
+          }
+          
+          // 1. tiktokAccountベースの突合
+          const hasCapByTiktok = tiktok && capUsernames.some(cu => 
             cu === tiktok || tiktok.includes(cu) || cu.includes(tiktok)
           );
+          
+          // 2. 名前ベースの突合（tiktokAccountが未設定または一致しない場合）
+          const liverName = (l.name || '').toLowerCase().replace(/\s/g, '').trim();
+          const hasCapByName = !hasCapByTiktok && liverName && liverName.length >= 2 && capUsernames.some(cu => {
+            // ライバー名がCAPユーザー名に含まれる、またはその逆
+            return cu.includes(liverName) || liverName.includes(cu);
+          });
+          
+          const hasCapData = hasCapByTiktok || hasCapByName;
           
           return {
             id: l.id,
