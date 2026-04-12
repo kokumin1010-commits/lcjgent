@@ -6169,6 +6169,34 @@ export async function getMallProducts(options?: {
   return await query;
 }
 
+// ブランドID（brandsテーブル）でMALL商品を取得
+export async function getMallProductsByBrandIdDirect(brandId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select({
+      id: mallProducts.id,
+      name: mallProducts.name,
+      description: mallProducts.description,
+      price: mallProducts.price,
+      pointPrice: mallProducts.pointPrice,
+      stock: mallProducts.stock,
+      imageUrl: mallProducts.imageUrl,
+      imageUrls: mallProducts.imageUrls,
+      status: mallProducts.status,
+      sortOrder: mallProducts.sortOrder,
+      commissionRate: mallProducts.commissionRate,
+      categoryId: mallProducts.categoryId,
+      categoryName: mallCategories.name,
+      createdAt: mallProducts.createdAt,
+    })
+    .from(mallProducts)
+    .leftJoin(mallCategories, eq(mallProducts.categoryId, mallCategories.id))
+    .where(eq(mallProducts.brandId, brandId))
+    .orderBy(asc(mallProducts.sortOrder), desc(mallProducts.createdAt));
+}
+
 // 商品詳細取得
 export async function getMallProductById(id: number) {
   const db = await getDb();

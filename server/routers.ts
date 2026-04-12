@@ -266,6 +266,7 @@ import {
   getLineReceiptsByUser,
   getMallProducts,
   getMallProductById,
+  getMallProductsByBrandIdDirect,
   createMallProduct,
   updateMallProduct,
   deleteMallProduct,
@@ -14831,6 +14832,13 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return await getMallProductById(input.id);
+      }),
+
+    // ブランドIDでMALL商品一覧を取得（公開・ライバー向け）
+    getProductsByBrandId: publicProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return await getMallProductsByBrandIdDirect(input.brandId);
       }),
 
     // カテゴリ一覧取得（公開）

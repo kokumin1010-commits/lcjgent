@@ -188,6 +188,12 @@ const translations = {
     adGmv: "GMV",
     adPeriod: "期間",
     viewDetails: "詳細を表示",
+    mallProducts: "MALL商品",
+    mallProductsDesc: "このブランドのLCJ MALL商品",
+    noMallProducts: "MALL商品はまだ登録されていません",
+    liverProductLink: "ライバー商品選択リンク",
+    copyLink: "リンクをコピー",
+    linkCopied: "リンクをコピーしました",
   },
   zh: {
     title: "品牌详情",
@@ -336,6 +342,12 @@ const translations = {
     adGmv: "GMV",
     adPeriod: "期间",
     viewDetails: "查看详情",
+    mallProducts: "MALL商品",
+    mallProductsDesc: "该品牌的LCJ MALL商品",
+    noMallProducts: "尚未注册MALL商品",
+    liverProductLink: "主播商品选择链接",
+    copyLink: "复制链接",
+    linkCopied: "链接已复制",
   },
 };
 
@@ -899,6 +911,9 @@ export default function BrandDetail() {
   const { data: reportFileHistory = [], refetch: refetchReportFileHistory } = trpc.brand.getReportFileHistory.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: campaignDetail, isLoading: campaignDetailLoading } = trpc.brand.getAdCampaignDetail.useQuery({ id: selectedCampaignId! }, { enabled: !!selectedCampaignId });
   const deleteReportFileMutation = trpc.brand.deleteReportFile.useMutation();
+
+  // MALL商品データ取得
+  const { data: mallProductsList = [] } = trpc.mall.getProductsByBrandId.useQuery({ brandId }, { enabled: brandId > 0 });
 
   // 同じ日の配信は1回としてカウント（ユニークな日付の数）
   const uniqueLivestreamDays = useMemo(() => {
@@ -2678,6 +2693,115 @@ ${proposal.proposalContent}
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+
+        {/* MALL商品セクション */}
+        <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-emerald-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(0,255,128,0.1)] mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-white flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-emerald-400 to-emerald-600 rounded-full" />
+              🛍️ {t.mallProducts}
+            </h2>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const url = `${window.location.origin}/liver/products/${brandId}`;
+                  navigator.clipboard.writeText(url);
+                  toast.success(t.linkCopied);
+                }}
+                className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-900/20"
+              >
+                <Link className="h-4 w-4 mr-1" />
+                {t.copyLink}
+              </Button>
+            </div>
+          </div>
+          <p className="text-gray-400 text-sm mb-4">{t.mallProductsDesc}</p>
+          {mallProductsList.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">{t.noMallProducts}</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-emerald-900/30">
+                    <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2 w-16">{language === 'ja' ? '画像' : '图片'}</th>
+                    <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? '商品名' : '商品名'}</th>
+                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? '価格' : '价格'}</th>
+                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? 'ポイント価格' : '积分价格'}</th>
+                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? '成果報酬' : '成果报酬'}</th>
+                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? '在庫' : '库存'}</th>
+                    <th className="text-center text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? 'ステータス' : '状态'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mallProductsList.map((mp: any) => (
+                    <tr key={mp.id} className="border-b border-emerald-900/20 hover:bg-emerald-900/10 transition-colors">
+                      <td className="py-3 px-2">
+                        {mp.imageUrl ? (
+                          <img src={mp.imageUrl} alt={mp.name} className="w-12 h-12 object-cover rounded-lg" />
+                        ) : (
+                          <div className="w-12 h-12 bg-gray-800 rounded-lg flex items-center justify-center">
+                            <Package className="h-5 w-5 text-gray-600" />
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-2">
+                        <span className="text-white font-medium text-sm">{mp.name}</span>
+                        {mp.categoryName && (
+                          <span className="block text-xs text-gray-500 mt-0.5">{mp.categoryName}</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2 text-right">
+                        <span className="text-emerald-400 font-mono text-sm">¥{mp.price?.toLocaleString()}</span>
+                      </td>
+                      <td className="py-3 px-2 text-right">
+                        {mp.pointPrice ? (
+                          <span className="text-yellow-400 font-mono text-sm">{mp.pointPrice?.toLocaleString()}pt</span>
+                        ) : (
+                          <span className="text-gray-600">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2 text-right">
+                        {mp.commissionRate ? (
+                          <span className="text-orange-400 font-mono text-sm">{mp.commissionRate}%</span>
+                        ) : (
+                          <span className="text-gray-600">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2 text-right">
+                        <span className={`font-mono text-sm ${mp.stock > 0 ? 'text-white' : 'text-red-400'}`}>{mp.stock}</span>
+                      </td>
+                      <td className="py-3 px-2 text-center">
+                        <Badge className={`text-xs ${
+                          mp.status === 'active' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                          mp.status === 'draft' ? 'bg-gray-500/20 text-gray-400 border-gray-500/30' :
+                          mp.status === 'sold_out' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                          'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                        }`}>
+                          {mp.status === 'active' ? (language === 'ja' ? '販売中' : '在售') :
+                           mp.status === 'draft' ? (language === 'ja' ? '下書き' : '草稿') :
+                           mp.status === 'sold_out' ? (language === 'ja' ? '売り切れ' : '已售罄') :
+                           (language === 'ja' ? 'アーカイブ' : '已归档')}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {/* ライバー向け商品選択リンク */}
+          <div className="mt-4 p-3 bg-emerald-900/10 border border-emerald-500/20 rounded-lg">
+            <div className="flex items-center gap-2 text-sm">
+              <ExternalLink className="h-4 w-4 text-emerald-400" />
+              <span className="text-gray-400">{t.liverProductLink}:</span>
+              <code className="text-emerald-300 bg-black/40 px-2 py-0.5 rounded text-xs">
+                {window.location.origin}/liver/products/{brandId}
+              </code>
             </div>
           </div>
         </div>
