@@ -18055,7 +18055,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             .selectDistinct({ username: tiktokCapCreatorReports.creatorUsername })
             .from(tiktokCapCreatorReports);
           capUsernames = capCreators.map((c: any) => 
-            (c.username || '').toLowerCase().replace(/@/g, '').trim()
+            (c.username || '').toLowerCase().replace(/@/g, '').replace(/\s/g, '').trim()
           ).filter(Boolean);
         }
         
