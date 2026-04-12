@@ -1646,6 +1646,9 @@ export const mallProducts = mysqlTable("mall_products", {
   // 表示順
   sortOrder: int("sortOrder").default(0).notNull(),
   
+  // 成果報酬率（%）
+  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }),
+  
   // タイムスタンプ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

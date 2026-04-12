@@ -69,6 +69,7 @@ interface ProductFormData {
   images: ImageItem[];
   status: ProductStatus;
   sortOrder: number;
+  commissionRate: string;
 }
 
 const initialFormData: ProductFormData = {
@@ -83,6 +84,7 @@ const initialFormData: ProductFormData = {
   images: [],
   status: "draft",
   sortOrder: 0,
+  commissionRate: "",
 };
 
 // ドラッグ＆ドロップ可能な画像アイテムコンポーネント
@@ -236,6 +238,7 @@ export default function ProductManagement() {
       imageKeys: formData.images.map(i => i.key),
       status: formData.status,
       sortOrder: formData.sortOrder,
+      commissionRate: formData.commissionRate || null,
     };
 
     if (editingProduct) {
@@ -272,6 +275,7 @@ export default function ProductManagement() {
       images,
       status: product.status as ProductStatus,
       sortOrder: product.sortOrder,
+      commissionRate: product.commissionRate || "",
     });
     setIsDialogOpen(true);
   };
@@ -553,6 +557,22 @@ export default function ProductManagement() {
                     />
                   </div>
 
+                  <div>
+                    <label className="text-sm font-medium">成果報酬（%）</label>
+                    <Input
+                      type="number"
+                      value={formData.commissionRate}
+                      onChange={(e) => setFormData({ ...formData, commissionRate: e.target.value })}
+                      placeholder="例: 10.00"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      TikTokでこの商品が売れた際の成果報酬率
+                    </p>
+                  </div>
+
                   {/* 複数画像アップロード */}
                   <div className="col-span-2">
                     <label className="text-sm font-medium">
@@ -716,6 +736,7 @@ export default function ProductManagement() {
                     <TableHead className="text-right">価格</TableHead>
                     <TableHead className="text-right">ポイント価格</TableHead>
                     <TableHead className="text-right">在庫</TableHead>
+                    <TableHead className="text-right">成果報酬</TableHead>
                     <TableHead>ステータス</TableHead>
                     <TableHead className="text-right">操作</TableHead>
                   </TableRow>
@@ -759,6 +780,9 @@ export default function ProductManagement() {
                           {product.pointPrice ? `${product.pointPrice.toLocaleString()}pt` : "-"}
                         </TableCell>
                         <TableCell className="text-right">{product.stock}</TableCell>
+                        <TableCell className="text-right">
+                          {product.commissionRate ? `${product.commissionRate}%` : "-"}
+                        </TableCell>
                         <TableCell>{getStatusBadge(product.status)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">

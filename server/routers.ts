@@ -14926,6 +14926,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         imageKeys: z.array(z.string()).optional(),
         status: z.enum(["draft", "active", "sold_out", "archived"]).default("draft"),
         sortOrder: z.number().default(0),
+        commissionRate: z.string().nullable().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         await createMallProduct(input);
@@ -14950,6 +14951,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         imageKeys: z.array(z.string()).optional(),
         status: z.enum(["draft", "active", "sold_out", "archived"]).optional(),
         sortOrder: z.number().optional(),
+        commissionRate: z.string().nullable().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { id, ...data } = input;
