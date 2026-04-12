@@ -18042,17 +18042,39 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }),
 
     // CAP契約比率一覧取得（全ライバーのcapEnabled, capLcjRate, capCreatorRate）
+    // CAPデータ（CSV）が存在するライバーは自動的にcapEnabled=trueとして返す
     getCapRates: protectedProcedure
       .query(async () => {
         const allLivers = await getAllActiveLivers();
-        return allLivers.map((l: any) => ({
-          id: l.id,
-          name: l.name,
-          tiktokAccount: l.tiktokAccount,
-          capEnabled: l.capEnabled ?? false,
-          capLcjRate: l.capLcjRate ? parseFloat(l.capLcjRate) : 0,
-          capCreatorRate: l.capCreatorRate ? parseFloat(l.capCreatorRate) : 100,
-        }));
+        
+        // tiktok_cap_creator_reportsからユニークなcreatorUsernameを取得
+        const db = await getDb();
+        let capUsernames: string[] = [];
+        if (db) {
+          const capCreators = await db
+            .selectDistinct({ username: tiktokCapCreatorReports.creatorUsername })
+            .from(tiktokCapCreatorReports);
+          capUsernames = capCreators.map((c: any) => 
+            (c.username || '').toLowerCase().replace(/@/g, '').trim()
+          ).filter(Boolean);
+        }
+        
+        return allLivers.map((l: any) => {
+          // tiktokAccountとcreatorUsernameを突合してCAP契約を自動判定
+          const tiktok = (l.tiktokAccount || '').toLowerCase().replace(/@/g, '').replace(/\s/g, '').trim();
+          const hasCapData = tiktok && capUsernames.some(cu => 
+            cu === tiktok || tiktok.includes(cu) || cu.includes(tiktok)
+          );
+          
+          return {
+            id: l.id,
+            name: l.name,
+            tiktokAccount: l.tiktokAccount,
+            capEnabled: hasCapData || (l.capEnabled ?? false),
+            capLcjRate: l.capLcjRate ? parseFloat(l.capLcjRate) : 0,
+            capCreatorRate: l.capCreatorRate ? parseFloat(l.capCreatorRate) : 100,
+          };
+        });
       }),
 
     // CAP契約比率更新
