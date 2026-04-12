@@ -3869,8 +3869,7 @@ export async function getLiverRankings(month: string, agencyId?: number | null) 
       )
     )
     .groupBy(brandLivestreams.liverId, livers.name, livers.avatarUrl)
-    .orderBy(sql`SUM(${brandLivestreams.salesAmount}) DESC`)
-    .limit(10);
+    .orderBy(sql`SUM(${brandLivestreams.salesAmount}) DESC`);
   
   // Duration ranking - JOIN livers to get correct name and avatar
   const durationRanking = await db
@@ -3894,8 +3893,7 @@ export async function getLiverRankings(month: string, agencyId?: number | null) 
       )
     )
     .groupBy(brandLivestreams.liverId, livers.name, livers.avatarUrl)
-    .orderBy(sql`SUM(${brandLivestreams.duration}) DESC`)
-    .limit(10);
+    .orderBy(sql`SUM(${brandLivestreams.duration}) DESC`);
   
   return { salesRanking, durationRanking };
 }
