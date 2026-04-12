@@ -913,7 +913,12 @@ export default function BrandDetail() {
   const deleteReportFileMutation = trpc.brand.deleteReportFile.useMutation();
 
   // MALL商品データ取得
-  const { data: mallProductsList = [] } = trpc.mall.getProductsByBrandId.useQuery({ brandId }, { enabled: brandId > 0 });
+  const { data: mallProductsList = [], refetch: refetchMallProducts } = trpc.mall.getProductsByBrandId.useQuery({ brandId }, { enabled: brandId > 0 });
+  const updateMallProductMutation = trpc.mall.updateProduct.useMutation({
+    onSuccess: () => { refetchMallProducts(); toast.success(language === 'ja' ? '成果報酬を更新しました' : '成果报酬已更新'); },
+    onError: () => { toast.error(language === 'ja' ? '更新に失敗しました' : '更新失败'); },
+  });
+  const [editingMallCommission, setEditingMallCommission] = useState<{ id: number; value: string } | null>(null);
 
   // 同じ日の配信は1回としてカウント（ユニークな日付の数）
   const uniqueLivestreamDays = useMemo(() => {
@@ -2766,10 +2771,39 @@ ${proposal.proposalContent}
                         )}
                       </td>
                       <td className="py-3 px-2 text-right">
-                        {mp.commissionRate ? (
-                          <span className="text-orange-400 font-mono text-sm">{mp.commissionRate}%</span>
+                        {editingMallCommission?.id === mp.id ? (
+                          <input
+                            type="text"
+                            autoFocus
+                            className="w-20 bg-gray-900 border border-orange-500/50 rounded px-2 py-1 text-orange-400 font-mono text-sm text-right focus:outline-none focus:ring-1 focus:ring-orange-500"
+                            value={editingMallCommission.value}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9.]/g, '');
+                              setEditingMallCommission({ id: mp.id, value: v });
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const val = editingMallCommission.value.trim();
+                                updateMallProductMutation.mutate({ id: mp.id, commissionRate: val || null });
+                                setEditingMallCommission(null);
+                              }
+                              if (e.key === 'Escape') setEditingMallCommission(null);
+                            }}
+                            onBlur={() => {
+                              const val = editingMallCommission.value.trim();
+                              updateMallProductMutation.mutate({ id: mp.id, commissionRate: val || null });
+                              setEditingMallCommission(null);
+                            }}
+                            placeholder="%"
+                          />
                         ) : (
-                          <span className="text-gray-600">-</span>
+                          <span
+                            className={`font-mono text-sm cursor-pointer hover:underline ${mp.commissionRate ? 'text-orange-400' : 'text-gray-600 hover:text-orange-400/60'}`}
+                            onClick={() => setEditingMallCommission({ id: mp.id, value: mp.commissionRate?.toString() || '' })}
+                            title={language === 'ja' ? 'クリックして編集' : '点击编辑'}
+                          >
+                            {mp.commissionRate ? `${mp.commissionRate}%` : '-'}
+                          </span>
                         )}
                       </td>
                       <td className="py-3 px-2 text-right">
