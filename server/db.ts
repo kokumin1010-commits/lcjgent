@@ -8548,6 +8548,7 @@ export async function checkDuplicateOrderNumberGlobal(
   }
   
   // 2. Also check pointRequests table (cross-system duplicate detection)
+  // rejectedは除外して再提出を許可（lineReceiptsと同じロジック）
   const prResult = await db
     .select({
       id: pointRequests.id,
@@ -8557,7 +8558,10 @@ export async function checkDuplicateOrderNumberGlobal(
       createdAt: pointRequests.createdAt,
     })
     .from(pointRequests)
-    .where(eq(pointRequests.orderNumber, orderNumber))
+    .where(and(
+      eq(pointRequests.orderNumber, orderNumber),
+      inArray(pointRequests.status, ["pending", "approved"])
+    ))
     .limit(1);
   
   if (prResult[0]) {
