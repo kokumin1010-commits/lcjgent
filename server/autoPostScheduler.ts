@@ -1217,11 +1217,11 @@ SEO/GEO最適化要件:
     }
 
     // Step 12.5: テーマログ記録（重複防止用）
+    // BUG FIX: categoryNameの日本語変換ではなく、categorySlugForTheme（正しいslug）を使用
     try {
-      const categorySlugForLog = categoryName ? categoryName.toLowerCase().replace(/[^a-z0-9]/g, '-') : 'unknown';
       await recordBlogThemeLog({
         articleId: articleId || null,
-        categorySlug: categorySlugForLog,
+        categorySlug: categorySlugForTheme,
         articleType: articleTypeRotation,
         keyword: keyword,
         titlePattern: articleData.title.includes('2026年') || articleData.title.includes('最新') ? 'pattern_a' :

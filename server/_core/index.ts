@@ -1125,7 +1125,8 @@ async function startServer() {
       const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot/i.test(ua);
       if (!isBot) return next();
 
-      const { getBlogArticleBySlug } = await import("../db");
+      const { getBlogArticleBySlug, getAllBlogCategories } = await import("../db");
+      const { blogArticleThemeLog } = await import("../../drizzle/schema");
       const article = await getBlogArticleBySlug(req.params.slug);
       if (!article || article.status !== "published") return next();
 
@@ -1140,7 +1141,41 @@ async function startServer() {
       // Strip HTML tags for plain text content
       const plainContent = (article.contentHtml || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().substring(0, 5000);
 
-      // JSON-LD structured data
+      // SEOキーワード取得: テーマログからキーワードを取得
+      let seoKeywords: string[] = [];
+      try {
+        const { getDb } = await import("../db");
+        const db = await getDb();
+        if (db) {
+          const { eq } = await import("drizzle-orm");
+          const themeRows = await db.select().from(blogArticleThemeLog).where(eq(blogArticleThemeLog.articleId, article.id)).limit(1);
+          if (themeRows.length > 0 && themeRows[0].keyword) {
+            // キーワードをスペースで分割して個別のキーワードに
+            seoKeywords = themeRows[0].keyword.split(/\s+/).filter((k: string) => k.length > 0);
+          }
+        }
+      } catch (kwErr) {
+        // キーワード取得失敗は無視
+      }
+      // タイトルからもキーワードを抽出（年号、ブランド名など）
+      const titleKeywords = (title.match(/[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]+|[A-Za-z]+/g) || []).filter((k: string) => k.length >= 2);
+      const allKeywords = [...new Set([...seoKeywords, ...titleKeywords.slice(0, 5)])].slice(0, 10);
+      const keywordsStr = allKeywords.join(", ");
+
+      // カテゴリ名取得
+      let categoryName = "";
+      try {
+        if (article.categoryId) {
+          const categories = await getAllBlogCategories();
+          const cat = categories.find((c: any) => c.id === article.categoryId);
+          if (cat) categoryName = cat.name;
+        }
+      } catch (_) {}
+
+      // 文字数カウント
+      const wordCount = plainContent.length;
+
+      // JSON-LD structured data (SEO強化: keywords, articleSection, wordCount追加)
       const jsonLd = JSON.stringify({
         "@context": "https://schema.org",
         "@type": "Article",
@@ -1154,8 +1189,13 @@ async function startServer() {
           "@type": "Organization",
           name: "LCJ MALL",
           url: baseUrl,
+          logo: { "@type": "ImageObject", url: `${baseUrl}/favicon.ico` },
         },
         mainEntityOfPage: { "@type": "WebPage", "@id": articleUrl },
+        ...(allKeywords.length > 0 ? { keywords: allKeywords.join(", ") } : {}),
+        ...(categoryName ? { articleSection: categoryName } : {}),
+        ...(wordCount > 0 ? { wordCount } : {}),
+        inLanguage: "ja",
       });
 
       const html = `<!DOCTYPE html>
@@ -1165,6 +1205,7 @@ async function startServer() {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(title)} | LCJ MALL</title>
   <meta name="description" content="${escapeHtml(description)}">
+  ${keywordsStr ? `<meta name="keywords" content="${escapeHtml(keywordsStr)}">` : ""}
   <link rel="canonical" href="${articleUrl}">
   <link rel="alternate" hreflang="ja" href="${articleUrl}">
   <link rel="alternate" hreflang="x-default" href="${articleUrl}">
@@ -1312,7 +1353,7 @@ async function startServer() {
       }
       const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
       const host = new URL(baseUrl).host;
-      const indexNowKey = process.env.INDEXNOW_API_KEY || "indexnow-key-lcjmall";
+      const indexNowKey = process.env.INDEXNOW_API_KEY || "69483c16f52c9802f4ffd3e2a64cf60d";
 
       // Submit to IndexNow (Bing, Yandex, etc.)
       const indexNowPayload = {
@@ -1343,7 +1384,7 @@ async function startServer() {
   // IndexNow key file verification
   app.get("/:key.txt", (req, res, next) => {
     const key = req.params.key;
-    const indexNowKey = process.env.INDEXNOW_API_KEY || "indexnow-key-lcjmall";
+    const indexNowKey = process.env.INDEXNOW_API_KEY || "69483c16f52c9802f4ffd3e2a64cf60d";
     if (key === indexNowKey) {
       res.setHeader("Content-Type", "text/plain");
       res.send(indexNowKey);
