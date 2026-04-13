@@ -29,7 +29,11 @@ import {
   TrendingUp,
   Award,
   Star,
+  History,
+  AlertTriangle,
 } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Tabs
 type AdminTab = "requests" | "credits";
@@ -72,6 +76,11 @@ export default function SampleRequestsAdmin() {
   const [editMonthlySales, setEditMonthlySales] = useState("");
   const [editIsFirstMonth, setEditIsFirstMonth] = useState(false);
 
+  // Liver detail dialog
+  const [liverDetailOpen, setLiverDetailOpen] = useState(false);
+  const [selectedLiverId, setSelectedLiverId] = useState<number | null>(null);
+  const [selectedLiverName, setSelectedLiverName] = useState("");
+
   // API calls
   const requestsQuery = trpc.sampleRequest.listAll.useQuery(
     { status: statusFilter || undefined },
@@ -98,6 +107,15 @@ export default function SampleRequestsAdmin() {
     onError: (e) => toast.error(e.message),
   });
 
+  const fixNegativeMutation = trpc.sampleRequest.fixNegativeCredits.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      requestsQuery.refetch();
+      creditsQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const setCreditMutation = trpc.sampleRequest.setCredit.useMutation({
     onSuccess: (data) => {
       toast.success(`クレジット設定完了（ランク: ${data.rank.toUpperCase()}、合計: ¥${data.totalCredit.toLocaleString()}）`);
@@ -106,6 +124,16 @@ export default function SampleRequestsAdmin() {
     },
     onError: (e) => toast.error(e.message),
   });
+
+  // Liver detail queries
+  const liverCreditHistoryQuery = trpc.sampleRequest.getLiverCreditHistory.useQuery(
+    { liverId: selectedLiverId! },
+    { enabled: liverDetailOpen && selectedLiverId !== null }
+  );
+  const liverRequestsQuery = trpc.sampleRequest.getLiverRequests.useQuery(
+    { liverId: selectedLiverId! },
+    { enabled: liverDetailOpen && selectedLiverId !== null }
+  );
 
   const requests = requestsQuery.data || [];
   const credits = creditsQuery.data || [];
@@ -149,6 +177,12 @@ export default function SampleRequestsAdmin() {
     setEditMonthlySales(liver.credit ? String(liver.credit.monthlySales) : "0");
     setEditIsFirstMonth(liver.credit?.isFirstMonth || false);
     setEditCreditOpen(true);
+  }
+
+  function openLiverDetail(liverId: number, liverName: string) {
+    setSelectedLiverId(liverId);
+    setSelectedLiverName(liverName);
+    setLiverDetailOpen(true);
   }
 
   function handleSetCredit() {
@@ -209,15 +243,30 @@ export default function SampleRequestsAdmin() {
             ))}
           </div>
 
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-            <Input
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="ライバー名・商品名で検索"
-              className="pl-10 bg-gray-900 border-gray-700 text-white"
-            />
+          {/* Search + Fix Button */}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+              <Input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="ライバー名・商品名で検索"
+                className="pl-10 bg-gray-900 border-gray-700 text-white"
+              />
+            </div>
+            {filteredRequests.some((r: any) => r.liverCredit && Number(r.liverCredit.remainingCredit) < 0) && (
+              <Button
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-xs shrink-0"
+                onClick={() => {
+                  fixNegativeMutation.mutate();
+                }}
+                disabled={fixNegativeMutation.isPending}
+              >
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                マイナス修正
+              </Button>
+            )}
           </div>
 
           {/* Request List */}
@@ -250,12 +299,20 @@ export default function SampleRequestsAdmin() {
                               {sc.label}
                             </Badge>
                             <div>
-                              <span className="text-sm font-semibold text-white">{req.liverName}</span>
+                              <span
+                                className="text-sm font-semibold text-white hover:text-purple-400 cursor-pointer underline-offset-2 hover:underline transition-colors"
+                                onClick={(e) => { e.stopPropagation(); openLiverDetail(req.liverId, req.liverName); }}
+                              >
+                                {req.liverName}
+                              </span>
                               <span className="text-xs text-gray-500 ml-2">#{req.id}</span>
-                              {(req as any).liverCredit && (
-                                <span className="text-xs text-purple-400 ml-2">
+                              {(req as any).liverCredit ? (
+                                <span className={`text-xs ml-2 ${Number((req as any).liverCredit.remainingCredit) < 0 ? "text-red-400" : "text-purple-400"}`}>
+                                  {Number((req as any).liverCredit.remainingCredit) < 0 && <AlertTriangle className="h-3 w-3 inline mr-1" />}
                                   残クレジット: ¥{Number((req as any).liverCredit.remainingCredit).toLocaleString()}
                                 </span>
+                              ) : (
+                                <span className="text-xs text-gray-500 ml-2">クレジット未設定</span>
                               )}
                             </div>
                           </div>
@@ -596,6 +653,148 @@ export default function SampleRequestsAdmin() {
               設定する
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ============ LIVER DETAIL DIALOG ============ */}
+      <Dialog open={liverDetailOpen} onOpenChange={setLiverDetailOpen}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-2xl max-h-[85vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="h-5 w-5 text-purple-400" />
+              {selectedLiverName} - 詳細
+            </DialogTitle>
+          </DialogHeader>
+          <Tabs defaultValue="credit-history" className="w-full">
+            <TabsList className="w-full bg-gray-800">
+              <TabsTrigger value="credit-history" className="flex-1 text-xs">
+                <CreditCard className="h-3 w-3 mr-1" />
+                クレジット履歴
+              </TabsTrigger>
+              <TabsTrigger value="request-history" className="flex-1 text-xs">
+                <History className="h-3 w-3 mr-1" />
+                申請履歴
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Credit History Tab */}
+            <TabsContent value="credit-history">
+              <ScrollArea className="h-[55vh]">
+                <div className="space-y-2 pr-2">
+                  {liverCreditHistoryQuery.isLoading ? (
+                    <div className="text-center text-gray-500 py-8">読み込み中...</div>
+                  ) : (liverCreditHistoryQuery.data || []).length === 0 ? (
+                    <div className="text-center text-gray-500 py-8">クレジット履歴がありません</div>
+                  ) : (
+                    (liverCreditHistoryQuery.data || []).map((c: any) => {
+                      const rc = RANK_CONFIG[c.rank] || RANK_CONFIG.none;
+                      return (
+                        <Card key={c.month} className="bg-gray-800 border-gray-700">
+                          <CardContent className="p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold text-white">{c.month}</span>
+                                {c.rank !== "none" && (
+                                  <Badge className={`${rc.badge} text-xs px-2`}>{rc.label}</Badge>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <div className={`text-sm font-bold ${Number(c.remainingCredit) < 0 ? "text-red-400" : "text-white"}`}>
+                                  残: ¥{Number(c.remainingCredit).toLocaleString()}
+                                </div>
+                                <div className="text-xs text-gray-500">/ ¥{Number(c.totalCredit).toLocaleString()}</div>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-4 gap-1 text-xs">
+                              <div className="bg-gray-900 rounded p-1.5 text-center">
+                                <div className="text-gray-500">配信</div>
+                                <div className="text-white">{Number(c.streamingHours)}h</div>
+                              </div>
+                              <div className="bg-gray-900 rounded p-1.5 text-center">
+                                <div className="text-gray-500">売上</div>
+                                <div className="text-white">¥{Number(c.monthlySales).toLocaleString()}</div>
+                              </div>
+                              <div className="bg-gray-900 rounded p-1.5 text-center">
+                                <div className="text-gray-500">使用済</div>
+                                <div className="text-orange-400">¥{Number(c.usedCredit).toLocaleString()}</div>
+                              </div>
+                              <div className="bg-gray-900 rounded p-1.5 text-center">
+                                <div className="text-gray-500">繰越</div>
+                                <div className="text-blue-400">¥{Number(c.carryoverCredit).toLocaleString()}</div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* Request History Tab */}
+            <TabsContent value="request-history">
+              <ScrollArea className="h-[55vh]">
+                <div className="space-y-2 pr-2">
+                  {liverRequestsQuery.isLoading ? (
+                    <div className="text-center text-gray-500 py-8">読み込み中...</div>
+                  ) : (liverRequestsQuery.data || []).length === 0 ? (
+                    <div className="text-center text-gray-500 py-8">申請履歴がありません</div>
+                  ) : (
+                    (liverRequestsQuery.data || []).map((req: any) => {
+                      const sc = STATUS_CONFIG[req.status] || STATUS_CONFIG.pending;
+                      const StatusIcon = sc.icon;
+                      return (
+                        <Card key={req.id} className="bg-gray-800 border-gray-700">
+                          <CardContent className="p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <Badge className={`${sc.color} text-white text-xs`}>
+                                  <StatusIcon className="h-3 w-3 mr-1" />
+                                  {sc.label}
+                                </Badge>
+                                <span className="text-xs text-gray-500">#{req.id}</span>
+                                <span className="text-xs text-gray-500">
+                                  {new Date(req.createdAt).toLocaleDateString("ja-JP")}
+                                </span>
+                              </div>
+                              <div className="text-sm font-semibold text-white">
+                                ¥{Number(req.totalAmount).toLocaleString()}
+                              </div>
+                            </div>
+                            {/* Items */}
+                            <div className="space-y-1 mb-2">
+                              {(req.items || []).map((item: any, idx: number) => (
+                                <div key={idx} className="flex justify-between text-xs bg-gray-900 rounded px-2 py-1">
+                                  <span className="text-gray-300 truncate mr-2">{item.productName} × {item.quantity}</span>
+                                  <span className="text-gray-500 shrink-0">¥{(Number(item.price) * item.quantity).toLocaleString()}</span>
+                                </div>
+                              ))}
+                            </div>
+                            {/* Price breakdown */}
+                            <div className="grid grid-cols-3 gap-1 text-xs">
+                              <div className="bg-gray-900 rounded p-1.5 text-center">
+                                <div className="text-gray-500">定価</div>
+                                <div className="text-white">¥{Number(req.totalAmount).toLocaleString()}</div>
+                              </div>
+                              <div className="bg-gray-900 rounded p-1.5 text-center">
+                                <div className="text-purple-400">クレジット</div>
+                                <div className="text-purple-400">¥{Number(req.creditUsed).toLocaleString()}</div>
+                              </div>
+                              <div className="bg-gray-900 rounded p-1.5 text-center">
+                                <div className="text-orange-400">実費</div>
+                                <div className="text-orange-400">¥{Number(req.outOfPocketAmount).toLocaleString()}</div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>

@@ -549,13 +549,14 @@ export const sampleRequestRouter = router({
         ? await db.select().from(sampleRequests).where(and(...conditions)).orderBy(desc(sampleRequests.createdAt))
         : await db.select().from(sampleRequests).orderBy(desc(sampleRequests.createdAt));
 
-      // ライバーごとのクレジット残高を一括取得
+      // ライバーごとのクレジット残高を一括取得（今月＋申請月すべて）
       const liverIds = [...new Set(requests.map(r => r.liverId))];
-      const creditMap = new Map<number, { totalCredit: number; remainingCredit: number; rank: string }>();
+      const creditMap = new Map<number, { totalCredit: number; remainingCredit: number; rank: string; usedCredit: number }>();
       if (liverIds.length > 0) {
         // JSTでの現在月を計算
         const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
         const currentMonth = `${nowJST.getUTCFullYear()}-${String(nowJST.getUTCMonth() + 1).padStart(2, "0")}`;
+        // 今月のクレジットを取得
         const allCredits = await db.select().from(liverCredits)
           .where(eq(liverCredits.month, currentMonth));
         for (const c of allCredits) {
@@ -563,7 +564,25 @@ export const sampleRequestRouter = router({
             totalCredit: Number(c.totalCredit),
             remainingCredit: Number(c.remainingCredit),
             rank: c.rank,
+            usedCredit: Number(c.usedCredit),
           });
+        }
+        // 申請月のクレジットも取得（今月以外の月がある場合）
+        const requestMonths = [...new Set(requests.map(r => r.month).filter(m => m !== currentMonth))];
+        for (const month of requestMonths) {
+          const monthCredits = await db.select().from(liverCredits)
+            .where(eq(liverCredits.month, month));
+          for (const c of monthCredits) {
+            // 今月のクレジットがない場合のみ申請月のクレジットを使用
+            if (!creditMap.has(c.liverId)) {
+              creditMap.set(c.liverId, {
+                totalCredit: Number(c.totalCredit),
+                remainingCredit: Number(c.remainingCredit),
+                rank: c.rank,
+                usedCredit: Number(c.usedCredit),
+              });
+            }
+          }
         }
       }
 
@@ -607,17 +626,21 @@ export const sampleRequestRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "この請求は審査待ちではありません" });
       }
 
-      // クレジット消費を反映（アトミック更新）
+      // クレジット消費を反映（アトミック更新）- マイナス防止
       const creditUsed = Number(request.creditUsed);
       if (creditUsed > 0) {
         const creditRows = await db.select().from(liverCredits)
           .where(and(eq(liverCredits.liverId, request.liverId), eq(liverCredits.month, request.month)));
 
         if (creditRows.length > 0) {
+          const currentRemaining = Number(creditRows[0].remainingCredit);
+          // 実際に消費できるクレジットは残高を超えない
+          const actualCreditUsed = Math.min(creditUsed, Math.max(0, currentRemaining));
+          const newRemaining = Math.max(0, currentRemaining - creditUsed);
           await db.update(liverCredits)
             .set({
-              usedCredit: sql`${liverCredits.usedCredit} + ${creditUsed}`,
-              remainingCredit: sql`${liverCredits.remainingCredit} - ${creditUsed}`,
+              usedCredit: sql`${liverCredits.usedCredit} + ${actualCreditUsed}`,
+              remainingCredit: String(newRemaining),
             } as any)
             .where(eq(liverCredits.id, creditRows[0].id));
         }
@@ -667,6 +690,17 @@ export const sampleRequestRouter = router({
         .where(eq(sampleRequests.id, input.id));
 
       return { success: true };
+    }),
+
+  // マイナスクレジットを一括修正（運営用）
+  fixNegativeCredits: protectedProcedure
+    .mutation(async () => {
+      const db = await getDb();
+      // 全てのマイナスクレジットを0にリセット
+      const result = await db.execute(
+        sql`UPDATE liver_credits SET remaining_credit = '0' WHERE CAST(remaining_credit AS SIGNED) < 0`
+      );
+      return { success: true, message: `マイナスクレジットを修正しました` };
     }),
 
   // ========== クレジット管理API（運営用） ==========
