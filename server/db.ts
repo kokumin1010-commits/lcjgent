@@ -5640,6 +5640,7 @@ export async function updateLineReceiptOcr(
     purchaseDate?: Date;
     totalAmount?: number;
     currency?: string;
+    orderNumber?: string | null;
     ocrRawText?: string;
     ocrConfidence?: string;
     pointsCalculated?: number;
@@ -8520,10 +8521,10 @@ export async function checkDuplicateOrderNumberGlobal(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // 1. Search lineReceipts table (ocrRawText JSON field)
+  // 1. Search lineReceipts table (independent orderNumber column first, fallback to ocrRawText JSON)
   // Check approved/pending/on_hold receipts (approvedはポイント発送済みなので再提出不可)
   // rejectedは除外して再提出を許可
-  let conditions = sql`JSON_EXTRACT(${lineReceipts.ocrRawText}, '$.orderNumber') = ${orderNumber} AND ${lineReceipts.status} IN ('approved', 'pending', 'on_hold')`;
+  let conditions = sql`(${lineReceipts.orderNumber} = ${orderNumber} OR JSON_EXTRACT(${lineReceipts.ocrRawText}, '$.orderNumber') = ${orderNumber}) AND ${lineReceipts.status} IN ('approved', 'pending', 'on_hold')`;
   
   if (excludeId) {
     conditions = sql`${conditions} AND ${lineReceipts.id} != ${excludeId}`;
@@ -8604,8 +8605,8 @@ export async function findSimilarOrderNumbers(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // Get all receipts that have order numbers
-  let conditions = sql`JSON_EXTRACT(${lineReceipts.ocrRawText}, '$.orderNumber') IS NOT NULL`;
+  // Get all receipts that have order numbers (independent column OR ocrRawText JSON)
+  let conditions = sql`(${lineReceipts.orderNumber} IS NOT NULL OR JSON_EXTRACT(${lineReceipts.ocrRawText}, '$.orderNumber') IS NOT NULL)`;
   if (excludeId) {
     conditions = sql`${conditions} AND ${lineReceipts.id} != ${excludeId}`;
   }
@@ -8617,6 +8618,7 @@ export async function findSimilarOrderNumbers(
       storeName: lineReceipts.storeName,
       totalAmount: lineReceipts.totalAmount,
       status: lineReceipts.status,
+      orderNumberCol: lineReceipts.orderNumber,
       ocrRawText: lineReceipts.ocrRawText,
       submittedAt: lineReceipts.submittedAt,
     })
@@ -8636,10 +8638,15 @@ export async function findSimilarOrderNumbers(
   
   for (const receipt of allReceipts) {
     try {
-      const ocrData = typeof receipt.ocrRawText === "string" 
-        ? JSON.parse(receipt.ocrRawText) 
-        : receipt.ocrRawText;
-      const existingOrderNumber = String(ocrData?.orderNumber || "").replace(/[^0-9]/g, "");
+      // Prefer independent column, fallback to ocrRawText JSON
+      let rawOrderNum = receipt.orderNumberCol || null;
+      if (!rawOrderNum) {
+        const ocrData = typeof receipt.ocrRawText === "string" 
+          ? JSON.parse(receipt.ocrRawText) 
+          : receipt.ocrRawText;
+        rawOrderNum = ocrData?.orderNumber || null;
+      }
+      const existingOrderNumber = String(rawOrderNum || "").replace(/[^0-9]/g, "");
       
       if (!existingOrderNumber || existingOrderNumber === orderNumber) continue;
       
@@ -20506,4 +20513,63 @@ export async function getCapAvailableMonths(brandId: number = 0) {
   }).from(tiktokCapCreatorReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(tiktokCapCreatorReports.reportMonth));
+}
+
+
+// ============================================================
+// Auto-migration: Ensure lineReceipts.orderNumber column exists
+// ============================================================
+export async function ensureLineReceiptsOrderNumberColumn() {
+  const db = await getDb();
+  if (!db) return;
+  
+  try {
+    // Check if column already exists
+    const [cols] = await db.execute(sql`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'line_receipts' 
+      AND COLUMN_NAME = 'orderNumber'
+    `);
+    
+    if (!cols || (Array.isArray(cols) && cols.length === 0)) {
+      // Add the column
+      await db.execute(sql`ALTER TABLE line_receipts ADD COLUMN orderNumber VARCHAR(64) DEFAULT NULL`);
+      console.log("[Migration] Added orderNumber column to line_receipts");
+      
+      // Add index for faster lookups
+      await db.execute(sql`ALTER TABLE line_receipts ADD INDEX idx_line_receipts_orderNumber (orderNumber)`);
+      console.log("[Migration] Added index on line_receipts.orderNumber");
+    }
+  } catch (error: any) {
+    // Ignore "duplicate column" or "duplicate key" errors
+    if (error?.code === 'ER_DUP_FIELDNAME' || error?.message?.includes('Duplicate column')) {
+      console.log("[Migration] orderNumber column already exists");
+    } else if (error?.code === 'ER_DUP_KEYNAME' || error?.message?.includes('Duplicate key name')) {
+      console.log("[Migration] orderNumber index already exists");
+    } else {
+      console.error("[Migration] Error ensuring orderNumber column:", error);
+    }
+  }
+}
+
+// Backfill orderNumber from ocrRawText JSON for existing records
+export async function backfillOrderNumbers() {
+  const db = await getDb();
+  if (!db) return;
+  
+  try {
+    // Update records where orderNumber is NULL but ocrRawText has orderNumber
+    const result = await db.execute(sql`
+      UPDATE line_receipts 
+      SET orderNumber = JSON_UNQUOTE(JSON_EXTRACT(ocrRawText, '$.orderNumber'))
+      WHERE orderNumber IS NULL 
+      AND JSON_EXTRACT(ocrRawText, '$.orderNumber') IS NOT NULL
+      AND JSON_UNQUOTE(JSON_EXTRACT(ocrRawText, '$.orderNumber')) != 'null'
+      AND JSON_UNQUOTE(JSON_EXTRACT(ocrRawText, '$.orderNumber')) != ''
+    `);
+    console.log("[Migration] Backfilled orderNumber from ocrRawText:", result);
+  } catch (error) {
+    console.error("[Migration] Error backfilling orderNumbers:", error);
+  }
 }

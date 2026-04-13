@@ -2163,6 +2163,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
               totalAmount: ocrData.totalAmount,
               currency: "JPY",
+              orderNumber: ocrData.orderNumber || null,
               ocrRawText: JSON.stringify(ocrData),
               pointsCalculated,
               imageUrls: uploadedImages.map(i => i.url),
@@ -12268,9 +12269,9 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           throw new TRPCError({ code: "BAD_REQUEST", message: "既に承認済みです" });
         }
         
-        // 注文番号の必須チェック（ocrRawTextから抽出）
-        let orderNumber: string | null = null;
-        if (receipt.ocrRawText) {
+        // 注文番号の必須チェック（独立カラム優先、フォールバックでocrRawTextから抽出）
+        let orderNumber: string | null = (receipt as any).orderNumber || null;
+        if (!orderNumber && receipt.ocrRawText) {
           try {
             const parsed = JSON.parse(receipt.ocrRawText);
             orderNumber = parsed.orderNumber || null;
@@ -12597,10 +12598,11 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           }
         }
         
-        // Update order number in ocrRawText
+        // Update order number in ocrRawText AND independent column
         ocrData.orderNumber = input.orderNumber;
         
         await updateLineReceiptOcr(input.id, {
+          orderNumber: input.orderNumber,
           ocrRawText: JSON.stringify(ocrData),
         });
         
@@ -12721,6 +12723,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               try { updateData.purchaseDate = new Date(parsed.orderDate); } catch { /* ignore */ }
             }
             if (parsed.orderNumber && typeof parsed.orderNumber === "string") {
+              updateData.orderNumber = parsed.orderNumber; // Save to independent column
               let ocrData: any = {};
               if (receipt.ocrRawText) {
                 try { ocrData = typeof receipt.ocrRawText === "string" ? JSON.parse(receipt.ocrRawText) : receipt.ocrRawText; } catch { ocrData = {}; }
@@ -14699,10 +14702,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         if (parsed.shopName) updateData.storeName = parsed.shopName;
         if (parsed.orderDate) updateData.purchaseDate = new Date(parsed.orderDate);
         
-        // Merge orderNumber and productName into ocrRawText JSON
+        // Merge orderNumber and productName into ocrRawText JSON + independent column
         const existingOcr = typeof receipt.ocrRawText === 'string' ? JSON.parse(receipt.ocrRawText || '{}') : (receipt.ocrRawText || {});
         let ocrUpdated = false;
-        if (parsed.orderNumber) { existingOcr.orderNumber = parsed.orderNumber; ocrUpdated = true; }
+        if (parsed.orderNumber) { existingOcr.orderNumber = parsed.orderNumber; ocrUpdated = true; updateData.orderNumber = parsed.orderNumber; }
         if (parsed.productName) { existingOcr.productName = parsed.productName; existingOcr.items = [{ productName: parsed.productName }]; ocrUpdated = true; }
         if (ocrUpdated) updateData.ocrRawText = JSON.stringify(existingOcr);
         

@@ -264,7 +264,10 @@ export default function ReceiptManagement({ embedded = false }: { embedded?: boo
     }).format(amount);
   };
 
-  const extractOrderNumber = (ocrRawText: string | null): string | null => {
+  const extractOrderNumber = (receipt: any): string | null => {
+    // Prefer independent orderNumber column
+    if (receipt?.orderNumber) return receipt.orderNumber;
+    const ocrRawText = receipt?.ocrRawText || (typeof receipt === 'string' ? receipt : null);
     if (!ocrRawText) return null;
     try {
       const parsed = JSON.parse(ocrRawText);
@@ -399,7 +402,7 @@ export default function ReceiptManagement({ embedded = false }: { embedded?: boo
                     </div>
                     {/* 注文番号 + 重複検出 */}
                     {(() => {
-                      const orderNum = extractOrderNumber(item.receipt.ocrRawText);
+                      const orderNum = extractOrderNumber(item.receipt);
                       const dupReceipts = orderNum ? duplicateInfo.orderMap.get(orderNum) : undefined;
                       const hasDuplicate = dupReceipts && dupReceipts.length >= 2;
                       const otherDups = hasDuplicate ? dupReceipts.filter(d => !(d.source === "point_request" && d.id === item.receipt.id)) : [];
@@ -554,7 +557,7 @@ export default function ReceiptManagement({ embedded = false }: { embedded?: boo
                 <div>
                   <Label className="text-muted-foreground">注文番号</Label>
                   <p className="font-mono font-medium">
-                    {extractOrderNumber(selectedReceipt.receipt.ocrRawText) || <span className="text-red-500">未検出</span>}
+                    {extractOrderNumber(selectedReceipt.receipt) || <span className="text-red-500">未検出</span>}
                   </p>
                 </div>
                 <div>

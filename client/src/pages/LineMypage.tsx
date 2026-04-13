@@ -1134,14 +1134,16 @@ export default function LineMypage() {
                     {receipts.map((receipt: any) => {
                       const rejectionReason = receipt.reviewNote || receipt.aiRejectionReason;
                       const isRejected = receipt.status === "rejected";
-                      // ocrRawTextからorderNumberを抽出
-                      let orderNumber: string | null = null;
-                      try {
-                        if (receipt.ocrRawText) {
-                          const ocrData = typeof receipt.ocrRawText === 'string' ? JSON.parse(receipt.ocrRawText) : receipt.ocrRawText;
-                          orderNumber = ocrData?.orderNumber || null;
-                        }
-                      } catch { /* ignore parse errors */ }
+                      // 独立カラム優先、フォールバックでocrRawTextからorderNumberを抽出
+                      let orderNumber: string | null = receipt.orderNumber || null;
+                      if (!orderNumber) {
+                        try {
+                          if (receipt.ocrRawText) {
+                            const ocrData = typeof receipt.ocrRawText === 'string' ? JSON.parse(receipt.ocrRawText) : receipt.ocrRawText;
+                            orderNumber = ocrData?.orderNumber || null;
+                          }
+                        } catch { /* ignore parse errors */ }
+                      }
                       return (
                       <div key={receipt.id} className={`border rounded-lg p-4 ${isRejected ? "border-red-200 bg-red-50/30" : ""}`}>
                         <div className="flex items-start justify-between mb-2">

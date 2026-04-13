@@ -1516,6 +1516,17 @@ async function startServer() {
     // Start step email scheduler (sends step emails every 1 hour)
     startStepEmailScheduler();
     
+    // Ensure lineReceipts.orderNumber column exists and backfill from ocrRawText
+    import("../db").then(({ ensureLineReceiptsOrderNumberColumn, backfillOrderNumbers }) => {
+      ensureLineReceiptsOrderNumberColumn().then(() => {
+        backfillOrderNumbers().catch((err: unknown) => {
+          console.error("[Migration] Failed to backfill orderNumbers:", err);
+        });
+      }).catch((err: unknown) => {
+        console.error("[Migration] Failed to ensure orderNumber column:", err);
+      });
+    });
+
     // Seed popup variants on startup (idempotent - only inserts if table is empty)
     import("../db").then(({ seedPopupVariants }) => {
       seedPopupVariants().then((result: { seeded: boolean; count: number }) => {

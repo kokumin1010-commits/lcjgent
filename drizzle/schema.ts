@@ -1498,6 +1498,9 @@ export const lineReceipts = mysqlTable("line_receipts", {
   totalAmount: bigint("totalAmount", { mode: "number" }), // Total purchase amount
   currency: varchar("currency", { length: 10 }).default("JPY"), // Currency code
   
+  // Order number (extracted from OCR or manually entered)
+  orderNumber: varchar("orderNumber", { length: 64 }), // TikTok Shop注文番号（独立カラム）
+  
   // Raw OCR result
   ocrRawText: text("ocrRawText"), // Full OCR text
   ocrConfidence: decimal("ocrConfidence", { precision: 5, scale: 2 }), // OCR confidence score (0-100)
