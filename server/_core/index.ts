@@ -1024,6 +1024,140 @@ async function startServer() {
     }
   });
 
+  // --- Blog listing page prerender for SEO (CollectionPage + BreadcrumbList JSON-LD) ---
+  app.get("/blog", async (req, res, next) => {
+    try {
+      const ua = (req.headers["user-agent"] || "").toLowerCase();
+      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic/i.test(ua);
+      if (!isBot) return next();
+
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const { getAllBlogCategories, getBlogCategoryArticleCounts } = await import("../db");
+
+      // カテゴリ一覧取得
+      const categories = await getAllBlogCategories() || [];
+      let categoryCounts: Record<number, number> = {};
+      try { categoryCounts = await getBlogCategoryArticleCounts(); } catch (e) {}
+
+      // 最新記事20件取得（簡易SQL）
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      let recentArticles: any[] = [];
+      if (db) {
+        const { blogArticles } = await import("../../drizzle/schema");
+        const { eq, desc } = await import("drizzle-orm");
+        recentArticles = await db.select({
+          id: blogArticles.id,
+          title: blogArticles.title,
+          slug: blogArticles.slug,
+          excerpt: blogArticles.excerpt,
+          publishedAt: blogArticles.publishedAt,
+        }).from(blogArticles)
+          .where(eq(blogArticles.status, "published"))
+          .orderBy(desc(blogArticles.publishedAt))
+          .limit(20);
+      }
+
+      const title = "LCJ MALL ブログ | ポイ活・レシート副業・ライブコマース・美容情報";
+      const description = "LCJ MALL公式ブログ。ポイ活、レシート副業、TikTok Shopライブコマース、シャンプー・ヘアケアなど美容情報を毎日更新。お得な情報をお届けします。";
+      const keywords = "LCJ MALL,ブログ,ポイ活,レシート副業,ライブコマース,TikTok Shop,シャンプー,ヘアケア,KYOGOKU,美容";
+
+      const collectionJsonLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        name: title,
+        description,
+        url: `${baseUrl}/blog`,
+        isPartOf: { "@type": "WebSite", name: "LCJ MALL", url: baseUrl },
+        inLanguage: "ja",
+        mainEntity: {
+          "@type": "ItemList",
+          numberOfItems: recentArticles.length,
+          itemListElement: recentArticles.slice(0, 10).map((a: any, i: number) => ({
+            "@type": "ListItem",
+            position: i + 1,
+            url: `${baseUrl}/blog/${a.slug}`,
+            name: a.title,
+          })),
+        },
+      });
+
+      const breadcrumbJsonLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "LCJ MALL", item: baseUrl },
+          { "@type": "ListItem", position: 2, name: "ブログ", item: `${baseUrl}/blog` },
+        ],
+      });
+
+      const categoryHtml = categories.map((c: any) => {
+        const count = categoryCounts[c.id] || 0;
+        return `<li><a href="${baseUrl}/blog?category=${c.slug}">${escapeHtml(c.name)}（${count}件）</a></li>`;
+      }).join("\n        ");
+
+      const articleHtml = recentArticles.map((a: any) => {
+        const date = a.publishedAt ? new Date(a.publishedAt).toISOString().split("T")[0] : "";
+        return `<article>
+          <h3><a href="${baseUrl}/blog/${a.slug}">${escapeHtml(a.title)}</a></h3>
+          ${a.excerpt ? `<p>${escapeHtml(a.excerpt.substring(0, 200))}</p>` : ""}
+          <time datetime="${date}">${date}</time>
+        </article>`;
+      }).join("\n      ");
+
+      const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(description)}">
+  <meta name="keywords" content="${escapeHtml(keywords)}">
+  <link rel="canonical" href="${baseUrl}/blog">
+  <link rel="alternate" hreflang="ja" href="${baseUrl}/blog">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="${baseUrl}/blog">
+  <meta property="og:site_name" content="LCJ MALL">
+  <meta property="og:locale" content="ja_JP">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">
+  <script type="application/ld+json">${collectionJsonLd}</script>
+  <script type="application/ld+json">${breadcrumbJsonLd}</script>
+</head>
+<body>
+  <header>
+    <h1>LCJ MALL ブログ</h1>
+    <p>ポイ活・レシート副業・ライブコマース・美容情報を毎日更新</p>
+  </header>
+  <nav>
+    <h2>カテゴリ</h2>
+    <ul>
+      ${categoryHtml}
+    </ul>
+  </nav>
+  <main>
+    <h2>最新記事</h2>
+    ${articleHtml}
+  </main>
+  <footer>
+    <a href="${baseUrl}">LCJ MALL トップ</a>
+    <a href="${baseUrl}/reviews">口コミDB</a>
+    <a href="${baseUrl}/brands">ブランド一覧</a>
+  </footer>
+</body>
+</html>`;
+
+      res.status(200).set({ "Content-Type": "text/html; charset=utf-8" }).end(html);
+    } catch (error) {
+      console.error("[Blog List Prerender] Error:", error);
+      next();
+    }
+  });
+
   // --- Product Review page prerender for SEO (Schema.org Product + Review + dynamic OGP) ---
   app.get("/reviews/product/:name", async (req, res, next) => {
     try {
@@ -1352,6 +1486,143 @@ async function startServer() {
       res.status(200).set({ "Content-Type": "text/html; charset=utf-8" }).end(html);
     } catch (error) {
       console.error("[Prerender] Error:", error);
+      next();
+    }
+  });
+
+  // --- Mall Product page prerender for SEO (Product JSON-LD + BreadcrumbList) ---
+  app.get("/mall/products/:id", async (req, res, next) => {
+    try {
+      const ua = (req.headers["user-agent"] || "").toLowerCase();
+      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic/i.test(ua);
+      if (!isBot) return next();
+
+      const productId = parseInt(req.params.id, 10);
+      if (isNaN(productId)) return next();
+
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const { getMallProductById, getMallCategories } = await import("../db");
+
+      const product = await getMallProductById(productId);
+      if (!product || product.status !== "active") return next();
+
+      // カテゴリ名取得
+      let categoryName = "";
+      if (product.categoryId) {
+        try {
+          const categories = await getMallCategories();
+          const cat = categories.find((c: any) => c.id === product.categoryId);
+          if (cat) categoryName = cat.name;
+        } catch (e) {}
+      }
+
+      // 画像配列
+      let images: string[] = [];
+      if (product.imageUrls && Array.isArray(product.imageUrls)) {
+        images = product.imageUrls;
+      } else if (product.imageUrl) {
+        images = [product.imageUrl];
+      }
+
+      const productName = product.name || "商品";
+      const title = `${productName} | LCJ MALL - ライブコマースECモール`;
+      const desc = product.description
+        ? product.description.replace(/<[^>]+>/g, "").substring(0, 160)
+        : `${productName}をLCJ MALLでお得に購入。ポイントでも購入可能。`;
+
+      // Product JSON-LD
+      const productJsonLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Product",
+        name: productName,
+        description: desc,
+        url: `${baseUrl}/mall/products/${product.id}`,
+        image: images.length > 0 ? images : undefined,
+        brand: { "@type": "Brand", name: "LCJ MALL" },
+        category: categoryName || undefined,
+        offers: {
+          "@type": "Offer",
+          price: product.price,
+          priceCurrency: "JPY",
+          availability: product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+          seller: { "@type": "Organization", name: "LCJ MALL" },
+          url: `${baseUrl}/mall/products/${product.id}`,
+        },
+        sku: `LCJ-${product.id}`,
+      });
+
+      const breadcrumbJsonLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "LCJ MALL", item: baseUrl },
+          { "@type": "ListItem", position: 2, name: "商品一覧", item: `${baseUrl}/mall` },
+          ...(categoryName ? [{ "@type": "ListItem", position: 3, name: categoryName, item: `${baseUrl}/mall?category=${product.categoryId}` }] : []),
+          { "@type": "ListItem", position: categoryName ? 4 : 3, name: productName, item: `${baseUrl}/mall/products/${product.id}` },
+        ],
+      });
+
+      const ogImage = images.length > 0 ? images[0] : "";
+      const plainDesc = desc.substring(0, 200);
+
+      const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(plainDesc)}">
+  <meta name="keywords" content="${escapeHtml(productName)},LCJ MALL,${escapeHtml(categoryName)},ライブコマース,ポイ活,ECモール">
+  <link rel="canonical" href="${baseUrl}/mall/products/${product.id}">
+  <link rel="alternate" hreflang="ja" href="${baseUrl}/mall/products/${product.id}">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(plainDesc)}">
+  <meta property="og:type" content="product">
+  <meta property="og:url" content="${baseUrl}/mall/products/${product.id}">
+  ${ogImage ? `<meta property="og:image" content="${escapeHtml(ogImage)}">` : ""}
+  <meta property="og:site_name" content="LCJ MALL">
+  <meta property="og:locale" content="ja_JP">
+  <meta property="product:price:amount" content="${product.price}">
+  <meta property="product:price:currency" content="JPY">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(plainDesc)}">
+  ${ogImage ? `<meta name="twitter:image" content="${escapeHtml(ogImage)}">` : ""}
+  <script type="application/ld+json">${productJsonLd}</script>
+  <script type="application/ld+json">${breadcrumbJsonLd}</script>
+</head>
+<body>
+  <header>
+    <a href="${baseUrl}">LCJ MALL</a>
+    <nav>
+      <a href="${baseUrl}/mall">商品一覧</a>
+      <a href="${baseUrl}/blog">ブログ</a>
+      <a href="${baseUrl}/reviews">口コミ</a>
+    </nav>
+  </header>
+  <main>
+    <article>
+      <h1>${escapeHtml(productName)}</h1>
+      ${categoryName ? `<p>カテゴリ: ${escapeHtml(categoryName)}</p>` : ""}
+      ${images.map(img => `<img src="${escapeHtml(img)}" alt="${escapeHtml(productName)}" loading="lazy">`).join("\n      ")}
+      <p>価格: \u00a5${product.price.toLocaleString()}</p>
+      ${product.pointPrice ? `<p>ポイント価格: ${product.pointPrice.toLocaleString()}pt</p>` : ""}
+      <p>在庫: ${product.stock > 0 ? `${product.stock}個` : "売り切れ"}</p>
+      ${product.description ? `<div>${product.description}</div>` : ""}
+    </article>
+  </main>
+  <footer>
+    <a href="${baseUrl}">LCJ MALL トップ</a>
+    <a href="${baseUrl}/mall">商品一覧</a>
+    <a href="${baseUrl}/blog">ブログ</a>
+  </footer>
+</body>
+</html>`;
+
+      res.status(200).set({ "Content-Type": "text/html; charset=utf-8" }).end(html);
+    } catch (error) {
+      console.error("[Product Prerender] Error:", error);
       next();
     }
   });
