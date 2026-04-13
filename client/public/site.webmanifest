@@ -1,0 +1,22 @@
+{
+  "name": "LCJ MALL",
+  "short_name": "LCJ MALL",
+  "description": "TikTok Shopで買う。そのすべてが、価値になる。ポイ活・レシート副業・ライブコマース情報も発信。",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#f43f5e",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "start_url": "/",
+  "scope": "/"
+}

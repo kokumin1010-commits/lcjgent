@@ -913,6 +913,117 @@ async function startServer() {
     }
   });
 
+  // --- Top page prerender for SEO (Organization + WebSite JSON-LD) ---
+  app.get("/", async (req, res, next) => {
+    try {
+      const ua = (req.headers["user-agent"] || "").toLowerCase();
+      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic/i.test(ua);
+      if (!isBot) return next();
+
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const title = "LCJ MALL - TikTok Shop連携ECモール | ポイ活・レシート副業・ライブコマース";
+      const description = "LCJ MALL（エルシージェイモール）は、TikTok Shop連携の日本初のECモールです。ポイ活・レシート副業・ライブコマース情報も発信。お得にショッピングしながらポイントも貯まる、新しいお買い物体験を提供します。";
+      const keywords = "LCJ MALL,lcjモール,ポイ活,レシート副業,ライブコマース,TikTok Shop,ECモール,お得,ショッピング,ポイント";
+
+      const orgJsonLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        name: "LCJ MALL",
+        alternateName: ["lcjモール", "Live Commerce Japan", "エルシージェイモール"],
+        url: baseUrl,
+        logo: `${baseUrl}/favicon.svg`,
+        description,
+        foundingDate: "2025",
+        sameAs: [],
+        contactPoint: {
+          "@type": "ContactPoint",
+          contactType: "customer service",
+          availableLanguage: ["Japanese", "English"],
+        },
+      });
+
+      const websiteJsonLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        name: "LCJ MALL",
+        alternateName: "lcjモール",
+        url: baseUrl,
+        description,
+        inLanguage: "ja",
+        potentialAction: {
+          "@type": "SearchAction",
+          target: {
+            "@type": "EntryPoint",
+            urlTemplate: `${baseUrl}/blog?q={search_term_string}`,
+          },
+          "query-input": "required name=search_term_string",
+        },
+      });
+
+      const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(description)}">
+  <meta name="keywords" content="${escapeHtml(keywords)}">
+  <link rel="canonical" href="${baseUrl}/">
+  <link rel="alternate" hreflang="ja" href="${baseUrl}/">
+  <link rel="alternate" hreflang="x-default" href="${baseUrl}/">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="${baseUrl}/">
+  <meta property="og:site_name" content="LCJ MALL">
+  <meta property="og:locale" content="ja_JP">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">
+  <meta name="geo.region" content="JP">
+  <meta name="geo.placename" content="Japan">
+  <script type="application/ld+json">${orgJsonLd}</script>
+  <script type="application/ld+json">${websiteJsonLd}</script>
+</head>
+<body>
+  <header>
+    <h1>LCJ MALL - TikTok Shop連携ECモール</h1>
+    <p>ポイ活・レシート副業・ライブコマース情報を発信</p>
+  </header>
+  <main>
+    <section>
+      <h2>LCJ MALLとは</h2>
+      <p>LCJ MALL（エルシージェイモール）は、TikTok Shopと連携した日本初のECモールです。お得にショッピングしながらポイントも貯まる、新しいお買い物体験を提供します。</p>
+    </section>
+    <section>
+      <h2>主な機能</h2>
+      <ul>
+        <li><strong>ポイ活</strong> - レシートスキャンやお買い物でポイントが貯まる</li>
+        <li><strong>レシート副業</strong> - レシートをスキャンして副収入を得る</li>
+        <li><strong>ライブコマース</strong> - ライブ配信で商品を購入・販売</li>
+        <li><strong>TikTok Shop連携</strong> - TikTok Shopの商品をお得に購入</li>
+        <li><strong>口コミDB</strong> - 購入証明済みの信頼できるレビュー</li>
+      </ul>
+    </section>
+    <nav>
+      <a href="${baseUrl}/blog">ブログ記事</a>
+      <a href="${baseUrl}/mall">商品一覧</a>
+      <a href="${baseUrl}/brands">ブランド</a>
+      <a href="${baseUrl}/reviews">口コミDB</a>
+    </nav>
+  </main>
+</body>
+</html>`;
+
+      res.status(200).set({ "Content-Type": "text/html; charset=utf-8" }).end(html);
+    } catch (error) {
+      console.error("[Top Prerender] Error:", error);
+      next();
+    }
+  });
+
   // --- Product Review page prerender for SEO (Schema.org Product + Review + dynamic OGP) ---
   app.get("/reviews/product/:name", async (req, res, next) => {
     try {
