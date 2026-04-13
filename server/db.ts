@@ -20573,3 +20573,29 @@ export async function backfillOrderNumbers() {
     console.error("[Migration] Error backfilling orderNumbers:", error);
   }
 }
+
+// ============================================================
+// Grant admin role to specific email
+// ============================================================
+export async function grantAdminRole(email: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  try {
+    const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    if (existing.length > 0) {
+      if (existing[0].role === "admin") {
+        console.log(`[Admin] ${email} already has admin role`);
+        return true;
+      }
+      await db.update(users).set({ role: "admin" }).where(eq(users.email, email));
+      console.log(`[Admin] Granted admin role to ${email}`);
+      return true;
+    } else {
+      console.log(`[Admin] User ${email} not found in DB yet - will be granted admin on first login`);
+      return false;
+    }
+  } catch (err) {
+    console.error(`[Admin] Failed to grant admin role to ${email}:`, err);
+    return false;
+  }
+}

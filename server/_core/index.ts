@@ -1527,6 +1527,13 @@ async function startServer() {
       });
     });
 
+    // Grant admin role to specific users on startup
+    import("../db").then(({ grantAdminRole }) => {
+      grantAdminRole("lcgxyz123@gmail.com").catch((err: unknown) => {
+        console.error("[Admin] Failed to grant admin role:", err);
+      });
+    });
+
     // Seed popup variants on startup (idempotent - only inserts if table is empty)
     import("../db").then(({ seedPopupVariants }) => {
       seedPopupVariants().then((result: { seeded: boolean; count: number }) => {

@@ -916,6 +916,24 @@ export default function LiverMypage() {
           </Card>
         </Link>
 
+        {/* LCJ Product Catalog Link */}
+        <Link href="/liver/products" className="block">
+          <Card className="bg-gradient-to-r from-purple-600/20 via-indigo-600/20 to-blue-600/20 border-purple-500/30 hover:border-purple-400/50 transition-all cursor-pointer">
+            <CardContent className="p-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center">
+                  <ShoppingCart className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">{language === 'en' ? 'LCJ Product Catalog' : language === 'zh-TW' ? 'LCJ\u5546\u54c1\u76ee\u9304' : 'LCJ \u5546\u54c1\u30ab\u30bf\u30ed\u30b0'}</p>
+                  <p className="text-xs text-white">{language === 'en' ? 'Browse all LCJ products' : language === 'zh-TW' ? '\u700f\u89bd\u6240\u6709LCJ\u5546\u54c1' : 'LCJ\u53d6\u6271\u5546\u54c1\u3092\u4e00\u89a7\u3067\u78ba\u8a8d'}</p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-white" />
+            </CardContent>
+          </Card>
+        </Link>
+
         {/* All-time Stats */}
         <Card className="bg-gray-800/30 border-gray-700">
           <CardContent className="p-3">

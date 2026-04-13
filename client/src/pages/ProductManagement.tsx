@@ -713,7 +713,7 @@ export default function ProductManagement() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" />
-              商品一覧
+              商品一覧 {products && products.length > 0 && <span className="text-sm font-normal text-muted-foreground">({products.length}件)</span>}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -726,87 +726,82 @@ export default function ProductManagement() {
                 商品がありません
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16">画像</TableHead>
-                    <TableHead>商品名</TableHead>
-                    <TableHead>ブランド</TableHead>
-                    <TableHead>カテゴリ</TableHead>
-                    <TableHead className="text-right">価格</TableHead>
-                    <TableHead className="text-right">ポイント価格</TableHead>
-                    <TableHead className="text-right">在庫</TableHead>
-                    <TableHead className="text-right">成果報酬</TableHead>
-                    <TableHead>ステータス</TableHead>
-                    <TableHead className="text-right">操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {products.map((product) => {
-                    const imageCount = product.imageUrls?.length || (product.imageUrl ? 1 : 0);
-                    return (
-                      <TableRow key={product.id}>
-                        <TableCell>
-                          <div className="relative">
-                            {product.imageUrl ? (
-                              <img
-                                src={product.imageUrl}
-                                alt={product.name}
-                                className="h-12 w-12 object-cover rounded"
-                              />
-                            ) : (
-                              <div className="h-12 w-12 bg-muted rounded flex items-center justify-center">
-                                <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                              </div>
+              <div className="space-y-3">
+                {products.map((product) => {
+                  const imageCount = product.imageUrls?.length || (product.imageUrl ? 1 : 0);
+                  return (
+                    <div key={product.id} className="border rounded-lg p-4 hover:bg-muted/30 transition-colors">
+                      <div className="flex items-start gap-4">
+                        {/* 画像 */}
+                        <div className="relative flex-shrink-0">
+                          {product.imageUrl ? (
+                            <img
+                              src={product.imageUrl}
+                              alt={product.name}
+                              className="h-16 w-16 object-cover rounded-lg"
+                            />
+                          ) : (
+                            <div className="h-16 w-16 bg-muted rounded-lg flex items-center justify-center">
+                              <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                            </div>
+                          )}
+                          {imageCount > 1 && (
+                            <Badge className="absolute -top-1 -right-1 text-[10px] px-1 py-0 min-w-[18px] h-[18px] flex items-center justify-center">
+                              {imageCount}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* 商品情報 */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-medium text-sm truncate max-w-[300px]">{product.name}</h3>
+                            {getStatusBadge(product.status)}
+                          </div>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-sm text-muted-foreground">
+                            {product.brandId && (
+                              <span>{getBrandName(product.brandId)}</span>
                             )}
-                            {imageCount > 1 && (
-                              <Badge className="absolute -top-1 -right-1 text-[10px] px-1 py-0 min-w-[18px] h-[18px] flex items-center justify-center">
-                                {imageCount}
-                              </Badge>
+                            {(product.categoryId || product.category) && (
+                              <span>{getCategoryName(product.categoryId, product.category)}</span>
                             )}
                           </div>
-                        </TableCell>
-                        <TableCell className="font-medium">{product.name}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {getBrandName(product.brandId)}
-                        </TableCell>
-                        <TableCell>
-                          {getCategoryName(product.categoryId, product.category)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          ¥{product.price.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {product.pointPrice ? `${product.pointPrice.toLocaleString()}pt` : "-"}
-                        </TableCell>
-                        <TableCell className="text-right">{product.stock}</TableCell>
-                        <TableCell className="text-right">
-                          {product.commissionRate ? `${product.commissionRate}%` : "-"}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(product.status)}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEdit(product)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDelete(product.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-sm">
+                            <span>¥{product.price.toLocaleString()}</span>
+                            {product.pointPrice && (
+                              <span className="text-muted-foreground">{product.pointPrice.toLocaleString()}pt</span>
+                            )}
+                            <span className="text-muted-foreground">在庫: {product.stock}</span>
+                            {product.commissionRate && (
+                              <span className="text-muted-foreground">報酬: {product.commissionRate}%</span>
+                            )}
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                        </div>
+
+                        {/* 操作ボタン */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(product)}
+                            title="編集"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(product.id)}
+                            title="削除"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </CardContent>
         </Card>
