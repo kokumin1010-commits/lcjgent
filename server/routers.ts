@@ -4232,6 +4232,24 @@ ${staffDetails.map(s => `\n【${s.staffName}】(${s.reportCount}件)\n${s.allWor
           targetName: brand.brandName,
         });
         
+        // AitherHub自動同期（非同期・失敗してもブランド作成は成功）
+        try {
+          const { onBrandCreated } = await import("../aitherhubBrandSync");
+          onBrandCreated({
+            id: brand.id,
+            name: input.name,
+            nameJa: input.nameJa,
+            companyName: input.companyName,
+            category: input.category,
+            logoUrl: input.logoUrl,
+            email: input.email,
+            contactPerson: input.contactPerson,
+            status: input.status,
+          }).catch(err => console.error("[AitherHub Sync] brand create sync failed:", err));
+        } catch (err) {
+          console.error("[AitherHub Sync] import error:", err);
+        }
+        
         return brand;
       }),
 
@@ -4278,13 +4296,49 @@ ${staffDetails.map(s => `\n【${s.staffName}】(${s.reportCount}件)\n${s.allWor
       )
       .mutation(async ({ input }) => {
         const { id, ...updateData } = input;
-        return await updateBrand(id, updateData);
+        const updated = await updateBrand(id, updateData);
+        
+        // AitherHub自動同期（非同期・失敗してもブランド更新は成功）
+        if (updated) {
+          try {
+            const { onBrandUpdated } = await import("../aitherhubBrandSync");
+            onBrandUpdated({
+              id: updated.id,
+              name: updated.name,
+              nameJa: updated.nameJa,
+              companyName: updated.companyName,
+              category: updated.category,
+              logoUrl: updated.logoUrl,
+              email: updated.email,
+              contactPerson: updated.contactPerson,
+              status: updated.status,
+            }).catch(err => console.error("[AitherHub Sync] brand update sync failed:", err));
+          } catch (err) {
+            console.error("[AitherHub Sync] import error:", err);
+          }
+        }
+        
+        return updated;
       }),
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
+        // AitherHub同期（削除前にブランド名を取得）
+        const brandToDelete = await getBrandById(input.id);
+        
         await deleteBrand(input.id);
+        
+        // AitherHub側も無効化
+        if (brandToDelete) {
+          try {
+            const { onBrandDeleted } = await import("../aitherhubBrandSync");
+            onBrandDeleted(input.id, brandToDelete.name).catch(err => console.error("[AitherHub Sync] brand delete sync failed:", err));
+          } catch (err) {
+            console.error("[AitherHub Sync] import error:", err);
+          }
+        }
+        
         return { success: true };
       }),
 
@@ -18960,6 +19014,24 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     stats: protectedProcedure
       .query(async () => {
         return await getAitherhubSyncStats();
+      }),
+
+    // AitherHubへ全ブランドを一括同期
+    bulkSyncBrands: protectedProcedure
+      .mutation(async () => {
+        const allBrands = await getAllBrands();
+        const activeBrands = allBrands.filter((b: any) => !b.deletedAt);
+        
+        const { bulkSyncBrandsToAitherhub } = await import("../aitherhubBrandSync");
+        const result = await bulkSyncBrandsToAitherhub(activeBrands);
+        return result;
+      }),
+
+    // AitherHub同期ステータスを取得
+    syncStatus: protectedProcedure
+      .query(async () => {
+        const { getAitherhubSyncStatus } = await import("../aitherhubBrandSync");
+        return await getAitherhubSyncStatus();
       }),
   }),
 
