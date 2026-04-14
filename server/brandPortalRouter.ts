@@ -660,6 +660,7 @@ export const brandPortalRouter = router({
         label: z.string(),
         livePrice: z.number(),
         discountRate: z.number(),
+        commissionRate: z.number().optional(),
         giftItems: z.string(),
         estimatedSalesCount: z.number(),
         estimatedGmv: z.number(),
@@ -928,6 +929,36 @@ export const brandPortalRouter = router({
   // ============================================================
   // 【画像アップロード】ブランド方の商品画像
   // ============================================================
+  // 画像アップロード（ブランド側がブラウザから直接アップロード）
+  uploadProductImage: publicProcedure
+    .input(z.object({
+      token: z.string(),
+      fileName: z.string(),
+      contentType: z.string(),
+      base64Data: z.string(), // base64エンコードされた画像データ
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+      // Validate token
+      const portal = await db.select()
+        .from(brandPortals)
+        .where(eq(brandPortals.accessToken, input.token))
+        .limit(1);
+      if (portal.length === 0 || portal[0].status !== "active") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "無効なアクセスです" });
+      }
+      // Generate S3 key
+      const ext = input.fileName.split(".").pop() || "jpg";
+      const key = `brand-portal/${portal[0].brandId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      // Upload to S3
+      const { storagePut } = await import("./storage");
+      const buffer = Buffer.from(input.base64Data, "base64");
+      const result = await storagePut(key, buffer, input.contentType);
+      return { key: result.key, url: result.url };
+    }),
+
+  // 後方互換用: getUploadUrl
   getUploadUrl: publicProcedure
     .input(z.object({
       token: z.string(),
@@ -937,24 +968,15 @@ export const brandPortalRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
-
-      // Validate token
       const portal = await db.select()
         .from(brandPortals)
         .where(eq(brandPortals.accessToken, input.token))
         .limit(1);
-
       if (portal.length === 0 || portal[0].status !== "active") {
         throw new TRPCError({ code: "FORBIDDEN", message: "無効なアクセスです" });
       }
-
-      // Generate S3 key
       const ext = input.fileName.split(".").pop() || "jpg";
       const key = `brand-portal/${portal[0].brandId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-      // Import storagePut dynamically to avoid circular deps
-      const { storagePut } = await import("./storage");
-
       return { key, uploadKey: key, contentType: input.contentType };
     }),
 

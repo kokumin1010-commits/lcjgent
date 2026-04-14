@@ -4782,6 +4782,7 @@ export const brandPortalSimulations = mysqlTable("brand_portal_simulations", {
     label: string;          // シナリオ名（例: "強気価格", "標準価格", "攻め価格"）
     livePrice: number;      // ライブ価格
     discountRate: number;   // 割引率（%）
+    commissionRate?: number; // 成果報酬率（%）
     giftItems: string;      // 贈品
     estimatedSalesCount: number; // 予想販売数
     estimatedGmv: number;   // 予想GMV

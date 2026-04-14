@@ -50,6 +50,9 @@ function StatusBadge({ status }: { status: string }) {
 function ProductForm({ token, onSuccess }: { token: string; onSuccess: () => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState<Array<{ url: string; key: string; name: string }>>([]); 
+  const [uploading, setUploading] = useState(false);
+  const uploadMutation = trpc.brandPortal.uploadProductImage.useMutation();
   const [form, setForm] = useState({
     productName: "",
     productCode: "",
@@ -107,6 +110,8 @@ function ProductForm({ token, onSuccess }: { token: string; onSuccess: () => voi
         ingredients: form.ingredients || undefined,
         shippingInfo: form.shippingInfo || undefined,
         stockQuantity: form.stockQuantity ? Number(form.stockQuantity) : undefined,
+        imageUrls: uploadedImages.length > 0 ? uploadedImages.map(img => img.url) : undefined,
+        imageKeys: uploadedImages.length > 0 ? uploadedImages.map(img => img.key) : undefined,
         salesMechanism: form.salesMechanism || undefined,
         giftItems: form.giftItems || undefined,
       });
@@ -118,6 +123,7 @@ function ProductForm({ token, onSuccess }: { token: string; onSuccess: () => voi
         sellingPoint4: "", sellingPoint5: "", sellingPoint6: "", usageMethod: "",
         ingredients: "", shippingInfo: "", stockQuantity: "", salesMechanism: "", giftItems: "",
       });
+      setUploadedImages([]);
       setIsOpen(false);
       onSuccess();
     } catch (err: any) {
@@ -269,6 +275,83 @@ function ProductForm({ token, onSuccess }: { token: string; onSuccess: () => voi
             <label className="block text-sm font-medium text-gray-600 mb-1">贈品・おまけ</label>
             <Textarea value={form.giftItems} onChange={e => updateField("giftItems", e.target.value)} placeholder="おまけ・ノベルティ等" rows={2} />
           </div>
+        </div>
+
+        {/* 商品画像 */}
+        <div>
+          <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+            <ImageIcon className="w-4 h-4" />
+            商品画像（最大5枚）
+          </h4>
+          <div className="flex flex-wrap gap-3">
+            {uploadedImages.map((img, idx) => (
+              <div key={idx} className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200 group">
+                <img src={img.url} alt={img.name} className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== idx))}
+                  className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+            {uploadedImages.length < 5 && (
+              <label className={`w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                {uploading ? (
+                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                ) : (
+                  <>
+                    <Plus className="w-6 h-6 text-gray-400" />
+                    <span className="text-xs text-gray-400 mt-1">追加</span>
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length === 0) return;
+                    const remaining = 5 - uploadedImages.length;
+                    const toUpload = files.slice(0, remaining);
+                    setUploading(true);
+                    try {
+                      const results: Array<{ url: string; key: string; name: string }> = [];
+                      for (const file of toUpload) {
+                        // Convert file to base64
+                        const base64 = await new Promise<string>((resolve, reject) => {
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            const result = reader.result as string;
+                            resolve(result.split(',')[1]); // Remove data:xxx;base64, prefix
+                          };
+                          reader.onerror = reject;
+                          reader.readAsDataURL(file);
+                        });
+                        const result = await uploadMutation.mutateAsync({
+                          token,
+                          fileName: file.name,
+                          contentType: file.type,
+                          base64Data: base64,
+                        });
+                        results.push({ url: result.url, key: result.key, name: file.name });
+                      }
+                      setUploadedImages(prev => [...prev, ...results]);
+                      toast.success(`${results.length}枚の画像をアップロードしました`);
+                    } catch (err: any) {
+                      toast.error(err?.message || "画像のアップロードに失敗しました");
+                    } finally {
+                      setUploading(false);
+                      e.target.value = ''; // Reset input
+                    }
+                  }}
+                />
+              </label>
+            )}
+          </div>
+          <p className="text-xs text-gray-400 mt-2">商品画像、パッケージ写真、提案書などをアップロードできます</p>
         </div>
 
         {/* 在庫 */}

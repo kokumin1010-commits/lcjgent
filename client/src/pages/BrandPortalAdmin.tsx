@@ -806,9 +806,9 @@ function SimulationsTab({
   const [showCreate, setShowCreate] = useState(false);
   const [simName, setSimName] = useState("");
   const [scenarios, setScenarios] = useState<any[]>([
-    { label: "シナリオA（保守的）", livePrice: 0, discountRate: 10, giftItems: "", estimatedSalesCount: 0, estimatedGmv: 0, estimatedProfit: 0, commissionAmount: 0 },
-    { label: "シナリオB（標準）", livePrice: 0, discountRate: 20, giftItems: "", estimatedSalesCount: 0, estimatedGmv: 0, estimatedProfit: 0, commissionAmount: 0 },
-    { label: "シナリオC（攻め）", livePrice: 0, discountRate: 30, giftItems: "", estimatedSalesCount: 0, estimatedGmv: 0, estimatedProfit: 0, commissionAmount: 0 },
+    { label: "シナリオA（保守的）", livePrice: 0, discountRate: 10, commissionRate: 15, giftItems: "", estimatedSalesCount: 0, estimatedGmv: 0, estimatedProfit: 0, commissionAmount: 0 },
+    { label: "シナリオB（標準）", livePrice: 0, discountRate: 20, commissionRate: 15, giftItems: "", estimatedSalesCount: 0, estimatedGmv: 0, estimatedProfit: 0, commissionAmount: 0 },
+    { label: "シナリオC（攻め）", livePrice: 0, discountRate: 30, commissionRate: 20, giftItems: "", estimatedSalesCount: 0, estimatedGmv: 0, estimatedProfit: 0, commissionAmount: 0 },
   ]);
   const [recommendedIdx, setRecommendedIdx] = useState(1);
   const [recommendReason, setRecommendReason] = useState("");
@@ -828,6 +828,7 @@ function SimulationsTab({
         label: "シナリオA（保守的）",
         livePrice: Math.round(listPrice * 0.9),
         discountRate: 10,
+        commissionRate: 15,
         giftItems: "",
         estimatedSalesCount: 50,
         estimatedGmv: Math.round(listPrice * 0.9 * 50),
@@ -838,6 +839,7 @@ function SimulationsTab({
         label: "シナリオB（標準）",
         livePrice: Math.round(listPrice * 0.8),
         discountRate: 20,
+        commissionRate: 15,
         giftItems: "サンプルセット",
         estimatedSalesCount: 100,
         estimatedGmv: Math.round(listPrice * 0.8 * 100),
@@ -848,11 +850,12 @@ function SimulationsTab({
         label: "シナリオC（攻め）",
         livePrice: Math.round(listPrice * 0.7),
         discountRate: 30,
+        commissionRate: 20,
         giftItems: "サンプルセット + ミニボトル",
         estimatedSalesCount: 200,
         estimatedGmv: Math.round(listPrice * 0.7 * 200),
         estimatedProfit: Math.round((listPrice * 0.7 - costPrice) * 200),
-        commissionAmount: Math.round(listPrice * 0.7 * 200 * 0.15),
+        commissionAmount: Math.round(listPrice * 0.7 * 200 * 0.20),
       },
     ]);
   };
@@ -861,14 +864,15 @@ function SimulationsTab({
     setScenarios(prev => {
       const updated = [...prev];
       updated[idx] = { ...updated[idx], [field]: value };
-      // Auto-recalculate GMV and profit
-      if (["livePrice", "estimatedSalesCount"].includes(field)) {
+      // Auto-recalculate GMV, profit, and commission
+      if (["livePrice", "estimatedSalesCount", "commissionRate"].includes(field)) {
         const lp = Number(updated[idx].livePrice) || 0;
         const sc = Number(updated[idx].estimatedSalesCount) || 0;
         const cp = Number(selectedProduct?.costPrice) || 0;
+        const cr = Number(updated[idx].commissionRate) || 15;
         updated[idx].estimatedGmv = lp * sc;
         updated[idx].estimatedProfit = (lp - cp) * sc;
-        updated[idx].commissionAmount = Math.round(lp * sc * 0.15);
+        updated[idx].commissionAmount = Math.round(lp * sc * (cr / 100));
       }
       return updated;
     });
@@ -981,7 +985,7 @@ function SimulationsTab({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                         <div>
                           <label className="block text-xs text-gray-500 mb-1">ライブ価格</label>
                           <Input
@@ -1010,6 +1014,15 @@ function SimulationsTab({
                           />
                         </div>
                         <div>
+                          <label className="block text-xs text-gray-500 mb-1">成果報酬率(%)</label>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            value={scenario.commissionRate}
+                            onChange={e => updateScenario(idx, "commissionRate", Number(e.target.value.replace(/[^0-9]/g, "")) || 0)}
+                          />
+                        </div>
+                        <div>
                           <label className="block text-xs text-gray-500 mb-1">贈品</label>
                           <Input
                             value={scenario.giftItems}
@@ -1030,7 +1043,7 @@ function SimulationsTab({
                   <button
                     onClick={() => setScenarios(prev => [...prev, {
                       label: `シナリオ${String.fromCharCode(65 + prev.length)}`,
-                      livePrice: 0, discountRate: 0, giftItems: "",
+                      livePrice: 0, discountRate: 0, commissionRate: 15, giftItems: "",
                       estimatedSalesCount: 0, estimatedGmv: 0, estimatedProfit: 0, commissionAmount: 0,
                     }])}
                     className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
