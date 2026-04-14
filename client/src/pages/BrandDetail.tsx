@@ -37,7 +37,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle, FileDown, Save, BarChart3, Target, MousePointerClick } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle, FileDown, Save, BarChart3, Target, MousePointerClick, CreditCard } from "lucide-react";
+import ProductCardTemplate from "@/components/ProductCard";
 import { toast } from "sonner";
 
 const translations = {
@@ -811,6 +812,9 @@ export default function BrandDetail() {
   // Product Detail Popup states
   const [productDetailDialogOpen, setProductDetailDialogOpen] = useState(false);
   const [selectedProductForDetail, setSelectedProductForDetail] = useState<any>(null);
+  // 手卡（商品紹介カード）ダイアログ
+  const [tekaDialogOpen, setTekaDialogOpen] = useState(false);
+  const [tekaProduct, setTekaProduct] = useState<any>(null);
   const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
   const [expandedImageIndex, setExpandedImageIndex] = useState<number>(0);
   // 商品画像ギャラリー用state
@@ -2680,6 +2684,17 @@ ${proposal.proposalContent}
                         </td>
                         <td className="py-3 px-2 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {/* 手卤（商品紹介カード）ボタン */}
+                            <button
+                              onClick={() => {
+                                setTekaProduct(product);
+                                setTekaDialogOpen(true);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-orange-400 transition-all"
+                              title={language === 'ja' ? '手卤を見る' : '查看手卡'}
+                            >
+                              <CreditCard className="h-4 w-4" />
+                            </button>
                             {/* AI学習ボタン - 全商品に表示 */}
                             <button
                               onClick={() => { 
@@ -5580,6 +5595,18 @@ ${proposal.proposalContent}
                 </span>
               </DialogTitle>
               <div className="flex gap-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setTekaProduct(selectedProductForDetail);
+                    setProductDetailDialogOpen(false);
+                    setTekaDialogOpen(true);
+                  }}
+                  className="border-2 border-orange-400/60 bg-orange-950/50 text-orange-200 hover:bg-orange-500/30 hover:text-white hover:border-orange-300 hover:shadow-[0_0_20px_rgba(251,146,60,0.4)] text-xl px-8 py-3 transition-all duration-300"
+                >
+                  <CreditCard className="w-5 h-5 mr-2" />
+                  {language === 'ja' ? '手卤' : '手卡'}
+                </Button>
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -8663,6 +8690,40 @@ ${proposal.proposalContent}
               <p>{language === 'ja' ? 'キャンペーンが見つかりません' : '未找到投放'}</p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 手卤（商品紹介カード）ダイアログ */}
+      <Dialog open={tekaDialogOpen} onOpenChange={setTekaDialogOpen}>
+        <DialogContent className="bg-white border-2 border-orange-300 w-[98vw] !max-w-[1400px] h-[95vh] overflow-hidden p-0 shadow-xl" showCloseButton={false}>
+          <div className="flex flex-col h-full">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50">
+              <DialogTitle className="text-gray-900 flex items-center gap-3 text-xl font-bold">
+                <CreditCard className="h-6 w-6 text-orange-500" />
+                {language === 'ja' ? '商品紹介カード（手卤）' : '商品介绍卡（手卡）'}
+                {tekaProduct && <span className="text-orange-600">- {tekaProduct.productName}</span>}
+              </DialogTitle>
+              <Button
+                variant="outline"
+                onClick={() => setTekaDialogOpen(false)}
+                className="border-gray-300 text-gray-600 hover:bg-gray-100"
+              >
+                <X className="w-4 h-4 mr-1" />
+                {language === 'ja' ? '閉じる' : '关闭'}
+              </Button>
+            </div>
+            {/* Content */}
+            <div className="flex-1 overflow-auto p-6 bg-gray-50">
+              {tekaProduct && (
+                <ProductCardTemplate
+                  product={tekaProduct}
+                  brand={brand ? { name: brand.name, nameJa: brand.nameJa, logoUrl: brand.logoUrl } : null}
+                  showDownload={true}
+                />
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

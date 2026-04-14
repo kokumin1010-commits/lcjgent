@@ -4,50 +4,132 @@
  * PPTXの手卡デザインをHTMLで忠実に再現。
  * html-to-imageで画像化してダウンロード可能。
  *
+ * 2つのデータソースに対応:
+ * 1. brand_portal_products (ポータル経由)
+ * 2. brand_products (商品パフォーマンス / 既存データ)
+ *
  * レイアウト:
  * - ヘッダー: 製品名・ライセンス料配分率・仕様・通常価格・ライブ配信価格・割引率・販売メカニズム
  * - 左カラム(60%): ターゲット層・コアセールスポイント①〜⑥・使用方法
  * - 右カラム(40%): 商品画像・ブランドバナー・発送情報
  */
 import { useRef, useCallback } from "react";
-import { toPng, toJpeg } from "html-to-image";
+import { toPng } from "html-to-image";
 import { Button } from "@/components/ui/button";
 import { Download, Image as ImageIcon } from "lucide-react";
 
+// ============================================================
+// Universal product data interface
+// Accepts both brand_portal_products and brand_products fields
+// ============================================================
+interface ProductData {
+  productName: string;
+  productCode?: string | null;
+  // brand_portal_products fields
+  specifications?: string | null;
+  livePrice?: number | null;
+  adjustedLivePrice?: number | null;
+  costPrice?: number | null;
+  adjustedDiscountRate?: string | null;
+  sellingPoint1?: string | null;
+  sellingPoint2?: string | null;
+  sellingPoint3?: string | null;
+  sellingPoint4?: string | null;
+  sellingPoint5?: string | null;
+  sellingPoint6?: string | null;
+  salesMechanism?: string | null;
+  giftItems?: string | null;
+  adjustedGiftItems?: string | null;
+  productDescription?: string | null;
+  category?: string | null;
+  ingredients?: string | null;
+  // brand_products fields
+  specialPrice?: number | null;
+  discountRate?: string | null;
+  sampleProduct?: string | null;
+  purchasePrice?: number | null;
+  remarks?: string | null;
+  releaseDate?: string | null;
+  catchCopy?: string | null;
+  features?: string | null;
+  productDetails?: string | null;
+  accessories?: string | null;
+  // Shared fields
+  listPrice?: number | null;
+  commissionRate?: string | null;
+  targetAudience?: string | null;
+  usageMethod?: string | null;
+  shippingInfo?: string | null;
+  imageUrls?: string[] | null;
+}
+
 interface ProductCardProps {
-  product: {
-    productName: string;
-    productCode?: string | null;
-    specifications?: string | null;
-    listPrice?: number | null;
-    livePrice?: number | null;
-    adjustedLivePrice?: number | null;
-    costPrice?: number | null;
-    commissionRate?: string | null;
-    adjustedDiscountRate?: string | null;
-    targetAudience?: string | null;
-    sellingPoint1?: string | null;
-    sellingPoint2?: string | null;
-    sellingPoint3?: string | null;
-    sellingPoint4?: string | null;
-    sellingPoint5?: string | null;
-    sellingPoint6?: string | null;
-    usageMethod?: string | null;
-    ingredients?: string | null;
-    shippingInfo?: string | null;
-    salesMechanism?: string | null;
-    giftItems?: string | null;
-    adjustedGiftItems?: string | null;
-    imageUrls?: string[] | null;
-    productDescription?: string | null;
-    category?: string | null;
-  };
+  product: ProductData;
   brand?: {
     name?: string | null;
     nameJa?: string | null;
     logoUrl?: string | null;
   } | null;
   showDownload?: boolean;
+}
+
+/**
+ * Normalize product data from either source into unified display fields
+ */
+function normalizeProduct(product: ProductData) {
+  // Live price: portal's adjustedLivePrice > portal's livePrice > brand_products' specialPrice
+  const finalLivePrice = product.adjustedLivePrice || product.livePrice || product.specialPrice;
+  const listPrice = product.listPrice || 0;
+
+  // Discount rate: portal's adjustedDiscountRate > brand_products' discountRate > auto-calc
+  const discountRate = product.adjustedDiscountRate
+    || product.discountRate
+    || (finalLivePrice && listPrice ? `${Math.round((1 - Number(finalLivePrice) / Number(listPrice)) * 100)}%` : "");
+
+  // Mechanism: portal's salesMechanism > portal's adjustedGiftItems > portal's giftItems > brand_products' sampleProduct + accessories
+  const mechanism = product.salesMechanism
+    || product.adjustedGiftItems
+    || product.giftItems
+    || [product.sampleProduct, product.accessories].filter(Boolean).join(" / ")
+    || "";
+
+  // Specifications: portal's specifications > brand_products' productDetails
+  const specifications = product.specifications || product.productDetails || "";
+
+  // Selling points: portal's sellingPoint1-6 > brand_products' features (split by newlines)
+  let sellingPoints: string[] = [];
+  const portalPoints = [
+    product.sellingPoint1,
+    product.sellingPoint2,
+    product.sellingPoint3,
+    product.sellingPoint4,
+    product.sellingPoint5,
+    product.sellingPoint6,
+  ].filter(Boolean) as string[];
+
+  if (portalPoints.length > 0) {
+    sellingPoints = portalPoints;
+  } else if (product.features) {
+    // Split features text into individual points
+    sellingPoints = product.features
+      .split(/[\n\r]+/)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .slice(0, 6);
+  }
+
+  // Image
+  const imageUrl = product.imageUrls?.[0] || null;
+
+  return {
+    finalLivePrice,
+    listPrice,
+    discountRate,
+    mechanism,
+    specifications,
+    sellingPoints,
+    imageUrl,
+  };
 }
 
 export default function ProductCard({ product, brand, showDownload = true }: ProductCardProps) {
@@ -70,21 +152,7 @@ export default function ProductCard({ product, brand, showDownload = true }: Pro
     }
   }, [product.productName]);
 
-  const finalLivePrice = product.adjustedLivePrice || product.livePrice;
-  const listPrice = product.listPrice || 0;
-  const discountRate = product.adjustedDiscountRate
-    || (finalLivePrice && listPrice ? `${Math.round((1 - Number(finalLivePrice) / Number(listPrice)) * 100)}%` : "");
-  const mechanism = product.salesMechanism || product.adjustedGiftItems || product.giftItems || "";
-  const imageUrl = product.imageUrls?.[0] || null;
-
-  const sellingPoints = [
-    product.sellingPoint1,
-    product.sellingPoint2,
-    product.sellingPoint3,
-    product.sellingPoint4,
-    product.sellingPoint5,
-    product.sellingPoint6,
-  ].filter(Boolean);
+  const { finalLivePrice, listPrice, discountRate, mechanism, specifications, sellingPoints, imageUrl } = normalizeProduct(product);
 
   return (
     <div>
@@ -135,7 +203,7 @@ export default function ProductCard({ product, brand, showDownload = true }: Pro
               仕様
             </div>
             <div style={{ padding: "8px 16px", fontWeight: 700, fontSize: "18px", display: "flex", alignItems: "center", borderRight: "1px solid #000", minWidth: "80px" }}>
-              {product.specifications || "-"}
+              {specifications || "-"}
             </div>
           </div>
           {/* 通常価格 */}
@@ -207,21 +275,32 @@ export default function ProductCard({ product, brand, showDownload = true }: Pro
                 <div style={{ fontSize: "13px", lineHeight: "1.8" }}>
                   {sellingPoints.map((sp, i) => (
                     <div key={i} style={{ marginBottom: "4px" }}>
-                      <span style={{ fontWeight: 700 }}>①②③④⑤⑥</span>
                       {(() => {
-                        // Try to split "タイトル: 説明" or "タイトル：説明"
-                        const match = sp!.match(/^(.+?)[：:]\s*(.+)$/);
+                        const circledNum = "①②③④⑤⑥"[i] || `${i + 1}.`;
+                        const match = sp.match(/^(.+?)[：:]\s*(.+)$/);
                         if (match) {
                           return (
                             <>
-                              {"①②③④⑤⑥"[i]} <span style={{ fontWeight: 700 }}>{match[1]}：</span>{match[2]}
+                              {circledNum} <span style={{ fontWeight: 700 }}>{match[1]}：</span>{match[2]}
                             </>
                           );
                         }
-                        return <>{`${"①②③④⑤⑥"[i]} `}{sp}</>;
+                        return <>{circledNum} {sp}</>;
                       })()}
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* キャッチコピー (brand_products only) */}
+            {product.catchCopy && (
+              <div style={{ marginBottom: "16px" }}>
+                <h3 style={{ fontWeight: 900, fontSize: "18px", marginBottom: "8px", borderBottom: "2px solid #cc0000", paddingBottom: "4px", display: "inline-block", color: "#cc0000" }}>
+                  キャッチコピー：
+                </h3>
+                <div style={{ fontSize: "14px", lineHeight: "1.8", fontWeight: 600 }}>
+                  {product.catchCopy}
                 </div>
               </div>
             )}
@@ -234,6 +313,18 @@ export default function ProductCard({ product, brand, showDownload = true }: Pro
                 </h3>
                 <div style={{ fontSize: "13px", lineHeight: "1.8" }}>
                   {product.usageMethod}
+                </div>
+              </div>
+            )}
+
+            {/* 備考 (brand_products only) */}
+            {product.remarks && (
+              <div style={{ marginBottom: "12px" }}>
+                <h3 style={{ fontWeight: 900, fontSize: "16px", marginBottom: "8px", borderBottom: "1px solid #999", paddingBottom: "4px", display: "inline-block", color: "#666" }}>
+                  備考：
+                </h3>
+                <div style={{ fontSize: "12px", lineHeight: "1.6", color: "#666" }}>
+                  {product.remarks}
                 </div>
               </div>
             )}
@@ -301,6 +392,7 @@ export default function ProductCard({ product, brand, showDownload = true }: Pro
 
 /**
  * ProductCardMini - 手卡のサムネイル表示用コンポーネント
+ * brand_portal_products と brand_products の両方に対応
  */
 export function ProductCardMini({ product, onClick }: {
   product: {
@@ -309,13 +401,15 @@ export function ProductCardMini({ product, onClick }: {
     listPrice?: number | null;
     livePrice?: number | null;
     adjustedLivePrice?: number | null;
+    specialPrice?: number | null;
     imageUrls?: string[] | null;
-    status: string;
+    status?: string;
+    commissionRate?: string | null;
   };
   onClick?: () => void;
 }) {
   const imageUrl = product.imageUrls?.[0];
-  const finalPrice = product.adjustedLivePrice || product.livePrice;
+  const finalPrice = product.adjustedLivePrice || product.livePrice || product.specialPrice;
 
   return (
     <div
@@ -335,6 +429,7 @@ export function ProductCardMini({ product, onClick }: {
           <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
             {product.listPrice && <span>¥{Number(product.listPrice).toLocaleString()}</span>}
             {finalPrice && <span className="text-blue-600 font-medium">→ ¥{Number(finalPrice).toLocaleString()}</span>}
+            {product.commissionRate && <span className="text-green-600">報酬 {product.commissionRate}</span>}
           </div>
         </div>
         <div className="text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
