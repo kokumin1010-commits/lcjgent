@@ -17,6 +17,7 @@ import {
   brandPortalSimulations, InsertBrandPortalSimulation,
   brandPortalPerformance, InsertBrandPortalPerformance,
   brands,
+  brandProducts,
   brandLivestreams,
   livestreamProducts,
 } from "../drizzle/schema";
@@ -64,7 +65,7 @@ export const brandPortalRouter = router({
 
       const accessToken = generateToken(32);
       
-      await db.insert(brandPortals).values({
+      const insertResult = await db.insert(brandPortals).values({
         brandId: input.brandId,
         accessToken,
         portalName: input.portalName,
@@ -72,6 +73,61 @@ export const brandPortalRouter = router({
         expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
         createdBy: ctx.user.id,
       } as any);
+
+      // Get the newly created portal ID
+      const newPortal = await db.select({ id: brandPortals.id })
+        .from(brandPortals)
+        .where(eq(brandPortals.accessToken, accessToken))
+        .limit(1);
+      const portalId = newPortal[0]?.id;
+
+      // ============================================================
+      // Auto-sync: Copy existing brand_products to brand_portal_products
+      // ============================================================
+      if (portalId) {
+        const existingProducts = await db.select()
+          .from(brandProducts)
+          .where(and(
+            eq(brandProducts.brandId, input.brandId),
+            isNull(brandProducts.deletedAt),
+          ));
+
+        if (existingProducts.length > 0) {
+          for (const bp of existingProducts) {
+            await db.insert(brandPortalProducts).values({
+              portalId,
+              brandId: input.brandId,
+              productName: bp.productName,
+              productCode: bp.productCode || null,
+              category: null,
+              listPrice: bp.listPrice ? Number(bp.listPrice) : null,
+              livePrice: bp.specialPrice ? Number(bp.specialPrice) : null,
+              costPrice: bp.purchasePrice ? Number(bp.purchasePrice) : null,
+              commissionRate: bp.commissionRate || null,
+              productDescription: bp.catchCopy || null,
+              specifications: bp.productDetails || null,
+              targetAudience: bp.targetAudience || null,
+              sellingPoint1: bp.features ? (bp.features.split(/[\n\r]+/).filter(Boolean)[0] || null) : null,
+              sellingPoint2: bp.features ? (bp.features.split(/[\n\r]+/).filter(Boolean)[1] || null) : null,
+              sellingPoint3: bp.features ? (bp.features.split(/[\n\r]+/).filter(Boolean)[2] || null) : null,
+              sellingPoint4: bp.features ? (bp.features.split(/[\n\r]+/).filter(Boolean)[3] || null) : null,
+              sellingPoint5: bp.features ? (bp.features.split(/[\n\r]+/).filter(Boolean)[4] || null) : null,
+              sellingPoint6: bp.features ? (bp.features.split(/[\n\r]+/).filter(Boolean)[5] || null) : null,
+              usageMethod: bp.usageMethod || null,
+              ingredients: null,
+              shippingInfo: bp.shippingInfo || null,
+              stockQuantity: null,
+              imageUrls: bp.imageUrls || null,
+              imageKeys: bp.imageKeys || null,
+              salesMechanism: bp.sampleProduct || null,
+              giftItems: bp.accessories || null,
+              status: "submitted",
+              submittedAt: new Date(),
+            } as any);
+          }
+          console.log(`[BrandPortal] Auto-synced ${existingProducts.length} products from brand_products to portal ${portalId} for brand ${input.brandId}`);
+        }
+      }
 
       return { accessToken, url: `https://lcjmall.com/brand/${accessToken}` };
     }),
@@ -935,5 +991,73 @@ export const brandPortalRouter = router({
         brandName: brandMap.get(p.brandId)?.name || null,
         brandNameJa: brandMap.get(p.brandId)?.nameJa || null,
       }));
+    }),
+
+  /**
+   * 【管理者】ポータルに商品を新規追加
+   */
+  adminAddProduct: protectedProcedure
+    .input(z.object({
+      portalId: z.number(),
+      brandId: z.number(),
+      productName: z.string().min(1),
+      productCode: z.string().optional(),
+      category: z.string().optional(),
+      listPrice: z.number().optional(),
+      livePrice: z.number().optional(),
+      costPrice: z.number().optional(),
+      commissionRate: z.string().optional(),
+      productDescription: z.string().optional(),
+      specifications: z.string().optional(),
+      targetAudience: z.string().optional(),
+      sellingPoint1: z.string().optional(),
+      sellingPoint2: z.string().optional(),
+      sellingPoint3: z.string().optional(),
+      sellingPoint4: z.string().optional(),
+      sellingPoint5: z.string().optional(),
+      sellingPoint6: z.string().optional(),
+      usageMethod: z.string().optional(),
+      ingredients: z.string().optional(),
+      shippingInfo: z.string().optional(),
+      stockQuantity: z.number().optional(),
+      imageUrls: z.array(z.string()).optional(),
+      salesMechanism: z.string().optional(),
+      giftItems: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+
+      await db.insert(brandPortalProducts).values({
+        portalId: input.portalId,
+        brandId: input.brandId,
+        productName: input.productName,
+        productCode: input.productCode || null,
+        category: input.category || null,
+        listPrice: input.listPrice || null,
+        livePrice: input.livePrice || null,
+        costPrice: input.costPrice || null,
+        commissionRate: input.commissionRate || null,
+        productDescription: input.productDescription || null,
+        specifications: input.specifications || null,
+        targetAudience: input.targetAudience || null,
+        sellingPoint1: input.sellingPoint1 || null,
+        sellingPoint2: input.sellingPoint2 || null,
+        sellingPoint3: input.sellingPoint3 || null,
+        sellingPoint4: input.sellingPoint4 || null,
+        sellingPoint5: input.sellingPoint5 || null,
+        sellingPoint6: input.sellingPoint6 || null,
+        usageMethod: input.usageMethod || null,
+        ingredients: input.ingredients || null,
+        shippingInfo: input.shippingInfo || null,
+        stockQuantity: input.stockQuantity || null,
+        imageUrls: input.imageUrls || null,
+        salesMechanism: input.salesMechanism || null,
+        giftItems: input.giftItems || null,
+        status: "submitted",
+        submittedAt: new Date(),
+      } as any);
+
+      return { success: true };
     }),
 });

@@ -85,7 +85,7 @@ function PortalListView({
         portalName: portalName || undefined,
         welcomeMessage: welcomeMessage || undefined,
       });
-      toast.success("ポータルリンクを作成しました");
+      toast.success("ポータルリンクを作成しました（既存商品データを自動連携済み）");
       navigator.clipboard.writeText(result.url);
       toast.info("URLをクリップボードにコピーしました");
       setShowCreateModal(false);
@@ -353,6 +353,7 @@ function PortalDetailView({
         <ProductsTab
           products={products}
           portalId={portalId}
+          brandId={portal.brandId}
           onRefresh={refetch}
           selectedProductId={selectedProductId}
           onSelectProduct={setSelectedProductId}
@@ -393,18 +394,75 @@ function PortalDetailView({
 function ProductsTab({
   products,
   portalId,
+  brandId,
   onRefresh,
   selectedProductId,
   onSelectProduct,
 }: {
   products: any[];
   portalId: number;
+  brandId: number;
   onRefresh: () => void;
   selectedProductId: number | null;
   onSelectProduct: (id: number | null) => void;
 }) {
   const tuneMutation = trpc.brandPortal.tuneProduct.useMutation();
   const statusMutation = trpc.brandPortal.updateProductStatus.useMutation();
+  const addProductMutation = trpc.brandPortal.adminAddProduct.useMutation();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newProduct, setNewProduct] = useState({
+    productName: "",
+    productCode: "",
+    listPrice: "",
+    livePrice: "",
+    costPrice: "",
+    commissionRate: "",
+    productDescription: "",
+    specifications: "",
+    targetAudience: "",
+    sellingPoint1: "",
+    sellingPoint2: "",
+    sellingPoint3: "",
+    usageMethod: "",
+    shippingInfo: "",
+    salesMechanism: "",
+    giftItems: "",
+  });
+
+  const handleAddProduct = async () => {
+    if (!newProduct.productName.trim()) {
+      toast.error("商品名は必須です");
+      return;
+    }
+    try {
+      await addProductMutation.mutateAsync({
+        portalId,
+        brandId,
+        productName: newProduct.productName,
+        productCode: newProduct.productCode || undefined,
+        listPrice: newProduct.listPrice ? Number(newProduct.listPrice) : undefined,
+        livePrice: newProduct.livePrice ? Number(newProduct.livePrice) : undefined,
+        costPrice: newProduct.costPrice ? Number(newProduct.costPrice) : undefined,
+        commissionRate: newProduct.commissionRate || undefined,
+        productDescription: newProduct.productDescription || undefined,
+        specifications: newProduct.specifications || undefined,
+        targetAudience: newProduct.targetAudience || undefined,
+        sellingPoint1: newProduct.sellingPoint1 || undefined,
+        sellingPoint2: newProduct.sellingPoint2 || undefined,
+        sellingPoint3: newProduct.sellingPoint3 || undefined,
+        usageMethod: newProduct.usageMethod || undefined,
+        shippingInfo: newProduct.shippingInfo || undefined,
+        salesMechanism: newProduct.salesMechanism || undefined,
+        giftItems: newProduct.giftItems || undefined,
+      });
+      toast.success("商品を追加しました");
+      setShowAddForm(false);
+      setNewProduct({ productName: "", productCode: "", listPrice: "", livePrice: "", costPrice: "", commissionRate: "", productDescription: "", specifications: "", targetAudience: "", sellingPoint1: "", sellingPoint2: "", sellingPoint3: "", usageMethod: "", shippingInfo: "", salesMechanism: "", giftItems: "" });
+      onRefresh();
+    } catch (err: any) {
+      toast.error(err?.message || "追加に失敗しました");
+    }
+  };
 
   const [tuneForm, setTuneForm] = useState<{
     adjustedLivePrice: string;
@@ -456,8 +514,79 @@ function ProductsTab({
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Product list */}
       <div className="space-y-3">
-        <h3 className="font-bold text-gray-800">登録商品 ({products.length}件)</h3>
-        {products.length === 0 ? (
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-gray-800">登録商品 ({products.length}件)</h3>
+          <Button size="sm" variant="outline" onClick={() => setShowAddForm(!showAddForm)} className="text-blue-600 border-blue-300 hover:bg-blue-50">
+            <Plus className="w-4 h-4 mr-1" /> 新規追加
+          </Button>
+        </div>
+        {showAddForm && (
+          <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 space-y-3">
+            <h4 className="font-bold text-blue-800 text-sm">新規商品追加</h4>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600">商品名 <span className="text-red-500">*</span></label>
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.productName} onChange={e => setNewProduct(p => ({...p, productName: e.target.value}))} placeholder="商品名" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">品番</label>
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.productCode} onChange={e => setNewProduct(p => ({...p, productCode: e.target.value}))} placeholder="SKU" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">通常価格</label>
+                <input type="number" className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.listPrice} onChange={e => setNewProduct(p => ({...p, listPrice: e.target.value}))} placeholder="¥0" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">ライブ価格</label>
+                <input type="number" className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.livePrice} onChange={e => setNewProduct(p => ({...p, livePrice: e.target.value}))} placeholder="¥0" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">原価</label>
+                <input type="number" className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.costPrice} onChange={e => setNewProduct(p => ({...p, costPrice: e.target.value}))} placeholder="¥0" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">成果報酬率</label>
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.commissionRate} onChange={e => setNewProduct(p => ({...p, commissionRate: e.target.value}))} placeholder="15%" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600">ターゲット層</label>
+              <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.targetAudience} onChange={e => setNewProduct(p => ({...p, targetAudience: e.target.value}))} placeholder="20代女性・美容意識高い層" />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="text-xs font-medium text-gray-600">セールスポイント①</label>
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.sellingPoint1} onChange={e => setNewProduct(p => ({...p, sellingPoint1: e.target.value}))} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">セールスポイント②</label>
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.sellingPoint2} onChange={e => setNewProduct(p => ({...p, sellingPoint2: e.target.value}))} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">セールスポイント③</label>
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.sellingPoint3} onChange={e => setNewProduct(p => ({...p, sellingPoint3: e.target.value}))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600">販売メカニズム</label>
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.salesMechanism} onChange={e => setNewProduct(p => ({...p, salesMechanism: e.target.value}))} placeholder="単品販売 / セット販売" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">贈品・特典</label>
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.giftItems} onChange={e => setNewProduct(p => ({...p, giftItems: e.target.value}))} placeholder="サンプルセット付き" />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button size="sm" onClick={handleAddProduct} disabled={addProductMutation.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
+                {addProductMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+                追加
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setShowAddForm(false)}>キャンセル</Button>
+            </div>
+          </div>
+        )}
+        {products.length === 0 && !showAddForm ? (
           <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-xl">
             <Package className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>まだ商品がありません</p>
