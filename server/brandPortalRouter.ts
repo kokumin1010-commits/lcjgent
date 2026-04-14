@@ -158,6 +158,7 @@ export const brandPortalRouter = router({
   }),
 
   // ポータル詳細取得（管理者用）
+  // brand_portal_products + brand_products を統合して返す
   getPortalDetail: protectedProcedure
     .input(z.object({ portalId: z.number() }))
     .query(async ({ input }) => {
@@ -178,18 +179,61 @@ export const brandPortalRouter = router({
         .where(eq(brands.id, portal[0].brandId))
         .limit(1);
 
-      // Get products
-      const products = await db.select().from(brandPortalProducts)
+      // Get portal-specific products
+      const portalProducts = await db.select().from(brandPortalProducts)
         .where(and(
           eq(brandPortalProducts.portalId, input.portalId),
           isNull(brandPortalProducts.deletedAt),
         ))
         .orderBy(desc(brandPortalProducts.createdAt));
 
+      // Also get existing brand_products (the real product data / 手卡)
+      const existingBrandProducts = await db.select().from(brandProducts)
+        .where(and(
+          eq(brandProducts.brandId, portal[0].brandId),
+          isNull(brandProducts.deletedAt),
+        ))
+        .orderBy(desc(brandProducts.createdAt));
+
+      // Normalize brand_products to match portal product format for display
+      const normalizedBrandProducts = existingBrandProducts.map((bp: any) => ({
+        id: `bp_${bp.id}`,
+        source: "brand_products" as const,
+        originalId: bp.id,
+        portalId: input.portalId,
+        brandId: bp.brandId,
+        productName: bp.productName,
+        productCode: bp.productCode || null,
+        listPrice: bp.listPrice ? Number(bp.listPrice) : null,
+        livePrice: bp.specialPrice ? Number(bp.specialPrice) : null,
+        costPrice: bp.purchasePrice ? Number(bp.purchasePrice) : null,
+        commissionRate: bp.commissionRate || null,
+        productDescription: bp.catchCopy || null,
+        specifications: bp.productDetails || null,
+        targetAudience: bp.targetAudience || null,
+        features: bp.features || null,
+        usageMethod: bp.usageMethod || null,
+        shippingInfo: bp.shippingInfo || null,
+        imageUrls: bp.imageUrls || null,
+        imageKeys: bp.imageKeys || null,
+        salesMechanism: bp.sampleProduct || null,
+        giftItems: bp.accessories || null,
+        gmv: bp.gmv || null,
+        totalSales: bp.totalSales || null,
+        status: "approved",
+        createdAt: bp.createdAt,
+        // Extra fields from brand_products for display
+        discountRate: bp.discountRate || null,
+        aiAnalysis: bp.aiAnalysis || null,
+        aiFeatures: bp.aiFeatures || null,
+        aiCatchCopy: bp.aiCatchCopy || null,
+      }));
+
       return {
         portal: portal[0],
         brand: brand[0] || null,
-        products,
+        products: portalProducts,
+        brandProducts: normalizedBrandProducts,
       };
     }),
 
@@ -260,13 +304,51 @@ export const brandPortalRouter = router({
         .where(eq(brands.id, p.brandId))
         .limit(1);
 
-      // Get products for this portal
-      const products = await db.select().from(brandPortalProducts)
+      // Get portal-specific products
+      const portalProducts = await db.select().from(brandPortalProducts)
         .where(and(
           eq(brandPortalProducts.portalId, p.id),
           isNull(brandPortalProducts.deletedAt),
         ))
         .orderBy(desc(brandPortalProducts.createdAt));
+
+      // Also get existing brand_products (既存手卤 / ライブ特別セット)
+      const existingBrandProducts = await db.select().from(brandProducts)
+        .where(and(
+          eq(brandProducts.brandId, p.brandId),
+          isNull(brandProducts.deletedAt),
+        ))
+        .orderBy(desc(brandProducts.createdAt));
+
+      // Normalize brand_products for display
+      const normalizedBrandProducts = existingBrandProducts.map((bp: any) => ({
+        id: `bp_${bp.id}`,
+        source: "brand_products" as const,
+        originalId: bp.id,
+        portalId: p.id,
+        brandId: bp.brandId,
+        productName: bp.productName,
+        productCode: bp.productCode || null,
+        listPrice: bp.listPrice ? Number(bp.listPrice) : null,
+        livePrice: bp.specialPrice ? Number(bp.specialPrice) : null,
+        costPrice: bp.purchasePrice ? Number(bp.purchasePrice) : null,
+        commissionRate: bp.commissionRate || null,
+        productDescription: bp.catchCopy || null,
+        specifications: bp.productDetails || null,
+        targetAudience: bp.targetAudience || null,
+        features: bp.features || null,
+        usageMethod: bp.usageMethod || null,
+        shippingInfo: bp.shippingInfo || null,
+        imageUrls: bp.imageUrls || null,
+        imageKeys: bp.imageKeys || null,
+        salesMechanism: bp.sampleProduct || null,
+        giftItems: bp.accessories || null,
+        gmv: bp.gmv || null,
+        totalSales: bp.totalSales || null,
+        discountRate: bp.discountRate || null,
+        status: "approved",
+        createdAt: bp.createdAt,
+      }));
 
       // Get performance data
       const performances = await db.select().from(brandPortalPerformance)
@@ -284,7 +366,8 @@ export const brandPortalRouter = router({
           brandId: p.brandId,
         },
         brand: brand[0] || null,
-        products,
+        products: portalProducts,
+        brandProducts: normalizedBrandProducts,
         performances,
       };
     }),

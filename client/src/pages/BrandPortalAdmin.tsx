@@ -294,7 +294,12 @@ function PortalDetailView({
     return <div className="text-center py-12 text-gray-500">ポータルが見つかりません</div>;
   }
 
-  const { portal, brand, products } = data;
+  const { portal, brand, products, brandProducts: existingProducts } = data;
+  // Merge: existing brand_products (手卡) + portal-specific products
+  const allProducts = [
+    ...(existingProducts || []),
+    ...products,
+  ];
 
   return (
     <div className="space-y-6">
@@ -348,10 +353,10 @@ function PortalDetailView({
         ))}
       </div>
 
-      {/* Products tab */}
+      {/* Products tab - shows both existing brand_products and portal products */}
       {activeTab === "products" && (
         <ProductsTab
-          products={products}
+          products={allProducts}
           portalId={portalId}
           brandId={portal.brandId}
           onRefresh={refetch}
@@ -363,7 +368,7 @@ function PortalDetailView({
       {/* Simulations tab */}
       {activeTab === "simulations" && (
         <SimulationsTab
-          products={products}
+          products={allProducts}
           portalId={portalId}
         />
       )}
@@ -371,16 +376,16 @@ function PortalDetailView({
       {/* Performance tab */}
       {activeTab === "performance" && (
         <PerformanceTab
-          products={products}
+          products={allProducts}
           portalId={portalId}
           brandId={portal.brandId}
         />
       )}
 
-      {/* Product Cards (手卡) tab */}
+      {/* Product Cards (手卤) tab - ライブ特別セット（直播手卤） */}
       {activeTab === "cards" && (
         <ProductCardsTab
-          products={products}
+          products={allProducts}
           brand={brand}
         />
       )}
@@ -611,16 +616,26 @@ function ProductsTab({
               }`}
             >
               <div className="flex items-start justify-between">
-                <div>
-                  <h4 className="font-semibold text-gray-900">{product.productName}</h4>
-                  {product.productCode && <p className="text-xs text-gray-500">SKU: {product.productCode}</p>}
+                <div className="flex items-center gap-2">
+                  {product.imageUrls && (
+                    <img src={typeof product.imageUrls === 'string' ? (product.imageUrls.startsWith('[') ? JSON.parse(product.imageUrls)[0] : product.imageUrls.split(',')[0]) : Array.isArray(product.imageUrls) ? product.imageUrls[0] : ''} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-200" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  )}
+                  <div>
+                    <h4 className="font-semibold text-gray-900">{product.productName}</h4>
+                    <div className="flex items-center gap-2">
+                      {product.productCode && <span className="text-xs text-gray-500">SKU: {product.productCode}</span>}
+                      {product.source === 'brand_products' && <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">既存手卤</span>}
+                    </div>
+                  </div>
                 </div>
                 <StatusBadge status={product.status} />
               </div>
               <div className="flex gap-4 mt-2 text-sm">
                 {product.listPrice && <span className="text-gray-500">通常: ¥{Number(product.listPrice).toLocaleString()}</span>}
-                {product.livePrice && <span className="text-blue-600">希望: ¥{Number(product.livePrice).toLocaleString()}</span>}
+                {product.livePrice && <span className="text-blue-600">特価: ¥{Number(product.livePrice).toLocaleString()}</span>}
                 {product.adjustedLivePrice && <span className="text-green-600 font-medium">調整: ¥{Number(product.adjustedLivePrice).toLocaleString()}</span>}
+                {product.gmv && Number(product.gmv) > 0 && <span className="text-orange-600 font-medium">GMV: ¥{Number(product.gmv).toLocaleString()}</span>}
+                {product.commissionRate && <span className="text-gray-500">報酬: {product.commissionRate}</span>}
               </div>
             </div>
           ))
@@ -647,14 +662,27 @@ function ProductsTab({
                 {selectedProduct.giftItems && <p><span className="font-medium text-gray-600">贈品:</span> {selectedProduct.giftItems}</p>}
               </div>
 
-              {/* Selling points */}
-              {[1, 2, 3, 4, 5, 6].some(i => selectedProduct[`sellingPoint${i}`]) && (
+              {/* Selling points - from sellingPoint1-6 or features */}
+              {([1, 2, 3, 4, 5, 6].some(i => selectedProduct[`sellingPoint${i}`]) || selectedProduct.features) && (
                 <div className="bg-yellow-50 rounded-lg p-3 text-sm">
                   <p className="font-medium text-yellow-700 mb-1">セールスポイント:</p>
                   {[1, 2, 3, 4, 5, 6].map(i => {
                     const sp = selectedProduct[`sellingPoint${i}`];
                     return sp ? <p key={i} className="text-yellow-800">• {sp}</p> : null;
                   })}
+                  {selectedProduct.features && !selectedProduct.sellingPoint1 && (
+                    selectedProduct.features.split(/[\n\r]+/).filter(Boolean).map((f: string, i: number) => (
+                      <p key={`f${i}`} className="text-yellow-800">• {f}</p>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* AI Analysis (from brand_products) */}
+              {selectedProduct.source === 'brand_products' && selectedProduct.aiCatchCopy && (
+                <div className="bg-purple-50 rounded-lg p-3 text-sm">
+                  <p className="font-medium text-purple-700 mb-1">AIキャッチコピー:</p>
+                  <p className="text-purple-800">{selectedProduct.aiCatchCopy}</p>
                 </div>
               )}
 

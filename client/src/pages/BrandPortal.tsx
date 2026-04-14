@@ -490,7 +490,12 @@ export default function BrandPortal() {
     );
   }
 
-  const { portal, brand, products, performances } = data;
+  const { portal, brand, products: portalProducts, brandProducts: existingProducts, performances } = data;
+  // Merge: existing brand_products (手卤) + portal-specific products
+  const products = [
+    ...(existingProducts || []),
+    ...portalProducts,
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
