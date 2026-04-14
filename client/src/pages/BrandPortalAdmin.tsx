@@ -1433,6 +1433,7 @@ function BrandProductsView({
   onCreatePortal: (brandId: number) => void;
 }) {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const { data, isLoading } = trpc.brandPortal.getProductCardsByBrand.useQuery({ brandId });
 
@@ -1559,9 +1560,10 @@ function BrandProductsView({
                       {(typeof selectedProduct.imageUrls === "string" ? selectedProduct.imageUrls.split(",") : selectedProduct.imageUrls)
                         .filter(Boolean)
                         .map((url: string, i: number) => (
-                          <img key={i} src={url.trim()} alt="" className="h-32 rounded-lg object-cover flex-shrink-0 border" />
+                          <img key={i} src={url.trim()} alt="" className="h-32 rounded-lg object-cover flex-shrink-0 border cursor-pointer hover:opacity-80 hover:ring-2 hover:ring-blue-400 transition-all" onClick={(e) => { e.stopPropagation(); setPreviewImage(url.trim()); }} />
                         ))}
                     </div>
+                    <p className="text-[10px] text-gray-400 mt-1">クリックで拡大プレビュー</p>
                   </div>
                 )}
 
@@ -1585,7 +1587,7 @@ function BrandProductsView({
                 {selectedProduct.proposalImageUrl && (
                   <div className="mb-4">
                     <p className="text-xs font-medium text-gray-500 mb-2">提案書プレビュー</p>
-                    <div className="border border-gray-200 rounded-lg overflow-hidden cursor-pointer" onClick={() => window.open(selectedProduct.proposalImageUrl, '_blank')}>
+                    <div className="border border-gray-200 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all" onClick={(e) => { e.stopPropagation(); setPreviewImage(selectedProduct.proposalImageUrl); }}>
                       <img src={selectedProduct.proposalImageUrl} alt="提案書" className="w-full max-h-[400px] object-contain bg-gray-50" />
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1 text-center">クリックで拡大表示</p>
@@ -1650,6 +1652,27 @@ function BrandProductsView({
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Image Lightbox Preview */}
+          {previewImage && (
+            <div
+              className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4 cursor-zoom-out"
+              onClick={() => setPreviewImage(null)}
+            >
+              <button
+                onClick={() => setPreviewImage(null)}
+                className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full transition-colors"
+              >
+                <X className="w-6 h-6 text-white" />
+              </button>
+              <img
+                src={previewImage}
+                alt="プレビュー"
+                className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
             </div>
           )}
         </div>
