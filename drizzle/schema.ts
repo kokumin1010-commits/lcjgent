@@ -4647,3 +4647,208 @@ export const tiktokCapProductReports = mysqlTable("tiktok_cap_product_reports", 
 });
 export type TiktokCapProductReport = typeof tiktokCapProductReports.$inferSelect;
 export type InsertTiktokCapProductReport = typeof tiktokCapProductReports.$inferInsert;
+
+
+// =====================================================
+// Brand Portal System - ブランドポータルシステム
+// =====================================================
+
+/**
+ * ブランドポータルテーブル
+ * ブランド方がトークン付きリンクでアクセスするポータルの管理
+ * 1ブランドに対して1つのポータルを持つ
+ */
+export const brandPortals = mysqlTable("brand_portals", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  accessToken: varchar("accessToken", { length: 64 }).notNull().unique(), // URLトークン（例: lcjmall.com/brand/abc123）
+  
+  // ポータル設定
+  portalName: varchar("portalName", { length: 255 }), // ポータル表示名（デフォルトはブランド名）
+  welcomeMessage: text("welcomeMessage"), // ウェルカムメッセージ
+  
+  // ステータス
+  status: mysqlEnum("portalStatus", ["active", "suspended", "expired"]).default("active").notNull(),
+  expiresAt: timestamp("portalExpiresAt"), // 有効期限（NULLなら無期限）
+  lastAccessedAt: timestamp("lastAccessedAt"), // 最終アクセス日時
+  accessCount: int("accessCount").default(0).notNull(), // アクセス回数
+  
+  // メタ情報
+  createdBy: int("createdBy").notNull(), // 作成者（LCJスタッフ）
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type BrandPortal = typeof brandPortals.$inferSelect;
+export type InsertBrandPortal = typeof brandPortals.$inferInsert;
+
+/**
+ * ブランドポータル商品テーブル（手卡 = 商品紹介カード）
+ * ブランド方がポータルから入力する商品情報
+ * 既存のbrandProductsとは別テーブル（ブランド方が直接入力 → LCJが承認後にbrandProductsに反映）
+ */
+export const brandPortalProducts = mysqlTable("brand_portal_products", {
+  id: int("id").autoincrement().primaryKey(),
+  portalId: int("portalId").notNull(), // References brand_portals.id
+  brandId: int("brandId").notNull(), // References brands.id
+  brandProductId: int("brandProductId"), // 承認後にbrandProducts.idと紐付け
+  
+  // 基本情報
+  productName: varchar("productName", { length: 500 }).notNull(), // 製品名
+  productCode: varchar("productCode", { length: 100 }), // 品番・SKU
+  category: varchar("bppCategory", { length: 255 }), // カテゴリ
+  
+  // 価格情報
+  listPrice: bigint("listPrice", { mode: "number" }), // 通常価格（定価）
+  livePrice: bigint("livePrice", { mode: "number" }), // ライブ配信価格（希望）
+  costPrice: bigint("costPrice", { mode: "number" }), // 原価（仕入れ値）
+  commissionRate: varchar("commissionRate", { length: 50 }), // ライセンス料配分率
+  
+  // 商品詳細
+  productDescription: text("productDescription"), // 商品説明
+  specifications: text("specifications"), // 仕様・スペック
+  targetAudience: varchar("targetAudience", { length: 500 }), // ターゲット層
+  
+  // コアセールスポイント（6項目）
+  sellingPoint1: text("sellingPoint1"),
+  sellingPoint2: text("sellingPoint2"),
+  sellingPoint3: text("sellingPoint3"),
+  sellingPoint4: text("sellingPoint4"),
+  sellingPoint5: text("sellingPoint5"),
+  sellingPoint6: text("sellingPoint6"),
+  
+  // 使用方法・その他
+  usageMethod: text("usageMethod"), // 使用方法
+  ingredients: text("ingredients"), // 成分・原材料
+  shippingInfo: text("shippingInfo"), // 発送情報
+  stockQuantity: int("stockQuantity"), // 在庫数
+  
+  // 画像
+  imageUrls: json("imageUrls").$type<string[]>(), // 商品画像URLs
+  imageKeys: json("imageKeys").$type<string[]>(), // 商品画像S3 keys
+  
+  // 販売メカニズム
+  salesMechanism: text("salesMechanism"), // 販売メカニズム（セット販売・おまけ等）
+  giftItems: text("giftItems"), // 贈品・おまけ情報
+  
+  // LCJチューニング（管理者が調整）
+  adjustedLivePrice: bigint("adjustedLivePrice", { mode: "number" }), // 調整後ライブ価格
+  adjustedDiscountRate: varchar("adjustedDiscountRate", { length: 50 }), // 調整後割引率
+  adjustedGiftItems: text("adjustedGiftItems"), // 調整後贈品
+  tuningNotes: text("tuningNotes"), // チューニングメモ
+  tunedBy: int("tunedBy"), // チューニング担当者
+  tunedAt: timestamp("tunedAt"), // チューニング日時
+  
+  // ステータス管理
+  status: mysqlEnum("bppStatus", [
+    "draft",        // ブランド方が入力中
+    "submitted",    // ブランド方が提出済み
+    "reviewing",    // LCJが審査中
+    "tuning",       // LCJがチューニング中
+    "simulating",   // シミュレーション中
+    "proposed",     // ブランド方に提案済み
+    "approved",     // ブランド方が承認
+    "live_ready",   // 配信準備完了
+    "live_done",    // 配信完了
+    "rejected",     // 却下
+  ]).default("draft").notNull(),
+  
+  // 承認フロー
+  submittedAt: timestamp("submittedAt"), // ブランド方が提出した日時
+  approvedAt: timestamp("approvedAt"), // ブランド方が承認した日時
+  approvedBy: varchar("approvedBy", { length: 255 }), // 承認者名（ブランド方の担当者名）
+  rejectedAt: timestamp("rejectedAt"),
+  rejectionReason: text("rejectionReason"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  deletedAt: timestamp("deletedAt"), // ソフトデリート
+});
+export type BrandPortalProduct = typeof brandPortalProducts.$inferSelect;
+export type InsertBrandPortalProduct = typeof brandPortalProducts.$inferInsert;
+
+/**
+ * ブランドポータルシミュレーションテーブル
+ * 商品ごとの価格別シミュレーション結果を保存
+ * ブランド方に提案する際に使用
+ */
+export const brandPortalSimulations = mysqlTable("brand_portal_simulations", {
+  id: int("id").autoincrement().primaryKey(),
+  portalProductId: int("portalProductId").notNull(), // References brand_portal_products.id
+  brandId: int("brandId").notNull(),
+  
+  // シミュレーション条件
+  simulationName: varchar("simulationName", { length: 255 }), // シミュレーション名
+  priceScenarios: json("priceScenarios").$type<Array<{
+    label: string;          // シナリオ名（例: "強気価格", "標準価格", "攻め価格"）
+    livePrice: number;      // ライブ価格
+    discountRate: number;   // 割引率（%）
+    giftItems: string;      // 贈品
+    estimatedSalesCount: number; // 予想販売数
+    estimatedGmv: number;   // 予想GMV
+    estimatedProfit: number; // 予想利益
+    commissionAmount: number; // 手数料額
+  }>>(),
+  
+  // 推奨シナリオ
+  recommendedScenarioIndex: int("recommendedScenarioIndex"), // 推奨シナリオのインデックス
+  recommendationReason: text("recommendationReason"), // 推奨理由
+  
+  // 共有設定
+  shareToken: varchar("simShareToken", { length: 64 }).unique(), // ブランド方に共有するトークン
+  sharedAt: timestamp("sharedAt"), // 共有日時
+  
+  // ブランド方の回答
+  selectedScenarioIndex: int("selectedScenarioIndex"), // ブランド方が選択したシナリオ
+  brandFeedback: text("brandFeedback"), // ブランド方のフィードバック
+  respondedAt: timestamp("respondedAt"), // 回答日時
+  
+  // メタ情報
+  status: mysqlEnum("simStatus2", ["draft", "shared", "responded", "finalized"]).default("draft").notNull(),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type BrandPortalSimulation = typeof brandPortalSimulations.$inferSelect;
+export type InsertBrandPortalSimulation = typeof brandPortalSimulations.$inferInsert;
+
+/**
+ * ブランドポータル配信実績テーブル
+ * 配信後にブランド方が確認できる実績データ
+ * brandLivestreamsから集計して自動反映
+ */
+export const brandPortalPerformance = mysqlTable("brand_portal_performance", {
+  id: int("id").autoincrement().primaryKey(),
+  portalProductId: int("portalProductId").notNull(), // References brand_portal_products.id
+  brandId: int("brandId").notNull(),
+  livestreamId: int("livestreamId"), // References brand_livestreams.id
+  
+  // 配信情報
+  livestreamDate: timestamp("livestreamDate").notNull(),
+  streamerName: varchar("streamerName", { length: 255 }),
+  platform: varchar("platform", { length: 100 }),
+  duration: int("duration"), // 配信時間（分）
+  
+  // 売上実績
+  salesAmount: bigint("salesAmount", { mode: "number" }), // 売上金額
+  gmv: bigint("gmv", { mode: "number" }), // GMV
+  salesCount: int("salesCount"), // 販売数
+  orderCount: int("orderCount"), // 注文数
+  
+  // 視聴データ
+  viewerCount: int("viewerCount"), // 視聴者数
+  peakViewers: int("peakViewers"), // ピーク視聴者数
+  
+  // エンゲージメント
+  likes: int("likes"),
+  comments: int("comments"),
+  shares: int("shares"),
+  
+  // ブランド方への表示設定
+  isVisible: boolean("isVisible").default(true).notNull(), // ブランド方に表示するか
+  notes: text("notes"), // 備考（ブランド方に見せるメモ）
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type BrandPortalPerformance = typeof brandPortalPerformance.$inferSelect;
+export type InsertBrandPortalPerformance = typeof brandPortalPerformance.$inferInsert;

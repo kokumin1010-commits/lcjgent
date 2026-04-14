@@ -619,6 +619,7 @@ import { recruitmentRouter } from "./recruitmentRouter";
 import { adFormRouter } from "./adFormRouter";
 import { tspRouter } from "./tspRouter";
 import { agencyRouter } from "./agencyRouter";
+import { brandPortalRouter } from "./brandPortalRouter";
 import { checkAndSendReminders } from "./reminderScheduler";
 // Blog/AutoPost関連のimportはserver/blogRouter.tsに移動済み
 import { completionRouter } from "./completion";
@@ -20285,6 +20286,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
   tsp: tspRouter,
   // 事務所（エージェンシー）管理
   agency: agencyRouter,
+  // ブランドポータルシステム
+  brandPortal: brandPortalRouter,
 });
 export type AppRouter = typeof appRouter;
 

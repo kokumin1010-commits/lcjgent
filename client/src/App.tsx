@@ -130,6 +130,9 @@ const AgencyLogin = lazy(() => import("./pages/AgencyLogin"));
 const AgencyDashboard = lazy(() => import("./pages/AgencyDashboard"));
 const AgencyManagement = lazy(() => import("./pages/AgencyManagement"));
 const AgencyLiverRegister = lazy(() => import("./pages/AgencyLiverRegister"));
+const BrandPortal = lazy(() => import("./pages/BrandPortal"));
+const BrandSimulationView = lazy(() => import("./pages/BrandSimulationView"));
+const BrandPortalAdmin = lazy(() => import("./pages/BrandPortalAdmin"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -441,6 +444,15 @@ function Router() {
 
         {/* Brand Sample LP */}
         <Route path="/brand-sample" component={BrandSampleLP} />
+
+        {/* Brand Portal */}
+        <Route path="/brand/simulation/:shareToken" component={BrandSimulationView} />
+        <Route path="/brand/:token" component={BrandPortal} />
+        <Route path="/master/brand-portal">
+          <DashboardLayout>
+            <BrandPortalAdmin />
+          </DashboardLayout>
+        </Route>
         <Route path="/master/ab-test" component={AbTestDashboard} />
 
         {/* Agency (事務所) Pages */}
