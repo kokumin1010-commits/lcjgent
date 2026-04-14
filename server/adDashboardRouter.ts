@@ -16,7 +16,7 @@ export const adDashboardRouter = router({
       adType: z.enum(["short_video", "live", "mixed"]).optional(),
     }).optional())
     .query(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const conditions: any[] = [];
       
       if (input?.month) {
@@ -62,7 +62,7 @@ export const adDashboardRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = await getDb();
       const spendRate = input.budget > 0 ? input.actualSpend / input.budget : 0;
       
       const result = await db.insert(adMonthlyPlans).values({
@@ -106,7 +106,7 @@ export const adDashboardRouter = router({
       adType: z.enum(["short_video", "live", "mixed"]).optional(),
     }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const { id, ...updates } = input;
       
       // Calculate spendRate if budget and actualSpend are provided
@@ -141,7 +141,7 @@ export const adDashboardRouter = router({
   deleteMonthlyPlan: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       // Also delete related daily records
       await db.delete(adDailyRecords).where(eq(adDailyRecords.monthlyPlanId, input.id));
       await db.delete(adMonthlyPlans).where(eq(adMonthlyPlans.id, input.id));
@@ -156,7 +156,7 @@ export const adDashboardRouter = router({
       month: z.string().optional(), // 指定なしの場合は全期間
     }).optional())
     .query(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const conditions: any[] = [];
       if (input?.month) {
         conditions.push(eq(adMonthlyPlans.month, input.month));
@@ -216,7 +216,7 @@ export const adDashboardRouter = router({
       adType: z.enum(["short_video", "live", "mixed", "all"]).optional(),
     }).optional())
     .query(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const conditions: any[] = [];
       if (input?.month) {
         conditions.push(eq(adMonthlyPlans.month, input.month));
@@ -256,7 +256,7 @@ export const adDashboardRouter = router({
   // 利用可能な月のリスト
   getAvailableMonths: protectedProcedure
     .query(async () => {
-      const db = getDb();
+      const db = await getDb();
       const result = await db
         .selectDistinct({ month: adMonthlyPlans.month })
         .from(adMonthlyPlans)
@@ -272,7 +272,7 @@ export const adDashboardRouter = router({
       monthlyPlanId: z.number(),
     }))
     .query(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       return await db
         .select()
         .from(adDailyRecords)
@@ -293,7 +293,7 @@ export const adDashboardRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const result = await db.insert(adDailyRecords).values({
         monthlyPlanId: input.monthlyPlanId,
         recordDate: new Date(input.recordDate),
@@ -312,7 +312,7 @@ export const adDashboardRouter = router({
   // ブランド一覧（ドロップダウン用）
   getBrandsForDropdown: protectedProcedure
     .query(async () => {
-      const db = getDb();
+      const db = await getDb();
       const result = await db
         .select({ id: brands.id, name: brands.name, nameJa: brands.nameJa })
         .from(brands)
@@ -324,7 +324,7 @@ export const adDashboardRouter = router({
   // ライバー一覧（ドロップダウン用）
   getLiversForDropdown: protectedProcedure
     .query(async () => {
-      const db = getDb();
+      const db = await getDb();
       const result = await db
         .select({ id: livers.id, name: livers.name })
         .from(livers)
@@ -352,7 +352,7 @@ export const adDashboardRouter = router({
       })),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = await getDb();
       let imported = 0;
       
       for (const plan of input.plans) {
