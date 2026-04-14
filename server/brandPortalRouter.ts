@@ -897,10 +897,31 @@ export const brandPortalRouter = router({
 
     const portalMap = new Map(existingPortals.map(p => [p.brandId, p]));
 
+    // 各ブランドの商品件数を取得（brand_products + brand_portal_products）
+    const bpCounts = await db.select({
+      brandId: brandProducts.brandId,
+      count: sql<number>`COUNT(*)`.as('count'),
+    }).from(brandProducts)
+      .where(isNull(brandProducts.deletedAt))
+      .groupBy(brandProducts.brandId);
+
+    const ppCounts = await db.select({
+      brandId: brandPortalProducts.brandId,
+      count: sql<number>`COUNT(*)`.as('count'),
+    }).from(brandPortalProducts)
+      .where(isNull(brandPortalProducts.deletedAt))
+      .groupBy(brandPortalProducts.brandId);
+
+    const bpCountMap = new Map(bpCounts.map(c => [c.brandId, Number(c.count)]));
+    const ppCountMap = new Map(ppCounts.map(c => [c.brandId, Number(c.count)]));
+
     return allBrands.map(b => ({
       ...b,
       hasPortal: portalMap.has(b.id),
       portal: portalMap.get(b.id) || null,
+      productCount: (bpCountMap.get(b.id) || 0) + (ppCountMap.get(b.id) || 0),
+      brandProductCount: bpCountMap.get(b.id) || 0,
+      portalProductCount: ppCountMap.get(b.id) || 0,
     }));
   }),
 

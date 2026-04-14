@@ -200,9 +200,16 @@ function PortalListView({
                 onClick={() => onSelectBrand(brand.id)}
               >
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900 text-sm">{brand.nameJa || brand.name}</p>
-                    {brand.category && <p className="text-xs text-gray-500">{brand.category}</p>}
+                  <div className="flex items-center gap-2">
+                    <div>
+                      <p className="font-medium text-gray-900 text-sm">{brand.nameJa || brand.name}</p>
+                      {brand.category && <p className="text-xs text-gray-500">{brand.category}</p>}
+                    </div>
+                    {brand.productCount > 0 && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-700">
+                        {brand.productCount}品
+                      </span>
+                    )}
                   </div>
                   {brand.hasPortal ? (
                     <div className="flex items-center gap-1">
@@ -1573,6 +1580,17 @@ function BrandProductsView({
                     <p className="text-lg font-bold text-cyan-600">{selectedProduct.commissionRate || "-"}</p>
                   </div>
                 </div>
+
+                {/* Proposal Image Preview (既存手卡の提案書) */}
+                {selectedProduct.proposalImageUrl && (
+                  <div className="mb-4">
+                    <p className="text-xs font-medium text-gray-500 mb-2">提案書プレビュー</p>
+                    <div className="border border-gray-200 rounded-lg overflow-hidden cursor-pointer" onClick={() => window.open(selectedProduct.proposalImageUrl, '_blank')}>
+                      <img src={selectedProduct.proposalImageUrl} alt="提案書" className="w-full max-h-[400px] object-contain bg-gray-50" />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1 text-center">クリックで拡大表示</p>
+                  </div>
+                )}
 
                 {/* Details */}
                 <div className="space-y-3">
