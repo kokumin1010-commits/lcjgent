@@ -54,8 +54,10 @@ function StatusBadge({ status }: { status: string }) {
 // ============================================================
 function PortalListView({
   onSelectPortal,
+  onSelectBrand,
 }: {
   onSelectPortal: (portalId: number) => void;
+  onSelectBrand: (brandId: number) => void;
 }) {
   const [search, setSearch] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -192,9 +194,10 @@ function PortalListView({
             {filteredBrands.map((brand: any) => (
               <div
                 key={brand.id}
-                className={`bg-white rounded-lg border p-3 ${
-                  brand.hasPortal ? "border-green-200 bg-green-50/30" : "border-gray-200 hover:border-blue-300"
+                className={`bg-white rounded-lg border p-3 cursor-pointer transition-all hover:shadow-md ${
+                  brand.hasPortal ? "border-green-200 bg-green-50/30 hover:border-green-400" : "border-gray-200 hover:border-blue-400"
                 }`}
+                onClick={() => onSelectBrand(brand.id)}
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -205,7 +208,7 @@ function PortalListView({
                     <div className="flex items-center gap-1">
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
                       <button
-                        onClick={() => brand.portal && onSelectPortal(brand.portal.portalId)}
+                        onClick={(e) => { e.stopPropagation(); brand.portal && onSelectPortal(brand.portal.portalId); }}
                         className="text-xs text-blue-600 hover:underline"
                       >
                         詳細
@@ -215,7 +218,8 @@ function PortalListView({
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setSelectedBrandId(brand.id);
                         setPortalName(brand.nameJa || brand.name || "");
                         setShowCreateModal(true);
@@ -382,7 +386,7 @@ function PortalDetailView({
         />
       )}
 
-      {/* Product Cards (手卤) tab - ライブ特別セット（直播手卤） */}
+      {/* Product Cards (手卡) tab - ライブ特別セット（直播手卡） */}
       {activeTab === "cards" && (
         <ProductCardsTab
           products={allProducts}
@@ -624,7 +628,7 @@ function ProductsTab({
                     <h4 className="font-semibold text-gray-900">{product.productName}</h4>
                     <div className="flex items-center gap-2">
                       {product.productCode && <span className="text-xs text-gray-500">SKU: {product.productCode}</span>}
-                      {product.source === 'brand_products' && <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">既存手卤</span>}
+                      {product.source === 'brand_products' && <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">既存手卡</span>}
                     </div>
                   </div>
                 </div>
@@ -1390,8 +1394,8 @@ function ProductCardsTab({
       {cardReadyProducts.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <CreditCard className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p>手卤を生成できる商品がありません</p>
-          <p className="text-xs mt-1">商品を提出してから手卤が生成されます</p>
+          <p>手卡を生成できる商品がありません</p>
+          <p className="text-xs mt-1">商品を提出してから手卡が生成されます</p>
         </div>
       ) : (
         <div className="grid gap-3">
@@ -1409,10 +1413,239 @@ function ProductCardsTab({
 }
 
 // ============================================================
+// Brand Products View (ブランドの商品パフォーマンス = 手卡一覧)
+// ポータル作成不要でブランドをタップするだけで商品一覧が見える
+// ============================================================
+function BrandProductsView({
+  brandId,
+  onBack,
+  onCreatePortal,
+}: {
+  brandId: number;
+  onBack: () => void;
+  onCreatePortal: (brandId: number) => void;
+}) {
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+
+  const { data, isLoading } = trpc.brandPortal.getProductCardsByBrand.useQuery({ brandId });
+
+  if (isLoading) {
+    return (
+      <div className="text-center py-12"><Loader2 className="w-8 h-8 animate-spin mx-auto text-gray-400" /></div>
+    );
+  }
+
+  const brand = data?.brand;
+  const portalProducts = data?.products || [];
+  const brandProds = data?.brandProducts || [];
+  const allProducts = [...brandProds, ...portalProducts];
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <ArrowLeft className="w-5 h-5 text-gray-600" />
+        </button>
+        <div className="flex-1">
+          <h1 className="text-xl font-bold text-gray-900">
+            {brand?.nameJa || brand?.name || "ブランド詳細"}
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            商品パフォーマンス（ライブ特別セット / 手卡）・ {allProducts.length}件
+          </p>
+        </div>
+        <a
+          href={`/master/brands/${brandId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+        >
+          <ExternalLink className="w-4 h-4" />
+          ブランド詳細
+        </a>
+      </div>
+
+      {allProducts.length === 0 ? (
+        <div className="text-center py-16 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
+          <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500 mb-1">商品がまだ登録されていません</p>
+          <p className="text-xs text-gray-400">ブランド詳細ページで商品を追加してください</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Product Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {allProducts.map((product: any) => {
+              const imageUrl = product.imageUrls
+                ? (typeof product.imageUrls === "string" ? product.imageUrls.split(",")[0] : product.imageUrls[0])
+                : null;
+              const price = product.livePrice || product.listPrice;
+              const listPrice = product.listPrice;
+              const discount = listPrice && price && listPrice > price
+                ? Math.round((1 - price / listPrice) * 100)
+                : (product.discountRate ? Number(product.discountRate) : null);
+
+              return (
+                <div
+                  key={product.id}
+                  onClick={() => setSelectedProduct(product)}
+                  className="bg-white rounded-xl border border-gray-200 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer overflow-hidden group"
+                >
+                  {/* Image */}
+                  <div className="aspect-[16/9] bg-gray-100 overflow-hidden relative">
+                    {imageUrl ? (
+                      <img src={imageUrl.trim()} alt={product.productName} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Package className="w-10 h-10 text-gray-300" />
+                      </div>
+                    )}
+                    {product.source === "brand_products" && (
+                      <span className="absolute top-2 left-2 px-2 py-0.5 text-xs font-medium bg-purple-600 text-white rounded-full">既存手卡</span>
+                    )}
+                    {discount && (
+                      <span className="absolute top-2 right-2 px-2 py-0.5 text-xs font-bold bg-red-500 text-white rounded-full">{discount}% OFF</span>
+                    )}
+                  </div>
+                  {/* Info */}
+                  <div className="p-3">
+                    <p className="font-medium text-gray-900 text-sm truncate">{product.productName}</p>
+                    <div className="flex items-center gap-3 mt-2">
+                      {listPrice && (
+                        <span className="text-xs text-gray-400 line-through">¥{Number(listPrice).toLocaleString()}</span>
+                      )}
+                      {price && (
+                        <span className="text-sm font-bold text-red-500">¥{Number(price).toLocaleString()}</span>
+                      )}
+                      {product.commissionRate && (
+                        <span className="text-xs text-cyan-600 font-medium ml-auto">報酬 {product.commissionRate}</span>
+                      )}
+                    </div>
+                    {product.gmv && Number(product.gmv) > 0 && (
+                      <div className="mt-1.5 flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3 text-green-500" />
+                        <span className="text-xs text-green-600 font-medium">GMV ¥{Number(product.gmv).toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Product Detail Dialog */}
+          {selectedProduct && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelectedProduct(null)}>
+              <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-900">{selectedProduct.productName}</h3>
+                  <button onClick={() => setSelectedProduct(null)} className="p-1 hover:bg-gray-100 rounded-lg">
+                    <X className="w-5 h-5 text-gray-500" />
+                  </button>
+                </div>
+
+                {/* Images */}
+                {selectedProduct.imageUrls && (
+                  <div className="mb-4">
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {(typeof selectedProduct.imageUrls === "string" ? selectedProduct.imageUrls.split(",") : selectedProduct.imageUrls)
+                        .filter(Boolean)
+                        .map((url: string, i: number) => (
+                          <img key={i} src={url.trim()} alt="" className="h-32 rounded-lg object-cover flex-shrink-0 border" />
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Price Info */}
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="bg-gray-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-gray-500">定価</p>
+                    <p className="text-lg font-bold text-gray-900">¥{selectedProduct.listPrice ? Number(selectedProduct.listPrice).toLocaleString() : "-"}</p>
+                  </div>
+                  <div className="bg-red-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-red-500">特価</p>
+                    <p className="text-lg font-bold text-red-600">¥{selectedProduct.livePrice ? Number(selectedProduct.livePrice).toLocaleString() : "-"}</p>
+                  </div>
+                  <div className="bg-cyan-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-cyan-500">成果報酬</p>
+                    <p className="text-lg font-bold text-cyan-600">{selectedProduct.commissionRate || "-"}</p>
+                  </div>
+                </div>
+
+                {/* Details */}
+                <div className="space-y-3">
+                  {selectedProduct.productDescription && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 mb-1">キャッチコピー</p>
+                      <p className="text-sm text-gray-700">{selectedProduct.productDescription}</p>
+                    </div>
+                  )}
+                  {selectedProduct.features && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 mb-1">特徴・セールスポイント</p>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedProduct.features}</p>
+                    </div>
+                  )}
+                  {selectedProduct.specifications && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 mb-1">商品詳細</p>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedProduct.specifications}</p>
+                    </div>
+                  )}
+                  {selectedProduct.targetAudience && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 mb-1">ターゲット層</p>
+                      <p className="text-sm text-gray-700">{selectedProduct.targetAudience}</p>
+                    </div>
+                  )}
+                  {selectedProduct.usageMethod && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 mb-1">使用方法</p>
+                      <p className="text-sm text-gray-700">{selectedProduct.usageMethod}</p>
+                    </div>
+                  )}
+                  {selectedProduct.shippingInfo && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 mb-1">配送情報</p>
+                      <p className="text-sm text-gray-700">{selectedProduct.shippingInfo}</p>
+                    </div>
+                  )}
+                  {selectedProduct.aiCatchCopy && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      <p className="text-xs font-medium text-amber-600 mb-1">AIキャッチコピー</p>
+                      <p className="text-sm text-amber-800">{selectedProduct.aiCatchCopy}</p>
+                    </div>
+                  )}
+                  {selectedProduct.aiFeatures && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      <p className="text-xs font-medium text-amber-600 mb-1">AIセールスポイント</p>
+                      <p className="text-sm text-amber-800 whitespace-pre-wrap">{selectedProduct.aiFeatures}</p>
+                    </div>
+                  )}
+                  {selectedProduct.gmv && Number(selectedProduct.gmv) > 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <p className="text-xs font-medium text-green-600 mb-1">パフォーマンス</p>
+                      <p className="text-sm text-green-800">GMV: ¥{Number(selectedProduct.gmv).toLocaleString()}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
 // Main Component
 // ============================================================
 export default function BrandPortalAdmin() {
   const [selectedPortalId, setSelectedPortalId] = useState<number | null>(null);
+  const [selectedBrandId, setSelectedBrandIdMain] = useState<number | null>(null);
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -1421,8 +1654,20 @@ export default function BrandPortalAdmin() {
           portalId={selectedPortalId}
           onBack={() => setSelectedPortalId(null)}
         />
+      ) : selectedBrandId ? (
+        <BrandProductsView
+          brandId={selectedBrandId}
+          onBack={() => setSelectedBrandIdMain(null)}
+          onCreatePortal={(brandId) => {
+            setSelectedBrandIdMain(null);
+            // Will be handled by PortalListView
+          }}
+        />
       ) : (
-        <PortalListView onSelectPortal={setSelectedPortalId} />
+        <PortalListView
+          onSelectPortal={setSelectedPortalId}
+          onSelectBrand={setSelectedBrandIdMain}
+        />
       )}
     </div>
   );

@@ -948,7 +948,7 @@ export const brandPortalRouter = router({
   getProductCardData: protectedProcedure
     .input(z.object({ productId: z.number() }))
     .query(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const product = await db
         .select()
         .from(brandPortalProducts)
@@ -975,8 +975,9 @@ export const brandPortalRouter = router({
   getProductCardsByBrand: protectedProcedure
     .input(z.object({ brandId: z.number() }))
     .query(async ({ input }) => {
-      const db = getDb();
-      const products = await db
+      const db = await getDb();
+      // Portal-specific products
+      const portalProds = await db
         .select()
         .from(brandPortalProducts)
         .where(
@@ -987,14 +988,63 @@ export const brandPortalRouter = router({
         )
         .orderBy(desc(brandPortalProducts.createdAt));
 
+      // Existing brand_products (商品パフォーマンス = 手卤)
+      const existingProds = await db
+        .select()
+        .from(brandProducts)
+        .where(
+          and(
+            eq(brandProducts.brandId, input.brandId),
+            isNull(brandProducts.deletedAt)
+          )
+        )
+        .orderBy(desc(brandProducts.createdAt));
+
       const brand = await db
         .select()
         .from(brands)
         .where(eq(brands.id, input.brandId))
         .limit(1);
 
+      // Normalize brand_products for display
+      const normalizedBrandProducts = existingProds.map((bp: any) => ({
+        id: `bp_${bp.id}`,
+        source: "brand_products" as const,
+        originalId: bp.id,
+        brandId: bp.brandId,
+        productName: bp.productName,
+        productCode: bp.productCode || null,
+        listPrice: bp.listPrice ? Number(bp.listPrice) : null,
+        livePrice: bp.specialPrice ? Number(bp.specialPrice) : null,
+        costPrice: bp.purchasePrice ? Number(bp.purchasePrice) : null,
+        commissionRate: bp.commissionRate || null,
+        productDescription: bp.catchCopy || null,
+        specifications: bp.productDetails || null,
+        targetAudience: bp.targetAudience || null,
+        features: bp.features || null,
+        usageMethod: bp.usageMethod || null,
+        shippingInfo: bp.shippingInfo || null,
+        imageUrls: bp.imageUrls || null,
+        imageKeys: bp.imageKeys || null,
+        salesMechanism: bp.sampleProduct || null,
+        giftItems: bp.accessories || null,
+        gmv: null, // brand_productsにはgmvカラムなし
+        totalSales: null,
+        status: "approved",
+        createdAt: bp.createdAt,
+        discountRate: bp.discountRate || null,
+        aiAnalysis: null, // brand_productsにはAIカラムなし
+        aiFeatures: null,
+        aiCatchCopy: null,
+        remarks: bp.remarks || null,
+        releaseDate: bp.releaseDate || null,
+        influencer: bp.influencer || null,
+        proposalImageUrl: bp.proposalImageUrl || null,
+      }));
+
       return {
-        products,
+        products: portalProds,
+        brandProducts: normalizedBrandProducts,
         brand: brand[0] || null,
       };
     }),
@@ -1005,7 +1055,7 @@ export const brandPortalRouter = router({
   getProductCardsForBrand: publicProcedure
     .input(z.object({ accessToken: z.string() }))
     .query(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const portal = await db
         .select()
         .from(brandPortals)
@@ -1042,7 +1092,7 @@ export const brandPortalRouter = router({
    */
   getAllProductCards: protectedProcedure
     .query(async () => {
-      const db = getDb();
+      const db = await getDb();
       const products = await db
         .select({
           id: brandPortalProducts.id,
