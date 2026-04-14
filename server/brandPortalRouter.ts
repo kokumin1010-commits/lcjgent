@@ -797,4 +797,143 @@ export const brandPortalRouter = router({
 
       return { key, uploadKey: key, contentType: input.contentType };
     }),
+
+  // ============================================================
+  // 手卡（商品紹介カード）関連API
+  // ============================================================
+
+  /**
+   * 手卡データ取得（単一商品）
+   * フロントエンドでHTMLテンプレートにレンダリングするためのデータ
+   */
+  getProductCardData: protectedProcedure
+    .input(z.object({ productId: z.number() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const product = await db
+        .select()
+        .from(brandPortalProducts)
+        .where(eq(brandPortalProducts.id, input.productId))
+        .limit(1);
+      if (!product.length) throw new TRPCError({ code: "NOT_FOUND", message: "商品が見つかりません" });
+
+      const brand = await db
+        .select()
+        .from(brands)
+        .where(eq(brands.id, product[0].brandId))
+        .limit(1);
+
+      return {
+        product: product[0],
+        brand: brand[0] || null,
+      };
+    }),
+
+  /**
+   * ブランド別の手卡一覧（全商品の手卡データ）
+   * 管理者側・ブランド方向けポータル両方で使用
+   */
+  getProductCardsByBrand: protectedProcedure
+    .input(z.object({ brandId: z.number() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const products = await db
+        .select()
+        .from(brandPortalProducts)
+        .where(
+          and(
+            eq(brandPortalProducts.brandId, input.brandId),
+            isNull(brandPortalProducts.deletedAt)
+          )
+        )
+        .orderBy(desc(brandPortalProducts.createdAt));
+
+      const brand = await db
+        .select()
+        .from(brands)
+        .where(eq(brands.id, input.brandId))
+        .limit(1);
+
+      return {
+        products,
+        brand: brand[0] || null,
+      };
+    }),
+
+  /**
+   * ポータル経由の手卡一覧（ブランド方向け - トークン認証）
+   */
+  getProductCardsForBrand: publicProcedure
+    .input(z.object({ accessToken: z.string() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const portal = await db
+        .select()
+        .from(brandPortals)
+        .where(eq(brandPortals.accessToken, input.accessToken))
+        .limit(1);
+      if (!portal.length) throw new TRPCError({ code: "NOT_FOUND", message: "ポータルが見つかりません" });
+
+      const products = await db
+        .select()
+        .from(brandPortalProducts)
+        .where(
+          and(
+            eq(brandPortalProducts.portalId, portal[0].id),
+            isNull(brandPortalProducts.deletedAt)
+          )
+        )
+        .orderBy(desc(brandPortalProducts.createdAt));
+
+      const brand = await db
+        .select()
+        .from(brands)
+        .where(eq(brands.id, portal[0].brandId))
+        .limit(1);
+
+      return {
+        products,
+        brand: brand[0] || null,
+        portalName: portal[0].portalName,
+      };
+    }),
+
+  /**
+   * 全ブランドの手卡一覧（管理者用 - ブランドごとにグループ化）
+   */
+  getAllProductCards: protectedProcedure
+    .query(async () => {
+      const db = getDb();
+      const products = await db
+        .select({
+          id: brandPortalProducts.id,
+          portalId: brandPortalProducts.portalId,
+          brandId: brandPortalProducts.brandId,
+          productName: brandPortalProducts.productName,
+          productCode: brandPortalProducts.productCode,
+          listPrice: brandPortalProducts.listPrice,
+          livePrice: brandPortalProducts.livePrice,
+          adjustedLivePrice: brandPortalProducts.adjustedLivePrice,
+          status: brandPortalProducts.status,
+          imageUrls: brandPortalProducts.imageUrls,
+          createdAt: brandPortalProducts.createdAt,
+        })
+        .from(brandPortalProducts)
+        .where(isNull(brandPortalProducts.deletedAt))
+        .orderBy(desc(brandPortalProducts.createdAt));
+
+      // Get unique brand IDs
+      const brandIds = [...new Set(products.map(p => p.brandId))];
+      const brandsList = brandIds.length > 0
+        ? await db.select().from(brands).where(sql`${brands.id} IN (${sql.join(brandIds.map(id => sql`${id}`), sql`, `)})`)
+        : [];
+
+      const brandMap = new Map(brandsList.map(b => [b.id, b]));
+
+      return products.map(p => ({
+        ...p,
+        brandName: brandMap.get(p.brandId)?.name || null,
+        brandNameJa: brandMap.get(p.brandId)?.nameJa || null,
+      }));
+    }),
 });

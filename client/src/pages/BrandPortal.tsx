@@ -14,8 +14,9 @@ import {
   Package, TrendingUp, BarChart3, Clock, CheckCircle2,
   AlertCircle, Send, Plus, ChevronDown, ChevronUp,
   Eye, ShoppingCart, Users, Zap, FileText, ArrowLeft,
-  Loader2, X, Image as ImageIcon
+  Loader2, X, Image as ImageIcon, CreditCard
 } from "lucide-react";
+import ProductCardTemplate, { ProductCardMini } from "@/components/ProductCard";
 
 const LCJ_LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/lcj_logo_e21ead0b.jpg";
 
@@ -458,7 +459,8 @@ export default function BrandPortal() {
     { enabled: !!token, retry: false }
   );
 
-  const [activeTab, setActiveTab] = useState<"products" | "performance">("products");
+  const [activeTab, setActiveTab] = useState<"products" | "performance" | "cards">("products");
+  const [selectedCardProduct, setSelectedCardProduct] = useState<any>(null);
 
   if (isLoading) {
     return (
@@ -574,6 +576,17 @@ export default function BrandPortal() {
             <BarChart3 className="w-4 h-4 inline mr-1.5" />
             配信実績
           </button>
+          <button
+            onClick={() => { setActiveTab("cards"); setSelectedCardProduct(null); }}
+            className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
+              activeTab === "cards"
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-gray-600 hover:text-gray-800"
+            }`}
+          >
+            <CreditCard className="w-4 h-4 inline mr-1.5" />
+            手卤一覧
+          </button>
         </div>
       </div>
 
@@ -615,6 +628,47 @@ export default function BrandPortal() {
                 <p>まだ配信実績がありません</p>
                 <p className="text-sm mt-1">配信完了後に自動的に表示されます</p>
               </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "cards" && (
+          <div className="space-y-4">
+            {selectedCardProduct ? (
+              <div>
+                <button
+                  onClick={() => setSelectedCardProduct(null)}
+                  className="flex items-center gap-2 text-blue-600 hover:text-blue-800 mb-4 text-sm"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  手卤一覧に戻る
+                </button>
+                <div className="overflow-x-auto bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                  <ProductCardTemplate product={selectedCardProduct} brand={brand} showDownload={true} />
+                </div>
+              </div>
+            ) : (
+              <>
+                <h2 className="text-lg font-bold text-gray-800">商品紹介カード（手卤）</h2>
+                <p className="text-sm text-gray-500 -mt-2">商品をクリックすると手卤のプレビュー・ダウンロードができます</p>
+                {products.length > 0 ? (
+                  <div className="grid gap-3">
+                    {products.map((product: any) => (
+                      <ProductCardMini
+                        key={product.id}
+                        product={product}
+                        onClick={() => setSelectedCardProduct(product)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-gray-400">
+                    <CreditCard className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p>まだ手卤がありません</p>
+                    <p className="text-sm mt-1">商品を登録すると自動的に手卤が生成されます</p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

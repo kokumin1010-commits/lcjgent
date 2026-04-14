@@ -19,8 +19,10 @@ import {
   Link2, Package, Settings, BarChart3, Plus, Copy, ExternalLink,
   Search, ChevronRight, CheckCircle2, XCircle, Clock, Loader2,
   ArrowLeft, Send, Trash2, Eye, EyeOff, TrendingUp, DollarSign,
-  Zap, Users, Award, AlertCircle, RefreshCw, Pencil, Save, X
+  Zap, Users, Award, AlertCircle, RefreshCw, Pencil, Save, X,
+  CreditCard, Download
 } from "lucide-react";
+import ProductCard, { ProductCardMini } from "@/components/ProductCard";
 
 // ============================================================
 // Status config
@@ -275,7 +277,7 @@ function PortalDetailView({
   portalId: number;
   onBack: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"products" | "simulations" | "performance">("products");
+  const [activeTab, setActiveTab] = useState<"products" | "simulations" | "performance" | "cards">("products");
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
 
   const { data, isLoading, refetch } = trpc.brandPortal.getPortalDetail.useQuery({ portalId });
@@ -329,6 +331,7 @@ function PortalDetailView({
           { key: "products", label: "商品・チューニング", icon: Package },
           { key: "simulations", label: "シミュレーション", icon: BarChart3 },
           { key: "performance", label: "配信実績", icon: TrendingUp },
+          { key: "cards", label: "手卡一覧", icon: CreditCard },
         ].map(tab => (
           <button
             key={tab.key}
@@ -370,6 +373,14 @@ function PortalDetailView({
           products={products}
           portalId={portalId}
           brandId={portal.brandId}
+        />
+      )}
+
+      {/* Product Cards (手卡) tab */}
+      {activeTab === "cards" && (
+        <ProductCardsTab
+          products={products}
+          brand={brand}
         />
       )}
     </div>
@@ -1164,6 +1175,76 @@ function PerformanceTab({
         <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-xl">
           <TrendingUp className="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p>まだ配信実績がありません</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Product Cards (手卡) Tab
+// ============================================================
+function ProductCardsTab({
+  products,
+  brand,
+}: {
+  products: any[];
+  brand: any;
+}) {
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+
+  // Filter products that have enough data for a card
+  const cardReadyProducts = products.filter(
+    (p: any) => p.productName && (p.status === "approved" || p.status === "live_ready" || p.status === "live_done" || p.status === "tuning" || p.status === "simulating" || p.status === "proposed" || p.status === "submitted")
+  );
+
+  if (selectedProduct) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSelectedProduct(null)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </button>
+          <h3 className="text-lg font-bold text-gray-900">
+            {selectedProduct.productName} - 手卡プレビュー
+          </h3>
+        </div>
+        <div className="overflow-x-auto bg-gray-50 rounded-xl p-6">
+          <ProductCard product={selectedProduct} brand={brand} showDownload={true} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-bold text-gray-900">
+          手卡一覧 ({cardReadyProducts.length}件)
+        </h3>
+        <p className="text-sm text-gray-500">
+          商品をクリックすると手卡プレビュー・画像ダウンロードができます
+        </p>
+      </div>
+
+      {cardReadyProducts.length === 0 ? (
+        <div className="text-center py-12 text-gray-400">
+          <CreditCard className="w-8 h-8 mx-auto mb-2 opacity-50" />
+          <p>手卤を生成できる商品がありません</p>
+          <p className="text-xs mt-1">商品を提出してから手卤が生成されます</p>
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {cardReadyProducts.map((product: any) => (
+            <ProductCardMini
+              key={product.id}
+              product={product}
+              onClick={() => setSelectedProduct(product)}
+            />
+          ))}
         </div>
       )}
     </div>
