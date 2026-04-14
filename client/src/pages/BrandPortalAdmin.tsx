@@ -189,7 +189,7 @@ function PortalListView({
           <div className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" /></div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filteredBrands.slice(0, 30).map((brand: any) => (
+            {filteredBrands.map((brand: any) => (
               <div
                 key={brand.id}
                 className={`bg-white rounded-lg border p-3 ${

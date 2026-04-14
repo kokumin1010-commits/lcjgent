@@ -37,7 +37,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle, FileDown, Save, BarChart3, Target, MousePointerClick, CreditCard } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle, FileDown, Save, BarChart3, Target, MousePointerClick, CreditCard, QrCode } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import ProductCardTemplate from "@/components/ProductCard";
 import { toast } from "sonner";
 
@@ -5939,6 +5940,10 @@ ${proposal.proposalContent}
                               >
                                 {link.url}
                               </a>
+                            </div>
+                            {/* QR Code */}
+                            <div className="flex-shrink-0 bg-white rounded-lg p-2 shadow-lg">
+                              <QRCodeSVG value={link.url} size={64} level="M" />
                             </div>
                             <a
                               href={link.url}
