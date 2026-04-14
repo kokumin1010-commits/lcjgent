@@ -8725,6 +8725,14 @@ ${proposal.proposalContent}
                   product={tekaProduct}
                   brand={brand ? { name: brand.name, nameJa: brand.nameJa, logoUrl: brand.logoUrl } : null}
                   showDownload={true}
+                  productLinks={(
+                    tekaProduct.id
+                      ? (productLinksData.length > 0 && selectedProductForDetail?.id === tekaProduct.id
+                          ? productLinksData
+                          : allProductLinks.filter((link: any) => link.productId === tekaProduct.id)
+                        )
+                      : []
+                  ) as { id: number; title: string; url: string }[]}
                 />
               )}
             </div>

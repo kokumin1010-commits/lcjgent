@@ -63,6 +63,12 @@ interface ProductData {
   imageUrls?: string[] | null;
 }
 
+interface ProductLink {
+  id: number;
+  title: string;
+  url: string;
+}
+
 interface ProductCardProps {
   product: ProductData;
   brand?: {
@@ -71,6 +77,7 @@ interface ProductCardProps {
     logoUrl?: string | null;
   } | null;
   showDownload?: boolean;
+  productLinks?: ProductLink[];
 }
 
 /**
@@ -132,7 +139,7 @@ function normalizeProduct(product: ProductData) {
   };
 }
 
-export default function ProductCard({ product, brand, showDownload = true }: ProductCardProps) {
+export default function ProductCard({ product, brand, showDownload = true, productLinks = [] }: ProductCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
 
   const handleDownload = useCallback(async () => {
@@ -370,7 +377,7 @@ export default function ProductCard({ product, brand, showDownload = true }: Pro
             <div style={{
               width: "100%", border: "2px dashed #666",
               borderRadius: "4px", padding: "10px", fontSize: "11px",
-              lineHeight: "1.6", color: "#333", marginTop: "auto"
+              lineHeight: "1.6", color: "#333", marginTop: productLinks.length > 0 ? "12px" : "auto"
             }}>
               {product.shippingInfo ? (
                 <div>{product.shippingInfo}</div>
@@ -383,6 +390,50 @@ export default function ProductCard({ product, brand, showDownload = true }: Pro
                 </>
               )}
             </div>
+
+            {/* Product Links with QR codes */}
+            {productLinks.length > 0 && (
+              <div style={{
+                width: "100%", marginTop: "12px",
+                border: "2px solid #0066cc", borderRadius: "4px",
+                padding: "10px", backgroundColor: "#f0f7ff"
+              }}>
+                <div style={{
+                  fontWeight: 900, fontSize: "14px", color: "#0066cc",
+                  marginBottom: "8px", borderBottom: "1px solid #0066cc",
+                  paddingBottom: "4px"
+                }}>
+                  🔗 商品リンク
+                </div>
+                {productLinks.map((link, i) => (
+                  <div key={link.id} style={{
+                    display: "flex", alignItems: "center", gap: "8px",
+                    marginBottom: i < productLinks.length - 1 ? "8px" : "0",
+                    padding: "6px", backgroundColor: "#fff",
+                    borderRadius: "4px", border: "1px solid #ddd"
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: "12px", color: "#333" }}>
+                        {link.title}
+                      </div>
+                      <div style={{
+                        fontSize: "10px", color: "#666",
+                        overflow: "hidden", textOverflow: "ellipsis",
+                        whiteSpace: "nowrap"
+                      }}>
+                        {link.url}
+                      </div>
+                    </div>
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(link.url)}`}
+                      alt="QR"
+                      style={{ width: "60px", height: "60px", flexShrink: 0 }}
+                      crossOrigin="anonymous"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
