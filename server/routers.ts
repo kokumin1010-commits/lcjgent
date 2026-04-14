@@ -4235,7 +4235,7 @@ ${staffDetails.map(s => `\n【${s.staffName}】(${s.reportCount}件)\n${s.allWor
         
         // AitherHub自動同期（非同期・失敗してもブランド作成は成功）
         try {
-          const { onBrandCreated } = await import("../aitherhubBrandSync");
+          const { onBrandCreated } = await import("./aitherhubBrandSync");
           onBrandCreated({
             id: brand.id,
             name: input.name,
@@ -4302,7 +4302,7 @@ ${staffDetails.map(s => `\n【${s.staffName}】(${s.reportCount}件)\n${s.allWor
         // AitherHub自動同期（非同期・失敗してもブランド更新は成功）
         if (updated) {
           try {
-            const { onBrandUpdated } = await import("../aitherhubBrandSync");
+            const { onBrandUpdated } = await import("./aitherhubBrandSync");
             onBrandUpdated({
               id: updated.id,
               name: updated.name,
@@ -4333,7 +4333,7 @@ ${staffDetails.map(s => `\n【${s.staffName}】(${s.reportCount}件)\n${s.allWor
         // AitherHub側も無効化
         if (brandToDelete) {
           try {
-            const { onBrandDeleted } = await import("../aitherhubBrandSync");
+            const { onBrandDeleted } = await import("./aitherhubBrandSync");
             onBrandDeleted(input.id, brandToDelete.name).catch(err => console.error("[AitherHub Sync] brand delete sync failed:", err));
           } catch (err) {
             console.error("[AitherHub Sync] import error:", err);
@@ -19023,7 +19023,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         const allBrands = await getAllBrands();
         const activeBrands = allBrands.filter((b: any) => !b.deletedAt);
         
-        const { bulkSyncBrandsToAitherhub } = await import("../aitherhubBrandSync");
+        const { bulkSyncBrandsToAitherhub } = await import("./aitherhubBrandSync");
         const result = await bulkSyncBrandsToAitherhub(activeBrands);
         return result;
       }),
@@ -19031,7 +19031,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     // AitherHub同期ステータスを取得
     syncStatus: protectedProcedure
       .query(async () => {
-        const { getAitherhubSyncStatus } = await import("../aitherhubBrandSync");
+        const { getAitherhubSyncStatus } = await import("./aitherhubBrandSync");
         return await getAitherhubSyncStatus();
       }),
   }),
