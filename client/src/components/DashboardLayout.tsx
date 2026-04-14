@@ -109,6 +109,7 @@ function DashboardLayoutContent({
     { icon: Calendar, label: t("nav.calendar"), path: "/master/calendar" },
     { icon: Video, label: t("nav.livers"), path: "/master/livers" },
     { icon: Zap, label: t("nav.liverCommand") || "ライバー司令塔", path: "/master/livers-dashboard" },
+    { icon: BarChart3, label: "広告司令塔", path: "/master/ad-dashboard" },
     { icon: Building2, label: "事務所管理", path: "/master/agencies" },
     { icon: Globe, label: "ブランドポータル", path: "/master/brand-portal" },
     { icon: ClipboardCheck, label: "売上チェック", path: "/master/sales-check" },

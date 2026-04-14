@@ -4853,3 +4853,48 @@ export const brandPortalPerformance = mysqlTable("brand_portal_performance", {
 });
 export type BrandPortalPerformance = typeof brandPortalPerformance.$inferSelect;
 export type InsertBrandPortalPerformance = typeof brandPortalPerformance.$inferInsert;
+
+// ===== 広告司令塔テーブル =====
+
+// 月次広告計画（店舗×ブランド×広告タイプ）
+export const adMonthlyPlans = mysqlTable("ad_monthly_plans", {
+  id: int("id").autoincrement().primaryKey(),
+  month: varchar("month", { length: 7 }).notNull(),
+  liverId: int("liverId"),
+  liverName: varchar("liverName", { length: 255 }).notNull(),
+  brandId: int("brandId"),
+  brandName: varchar("brandName", { length: 255 }).notNull(),
+  adType: mysqlEnum("adType", ["short_video", "live", "mixed"]).default("mixed").notNull(),
+  budget: bigint("budget", { mode: "number" }).default(0),
+  actualSpend: bigint("actualSpend", { mode: "number" }).default(0),
+  spendRate: decimal("spendRate", { precision: 10, scale: 4 }).default("0"),
+  targetGmv: bigint("targetGmv", { mode: "number" }).default(0),
+  targetRoi: decimal("targetRoi", { precision: 10, scale: 4 }).default("0"),
+  actualGmv: bigint("actualGmv", { mode: "number" }).default(0),
+  actualRoi: decimal("actualRoi", { precision: 10, scale: 4 }).default("0"),
+  impressions: bigint("impressions", { mode: "number" }).default(0),
+  clicks: bigint("clicks", { mode: "number" }).default(0),
+  conversions: int("conversions").default(0),
+  notes: text("notes"),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AdMonthlyPlan = typeof adMonthlyPlans.$inferSelect;
+export type InsertAdMonthlyPlan = typeof adMonthlyPlans.$inferInsert;
+
+// 日次広告実績
+export const adDailyRecords = mysqlTable("ad_daily_records", {
+  id: int("id").autoincrement().primaryKey(),
+  monthlyPlanId: int("monthlyPlanId").notNull(),
+  recordDate: timestamp("recordDate").notNull(),
+  spend: bigint("spend", { mode: "number" }).default(0),
+  gmv: bigint("gmv", { mode: "number" }).default(0),
+  impressions: bigint("impressions", { mode: "number" }).default(0),
+  clicks: bigint("clicks", { mode: "number" }).default(0),
+  conversions: int("conversions").default(0),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AdDailyRecord = typeof adDailyRecords.$inferSelect;
+export type InsertAdDailyRecord = typeof adDailyRecords.$inferInsert;

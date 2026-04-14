@@ -133,6 +133,7 @@ const AgencyLiverRegister = lazy(() => import("./pages/AgencyLiverRegister"));
 const BrandPortal = lazy(() => import("./pages/BrandPortal"));
 const BrandSimulationView = lazy(() => import("./pages/BrandSimulationView"));
 const BrandPortalAdmin = lazy(() => import("./pages/BrandPortalAdmin"));
+const AdDashboard = lazy(() => import("./pages/AdDashboard"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -454,6 +455,11 @@ function Router() {
           </DashboardLayout>
         </Route>
         <Route path="/master/ab-test" component={AbTestDashboard} />
+        <Route path="/master/ad-dashboard">
+          <DashboardLayout>
+            <AdDashboard />
+          </DashboardLayout>
+        </Route>
 
         {/* Agency (事務所) Pages */}
         <Route path="/agency/:agencyCode/liver/register" component={AgencyLiverRegister} />
