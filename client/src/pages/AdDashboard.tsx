@@ -62,6 +62,7 @@ const translations = {
     totalSpend: "実際消費額",
     spendRate: "消費率",
     totalGmv: "広告GMV",
+    totalTargetGmv: "目標GMV合計",
     overallRoi: "全体ROI",
     activeLivers: "アクティブ店舗",
     activeBrands: "アクティブブランド",
@@ -72,7 +73,6 @@ const translations = {
     allTypes: "すべて",
     shortVideo: "短视频",
     live: "直播",
-    mixed: "混合",
     liver: "店舗",
     brand: "ブランド",
     budget: "予算",
@@ -106,7 +106,6 @@ const translations = {
     selectLiver: "店舗を選択",
     selectBrand: "ブランドを選択",
     orInputManually: "または手動入力",
-    // New keys
     shopDimension: "店舗維度（品牌方予算）",
     talentDimension: "达人維度（LCJ自社予算）",
     planType: "計画タイプ",
@@ -120,6 +119,10 @@ const translations = {
     totalShopBudget: "店舗総予算",
     expandAll: "すべて展開",
     collapseAll: "すべて折りたたむ",
+    shopSummary: "店舗サマリー",
+    talentSummary: "达人サマリー",
+    avgRoi: "平均ROI",
+    liveOnly: "直播のみ",
   },
   zh: {
     title: "广告司令塔",
@@ -131,6 +134,7 @@ const translations = {
     totalSpend: "实际消耗",
     spendRate: "消耗率",
     totalGmv: "广告GMV",
+    totalTargetGmv: "目标GMV合计",
     overallRoi: "整体ROI",
     activeLivers: "活跃店铺",
     activeBrands: "活跃品牌",
@@ -141,7 +145,6 @@ const translations = {
     allTypes: "全部",
     shortVideo: "短视频",
     live: "直播",
-    mixed: "混合",
     liver: "店铺",
     brand: "品牌",
     budget: "预算",
@@ -175,7 +178,6 @@ const translations = {
     selectLiver: "选择店铺",
     selectBrand: "选择品牌",
     orInputManually: "或手动输入",
-    // New keys
     shopDimension: "店铺维度（品牌方预算）",
     talentDimension: "达人维度（LCJ自有预算）",
     planType: "计划类型",
@@ -189,6 +191,10 @@ const translations = {
     totalShopBudget: "店铺总预算",
     expandAll: "全部展开",
     collapseAll: "全部收起",
+    shopSummary: "店铺汇总",
+    talentSummary: "达人汇总",
+    avgRoi: "平均ROI",
+    liveOnly: "仅直播",
   },
 };
 
@@ -299,11 +305,17 @@ export default function AdDashboard() {
     onError: (e) => toast.error(e.message),
   });
 
-  // Split plans by planType
-  const { shopPlans, talentPlans, talentGrouped } = useMemo(() => {
-    if (!monthlyPlans) return { shopPlans: [], talentPlans: [], talentGrouped: {} as Record<string, any[]> };
-    const shop = monthlyPlans.filter((p: any) => p.planType !== "talent");
-    const talent = monthlyPlans.filter((p: any) => p.planType === "talent");
+  // Split plans by planType + filter by adType
+  const { shopPlans, talentPlans, talentGrouped, shopSummary, talentSummary } = useMemo(() => {
+    if (!monthlyPlans) return { shopPlans: [], talentPlans: [], talentGrouped: {} as Record<string, any[]>, shopSummary: null, talentSummary: null };
+    
+    let shop = monthlyPlans.filter((p: any) => p.planType !== "talent");
+    let talent = monthlyPlans.filter((p: any) => p.planType === "talent");
+
+    // Apply adType filter for shop plans only (talent is always live)
+    if (selectedAdType !== "all") {
+      shop = shop.filter((p: any) => p.adType === selectedAdType);
+    }
     
     // Group talent plans by liverName (主播名)
     const grouped: Record<string, any[]> = {};
@@ -312,9 +324,29 @@ export default function AdDashboard() {
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(p);
     }
+
+    // Shop summary
+    const shopBudget = shop.reduce((s: number, p: any) => s + (p.budget ?? 0), 0);
+    const shopSpend = shop.reduce((s: number, p: any) => s + (p.actualSpend ?? 0), 0);
+    const shopTargetGmv = shop.reduce((s: number, p: any) => s + (p.targetGmv ?? 0), 0);
+    const shopActualGmv = shop.reduce((s: number, p: any) => s + (p.actualGmv ?? 0), 0);
+    const shopRoi = shopSpend > 0 ? shopActualGmv / shopSpend : 0;
+
+    // Talent summary
+    const talBudget = talent.reduce((s: number, p: any) => s + (p.budget ?? 0), 0);
+    const talSpend = talent.reduce((s: number, p: any) => s + (p.actualSpend ?? 0), 0);
+    const talTargetGmv = talent.reduce((s: number, p: any) => s + (p.targetGmv ?? 0), 0);
+    const talActualGmv = talent.reduce((s: number, p: any) => s + (p.actualGmv ?? 0), 0);
+    const talRoi = talSpend > 0 ? talActualGmv / talSpend : 0;
     
-    return { shopPlans: shop, talentPlans: talent, talentGrouped: grouped };
-  }, [monthlyPlans]);
+    return {
+      shopPlans: shop,
+      talentPlans: talent,
+      talentGrouped: grouped,
+      shopSummary: { budget: shopBudget, spend: shopSpend, targetGmv: shopTargetGmv, actualGmv: shopActualGmv, roi: shopRoi, count: shop.length },
+      talentSummary: { budget: talBudget, spend: talSpend, targetGmv: talTargetGmv, actualGmv: talActualGmv, roi: talRoi, count: talent.length },
+    };
+  }, [monthlyPlans, selectedAdType]);
 
   // Generate alerts
   const alerts = useMemo(() => {
@@ -329,48 +361,29 @@ export default function AdDashboard() {
       const actualSpend = plan.actualSpend ?? 0;
       const targetGmv = plan.targetGmv ?? 0;
       const actualGmv = plan.actualGmv ?? 0;
+      const isTalent = plan.planType === "talent";
+      const planLabel = isTalent ? plan.liverName : `${plan.liverName}`;
 
       if (budget > 0 && actualSpend === 0) {
-        result.push({
-          type: "inactive",
-          message: `${plan.liverName}${plan.planType !== "talent" ? ` × ${plan.brandName}` : ""}: ${t.alertInactive}`,
-          severity: "warning",
-        });
+        result.push({ type: "inactive", message: `${planLabel}: ${t.alertInactive}`, severity: "warning" });
       } else if (spendRate > 0 && spendRate < 0.3 && budget > 0) {
-        result.push({
-          type: "lowSpend",
-          message: `${plan.liverName}${plan.planType !== "talent" ? ` × ${plan.brandName}` : ""}: ${t.alertLowSpend} (${(spendRate * 100).toFixed(0)}%)`,
-          severity: "info",
-        });
+        result.push({ type: "lowSpend", message: `${planLabel}: ${t.alertLowSpend} (${(spendRate * 100).toFixed(0)}%)`, severity: "info" });
       }
 
       if (targetRoi > 0 && actualRoi > 0) {
         if (actualRoi >= targetRoi * 2) {
-          result.push({
-            type: "highRoi",
-            message: `${plan.liverName}${plan.planType !== "talent" ? ` × ${plan.brandName}` : ""}: ${t.alertHighRoi} (ROI ${actualRoi.toFixed(1)} vs ${t.targetRoi} ${targetRoi.toFixed(1)})`,
-            severity: "info",
-          });
+          result.push({ type: "highRoi", message: `${planLabel}: ${t.alertHighRoi} (ROI ${actualRoi.toFixed(1)} vs ${t.targetRoi} ${targetRoi.toFixed(1)})`, severity: "info" });
         } else if (actualRoi < targetRoi * 0.5) {
-          result.push({
-            type: "lowRoi",
-            message: `${plan.liverName}${plan.planType !== "talent" ? ` × ${plan.brandName}` : ""}: ${t.alertLowRoi} (ROI ${actualRoi.toFixed(1)} vs ${t.targetRoi} ${targetRoi.toFixed(1)})`,
-            severity: "danger",
-          });
+          result.push({ type: "lowRoi", message: `${planLabel}: ${t.alertLowRoi} (ROI ${actualRoi.toFixed(1)} vs ${t.targetRoi} ${targetRoi.toFixed(1)})`, severity: "danger" });
         }
       }
 
-      // GMV achievement alert
       if (targetGmv > 0 && actualGmv > 0 && actualGmv < targetGmv * 0.3) {
-        result.push({
-          type: "lowGmv",
-          message: `${plan.liverName}${plan.planType !== "talent" ? ` × ${plan.brandName}` : ""}: GMV達成率が低い (${((actualGmv / targetGmv) * 100).toFixed(0)}%)`,
-          severity: "danger",
-        });
+        result.push({ type: "lowGmv", message: `${planLabel}: GMV${lang === "ja" ? "達成率が低い" : "达成率低"} (${((actualGmv / targetGmv) * 100).toFixed(0)}%)`, severity: "danger" });
       }
     }
     return result;
-  }, [monthlyPlans, t]);
+  }, [monthlyPlans, t, lang]);
 
   const toggleTalent = (name: string) => {
     setExpandedTalents((prev) => {
@@ -430,6 +443,7 @@ export default function AdDashboard() {
                 </SelectContent>
               </Select>
 
+              {/* Ad type filter - NO "mixed" option */}
               <Select value={selectedAdType} onValueChange={setSelectedAdType}>
                 <SelectTrigger className="w-[120px] bg-gray-800/50 border-gray-700 text-sm">
                   <SelectValue />
@@ -454,37 +468,42 @@ export default function AdDashboard() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs - IMPROVED: brighter inactive text, icons, badges */}
       <div className="max-w-[1600px] mx-auto px-4 py-4">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="bg-gray-800/50 border border-gray-700/50">
+          <TabsList className="bg-gray-800/50 border border-gray-700/50 p-1">
             <TabsTrigger
               value="dashboard"
-              className="text-gray-300 data-[state=active]:bg-amber-600/20 data-[state=active]:text-amber-400"
+              className="text-gray-200 data-[state=inactive]:text-gray-300 data-[state=active]:bg-amber-600/20 data-[state=active]:text-amber-400 data-[state=active]:shadow-sm transition-all"
             >
-              <BarChart3 className="h-4 w-4 mr-1" />
+              <BarChart3 className="h-4 w-4 mr-1.5" />
               {t.tabDashboard}
+              {monthlyPlans && (
+                <Badge variant="outline" className="ml-1.5 text-[9px] px-1 py-0 border-current opacity-70">
+                  {monthlyPlans.length}
+                </Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger
               value="matrix"
-              className="text-gray-300 data-[state=active]:bg-amber-600/20 data-[state=active]:text-amber-400"
+              className="text-gray-200 data-[state=inactive]:text-gray-300 data-[state=active]:bg-amber-600/20 data-[state=active]:text-amber-400 data-[state=active]:shadow-sm transition-all"
             >
-              <Grid3X3 className="h-4 w-4 mr-1" />
+              <Grid3X3 className="h-4 w-4 mr-1.5" />
               {t.tabMatrix}
             </TabsTrigger>
             <TabsTrigger
               value="campaign"
-              className="text-gray-300 data-[state=active]:bg-amber-600/20 data-[state=active]:text-amber-400"
+              className="text-gray-200 data-[state=inactive]:text-gray-300 data-[state=active]:bg-amber-600/20 data-[state=active]:text-amber-400 data-[state=active]:shadow-sm transition-all"
             >
-              <Target className="h-4 w-4 mr-1" />
+              <Target className="h-4 w-4 mr-1.5" />
               {t.tabCampaign}
             </TabsTrigger>
           </TabsList>
 
           {/* ===== Tab 1: Dashboard ===== */}
           <TabsContent value="dashboard" className="mt-4 space-y-4">
-            {/* KPI Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {/* KPI Cards - Split by shop/talent */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
               <KpiCard
                 icon={<DollarSign className="h-4 w-4" />}
                 label={t.totalBudget}
@@ -501,9 +520,17 @@ export default function AdDashboard() {
                 loading={summaryLoading}
               />
               <KpiCard
+                icon={<Target className="h-4 w-4" />}
+                label={t.totalTargetGmv}
+                value={formatCurrency((shopSummary?.targetGmv ?? 0) + (talentSummary?.targetGmv ?? 0))}
+                color="blue"
+                loading={summaryLoading}
+              />
+              <KpiCard
                 icon={<TrendingUp className="h-4 w-4" />}
                 label={t.totalGmv}
                 value={formatCurrency(summary?.totalActualGmv ?? 0)}
+                sub={`${t.gmvAchievement}: ${(((shopSummary?.targetGmv ?? 0) + (talentSummary?.targetGmv ?? 0)) > 0 ? (((summary?.totalActualGmv ?? 0) / ((shopSummary?.targetGmv ?? 0) + (talentSummary?.targetGmv ?? 0))) * 100).toFixed(0) : "0")}%`}
                 color="green"
                 loading={summaryLoading}
               />
@@ -528,6 +555,70 @@ export default function AdDashboard() {
                 color="pink"
                 loading={summaryLoading}
               />
+            </div>
+
+            {/* Shop/Talent Mini Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Shop Summary */}
+              <Card className="bg-gradient-to-br from-amber-900/20 to-amber-950/10 border-amber-800/30">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Store className="h-4 w-4 text-amber-400" />
+                    <span className="text-sm font-bold text-amber-400">{t.shopSummary}</span>
+                    <Badge variant="outline" className="text-[10px] border-amber-700 text-amber-300">{shopSummary?.count ?? 0}</Badge>
+                  </div>
+                  <div className="grid grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <span className="text-gray-500">{t.budget}</span>
+                      <p className="text-gray-200 font-bold">{formatCurrency(shopSummary?.budget ?? 0)}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">{t.actualSpend}</span>
+                      <p className="text-gray-200 font-bold">{formatCurrency(shopSummary?.spend ?? 0)}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">{t.targetGmv}</span>
+                      <p className="text-amber-300 font-bold">{formatCurrency(shopSummary?.targetGmv ?? 0)}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">{t.actualGmv} / ROI</span>
+                      <p className="text-green-400 font-bold">{formatCurrency(shopSummary?.actualGmv ?? 0)}</p>
+                      <p className="text-amber-400 font-bold">{(shopSummary?.roi ?? 0).toFixed(1)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Talent Summary */}
+              <Card className="bg-gradient-to-br from-cyan-900/20 to-cyan-950/10 border-cyan-800/30">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <UserCircle className="h-4 w-4 text-cyan-400" />
+                    <span className="text-sm font-bold text-cyan-400">{t.talentSummary}</span>
+                    <Badge variant="outline" className="text-[10px] border-cyan-700 text-cyan-300">{talentSummary?.count ?? 0}</Badge>
+                    <Badge variant="outline" className="text-[9px] border-cyan-800 text-cyan-400/70">{t.liveOnly}</Badge>
+                  </div>
+                  <div className="grid grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <span className="text-gray-500">{t.budget}</span>
+                      <p className="text-gray-200 font-bold">{formatCurrency(talentSummary?.budget ?? 0)}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">{t.actualSpend}</span>
+                      <p className="text-gray-200 font-bold">{formatCurrency(talentSummary?.spend ?? 0)}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">{t.targetGmv}</span>
+                      <p className="text-cyan-300 font-bold">{formatCurrency(talentSummary?.targetGmv ?? 0)}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">{t.actualGmv} / ROI</span>
+                      <p className="text-green-400 font-bold">{formatCurrency(talentSummary?.actualGmv ?? 0)}</p>
+                      <p className="text-cyan-400 font-bold">{(talentSummary?.roi ?? 0).toFixed(1)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Alerts */}
@@ -565,7 +656,7 @@ export default function AdDashboard() {
               </Card>
             )}
 
-            {/* ===== 店舗維度 (Shop Plans) ===== */}
+            {/* ===== 店舗維度 (Shop Plans) - NO brand column ===== */}
             <Card className="bg-gray-900/50 border-gray-800">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
@@ -627,7 +718,7 @@ export default function AdDashboard() {
                               <td className="py-2 px-2 text-amber-300 font-medium">{plan.liverName}</td>
                               <td className="py-2 px-2">
                                 <Badge variant="outline" className="text-[10px] border-gray-600">
-                                  {plan.adType === "short_video" ? t.shortVideo : plan.adType === "live" ? t.live : t.mixed}
+                                  {plan.adType === "short_video" ? t.shortVideo : t.live}
                                 </Badge>
                               </td>
                               <td className="py-2 px-2 text-right text-gray-300">{formatCurrency(plan.budget ?? 0)}</td>
@@ -637,7 +728,7 @@ export default function AdDashboard() {
                                   {(sr * 100).toFixed(1)}%
                                 </span>
                               </td>
-                              <td className="py-2 px-2 text-right text-gray-400">{formatCurrency(tGmv)}</td>
+                              <td className="py-2 px-2 text-right text-amber-300/80">{formatCurrency(tGmv)}</td>
                               <td className="py-2 px-2 text-right text-green-400 font-medium">{formatCurrency(aGmv)}</td>
                               <td className="py-2 px-2 text-right">
                                 {tGmv > 0 ? (
@@ -687,6 +778,29 @@ export default function AdDashboard() {
                             </tr>
                           );
                         })}
+                        {/* Shop Total Row */}
+                        {shopPlans.length > 1 && (
+                          <tr className="border-t-2 border-amber-800/50 bg-amber-900/10 font-medium">
+                            <td className="py-2 px-2 text-amber-400 font-bold" colSpan={3}>{t.total}</td>
+                            <td className="py-2 px-2 text-right text-amber-300">{formatCurrency(shopSummary?.budget ?? 0)}</td>
+                            <td className="py-2 px-2 text-right text-amber-300">{formatCurrency(shopSummary?.spend ?? 0)}</td>
+                            <td className="py-2 px-2 text-right text-amber-300">
+                              {((shopSummary?.budget ?? 0) > 0 ? (((shopSummary?.spend ?? 0) / (shopSummary?.budget ?? 1)) * 100).toFixed(1) : "0")}%
+                            </td>
+                            <td className="py-2 px-2 text-right text-amber-300">{formatCurrency(shopSummary?.targetGmv ?? 0)}</td>
+                            <td className="py-2 px-2 text-right text-green-400 font-bold">{formatCurrency(shopSummary?.actualGmv ?? 0)}</td>
+                            <td className="py-2 px-2 text-right">
+                              {(shopSummary?.targetGmv ?? 0) > 0 ? (
+                                <span className={getGmvAchievementColor((shopSummary?.actualGmv ?? 0) / (shopSummary?.targetGmv ?? 1))}>
+                                  {(((shopSummary?.actualGmv ?? 0) / (shopSummary?.targetGmv ?? 1)) * 100).toFixed(0)}%
+                                </span>
+                              ) : "-"}
+                            </td>
+                            <td className="py-2 px-2 text-right text-gray-400">-</td>
+                            <td className="py-2 px-2 text-right text-amber-400 font-bold">{(shopSummary?.roi ?? 0).toFixed(1)}</td>
+                            <td className="py-2 px-2"></td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -694,7 +808,7 @@ export default function AdDashboard() {
               </CardContent>
             </Card>
 
-            {/* ===== 达人維度 (Talent Plans) - 主播別サブビュー ===== */}
+            {/* ===== 达人維度 (Talent Plans) - NO brand, NO adType column, live only ===== */}
             <Card className="bg-gray-900/50 border-gray-800">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
@@ -703,6 +817,9 @@ export default function AdDashboard() {
                     {t.talentDimension}
                     <Badge variant="outline" className="text-[10px] border-cyan-700 text-cyan-300 ml-1">
                       {talentPlans.length}
+                    </Badge>
+                    <Badge variant="outline" className="text-[9px] border-cyan-800/50 text-cyan-400/60 ml-0.5">
+                      {t.liveOnly}
                     </Badge>
                   </CardTitle>
                   <div className="flex items-center gap-2">
@@ -771,6 +888,10 @@ export default function AdDashboard() {
                                 <p className="text-gray-200 font-medium">{formatCurrency(totalSpend)}</p>
                               </div>
                               <div className="text-right">
+                                <span className="text-gray-500">{t.targetGmv}</span>
+                                <p className="text-cyan-300 font-medium">{formatCurrency(totalTargetGmv)}</p>
+                              </div>
+                              <div className="text-right">
                                 <span className="text-gray-500">{t.actualGmv}</span>
                                 <p className="text-green-400 font-medium">{formatCurrency(totalActualGmv)}</p>
                               </div>
@@ -788,7 +909,7 @@ export default function AdDashboard() {
                             </div>
                           </div>
 
-                          {/* Expanded detail */}
+                          {/* Expanded detail - simplified for talent (no brand, no adType) */}
                           {isExpanded && (
                             <div className="px-4 py-2 bg-gray-900/30">
                               <table className="w-full text-xs">
@@ -823,7 +944,7 @@ export default function AdDashboard() {
                                             {(sr * 100).toFixed(1)}%
                                           </span>
                                         </td>
-                                        <td className="py-2 px-2 text-right text-gray-400">{formatCurrency(tGmv)}</td>
+                                        <td className="py-2 px-2 text-right text-cyan-300/80">{formatCurrency(tGmv)}</td>
                                         <td className="py-2 px-2 text-right text-green-400 font-medium">{formatCurrency(aGmv)}</td>
                                         <td className="py-2 px-2 text-right">
                                           {tGmv > 0 ? (
@@ -1062,6 +1183,7 @@ export default function AdDashboard() {
                     <UserCircle className="h-4 w-4" />
                     {t.talentPlans}
                     <Badge variant="outline" className="text-[10px] border-cyan-700 text-cyan-300">{talentPlans.length}</Badge>
+                    <Badge variant="outline" className="text-[9px] border-cyan-800/50 text-cyan-400/60">{t.liveOnly}</Badge>
                   </CardTitle>
                   <Button
                     size="sm"
@@ -1137,6 +1259,7 @@ function KpiCard({ icon, label, value, sub, color, loading }: {
     cyan: "from-cyan-600/20 to-cyan-800/10 border-cyan-700/30",
     purple: "from-purple-600/20 to-purple-800/10 border-purple-700/30",
     pink: "from-pink-600/20 to-pink-800/10 border-pink-700/30",
+    blue: "from-blue-600/20 to-blue-800/10 border-blue-700/30",
   };
   const textMap: Record<string, string> = {
     amber: "text-amber-400",
@@ -1145,6 +1268,7 @@ function KpiCard({ icon, label, value, sub, color, loading }: {
     cyan: "text-cyan-400",
     purple: "text-purple-400",
     pink: "text-pink-400",
+    blue: "text-blue-400",
   };
 
   return (
@@ -1194,7 +1318,7 @@ function CampaignCard({ plan, t, isTalent, onEdit, onDelete }: {
           </Badge>
           <div className="flex items-center gap-1">
             <Badge variant="outline" className={`text-[10px] ${isTalent ? "border-cyan-700 text-cyan-300" : "border-amber-700 text-amber-300"}`}>
-              {plan.adType === "short_video" ? t.shortVideo : plan.adType === "live" ? t.live : t.mixed}
+              {plan.adType === "short_video" ? t.shortVideo : t.live}
             </Badge>
             <Button
               variant="ghost"
@@ -1207,9 +1331,6 @@ function CampaignCard({ plan, t, isTalent, onEdit, onDelete }: {
           </div>
         </div>
         <h3 className={`text-sm font-bold ${isTalent ? "text-cyan-300" : "text-amber-300"}`}>{plan.liverName}</h3>
-        {!isTalent && plan.brandName && (
-          <p className="text-xs text-gray-400 mb-1">{plan.brandName}</p>
-        )}
         
         {/* Spend rate bar */}
         <div className="mb-2 mt-2">
@@ -1273,7 +1394,7 @@ function CampaignCard({ plan, t, isTalent, onEdit, onDelete }: {
   );
 }
 
-// ===== Plan Dialog Component =====
+// ===== Plan Dialog Component - IMPROVED =====
 function PlanDialog({ open, onClose, plan, t, lang, brands, livers, defaultPlanType, onSave, saving }: {
   open: boolean;
   onClose: () => void;
@@ -1347,14 +1468,13 @@ function PlanDialog({ open, onClose, plan, t, lang, brands, livers, defaultPlanT
       toast.error(lang === "ja" ? "店舗/达人名と月は必須です" : "店铺/达人名和月份为必填项");
       return;
     }
-    if (!isTalent && !form.brandName) {
-      toast.error(lang === "ja" ? "ブランド名は必須です" : "品牌名为必填项");
-      return;
-    }
-    // For talent, set brandName to liverName if empty
+    // For talent, auto-set brandName and adType
     const submitData = { ...form };
-    if (isTalent && !submitData.brandName) {
-      submitData.brandName = submitData.liverName;
+    if (isTalent) {
+      submitData.adType = "live"; // Force live for talent
+      if (!submitData.brandName) {
+        submitData.brandName = submitData.liverName;
+      }
     }
     onSave(submitData);
   };
@@ -1417,117 +1537,41 @@ function PlanDialog({ open, onClose, plan, t, lang, brands, livers, defaultPlanT
           {/* Liver / Talent Name */}
           <div>
             <label className="text-xs text-gray-400">{isTalent ? t.talentName : t.liverName}</label>
-            {isTalent ? (
-              <>
-                <Select
-                  value={form.liverId ? String(form.liverId) : "manual"}
-                  onValueChange={(v) => {
-                    if (v === "manual") {
-                      setForm({ ...form, liverId: null });
-                    } else {
-                      const liver = livers.find((l) => l.id === Number(v));
-                      if (liver) {
-                        setForm({ ...form, liverId: liver.id, liverName: liver.name });
-                      }
-                    }
-                  }}
-                >
-                  <SelectTrigger className="bg-gray-800 border-gray-700">
-                    <SelectValue placeholder={t.selectLiver} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manual">{t.orInputManually}</SelectItem>
-                    {livers.map((l) => (
-                      <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {(!form.liverId || form.liverId === null) && (
-                  <Input
-                    placeholder={t.talentName}
-                    value={form.liverName || ""}
-                    onChange={(e) => setForm({ ...form, liverName: e.target.value })}
-                    className="mt-1 bg-gray-800 border-gray-700 text-white"
-                  />
-                )}
-              </>
-            ) : (
-              <>
-                <Select
-                  value={form.liverId ? String(form.liverId) : "manual"}
-                  onValueChange={(v) => {
-                    if (v === "manual") {
-                      setForm({ ...form, liverId: null });
-                    } else {
-                      const liver = livers.find((l) => l.id === Number(v));
-                      if (liver) {
-                        setForm({ ...form, liverId: liver.id, liverName: liver.name });
-                      }
-                    }
-                  }}
-                >
-                  <SelectTrigger className="bg-gray-800 border-gray-700">
-                    <SelectValue placeholder={t.selectLiver} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manual">{t.orInputManually}</SelectItem>
-                    {livers.map((l) => (
-                      <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {(!form.liverId || form.liverId === null) && (
-                  <Input
-                    placeholder={t.liverName}
-                    value={form.liverName || ""}
-                    onChange={(e) => setForm({ ...form, liverName: e.target.value })}
-                    className="mt-1 bg-gray-800 border-gray-700 text-white"
-                  />
-                )}
-              </>
+            <Select
+              value={form.liverId ? String(form.liverId) : "manual"}
+              onValueChange={(v) => {
+                if (v === "manual") {
+                  setForm({ ...form, liverId: null });
+                } else {
+                  const liver = livers.find((l) => l.id === Number(v));
+                  if (liver) {
+                    setForm({ ...form, liverId: liver.id, liverName: liver.name });
+                  }
+                }
+              }}
+            >
+              <SelectTrigger className="bg-gray-800 border-gray-700">
+                <SelectValue placeholder={isTalent ? t.talentName : t.selectLiver} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="manual">{t.orInputManually}</SelectItem>
+                {livers.map((l) => (
+                  <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {(!form.liverId || form.liverId === null) && (
+              <Input
+                placeholder={isTalent ? t.talentName : t.liverName}
+                value={form.liverName || ""}
+                onChange={(e) => setForm({ ...form, liverName: e.target.value })}
+                className="mt-1 bg-gray-800 border-gray-700 text-white"
+              />
             )}
           </div>
 
-          {/* Brand (shop only) */}
-          {!isTalent && (
-            <div>
-              <label className="text-xs text-gray-400">{t.brandName}</label>
-              <Select
-                value={form.brandId ? String(form.brandId) : "manual"}
-                onValueChange={(v) => {
-                  if (v === "manual") {
-                    setForm({ ...form, brandId: null });
-                  } else {
-                    const brand = brands.find((b) => b.id === Number(v));
-                    if (brand) {
-                      setForm({ ...form, brandId: brand.id, brandName: brand.name });
-                    }
-                  }
-                }}
-              >
-                <SelectTrigger className="bg-gray-800 border-gray-700">
-                  <SelectValue placeholder={t.selectBrand} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manual">{t.orInputManually}</SelectItem>
-                  {brands.map((b) => (
-                    <SelectItem key={b.id} value={String(b.id)}>{b.name} ({b.nameJa})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {(!form.brandId || form.brandId === null) && (
-                <Input
-                  placeholder={t.brandName}
-                  value={form.brandName || ""}
-                  onChange={(e) => setForm({ ...form, brandName: e.target.value })}
-                  className="mt-1 bg-gray-800 border-gray-700 text-white"
-                />
-              )}
-            </div>
-          )}
-
-          {/* Ad Type (shop: short_video/live, talent: live only) */}
-          {!isTalent && (
+          {/* Ad Type - shop: short_video/live selector, talent: fixed "live" display */}
+          {!isTalent ? (
             <div>
               <label className="text-xs text-gray-400">{t.adType}</label>
               <Select value={form.adType || "live"} onValueChange={(v) => setForm({ ...form, adType: v })}>
@@ -1540,12 +1584,11 @@ function PlanDialog({ open, onClose, plan, t, lang, brands, livers, defaultPlanT
                 </SelectContent>
               </Select>
             </div>
-          )}
-          {isTalent && (
+          ) : (
             <div>
               <label className="text-xs text-gray-400">{t.adType}</label>
               <div className="mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-sm text-cyan-300">
-                {t.live}
+                {t.live} ({lang === "ja" ? "达人は直播のみ" : "达人仅直播"})
               </div>
             </div>
           )}
