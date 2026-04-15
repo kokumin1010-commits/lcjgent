@@ -14,6 +14,7 @@ export const adDashboardRouter = router({
       liverId: z.number().optional(),
       brandId: z.number().optional(),
       adType: z.enum(["short_video", "live", "mixed"]).optional(),
+      planType: z.enum(["shop", "talent"]).optional(),
     }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
@@ -30,6 +31,9 @@ export const adDashboardRouter = router({
       }
       if (input?.adType) {
         conditions.push(eq(adMonthlyPlans.adType, input.adType));
+      }
+      if (input?.planType) {
+        conditions.push(eq(adMonthlyPlans.planType, input.planType));
       }
 
       const plans = await db
@@ -50,6 +54,7 @@ export const adDashboardRouter = router({
       brandId: z.number().nullable().optional(),
       brandName: z.string().min(1),
       adType: z.enum(["short_video", "live", "mixed"]).default("mixed"),
+      planType: z.enum(["shop", "talent"]).default("shop"),
       budget: z.number().default(0),
       actualSpend: z.number().default(0),
       targetGmv: z.number().default(0),
@@ -72,6 +77,7 @@ export const adDashboardRouter = router({
         brandId: input.brandId ?? null,
         brandName: input.brandName,
         adType: input.adType,
+        planType: input.planType,
         budget: input.budget,
         actualSpend: input.actualSpend,
         spendRate: String(spendRate),
@@ -104,6 +110,7 @@ export const adDashboardRouter = router({
       conversions: z.number().optional(),
       notes: z.string().optional(),
       adType: z.enum(["short_video", "live", "mixed"]).optional(),
+      planType: z.enum(["shop", "talent"]).optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -122,6 +129,7 @@ export const adDashboardRouter = router({
       if (updates.conversions !== undefined) updateData.conversions = updates.conversions;
       if (updates.notes !== undefined) updateData.notes = updates.notes;
       if (updates.adType !== undefined) updateData.adType = updates.adType;
+      if (updates.planType !== undefined) updateData.planType = updates.planType;
 
       // Recalculate spendRate
       if (updates.budget !== undefined || updates.actualSpend !== undefined) {
@@ -341,6 +349,7 @@ export const adDashboardRouter = router({
         liverName: z.string(),
         brandName: z.string(),
         adType: z.enum(["short_video", "live", "mixed"]).default("mixed"),
+        planType: z.enum(["shop", "talent"]).default("shop"),
         budget: z.number().default(0),
         actualSpend: z.number().default(0),
         targetGmv: z.number().default(0),
@@ -364,6 +373,7 @@ export const adDashboardRouter = router({
           brandId: plan.brandId ?? null,
           brandName: plan.brandName,
           adType: plan.adType,
+          planType: plan.planType,
           budget: plan.budget,
           actualSpend: plan.actualSpend,
           spendRate: String(spendRate),

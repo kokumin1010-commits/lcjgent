@@ -4865,6 +4865,7 @@ export const adMonthlyPlans = mysqlTable("ad_monthly_plans", {
   brandId: int("brandId"),
   brandName: varchar("brandName", { length: 255 }).notNull(),
   adType: mysqlEnum("adType", ["short_video", "live", "mixed"]).default("mixed").notNull(),
+  planType: mysqlEnum("planType", ["shop", "talent"]).default("shop").notNull(), // shop=店铺維度（品牌方予算）, talent=达人維度（LCJ自社予算）
   budget: bigint("budget", { mode: "number" }).default(0),
   actualSpend: bigint("actualSpend", { mode: "number" }).default(0),
   spendRate: decimal("spendRate", { precision: 10, scale: 4 }).default("0"),

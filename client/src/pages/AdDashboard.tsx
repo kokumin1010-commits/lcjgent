@@ -43,6 +43,10 @@ import {
   Activity,
   Eye,
   Megaphone,
+  Store,
+  UserCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -52,7 +56,7 @@ const translations = {
     title: "広告司令塔",
     subtitle: "広告運用の全体最適化",
     tabDashboard: "ダッシュボード",
-    tabMatrix: "店舗×ブランド",
+    tabMatrix: "店舗マトリクス",
     tabCampaign: "キャンペーン管理",
     totalBudget: "総広告予算",
     totalSpend: "実際消費額",
@@ -102,12 +106,26 @@ const translations = {
     selectLiver: "店舗を選択",
     selectBrand: "ブランドを選択",
     orInputManually: "または手動入力",
+    // New keys
+    shopDimension: "店舗維度（品牌方予算）",
+    talentDimension: "达人維度（LCJ自社予算）",
+    planType: "計画タイプ",
+    shop: "店舗",
+    talent: "达人",
+    gmvAchievement: "GMV達成率",
+    talentName: "主播名",
+    shopPlans: "店舗計画",
+    talentPlans: "达人計画",
+    totalTalentBudget: "达人総予算",
+    totalShopBudget: "店舗総予算",
+    expandAll: "すべて展開",
+    collapseAll: "すべて折りたたむ",
   },
   zh: {
     title: "广告司令塔",
     subtitle: "广告运营全局优化",
     tabDashboard: "仪表盘",
-    tabMatrix: "店铺×品牌",
+    tabMatrix: "店铺矩阵",
     tabCampaign: "活动管理",
     totalBudget: "总广告预算",
     totalSpend: "实际消耗",
@@ -157,6 +175,20 @@ const translations = {
     selectLiver: "选择店铺",
     selectBrand: "选择品牌",
     orInputManually: "或手动输入",
+    // New keys
+    shopDimension: "店铺维度（品牌方预算）",
+    talentDimension: "达人维度（LCJ自有预算）",
+    planType: "计划类型",
+    shop: "店铺",
+    talent: "达人",
+    gmvAchievement: "GMV达成率",
+    talentName: "主播名",
+    shopPlans: "店铺计划",
+    talentPlans: "达人计划",
+    totalTalentBudget: "达人总预算",
+    totalShopBudget: "店铺总预算",
+    expandAll: "全部展开",
+    collapseAll: "全部收起",
   },
 };
 
@@ -198,6 +230,20 @@ function getSpendRateColor(rate: number): string {
   return "bg-red-500";
 }
 
+function getGmvAchievementColor(rate: number): string {
+  if (rate >= 1.0) return "text-emerald-400";
+  if (rate >= 0.7) return "text-green-400";
+  if (rate >= 0.4) return "text-yellow-400";
+  return "text-red-400";
+}
+
+function getGmvAchievementBgColor(rate: number): string {
+  if (rate >= 1.0) return "bg-emerald-500";
+  if (rate >= 0.7) return "bg-green-500";
+  if (rate >= 0.4) return "bg-yellow-500";
+  return "bg-red-500";
+}
+
 // ===== メインコンポーネント =====
 export default function AdDashboard() {
   const { language } = useLanguage();
@@ -209,6 +255,8 @@ export default function AdDashboard() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingPlan, setEditingPlan] = useState<any>(null);
+  const [defaultPlanType, setDefaultPlanType] = useState<"shop" | "talent">("shop");
+  const [expandedTalents, setExpandedTalents] = useState<Set<string>>(new Set());
 
   // Data queries
   const { data: availableMonths } = trpc.adDashboard.getAvailableMonths.useQuery();
@@ -251,6 +299,23 @@ export default function AdDashboard() {
     onError: (e) => toast.error(e.message),
   });
 
+  // Split plans by planType
+  const { shopPlans, talentPlans, talentGrouped } = useMemo(() => {
+    if (!monthlyPlans) return { shopPlans: [], talentPlans: [], talentGrouped: {} as Record<string, any[]> };
+    const shop = monthlyPlans.filter((p: any) => p.planType !== "talent");
+    const talent = monthlyPlans.filter((p: any) => p.planType === "talent");
+    
+    // Group talent plans by liverName (主播名)
+    const grouped: Record<string, any[]> = {};
+    for (const p of talent) {
+      const key = p.liverName || "Unknown";
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(p);
+    }
+    
+    return { shopPlans: shop, talentPlans: talent, talentGrouped: grouped };
+  }, [monthlyPlans]);
+
   // Generate alerts
   const alerts = useMemo(() => {
     if (!monthlyPlans) return [];
@@ -262,17 +327,19 @@ export default function AdDashboard() {
       const targetRoi = parseFloat(plan.targetRoi || "0");
       const budget = plan.budget ?? 0;
       const actualSpend = plan.actualSpend ?? 0;
+      const targetGmv = plan.targetGmv ?? 0;
+      const actualGmv = plan.actualGmv ?? 0;
 
       if (budget > 0 && actualSpend === 0) {
         result.push({
           type: "inactive",
-          message: `${plan.liverName} × ${plan.brandName}: ${t.alertInactive}`,
+          message: `${plan.liverName}${plan.planType !== "talent" ? ` × ${plan.brandName}` : ""}: ${t.alertInactive}`,
           severity: "warning",
         });
       } else if (spendRate > 0 && spendRate < 0.3 && budget > 0) {
         result.push({
           type: "lowSpend",
-          message: `${plan.liverName} × ${plan.brandName}: ${t.alertLowSpend} (${(spendRate * 100).toFixed(0)}%)`,
+          message: `${plan.liverName}${plan.planType !== "talent" ? ` × ${plan.brandName}` : ""}: ${t.alertLowSpend} (${(spendRate * 100).toFixed(0)}%)`,
           severity: "info",
         });
       }
@@ -281,20 +348,47 @@ export default function AdDashboard() {
         if (actualRoi >= targetRoi * 2) {
           result.push({
             type: "highRoi",
-            message: `${plan.liverName} × ${plan.brandName}: ${t.alertHighRoi} (ROI ${actualRoi.toFixed(1)} vs ${t.targetRoi} ${targetRoi.toFixed(1)})`,
+            message: `${plan.liverName}${plan.planType !== "talent" ? ` × ${plan.brandName}` : ""}: ${t.alertHighRoi} (ROI ${actualRoi.toFixed(1)} vs ${t.targetRoi} ${targetRoi.toFixed(1)})`,
             severity: "info",
           });
         } else if (actualRoi < targetRoi * 0.5) {
           result.push({
             type: "lowRoi",
-            message: `${plan.liverName} × ${plan.brandName}: ${t.alertLowRoi} (ROI ${actualRoi.toFixed(1)} vs ${t.targetRoi} ${targetRoi.toFixed(1)})`,
+            message: `${plan.liverName}${plan.planType !== "talent" ? ` × ${plan.brandName}` : ""}: ${t.alertLowRoi} (ROI ${actualRoi.toFixed(1)} vs ${t.targetRoi} ${targetRoi.toFixed(1)})`,
             severity: "danger",
           });
         }
       }
+
+      // GMV achievement alert
+      if (targetGmv > 0 && actualGmv > 0 && actualGmv < targetGmv * 0.3) {
+        result.push({
+          type: "lowGmv",
+          message: `${plan.liverName}${plan.planType !== "talent" ? ` × ${plan.brandName}` : ""}: GMV達成率が低い (${((actualGmv / targetGmv) * 100).toFixed(0)}%)`,
+          severity: "danger",
+        });
+      }
     }
     return result;
   }, [monthlyPlans, t]);
+
+  const toggleTalent = (name: string) => {
+    setExpandedTalents((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const toggleAllTalents = () => {
+    const allNames = Object.keys(talentGrouped);
+    if (expandedTalents.size === allNames.length) {
+      setExpandedTalents(new Set());
+    } else {
+      setExpandedTalents(new Set(allNames));
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-white">
@@ -344,14 +438,13 @@ export default function AdDashboard() {
                   <SelectItem value="all">{t.allTypes}</SelectItem>
                   <SelectItem value="short_video">{t.shortVideo}</SelectItem>
                   <SelectItem value="live">{t.live}</SelectItem>
-                  <SelectItem value="mixed">{t.mixed}</SelectItem>
                 </SelectContent>
               </Select>
 
               <Button
                 size="sm"
                 className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500"
-                onClick={() => setShowAddDialog(true)}
+                onClick={() => { setDefaultPlanType("shop"); setShowAddDialog(true); }}
               >
                 <Plus className="h-4 w-4 mr-1" />
                 {t.addPlan}
@@ -365,15 +458,24 @@ export default function AdDashboard() {
       <div className="max-w-[1600px] mx-auto px-4 py-4">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="bg-gray-800/50 border border-gray-700/50">
-            <TabsTrigger value="dashboard" className="data-[state=active]:bg-amber-600/20 data-[state=active]:text-amber-400">
+            <TabsTrigger
+              value="dashboard"
+              className="text-gray-300 data-[state=active]:bg-amber-600/20 data-[state=active]:text-amber-400"
+            >
               <BarChart3 className="h-4 w-4 mr-1" />
               {t.tabDashboard}
             </TabsTrigger>
-            <TabsTrigger value="matrix" className="data-[state=active]:bg-amber-600/20 data-[state=active]:text-amber-400">
+            <TabsTrigger
+              value="matrix"
+              className="text-gray-300 data-[state=active]:bg-amber-600/20 data-[state=active]:text-amber-400"
+            >
               <Grid3X3 className="h-4 w-4 mr-1" />
               {t.tabMatrix}
             </TabsTrigger>
-            <TabsTrigger value="campaign" className="data-[state=active]:bg-amber-600/20 data-[state=active]:text-amber-400">
+            <TabsTrigger
+              value="campaign"
+              className="text-gray-300 data-[state=active]:bg-amber-600/20 data-[state=active]:text-amber-400"
+            >
               <Target className="h-4 w-4 mr-1" />
               {t.tabCampaign}
             </TabsTrigger>
@@ -413,7 +515,7 @@ export default function AdDashboard() {
                 loading={summaryLoading}
               />
               <KpiCard
-                icon={<Users className="h-4 w-4" />}
+                icon={<Store className="h-4 w-4" />}
                 label={t.activeLivers}
                 value={String(summary?.activeLiverCount ?? 0)}
                 color="purple"
@@ -421,8 +523,8 @@ export default function AdDashboard() {
               />
               <KpiCard
                 icon={<Target className="h-4 w-4" />}
-                label={t.activeBrands}
-                value={String(summary?.activeBrandCount ?? 0)}
+                label={t.planCount}
+                value={String(summary?.planCount ?? 0)}
                 color="pink"
                 loading={summaryLoading}
               />
@@ -463,19 +565,34 @@ export default function AdDashboard() {
               </Card>
             )}
 
-            {/* Plans list (simple table) */}
+            {/* ===== 店舗維度 (Shop Plans) ===== */}
             <Card className="bg-gray-900/50 border-gray-800">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-gray-300">
-                  {t.planCount}: {monthlyPlans?.length ?? 0}
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm text-amber-400 flex items-center gap-2">
+                    <Store className="h-4 w-4" />
+                    {t.shopDimension}
+                    <Badge variant="outline" className="text-[10px] border-amber-700 text-amber-300 ml-1">
+                      {shopPlans.length}
+                    </Badge>
+                  </CardTitle>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs border-amber-700/50 text-amber-300 hover:bg-amber-900/30"
+                    onClick={() => { setDefaultPlanType("shop"); setShowAddDialog(true); }}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    {t.shop}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {plansLoading ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
                   </div>
-                ) : !monthlyPlans?.length ? (
+                ) : !shopPlans.length ? (
                   <div className="text-center py-8 text-gray-500">{t.noData}</div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -484,27 +601,30 @@ export default function AdDashboard() {
                         <tr className="border-b border-gray-800 text-gray-400">
                           <th className="text-left py-2 px-2">{t.month}</th>
                           <th className="text-left py-2 px-2">{t.liver}</th>
-                          <th className="text-left py-2 px-2">{t.brand}</th>
                           <th className="text-left py-2 px-2">{t.adType}</th>
                           <th className="text-right py-2 px-2">{t.budget}</th>
                           <th className="text-right py-2 px-2">{t.actualSpend}</th>
                           <th className="text-right py-2 px-2">{t.spendRate}</th>
-                          <th className="text-right py-2 px-2">{t.targetRoi}</th>
+                          <th className="text-right py-2 px-2">{t.targetGmv}</th>
                           <th className="text-right py-2 px-2">{t.actualGmv}</th>
+                          <th className="text-right py-2 px-2">{t.gmvAchievement}</th>
+                          <th className="text-right py-2 px-2">{t.targetRoi}</th>
                           <th className="text-right py-2 px-2">{t.actualRoi}</th>
                           <th className="text-center py-2 px-2"></th>
                         </tr>
                       </thead>
                       <tbody>
-                        {monthlyPlans.map((plan) => {
+                        {shopPlans.map((plan: any) => {
                           const roi = parseFloat(plan.actualRoi || "0");
                           const tRoi = parseFloat(plan.targetRoi || "0");
                           const sr = parseFloat(plan.spendRate || "0");
+                          const tGmv = plan.targetGmv ?? 0;
+                          const aGmv = plan.actualGmv ?? 0;
+                          const gmvRate = tGmv > 0 ? aGmv / tGmv : 0;
                           return (
                             <tr key={plan.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
                               <td className="py-2 px-2 text-gray-300">{plan.month}</td>
                               <td className="py-2 px-2 text-amber-300 font-medium">{plan.liverName}</td>
-                              <td className="py-2 px-2 text-gray-200">{plan.brandName}</td>
                               <td className="py-2 px-2">
                                 <Badge variant="outline" className="text-[10px] border-gray-600">
                                   {plan.adType === "short_video" ? t.shortVideo : plan.adType === "live" ? t.live : t.mixed}
@@ -517,8 +637,26 @@ export default function AdDashboard() {
                                   {(sr * 100).toFixed(1)}%
                                 </span>
                               </td>
+                              <td className="py-2 px-2 text-right text-gray-400">{formatCurrency(tGmv)}</td>
+                              <td className="py-2 px-2 text-right text-green-400 font-medium">{formatCurrency(aGmv)}</td>
+                              <td className="py-2 px-2 text-right">
+                                {tGmv > 0 ? (
+                                  <div className="flex items-center justify-end gap-1">
+                                    <div className="w-12 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full ${getGmvAchievementBgColor(gmvRate)}`}
+                                        style={{ width: `${Math.min(gmvRate * 100, 100)}%` }}
+                                      />
+                                    </div>
+                                    <span className={`${getGmvAchievementColor(gmvRate)} font-medium`}>
+                                      {(gmvRate * 100).toFixed(0)}%
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-600">-</span>
+                                )}
+                              </td>
                               <td className="py-2 px-2 text-right text-gray-400">{tRoi.toFixed(1)}</td>
-                              <td className="py-2 px-2 text-right text-green-400 font-medium">{formatCurrency(plan.actualGmv ?? 0)}</td>
                               <td className={`py-2 px-2 text-right font-bold ${getRoiColor(roi, tRoi)}`}>
                                 {roi.toFixed(1)}
                               </td>
@@ -555,9 +693,200 @@ export default function AdDashboard() {
                 )}
               </CardContent>
             </Card>
+
+            {/* ===== 达人維度 (Talent Plans) - 主播別サブビュー ===== */}
+            <Card className="bg-gray-900/50 border-gray-800">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm text-cyan-400 flex items-center gap-2">
+                    <UserCircle className="h-4 w-4" />
+                    {t.talentDimension}
+                    <Badge variant="outline" className="text-[10px] border-cyan-700 text-cyan-300 ml-1">
+                      {talentPlans.length}
+                    </Badge>
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    {Object.keys(talentGrouped).length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs text-gray-400 hover:text-white"
+                        onClick={toggleAllTalents}
+                      >
+                        {expandedTalents.size === Object.keys(talentGrouped).length ? t.collapseAll : t.expandAll}
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs border-cyan-700/50 text-cyan-300 hover:bg-cyan-900/30"
+                      onClick={() => { setDefaultPlanType("talent"); setShowAddDialog(true); }}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      {t.talent}
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {plansLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
+                  </div>
+                ) : !talentPlans.length ? (
+                  <div className="text-center py-8 text-gray-500">{t.noData}</div>
+                ) : (
+                  <div className="space-y-3">
+                    {Object.entries(talentGrouped).map(([talentName, plans]) => {
+                      const isExpanded = expandedTalents.has(talentName);
+                      const totalBudget = plans.reduce((s: number, p: any) => s + (p.budget ?? 0), 0);
+                      const totalSpend = plans.reduce((s: number, p: any) => s + (p.actualSpend ?? 0), 0);
+                      const totalActualGmv = plans.reduce((s: number, p: any) => s + (p.actualGmv ?? 0), 0);
+                      const totalTargetGmv = plans.reduce((s: number, p: any) => s + (p.targetGmv ?? 0), 0);
+                      const overallRoi = totalSpend > 0 ? totalActualGmv / totalSpend : 0;
+                      const overallSpendRate = totalBudget > 0 ? totalSpend / totalBudget : 0;
+                      const gmvRate = totalTargetGmv > 0 ? totalActualGmv / totalTargetGmv : 0;
+
+                      return (
+                        <div key={talentName} className="border border-gray-800 rounded-lg overflow-hidden">
+                          {/* Talent Header (collapsible) */}
+                          <div
+                            className="flex items-center justify-between px-4 py-3 bg-gray-800/40 cursor-pointer hover:bg-gray-800/60 transition-colors"
+                            onClick={() => toggleTalent(talentName)}
+                          >
+                            <div className="flex items-center gap-3">
+                              <UserCircle className="h-5 w-5 text-cyan-400" />
+                              <div>
+                                <span className="text-sm font-bold text-cyan-300">{talentName}</span>
+                                <span className="text-[10px] text-gray-500 ml-2">{plans.length} {lang === "ja" ? "件" : "条"}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4 text-xs">
+                              <div className="text-right">
+                                <span className="text-gray-500">{t.budget}</span>
+                                <p className="text-gray-200 font-medium">{formatCurrency(totalBudget)}</p>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-gray-500">{t.actualSpend}</span>
+                                <p className="text-gray-200 font-medium">{formatCurrency(totalSpend)}</p>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-gray-500">{t.actualGmv}</span>
+                                <p className="text-green-400 font-medium">{formatCurrency(totalActualGmv)}</p>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-gray-500">ROI</span>
+                                <p className={`font-bold ${getRoiColor(overallRoi, 3)}`}>{overallRoi.toFixed(1)}</p>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-gray-500">{t.gmvAchievement}</span>
+                                <p className={`font-medium ${getGmvAchievementColor(gmvRate)}`}>
+                                  {totalTargetGmv > 0 ? `${(gmvRate * 100).toFixed(0)}%` : "-"}
+                                </p>
+                              </div>
+                              {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                            </div>
+                          </div>
+
+                          {/* Expanded detail */}
+                          {isExpanded && (
+                            <div className="px-4 py-2 bg-gray-900/30">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="border-b border-gray-800 text-gray-400">
+                                    <th className="text-left py-2 px-2">{t.month}</th>
+                                    <th className="text-right py-2 px-2">{t.budget}</th>
+                                    <th className="text-right py-2 px-2">{t.actualSpend}</th>
+                                    <th className="text-right py-2 px-2">{t.spendRate}</th>
+                                    <th className="text-right py-2 px-2">{t.targetGmv}</th>
+                                    <th className="text-right py-2 px-2">{t.actualGmv}</th>
+                                    <th className="text-right py-2 px-2">{t.gmvAchievement}</th>
+                                    <th className="text-right py-2 px-2">ROI</th>
+                                    <th className="text-center py-2 px-2"></th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {plans.map((plan: any) => {
+                                    const roi = parseFloat(plan.actualRoi || "0");
+                                    const tRoi = parseFloat(plan.targetRoi || "0");
+                                    const sr = parseFloat(plan.spendRate || "0");
+                                    const tGmv = plan.targetGmv ?? 0;
+                                    const aGmv = plan.actualGmv ?? 0;
+                                    const gr = tGmv > 0 ? aGmv / tGmv : 0;
+                                    return (
+                                      <tr key={plan.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                                        <td className="py-2 px-2 text-gray-300">{plan.month}</td>
+                                        <td className="py-2 px-2 text-right text-gray-300">{formatCurrency(plan.budget ?? 0)}</td>
+                                        <td className="py-2 px-2 text-right text-gray-300">{formatCurrency(plan.actualSpend ?? 0)}</td>
+                                        <td className="py-2 px-2 text-right">
+                                          <span className={sr > 0.7 ? "text-green-400" : sr > 0.3 ? "text-yellow-400" : "text-red-400"}>
+                                            {(sr * 100).toFixed(1)}%
+                                          </span>
+                                        </td>
+                                        <td className="py-2 px-2 text-right text-gray-400">{formatCurrency(tGmv)}</td>
+                                        <td className="py-2 px-2 text-right text-green-400 font-medium">{formatCurrency(aGmv)}</td>
+                                        <td className="py-2 px-2 text-right">
+                                          {tGmv > 0 ? (
+                                            <div className="flex items-center justify-end gap-1">
+                                              <div className="w-10 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                                                <div
+                                                  className={`h-full rounded-full ${getGmvAchievementBgColor(gr)}`}
+                                                  style={{ width: `${Math.min(gr * 100, 100)}%` }}
+                                                />
+                                              </div>
+                                              <span className={`${getGmvAchievementColor(gr)} font-medium`}>
+                                                {(gr * 100).toFixed(0)}%
+                                              </span>
+                                            </div>
+                                          ) : (
+                                            <span className="text-gray-600">-</span>
+                                          )}
+                                        </td>
+                                        <td className={`py-2 px-2 text-right font-bold ${getRoiColor(roi, tRoi)}`}>
+                                          {roi.toFixed(1)}
+                                        </td>
+                                        <td className="py-2 px-2 text-center">
+                                          <div className="flex items-center gap-1 justify-center">
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-6 w-6 p-0 text-gray-400 hover:text-cyan-400"
+                                              onClick={(e) => { e.stopPropagation(); setEditingPlan(plan); }}
+                                            >
+                                              <Edit2 className="h-3 w-3" />
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-6 w-6 p-0 text-gray-400 hover:text-red-400"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (confirm(t.deleteConfirm)) {
+                                                  deletePlan.mutate({ id: plan.id });
+                                                }
+                                              }}
+                                            >
+                                              <Trash2 className="h-3 w-3" />
+                                            </Button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
-          {/* ===== Tab 2: Matrix ===== */}
+          {/* ===== Tab 2: Matrix (店舗維度のみ) ===== */}
           <TabsContent value="matrix" className="mt-4">
             <Card className="bg-gray-900/50 border-gray-800">
               <CardHeader className="pb-2">
@@ -580,7 +909,7 @@ export default function AdDashboard() {
                       <thead>
                         <tr>
                           <th className="text-left py-2 px-3 border-b border-gray-700 text-amber-400 font-medium sticky left-0 bg-gray-900 z-10 min-w-[120px]">
-                            {t.liver} \ {t.brand}
+                            {t.liver}
                           </th>
                           {matrixData.brands.map((brand) => (
                             <th key={brand} className="text-center py-2 px-3 border-b border-gray-700 text-gray-300 font-medium min-w-[140px]">
@@ -683,21 +1012,23 @@ export default function AdDashboard() {
           </TabsContent>
 
           {/* ===== Tab 3: Campaign Management ===== */}
-          <TabsContent value="campaign" className="mt-4">
+          <TabsContent value="campaign" className="mt-4 space-y-4">
+            {/* Shop Campaigns */}
             <Card className="bg-gray-900/50 border-gray-800">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm text-amber-400 flex items-center gap-2">
-                    <Target className="h-4 w-4" />
-                    {t.tabCampaign}
+                    <Store className="h-4 w-4" />
+                    {t.shopPlans}
+                    <Badge variant="outline" className="text-[10px] border-amber-700 text-amber-300">{shopPlans.length}</Badge>
                   </CardTitle>
                   <Button
                     size="sm"
                     className="bg-gradient-to-r from-amber-600 to-orange-600"
-                    onClick={() => setShowAddDialog(true)}
+                    onClick={() => { setDefaultPlanType("shop"); setShowAddDialog(true); }}
                   >
                     <Plus className="h-4 w-4 mr-1" />
-                    {t.addPlan}
+                    {t.shop}
                   </Button>
                 </div>
               </CardHeader>
@@ -706,83 +1037,59 @@ export default function AdDashboard() {
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
                   </div>
-                ) : !monthlyPlans?.length ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <Megaphone className="h-12 w-12 mx-auto mb-3 text-gray-600" />
+                ) : !shopPlans.length ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Store className="h-10 w-10 mx-auto mb-2 text-gray-600" />
                     <p>{t.noData}</p>
-                    <Button
-                      className="mt-4 bg-gradient-to-r from-amber-600 to-orange-600"
-                      onClick={() => setShowAddDialog(true)}
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      {t.addPlan}
-                    </Button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {monthlyPlans.map((plan) => {
-                      const roi = parseFloat(plan.actualRoi || "0");
-                      const tRoi = parseFloat(plan.targetRoi || "0");
-                      const sr = parseFloat(plan.spendRate || "0");
-                      return (
-                        <Card
-                          key={plan.id}
-                          className={`bg-gray-800/50 border ${getRoiBgColor(roi, tRoi)} hover:border-amber-600/50 transition-colors cursor-pointer`}
-                          onClick={() => setEditingPlan(plan)}
-                        >
-                          <CardContent className="p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <Badge variant="outline" className="text-[10px] border-gray-600 text-gray-400">
-                                {plan.month}
-                              </Badge>
-                              <Badge variant="outline" className="text-[10px] border-amber-700 text-amber-300">
-                                {plan.adType === "short_video" ? t.shortVideo : plan.adType === "live" ? t.live : t.mixed}
-                              </Badge>
-                            </div>
-                            <h3 className="text-sm font-bold text-amber-300">{plan.liverName}</h3>
-                            <p className="text-xs text-gray-400 mb-3">{plan.brandName}</p>
-                            
-                            {/* Spend rate bar */}
-                            <div className="mb-2">
-                              <div className="flex justify-between text-[10px] text-gray-400 mb-1">
-                                <span>{t.spendRate}</span>
-                                <span>{(sr * 100).toFixed(1)}%</span>
-                              </div>
-                              <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full transition-all ${getSpendRateColor(sr)}`}
-                                  style={{ width: `${Math.min(sr * 100, 100)}%` }}
-                                />
-                              </div>
-                            </div>
+                    {shopPlans.map((plan: any) => (
+                      <CampaignCard key={plan.id} plan={plan} t={t} onEdit={setEditingPlan} onDelete={(id) => {
+                        if (confirm(t.deleteConfirm)) deletePlan.mutate({ id });
+                      }} />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div>
-                                <span className="text-gray-500">{t.budget}</span>
-                                <p className="text-gray-200 font-medium">{formatCurrency(plan.budget ?? 0)}</p>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">{t.actualSpend}</span>
-                                <p className="text-gray-200 font-medium">{formatCurrency(plan.actualSpend ?? 0)}</p>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">{t.actualGmv}</span>
-                                <p className="text-green-400 font-medium">{formatCurrency(plan.actualGmv ?? 0)}</p>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">ROI</span>
-                                <p className={`font-bold ${getRoiColor(roi, tRoi)}`}>
-                                  {roi.toFixed(1)}
-                                  {tRoi > 0 && (
-                                    <span className="text-gray-500 font-normal"> / {tRoi.toFixed(1)}</span>
-                                  )}
-                                </p>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
+            {/* Talent Campaigns */}
+            <Card className="bg-gray-900/50 border-gray-800">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm text-cyan-400 flex items-center gap-2">
+                    <UserCircle className="h-4 w-4" />
+                    {t.talentPlans}
+                    <Badge variant="outline" className="text-[10px] border-cyan-700 text-cyan-300">{talentPlans.length}</Badge>
+                  </CardTitle>
+                  <Button
+                    size="sm"
+                    className="bg-gradient-to-r from-cyan-600 to-blue-600"
+                    onClick={() => { setDefaultPlanType("talent"); setShowAddDialog(true); }}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    {t.talent}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {plansLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
+                  </div>
+                ) : !talentPlans.length ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <UserCircle className="h-10 w-10 mx-auto mb-2 text-gray-600" />
+                    <p>{t.noData}</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {talentPlans.map((plan: any) => (
+                      <CampaignCard key={plan.id} plan={plan} t={t} isTalent onEdit={setEditingPlan} onDelete={(id) => {
+                        if (confirm(t.deleteConfirm)) deletePlan.mutate({ id });
+                      }} />
+                    ))}
                   </div>
                 )}
               </CardContent>
@@ -800,6 +1107,7 @@ export default function AdDashboard() {
         lang={lang}
         brands={brandsDropdown || []}
         livers={liversDropdown || []}
+        defaultPlanType={editingPlan?.planType || defaultPlanType}
         onSave={(data) => {
           if (editingPlan) {
             updatePlan.mutate({ id: editingPlan.id, ...data });
@@ -842,9 +1150,9 @@ function KpiCard({ icon, label, value, sub, color, loading }: {
   return (
     <Card className={`bg-gradient-to-br ${colorMap[color]} border`}>
       <CardContent className="p-3">
-        <div className={`flex items-center gap-1 mb-1 ${textMap[color]}`}>
-          {icon}
-          <span className="text-[10px] text-gray-400">{label}</span>
+        <div className="flex items-center gap-1.5 mb-1">
+          <span className={textMap[color]}>{icon}</span>
+          <span className="text-[10px] text-gray-400 truncate">{label}</span>
         </div>
         {loading ? (
           <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
@@ -859,8 +1167,114 @@ function KpiCard({ icon, label, value, sub, color, loading }: {
   );
 }
 
+// ===== Campaign Card Component =====
+function CampaignCard({ plan, t, isTalent, onEdit, onDelete }: {
+  plan: any;
+  t: typeof translations.ja;
+  isTalent?: boolean;
+  onEdit: (plan: any) => void;
+  onDelete: (id: number) => void;
+}) {
+  const roi = parseFloat(plan.actualRoi || "0");
+  const tRoi = parseFloat(plan.targetRoi || "0");
+  const sr = parseFloat(plan.spendRate || "0");
+  const tGmv = plan.targetGmv ?? 0;
+  const aGmv = plan.actualGmv ?? 0;
+  const gmvRate = tGmv > 0 ? aGmv / tGmv : 0;
+
+  return (
+    <Card
+      className={`bg-gray-800/50 border ${getRoiBgColor(roi, tRoi)} hover:border-${isTalent ? "cyan" : "amber"}-600/50 transition-colors cursor-pointer`}
+      onClick={() => onEdit(plan)}
+    >
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <Badge variant="outline" className="text-[10px] border-gray-600 text-gray-400">
+            {plan.month}
+          </Badge>
+          <div className="flex items-center gap-1">
+            <Badge variant="outline" className={`text-[10px] ${isTalent ? "border-cyan-700 text-cyan-300" : "border-amber-700 text-amber-300"}`}>
+              {plan.adType === "short_video" ? t.shortVideo : plan.adType === "live" ? t.live : t.mixed}
+            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 text-gray-500 hover:text-red-400"
+              onClick={(e) => { e.stopPropagation(); onDelete(plan.id); }}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
+        </div>
+        <h3 className={`text-sm font-bold ${isTalent ? "text-cyan-300" : "text-amber-300"}`}>{plan.liverName}</h3>
+        {!isTalent && plan.brandName && (
+          <p className="text-xs text-gray-400 mb-1">{plan.brandName}</p>
+        )}
+        
+        {/* Spend rate bar */}
+        <div className="mb-2 mt-2">
+          <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+            <span>{t.spendRate}</span>
+            <span>{(sr * 100).toFixed(1)}%</span>
+          </div>
+          <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${getSpendRateColor(sr)}`}
+              style={{ width: `${Math.min(sr * 100, 100)}%` }}
+            />
+          </div>
+        </div>
+
+        {/* GMV Achievement bar */}
+        {tGmv > 0 && (
+          <div className="mb-2">
+            <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+              <span>{t.gmvAchievement}</span>
+              <span className={getGmvAchievementColor(gmvRate)}>{(gmvRate * 100).toFixed(0)}%</span>
+            </div>
+            <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${getGmvAchievementBgColor(gmvRate)}`}
+                style={{ width: `${Math.min(gmvRate * 100, 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div>
+            <span className="text-gray-500">{t.budget}</span>
+            <p className="text-gray-200 font-medium">{formatCurrency(plan.budget ?? 0)}</p>
+          </div>
+          <div>
+            <span className="text-gray-500">{t.actualSpend}</span>
+            <p className="text-gray-200 font-medium">{formatCurrency(plan.actualSpend ?? 0)}</p>
+          </div>
+          <div>
+            <span className="text-gray-500">{t.targetGmv}</span>
+            <p className="text-gray-300 font-medium">{formatCurrency(tGmv)}</p>
+          </div>
+          <div>
+            <span className="text-gray-500">{t.actualGmv}</span>
+            <p className="text-green-400 font-medium">{formatCurrency(aGmv)}</p>
+          </div>
+          <div className="col-span-2">
+            <span className="text-gray-500">ROI</span>
+            <p className={`font-bold ${getRoiColor(roi, tRoi)}`}>
+              {roi.toFixed(1)}
+              {tRoi > 0 && (
+                <span className="text-gray-500 font-normal"> / {tRoi.toFixed(1)}</span>
+              )}
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ===== Plan Dialog Component =====
-function PlanDialog({ open, onClose, plan, t, lang, brands, livers, onSave, saving }: {
+function PlanDialog({ open, onClose, plan, t, lang, brands, livers, defaultPlanType, onSave, saving }: {
   open: boolean;
   onClose: () => void;
   plan: any;
@@ -868,6 +1282,7 @@ function PlanDialog({ open, onClose, plan, t, lang, brands, livers, onSave, savi
   lang: string;
   brands: { id: number; name: string; nameJa: string }[];
   livers: { id: number; name: string }[];
+  defaultPlanType: "shop" | "talent";
   onSave: (data: any) => void;
   saving: boolean;
 }) {
@@ -882,7 +1297,8 @@ function PlanDialog({ open, onClose, plan, t, lang, brands, livers, onSave, savi
         liverId: plan.liverId || null,
         brandName: plan.brandName || "",
         brandId: plan.brandId || null,
-        adType: plan.adType || "mixed",
+        adType: plan.adType || "live",
+        planType: plan.planType || "shop",
         budget: plan.budget ?? 0,
         actualSpend: plan.actualSpend ?? 0,
         targetGmv: plan.targetGmv ?? 0,
@@ -903,7 +1319,8 @@ function PlanDialog({ open, onClose, plan, t, lang, brands, livers, onSave, savi
         liverId: null,
         brandName: "",
         brandId: null,
-        adType: "mixed",
+        adType: defaultPlanType === "talent" ? "live" : "live",
+        planType: defaultPlanType,
         budget: 0,
         actualSpend: 0,
         targetGmv: 0,
@@ -916,31 +1333,75 @@ function PlanDialog({ open, onClose, plan, t, lang, brands, livers, onSave, savi
         notes: "",
       });
     }
-  }, [plan]);
+  }, [plan, defaultPlanType]);
 
   // Reset when dialog opens
   useMemo(() => {
     if (open) resetForm();
   }, [open, resetForm]);
 
+  const isTalent = form.planType === "talent";
+
   const handleSubmit = () => {
-    if (!form.liverName || !form.brandName || !form.month) {
-      toast.error(lang === "ja" ? "店舗名、ブランド名、月は必須です" : "店铺名、品牌名、月份为必填项");
+    if (!form.liverName || !form.month) {
+      toast.error(lang === "ja" ? "店舗/达人名と月は必須です" : "店铺/达人名和月份为必填项");
       return;
     }
-    onSave(form);
+    if (!isTalent && !form.brandName) {
+      toast.error(lang === "ja" ? "ブランド名は必須です" : "品牌名为必填项");
+      return;
+    }
+    // For talent, set brandName to liverName if empty
+    const submitData = { ...form };
+    if (isTalent && !submitData.brandName) {
+      submitData.brandName = submitData.liverName;
+    }
+    onSave(submitData);
   };
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-amber-400">
+          <DialogTitle className={isTalent ? "text-cyan-400" : "text-amber-400"}>
             {plan ? t.editPlan : t.addPlan}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
+          {/* Plan Type */}
+          <div>
+            <label className="text-xs text-gray-400">{t.planType}</label>
+            <div className="flex gap-2 mt-1">
+              <Button
+                size="sm"
+                variant={form.planType !== "talent" ? "default" : "outline"}
+                className={form.planType !== "talent"
+                  ? "bg-amber-600 hover:bg-amber-500 text-white"
+                  : "border-gray-600 text-gray-400 hover:text-white"
+                }
+                onClick={() => setForm({ ...form, planType: "shop" })}
+                disabled={!!plan}
+              >
+                <Store className="h-3 w-3 mr-1" />
+                {t.shop}
+              </Button>
+              <Button
+                size="sm"
+                variant={form.planType === "talent" ? "default" : "outline"}
+                className={form.planType === "talent"
+                  ? "bg-cyan-600 hover:bg-cyan-500 text-white"
+                  : "border-gray-600 text-gray-400 hover:text-white"
+                }
+                onClick={() => setForm({ ...form, planType: "talent", adType: "live", brandName: "", brandId: null })}
+                disabled={!!plan}
+              >
+                <UserCircle className="h-3 w-3 mr-1" />
+                {t.talent}
+              </Button>
+            </div>
+          </div>
+
           {/* Month */}
           <div>
             <label className="text-xs text-gray-400">{t.month}</label>
@@ -953,92 +1414,141 @@ function PlanDialog({ open, onClose, plan, t, lang, brands, livers, onSave, savi
             />
           </div>
 
-          {/* Liver */}
+          {/* Liver / Talent Name */}
           <div>
-            <label className="text-xs text-gray-400">{t.liverName}</label>
-            <Select
-              value={form.liverId ? String(form.liverId) : "manual"}
-              onValueChange={(v) => {
-                if (v === "manual") {
-                  setForm({ ...form, liverId: null });
-                } else {
-                  const liver = livers.find((l) => l.id === Number(v));
-                  if (liver) {
-                    setForm({ ...form, liverId: liver.id, liverName: liver.name });
-                  }
-                }
-              }}
-            >
-              <SelectTrigger className="bg-gray-800 border-gray-700">
-                <SelectValue placeholder={t.selectLiver} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="manual">{t.orInputManually}</SelectItem>
-                {livers.map((l) => (
-                  <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {(!form.liverId || form.liverId === null) && (
-              <Input
-                placeholder={t.liverName}
-                value={form.liverName || ""}
-                onChange={(e) => setForm({ ...form, liverName: e.target.value })}
-                className="mt-1 bg-gray-800 border-gray-700 text-white"
-              />
+            <label className="text-xs text-gray-400">{isTalent ? t.talentName : t.liverName}</label>
+            {isTalent ? (
+              <>
+                <Select
+                  value={form.liverId ? String(form.liverId) : "manual"}
+                  onValueChange={(v) => {
+                    if (v === "manual") {
+                      setForm({ ...form, liverId: null });
+                    } else {
+                      const liver = livers.find((l) => l.id === Number(v));
+                      if (liver) {
+                        setForm({ ...form, liverId: liver.id, liverName: liver.name });
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger className="bg-gray-800 border-gray-700">
+                    <SelectValue placeholder={t.selectLiver} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manual">{t.orInputManually}</SelectItem>
+                    {livers.map((l) => (
+                      <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {(!form.liverId || form.liverId === null) && (
+                  <Input
+                    placeholder={t.talentName}
+                    value={form.liverName || ""}
+                    onChange={(e) => setForm({ ...form, liverName: e.target.value })}
+                    className="mt-1 bg-gray-800 border-gray-700 text-white"
+                  />
+                )}
+              </>
+            ) : (
+              <>
+                <Select
+                  value={form.liverId ? String(form.liverId) : "manual"}
+                  onValueChange={(v) => {
+                    if (v === "manual") {
+                      setForm({ ...form, liverId: null });
+                    } else {
+                      const liver = livers.find((l) => l.id === Number(v));
+                      if (liver) {
+                        setForm({ ...form, liverId: liver.id, liverName: liver.name });
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger className="bg-gray-800 border-gray-700">
+                    <SelectValue placeholder={t.selectLiver} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manual">{t.orInputManually}</SelectItem>
+                    {livers.map((l) => (
+                      <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {(!form.liverId || form.liverId === null) && (
+                  <Input
+                    placeholder={t.liverName}
+                    value={form.liverName || ""}
+                    onChange={(e) => setForm({ ...form, liverName: e.target.value })}
+                    className="mt-1 bg-gray-800 border-gray-700 text-white"
+                  />
+                )}
+              </>
             )}
           </div>
 
-          {/* Brand */}
-          <div>
-            <label className="text-xs text-gray-400">{t.brandName}</label>
-            <Select
-              value={form.brandId ? String(form.brandId) : "manual"}
-              onValueChange={(v) => {
-                if (v === "manual") {
-                  setForm({ ...form, brandId: null });
-                } else {
-                  const brand = brands.find((b) => b.id === Number(v));
-                  if (brand) {
-                    setForm({ ...form, brandId: brand.id, brandName: brand.name });
+          {/* Brand (shop only) */}
+          {!isTalent && (
+            <div>
+              <label className="text-xs text-gray-400">{t.brandName}</label>
+              <Select
+                value={form.brandId ? String(form.brandId) : "manual"}
+                onValueChange={(v) => {
+                  if (v === "manual") {
+                    setForm({ ...form, brandId: null });
+                  } else {
+                    const brand = brands.find((b) => b.id === Number(v));
+                    if (brand) {
+                      setForm({ ...form, brandId: brand.id, brandName: brand.name });
+                    }
                   }
-                }
-              }}
-            >
-              <SelectTrigger className="bg-gray-800 border-gray-700">
-                <SelectValue placeholder={t.selectBrand} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="manual">{t.orInputManually}</SelectItem>
-                {brands.map((b) => (
-                  <SelectItem key={b.id} value={String(b.id)}>{b.name} ({b.nameJa})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {(!form.brandId || form.brandId === null) && (
-              <Input
-                placeholder={t.brandName}
-                value={form.brandName || ""}
-                onChange={(e) => setForm({ ...form, brandName: e.target.value })}
-                className="mt-1 bg-gray-800 border-gray-700 text-white"
-              />
-            )}
-          </div>
+                }}
+              >
+                <SelectTrigger className="bg-gray-800 border-gray-700">
+                  <SelectValue placeholder={t.selectBrand} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">{t.orInputManually}</SelectItem>
+                  {brands.map((b) => (
+                    <SelectItem key={b.id} value={String(b.id)}>{b.name} ({b.nameJa})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {(!form.brandId || form.brandId === null) && (
+                <Input
+                  placeholder={t.brandName}
+                  value={form.brandName || ""}
+                  onChange={(e) => setForm({ ...form, brandName: e.target.value })}
+                  className="mt-1 bg-gray-800 border-gray-700 text-white"
+                />
+              )}
+            </div>
+          )}
 
-          {/* Ad Type */}
-          <div>
-            <label className="text-xs text-gray-400">{t.adType}</label>
-            <Select value={form.adType || "mixed"} onValueChange={(v) => setForm({ ...form, adType: v })}>
-              <SelectTrigger className="bg-gray-800 border-gray-700">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="short_video">{t.shortVideo}</SelectItem>
-                <SelectItem value="live">{t.live}</SelectItem>
-                <SelectItem value="mixed">{t.mixed}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Ad Type (shop: short_video/live, talent: live only) */}
+          {!isTalent && (
+            <div>
+              <label className="text-xs text-gray-400">{t.adType}</label>
+              <Select value={form.adType || "live"} onValueChange={(v) => setForm({ ...form, adType: v })}>
+                <SelectTrigger className="bg-gray-800 border-gray-700">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="short_video">{t.shortVideo}</SelectItem>
+                  <SelectItem value="live">{t.live}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {isTalent && (
+            <div>
+              <label className="text-xs text-gray-400">{t.adType}</label>
+              <div className="mt-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-sm text-cyan-300">
+                {t.live}
+              </div>
+            </div>
+          )}
 
           {/* Budget & Spend */}
           <div className="grid grid-cols-2 gap-2">
@@ -1125,7 +1635,10 @@ function PlanDialog({ open, onClose, plan, t, lang, brands, livers, onSave, savi
             {t.cancel}
           </Button>
           <Button
-            className="bg-gradient-to-r from-amber-600 to-orange-600"
+            className={isTalent
+              ? "bg-gradient-to-r from-cyan-600 to-blue-600"
+              : "bg-gradient-to-r from-amber-600 to-orange-600"
+            }
             onClick={handleSubmit}
             disabled={saving}
           >
