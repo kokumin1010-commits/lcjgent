@@ -225,3 +225,28 @@ export async function getAitherhubSyncStatus(): Promise<any> {
     return { success: false, error: error.message || "Unknown error" };
   }
 }
+
+/**
+ * ブランドに紐付けられたAitherHubクリップ一覧を取得
+ */
+export async function getBrandClips(lcjBrandId: number, limit = 50, offset = 0): Promise<any> {
+  try {
+    const response = await fetch(
+      `${AITHERHUB_API_URL}/sync/brand/${lcjBrandId}/clips?limit=${limit}&offset=${offset}`,
+      {
+        method: "GET",
+        headers: {
+          "X-Sync-Secret": BRAND_SYNC_SECRET,
+        },
+        signal: AbortSignal.timeout(15000),
+      }
+    );
+    if (!response.ok) {
+      return { success: false, clips: [], total: 0, error: `HTTP ${response.status}` };
+    }
+    return await response.json();
+  } catch (error: any) {
+    console.error(`[AitherHub Brand Sync] Get clips error for brand #${lcjBrandId}:`, error.message || error);
+    return { success: false, clips: [], total: 0, error: error.message || "Unknown error" };
+  }
+}

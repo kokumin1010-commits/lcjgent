@@ -3345,6 +3345,9 @@ ${proposal.proposalContent}
           {/* Edit logs timeline */}
           <EditLogSection brandId={brand.id} language={language} noEditLogsText={t.noEditLogs} />
         </div>
+
+        {/* AitherHub Clips Section */}
+        <AitherHubClipsSection brandId={brand.id} brandName={brand.name} />
       </div>
 
       {/* Product Edit Dialog */}
@@ -8818,6 +8821,254 @@ ${proposal.proposalContent}
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+
+/* ═══════════ AitherHub Clips Section ═══════════ */
+function AitherHubClipsSection({ brandId, brandName }: { brandId: number; brandName: string }) {
+  const [previewClip, setPreviewClip] = useState<any>(null);
+
+  const { data: clipsData, isLoading } = trpc.aitherhubSync.brandClips.useQuery(
+    { brandId, limit: 50 },
+    { refetchOnWindowFocus: false }
+  );
+
+  const clips = clipsData?.clips || [];
+  const total = clipsData?.total || 0;
+  const portalUrl = clipsData?.portal_url;
+  const clientId = clipsData?.client_id;
+
+  if (isLoading) {
+    return (
+      <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-purple-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(139,92,246,0.1)]">
+        <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-3">
+          <div className="w-1 h-6 bg-gradient-to-b from-purple-400 to-pink-500 rounded-full" />
+          <Video className="h-5 w-5 text-purple-400" />
+          AitherHub Clips
+        </h2>
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-purple-400" />
+          <span className="ml-2 text-gray-400 text-sm">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!clientId) {
+    return (
+      <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-purple-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(139,92,246,0.1)]">
+        <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-3">
+          <div className="w-1 h-6 bg-gradient-to-b from-purple-400 to-pink-500 rounded-full" />
+          <Video className="h-5 w-5 text-purple-400" />
+          AitherHub Clips
+        </h2>
+        <div className="text-center py-8">
+          <p className="text-gray-500 text-sm">AitherHubにまだ同期されていません</p>
+          <p className="text-gray-600 text-xs mt-1">ブランドを保存するとAitherHubに自動同期されます</p>
+        </div>
+      </div>
+    );
+  }
+
+  const formatDuration = (sec: number | null) => {
+    if (!sec) return "--:--";
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
+
+  return (
+    <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-purple-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(139,92,246,0.1)]">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-bold text-white flex items-center gap-3">
+          <div className="w-1 h-6 bg-gradient-to-b from-purple-400 to-pink-500 rounded-full" />
+          <Video className="h-5 w-5 text-purple-400" />
+          AitherHub Clips
+          <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs">
+            {total}
+          </Badge>
+        </h2>
+        <div className="flex items-center gap-2">
+          {portalUrl && (
+            <a
+              href={portalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 text-purple-300 rounded-lg text-xs hover:bg-purple-600/30 transition-colors border border-purple-500/20"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              ポータルを開く
+            </a>
+          )}
+        </div>
+      </div>
+
+      {/* Clips Grid */}
+      {clips.length === 0 ? (
+        <div className="text-center py-8">
+          <Video className="h-10 w-10 text-gray-600 mx-auto mb-2" />
+          <p className="text-gray-500 text-sm">紐付けられたクリップはまだありません</p>
+          <p className="text-gray-600 text-xs mt-1">AitherHub管理画面からクリップを追加できます</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {clips.map((clip: any, i: number) => (
+            <AitherHubClipCard
+              key={clip.clip_id || i}
+              clip={clip}
+              index={i}
+              onPreview={() => setPreviewClip(clip)}
+              formatDuration={formatDuration}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Video Preview Modal */}
+      {previewClip && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+          onClick={() => setPreviewClip(null)}
+        >
+          <div className="relative max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setPreviewClip(null)}
+              className="absolute -top-10 right-0 text-white/80 hover:text-white text-sm flex items-center gap-1"
+            >
+              閉じる <X className="h-4 w-4" />
+            </button>
+            <div className="bg-black rounded-2xl overflow-hidden shadow-2xl" style={{ aspectRatio: "9/16" }}>
+              <video
+                src={previewClip.clip_url}
+                controls
+                autoPlay
+                playsInline
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <div className="mt-3 text-white">
+              <p className="font-semibold text-sm">
+                {previewClip.product_name || previewClip.liver_name || `Clip #${clips.indexOf(previewClip) + 1}`}
+              </p>
+              {previewClip.product_price && (
+                <p className="text-pink-400 font-bold text-sm mt-0.5">{previewClip.product_price}</p>
+              )}
+              {previewClip.transcript_text && (
+                <p className="text-white/60 text-xs mt-2 max-h-20 overflow-y-auto leading-relaxed">
+                  {previewClip.transcript_text}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════ AitherHub Clip Card ═══════════ */
+function AitherHubClipCard({
+  clip,
+  index,
+  onPreview,
+  formatDuration,
+}: {
+  clip: any;
+  index: number;
+  onPreview: () => void;
+  formatDuration: (sec: number | null) => string;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isHovering, setIsHovering] = useState(false);
+
+  const handleMouseEnter = () => {
+    setIsHovering(true);
+    if (videoRef.current && clip.clip_url) {
+      videoRef.current.currentTime = 0;
+      videoRef.current.play().catch(() => {});
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovering(false);
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
+  };
+
+  const title = clip.product_name || clip.liver_name || `Clip #${index + 1}`;
+
+  return (
+    <div
+      className="relative rounded-xl border border-gray-700/50 overflow-hidden bg-gray-900/50 cursor-pointer transition-all hover:shadow-lg hover:border-purple-500/30 group"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onClick={onPreview}
+    >
+      {/* Video area */}
+      <div className="relative w-full" style={{ aspectRatio: "9/16", maxHeight: "200px" }}>
+        {clip.clip_url ? (
+          <>
+            <video
+              ref={videoRef}
+              src={clip.clip_url}
+              muted
+              playsInline
+              loop
+              preload="metadata"
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ opacity: isHovering ? 1 : 0, transition: "opacity 0.3s" }}
+            />
+            <video
+              src={clip.clip_url}
+              muted
+              playsInline
+              preload="metadata"
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ opacity: isHovering ? 0 : 1, transition: "opacity 0.3s" }}
+              onLoadedData={(e) => { (e.target as HTMLVideoElement).currentTime = 0.5; }}
+            />
+            {!isHovering && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                <svg className="w-8 h-8 text-white/80 drop-shadow-lg" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="absolute inset-0 bg-gray-800 flex items-center justify-center">
+            <span className="text-xs text-gray-500">No video</span>
+          </div>
+        )}
+        {clip.duration_sec && (
+          <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
+            {formatDuration(clip.duration_sec)}
+          </div>
+        )}
+        {clip.is_active && (
+          <div className="absolute top-1 left-1 bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded font-medium">
+            配信中
+          </div>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="p-2">
+        <p className="text-xs font-medium text-gray-200 truncate" title={title}>{title}</p>
+        {clip.liver_name && clip.product_name && (
+          <p className="text-[10px] text-gray-500 truncate">{clip.liver_name}</p>
+        )}
+        {clip.transcript_text && (
+          <p className="text-[10px] text-gray-500 mt-0.5 truncate">
+            {clip.transcript_text.slice(0, 40)}...
+          </p>
+        )}
+      </div>
     </div>
   );
 }
