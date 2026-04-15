@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload, Package, Truck, ChevronDown, ChevronUp, CreditCard, Gift, X, Heart, MapPin, User, Pencil, Trash2, Star, Plus, Phone, Mail } from "lucide-react";
+import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload, Package, Truck, ChevronDown, ChevronUp, CreditCard, Gift, X, Heart, MapPin, User, Pencil, Trash2, Star, Plus, Phone, Mail, Image, Filter, Eye, BarChart3 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -25,6 +25,8 @@ export default function LineMypage() {
   const [cancelReason, setCancelReason] = useState("");
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [orderStatusFilter, setOrderStatusFilter] = useState<"all" | "active" | "shipped" | "delivered" | "cancelled">("all");
+  const [receiptStatusFilter, setReceiptStatusFilter] = useState<"all" | "approved" | "rejected" | "pending" | "on_hold">("all");
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [showBwPopup, setShowBwPopup] = useState(false);
   
   // Beauty Wallet popup - show once per session
@@ -82,6 +84,26 @@ export default function LineMypage() {
     if (orderStatusFilter === 'cancelled') return ['cancelled', 'refunded'].includes(order.status);
     return true;
   });
+
+  // レシートフィルタリング
+  const filteredReceipts = useMemo(() => {
+    if (!receipts) return [];
+    if (receiptStatusFilter === 'all') return receipts;
+    return receipts.filter((r: any) => r.status === receiptStatusFilter);
+  }, [receipts, receiptStatusFilter]);
+
+  // レシート統計
+  const receiptStats = useMemo(() => {
+    if (!receipts) return { total: 0, approved: 0, rejected: 0, pending: 0, onHold: 0, totalPoints: 0 };
+    const stats = { total: receipts.length, approved: 0, rejected: 0, pending: 0, onHold: 0, totalPoints: 0 };
+    receipts.forEach((r: any) => {
+      if (r.status === 'approved') { stats.approved++; stats.totalPoints += (r.pointsAwarded || 0); }
+      else if (r.status === 'rejected') stats.rejected++;
+      else if (r.status === 'pending') stats.pending++;
+      else if (r.status === 'on_hold') stats.onHold++;
+    });
+    return stats;
+  }, [receipts]);
 
   // 配送業者の追跡URLを生成
   const getTrackingUrl = (carrier: string, trackingNumber: string): string | null => {
@@ -1097,7 +1119,6 @@ export default function LineMypage() {
                   <Button
                     className="w-full bg-rose-500 hover:bg-rose-600 text-white"
                     onClick={() => {
-                      // セッショントークンをURLパラメータに付与して外部ブラウザでも認証を引き継ぐ
                       const token = localStorage.getItem('lcj_session_token');
                       if (token) {
                         setLocation(`/receipt-upload?token=${encodeURIComponent(token)}`);
@@ -1118,22 +1139,128 @@ export default function LineMypage() {
               </CardContent>
             </Card>
 
-            {/* 既存の申請履歴 */}
+            {/* 申請統計サマリー */}
+            {!receiptsLoading && receipts && receipts.length > 0 && (
+              <Card className="mb-4">
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <BarChart3 className="h-4 w-4 text-rose-500" />
+                    <span className="text-sm font-semibold text-gray-700">申請サマリー</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-gray-50 rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-gray-900">{receiptStats.total}</p>
+                      <p className="text-xs text-muted-foreground">総申請数</p>
+                    </div>
+                    <div className="bg-green-50 rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-green-600">{receiptStats.approved}</p>
+                      <p className="text-xs text-muted-foreground">承認済み</p>
+                    </div>
+                    <div className="bg-red-50 rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-red-500">{receiptStats.rejected}</p>
+                      <p className="text-xs text-muted-foreground">却下</p>
+                    </div>
+                    <div className="bg-rose-50 rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-rose-500">{receiptStats.totalPoints.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">獲得ポイント合計</p>
+                    </div>
+                  </div>
+                  {(receiptStats.pending > 0 || receiptStats.onHold > 0) && (
+                    <div className="flex gap-3 mt-3">
+                      {receiptStats.pending > 0 && (
+                        <div className="flex items-center gap-1 text-xs text-yellow-700 bg-yellow-50 rounded-full px-3 py-1">
+                          <Clock className="h-3 w-3" />
+                          審査中: {receiptStats.pending}件
+                        </div>
+                      )}
+                      {receiptStats.onHold > 0 && (
+                        <div className="flex items-center gap-1 text-xs text-orange-700 bg-orange-50 rounded-full px-3 py-1">
+                          <AlertCircle className="h-3 w-3" />
+                          保留中: {receiptStats.onHold}件
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 申請履歴 */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">レシート申請履歴</CardTitle>
-                <CardDescription>過去のレシート申請状況</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">申請記録</CardTitle>
+                    <CardDescription>すべてのレシート申請履歴</CardDescription>
+                  </div>
+                </div>
+                {/* ステータスフィルター */}
+                {receipts && receipts.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <Button
+                      variant={receiptStatusFilter === "all" ? "default" : "outline"}
+                      size="sm"
+                      className={`text-xs h-7 ${receiptStatusFilter === "all" ? "bg-rose-500 hover:bg-rose-600" : ""}`}
+                      onClick={() => setReceiptStatusFilter("all")}
+                    >
+                      すべて ({receiptStats.total})
+                    </Button>
+                    <Button
+                      variant={receiptStatusFilter === "approved" ? "default" : "outline"}
+                      size="sm"
+                      className={`text-xs h-7 ${receiptStatusFilter === "approved" ? "bg-green-500 hover:bg-green-600" : ""}`}
+                      onClick={() => setReceiptStatusFilter("approved")}
+                    >
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      承認 ({receiptStats.approved})
+                    </Button>
+                    <Button
+                      variant={receiptStatusFilter === "rejected" ? "default" : "outline"}
+                      size="sm"
+                      className={`text-xs h-7 ${receiptStatusFilter === "rejected" ? "bg-red-500 hover:bg-red-600" : ""}`}
+                      onClick={() => setReceiptStatusFilter("rejected")}
+                    >
+                      <XCircle className="h-3 w-3 mr-1" />
+                      却下 ({receiptStats.rejected})
+                    </Button>
+                    {receiptStats.pending > 0 && (
+                      <Button
+                        variant={receiptStatusFilter === "pending" ? "default" : "outline"}
+                        size="sm"
+                        className={`text-xs h-7 ${receiptStatusFilter === "pending" ? "bg-yellow-500 hover:bg-yellow-600" : ""}`}
+                        onClick={() => setReceiptStatusFilter("pending")}
+                      >
+                        <Clock className="h-3 w-3 mr-1" />
+                        審査中 ({receiptStats.pending})
+                      </Button>
+                    )}
+                    {receiptStats.onHold > 0 && (
+                      <Button
+                        variant={receiptStatusFilter === "on_hold" ? "default" : "outline"}
+                        size="sm"
+                        className={`text-xs h-7 ${receiptStatusFilter === "on_hold" ? "bg-orange-500 hover:bg-orange-600" : ""}`}
+                        onClick={() => setReceiptStatusFilter("on_hold")}
+                      >
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        保留 ({receiptStats.onHold})
+                      </Button>
+                    )}
+                  </div>
+                )}
               </CardHeader>
               <CardContent>
                 {receiptsLoading ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin" />
                   </div>
-                ) : receipts && receipts.length > 0 ? (
+                ) : filteredReceipts.length > 0 ? (
                   <div className="space-y-4">
-                    {receipts.map((receipt: any) => {
+                    {filteredReceipts.map((receipt: any) => {
                       const rejectionReason = receipt.reviewNote || receipt.aiRejectionReason;
                       const isRejected = receipt.status === "rejected";
+                      const isApproved = receipt.status === "approved";
+                      const isPending = receipt.status === "pending";
+                      const isOnHold = receipt.status === "on_hold";
                       // 独立カラム優先、フォールバックでocrRawTextからorderNumberを抽出
                       let orderNumber: string | null = receipt.orderNumber || null;
                       if (!orderNumber) {
@@ -1144,32 +1271,101 @@ export default function LineMypage() {
                           }
                         } catch { /* ignore parse errors */ }
                       }
+                      // レシート画像URL
+                      const imageUrl = receipt.imageUrl;
+                      
                       return (
-                      <div key={receipt.id} className={`border rounded-lg p-4 ${isRejected ? "border-red-200 bg-red-50/30" : ""}`}>
+                      <div key={receipt.id} className={`border rounded-lg p-4 transition-all ${
+                        isRejected ? "border-red-200 bg-red-50/30" : 
+                        isApproved ? "border-green-200 bg-green-50/20" :
+                        isPending ? "border-yellow-200 bg-yellow-50/20" :
+                        isOnHold ? "border-orange-200 bg-orange-50/20" : ""
+                      }`}>
                         <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <p className="font-medium">{receipt.storeName || "店舗名未確認"}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {format(new Date(receipt.submittedAt), "yyyy/MM/dd HH:mm", { locale: ja })}
-                            </p>
-                            {orderNumber && (
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                注文番号: <span className="font-mono">{orderNumber}</span>
-                              </p>
+                          <div className="flex gap-3">
+                            {/* レシート画像サムネイル */}
+                            {imageUrl && (
+                              <button
+                                className="flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border border-gray-200 hover:border-rose-300 transition-colors cursor-pointer bg-gray-50"
+                                onClick={() => setPreviewImageUrl(imageUrl)}
+                                title="画像を拡大表示"
+                              >
+                                <img src={imageUrl} alt="レシート" className="w-full h-full object-cover" loading="lazy" />
+                              </button>
                             )}
+                            <div>
+                              <p className="font-medium text-gray-900">{receipt.storeName || "店舗名未確認"}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {format(new Date(receipt.submittedAt), "yyyy/MM/dd HH:mm", { locale: ja })}
+                              </p>
+                              {orderNumber && (
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  注文番号: <span className="font-mono text-gray-600">{orderNumber}</span>
+                                </p>
+                              )}
+                            </div>
                           </div>
                           {getStatusBadge(receipt.status)}
                         </div>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="grid grid-cols-2 gap-2 text-sm mt-2">
                           <div>
                             <span className="text-muted-foreground">購入金額: </span>
                             <span className="font-medium">¥{receipt.purchaseAmount?.toLocaleString() || receipt.totalAmount?.toLocaleString() || "-"}</span>
                           </div>
                           <div>
                             <span className="text-muted-foreground">獲得ポイント: </span>
-                            <span className="font-medium text-rose-500">{receipt.pointsAwarded?.toLocaleString() || "-"} pt</span>
+                            {isApproved ? (
+                              <span className="font-bold text-green-600">+{receipt.pointsAwarded?.toLocaleString() || "0"} pt</span>
+                            ) : isPending ? (
+                              <span className="text-yellow-600">審査中...</span>
+                            ) : isOnHold ? (
+                              <span className="text-orange-600">保留中</span>
+                            ) : (
+                              <span className="text-gray-400">- pt</span>
+                            )}
                           </div>
                         </div>
+                        
+                        {/* 承認済みの場合 - ポイント付与情報 */}
+                        {isApproved && receipt.pointsAwarded && (
+                          <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-green-700">
+                                  {receipt.pointsAwarded.toLocaleString()} ポイント付与済み
+                                </p>
+                                {receipt.reviewedAt && (
+                                  <p className="text-xs text-green-600 mt-0.5">
+                                    承認日: {format(new Date(receipt.reviewedAt), "yyyy/MM/dd HH:mm", { locale: ja })}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 審査中の場合 */}
+                        {isPending && (
+                          <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4 text-yellow-500 flex-shrink-0 animate-pulse" />
+                              <p className="text-sm text-yellow-700">AIが審査中です。しばらくお待ちください。</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 保留中の場合 */}
+                        {isOnHold && (
+                          <div className="mt-3 bg-orange-50 border border-orange-200 rounded-lg p-3">
+                            <div className="flex items-center gap-2">
+                              <AlertCircle className="h-4 w-4 text-orange-500 flex-shrink-0" />
+                              <p className="text-sm text-orange-700">管理者による確認を待っています。</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 却下の場合 - 理由表示 */}
                         {isRejected && rejectionReason && (
                           <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
                             <div className="flex items-start gap-2">
@@ -1210,6 +1406,14 @@ export default function LineMypage() {
                       );
                     })}
                   </div>
+                ) : receipts && receipts.length > 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Filter className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>該当する申請がありません</p>
+                    <Button variant="link" className="text-rose-500 mt-2" onClick={() => setReceiptStatusFilter("all")}>
+                      すべて表示する
+                    </Button>
+                  </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <Receipt className="h-12 w-12 mx-auto mb-2 opacity-50" />
@@ -1219,6 +1423,19 @@ export default function LineMypage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* レシート画像プレビューダイアログ */}
+            <Dialog open={!!previewImageUrl} onOpenChange={() => setPreviewImageUrl(null)}>
+              <DialogContent className="max-w-lg p-2">
+                <DialogHeader className="sr-only">
+                  <DialogTitle>レシート画像</DialogTitle>
+                  <DialogDescription>申請したレシートの画像プレビュー</DialogDescription>
+                </DialogHeader>
+                {previewImageUrl && (
+                  <img src={previewImageUrl} alt="レシート画像" className="w-full rounded-lg" />
+                )}
+              </DialogContent>
+            </Dialog>
           </TabsContent>
         </Tabs>
 
