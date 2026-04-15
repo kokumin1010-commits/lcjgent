@@ -25,12 +25,10 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   BarChart3,
-  Grid3X3,
   Plus,
   DollarSign,
   TrendingUp,
   Target,
-  Users,
   Zap,
   AlertTriangle,
   CheckCircle2,
@@ -38,10 +36,7 @@ import {
   Trash2,
   Edit2,
   Save,
-  Upload,
-  RefreshCw,
   Activity,
-  Eye,
   Megaphone,
   Store,
   UserCircle,
@@ -56,63 +51,52 @@ const translations = {
     title: "広告司令塔",
     subtitle: "広告運用の全体最適化",
     tabDashboard: "ダッシュボード",
-    tabMatrix: "店舗マトリクス",
     tabCampaign: "キャンペーン管理",
     totalBudget: "総広告予算",
-    totalSpend: "実際消費額",
-    spendRate: "消費率",
+    totalSpend: "実際消耗",
+    spendRate: "消耗率",
     totalGmv: "広告GMV",
     totalTargetGmv: "目標GMV合計",
     overallRoi: "全体ROI",
-    activeLivers: "アクティブ店舗",
-    activeBrands: "アクティブブランド",
     planCount: "計画数",
     month: "月",
-    allMonths: "全期間",
+    allMonths: "全部",
     adType: "広告タイプ",
-    allTypes: "すべて",
+    allTypes: "全部",
     shortVideo: "短视频",
     live: "直播",
-    liver: "店舗",
-    brand: "ブランド",
+    shop: "店舗",
+    talent: "达人",
     budget: "予算",
-    actualSpend: "消費",
+    actualSpend: "消耗",
     targetGmv: "目標GMV",
     targetRoi: "目標ROI",
     actualGmv: "実績GMV",
     actualRoi: "実績ROI",
     total: "合計",
-    noData: "データがありません",
-    addPlan: "計画を追加",
-    editPlan: "計画を編集",
+    noData: "データなし",
+    addPlan: "計画追加",
+    editPlan: "計画編集",
     deletePlan: "削除",
     save: "保存",
     cancel: "キャンセル",
     confirm: "確認",
     deleteConfirm: "この計画を削除しますか？",
-    notes: "メモ",
-    impressions: "インプレッション",
-    clicks: "クリック",
-    conversions: "コンバージョン",
-    importData: "データインポート",
+    notes: "備考",
     alerts: "アラート",
-    alertLowSpend: "消費率が低い（予算に余裕あり）",
-    alertHighRoi: "ROIが目標を大幅に超過（予算増額の余地あり）",
+    alertLowSpend: "消耗率低（予算余り）",
+    alertHighRoi: "ROI大幅超過（予算増加可能）",
     alertLowRoi: "ROIが目標未達",
     alertInactive: "未稼働",
     back: "戻る",
-    liverName: "店舗名",
-    brandName: "ブランド名",
-    selectLiver: "店舗を選択",
-    selectBrand: "ブランドを選択",
-    orInputManually: "または手動入力",
+    shopName: "店舗名",
+    planName: "計画名",
     shopDimension: "店舗維度（品牌方予算）",
     talentDimension: "达人維度（LCJ自社予算）",
     planType: "計画タイプ",
-    shop: "店舗",
-    talent: "达人",
     gmvAchievement: "GMV達成率",
-    talentName: "主播名",
+    talentName: "达人名",
+    streamerName: "主播名",
     shopPlans: "店舗計画",
     talentPlans: "达人計画",
     totalTalentBudget: "达人総予算",
@@ -123,12 +107,16 @@ const translations = {
     talentSummary: "达人サマリー",
     avgRoi: "平均ROI",
     liveOnly: "直播のみ",
+    status: "ステータス",
+    active: "稼働中",
+    paused: "一時停止",
+    ended: "終了",
+    productName: "商品名",
   },
   zh: {
     title: "广告司令塔",
     subtitle: "广告运营全局优化",
     tabDashboard: "仪表盘",
-    tabMatrix: "店铺矩阵",
     tabCampaign: "活动管理",
     totalBudget: "总广告预算",
     totalSpend: "实际消耗",
@@ -136,8 +124,6 @@ const translations = {
     totalGmv: "广告GMV",
     totalTargetGmv: "目标GMV合计",
     overallRoi: "整体ROI",
-    activeLivers: "活跃店铺",
-    activeBrands: "活跃品牌",
     planCount: "计划数",
     month: "月份",
     allMonths: "全部",
@@ -145,8 +131,8 @@ const translations = {
     allTypes: "全部",
     shortVideo: "短视频",
     live: "直播",
-    liver: "店铺",
-    brand: "品牌",
+    shop: "店铺",
+    talent: "达人",
     budget: "预算",
     actualSpend: "消耗",
     targetGmv: "目标GMV",
@@ -163,28 +149,20 @@ const translations = {
     confirm: "确认",
     deleteConfirm: "确定要删除这个计划吗？",
     notes: "备注",
-    impressions: "曝光量",
-    clicks: "点击量",
-    conversions: "转化量",
-    importData: "导入数据",
     alerts: "警报",
     alertLowSpend: "消耗率低（预算有余）",
     alertHighRoi: "ROI大幅超过目标（可增加预算）",
     alertLowRoi: "ROI未达标",
     alertInactive: "未启动",
     back: "返回",
-    liverName: "店铺名",
-    brandName: "品牌名",
-    selectLiver: "选择店铺",
-    selectBrand: "选择品牌",
-    orInputManually: "或手动输入",
+    shopName: "店铺名",
+    planName: "计划名",
     shopDimension: "店铺维度（品牌方预算）",
     talentDimension: "达人维度（LCJ自有预算）",
     planType: "计划类型",
-    shop: "店铺",
-    talent: "达人",
     gmvAchievement: "GMV达成率",
-    talentName: "主播名",
+    talentName: "达人名",
+    streamerName: "主播名",
     shopPlans: "店铺计划",
     talentPlans: "达人计划",
     totalTalentBudget: "达人总预算",
@@ -195,6 +173,11 @@ const translations = {
     talentSummary: "达人汇总",
     avgRoi: "平均ROI",
     liveOnly: "仅直播",
+    status: "状态",
+    active: "生效中",
+    paused: "已暂停",
+    ended: "已结束",
+    productName: "商品名",
   },
 };
 
@@ -203,12 +186,6 @@ function formatCurrency(value: number): string {
   if (value >= 100000000) return `¥${(value / 100000000).toFixed(1)}億`;
   if (value >= 10000) return `¥${(value / 10000).toFixed(0)}万`;
   return `¥${value.toLocaleString()}`;
-}
-
-function formatCompact(value: number): string {
-  if (value >= 100000000) return `${(value / 100000000).toFixed(1)}億`;
-  if (value >= 10000) return `${(value / 10000).toFixed(0)}万`;
-  return value.toLocaleString();
 }
 
 function getRoiColor(actualRoi: number, targetRoi: number): string {
@@ -220,19 +197,10 @@ function getRoiColor(actualRoi: number, targetRoi: number): string {
   return "text-red-400";
 }
 
-function getRoiBgColor(actualRoi: number, targetRoi: number): string {
-  if (targetRoi <= 0) return "bg-gray-900/50";
-  const ratio = actualRoi / targetRoi;
-  if (ratio >= 1.5) return "bg-emerald-900/30 border-emerald-700/50";
-  if (ratio >= 1.0) return "bg-green-900/30 border-green-700/50";
-  if (ratio >= 0.7) return "bg-yellow-900/30 border-yellow-700/50";
-  return "bg-red-900/30 border-red-700/50";
-}
-
 function getSpendRateColor(rate: number): string {
-  if (rate >= 0.8) return "bg-green-500";
-  if (rate >= 0.5) return "bg-yellow-500";
-  if (rate >= 0.2) return "bg-orange-500";
+  if (rate >= 80) return "bg-green-500";
+  if (rate >= 50) return "bg-yellow-500";
+  if (rate >= 20) return "bg-orange-500";
   return "bg-red-500";
 }
 
@@ -253,10 +221,21 @@ function getGmvAchievementBgColor(rate: number): string {
 // ===== メインコンポーネント =====
 export default function AdDashboard() {
   const { language } = useLanguage();
-  const lang = language === "zh-TW" || language === "zh" ? "zh" : "ja";
+  const lang = language === "zh" ? "zh" : "ja";
   const t = translations[lang];
 
-  const [selectedMonth, setSelectedMonth] = useState<string>("");
+  // Generate month options (current month + past 5 months)
+  const monthOptions = useMemo(() => {
+    const months: string[] = [];
+    const now = new Date();
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    }
+    return months;
+  }, []);
+
+  const [selectedMonth, setSelectedMonth] = useState<string>(monthOptions[0] || "");
   const [selectedAdType, setSelectedAdType] = useState<string>("all");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -264,110 +243,105 @@ export default function AdDashboard() {
   const [defaultPlanType, setDefaultPlanType] = useState<"shop" | "talent">("shop");
   const [expandedTalents, setExpandedTalents] = useState<Set<string>>(new Set());
 
-  // Data queries
-  const { data: availableMonths } = trpc.adDashboard.getAvailableMonths.useQuery();
-  const { data: summary, isLoading: summaryLoading } = trpc.adDashboard.getMonthlySummary.useQuery(
-    selectedMonth ? { month: selectedMonth } : undefined
-  );
-  const { data: matrixData, isLoading: matrixLoading } = trpc.adDashboard.getMatrixData.useQuery({
+  // Data queries - using tiktokAdPlanner router
+  const { data: shopPlansRaw, isLoading: shopLoading, refetch: refetchShop } = trpc.tiktokAdPlanner.getPlans.useQuery({
+    planType: "shop",
     month: selectedMonth || undefined,
-    adType: selectedAdType as any,
+    adType: selectedAdType !== "all" ? (selectedAdType as "video" | "live") : undefined,
   });
-  const { data: monthlyPlans, isLoading: plansLoading, refetch: refetchPlans } = trpc.adDashboard.getMonthlyPlans.useQuery(
-    selectedMonth ? { month: selectedMonth } : undefined
-  );
-  const { data: brandsDropdown } = trpc.adDashboard.getBrandsForDropdown.useQuery();
-  const { data: liversDropdown } = trpc.adDashboard.getLiversForDropdown.useQuery();
 
-  const createPlan = trpc.adDashboard.createMonthlyPlan.useMutation({
+  const { data: talentPlansRaw, isLoading: talentLoading, refetch: refetchTalent } = trpc.tiktokAdPlanner.getPlans.useQuery({
+    planType: "talent",
+    month: selectedMonth || undefined,
+  });
+
+  const { data: monthlySummary, isLoading: summaryLoading } = trpc.tiktokAdPlanner.getMonthlySummary.useQuery(
+    { month: selectedMonth },
+    { enabled: !!selectedMonth }
+  );
+
+  const shopPlans = shopPlansRaw || [];
+  const talentPlans = talentPlansRaw || [];
+
+  const refetchAll = () => { refetchShop(); refetchTalent(); };
+
+  const createPlan = trpc.tiktokAdPlanner.createPlan.useMutation({
     onSuccess: () => {
       toast.success(lang === "ja" ? "計画を追加しました" : "计划已添加");
       setShowAddDialog(false);
-      refetchPlans();
+      refetchAll();
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const updatePlan = trpc.adDashboard.updateMonthlyPlan.useMutation({
+  const updatePlan = trpc.tiktokAdPlanner.updatePlan.useMutation({
     onSuccess: () => {
       toast.success(lang === "ja" ? "更新しました" : "已更新");
       setEditingPlan(null);
-      refetchPlans();
+      refetchAll();
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const deletePlan = trpc.adDashboard.deleteMonthlyPlan.useMutation({
+  const deletePlan = trpc.tiktokAdPlanner.deletePlan.useMutation({
     onSuccess: () => {
       toast.success(lang === "ja" ? "削除しました" : "已删除");
-      refetchPlans();
+      refetchAll();
     },
     onError: (e) => toast.error(e.message),
   });
 
-  // Split plans by planType + filter by adType
-  const { shopPlans, talentPlans, talentGrouped, shopSummary, talentSummary } = useMemo(() => {
-    if (!monthlyPlans) return { shopPlans: [], talentPlans: [], talentGrouped: {} as Record<string, any[]>, shopSummary: null, talentSummary: null };
-    
-    let shop = monthlyPlans.filter((p: any) => p.planType !== "talent");
-    let talent = monthlyPlans.filter((p: any) => p.planType === "talent");
+  // Compute summaries from plan data
+  const { shopSummary, talentSummary, talentGrouped } = useMemo(() => {
+    // Shop summary
+    const sBudget = shopPlans.reduce((s: number, p: any) => s + (p.budget ?? 0), 0);
+    const sSpent = shopPlans.reduce((s: number, p: any) => s + (p.spent ?? 0), 0);
+    const sTargetGmv = shopPlans.reduce((s: number, p: any) => s + (p.targetGmv ?? 0), 0);
+    const sActualGmv = shopPlans.reduce((s: number, p: any) => s + (p.actualGmv ?? 0), 0);
+    const sRoi = sSpent > 0 ? sActualGmv / sSpent : 0;
 
-    // Apply adType filter for shop plans only (talent is always live)
-    if (selectedAdType !== "all") {
-      shop = shop.filter((p: any) => p.adType === selectedAdType);
-    }
-    
-    // Group talent plans by liverName (主播名)
+    // Talent summary
+    const tBudget = talentPlans.reduce((s: number, p: any) => s + (p.budget ?? 0), 0);
+    const tSpent = talentPlans.reduce((s: number, p: any) => s + (p.spent ?? 0), 0);
+    const tTargetGmv = talentPlans.reduce((s: number, p: any) => s + (p.targetGmv ?? 0), 0);
+    const tActualGmv = talentPlans.reduce((s: number, p: any) => s + (p.actualGmv ?? 0), 0);
+    const tRoi = tSpent > 0 ? tActualGmv / tSpent : 0;
+
+    // Group talent plans by talentName
     const grouped: Record<string, any[]> = {};
-    for (const p of talent) {
-      const key = p.liverName || "Unknown";
+    for (const p of talentPlans) {
+      const key = p.talentName || p.streamerName || "Unknown";
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(p);
     }
 
-    // Shop summary
-    const shopBudget = shop.reduce((s: number, p: any) => s + (p.budget ?? 0), 0);
-    const shopSpend = shop.reduce((s: number, p: any) => s + (p.actualSpend ?? 0), 0);
-    const shopTargetGmv = shop.reduce((s: number, p: any) => s + (p.targetGmv ?? 0), 0);
-    const shopActualGmv = shop.reduce((s: number, p: any) => s + (p.actualGmv ?? 0), 0);
-    const shopRoi = shopSpend > 0 ? shopActualGmv / shopSpend : 0;
-
-    // Talent summary
-    const talBudget = talent.reduce((s: number, p: any) => s + (p.budget ?? 0), 0);
-    const talSpend = talent.reduce((s: number, p: any) => s + (p.actualSpend ?? 0), 0);
-    const talTargetGmv = talent.reduce((s: number, p: any) => s + (p.targetGmv ?? 0), 0);
-    const talActualGmv = talent.reduce((s: number, p: any) => s + (p.actualGmv ?? 0), 0);
-    const talRoi = talSpend > 0 ? talActualGmv / talSpend : 0;
-    
     return {
-      shopPlans: shop,
-      talentPlans: talent,
+      shopSummary: { budget: sBudget, spent: sSpent, targetGmv: sTargetGmv, actualGmv: sActualGmv, roi: sRoi, count: shopPlans.length },
+      talentSummary: { budget: tBudget, spent: tSpent, targetGmv: tTargetGmv, actualGmv: tActualGmv, roi: tRoi, count: talentPlans.length },
       talentGrouped: grouped,
-      shopSummary: { budget: shopBudget, spend: shopSpend, targetGmv: shopTargetGmv, actualGmv: shopActualGmv, roi: shopRoi, count: shop.length },
-      talentSummary: { budget: talBudget, spend: talSpend, targetGmv: talTargetGmv, actualGmv: talActualGmv, roi: talRoi, count: talent.length },
     };
-  }, [monthlyPlans, selectedAdType]);
+  }, [shopPlans, talentPlans]);
 
   // Generate alerts
   const alerts = useMemo(() => {
-    if (!monthlyPlans) return [];
+    const allPlans = [...shopPlans, ...talentPlans];
     const result: { type: string; message: string; severity: "warning" | "info" | "danger" }[] = [];
-    
-    for (const plan of monthlyPlans) {
-      const spendRate = parseFloat(plan.spendRate || "0");
-      const actualRoi = parseFloat(plan.actualRoi || "0");
-      const targetRoi = parseFloat(plan.targetRoi || "0");
+
+    for (const plan of allPlans) {
+      const spentRate = Number(plan.spentRate) || 0;
+      const actualRoi = Number(plan.actualRoi) || 0;
+      const targetRoi = Number(plan.targetRoi) || 0;
       const budget = plan.budget ?? 0;
-      const actualSpend = plan.actualSpend ?? 0;
+      const spent = plan.spent ?? 0;
       const targetGmv = plan.targetGmv ?? 0;
       const actualGmv = plan.actualGmv ?? 0;
       const isTalent = plan.planType === "talent";
-      const planLabel = isTalent ? plan.liverName : `${plan.liverName}`;
+      const planLabel = isTalent ? (plan.talentName || plan.streamerName) : plan.shopName;
 
-      if (budget > 0 && actualSpend === 0) {
+      if (budget > 0 && spent === 0) {
         result.push({ type: "inactive", message: `${planLabel}: ${t.alertInactive}`, severity: "warning" });
-      } else if (spendRate > 0 && spendRate < 0.3 && budget > 0) {
-        result.push({ type: "lowSpend", message: `${planLabel}: ${t.alertLowSpend} (${(spendRate * 100).toFixed(0)}%)`, severity: "info" });
+      } else if (spentRate > 0 && spentRate < 30 && budget > 0) {
+        result.push({ type: "lowSpend", message: `${planLabel}: ${t.alertLowSpend} (${spentRate.toFixed(0)}%)`, severity: "info" });
       }
 
       if (targetRoi > 0 && actualRoi > 0) {
@@ -383,7 +357,7 @@ export default function AdDashboard() {
       }
     }
     return result;
-  }, [monthlyPlans, t, lang]);
+  }, [shopPlans, talentPlans, t, lang]);
 
   const toggleTalent = (name: string) => {
     setExpandedTalents((prev) => {
@@ -402,6 +376,15 @@ export default function AdDashboard() {
       setExpandedTalents(new Set(allNames));
     }
   };
+
+  const totalBudget = (shopSummary?.budget ?? 0) + (talentSummary?.budget ?? 0);
+  const totalSpent = (shopSummary?.spent ?? 0) + (talentSummary?.spent ?? 0);
+  const totalTargetGmv = (shopSummary?.targetGmv ?? 0) + (talentSummary?.targetGmv ?? 0);
+  const totalActualGmv = (shopSummary?.actualGmv ?? 0) + (talentSummary?.actualGmv ?? 0);
+  const overallRoi = totalSpent > 0 ? totalActualGmv / totalSpent : 0;
+  const overallSpendRate = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
+  const overallGmvRate = totalTargetGmv > 0 ? totalActualGmv / totalTargetGmv : 0;
+  const isLoading = shopLoading || talentLoading;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-white">
@@ -436,21 +419,20 @@ export default function AdDashboard() {
                   <SelectValue placeholder={t.allMonths} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">{t.allMonths}</SelectItem>
-                  {availableMonths?.map((m) => (
+                  {monthOptions.map((m) => (
                     <SelectItem key={m} value={m}>{m}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
-              {/* Ad type filter - NO "mixed" option */}
+              {/* Ad type filter - NO "mixed" option, only 全部/短视频/直播 */}
               <Select value={selectedAdType} onValueChange={setSelectedAdType}>
                 <SelectTrigger className="w-[120px] bg-gray-800/50 border-gray-700 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t.allTypes}</SelectItem>
-                  <SelectItem value="short_video">{t.shortVideo}</SelectItem>
+                  <SelectItem value="video">{t.shortVideo}</SelectItem>
                   <SelectItem value="live">{t.live}</SelectItem>
                 </SelectContent>
               </Select>
@@ -478,18 +460,9 @@ export default function AdDashboard() {
             >
               <BarChart3 className="h-4 w-4 mr-1.5" />
               {t.tabDashboard}
-              {monthlyPlans && (
-                <Badge variant="outline" className="ml-1.5 text-[9px] px-1 py-0 border-current opacity-70">
-                  {monthlyPlans.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger
-              value="matrix"
-              className="text-gray-200 data-[state=inactive]:text-gray-300 data-[state=active]:bg-amber-600/20 data-[state=active]:text-amber-400 data-[state=active]:shadow-sm transition-all"
-            >
-              <Grid3X3 className="h-4 w-4 mr-1.5" />
-              {t.tabMatrix}
+              <Badge variant="outline" className="ml-1.5 text-[9px] px-1 py-0 border-current opacity-70">
+                {shopPlans.length + talentPlans.length}
+              </Badge>
             </TabsTrigger>
             <TabsTrigger
               value="campaign"
@@ -502,58 +475,51 @@ export default function AdDashboard() {
 
           {/* ===== Tab 1: Dashboard ===== */}
           <TabsContent value="dashboard" className="mt-4 space-y-4">
-            {/* KPI Cards - Split by shop/talent */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
               <KpiCard
                 icon={<DollarSign className="h-4 w-4" />}
                 label={t.totalBudget}
-                value={formatCurrency(summary?.totalBudget ?? 0)}
+                value={formatCurrency(totalBudget)}
                 color="amber"
-                loading={summaryLoading}
+                loading={isLoading}
               />
               <KpiCard
                 icon={<Activity className="h-4 w-4" />}
                 label={t.totalSpend}
-                value={formatCurrency(summary?.totalSpend ?? 0)}
-                sub={`${t.spendRate}: ${((summary?.overallSpendRate ?? 0) * 100).toFixed(1)}%`}
+                value={formatCurrency(totalSpent)}
+                sub={`${t.spendRate}: ${overallSpendRate.toFixed(1)}%`}
                 color="orange"
-                loading={summaryLoading}
+                loading={isLoading}
               />
               <KpiCard
                 icon={<Target className="h-4 w-4" />}
                 label={t.totalTargetGmv}
-                value={formatCurrency((shopSummary?.targetGmv ?? 0) + (talentSummary?.targetGmv ?? 0))}
+                value={formatCurrency(totalTargetGmv)}
                 color="blue"
-                loading={summaryLoading}
+                loading={isLoading}
               />
               <KpiCard
                 icon={<TrendingUp className="h-4 w-4" />}
                 label={t.totalGmv}
-                value={formatCurrency(summary?.totalActualGmv ?? 0)}
-                sub={`${t.gmvAchievement}: ${(((shopSummary?.targetGmv ?? 0) + (talentSummary?.targetGmv ?? 0)) > 0 ? (((summary?.totalActualGmv ?? 0) / ((shopSummary?.targetGmv ?? 0) + (talentSummary?.targetGmv ?? 0))) * 100).toFixed(0) : "0")}%`}
+                value={formatCurrency(totalActualGmv)}
+                sub={`${t.gmvAchievement}: ${(overallGmvRate * 100).toFixed(0)}%`}
                 color="green"
-                loading={summaryLoading}
+                loading={isLoading}
               />
               <KpiCard
                 icon={<Zap className="h-4 w-4" />}
                 label={t.overallRoi}
-                value={(summary?.overallRoi ?? 0).toFixed(2)}
+                value={overallRoi.toFixed(2)}
                 color="cyan"
-                loading={summaryLoading}
+                loading={isLoading}
               />
               <KpiCard
                 icon={<Store className="h-4 w-4" />}
-                label={t.activeLivers}
-                value={String(summary?.activeLiverCount ?? 0)}
-                color="purple"
-                loading={summaryLoading}
-              />
-              <KpiCard
-                icon={<Target className="h-4 w-4" />}
                 label={t.planCount}
-                value={String(summary?.planCount ?? 0)}
-                color="pink"
-                loading={summaryLoading}
+                value={String(shopPlans.length + talentPlans.length)}
+                color="purple"
+                loading={isLoading}
               />
             </div>
 
@@ -565,25 +531,28 @@ export default function AdDashboard() {
                   <div className="flex items-center gap-2 mb-3">
                     <Store className="h-4 w-4 text-amber-400" />
                     <span className="text-sm font-bold text-amber-400">{t.shopSummary}</span>
-                    <Badge variant="outline" className="text-[10px] border-amber-700 text-amber-300">{shopSummary?.count ?? 0}</Badge>
+                    <Badge variant="outline" className="text-[10px] border-amber-700 text-amber-300">{shopSummary.count}</Badge>
                   </div>
-                  <div className="grid grid-cols-4 gap-3 text-xs">
+                  <div className="grid grid-cols-5 gap-3 text-xs">
                     <div>
                       <span className="text-gray-500">{t.budget}</span>
-                      <p className="text-gray-200 font-bold">{formatCurrency(shopSummary?.budget ?? 0)}</p>
+                      <p className="text-gray-200 font-bold">{formatCurrency(shopSummary.budget)}</p>
                     </div>
                     <div>
                       <span className="text-gray-500">{t.actualSpend}</span>
-                      <p className="text-gray-200 font-bold">{formatCurrency(shopSummary?.spend ?? 0)}</p>
+                      <p className="text-gray-200 font-bold">{formatCurrency(shopSummary.spent)}</p>
                     </div>
                     <div>
                       <span className="text-gray-500">{t.targetGmv}</span>
-                      <p className="text-amber-300 font-bold">{formatCurrency(shopSummary?.targetGmv ?? 0)}</p>
+                      <p className="text-amber-300 font-bold">{formatCurrency(shopSummary.targetGmv)}</p>
                     </div>
                     <div>
-                      <span className="text-gray-500">{t.actualGmv} / ROI</span>
-                      <p className="text-green-400 font-bold">{formatCurrency(shopSummary?.actualGmv ?? 0)}</p>
-                      <p className="text-amber-400 font-bold">{(shopSummary?.roi ?? 0).toFixed(1)}</p>
+                      <span className="text-gray-500">{t.actualGmv}</span>
+                      <p className="text-green-400 font-bold">{formatCurrency(shopSummary.actualGmv)}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">ROI</span>
+                      <p className="text-amber-400 font-bold">{shopSummary.roi.toFixed(1)}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -595,26 +564,29 @@ export default function AdDashboard() {
                   <div className="flex items-center gap-2 mb-3">
                     <UserCircle className="h-4 w-4 text-cyan-400" />
                     <span className="text-sm font-bold text-cyan-400">{t.talentSummary}</span>
-                    <Badge variant="outline" className="text-[10px] border-cyan-700 text-cyan-300">{talentSummary?.count ?? 0}</Badge>
+                    <Badge variant="outline" className="text-[10px] border-cyan-700 text-cyan-300">{talentSummary.count}</Badge>
                     <Badge variant="outline" className="text-[9px] border-cyan-800 text-cyan-400/70">{t.liveOnly}</Badge>
                   </div>
-                  <div className="grid grid-cols-4 gap-3 text-xs">
+                  <div className="grid grid-cols-5 gap-3 text-xs">
                     <div>
                       <span className="text-gray-500">{t.budget}</span>
-                      <p className="text-gray-200 font-bold">{formatCurrency(talentSummary?.budget ?? 0)}</p>
+                      <p className="text-gray-200 font-bold">{formatCurrency(talentSummary.budget)}</p>
                     </div>
                     <div>
                       <span className="text-gray-500">{t.actualSpend}</span>
-                      <p className="text-gray-200 font-bold">{formatCurrency(talentSummary?.spend ?? 0)}</p>
+                      <p className="text-gray-200 font-bold">{formatCurrency(talentSummary.spent)}</p>
                     </div>
                     <div>
                       <span className="text-gray-500">{t.targetGmv}</span>
-                      <p className="text-cyan-300 font-bold">{formatCurrency(talentSummary?.targetGmv ?? 0)}</p>
+                      <p className="text-cyan-300 font-bold">{formatCurrency(talentSummary.targetGmv)}</p>
                     </div>
                     <div>
-                      <span className="text-gray-500">{t.actualGmv} / ROI</span>
-                      <p className="text-green-400 font-bold">{formatCurrency(talentSummary?.actualGmv ?? 0)}</p>
-                      <p className="text-cyan-400 font-bold">{(talentSummary?.roi ?? 0).toFixed(1)}</p>
+                      <span className="text-gray-500">{t.actualGmv}</span>
+                      <p className="text-green-400 font-bold">{formatCurrency(talentSummary.actualGmv)}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">ROI</span>
+                      <p className="text-cyan-400 font-bold">{talentSummary.roi.toFixed(1)}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -656,7 +628,7 @@ export default function AdDashboard() {
               </Card>
             )}
 
-            {/* ===== 店舗維度 (Shop Plans) - NO brand column ===== */}
+            {/* ===== 店舗維度 (Shop Plans) - NO brand column, has adType ===== */}
             <Card className="bg-gray-900/50 border-gray-800">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
@@ -679,7 +651,7 @@ export default function AdDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                {plansLoading ? (
+                {shopLoading ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
                   </div>
@@ -691,7 +663,7 @@ export default function AdDashboard() {
                       <thead>
                         <tr className="border-b border-gray-800 text-gray-400">
                           <th className="text-left py-2 px-2">{t.month}</th>
-                          <th className="text-left py-2 px-2">{t.liver}</th>
+                          <th className="text-left py-2 px-2">{t.shopName}</th>
                           <th className="text-left py-2 px-2">{t.adType}</th>
                           <th className="text-right py-2 px-2">{t.budget}</th>
                           <th className="text-right py-2 px-2">{t.actualSpend}</th>
@@ -706,26 +678,26 @@ export default function AdDashboard() {
                       </thead>
                       <tbody>
                         {shopPlans.map((plan: any) => {
-                          const roi = parseFloat(plan.actualRoi || "0");
-                          const tRoi = parseFloat(plan.targetRoi || "0");
-                          const sr = parseFloat(plan.spendRate || "0");
+                          const roi = Number(plan.actualRoi) || 0;
+                          const tRoi = Number(plan.targetRoi) || 0;
+                          const sr = Number(plan.spentRate) || 0;
                           const tGmv = plan.targetGmv ?? 0;
                           const aGmv = plan.actualGmv ?? 0;
                           const gmvRate = tGmv > 0 ? aGmv / tGmv : 0;
                           return (
                             <tr key={plan.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
                               <td className="py-2 px-2 text-gray-300">{plan.month}</td>
-                              <td className="py-2 px-2 text-amber-300 font-medium">{plan.liverName}</td>
+                              <td className="py-2 px-2 text-amber-300 font-medium">{plan.shopName || plan.planName}</td>
                               <td className="py-2 px-2">
                                 <Badge variant="outline" className="text-[10px] border-gray-600">
-                                  {plan.adType === "short_video" ? t.shortVideo : t.live}
+                                  {plan.adType === "video" ? t.shortVideo : t.live}
                                 </Badge>
                               </td>
                               <td className="py-2 px-2 text-right text-gray-300">{formatCurrency(plan.budget ?? 0)}</td>
-                              <td className="py-2 px-2 text-right text-gray-300">{formatCurrency(plan.actualSpend ?? 0)}</td>
+                              <td className="py-2 px-2 text-right text-gray-300">{formatCurrency(plan.spent ?? 0)}</td>
                               <td className="py-2 px-2 text-right">
-                                <span className={sr > 0.7 ? "text-green-400" : sr > 0.3 ? "text-yellow-400" : "text-red-400"}>
-                                  {(sr * 100).toFixed(1)}%
+                                <span className={sr > 70 ? "text-green-400" : sr > 30 ? "text-yellow-400" : "text-red-400"}>
+                                  {sr.toFixed(1)}%
                                 </span>
                               </td>
                               <td className="py-2 px-2 text-right text-amber-300/80">{formatCurrency(tGmv)}</td>
@@ -782,22 +754,22 @@ export default function AdDashboard() {
                         {shopPlans.length > 1 && (
                           <tr className="border-t-2 border-amber-800/50 bg-amber-900/10 font-medium">
                             <td className="py-2 px-2 text-amber-400 font-bold" colSpan={3}>{t.total}</td>
-                            <td className="py-2 px-2 text-right text-amber-300">{formatCurrency(shopSummary?.budget ?? 0)}</td>
-                            <td className="py-2 px-2 text-right text-amber-300">{formatCurrency(shopSummary?.spend ?? 0)}</td>
+                            <td className="py-2 px-2 text-right text-amber-300">{formatCurrency(shopSummary.budget)}</td>
+                            <td className="py-2 px-2 text-right text-amber-300">{formatCurrency(shopSummary.spent)}</td>
                             <td className="py-2 px-2 text-right text-amber-300">
-                              {((shopSummary?.budget ?? 0) > 0 ? (((shopSummary?.spend ?? 0) / (shopSummary?.budget ?? 1)) * 100).toFixed(1) : "0")}%
+                              {shopSummary.budget > 0 ? ((shopSummary.spent / shopSummary.budget) * 100).toFixed(1) : "0"}%
                             </td>
-                            <td className="py-2 px-2 text-right text-amber-300">{formatCurrency(shopSummary?.targetGmv ?? 0)}</td>
-                            <td className="py-2 px-2 text-right text-green-400 font-bold">{formatCurrency(shopSummary?.actualGmv ?? 0)}</td>
+                            <td className="py-2 px-2 text-right text-amber-300">{formatCurrency(shopSummary.targetGmv)}</td>
+                            <td className="py-2 px-2 text-right text-green-400 font-bold">{formatCurrency(shopSummary.actualGmv)}</td>
                             <td className="py-2 px-2 text-right">
-                              {(shopSummary?.targetGmv ?? 0) > 0 ? (
-                                <span className={getGmvAchievementColor((shopSummary?.actualGmv ?? 0) / (shopSummary?.targetGmv ?? 1))}>
-                                  {(((shopSummary?.actualGmv ?? 0) / (shopSummary?.targetGmv ?? 1)) * 100).toFixed(0)}%
+                              {shopSummary.targetGmv > 0 ? (
+                                <span className={getGmvAchievementColor(shopSummary.actualGmv / shopSummary.targetGmv)}>
+                                  {((shopSummary.actualGmv / shopSummary.targetGmv) * 100).toFixed(0)}%
                                 </span>
                               ) : "-"}
                             </td>
                             <td className="py-2 px-2 text-right text-gray-400">-</td>
-                            <td className="py-2 px-2 text-right text-amber-400 font-bold">{(shopSummary?.roi ?? 0).toFixed(1)}</td>
+                            <td className="py-2 px-2 text-right text-amber-400 font-bold">{shopSummary.roi.toFixed(1)}</td>
                             <td className="py-2 px-2"></td>
                           </tr>
                         )}
@@ -846,7 +818,7 @@ export default function AdDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                {plansLoading ? (
+                {talentLoading ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
                   </div>
@@ -856,13 +828,12 @@ export default function AdDashboard() {
                   <div className="space-y-3">
                     {Object.entries(talentGrouped).map(([talentName, plans]) => {
                       const isExpanded = expandedTalents.has(talentName);
-                      const totalBudget = plans.reduce((s: number, p: any) => s + (p.budget ?? 0), 0);
-                      const totalSpend = plans.reduce((s: number, p: any) => s + (p.actualSpend ?? 0), 0);
-                      const totalActualGmv = plans.reduce((s: number, p: any) => s + (p.actualGmv ?? 0), 0);
-                      const totalTargetGmv = plans.reduce((s: number, p: any) => s + (p.targetGmv ?? 0), 0);
-                      const overallRoi = totalSpend > 0 ? totalActualGmv / totalSpend : 0;
-                      const overallSpendRate = totalBudget > 0 ? totalSpend / totalBudget : 0;
-                      const gmvRate = totalTargetGmv > 0 ? totalActualGmv / totalTargetGmv : 0;
+                      const grpBudget = plans.reduce((s: number, p: any) => s + (p.budget ?? 0), 0);
+                      const grpSpent = plans.reduce((s: number, p: any) => s + (p.spent ?? 0), 0);
+                      const grpActualGmv = plans.reduce((s: number, p: any) => s + (p.actualGmv ?? 0), 0);
+                      const grpTargetGmv = plans.reduce((s: number, p: any) => s + (p.targetGmv ?? 0), 0);
+                      const grpRoi = grpSpent > 0 ? grpActualGmv / grpSpent : 0;
+                      const gmvRate = grpTargetGmv > 0 ? grpActualGmv / grpTargetGmv : 0;
 
                       return (
                         <div key={talentName} className="border border-gray-800 rounded-lg overflow-hidden">
@@ -881,28 +852,28 @@ export default function AdDashboard() {
                             <div className="flex items-center gap-4 text-xs">
                               <div className="text-right">
                                 <span className="text-gray-500">{t.budget}</span>
-                                <p className="text-gray-200 font-medium">{formatCurrency(totalBudget)}</p>
+                                <p className="text-gray-200 font-medium">{formatCurrency(grpBudget)}</p>
                               </div>
                               <div className="text-right">
                                 <span className="text-gray-500">{t.actualSpend}</span>
-                                <p className="text-gray-200 font-medium">{formatCurrency(totalSpend)}</p>
+                                <p className="text-gray-200 font-medium">{formatCurrency(grpSpent)}</p>
                               </div>
                               <div className="text-right">
                                 <span className="text-gray-500">{t.targetGmv}</span>
-                                <p className="text-cyan-300 font-medium">{formatCurrency(totalTargetGmv)}</p>
+                                <p className="text-cyan-300 font-medium">{formatCurrency(grpTargetGmv)}</p>
                               </div>
                               <div className="text-right">
                                 <span className="text-gray-500">{t.actualGmv}</span>
-                                <p className="text-green-400 font-medium">{formatCurrency(totalActualGmv)}</p>
+                                <p className="text-green-400 font-medium">{formatCurrency(grpActualGmv)}</p>
                               </div>
                               <div className="text-right">
                                 <span className="text-gray-500">ROI</span>
-                                <p className={`font-bold ${getRoiColor(overallRoi, 3)}`}>{overallRoi.toFixed(1)}</p>
+                                <p className={`font-bold ${getRoiColor(grpRoi, 3)}`}>{grpRoi.toFixed(1)}</p>
                               </div>
                               <div className="text-right">
                                 <span className="text-gray-500">{t.gmvAchievement}</span>
                                 <p className={`font-medium ${getGmvAchievementColor(gmvRate)}`}>
-                                  {totalTargetGmv > 0 ? `${(gmvRate * 100).toFixed(0)}%` : "-"}
+                                  {grpTargetGmv > 0 ? `${(gmvRate * 100).toFixed(0)}%` : "-"}
                                 </p>
                               </div>
                               {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
@@ -916,6 +887,7 @@ export default function AdDashboard() {
                                 <thead>
                                   <tr className="border-b border-gray-800 text-gray-400">
                                     <th className="text-left py-2 px-2">{t.month}</th>
+                                    <th className="text-left py-2 px-2">{t.planName}</th>
                                     <th className="text-right py-2 px-2">{t.budget}</th>
                                     <th className="text-right py-2 px-2">{t.actualSpend}</th>
                                     <th className="text-right py-2 px-2">{t.spendRate}</th>
@@ -928,20 +900,21 @@ export default function AdDashboard() {
                                 </thead>
                                 <tbody>
                                   {plans.map((plan: any) => {
-                                    const roi = parseFloat(plan.actualRoi || "0");
-                                    const tRoi = parseFloat(plan.targetRoi || "0");
-                                    const sr = parseFloat(plan.spendRate || "0");
+                                    const roi = Number(plan.actualRoi) || 0;
+                                    const tRoi = Number(plan.targetRoi) || 0;
+                                    const sr = Number(plan.spentRate) || 0;
                                     const tGmv = plan.targetGmv ?? 0;
                                     const aGmv = plan.actualGmv ?? 0;
                                     const gr = tGmv > 0 ? aGmv / tGmv : 0;
                                     return (
                                       <tr key={plan.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
                                         <td className="py-2 px-2 text-gray-300">{plan.month}</td>
+                                        <td className="py-2 px-2 text-cyan-300 font-medium">{plan.planName}</td>
                                         <td className="py-2 px-2 text-right text-gray-300">{formatCurrency(plan.budget ?? 0)}</td>
-                                        <td className="py-2 px-2 text-right text-gray-300">{formatCurrency(plan.actualSpend ?? 0)}</td>
+                                        <td className="py-2 px-2 text-right text-gray-300">{formatCurrency(plan.spent ?? 0)}</td>
                                         <td className="py-2 px-2 text-right">
-                                          <span className={sr > 0.7 ? "text-green-400" : sr > 0.3 ? "text-yellow-400" : "text-red-400"}>
-                                            {(sr * 100).toFixed(1)}%
+                                          <span className={sr > 70 ? "text-green-400" : sr > 30 ? "text-yellow-400" : "text-red-400"}>
+                                            {sr.toFixed(1)}%
                                           </span>
                                         </td>
                                         <td className="py-2 px-2 text-right text-cyan-300/80">{formatCurrency(tGmv)}</td>
@@ -1007,132 +980,7 @@ export default function AdDashboard() {
             </Card>
           </TabsContent>
 
-          {/* ===== Tab 2: Matrix (店舗維度のみ) ===== */}
-          <TabsContent value="matrix" className="mt-4">
-            <Card className="bg-gray-900/50 border-gray-800">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-amber-400 flex items-center gap-2">
-                  <Grid3X3 className="h-4 w-4" />
-                  {t.tabMatrix}
-                  {selectedMonth && <Badge variant="outline" className="text-[10px] border-amber-700 text-amber-300">{selectedMonth}</Badge>}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {matrixLoading ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
-                  </div>
-                ) : !matrixData?.livers.length ? (
-                  <div className="text-center py-8 text-gray-500">{t.noData}</div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs border-collapse">
-                      <thead>
-                        <tr>
-                          <th className="text-left py-2 px-3 border-b border-gray-700 text-amber-400 font-medium sticky left-0 bg-gray-900 z-10 min-w-[120px]">
-                            {t.liver}
-                          </th>
-                          {matrixData.brands.map((brand) => (
-                            <th key={brand} className="text-center py-2 px-3 border-b border-gray-700 text-gray-300 font-medium min-w-[140px]">
-                              {brand}
-                            </th>
-                          ))}
-                          <th className="text-center py-2 px-3 border-b border-gray-700 text-amber-400 font-bold min-w-[120px]">
-                            {t.total}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {matrixData.livers.map((liver) => {
-                          let liverTotalSpend = 0;
-                          let liverTotalGmv = 0;
-                          return (
-                            <tr key={liver} className="hover:bg-gray-800/20">
-                              <td className="py-2 px-3 border-b border-gray-800/50 text-amber-300 font-medium sticky left-0 bg-gray-900 z-10">
-                                {liver}
-                              </td>
-                              {matrixData.brands.map((brand) => {
-                                const plans = matrixData.matrix[liver]?.[brand] || [];
-                                if (plans.length === 0) {
-                                  return (
-                                    <td key={brand} className="py-2 px-3 border-b border-gray-800/50 text-center text-gray-600">
-                                      -
-                                    </td>
-                                  );
-                                }
-                                const totalSpend = plans.reduce((s, p) => s + (p.actualSpend ?? 0), 0);
-                                const totalGmv = plans.reduce((s, p) => s + (p.actualGmv ?? 0), 0);
-                                const roi = totalSpend > 0 ? totalGmv / totalSpend : 0;
-                                const targetRoi = plans.length > 0 ? parseFloat(plans[0].targetRoi || "0") : 0;
-                                liverTotalSpend += totalSpend;
-                                liverTotalGmv += totalGmv;
-
-                                return (
-                                  <td
-                                    key={brand}
-                                    className={`py-2 px-3 border-b border-gray-800/50 text-center cursor-pointer transition-colors ${getRoiBgColor(roi, targetRoi)} border rounded-md`}
-                                    onClick={() => {
-                                      if (plans.length === 1) setEditingPlan(plans[0]);
-                                    }}
-                                  >
-                                    <div className="text-[10px] text-gray-400">{formatCompact(totalSpend)}</div>
-                                    <div className={`text-sm font-bold ${getRoiColor(roi, targetRoi)}`}>
-                                      {roi.toFixed(1)}
-                                    </div>
-                                    <div className="text-[10px] text-green-400">{formatCompact(totalGmv)}</div>
-                                  </td>
-                                );
-                              })}
-                              <td className="py-2 px-3 border-b border-gray-800/50 text-center bg-gray-800/30">
-                                <div className="text-[10px] text-gray-400">{formatCompact(liverTotalSpend)}</div>
-                                <div className="text-sm font-bold text-amber-400">
-                                  {liverTotalSpend > 0 ? (liverTotalGmv / liverTotalSpend).toFixed(1) : "-"}
-                                </div>
-                                <div className="text-[10px] text-green-400">{formatCompact(liverTotalGmv)}</div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                        {/* Total row */}
-                        <tr className="bg-gray-800/40 font-medium">
-                          <td className="py-2 px-3 text-amber-400 font-bold sticky left-0 bg-gray-800/40 z-10">
-                            {t.total}
-                          </td>
-                          {matrixData.brands.map((brand) => {
-                            let brandTotalSpend = 0;
-                            let brandTotalGmv = 0;
-                            for (const liver of matrixData.livers) {
-                              const plans = matrixData.matrix[liver]?.[brand] || [];
-                              brandTotalSpend += plans.reduce((s, p) => s + (p.actualSpend ?? 0), 0);
-                              brandTotalGmv += plans.reduce((s, p) => s + (p.actualGmv ?? 0), 0);
-                            }
-                            return (
-                              <td key={brand} className="py-2 px-3 text-center">
-                                <div className="text-[10px] text-gray-400">{formatCompact(brandTotalSpend)}</div>
-                                <div className="text-sm font-bold text-amber-400">
-                                  {brandTotalSpend > 0 ? (brandTotalGmv / brandTotalSpend).toFixed(1) : "-"}
-                                </div>
-                                <div className="text-[10px] text-green-400">{formatCompact(brandTotalGmv)}</div>
-                              </td>
-                            );
-                          })}
-                          <td className="py-2 px-3 text-center bg-amber-900/20 rounded-br-lg">
-                            <div className="text-[10px] text-gray-400">{formatCompact(summary?.totalSpend ?? 0)}</div>
-                            <div className="text-sm font-bold text-amber-400">
-                              {(summary?.overallRoi ?? 0).toFixed(1)}
-                            </div>
-                            <div className="text-[10px] text-green-400">{formatCompact(summary?.totalActualGmv ?? 0)}</div>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* ===== Tab 3: Campaign Management ===== */}
+          {/* ===== Tab 2: Campaign Management ===== */}
           <TabsContent value="campaign" className="mt-4 space-y-4">
             {/* Shop Campaigns */}
             <Card className="bg-gray-900/50 border-gray-800">
@@ -1154,7 +1002,7 @@ export default function AdDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                {plansLoading ? (
+                {shopLoading ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
                   </div>
@@ -1196,7 +1044,7 @@ export default function AdDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                {plansLoading ? (
+                {talentLoading ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
                   </div>
@@ -1227,8 +1075,6 @@ export default function AdDashboard() {
         plan={editingPlan}
         t={t}
         lang={lang}
-        brands={brandsDropdown || []}
-        livers={liversDropdown || []}
         defaultPlanType={editingPlan?.planType || defaultPlanType}
         onSave={(data) => {
           if (editingPlan) {
@@ -1299,16 +1145,17 @@ function CampaignCard({ plan, t, isTalent, onEdit, onDelete }: {
   onEdit: (plan: any) => void;
   onDelete: (id: number) => void;
 }) {
-  const roi = parseFloat(plan.actualRoi || "0");
-  const tRoi = parseFloat(plan.targetRoi || "0");
-  const sr = parseFloat(plan.spendRate || "0");
+  const roi = Number(plan.actualRoi) || 0;
+  const tRoi = Number(plan.targetRoi) || 0;
+  const sr = Number(plan.spentRate) || 0;
   const tGmv = plan.targetGmv ?? 0;
   const aGmv = plan.actualGmv ?? 0;
   const gmvRate = tGmv > 0 ? aGmv / tGmv : 0;
+  const displayName = isTalent ? (plan.talentName || plan.streamerName || plan.planName) : (plan.shopName || plan.planName);
 
   return (
     <Card
-      className={`bg-gray-800/50 border ${getRoiBgColor(roi, tRoi)} hover:border-${isTalent ? "cyan" : "amber"}-600/50 transition-colors cursor-pointer`}
+      className={`bg-gray-800/50 border border-gray-700/50 hover:border-${isTalent ? "cyan" : "amber"}-600/50 transition-colors cursor-pointer`}
       onClick={() => onEdit(plan)}
     >
       <CardContent className="p-4">
@@ -1317,9 +1164,16 @@ function CampaignCard({ plan, t, isTalent, onEdit, onDelete }: {
             {plan.month}
           </Badge>
           <div className="flex items-center gap-1">
-            <Badge variant="outline" className={`text-[10px] ${isTalent ? "border-cyan-700 text-cyan-300" : "border-amber-700 text-amber-300"}`}>
-              {plan.adType === "short_video" ? t.shortVideo : t.live}
-            </Badge>
+            {!isTalent && (
+              <Badge variant="outline" className="text-[10px] border-amber-700 text-amber-300">
+                {plan.adType === "video" ? t.shortVideo : t.live}
+              </Badge>
+            )}
+            {isTalent && (
+              <Badge variant="outline" className="text-[10px] border-cyan-700 text-cyan-300">
+                {t.live}
+              </Badge>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -1330,18 +1184,21 @@ function CampaignCard({ plan, t, isTalent, onEdit, onDelete }: {
             </Button>
           </div>
         </div>
-        <h3 className={`text-sm font-bold ${isTalent ? "text-cyan-300" : "text-amber-300"}`}>{plan.liverName}</h3>
-        
+        <h3 className={`text-sm font-bold ${isTalent ? "text-cyan-300" : "text-amber-300"}`}>{displayName}</h3>
+        {plan.planName && plan.planName !== displayName && (
+          <p className="text-[10px] text-gray-500 mt-0.5">{plan.planName}</p>
+        )}
+
         {/* Spend rate bar */}
         <div className="mb-2 mt-2">
           <div className="flex justify-between text-[10px] text-gray-400 mb-1">
             <span>{t.spendRate}</span>
-            <span>{(sr * 100).toFixed(1)}%</span>
+            <span>{sr.toFixed(1)}%</span>
           </div>
           <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${getSpendRateColor(sr)}`}
-              style={{ width: `${Math.min(sr * 100, 100)}%` }}
+              style={{ width: `${Math.min(sr, 100)}%` }}
             />
           </div>
         </div>
@@ -1369,7 +1226,7 @@ function CampaignCard({ plan, t, isTalent, onEdit, onDelete }: {
           </div>
           <div>
             <span className="text-gray-500">{t.actualSpend}</span>
-            <p className="text-gray-200 font-medium">{formatCurrency(plan.actualSpend ?? 0)}</p>
+            <p className="text-gray-200 font-medium">{formatCurrency(plan.spent ?? 0)}</p>
           </div>
           <div>
             <span className="text-gray-500">{t.targetGmv}</span>
@@ -1395,14 +1252,12 @@ function CampaignCard({ plan, t, isTalent, onEdit, onDelete }: {
 }
 
 // ===== Plan Dialog Component - IMPROVED =====
-function PlanDialog({ open, onClose, plan, t, lang, brands, livers, defaultPlanType, onSave, saving }: {
+function PlanDialog({ open, onClose, plan, t, lang, defaultPlanType, onSave, saving }: {
   open: boolean;
   onClose: () => void;
   plan: any;
   t: typeof translations.ja;
   lang: string;
-  brands: { id: number; name: string; nameJa: string }[];
-  livers: { id: number; name: string }[];
   defaultPlanType: "shop" | "talent";
   onSave: (data: any) => void;
   saving: boolean;
@@ -1413,44 +1268,42 @@ function PlanDialog({ open, onClose, plan, t, lang, brands, livers, defaultPlanT
   const resetForm = useCallback(() => {
     if (plan) {
       setForm({
-        month: plan.month || "",
-        liverName: plan.liverName || "",
-        liverId: plan.liverId || null,
-        brandName: plan.brandName || "",
-        brandId: plan.brandId || null,
-        adType: plan.adType || "live",
         planType: plan.planType || "shop",
+        month: plan.month || "",
+        shopName: plan.shopName || "",
+        adType: plan.adType || "live",
+        planName: plan.planName || "",
+        status: plan.status || "active",
         budget: plan.budget ?? 0,
-        actualSpend: plan.actualSpend ?? 0,
+        spent: plan.spent ?? 0,
         targetGmv: plan.targetGmv ?? 0,
-        targetRoi: parseFloat(plan.targetRoi || "0"),
+        targetRoi: Number(plan.targetRoi) || 0,
         actualGmv: plan.actualGmv ?? 0,
-        actualRoi: parseFloat(plan.actualRoi || "0"),
-        impressions: plan.impressions ?? 0,
-        clicks: plan.clicks ?? 0,
-        conversions: plan.conversions ?? 0,
+        actualRoi: Number(plan.actualRoi) || 0,
+        talentName: plan.talentName || "",
+        streamerName: plan.streamerName || "",
+        productName: plan.productName || "",
         notes: plan.notes || "",
       });
     } else {
       const now = new Date();
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
       setForm({
-        month: currentMonth,
-        liverName: "",
-        liverId: null,
-        brandName: "",
-        brandId: null,
-        adType: defaultPlanType === "talent" ? "live" : "live",
         planType: defaultPlanType,
+        month: currentMonth,
+        shopName: "",
+        adType: defaultPlanType === "talent" ? "live" : "live",
+        planName: "",
+        status: "active",
         budget: 0,
-        actualSpend: 0,
+        spent: 0,
         targetGmv: 0,
         targetRoi: 0,
         actualGmv: 0,
         actualRoi: 0,
-        impressions: 0,
-        clicks: 0,
-        conversions: 0,
+        talentName: "",
+        streamerName: "",
+        productName: "",
         notes: "",
       });
     }
@@ -1464,17 +1317,13 @@ function PlanDialog({ open, onClose, plan, t, lang, brands, livers, defaultPlanT
   const isTalent = form.planType === "talent";
 
   const handleSubmit = () => {
-    if (!form.liverName || !form.month) {
-      toast.error(lang === "ja" ? "店舗/达人名と月は必須です" : "店铺/达人名和月份为必填项");
+    if (!form.planName || !form.month) {
+      toast.error(lang === "ja" ? "計画名と月は必須です" : "计划名和月份为必填项");
       return;
     }
-    // For talent, auto-set brandName and adType
     const submitData = { ...form };
     if (isTalent) {
       submitData.adType = "live"; // Force live for talent
-      if (!submitData.brandName) {
-        submitData.brandName = submitData.liverName;
-      }
     }
     onSave(submitData);
   };
@@ -1513,7 +1362,7 @@ function PlanDialog({ open, onClose, plan, t, lang, brands, livers, defaultPlanT
                   ? "bg-cyan-600 hover:bg-cyan-500 text-white"
                   : "border-gray-600 text-gray-400 hover:text-white"
                 }
-                onClick={() => setForm({ ...form, planType: "talent", adType: "live", brandName: "", brandId: null })}
+                onClick={() => setForm({ ...form, planType: "talent", adType: "live" })}
                 disabled={!!plan}
               >
                 <UserCircle className="h-3 w-3 mr-1" />
@@ -1534,43 +1383,55 @@ function PlanDialog({ open, onClose, plan, t, lang, brands, livers, defaultPlanT
             />
           </div>
 
-          {/* Liver / Talent Name */}
+          {/* Plan Name */}
           <div>
-            <label className="text-xs text-gray-400">{isTalent ? t.talentName : t.liverName}</label>
-            <Select
-              value={form.liverId ? String(form.liverId) : "manual"}
-              onValueChange={(v) => {
-                if (v === "manual") {
-                  setForm({ ...form, liverId: null });
-                } else {
-                  const liver = livers.find((l) => l.id === Number(v));
-                  if (liver) {
-                    setForm({ ...form, liverId: liver.id, liverName: liver.name });
-                  }
-                }
-              }}
-            >
-              <SelectTrigger className="bg-gray-800 border-gray-700">
-                <SelectValue placeholder={isTalent ? t.talentName : t.selectLiver} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="manual">{t.orInputManually}</SelectItem>
-                {livers.map((l) => (
-                  <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {(!form.liverId || form.liverId === null) && (
-              <Input
-                placeholder={isTalent ? t.talentName : t.liverName}
-                value={form.liverName || ""}
-                onChange={(e) => setForm({ ...form, liverName: e.target.value })}
-                className="mt-1 bg-gray-800 border-gray-700 text-white"
-              />
-            )}
+            <label className="text-xs text-gray-400">{t.planName}</label>
+            <Input
+              placeholder={t.planName}
+              value={form.planName || ""}
+              onChange={(e) => setForm({ ...form, planName: e.target.value })}
+              className="bg-gray-800 border-gray-700 text-white"
+            />
           </div>
 
-          {/* Ad Type - shop: short_video/live selector, talent: fixed "live" display */}
+          {/* Shop Name (shop only) */}
+          {!isTalent && (
+            <div>
+              <label className="text-xs text-gray-400">{t.shopName}</label>
+              <Input
+                placeholder={t.shopName}
+                value={form.shopName || ""}
+                onChange={(e) => setForm({ ...form, shopName: e.target.value })}
+                className="bg-gray-800 border-gray-700 text-white"
+              />
+            </div>
+          )}
+
+          {/* Talent Name + Streamer Name (talent only) */}
+          {isTalent && (
+            <>
+              <div>
+                <label className="text-xs text-gray-400">{t.talentName}</label>
+                <Input
+                  placeholder={t.talentName}
+                  value={form.talentName || ""}
+                  onChange={(e) => setForm({ ...form, talentName: e.target.value })}
+                  className="bg-gray-800 border-gray-700 text-white"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400">{t.streamerName}</label>
+                <Input
+                  placeholder={t.streamerName}
+                  value={form.streamerName || ""}
+                  onChange={(e) => setForm({ ...form, streamerName: e.target.value })}
+                  className="bg-gray-800 border-gray-700 text-white"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Ad Type - shop: video/live selector, talent: fixed "live" display */}
           {!isTalent ? (
             <div>
               <label className="text-xs text-gray-400">{t.adType}</label>
@@ -1579,7 +1440,7 @@ function PlanDialog({ open, onClose, plan, t, lang, brands, livers, defaultPlanT
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="short_video">{t.shortVideo}</SelectItem>
+                  <SelectItem value="video">{t.shortVideo}</SelectItem>
                   <SelectItem value="live">{t.live}</SelectItem>
                 </SelectContent>
               </Select>
@@ -1592,6 +1453,17 @@ function PlanDialog({ open, onClose, plan, t, lang, brands, livers, defaultPlanT
               </div>
             </div>
           )}
+
+          {/* Product Name */}
+          <div>
+            <label className="text-xs text-gray-400">{t.productName}</label>
+            <Input
+              placeholder={t.productName}
+              value={form.productName || ""}
+              onChange={(e) => setForm({ ...form, productName: e.target.value })}
+              className="bg-gray-800 border-gray-700 text-white"
+            />
+          </div>
 
           {/* Budget & Spend */}
           <div className="grid grid-cols-2 gap-2">
@@ -1608,8 +1480,8 @@ function PlanDialog({ open, onClose, plan, t, lang, brands, livers, defaultPlanT
               <label className="text-xs text-gray-400">{t.actualSpend} (JPY)</label>
               <Input
                 type="number"
-                value={form.actualSpend || 0}
-                onChange={(e) => setForm({ ...form, actualSpend: Number(e.target.value) })}
+                value={form.spent || 0}
+                onChange={(e) => setForm({ ...form, spent: Number(e.target.value) })}
                 className="bg-gray-800 border-gray-700 text-white"
               />
             </div>
