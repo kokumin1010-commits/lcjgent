@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle, FileDown, Save, BarChart3, Target, MousePointerClick, CreditCard, QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import ProductCardTemplate from "@/components/ProductCard";
+import ProductCardTemplate, { ProductCardMini } from "@/components/ProductCard";
 import { toast } from "sonner";
 
 const translations = {
@@ -196,6 +196,13 @@ const translations = {
     liverProductLink: "ライバー商品選択リンク",
     copyLink: "リンクをコピー",
     linkCopied: "リンクをコピーしました",
+    // Product Cards (手卡)
+    productCardsSection: "商品手卡一覧",
+    productCardsDesc: "商品紹介カードの一覧表示・ダウンロード",
+    noProductCards: "商品がありません。商品を登録すると手卡が自動生成されます。",
+    selectProductCard: "商品を選択して手卡を表示",
+    downloadCard: "手卡をダウンロード",
+    backToCardList: "一覧に戻る",
   },
   zh: {
     title: "品牌详情",
@@ -350,6 +357,13 @@ const translations = {
     liverProductLink: "主播商品选择链接",
     copyLink: "复制链接",
     linkCopied: "链接已复制",
+    // Product Cards (手卡)
+    productCardsSection: "商品手卡一览",
+    productCardsDesc: "商品介绍卡片一览显示与下载",
+    noProductCards: "暂无商品。注册商品后手卡将自动生成。",
+    selectProductCard: "选择商品查看手卡",
+    downloadCard: "下载手卡",
+    backToCardList: "返回列表",
   },
 };
 
@@ -816,6 +830,8 @@ export default function BrandDetail() {
   // 手卡（商品紹介カード）ダイアログ
   const [tekaDialogOpen, setTekaDialogOpen] = useState(false);
   const [tekaProduct, setTekaProduct] = useState<any>(null);
+  // 手卡セクション用state
+  const [cardSectionProduct, setCardSectionProduct] = useState<any>(null);
   const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
   const [expandedImageIndex, setExpandedImageIndex] = useState<number>(0);
   // 商品画像ギャラリー用state
@@ -3243,6 +3259,69 @@ ${proposal.proposalContent}
               ))
             )}
           </div>
+        </div>
+
+        {/* Product Cards (手卡) Section */}
+        <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-orange-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,165,0,0.1)]">
+          <h2 className="text-lg font-bold text-white mb-2 flex items-center gap-3">
+            <div className="w-1 h-6 bg-gradient-to-b from-orange-400 to-amber-600 rounded-full" />
+            <CreditCard className="h-5 w-5 text-orange-400" />
+            {t.productCardsSection}
+          </h2>
+          <p className="text-xs text-gray-400 mb-4 ml-9">{t.productCardsDesc}</p>
+          {cardSectionProduct ? (
+            <div>
+              <button
+                onClick={() => setCardSectionProduct(null)}
+                className="flex items-center gap-2 text-orange-400 hover:text-orange-300 mb-4 text-sm transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />{t.backToCardList}
+              </button>
+              <div className="overflow-x-auto bg-gray-900/50 rounded-xl p-4 md:p-6 border border-orange-900/20">
+                <ProductCardTemplate
+                  product={cardSectionProduct}
+                  brand={brand ? { name: brand.name, nameJa: brand.nameJa, logoUrl: brand.logoUrl } : null}
+                  showDownload={true}
+                  productLinks={(
+                    cardSectionProduct.id
+                      ? allProductLinks.filter((link: any) => link.productId === cardSectionProduct.id)
+                      : []
+                  ) as { id: number; title: string; url: string }[]}
+                />
+              </div>
+            </div>
+          ) : products.length > 0 ? (
+            <div className="grid gap-3">
+              {products.map((product: any) => (
+                <div
+                  key={product.id}
+                  onClick={() => setCardSectionProduct(product)}
+                  className="flex items-center gap-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700/50 hover:border-orange-500/50 hover:bg-gray-800/50 cursor-pointer transition-all group"
+                >
+                  {product.imageUrls?.[0] ? (
+                    <img src={typeof product.imageUrls[0] === 'string' ? product.imageUrls[0] : product.imageUrls[0]} alt="" className="w-12 h-12 rounded-lg object-cover border border-gray-600" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-lg bg-gray-700 flex items-center justify-center">
+                      <Package className="w-5 h-5 text-gray-500" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate group-hover:text-orange-300 transition-colors">{product.productName}</p>
+                    <div className="flex items-center gap-3 mt-0.5">
+                      {product.category && <span className="text-xs text-gray-400">{product.category}</span>}
+                      {product.livePrice && <span className="text-xs text-orange-400">¥{Number(product.livePrice).toLocaleString()}</span>}
+                    </div>
+                  </div>
+                  <CreditCard className="w-5 h-5 text-gray-500 group-hover:text-orange-400 transition-colors flex-shrink-0" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <CreditCard className="w-10 h-10 mx-auto mb-3 opacity-40" />
+              <p className="text-sm">{t.noProductCards}</p>
+            </div>
+          )}
         </div>
 
         {/* Brand Files Section */}

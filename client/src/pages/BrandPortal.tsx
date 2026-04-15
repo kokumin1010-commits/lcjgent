@@ -39,6 +39,14 @@ const LCJ_LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/G
 // ============================================================
 // Types
 // ============================================================
+// 套餐（セット商品）対応: 複数商品のセールスポイントを管理
+interface ProductItemData {
+  productItemName: string;
+  sellingPoints: string;
+  usageMethod: string;
+  ingredients: string;
+}
+
 interface ProductFormData {
   productName: string;
   category: string;
@@ -53,9 +61,12 @@ interface ProductFormData {
   giftItems: string;
   salesMechanism: string;
   stockQuantity: string;
+  // 後方互換: 単一商品用（1商品の場合はこちらを使用）
   sellingPoints: string;
   usageMethod: string;
   ingredients: string;
+  // 套餐（セット商品）用: 複数商品のセールスポイント
+  productItems: ProductItemData[];
 }
 
 interface ProductLinkItem {
@@ -68,6 +79,13 @@ interface UploadedImage {
   key: string;
   name: string;
 }
+
+const emptyProductItem: ProductItemData = {
+  productItemName: "",
+  sellingPoints: "",
+  usageMethod: "",
+  ingredients: "",
+};
 
 const emptyForm: ProductFormData = {
   productName: "",
@@ -86,6 +104,7 @@ const emptyForm: ProductFormData = {
   sellingPoints: "",
   usageMethod: "",
   ingredients: "",
+  productItems: [],
 };
 
 // ============================================================
@@ -376,27 +395,123 @@ function Step2Pricing({ form, updateField, lang }: { form: ProductFormData; upda
 }
 
 // ============================================================
-// Step 3: セールスポイント（1テキストエリア方式 — 陈锦文フィードバック反映）
+// Step 3: セールスポイント（套餐＝セット商品対応 — 複数商品入力可能）
 // ============================================================
-function Step3SellingPoints({ form, updateField, lang }: { form: ProductFormData; updateField: (f: keyof ProductFormData, v: string) => void; lang: Lang }) {
+function Step3SellingPoints({ form, updateField, lang, productItems, setProductItems }: {
+  form: ProductFormData;
+  updateField: (f: keyof ProductFormData, v: string) => void;
+  lang: Lang;
+  productItems: ProductItemData[];
+  setProductItems: (items: ProductItemData[]) => void;
+}) {
+  const updateItem = (index: number, field: keyof ProductItemData, value: string) => {
+    const updated = [...productItems];
+    updated[index] = { ...updated[index], [field]: value };
+    setProductItems(updated);
+  };
+  const addItem = () => {
+    setProductItems([...productItems, { ...emptyProductItem }]);
+  };
+  const removeItem = (index: number) => {
+    setProductItems(productItems.filter((_, i) => i !== index));
+  };
+
+  // 套餐モード（複数商品がある場合）
+  const isSetMode = productItems.length > 0;
+
   return (
     <div className="space-y-5">
-      <div>
-        <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center gap-2">
-          <Zap className="w-4 h-4" />{t("step3", "sellingPoints", lang)}
-        </label>
-        <Textarea value={form.sellingPoints} onChange={e => updateField("sellingPoints", e.target.value)} placeholder={t("step3", "sellingPointsPlaceholder", lang)} rows={8} className="text-sm" />
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">{t("step3", "usageMethod", lang)}</label>
-          <Textarea value={form.usageMethod} onChange={e => updateField("usageMethod", e.target.value)} placeholder={t("step3", "usageMethodPlaceholder", lang)} rows={3} />
+      {/* 単一商品モード（デフォルト） */}
+      {!isSetMode && (
+        <>
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center gap-2">
+              <Zap className="w-4 h-4" />{t("step3", "sellingPoints", lang)}
+            </label>
+            <Textarea value={form.sellingPoints} onChange={e => updateField("sellingPoints", e.target.value)} placeholder={t("step3", "sellingPointsPlaceholder", lang)} rows={8} className="text-sm" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">{t("step3", "usageMethod", lang)}</label>
+              <Textarea value={form.usageMethod} onChange={e => updateField("usageMethod", e.target.value)} placeholder={t("step3", "usageMethodPlaceholder", lang)} rows={3} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">{t("step3", "ingredients", lang)}</label>
+              <Textarea value={form.ingredients} onChange={e => updateField("ingredients", e.target.value)} placeholder={t("step3", "ingredientsPlaceholder", lang)} rows={3} />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 套餐モード（複数商品） */}
+      {isSetMode && (
+        <div className="space-y-4">
+          {productItems.map((item, idx) => (
+            <div key={idx} className="bg-blue-50/50 border border-blue-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-blue-700 text-sm flex items-center gap-2">
+                  <Package className="w-4 h-4" />
+                  {t("step3", "productNumber", lang)} {idx + 1}
+                </h4>
+                <button type="button" onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600 text-xs flex items-center gap-1">
+                  <Trash2 className="w-3.5 h-3.5" />{t("step3", "removeProduct", lang)}
+                </button>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  {lang === "ja" ? "商品名" : "商品名称"} <span className="text-red-500">*</span>
+                </label>
+                <Input value={item.productItemName} onChange={e => updateItem(idx, "productItemName", e.target.value)}
+                  placeholder={lang === "ja" ? "例: シャンプー 300ml" : "例: 洗发水 300ml"} className="text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center gap-1">
+                  <Zap className="w-3 h-3" />{t("step3", "sellingPoints", lang)}
+                </label>
+                <Textarea value={item.sellingPoints} onChange={e => updateItem(idx, "sellingPoints", e.target.value)}
+                  placeholder={t("step3", "sellingPointsPlaceholder", lang)} rows={5} className="text-sm" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("step3", "usageMethod", lang)}</label>
+                  <Textarea value={item.usageMethod} onChange={e => updateItem(idx, "usageMethod", e.target.value)}
+                    placeholder={t("step3", "usageMethodPlaceholder", lang)} rows={2} className="text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("step3", "ingredients", lang)}</label>
+                  <Textarea value={item.ingredients} onChange={e => updateItem(idx, "ingredients", e.target.value)}
+                    placeholder={t("step3", "ingredientsPlaceholder", lang)} rows={2} className="text-sm" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">{t("step3", "ingredients", lang)}</label>
-          <Textarea value={form.ingredients} onChange={e => updateField("ingredients", e.target.value)} placeholder={t("step3", "ingredientsPlaceholder", lang)} rows={3} />
-        </div>
-      </div>
+      )}
+
+      {/* 商品追加ボタン */}
+      <button type="button" onClick={() => {
+        if (!isSetMode) {
+          // 単一→套餐モードに切り替え: 既存入力を最初の商品に移行
+          const firstItem: ProductItemData = {
+            productItemName: form.productName || "",
+            sellingPoints: form.sellingPoints,
+            usageMethod: form.usageMethod,
+            ingredients: form.ingredients,
+          };
+          setProductItems([firstItem, { ...emptyProductItem }]);
+          // 単一商品フィールドをクリア
+          updateField("sellingPoints", "");
+          updateField("usageMethod", "");
+          updateField("ingredients", "");
+        } else {
+          addItem();
+        }
+      }}
+        className="w-full border-2 border-dashed border-blue-300 rounded-xl p-3 text-center hover:border-blue-500 hover:bg-blue-50/50 transition-all group">
+        <Plus className="w-5 h-5 mx-auto mb-1 text-blue-400 group-hover:text-blue-600 transition-colors" />
+        <p className="text-sm font-medium text-blue-500 group-hover:text-blue-700">{t("step3", "addProduct", lang)}</p>
+        <p className="text-xs text-gray-400 mt-0.5">{lang === "ja" ? "套餐（セット商品）の場合はこちらから追加" : "套餐（套装商品）请从这里添加"}</p>
+      </button>
     </div>
   );
 }
@@ -468,13 +583,45 @@ function Step4Images({
 // Step 5: 確認・プレビュー
 // ============================================================
 function Step5Confirm({
-  form, productImages, backupImages, productLinks, brand, lang, goToStep,
+  form, productImages, backupImages, productLinks, brand, lang, goToStep, productItems,
 }: {
   form: ProductFormData; productImages: UploadedImage[]; backupImages: UploadedImage[];
   productLinks: ProductLinkItem[]; brand: any; lang: Lang; goToStep: (s: number) => void;
+  productItems: ProductItemData[];
 }) {
+  // 套餐モードの場合、統合セールスポイントを生成
+  const mergedSellingPoints = useMemo(() => {
+    if (productItems.length > 0) {
+      return productItems.map((item, idx) => {
+        const header = `【${item.productItemName || `商品${idx + 1}`}】`;
+        return `${header}\n${item.sellingPoints}`;
+      }).join("\n\n");
+    }
+    return form.sellingPoints;
+  }, [form.sellingPoints, productItems]);
+
+  const mergedUsageMethod = useMemo(() => {
+    if (productItems.length > 0) {
+      return productItems.map((item, idx) => {
+        if (!item.usageMethod) return "";
+        return `【${item.productItemName || `商品${idx + 1}`}】\n${item.usageMethod}`;
+      }).filter(Boolean).join("\n\n");
+    }
+    return form.usageMethod;
+  }, [form.usageMethod, productItems]);
+
+  const mergedIngredients = useMemo(() => {
+    if (productItems.length > 0) {
+      return productItems.map((item, idx) => {
+        if (!item.ingredients) return "";
+        return `【${item.productItemName || `商品${idx + 1}`}】\n${item.ingredients}`;
+      }).filter(Boolean).join("\n\n");
+    }
+    return form.ingredients;
+  }, [form.ingredients, productItems]);
+
   const previewProduct = useMemo(() => {
-    const points = form.sellingPoints.split("\n").map(s => s.replace(/^[・\-\*\d.]+\s*/, "").trim()).filter(Boolean);
+    const points = mergedSellingPoints.split("\n").map(s => s.replace(/^[・\-\*\d.]+\s*/, "").trim()).filter(Boolean);
     return {
       productName: form.productName || (lang === "ja" ? "（未入力）" : "（未输入）"),
       category: form.category || undefined,
@@ -488,14 +635,34 @@ function Step5Confirm({
       sellingPoint1: points[0] || undefined, sellingPoint2: points[1] || undefined,
       sellingPoint3: points[2] || undefined, sellingPoint4: points[3] || undefined,
       sellingPoint5: points[4] || undefined, sellingPoint6: points[5] || undefined,
-      usageMethod: form.usageMethod || undefined,
-      ingredients: form.ingredients || undefined,
+      usageMethod: mergedUsageMethod || undefined,
+      ingredients: mergedIngredients || undefined,
       shippingInfo: form.shippingInfo || undefined,
       salesMechanism: form.salesMechanism || undefined,
       giftItems: form.giftItems || undefined,
       imageUrls: productImages.map(img => img.url),
     };
-  }, [form, productImages, lang]);
+  }, [form, productImages, lang, mergedSellingPoints, mergedUsageMethod, mergedIngredients]);
+
+  // Step3のセクション表示を套餐モード対応
+  const step3Items = useMemo(() => {
+    if (productItems.length > 0) {
+      // 套餐モード: 各商品を個別表示
+      const items: { label: string; value: string }[] = [];
+      productItems.forEach((item, idx) => {
+        const name = item.productItemName || `${t("step3", "productNumber", lang)} ${idx + 1}`;
+        if (item.sellingPoints) items.push({ label: `${name} - ${t("step3", "sellingPoints", lang)}`, value: item.sellingPoints });
+        if (item.usageMethod) items.push({ label: `${name} - ${t("step3", "usageMethod", lang)}`, value: item.usageMethod });
+        if (item.ingredients) items.push({ label: `${name} - ${t("step3", "ingredients", lang)}`, value: item.ingredients });
+      });
+      return items;
+    }
+    return [
+      { label: t("step3", "sellingPoints", lang), value: form.sellingPoints },
+      { label: t("step3", "usageMethod", lang), value: form.usageMethod },
+      { label: t("step3", "ingredients", lang), value: form.ingredients },
+    ];
+  }, [form, productItems, lang]);
 
   const sections = [
     { step: 1, title: t("steps", "step1", lang), items: [
@@ -513,11 +680,7 @@ function Step5Confirm({
       { label: t("step2", "commissionRate", lang), value: form.commissionRate },
       { label: t("step2", "giftItems", lang), value: form.giftItems },
     ]},
-    { step: 3, title: t("steps", "step3", lang), items: [
-      { label: t("step3", "sellingPoints", lang), value: form.sellingPoints },
-      { label: t("step3", "usageMethod", lang), value: form.usageMethod },
-      { label: t("step3", "ingredients", lang), value: form.ingredients },
-    ]},
+    { step: 3, title: t("steps", "step3", lang) + (productItems.length > 0 ? ` (${productItems.length}${lang === "ja" ? "商品" : "商品"})` : ""), items: step3Items },
   ];
 
   return (
@@ -714,6 +877,7 @@ function WizardProductForm({ token, brand, lang, onSuccess }: { token: string; b
   const [productImages, setProductImages] = useState<UploadedImage[]>([]);
   const [backupImages, setBackupImages] = useState<UploadedImage[]>([]);
   const [productLinks, setProductLinks] = useState<ProductLinkItem[]>([]);
+  const [productItems, setProductItems] = useState<ProductItemData[]>([]);
   const [templateSelected, setTemplateSelected] = useState(false);
   const submitProduct = trpc.brandPortal.submitProduct.useMutation();
   const draftKey = `brand_portal_draft_${token}`;
@@ -728,6 +892,7 @@ function WizardProductForm({ token, brand, lang, onSuccess }: { token: string; b
         if (parsed.productImages) setProductImages(parsed.productImages);
         if (parsed.backupImages) setBackupImages(parsed.backupImages);
         if (parsed.productLinks) setProductLinks(parsed.productLinks);
+        if (parsed.productItems) setProductItems(parsed.productItems);
         if (parsed.currentStep) setCurrentStep(parsed.currentStep);
         setTemplateSelected(true);
         setIsOpen(true);
@@ -740,11 +905,11 @@ function WizardProductForm({ token, brand, lang, onSuccess }: { token: string; b
     if (!isOpen || !templateSelected) return;
     const timer = setTimeout(() => {
       try {
-        localStorage.setItem(draftKey, JSON.stringify({ form, productImages, backupImages, productLinks, currentStep }));
+        localStorage.setItem(draftKey, JSON.stringify({ form, productImages, backupImages, productLinks, productItems, currentStep }));
       } catch {}
     }, 1500);
     return () => clearTimeout(timer);
-  }, [form, productImages, backupImages, productLinks, currentStep, isOpen, templateSelected, draftKey]);
+  }, [form, productImages, backupImages, productLinks, productItems, currentStep, isOpen, templateSelected, draftKey]);
 
   const updateField = useCallback((field: keyof ProductFormData, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -777,7 +942,30 @@ function WizardProductForm({ token, brand, lang, onSuccess }: { token: string; b
     if (!form.productName.trim()) { toast.error(t("step5", "productNameRequired", lang)); return; }
     setSubmitting(true);
     try {
-      const points = form.sellingPoints.split("\n").map(s => s.replace(/^[・\-\*\d.]+\s*/, "").trim()).filter(Boolean);
+      // 套餐モード: 複数商品のセールスポイントを統合
+      let finalSellingPoints: string;
+      let finalUsageMethod: string;
+      let finalIngredients: string;
+      if (productItems.length > 0) {
+        // 套餐モード: 各商品のセールスポイントを「商品名: ポイント」形式で統合
+        finalSellingPoints = productItems.map((item, idx) => {
+          const header = `【${item.productItemName || `商品${idx + 1}`}】`;
+          return `${header}\n${item.sellingPoints}`;
+        }).join("\n\n");
+        finalUsageMethod = productItems.map((item, idx) => {
+          if (!item.usageMethod) return "";
+          return `【${item.productItemName || `商品${idx + 1}`}】\n${item.usageMethod}`;
+        }).filter(Boolean).join("\n\n");
+        finalIngredients = productItems.map((item, idx) => {
+          if (!item.ingredients) return "";
+          return `【${item.productItemName || `商品${idx + 1}`}】\n${item.ingredients}`;
+        }).filter(Boolean).join("\n\n");
+      } else {
+        finalSellingPoints = form.sellingPoints;
+        finalUsageMethod = form.usageMethod;
+        finalIngredients = form.ingredients;
+      }
+      const points = finalSellingPoints.split("\n").map(s => s.replace(/^[・\-\*\d.]+\s*/, "").trim()).filter(Boolean);
       await submitProduct.mutateAsync({
         token,
         productName: form.productName,
@@ -793,8 +981,8 @@ function WizardProductForm({ token, brand, lang, onSuccess }: { token: string; b
         sellingPoint1: points[0] || undefined, sellingPoint2: points[1] || undefined,
         sellingPoint3: points[2] || undefined, sellingPoint4: points[3] || undefined,
         sellingPoint5: points[4] || undefined, sellingPoint6: points[5] || undefined,
-        usageMethod: form.usageMethod || undefined,
-        ingredients: form.ingredients || undefined,
+        usageMethod: finalUsageMethod || undefined,
+        ingredients: finalIngredients || undefined,
         shippingInfo: form.shippingInfo || undefined,
         stockQuantity: form.stockQuantity ? Number(form.stockQuantity) : undefined,
         imageUrls: productImages.length > 0 ? productImages.map(img => img.url) : undefined,
@@ -804,7 +992,7 @@ function WizardProductForm({ token, brand, lang, onSuccess }: { token: string; b
       });
       toast.success(t("step5", "submitSuccess", lang));
       localStorage.removeItem(draftKey);
-      setForm({ ...emptyForm }); setProductImages([]); setBackupImages([]); setProductLinks([]);
+      setForm({ ...emptyForm }); setProductImages([]); setBackupImages([]); setProductLinks([]); setProductItems([]);
       setCurrentStep(1); setTemplateSelected(false); setIsOpen(false);
       onSuccess();
     } catch (err: any) {
@@ -816,7 +1004,7 @@ function WizardProductForm({ token, brand, lang, onSuccess }: { token: string; b
 
   const clearDraft = () => {
     localStorage.removeItem(draftKey);
-    setForm({ ...emptyForm }); setProductImages([]); setBackupImages([]); setProductLinks([]);
+    setForm({ ...emptyForm }); setProductImages([]); setBackupImages([]); setProductLinks([]); setProductItems([]);
     setCurrentStep(1); setTemplateSelected(false);
   };
 
@@ -855,12 +1043,12 @@ function WizardProductForm({ token, brand, lang, onSuccess }: { token: string; b
             <div className="min-h-[300px]">
               {currentStep === 1 && <Step1BasicInfo form={form} updateField={updateField} lang={lang} />}
               {currentStep === 2 && <Step2Pricing form={form} updateField={updateField} lang={lang} />}
-              {currentStep === 3 && <Step3SellingPoints form={form} updateField={updateField} lang={lang} />}
+              {currentStep === 3 && <Step3SellingPoints form={form} updateField={updateField} lang={lang} productItems={productItems} setProductItems={setProductItems} />}
               {currentStep === 4 && <Step4Images productImages={productImages} setProductImages={setProductImages}
                 backupImages={backupImages} setBackupImages={setBackupImages}
                 productLinks={productLinks} setProductLinks={setProductLinks} token={token} lang={lang} />}
               {currentStep === 5 && <Step5Confirm form={form} productImages={productImages} backupImages={backupImages}
-                productLinks={productLinks} brand={brand} lang={lang} goToStep={goToStep} />}
+                productLinks={productLinks} brand={brand} lang={lang} goToStep={goToStep} productItems={productItems} />}
             </div>
             <div className="flex items-center justify-between pt-6 border-t mt-6">
               <div>
