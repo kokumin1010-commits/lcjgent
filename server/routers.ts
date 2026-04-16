@@ -19042,7 +19042,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         offset: z.number().min(0).optional(),
       }))
       .query(async ({ input }) => {
-        const { getBrandClips } = await import("../aitherhubBrandSync");
+        const { getBrandClips } = await import("./aitherhubBrandSync");
         return await getBrandClips(input.brandId, input.limit ?? 50, input.offset ?? 0);
       }),
   }),
