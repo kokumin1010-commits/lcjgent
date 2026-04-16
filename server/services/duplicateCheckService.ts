@@ -13,6 +13,9 @@
  * Level 3: Same image (perceptual hash) → auto reject
  *   - Uses phash with hamming distance threshold
  *   - Catches re-photographed/slightly edited screenshots
+ *   - IMPORTANT: Excludes rejected receipts from comparison to prevent
+ *     the "reject loop" where resubmitted receipts match their own
+ *     previously rejected versions
  */
 
 import { getDb } from "../db";
@@ -163,6 +166,16 @@ export interface Level3Result {
  * 
  * Computes phash for the image and compares against all stored hashes.
  * If a similar image is found (hamming distance <= threshold), it's a duplicate.
+ * 
+ * CRITICAL FIXES (2026-04-16):
+ * 1. Rejected receipts are now excluded from comparison at the findSimilarImages level.
+ *    This prevents the "reject loop" where a user resubmits a receipt and it matches
+ *    their own previously rejected receipt, causing infinite rejections.
+ * 2. The old code had a bug: `similar.find(async ...)` was used, but Array.find()
+ *    is synchronous and always returns a truthy Promise object for async callbacks.
+ *    This has been removed entirely since rejected receipts are now filtered upstream.
+ * 3. Threshold lowered from 8 to 5 to reduce false positives on receipt images
+ *    (white background + black text produces very similar phashes).
  */
 export async function checkLevel3SameImage(
   receiptId: number,
@@ -208,43 +221,21 @@ export async function checkLevel3SameImage(
     }
     
     // Find similar images
-    const similar = await findSimilarImages(targetPhash, receiptId, threshold);
+    // IMPORTANT: findSimilarImages now automatically excludes rejected receipts
+    // This is the key fix that prevents the "reject loop"
+    const similar = await findSimilarImages(targetPhash, receiptId, threshold, {
+      excludeRejectedReceipts: true,
+    });
     
     if (similar.length === 0) {
       return { isDuplicate: false };
     }
     
-    // Get the best match
+    // Get the best match - no need to check status since rejected are already filtered out
     const bestMatch = similar[0];
-    
-    // Check if the matched receipt is approved or pending (not already rejected)
-    const db = await getDb();
-    if (db) {
-      const [matchedReceipt] = await db
-        .select({ status: lineReceipts.status })
-        .from(lineReceipts)
-        .where(eq(lineReceipts.id, bestMatch.receiptId))
-        .limit(1);
-      
-      // Only flag as duplicate if matched receipt is approved/pending/on_hold
-      if (matchedReceipt && matchedReceipt.status === "rejected") {
-        // If the matched receipt was also rejected, check next match
-        const validMatch = similar.find(async (s) => {
-          const [r] = await db
-            .select({ status: lineReceipts.status })
-            .from(lineReceipts)
-            .where(eq(lineReceipts.id, s.receiptId))
-            .limit(1);
-          return r && r.status !== "rejected";
-        });
-        
-        if (!validMatch) {
-          return { isDuplicate: false };
-        }
-      }
-    }
-    
     const isCrossUser = bestMatch.lineUserId !== lineUserId;
+    
+    console.log(`[DuplicateCheck] Level3 match found for receipt #${receiptId}: matched #${bestMatch.receiptId} (distance: ${bestMatch.distance}, cross-user: ${isCrossUser})`);
     
     return {
       isDuplicate: true,

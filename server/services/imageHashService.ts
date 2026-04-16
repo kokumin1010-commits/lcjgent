@@ -11,16 +11,21 @@
  * - Color adjustments
  * 
  * Hamming distance thresholds:
- * - 0-5: Nearly identical images (same photo, different compression)
- * - 6-10: Very similar (minor edits, slight crop)
+ * - 0-3: Nearly identical images (same photo, different compression)
+ * - 4-5: Very similar (minor edits, slight crop)
+ * - 6-10: Somewhat similar (could be different receipts with similar layout)
  * - 11+: Different images
+ * 
+ * IMPORTANT: For receipt images (white bg + black text), phash values tend to be
+ * very similar even for completely different receipts. Threshold must be strict (<=5)
+ * to avoid false positives.
  */
 
 import sharp from "sharp";
 import phash from "sharp-phash";
 import { getDb } from "../db";
-import { imagePerceptualHashes } from "../../drizzle/schema";
-import { eq, and, ne, sql } from "drizzle-orm";
+import { imagePerceptualHashes, lineReceipts } from "../../drizzle/schema";
+import { eq, and, ne, sql, inArray } from "drizzle-orm";
 
 // Inline hamming distance (replaces sharp-phash/distance to avoid ESM import issues)
 function dist(a: string, b: string): number {
@@ -32,7 +37,10 @@ function dist(a: string, b: string): number {
 }
 
 // Threshold: images with hamming distance <= this are considered "same"
-export const PHASH_SIMILARITY_THRESHOLD = 8;
+// Changed from 8 to 5 to reduce false positives on receipt images
+// Receipt images (white bg + black text) produce very similar phashes,
+// so a stricter threshold is needed to only catch truly identical images.
+export const PHASH_SIMILARITY_THRESHOLD = 5;
 
 /**
  * Compute perceptual hash for an image from URL
@@ -108,13 +116,20 @@ export async function storePhash(params: {
  * Find similar images by phash (Level3 check)
  * Returns receipts with images that have hamming distance <= threshold
  * 
- * Note: For large datasets, this does a full scan. Consider adding
- * a BK-tree or VP-tree index for production optimization.
+ * IMPORTANT FIX: Now excludes rejected receipts from comparison to prevent
+ * the "reject loop" where a user's resubmitted receipt matches their own
+ * previously rejected receipt and gets rejected again forever.
+ * 
+ * Also supports excluding specific receipt IDs (e.g., same user's rejected receipts).
  */
 export async function findSimilarImages(
   targetPhash: string,
   excludeReceiptId: number,
-  threshold: number = PHASH_SIMILARITY_THRESHOLD
+  threshold: number = PHASH_SIMILARITY_THRESHOLD,
+  options: {
+    excludeRejectedReceipts?: boolean;  // Default: true - exclude rejected receipts from comparison
+    excludeReceiptIds?: number[];       // Additional receipt IDs to exclude
+  } = {}
 ): Promise<Array<{
   receiptId: number;
   lineUserId: string;
@@ -125,7 +140,9 @@ export async function findSimilarImages(
   const db = await getDb();
   if (!db) return [];
   
-  // Fetch all hashes (for now - optimize with BK-tree later if needed)
+  const { excludeRejectedReceipts = true, excludeReceiptIds = [] } = options;
+  
+  // Fetch all hashes excluding the current receipt
   const allHashes = await db
     .select({
       receiptId: imagePerceptualHashes.receiptId,
@@ -136,7 +153,35 @@ export async function findSimilarImages(
     .from(imagePerceptualHashes)
     .where(ne(imagePerceptualHashes.receiptId, excludeReceiptId));
   
-  // Compare with target hash
+  // If we need to exclude rejected receipts, fetch their IDs
+  let rejectedReceiptIds = new Set<number>();
+  if (excludeRejectedReceipts && allHashes.length > 0) {
+    const receiptIds = [...new Set(allHashes.map(h => h.receiptId))];
+    
+    // Batch query to get status of all matched receipts
+    // Process in chunks to avoid query size limits
+    const chunkSize = 500;
+    for (let i = 0; i < receiptIds.length; i += chunkSize) {
+      const chunk = receiptIds.slice(i, i + chunkSize);
+      const receiptsWithStatus = await db
+        .select({ id: lineReceipts.id, status: lineReceipts.status })
+        .from(lineReceipts)
+        .where(inArray(lineReceipts.id, chunk));
+      
+      for (const r of receiptsWithStatus) {
+        if (r.status === "rejected") {
+          rejectedReceiptIds.add(r.id);
+        }
+      }
+    }
+    
+    console.log(`[ImageHash] findSimilarImages: excluding ${rejectedReceiptIds.size} rejected receipts from ${receiptIds.length} total`);
+  }
+  
+  // Also exclude additional specified receipt IDs
+  const additionalExcludeSet = new Set(excludeReceiptIds);
+  
+  // Compare with target hash, filtering out rejected receipts
   const similar: Array<{
     receiptId: number;
     lineUserId: string;
@@ -146,6 +191,11 @@ export async function findSimilarImages(
   }> = [];
   
   for (const row of allHashes) {
+    // Skip rejected receipts
+    if (rejectedReceiptIds.has(row.receiptId)) continue;
+    // Skip additional excluded receipts
+    if (additionalExcludeSet.has(row.receiptId)) continue;
+    
     const d = hammingDistance(targetPhash, row.phash);
     if (d <= threshold) {
       similar.push({
@@ -197,7 +247,7 @@ export async function checkLevel3Duplicate(
       fileSize: hashResult.size,
     });
     
-    // Find similar images
+    // Find similar images (now automatically excludes rejected receipts)
     const similar = await findSimilarImages(hashResult.phash, receiptId);
     
     if (similar.length === 0) {
