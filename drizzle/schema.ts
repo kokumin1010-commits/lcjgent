@@ -447,6 +447,12 @@ export const brandContracts = mysqlTable("brand_contracts", {
   status: mysqlEnum("status", ["契約中", "完了", "保留", "終了"]).default("契約中").notNull(), // ステータス
   memo: text("memo"), // メモ
   tspContractId: int("tspContractId"), // tsp_contracts.id への参照（TSP契約連携）
+  // ブランド契約追加フィールド
+  currency: varchar("currency", { length: 10 }).default("JPY"), // 通貨（JPY, CNY等）
+  kgLiveCondition: text("kgLiveCondition"), // KG老师直播条件
+  liverLiveCondition: text("liverLiveCondition"), // 达人直播条件
+  shortVideoCondition: text("shortVideoCondition"), // 短视频条件
+  contractPeriodLabel: varchar("contractPeriodLabel", { length: 100 }), // 契約期間ラベル（例：半年矩阵、3个月）
   createdBy: int("createdBy").notNull(), // 作成者（user ID）
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

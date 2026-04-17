@@ -7880,12 +7880,18 @@ Return ONLY valid JSON, no markdown or explanation.`,
           brandId: z.number(),
           serviceType: z.enum(["TSP", "ライブコマース", "広告運用代行", "SNS運用代行", "その他", "単発ライブ契約", "期間契約", "運用代行型（TSP）", "パッケージ／複合契約"]).default("単発ライブ契約"),
           fixedFee: z.number().optional(),
+          commissionRate: z.string().optional(),
           startDate: z.date().optional(),
           endDate: z.date().optional(),
           status: z.enum(["契約中", "完了", "保留", "終了"]).default("契約中"),
           memo: z.string().optional(),
           plannedLivestreamCount: z.number().optional(),
           tspContractId: z.number().nullable().optional(),
+          currency: z.string().optional(),
+          kgLiveCondition: z.string().optional(),
+          liverLiveCondition: z.string().optional(),
+          shortVideoCondition: z.string().optional(),
+          contractPeriodLabel: z.string().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -7955,6 +7961,11 @@ Return ONLY valid JSON, no markdown or explanation.`,
           memo: z.string().optional(),
           plannedLivestreamCount: z.number().nullable().optional(),
           tspContractId: z.number().nullable().optional(),
+          currency: z.string().optional(),
+          kgLiveCondition: z.string().nullable().optional(),
+          liverLiveCondition: z.string().nullable().optional(),
+          shortVideoCondition: z.string().nullable().optional(),
+          contractPeriodLabel: z.string().nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {

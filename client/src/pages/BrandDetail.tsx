@@ -2400,6 +2400,29 @@ ${proposal.proposalContent}
                       </a>
                     )}
                   </div>
+                  {/* 契約条件表示 */}
+                  {((contract as any).kgLiveCondition || (contract as any).liverLiveCondition || (contract as any).shortVideoCondition) && (
+                    <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
+                      {(contract as any).kgLiveCondition && (
+                        <div className="bg-red-950/30 rounded-lg p-2 border border-red-500/20">
+                          <p className="text-[10px] text-red-400 font-bold mb-0.5">KG老师直播条件</p>
+                          <p className="text-xs text-gray-300 whitespace-pre-line">{(contract as any).kgLiveCondition}</p>
+                        </div>
+                      )}
+                      {(contract as any).liverLiveCondition && (
+                        <div className="bg-blue-950/30 rounded-lg p-2 border border-blue-500/20">
+                          <p className="text-[10px] text-blue-400 font-bold mb-0.5">达人直播条件</p>
+                          <p className="text-xs text-gray-300 whitespace-pre-line">{(contract as any).liverLiveCondition}</p>
+                        </div>
+                      )}
+                      {(contract as any).shortVideoCondition && (
+                        <div className="bg-orange-950/30 rounded-lg p-2 border border-orange-500/20">
+                          <p className="text-[10px] text-orange-400 font-bold mb-0.5">短视频条件</p>
+                          <p className="text-xs text-gray-300 whitespace-pre-line">{(contract as any).shortVideoCondition}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {/* ROAS表示コンポーネント */}
                   <ContractRoasDisplay 
                     contractId={contract.id} 
@@ -3961,6 +3984,67 @@ ${proposal.proposalContent}
                 />
               </div>
 
+              {/* 佣金率・契約期間ラベル */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-400">{language === 'ja' ? '佣金率' : '佣金率'}</Label>
+                  <Input
+                    value={editingContract.commissionRate || ""}
+                    onChange={(e) => setEditingContract({ ...editingContract, commissionRate: e.target.value })}
+                    placeholder="例: 25%"
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-400">{language === 'ja' ? '契約期間ラベル' : '合同期限标签'}</Label>
+                  <Input
+                    value={editingContract.contractPeriodLabel || ""}
+                    onChange={(e) => setEditingContract({ ...editingContract, contractPeriodLabel: e.target.value })}
+                    placeholder="例: 半年矩阵、3个月"
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+              </div>
+
+              {/* 契約条件 */}
+              <div className="border-t border-red-900/30 pt-4">
+                <Label className="text-gray-400 flex items-center gap-2 mb-3">
+                  {language === 'ja' ? '契約条件' : '合同条件'}
+                </Label>
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-red-400 text-xs">KG老师直播条件</Label>
+                    <Textarea
+                      value={editingContract.kgLiveCondition || ""}
+                      onChange={(e) => setEditingContract({ ...editingContract, kgLiveCondition: e.target.value })}
+                      placeholder="例: 每月1小时专场直播"
+                      className="bg-black/60 border-red-900/50 text-white mt-1"
+                      rows={2}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-blue-400 text-xs">达人直播条件</Label>
+                    <Textarea
+                      value={editingContract.liverLiveCondition || ""}
+                      onChange={(e) => setEditingContract({ ...editingContract, liverLiveCondition: e.target.value })}
+                      placeholder="例: 旗下 KOL：每月合计 20小时"
+                      className="bg-black/60 border-red-900/50 text-white mt-1"
+                      rows={2}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-orange-400 text-xs">短视频条件</Label>
+                    <Textarea
+                      value={editingContract.shortVideoCondition || ""}
+                      onChange={(e) => setEditingContract({ ...editingContract, shortVideoCondition: e.target.value })}
+                      placeholder="例: 30条视频/月"
+                      className="bg-black/60 border-red-900/50 text-white mt-1"
+                      rows={2}
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* ライブ紐付けセクション */}
               <div className="border-t border-amber-500/30 pt-4 mt-4">
                 <div className="flex items-center justify-between mb-3">
@@ -4168,6 +4252,10 @@ ${proposal.proposalContent}
                       endDate: endDateStr,
                       memo: editingContract.memo || undefined,
                       plannedLivestreamCount: editingContract.plannedLivestreamCount ? Number(editingContract.plannedLivestreamCount) : null,
+                      kgLiveCondition: editingContract.kgLiveCondition || undefined,
+                      liverLiveCondition: editingContract.liverLiveCondition || undefined,
+                      shortVideoCondition: editingContract.shortVideoCondition || undefined,
+                      contractPeriodLabel: editingContract.contractPeriodLabel || undefined,
                     };
                     console.log("契約更新データ:", JSON.stringify(contractData, null, 2));
                     
@@ -5074,6 +5162,68 @@ ${proposal.proposalContent}
               />
             </div>
 
+            {/* 佣金率・契約期間ラベル */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-gray-400">{language === 'ja' ? '佣金率' : '佣金率'}</Label>
+                <Input
+                  value={(newContract as any).commissionRate || ""}
+                  onChange={(e) => setNewContract({ ...newContract, commissionRate: e.target.value } as any)}
+                  placeholder="例: 25%"
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400">{language === 'ja' ? '契約期間ラベル' : '合同期限标签'}</Label>
+                <Input
+                  value={(newContract as any).contractPeriodLabel || ""}
+                  onChange={(e) => setNewContract({ ...newContract, contractPeriodLabel: e.target.value } as any)}
+                  placeholder="例: 半年矩阵、3个月"
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+            </div>
+
+            {/* 契約条件 */}
+            <div className="border-t border-red-900/30 pt-4">
+              <Label className="text-gray-400 flex items-center gap-2 mb-3">
+                <Video className="h-4 w-4" />
+                {language === 'ja' ? '契約条件' : '合同条件'}
+              </Label>
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-red-400 text-xs">KG老师直播条件</Label>
+                  <Textarea
+                    value={(newContract as any).kgLiveCondition || ""}
+                    onChange={(e) => setNewContract({ ...newContract, kgLiveCondition: e.target.value } as any)}
+                    placeholder="例: 每月1小时专场直播"
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                    rows={2}
+                  />
+                </div>
+                <div>
+                  <Label className="text-blue-400 text-xs">达人直播条件</Label>
+                  <Textarea
+                    value={(newContract as any).liverLiveCondition || ""}
+                    onChange={(e) => setNewContract({ ...newContract, liverLiveCondition: e.target.value } as any)}
+                    placeholder="例: 旗下 KOL：每月合计 20小时"
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                    rows={2}
+                  />
+                </div>
+                <div>
+                  <Label className="text-orange-400 text-xs">短视频条件</Label>
+                  <Textarea
+                    value={(newContract as any).shortVideoCondition || ""}
+                    onChange={(e) => setNewContract({ ...newContract, shortVideoCondition: e.target.value } as any)}
+                    placeholder="例: 30条视频/月"
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                    rows={2}
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* TSP契約連携セクション */}
             {(newContract.serviceType === '運用代行型（TSP）' || newContract.serviceType === '期間契約') && (
               <div className="border-t border-red-900/30 pt-4">
@@ -5216,12 +5366,17 @@ ${proposal.proposalContent}
                     brandId,
                     serviceType: newContract.serviceType,
                     fixedFee: newContract.fixedFee,
+                    commissionRate: (newContract as any).commissionRate || undefined,
                     status: newContract.status,
                     startDate: newContract.startDate ? new Date(newContract.startDate) : undefined,
                     endDate: newContract.endDate ? new Date(newContract.endDate) : undefined,
                     memo: newContract.memo || undefined,
                     plannedLivestreamCount: newContract.plannedLivestreamCount,
                     tspContractId: tspId,
+                    kgLiveCondition: (newContract as any).kgLiveCondition || undefined,
+                    liverLiveCondition: (newContract as any).liverLiveCondition || undefined,
+                    shortVideoCondition: (newContract as any).shortVideoCondition || undefined,
+                    contractPeriodLabel: (newContract as any).contractPeriodLabel || undefined,
                   });
                   // ライブ紐付けがあれば実行
                   if (newContract.linkedLivestreamIds.length > 0 && result.contractId) {
