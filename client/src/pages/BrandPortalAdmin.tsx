@@ -1098,6 +1098,7 @@ function SimulationsTab({
 // Simulation List (for a product)
 // ============================================================
 function SimulationList({ portalProductId }: { portalProductId: number }) {
+  const { t } = useLanguage();
   const { data: sims, isLoading } = trpc.brandPortal.getSimulations.useQuery({ portalProductId });
   const shareMutation = trpc.brandPortal.shareSimulation.useMutation();
 
