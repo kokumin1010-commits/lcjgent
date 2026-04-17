@@ -21,7 +21,7 @@ import {
   Search, ChevronRight, CheckCircle2, XCircle, Clock, Loader2,
   ArrowLeft, Send, Trash2, Eye, EyeOff, TrendingUp, DollarSign,
   Zap, Users, Award, AlertCircle, RefreshCw, Pencil, Save, X,
-  CreditCard, Download
+  CreditCard, Download, Globe
 } from "lucide-react";
 import ProductCard, { ProductCardMini } from "@/components/ProductCard";
 
@@ -62,7 +62,7 @@ function PortalListView({
   onSelectPortal: (portalId: number) => void;
   onSelectBrand: (brandId: number) => void;
 }) {
-  const { t } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const [search, setSearch] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
@@ -118,6 +118,15 @@ function PortalListView({
           <h1 className="text-2xl font-bold text-gray-900">{t("bp.title")}</h1>
           <p className="text-sm text-gray-500 mt-1">{t("bp.subtitle")}</p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setLanguage(language === 'ja' ? 'zh' : 'ja')}
+          className="flex items-center gap-2"
+        >
+          <Globe className="h-4 w-4" />
+          {language === 'ja' ? '中文' : '日本語'}
+        </Button>
       </div>
 
       {/* Existing portals */}
