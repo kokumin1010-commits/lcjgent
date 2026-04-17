@@ -10,6 +10,7 @@
  * - ステータス管理・承認フロー
  */
 import { useState, useMemo } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,24 +28,26 @@ import ProductCard, { ProductCardMini } from "@/components/ProductCard";
 // ============================================================
 // Status config
 // ============================================================
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: "下書き", color: "text-gray-600", bg: "bg-gray-100" },
-  submitted: { label: "提出済み", color: "text-blue-600", bg: "bg-blue-100" },
-  reviewing: { label: "審査中", color: "text-yellow-600", bg: "bg-yellow-100" },
-  tuning: { label: "調整中", color: "text-orange-600", bg: "bg-orange-100" },
-  simulating: { label: "シミュレーション中", color: "text-purple-600", bg: "bg-purple-100" },
-  proposed: { label: "提案済み", color: "text-indigo-600", bg: "bg-indigo-100" },
-  approved: { label: "承認済み", color: "text-green-600", bg: "bg-green-100" },
-  live_ready: { label: "配信準備完了", color: "text-teal-600", bg: "bg-teal-100" },
-  live_done: { label: "配信完了", color: "text-emerald-700", bg: "bg-emerald-100" },
-  rejected: { label: "却下", color: "text-red-600", bg: "bg-red-100" },
+const STATUS_COLORS: Record<string, { color: string; bg: string }> = {
+  draft: { color: "text-gray-600", bg: "bg-gray-100" },
+  submitted: { color: "text-blue-600", bg: "bg-blue-100" },
+  reviewing: { color: "text-yellow-600", bg: "bg-yellow-100" },
+  tuning: { color: "text-orange-600", bg: "bg-orange-100" },
+  simulating: { color: "text-purple-600", bg: "bg-purple-100" },
+  proposed: { color: "text-indigo-600", bg: "bg-indigo-100" },
+  approved: { color: "text-green-600", bg: "bg-green-100" },
+  live_ready: { color: "text-teal-600", bg: "bg-teal-100" },
+  live_done: { color: "text-emerald-700", bg: "bg-emerald-100" },
+  rejected: { color: "text-red-600", bg: "bg-red-100" },
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const c = STATUS_CONFIG[status] || { label: status, color: "text-gray-600", bg: "bg-gray-100" };
+  const { t } = useLanguage();
+  const c = STATUS_COLORS[status] || { color: "text-gray-600", bg: "bg-gray-100" };
+  const label = t(`bp.status.${status}`) !== `bp.status.${status}` ? t(`bp.status.${status}`) : status;
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${c.color} ${c.bg}`}>
-      {c.label}
+      {label}
     </span>
   );
 }
@@ -59,6 +62,7 @@ function PortalListView({
   onSelectPortal: (portalId: number) => void;
   onSelectBrand: (brandId: number) => void;
 }) {
+  const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
@@ -87,23 +91,23 @@ function PortalListView({
         portalName: portalName || undefined,
         welcomeMessage: welcomeMessage || undefined,
       });
-      toast.success("ポータルリンクを作成しました（既存商品データを自動連携済み）");
+      toast.success(t("bp.portalCreated"));
       navigator.clipboard.writeText(result.url);
-      toast.info("URLをクリップボードにコピーしました");
+      toast.info(t("bp.urlClipboard"));
       setShowCreateModal(false);
       setSelectedBrandId(null);
       setPortalName("");
       setWelcomeMessage("");
       refetchPortals();
     } catch (err: any) {
-      toast.error(err?.message || "作成に失敗しました");
+      toast.error(err?.message || t("bp.sim.createFailed"));
     }
   };
 
   const copyUrl = (token: string) => {
     const url = `${window.location.origin}/brand/${token}`;
     navigator.clipboard.writeText(url);
-    toast.success("URLをコピーしました");
+    toast.success(t("bp.urlCopied"));
   };
 
   return (
@@ -111,8 +115,8 @@ function PortalListView({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">ブランドポータル管理</h1>
-          <p className="text-sm text-gray-500 mt-1">ブランド方向けポータルの作成・管理・シミュレーション</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t("bp.title")}</h1>
+          <p className="text-sm text-gray-500 mt-1">{t("bp.subtitle")}</p>
         </div>
       </div>
 
@@ -120,7 +124,7 @@ function PortalListView({
       <div>
         <h2 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
           <Link2 className="w-5 h-5" />
-          作成済みポータル
+          {t("bp.existingPortals")}
         </h2>
         {portalsLoading ? (
           <div className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" /></div>
@@ -139,12 +143,12 @@ function PortalListView({
                     </div>
                     <div>
                       <h3 className="font-semibold text-gray-900">
-                        {portal.brandNameJa || portal.brandName || portal.portalName || `ポータル #${portal.id}`}
+                        {portal.brandNameJa || portal.brandName || portal.portalName || `${t("bp.portal")} #${portal.id}`}
                       </h3>
                       <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
-                        <span>アクセス: {portal.accessCount}回</span>
+                        <span>{t("bp.access")}: {portal.accessCount}{t("bp.times")}</span>
                         {portal.lastAccessedAt && (
-                          <span>最終: {new Date(portal.lastAccessedAt).toLocaleDateString("ja-JP")}</span>
+                          <span>{t("bp.last")}: {new Date(portal.lastAccessedAt).toLocaleDateString("ja-JP")}</span>
                         )}
                       </div>
                     </div>
@@ -154,7 +158,7 @@ function PortalListView({
                     <button
                       onClick={(e) => { e.stopPropagation(); copyUrl(portal.accessToken); }}
                       className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="URLをコピー"
+                      title={t("bp.copyUrl")}
                     >
                       <Copy className="w-4 h-4" />
                     </button>
@@ -167,7 +171,7 @@ function PortalListView({
         ) : (
           <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-xl">
             <Link2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>まだポータルが作成されていません</p>
+            <p>{t("bp.noPortals")}</p>
           </div>
         )}
       </div>
@@ -176,14 +180,14 @@ function PortalListView({
       <div>
         <h2 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
           <Plus className="w-5 h-5" />
-          ブランド一覧（ポータル作成）
+          {t("bp.brandList")}
         </h2>
         <div className="relative mb-4">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <Input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="ブランド名で検索..."
+            placeholder={t("bp.searchBrand")}
             className="pl-10"
           />
         </div>
@@ -207,7 +211,7 @@ function PortalListView({
                     </div>
                     {brand.productCount > 0 && (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-700">
-                        {brand.productCount}品
+                        {brand.productCount}
                       </span>
                     )}
                   </div>
@@ -218,7 +222,7 @@ function PortalListView({
                         onClick={(e) => { e.stopPropagation(); brand.portal && onSelectPortal(brand.portal.portalId); }}
                         className="text-xs text-blue-600 hover:underline"
                       >
-                        詳細
+                        {t("bp.detail")}
                       </button>
                     </div>
                   ) : (
@@ -234,7 +238,7 @@ function PortalListView({
                       className="text-xs"
                     >
                       <Plus className="w-3 h-3 mr-1" />
-                      作成
+                      {t("bp.create")}
                     </Button>
                   )}
                 </div>
@@ -248,18 +252,18 @@ function PortalListView({
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowCreateModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-gray-900 mb-4">ポータルリンク作成</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">{t("bp.createPortalLink")}</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">ポータル名</label>
-                <Input value={portalName} onChange={e => setPortalName(e.target.value)} placeholder="ブランド名など" />
+                <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.portalName")}</label>
+                <Input value={portalName} onChange={e => setPortalName(e.target.value)} placeholder={t("bp.portalNamePlaceholder")} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">ウェルカムメッセージ</label>
+                <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.welcomeMessage")}</label>
                 <Textarea
                   value={welcomeMessage}
                   onChange={e => setWelcomeMessage(e.target.value)}
-                  placeholder="ブランド方に表示するメッセージ"
+                  placeholder={t("bp.welcomeMessagePlaceholder")}
                   rows={3}
                 />
               </div>
@@ -267,9 +271,9 @@ function PortalListView({
             <div className="flex gap-3 mt-6">
               <Button onClick={handleCreatePortal} disabled={createPortalMutation.isPending} className="bg-blue-600 hover:bg-blue-700 text-white flex-1">
                 {createPortalMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Link2 className="w-4 h-4 mr-2" />}
-                作成してURLをコピー
+                {t("bp.createAndCopy")}
               </Button>
-              <Button variant="outline" onClick={() => setShowCreateModal(false)}>キャンセル</Button>
+              <Button variant="outline" onClick={() => setShowCreateModal(false)}>{t("bp.cancel")}</Button>
             </div>
           </div>
         </div>
@@ -288,6 +292,7 @@ function PortalDetailView({
   portalId: number;
   onBack: () => void;
 }) {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<"products" | "simulations" | "performance" | "cards">("products");
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
 
@@ -302,7 +307,7 @@ function PortalDetailView({
   }
 
   if (!data) {
-    return <div className="text-center py-12 text-gray-500">ポータルが見つかりません</div>;
+    return <div className="text-center py-12 text-gray-500">{t("bp.portalDetail")}</div>;
   }
 
   const { portal, brand, products, brandProducts: existingProducts } = data;
@@ -321,10 +326,10 @@ function PortalDetailView({
         </button>
         <div className="flex-1">
           <h1 className="text-xl font-bold text-gray-900">
-            {brand?.nameJa || brand?.name || portal.portalName || "ポータル詳細"}
+            {brand?.nameJa || brand?.name || portal.portalName || t("bp.portalDetail")}
           </h1>
           <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
-            <span>アクセス: {portal.accessCount}回</span>
+            <span>{t("bp.access")}: {portal.accessCount}{t("bp.times")}</span>
             <StatusBadge status={portal.status} />
           </div>
         </div>
@@ -332,22 +337,22 @@ function PortalDetailView({
           onClick={() => {
             const url = `${window.location.origin}/brand/${portal.accessToken}`;
             navigator.clipboard.writeText(url);
-            toast.success("URLをコピーしました");
+            toast.success(t("bp.urlCopied"));
           }}
           className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
         >
           <Copy className="w-4 h-4" />
-          URLコピー
+          {t("bp.copyUrl")}
         </button>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
         {[
-          { key: "products", label: "商品・チューニング", icon: Package },
-          { key: "simulations", label: "シミュレーション", icon: BarChart3 },
-          { key: "performance", label: "配信実績", icon: TrendingUp },
-          { key: "cards", label: "手卡一覧", icon: CreditCard },
+          { key: "products", label: t("bp.tab.products"), icon: Package },
+          { key: "simulations", label: t("bp.tab.simulations"), icon: BarChart3 },
+          { key: "performance", label: t("bp.tab.performance"), icon: TrendingUp },
+          { key: "cards", label: t("bp.tab.cards"), icon: CreditCard },
         ].map(tab => (
           <button
             key={tab.key}
@@ -417,11 +422,12 @@ function ProductsTab({
 }: {
   products: any[];
   portalId: number;
-  brandId: number;
+  brandId: number | null;
   onRefresh: () => void;
   selectedProductId: number | null;
   onSelectProduct: (id: number | null) => void;
 }) {
+  const { t } = useLanguage();
   const tuneMutation = trpc.brandPortal.tuneProduct.useMutation();
   const statusMutation = trpc.brandPortal.updateProductStatus.useMutation();
   const addProductMutation = trpc.brandPortal.adminAddProduct.useMutation();
@@ -447,7 +453,7 @@ function ProductsTab({
 
   const handleAddProduct = async () => {
     if (!newProduct.productName.trim()) {
-      toast.error("商品名は必須です");
+      toast.error(t("bp.prod.nameRequired"));
       return;
     }
     try {
@@ -471,12 +477,12 @@ function ProductsTab({
         salesMechanism: newProduct.salesMechanism || undefined,
         giftItems: newProduct.giftItems || undefined,
       });
-      toast.success("商品を追加しました");
+      toast.success(t("bp.productAdded"));
       setShowAddForm(false);
       setNewProduct({ productName: "", productCode: "", listPrice: "", livePrice: "", costPrice: "", commissionRate: "", productDescription: "", specifications: "", targetAudience: "", sellingPoint1: "", sellingPoint2: "", sellingPoint3: "", usageMethod: "", shippingInfo: "", salesMechanism: "", giftItems: "" });
       onRefresh();
     } catch (err: any) {
-      toast.error(err?.message || "追加に失敗しました");
+      toast.error(err?.message || t("bp.addFailed"));
     }
   };
 
@@ -505,10 +511,10 @@ function ProductsTab({
         tuningNotes: tuneForm.tuningNotes || undefined,
         status: "tuning",
       });
-      toast.success("チューニングを保存しました");
+      toast.success(t("bp.tuningSaved"));
       onRefresh();
     } catch (err: any) {
-      toast.error(err?.message || "保存に失敗しました");
+      toast.error(err?.message || t("bp.saveFailed"));
     }
   };
 
@@ -519,10 +525,10 @@ function ProductsTab({
         status: status as any,
         rejectionReason,
       });
-      toast.success("ステータスを更新しました");
+      toast.success(t("bp.statusUpdated"));
       onRefresh();
     } catch (err: any) {
-      toast.error(err?.message || "更新に失敗しました");
+      toast.error(err?.message || t("bp.updateFailed"));
     }
   };
 
@@ -531,81 +537,81 @@ function ProductsTab({
       {/* Product list */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-gray-800">登録商品 ({products.length}件)</h3>
+          <h3 className="font-bold text-gray-800">{t("bp.registeredProducts")} ({products.length})</h3>
           <Button size="sm" variant="outline" onClick={() => setShowAddForm(!showAddForm)} className="text-blue-600 border-blue-300 hover:bg-blue-50">
-            <Plus className="w-4 h-4 mr-1" /> 新規追加
+            <Plus className="w-4 h-4 mr-1" /> {t("bp.addNew")}
           </Button>
         </div>
         {showAddForm && (
           <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 space-y-3">
-            <h4 className="font-bold text-blue-800 text-sm">新規商品追加</h4>
+            <h4 className="font-bold text-blue-800 text-sm">{t("bp.addProduct")}</h4>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-gray-600">商品名 <span className="text-red-500">*</span></label>
-                <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.productName} onChange={e => setNewProduct(p => ({...p, productName: e.target.value}))} placeholder="商品名" />
+                <label className="text-xs font-medium text-gray-600">{t("bp.productName")} <span className="text-red-500">*</span></label>
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.productName} onChange={e => setNewProduct(p => ({...p, productName: e.target.value}))} placeholder={t("bp.productName")} />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">品番</label>
+                <label className="text-xs font-medium text-gray-600">{t("bp.productCode")}</label>
                 <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.productCode} onChange={e => setNewProduct(p => ({...p, productCode: e.target.value}))} placeholder="SKU" />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">通常価格</label>
+                <label className="text-xs font-medium text-gray-600">{t("bp.normalPrice")}</label>
                 <input type="number" className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.listPrice} onChange={e => setNewProduct(p => ({...p, listPrice: e.target.value}))} placeholder="¥0" />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">ライブ価格</label>
+                <label className="text-xs font-medium text-gray-600">{t("bp.livePrice")}</label>
                 <input type="number" className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.livePrice} onChange={e => setNewProduct(p => ({...p, livePrice: e.target.value}))} placeholder="¥0" />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">原価</label>
+                <label className="text-xs font-medium text-gray-600">{t("bp.costPrice")}</label>
                 <input type="number" className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.costPrice} onChange={e => setNewProduct(p => ({...p, costPrice: e.target.value}))} placeholder="¥0" />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">成果報酬率</label>
+                <label className="text-xs font-medium text-gray-600">{t("bp.commissionRate")}</label>
                 <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.commissionRate} onChange={e => setNewProduct(p => ({...p, commissionRate: e.target.value}))} placeholder="15%" />
               </div>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600">ターゲット層</label>
-              <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.targetAudience} onChange={e => setNewProduct(p => ({...p, targetAudience: e.target.value}))} placeholder="20代女性・美容意識高い層" />
+              <label className="text-xs font-medium text-gray-600">{t("bp.targetAudience")}</label>
+              <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.targetAudience} onChange={e => setNewProduct(p => ({...p, targetAudience: e.target.value}))} placeholder={t("bp.targetAudiencePlaceholder")} />
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div>
-                <label className="text-xs font-medium text-gray-600">セールスポイント①</label>
+                <label className="text-xs font-medium text-gray-600">{t("bp.sellingPoint")} 1</label>
                 <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.sellingPoint1} onChange={e => setNewProduct(p => ({...p, sellingPoint1: e.target.value}))} />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">セールスポイント②</label>
+                <label className="text-xs font-medium text-gray-600">{t("bp.sellingPoint")} 2</label>
                 <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.sellingPoint2} onChange={e => setNewProduct(p => ({...p, sellingPoint2: e.target.value}))} />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">セールスポイント③</label>
+                <label className="text-xs font-medium text-gray-600">{t("bp.sellingPoint")} 3</label>
                 <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.sellingPoint3} onChange={e => setNewProduct(p => ({...p, sellingPoint3: e.target.value}))} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-gray-600">販売メカニズム</label>
-                <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.salesMechanism} onChange={e => setNewProduct(p => ({...p, salesMechanism: e.target.value}))} placeholder="単品販売 / セット販売" />
+                <label className="text-xs font-medium text-gray-600">{t("bp.salesMechanism")}</label>
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.salesMechanism} onChange={e => setNewProduct(p => ({...p, salesMechanism: e.target.value}))} placeholder={t("bp.salesMechanismPlaceholder")} />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">贈品・特典</label>
-                <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.giftItems} onChange={e => setNewProduct(p => ({...p, giftItems: e.target.value}))} placeholder="サンプルセット付き" />
+                <label className="text-xs font-medium text-gray-600">{t("bp.giftItems")}</label>
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" value={newProduct.giftItems} onChange={e => setNewProduct(p => ({...p, giftItems: e.target.value}))} placeholder={t("bp.giftItemsPlaceholder")} />
               </div>
             </div>
             <div className="flex gap-2 pt-2">
               <Button size="sm" onClick={handleAddProduct} disabled={addProductMutation.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
                 {addProductMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
-                追加
+                {t("bp.add")}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setShowAddForm(false)}>キャンセル</Button>
+              <Button size="sm" variant="outline" onClick={() => setShowAddForm(false)}>{t("bp.cancel")}</Button>
             </div>
           </div>
         )}
         {products.length === 0 && !showAddForm ? (
           <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-xl">
             <Package className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>まだ商品がありません</p>
+            <p>{t("bp.noProducts")}</p>
           </div>
         ) : (
           products.map((product: any) => (
@@ -635,18 +641,18 @@ function ProductsTab({
                     <h4 className="font-semibold text-gray-900">{product.productName}</h4>
                     <div className="flex items-center gap-2">
                       {product.productCode && <span className="text-xs text-gray-500">SKU: {product.productCode}</span>}
-                      {product.source === 'brand_products' && <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">既存手卡</span>}
+                      {product.source === 'brand_products' && <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">{t("bp.existingCard")}</span>}
                     </div>
                   </div>
                 </div>
                 <StatusBadge status={product.status} />
               </div>
               <div className="flex gap-4 mt-2 text-sm">
-                {product.listPrice && <span className="text-gray-500">通常: ¥{Number(product.listPrice).toLocaleString()}</span>}
-                {product.livePrice && <span className="text-blue-600">特価: ¥{Number(product.livePrice).toLocaleString()}</span>}
-                {product.adjustedLivePrice && <span className="text-green-600 font-medium">調整: ¥{Number(product.adjustedLivePrice).toLocaleString()}</span>}
+                {product.listPrice && <span className="text-gray-500">{t("bp.normal")}: ¥{Number(product.listPrice).toLocaleString()}</span>}
+                {product.livePrice && <span className="text-blue-600">{t("bp.special")}: ¥{Number(product.livePrice).toLocaleString()}</span>}
+                {product.adjustedLivePrice && <span className="text-green-600 font-medium">{t("bp.adjusted")}: ¥{Number(product.adjustedLivePrice).toLocaleString()}</span>}
                 {product.gmv && Number(product.gmv) > 0 && <span className="text-orange-600 font-medium">GMV: ¥{Number(product.gmv).toLocaleString()}</span>}
-                {product.commissionRate && <span className="text-gray-500">報酬: {product.commissionRate}</span>}
+                {product.commissionRate && <span className="text-gray-500">{t("bp.reward")}: {product.commissionRate}</span>}
               </div>
             </div>
           ))
@@ -660,23 +666,23 @@ function ProductsTab({
             <div className="bg-gradient-to-r from-orange-500 to-amber-500 px-5 py-3">
               <h3 className="text-white font-bold flex items-center gap-2">
                 <Settings className="w-5 h-5" />
-                チューニング: {selectedProduct.productName}
+                {t("bp.tuning")}: {selectedProduct.productName}
               </h3>
             </div>
             <div className="p-5 space-y-4">
               {/* Original info */}
               <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
-                <p><span className="font-medium text-gray-600">通常価格:</span> ¥{Number(selectedProduct.listPrice || 0).toLocaleString()}</p>
-                <p><span className="font-medium text-gray-600">ブランド希望価格:</span> ¥{Number(selectedProduct.livePrice || 0).toLocaleString()}</p>
-                <p><span className="font-medium text-gray-600">原価:</span> ¥{Number(selectedProduct.costPrice || 0).toLocaleString()}</p>
-                <p><span className="font-medium text-gray-600">ライセンス料率:</span> {selectedProduct.commissionRate || "未設定"}</p>
-                {selectedProduct.giftItems && <p><span className="font-medium text-gray-600">贈品:</span> {selectedProduct.giftItems}</p>}
+                <p><span className="font-medium text-gray-600">{t("bp.originalPrice")}:</span> ¥{Number(selectedProduct.listPrice || 0).toLocaleString()}</p>
+                <p><span className="font-medium text-gray-600">{t("bp.brandDesiredPrice")}:</span> ¥{Number(selectedProduct.livePrice || 0).toLocaleString()}</p>
+                <p><span className="font-medium text-gray-600">{t("bp.costPrice")}:</span> ¥{Number(selectedProduct.costPrice || 0).toLocaleString()}</p>
+                <p><span className="font-medium text-gray-600">{t("bp.licenseRate")}:</span> {selectedProduct.commissionRate || t("bp.notSet")}</p>
+                {selectedProduct.giftItems && <p><span className="font-medium text-gray-600">{t("bp.gifts")}:</span> {selectedProduct.giftItems}</p>}
               </div>
 
               {/* Selling points - from sellingPoint1-6 or features */}
               {([1, 2, 3, 4, 5, 6].some(i => selectedProduct[`sellingPoint${i}`]) || selectedProduct.features) && (
                 <div className="bg-yellow-50 rounded-lg p-3 text-sm">
-                  <p className="font-medium text-yellow-700 mb-1">セールスポイント:</p>
+                  <p className="font-medium text-yellow-700 mb-1">{t("bp.sellingPoints")}:</p>
                   {[1, 2, 3, 4, 5, 6].map(i => {
                     const sp = selectedProduct[`sellingPoint${i}`];
                     return sp ? <p key={i} className="text-yellow-800">• {sp}</p> : null;
@@ -692,7 +698,7 @@ function ProductsTab({
               {/* AI Analysis (from brand_products) */}
               {selectedProduct.source === 'brand_products' && selectedProduct.aiCatchCopy && (
                 <div className="bg-purple-50 rounded-lg p-3 text-sm">
-                  <p className="font-medium text-purple-700 mb-1">AIキャッチコピー:</p>
+                  <p className="font-medium text-purple-700 mb-1">{t("bp.aiCatchCopy")}:</p>
                   <p className="text-purple-800">{selectedProduct.aiCatchCopy}</p>
                 </div>
               )}
@@ -700,7 +706,7 @@ function ProductsTab({
               {/* Tuning fields */}
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">調整後ライブ価格</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.adjustedLivePrice")}</label>
                   <Input
                     type="text"
                     inputMode="numeric"
@@ -710,27 +716,27 @@ function ProductsTab({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">調整後割引率</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.adjustedDiscountRate")}</label>
                   <Input
                     value={tuneForm.adjustedDiscountRate}
                     onChange={e => setTuneForm(f => ({ ...f, adjustedDiscountRate: e.target.value }))}
-                    placeholder="例: 30%"
+                    placeholder={t("bp.adjustedDiscountRatePlaceholder")}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">調整後贈品</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.adjustedGiftItems")}</label>
                   <Input
                     value={tuneForm.adjustedGiftItems}
                     onChange={e => setTuneForm(f => ({ ...f, adjustedGiftItems: e.target.value }))}
-                    placeholder="おまけ・ノベルティ"
+                    placeholder={t("bp.adjustedGiftItemsPlaceholder")}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">チューニングメモ</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.tuningNotes")}</label>
                   <Textarea
                     value={tuneForm.tuningNotes}
                     onChange={e => setTuneForm(f => ({ ...f, tuningNotes: e.target.value }))}
-                    placeholder="ブランド方に見えるメモ"
+                    placeholder={t("bp.tuningNotesPlaceholder")}
                     rows={2}
                   />
                 </div>
@@ -740,7 +746,7 @@ function ProductsTab({
               <div className="space-y-2 pt-2 border-t">
                 <Button onClick={handleTune} disabled={tuneMutation.isPending} className="w-full bg-orange-500 hover:bg-orange-600 text-white">
                   {tuneMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                  チューニング保存
+                  {t("bp.saveTuning")}
                 </Button>
                 <div className="grid grid-cols-2 gap-2">
                   <Button
@@ -750,19 +756,19 @@ function ProductsTab({
                     className="text-green-600 border-green-300 hover:bg-green-50"
                   >
                     <CheckCircle2 className="w-3 h-3 mr-1" />
-                    承認
+                    {t("bp.approve")}
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      const reason = prompt("却下理由を入力してください");
+                      const reason = prompt(t("bp.rejectReason"));
                       if (reason) handleStatusChange(selectedProduct.id, "rejected", reason);
                     }}
                     className="text-red-600 border-red-300 hover:bg-red-50"
                   >
                     <XCircle className="w-3 h-3 mr-1" />
-                    却下
+                    {t("bp.reject")}
                   </Button>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
@@ -784,7 +790,7 @@ function ProductsTab({
         ) : (
           <div className="bg-gray-50 rounded-xl border border-dashed border-gray-300 p-12 text-center text-gray-400">
             <Settings className="w-10 h-10 mx-auto mb-3 opacity-50" />
-            <p>左の商品を選択してチューニングを開始</p>
+            <p>{t("bp.selectProductToTune")}</p>
           </div>
         )}
       </div>
@@ -802,13 +808,14 @@ function SimulationsTab({
   products: any[];
   portalId: number;
 }) {
+  const { t } = useLanguage();
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [simName, setSimName] = useState("");
   const [scenarios, setScenarios] = useState<any[]>([
-    { label: "シナリオA（保守的）", livePrice: 0, discountRate: 10, commissionRate: 15, giftItems: "", estimatedSalesCount: 0, estimatedGmv: 0, estimatedProfit: 0, commissionAmount: 0 },
-    { label: "シナリオB（標準）", livePrice: 0, discountRate: 20, commissionRate: 15, giftItems: "", estimatedSalesCount: 0, estimatedGmv: 0, estimatedProfit: 0, commissionAmount: 0 },
-    { label: "シナリオC（攻め）", livePrice: 0, discountRate: 30, commissionRate: 20, giftItems: "", estimatedSalesCount: 0, estimatedGmv: 0, estimatedProfit: 0, commissionAmount: 0 },
+    { label: t("bp.sim.scenarioA"), livePrice: 0, discountRate: 10, commissionRate: 15, giftItems: "", estimatedSalesCount: 0, estimatedGmv: 0, estimatedProfit: 0, commissionAmount: 0 },
+    { label: t("bp.sim.scenarioB"), livePrice: 0, discountRate: 20, commissionRate: 15, giftItems: "", estimatedSalesCount: 0, estimatedGmv: 0, estimatedProfit: 0, commissionAmount: 0 },
+    { label: t("bp.sim.scenarioC"), livePrice: 0, discountRate: 30, commissionRate: 20, giftItems: "", estimatedSalesCount: 0, estimatedGmv: 0, estimatedProfit: 0, commissionAmount: 0 },
   ]);
   const [recommendedIdx, setRecommendedIdx] = useState(1);
   const [recommendReason, setRecommendReason] = useState("");
@@ -825,7 +832,7 @@ function SimulationsTab({
 
     setScenarios([
       {
-        label: "シナリオA（保守的）",
+        label: t("bp.sim.scenarioA"),
         livePrice: Math.round(listPrice * 0.9),
         discountRate: 10,
         commissionRate: 15,
@@ -836,22 +843,22 @@ function SimulationsTab({
         commissionAmount: Math.round(listPrice * 0.9 * 50 * 0.15),
       },
       {
-        label: "シナリオB（標準）",
+        label: t("bp.sim.scenarioB"),
         livePrice: Math.round(listPrice * 0.8),
         discountRate: 20,
         commissionRate: 15,
-        giftItems: "サンプルセット",
+        giftItems: t("bp.sim.sampleSet"),
         estimatedSalesCount: 100,
         estimatedGmv: Math.round(listPrice * 0.8 * 100),
         estimatedProfit: Math.round((listPrice * 0.8 - costPrice) * 100),
         commissionAmount: Math.round(listPrice * 0.8 * 100 * 0.15),
       },
       {
-        label: "シナリオC（攻め）",
+        label: t("bp.sim.scenarioC"),
         livePrice: Math.round(listPrice * 0.7),
         discountRate: 30,
         commissionRate: 20,
-        giftItems: "サンプルセット + ミニボトル",
+        giftItems: t("bp.sim.sampleSetMini"),
         estimatedSalesCount: 200,
         estimatedGmv: Math.round(listPrice * 0.7 * 200),
         estimatedProfit: Math.round((listPrice * 0.7 - costPrice) * 200),
@@ -888,18 +895,18 @@ function SimulationsTab({
         recommendedScenarioIndex: recommendedIdx,
         recommendationReason: recommendReason || undefined,
       });
-      toast.success("シミュレーションを作成しました");
+      toast.success(t("bp.sim.created"));
 
       // Auto-share
       if (result.shareToken) {
         const shareUrl = `${window.location.origin}/brand/simulation/${result.shareToken}`;
         navigator.clipboard.writeText(shareUrl);
-        toast.info("共有URLをクリップボードにコピーしました");
+        toast.info(t("bp.sim.urlCopied"));
       }
 
       setShowCreate(false);
     } catch (err: any) {
-      toast.error(err?.message || "作成に失敗しました");
+      toast.error(err?.message || t("bp.sim.createFailed"));
     }
   };
 
@@ -907,7 +914,7 @@ function SimulationsTab({
     <div className="space-y-6">
       {/* Product selector */}
       <div>
-        <h3 className="font-bold text-gray-800 mb-3">商品を選択</h3>
+        <h3 className="font-bold text-gray-800 mb-3">{t("bp.sim.selectProduct")}</h3>
         <div className="flex flex-wrap gap-2">
           {products.map((p: any) => (
             <button
@@ -940,14 +947,14 @@ function SimulationsTab({
               className="w-full border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-blue-400 hover:bg-blue-50/50 transition-all group"
             >
               <Plus className="w-8 h-8 mx-auto mb-2 text-gray-400 group-hover:text-blue-500" />
-              <p className="font-medium text-gray-600 group-hover:text-blue-600">新しいシミュレーションを作成</p>
+              <p className="font-medium text-gray-600 group-hover:text-blue-600">{t("bp.sim.createNew")}</p>
             </button>
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
               <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 flex items-center justify-between">
                 <h3 className="text-white font-bold text-lg flex items-center gap-2">
                   <BarChart3 className="w-5 h-5" />
-                  シミュレーション作成
+                  {t("bp.sim.createSimulation")}
                 </h3>
                 <button onClick={() => setShowCreate(false)} className="text-white/80 hover:text-white">
                   <X className="w-5 h-5" />
@@ -956,8 +963,8 @@ function SimulationsTab({
 
               <div className="p-6 space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">シミュレーション名</label>
-                  <Input value={simName} onChange={e => setSimName(e.target.value)} placeholder="例: 2026年4月配信向け価格シミュレーション" />
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.sim.simName")}</label>
+                  <Input value={simName} onChange={e => setSimName(e.target.value)} placeholder={t("bp.sim.simNamePlaceholder")} />
                 </div>
 
                 {/* Scenario editor */}
@@ -973,21 +980,21 @@ function SimulationsTab({
                         <div className="flex items-center gap-2">
                           {idx === recommendedIdx && (
                             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                              <Award className="w-3 h-3" /> おすすめ
+                              <Award className="w-3 h-3" /> {t("bp.sim.recommended")}
                             </span>
                           )}
                           <button
                             onClick={() => setRecommendedIdx(idx)}
                             className={`text-xs px-2 py-1 rounded ${idx === recommendedIdx ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
                           >
-                            推奨に設定
+                            {t("bp.sim.setRecommended")}
                           </button>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">ライブ価格</label>
+                          <label className="block text-xs text-gray-500 mb-1">{t("bp.livePrice")}</label>
                           <Input
                             type="text"
                             inputMode="numeric"
@@ -996,7 +1003,7 @@ function SimulationsTab({
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">割引率(%)</label>
+                          <label className="block text-xs text-gray-500 mb-1">{t("bp.sim.discountRate")}</label>
                           <Input
                             type="text"
                             inputMode="numeric"
@@ -1005,7 +1012,7 @@ function SimulationsTab({
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">予想販売数</label>
+                          <label className="block text-xs text-gray-500 mb-1">{t("bp.sim.estimatedSales")}</label>
                           <Input
                             type="text"
                             inputMode="numeric"
@@ -1014,7 +1021,7 @@ function SimulationsTab({
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">成果報酬率(%)</label>
+                          <label className="block text-xs text-gray-500 mb-1">{t("bp.sim.commissionRatePct")}</label>
                           <Input
                             type="text"
                             inputMode="numeric"
@@ -1023,7 +1030,7 @@ function SimulationsTab({
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">贈品</label>
+                          <label className="block text-xs text-gray-500 mb-1">{t("bp.gifts")}</label>
                           <Input
                             value={scenario.giftItems}
                             onChange={e => updateScenario(idx, "giftItems", e.target.value)}
@@ -1034,30 +1041,30 @@ function SimulationsTab({
                       {/* Calculated values */}
                       <div className="flex gap-4 mt-3 text-sm">
                         <span className="text-blue-600">GMV: ¥{Number(scenario.estimatedGmv).toLocaleString()}</span>
-                        <span className="text-green-600">利益: ¥{Number(scenario.estimatedProfit).toLocaleString()}</span>
-                        <span className="text-orange-600">手数料: ¥{Number(scenario.commissionAmount).toLocaleString()}</span>
+                        <span className="text-green-600">{t("bp.sim.profit")}: ¥{Number(scenario.estimatedProfit).toLocaleString()}</span>
+                        <span className="text-orange-600">{t("bp.sim.commission")}: ¥{Number(scenario.commissionAmount).toLocaleString()}</span>
                       </div>
                     </div>
                   ))}
 
                   <button
                     onClick={() => setScenarios(prev => [...prev, {
-                      label: `シナリオ${String.fromCharCode(65 + prev.length)}`,
+                      label: `${t("bp.sim.scenario")}${String.fromCharCode(65 + prev.length)}`,
                       livePrice: 0, discountRate: 0, commissionRate: 15, giftItems: "",
                       estimatedSalesCount: 0, estimatedGmv: 0, estimatedProfit: 0, commissionAmount: 0,
                     }])}
                     className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
                   >
-                    <Plus className="w-4 h-4" /> シナリオを追加
+                    <Plus className="w-4 h-4" /> {t("bp.sim.addScenario")}
                   </button>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">推奨理由（ブランド方に表示）</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.sim.recommendReason")}</label>
                   <Textarea
                     value={recommendReason}
                     onChange={e => setRecommendReason(e.target.value)}
-                    placeholder="なぜこのシナリオを推奨するかの説明..."
+                    placeholder={t("bp.sim.recommendReasonPlaceholder")}
                     rows={2}
                   />
                 </div>
@@ -1065,9 +1072,9 @@ function SimulationsTab({
                 <div className="flex gap-3">
                   <Button onClick={handleCreate} disabled={createSimMutation.isPending} className="bg-purple-600 hover:bg-purple-700 text-white px-8">
                     {createSimMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-                    作成して共有URLをコピー
+                    {t("bp.sim.createAndCopy")}
                   </Button>
-                  <Button variant="outline" onClick={() => setShowCreate(false)}>キャンセル</Button>
+                  <Button variant="outline" onClick={() => setShowCreate(false)}>{t("bp.cancel")}</Button>
                 </div>
               </div>
             </div>
@@ -1092,21 +1099,21 @@ function SimulationList({ portalProductId }: { portalProductId: number }) {
     try {
       const result = await shareMutation.mutateAsync({ simulationId: simId });
       navigator.clipboard.writeText(result.shareUrl);
-      toast.success("共有URLをコピーしました");
+      toast.success(t("bp.sim.urlCopied"));
     } catch (err: any) {
-      toast.error(err?.message || "共有に失敗しました");
+      toast.error(err?.message || t("bp.sim.shareFailed"));
     }
   };
 
   return (
     <div>
-      <h3 className="font-bold text-gray-800 mb-3">既存シミュレーション</h3>
+      <h3 className="font-bold text-gray-800 mb-3">{t("bp.sim.existingSims")}</h3>
       <div className="space-y-3">
         {sims.map((sim: any) => (
           <div key={sim.id} className="bg-white rounded-lg border border-gray-200 p-4">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="font-medium text-gray-900">{sim.simulationName || `シミュレーション #${sim.id}`}</h4>
+                <h4 className="font-medium text-gray-900">{sim.simulationName || `${t("bp.sim.simulation")} #${sim.id}`}</h4>
                 <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                   <span>{new Date(sim.createdAt).toLocaleDateString("ja-JP")}</span>
                   <span className={`px-2 py-0.5 rounded-full ${
@@ -1114,23 +1121,23 @@ function SimulationList({ portalProductId }: { portalProductId: number }) {
                     sim.status === "shared" ? "bg-blue-100 text-blue-700" :
                     "bg-gray-100 text-gray-600"
                   }`}>
-                    {sim.status === "responded" ? "回答済み" :
-                     sim.status === "shared" ? "共有済み" :
-                     sim.status === "finalized" ? "確定" : "下書き"}
+                    {sim.status === "responded" ? t("bp.sim.statusResponded") :
+                     sim.status === "shared" ? t("bp.sim.statusShared") :
+                     sim.status === "finalized" ? t("bp.sim.statusFinalized") : t("bp.sim.statusDraft")}
                   </span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 {sim.status === "responded" && sim.selectedScenarioIndex != null && (
                   <span className="text-sm text-green-600 font-medium">
-                    シナリオ {sim.selectedScenarioIndex + 1} 選択
+                    {t("bp.sim.scenario")} {sim.selectedScenarioIndex + 1} {t("bp.sim.selected")}
                   </span>
                 )}
                 <button
                   onClick={() => {
                     const url = `${window.location.origin}/brand/simulation/${sim.shareToken}`;
                     navigator.clipboard.writeText(url);
-                    toast.success("URLをコピーしました");
+                    toast.success(t("bp.urlCopied"));
                   }}
                   className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                 >
@@ -1139,14 +1146,14 @@ function SimulationList({ portalProductId }: { portalProductId: number }) {
                 {sim.status === "draft" && (
                   <Button size="sm" variant="outline" onClick={() => handleShare(sim.id)}>
                     <Send className="w-3 h-3 mr-1" />
-                    共有
+                    {t("bp.sim.share")}
                   </Button>
                 )}
               </div>
             </div>
             {sim.brandFeedback && (
               <div className="mt-3 bg-green-50 p-3 rounded-lg text-sm">
-                <span className="font-medium text-green-700">ブランドからのフィードバック:</span>
+                <span className="font-medium text-green-700">{t("bp.sim.brandFeedback")}:</span>
                 <p className="text-green-800 mt-1">{sim.brandFeedback}</p>
               </div>
             )}
@@ -1169,6 +1176,7 @@ function PerformanceTab({
   portalId: number;
   brandId: number;
 }) {
+  const { t } = useLanguage();
   const [showAdd, setShowAdd] = useState(false);
   const [perfForm, setPerfForm] = useState({
     portalProductId: "",
@@ -1190,7 +1198,7 @@ function PerformanceTab({
 
   const handleAdd = async () => {
     if (!perfForm.portalProductId || !perfForm.livestreamDate) {
-      toast.error("商品と配信日は必須です");
+      toast.error(t("bp.perf.required"));
       return;
     }
     try {
@@ -1208,7 +1216,7 @@ function PerformanceTab({
         peakViewers: perfForm.peakViewers ? Number(perfForm.peakViewers) : undefined,
         notes: perfForm.notes || undefined,
       });
-      toast.success("配信実績を登録しました");
+      toast.success(t("bp.perf.registered"));
       setShowAdd(false);
       setPerfForm({
         portalProductId: "", livestreamDate: "", streamerName: "", platform: "",
@@ -1217,7 +1225,7 @@ function PerformanceTab({
       });
       refetch();
     } catch (err: any) {
-      toast.error(err?.message || "登録に失敗しました");
+      toast.error(err?.message || t("bp.perf.registerFailed"));
     }
   };
 
@@ -1227,46 +1235,46 @@ function PerformanceTab({
       {!showAdd ? (
         <Button onClick={() => setShowAdd(true)} className="bg-teal-600 hover:bg-teal-700 text-white">
           <Plus className="w-4 h-4 mr-2" />
-          配信実績を手動登録
+          {t("bp.perf.manualRegister")}
         </Button>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
           <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
             <TrendingUp className="w-5 h-5" />
-            配信実績の登録
+            {t("bp.perf.registerTitle")}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">商品 <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.productName")} <span className="text-red-500">*</span></label>
               <select
                 value={perfForm.portalProductId}
                 onChange={e => setPerfForm(f => ({ ...f, portalProductId: e.target.value }))}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
               >
-                <option value="">選択してください</option>
+                <option value="">{t("bp.perf.selectProduct")}</option>
                 {products.map((p: any) => (
                   <option key={p.id} value={p.id}>{p.productName}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">配信日 <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.perf.streamDate")} <span className="text-red-500">*</span></label>
               <Input type="date" value={perfForm.livestreamDate} onChange={e => setPerfForm(f => ({ ...f, livestreamDate: e.target.value }))} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">配信者名</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.perf.streamerName")}</label>
               <Input value={perfForm.streamerName} onChange={e => setPerfForm(f => ({ ...f, streamerName: e.target.value }))} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">プラットフォーム</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.perf.platform")}</label>
               <Input value={perfForm.platform} onChange={e => setPerfForm(f => ({ ...f, platform: e.target.value }))} placeholder="TikTok, Instagram等" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">配信時間(分)</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.perf.duration")}</label>
               <Input type="text" inputMode="numeric" value={perfForm.duration} onChange={e => setPerfForm(f => ({ ...f, duration: e.target.value.replace(/[^0-9]/g, "") }))} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">売上金額</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.perf.salesAmount")}</label>
               <Input type="text" inputMode="numeric" value={perfForm.salesAmount} onChange={e => setPerfForm(f => ({ ...f, salesAmount: e.target.value.replace(/[^0-9]/g, "") }))} placeholder="¥" />
             </div>
             <div>
@@ -1274,24 +1282,24 @@ function PerformanceTab({
               <Input type="text" inputMode="numeric" value={perfForm.gmv} onChange={e => setPerfForm(f => ({ ...f, gmv: e.target.value.replace(/[^0-9]/g, "") }))} placeholder="¥" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">販売数</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.perf.salesCount")}</label>
               <Input type="text" inputMode="numeric" value={perfForm.salesCount} onChange={e => setPerfForm(f => ({ ...f, salesCount: e.target.value.replace(/[^0-9]/g, "") }))} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">視聴者数</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.perf.viewerCount")}</label>
               <Input type="text" inputMode="numeric" value={perfForm.viewerCount} onChange={e => setPerfForm(f => ({ ...f, viewerCount: e.target.value.replace(/[^0-9]/g, "") }))} />
             </div>
           </div>
           <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-600 mb-1">メモ</label>
+            <label className="block text-sm font-medium text-gray-600 mb-1">{t("bp.perf.notes")}</label>
             <Textarea value={perfForm.notes} onChange={e => setPerfForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
           </div>
           <div className="flex gap-3 mt-4">
             <Button onClick={handleAdd} disabled={addPerfMutation.isPending} className="bg-teal-600 hover:bg-teal-700 text-white">
               {addPerfMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-              登録
+              {t("bp.perf.register")}
             </Button>
-            <Button variant="outline" onClick={() => setShowAdd(false)}>キャンセル</Button>
+            <Button variant="outline" onClick={() => setShowAdd(false)}>{t("bp.cancel")}</Button>
           </div>
         </div>
       )}
@@ -1307,7 +1315,7 @@ function PerformanceTab({
               <div key={perf.id} className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div>
-                    <p className="font-medium text-gray-900">{product?.productName || "不明"}</p>
+                    <p className="font-medium text-gray-900">{product?.productName || t("bp.perf.unknown")}</p>
                     <p className="text-sm text-gray-500">
                       {new Date(perf.livestreamDate).toLocaleDateString("ja-JP")}
                       {perf.streamerName && ` | ${perf.streamerName}`}
@@ -1325,7 +1333,7 @@ function PerformanceTab({
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                   {perf.salesAmount != null && (
                     <div className="bg-blue-50 rounded p-2 text-center">
-                      <p className="text-xs text-blue-600">売上</p>
+                      <p className="text-xs text-blue-600">{t("bp.perf.sales")}</p>
                       <p className="font-bold text-blue-700">¥{Number(perf.salesAmount).toLocaleString()}</p>
                     </div>
                   )}
@@ -1337,13 +1345,13 @@ function PerformanceTab({
                   )}
                   {perf.salesCount != null && (
                     <div className="bg-purple-50 rounded p-2 text-center">
-                      <p className="text-xs text-purple-600">販売数</p>
-                      <p className="font-bold text-purple-700">{perf.salesCount}件</p>
+                      <p className="text-xs text-purple-600">{t("bp.perf.salesCount")}</p>
+                      <p className="font-bold text-purple-700">{perf.salesCount}</p>
                     </div>
                   )}
                   {perf.viewerCount != null && (
                     <div className="bg-orange-50 rounded p-2 text-center">
-                      <p className="text-xs text-orange-600">視聴者</p>
+                      <p className="text-xs text-orange-600">{t("bp.perf.viewers")}</p>
                       <p className="font-bold text-orange-700">{Number(perf.viewerCount).toLocaleString()}</p>
                     </div>
                   )}
@@ -1355,7 +1363,7 @@ function PerformanceTab({
       ) : (
         <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-xl">
           <TrendingUp className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p>まだ配信実績がありません</p>
+          <p>{t("bp.perf.noPerformance")}</p>
         </div>
       )}
     </div>
@@ -1390,7 +1398,7 @@ function ProductCardsTab({
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
           <h3 className="text-lg font-bold text-gray-900">
-            {selectedProduct.productName} - 手卡プレビュー
+            {selectedProduct.productName} - {t("bp.cards.preview")}
           </h3>
         </div>
         <div className="overflow-x-auto bg-gray-50 rounded-xl p-6">
@@ -1404,18 +1412,18 @@ function ProductCardsTab({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-bold text-gray-900">
-          手卡一覧 ({cardReadyProducts.length}件)
+          {t("bp.cards.list")} ({cardReadyProducts.length})
         </h3>
         <p className="text-sm text-gray-500">
-          商品をクリックすると手卡プレビュー・画像ダウンロードができます
+          {t("bp.cards.clickToPreview")}
         </p>
       </div>
 
       {cardReadyProducts.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <CreditCard className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p>手卡を生成できる商品がありません</p>
-          <p className="text-xs mt-1">商品を提出してから手卡が生成されます</p>
+          <p>{t("bp.cards.noCards")}</p>
+          <p className="text-xs mt-1">{t("bp.cards.noCardsHint")}</p>
         </div>
       ) : (
         <div className="grid gap-3">
@@ -1445,6 +1453,7 @@ function BrandProductsView({
   onBack: () => void;
   onCreatePortal: (brandId: number) => void;
 }) {
+  const { t } = useLanguage();
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
@@ -1470,10 +1479,10 @@ function BrandProductsView({
         </button>
         <div className="flex-1">
           <h1 className="text-xl font-bold text-gray-900">
-            {brand?.nameJa || brand?.name || "ブランド詳細"}
+            {brand?.nameJa || brand?.name || t("bp.brand.detail")}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            商品パフォーマンス（ライブ特別セット / 手卡）・ {allProducts.length}件
+            {t("bp.brand.productPerformance")} {allProducts.length}
           </p>
         </div>
         <a
@@ -1483,15 +1492,15 @@ function BrandProductsView({
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
         >
           <ExternalLink className="w-4 h-4" />
-          ブランド詳細
+          {t("bp.brand.detail")}
         </a>
       </div>
 
       {allProducts.length === 0 ? (
         <div className="text-center py-16 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
           <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500 mb-1">商品がまだ登録されていません</p>
-          <p className="text-xs text-gray-400">ブランド詳細ページで商品を追加してください</p>
+          <p className="text-gray-500 mb-1">{t("bp.brand.noProducts")}</p>
+          <p className="text-xs text-gray-400">{t("bp.brand.addProductHint")}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -1523,7 +1532,7 @@ function BrandProductsView({
                       </div>
                     )}
                     {product.source === "brand_products" && (
-                      <span className="absolute top-2 left-2 px-2 py-0.5 text-xs font-medium bg-purple-600 text-white rounded-full">既存手卡</span>
+                      <span className="absolute top-2 left-2 px-2 py-0.5 text-xs font-medium bg-purple-600 text-white rounded-full">{t("bp.brand.existingCard")}</span>
                     )}
                     {discount && (
                       <span className="absolute top-2 right-2 px-2 py-0.5 text-xs font-bold bg-red-500 text-white rounded-full">{discount}% OFF</span>
@@ -1540,7 +1549,7 @@ function BrandProductsView({
                         <span className="text-sm font-bold text-red-500">¥{Number(price).toLocaleString()}</span>
                       )}
                       {product.commissionRate && (
-                        <span className="text-xs text-cyan-600 font-medium ml-auto">報酬 {product.commissionRate}</span>
+                        <span className="text-xs text-cyan-600 font-medium ml-auto">{t("bp.brand.commission")} {product.commissionRate}</span>
                       )}
                     </div>
                     {product.gmv && Number(product.gmv) > 0 && (
@@ -1576,22 +1585,22 @@ function BrandProductsView({
                           <img key={i} src={url.trim()} alt="" className="h-32 rounded-lg object-cover flex-shrink-0 border cursor-pointer hover:opacity-80 hover:ring-2 hover:ring-blue-400 transition-all" onClick={(e) => { e.stopPropagation(); setPreviewImage(url.trim()); }} />
                         ))}
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-1">クリックで拡大プレビュー</p>
+                    <p className="text-[10px] text-gray-400 mt-1">{t("bp.brand.clickToEnlarge")}</p>
                   </div>
                 )}
 
                 {/* Price Info */}
                 <div className="grid grid-cols-3 gap-3 mb-4">
                   <div className="bg-gray-50 rounded-lg p-3 text-center">
-                    <p className="text-xs text-gray-500">定価</p>
+                    <p className="text-xs text-gray-500">{t("bp.brand.listPrice")}</p>
                     <p className="text-lg font-bold text-gray-900">¥{selectedProduct.listPrice ? Number(selectedProduct.listPrice).toLocaleString() : "-"}</p>
                   </div>
                   <div className="bg-red-50 rounded-lg p-3 text-center">
-                    <p className="text-xs text-red-500">特価</p>
+                    <p className="text-xs text-red-500">{t("bp.brand.specialPrice")}</p>
                     <p className="text-lg font-bold text-red-600">¥{selectedProduct.livePrice ? Number(selectedProduct.livePrice).toLocaleString() : "-"}</p>
                   </div>
                   <div className="bg-cyan-50 rounded-lg p-3 text-center">
-                    <p className="text-xs text-cyan-500">成果報酬</p>
+                    <p className="text-xs text-cyan-500">{t("bp.brand.commissionReward")}</p>
                     <p className="text-lg font-bold text-cyan-600">{selectedProduct.commissionRate || "-"}</p>
                   </div>
                 </div>
@@ -1599,11 +1608,11 @@ function BrandProductsView({
                 {/* Proposal Image Preview (既存手卡の提案書) */}
                 {selectedProduct.proposalImageUrl && (
                   <div className="mb-4">
-                    <p className="text-xs font-medium text-gray-500 mb-2">提案書プレビュー</p>
+                    <p className="text-xs font-medium text-gray-500 mb-2">{t("bp.brand.proposalPreview")}</p>
                     <div className="border border-gray-200 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all" onClick={(e) => { e.stopPropagation(); setPreviewImage(selectedProduct.proposalImageUrl); }}>
-                      <img src={selectedProduct.proposalImageUrl} alt="提案書" className="w-full max-h-[400px] object-contain bg-gray-50" />
+                      <img src={selectedProduct.proposalImageUrl} alt={t("bp.brand.proposal")} className="w-full max-h-[400px] object-contain bg-gray-50" />
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-1 text-center">クリックで拡大表示</p>
+                    <p className="text-[10px] text-gray-400 mt-1 text-center">{t("bp.brand.clickToEnlarge")}</p>
                   </div>
                 )}
 
@@ -1611,55 +1620,55 @@ function BrandProductsView({
                 <div className="space-y-3">
                   {selectedProduct.productDescription && (
                     <div>
-                      <p className="text-xs font-medium text-gray-500 mb-1">キャッチコピー</p>
+                      <p className="text-xs font-medium text-gray-500 mb-1">{t("bp.brand.catchcopy")}</p>
                       <p className="text-sm text-gray-700">{selectedProduct.productDescription}</p>
                     </div>
                   )}
                   {selectedProduct.features && (
                     <div>
-                      <p className="text-xs font-medium text-gray-500 mb-1">特徴・セールスポイント</p>
+                      <p className="text-xs font-medium text-gray-500 mb-1">{t("bp.brand.sellingPoints")}</p>
                       <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedProduct.features}</p>
                     </div>
                   )}
                   {selectedProduct.specifications && (
                     <div>
-                      <p className="text-xs font-medium text-gray-500 mb-1">商品詳細</p>
+                      <p className="text-xs font-medium text-gray-500 mb-1">{t("bp.brand.productDetail")}</p>
                       <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedProduct.specifications}</p>
                     </div>
                   )}
                   {selectedProduct.targetAudience && (
                     <div>
-                      <p className="text-xs font-medium text-gray-500 mb-1">ターゲット層</p>
+                      <p className="text-xs font-medium text-gray-500 mb-1">{t("bp.brand.targetAudience")}</p>
                       <p className="text-sm text-gray-700">{selectedProduct.targetAudience}</p>
                     </div>
                   )}
                   {selectedProduct.usageMethod && (
                     <div>
-                      <p className="text-xs font-medium text-gray-500 mb-1">使用方法</p>
+                      <p className="text-xs font-medium text-gray-500 mb-1">{t("bp.brand.howToUse")}</p>
                       <p className="text-sm text-gray-700">{selectedProduct.usageMethod}</p>
                     </div>
                   )}
                   {selectedProduct.shippingInfo && (
                     <div>
-                      <p className="text-xs font-medium text-gray-500 mb-1">配送情報</p>
+                      <p className="text-xs font-medium text-gray-500 mb-1">{t("bp.brand.shippingInfo")}</p>
                       <p className="text-sm text-gray-700">{selectedProduct.shippingInfo}</p>
                     </div>
                   )}
                   {selectedProduct.aiCatchCopy && (
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                      <p className="text-xs font-medium text-amber-600 mb-1">AIキャッチコピー</p>
+                      <p className="text-xs font-medium text-amber-600 mb-1">{t("bp.brand.aiCatchcopy")}</p>
                       <p className="text-sm text-amber-800">{selectedProduct.aiCatchCopy}</p>
                     </div>
                   )}
                   {selectedProduct.aiFeatures && (
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                      <p className="text-xs font-medium text-amber-600 mb-1">AIセールスポイント</p>
+                      <p className="text-xs font-medium text-amber-600 mb-1">{t("bp.brand.aiSellingPoints")}</p>
                       <p className="text-sm text-amber-800 whitespace-pre-wrap">{selectedProduct.aiFeatures}</p>
                     </div>
                   )}
                   {selectedProduct.gmv && Number(selectedProduct.gmv) > 0 && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                      <p className="text-xs font-medium text-green-600 mb-1">パフォーマンス</p>
+                      <p className="text-xs font-medium text-green-600 mb-1">{t("bp.brand.performance")}</p>
                       <p className="text-sm text-green-800">GMV: ¥{Number(selectedProduct.gmv).toLocaleString()}</p>
                     </div>
                   )}
@@ -1682,7 +1691,7 @@ function BrandProductsView({
               </button>
               <img
                 src={previewImage}
-                alt="プレビュー"
+                alt={t("bp.cards.preview")}
                 className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
               />

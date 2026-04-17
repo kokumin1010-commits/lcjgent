@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { lineReceiptJa, lineReceiptZh } from "@/pages/lineReceiptI18n";
+import { brandPortalJa, brandPortalZh } from "@/pages/brandPortalI18n";
 
 export type Language = "ja" | "zh" | "zh-TW" | "en";
 
@@ -686,10 +687,10 @@ const zhTranslations: Record<string, string> = {
 };
 
 const translations: Record<Language, Record<string, string>> = {
-  ja: { ...jaTranslations, ...lineReceiptJa },
-  zh: { ...zhTranslations, ...lineReceiptZh },
-  "zh-TW": { ...zhTranslations, ...lineReceiptZh }, // fallback to zh for admin pages
-  en: { ...jaTranslations, ...lineReceiptJa }, // fallback to ja for admin pages
+  ja: { ...jaTranslations, ...lineReceiptJa, ...brandPortalJa },
+  zh: { ...zhTranslations, ...lineReceiptZh, ...brandPortalZh },
+  "zh-TW": { ...zhTranslations, ...lineReceiptZh, ...brandPortalZh }, // fallback to zh for admin pages
+  en: { ...jaTranslations, ...lineReceiptJa, ...brandPortalJa }, // fallback to ja for admin pages
 };
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
