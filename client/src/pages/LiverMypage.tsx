@@ -336,16 +336,19 @@ export default function LiverMypage() {
     const orderCount = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.orderCount || 0), 0);
     
     const hours = filtered.reduce((sum: number, ls: LivestreamRecord) => {
-      if (ls.duration && ls.duration > 0) {
-        return sum + (ls.duration / 60);
-      }
+      // start/endからの計算を優先（各カード表示と一致させる）
       if (ls.livestreamDate && ls.livestreamEndTime) {
         const start = new Date(ls.livestreamDate).getTime();
         const end = new Date(ls.livestreamEndTime).getTime();
-        const diff = (end - start) / (1000 * 60 * 60);
-        // マイナス値は無視（データ入力ミスの可能性）
-        if (diff > 0) return sum + diff;
-        return sum;
+        let diffMs = end - start;
+        // 終了が開始より前の場合、日付をまたいでいる可能性 → 24時間加算
+        if (diffMs < 0) diffMs += 24 * 60 * 60 * 1000;
+        const diffHours = diffMs / (1000 * 60 * 60);
+        if (diffHours > 0 && diffHours < 24) return sum + diffHours;
+      }
+      // durationはフォールバックとして使用
+      if (ls.duration && ls.duration > 0) {
+        return sum + (ls.duration / 60);
       }
       return sum;
     }, 0);
