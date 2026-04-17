@@ -1957,6 +1957,19 @@ async function startServer() {
       });
     });
 
+    // Migration: Add missing brand_contracts columns (currency, kgLiveCondition, etc.)
+    import("../db").then(({ getDb }) => {
+      getDb().then((db: any) => {
+        if (db) {
+          import("../migrations/addBrandContractColumns").then(({ addBrandContractColumns }) => {
+            addBrandContractColumns(db).catch((err: unknown) => {
+              console.error("[Migration] brand_contracts columns error:", err);
+            });
+          });
+        }
+      });
+    });
+
     // Seed popup variants on startup (idempotent - only inserts if table is empty)
     import("../db").then(({ seedPopupVariants }) => {
       seedPopupVariants().then((result: { seeded: boolean; count: number }) => {
