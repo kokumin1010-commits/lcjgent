@@ -524,6 +524,21 @@ export default function MallHome() {
         </div>
       </header>
 
+      {/* リクルートバナー */}
+      <Link
+        href="/recruit"
+        className="block w-full bg-gradient-to-r from-amber-900 via-yellow-800 to-amber-900 text-white py-2.5 px-4 text-center hover:brightness-110 transition-all cursor-pointer no-underline"
+      >
+        <div className="container mx-auto flex items-center justify-center gap-2 text-sm md:text-base">
+          <span className="text-amber-300 font-bold">【限定】</span>
+          <span>お祝い金</span>
+          <span className="text-amber-300 font-extrabold text-base md:text-lg">10万円</span>
+          <span className="hidden sm:inline">！日本最大級のライブコマース事務所が仲間を募集中</span>
+          <span className="sm:hidden">！ライバー募集中</span>
+          <ArrowRight className="h-4 w-4 ml-1 text-amber-300 animate-pulse" />
+        </div>
+      </Link>
+
       {/* HERO Section - ファーストビュー */}
       <section className="py-12 md:py-20 px-4 bg-gradient-to-b from-rose-50/50 to-white">
         <div className="container mx-auto text-center max-w-3xl">
