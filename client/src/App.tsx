@@ -134,6 +134,7 @@ const BrandPortal = lazy(() => import("./pages/BrandPortal"));
 const BrandSimulationView = lazy(() => import("./pages/BrandSimulationView"));
 const BrandPortalAdmin = lazy(() => import("./pages/BrandPortalAdmin"));
 const AdDashboard = lazy(() => import("./pages/AdDashboard"));
+const Recruit = lazy(() => import("./pages/Recruit"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -444,6 +445,7 @@ function Router() {
         </Route>
 
         {/* Brand Sample LP */}
+        <Route path="/recruit" component={Recruit} />
         <Route path="/brand-sample" component={BrandSampleLP} />
 
         {/* Brand Portal */}
