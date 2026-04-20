@@ -266,6 +266,11 @@ export const liverTranslations: Record<string, Record<LiverLanguage, string>> = 
   "record.discountRate": { ja: "お得率", "zh-TW": "折扣率", en: "Discount Rate", zh: "折扣率" },
   "record.setTotal": { ja: "セット売上合計", "zh-TW": "套組銷售合計", en: "Set Sales Total", zh: "套组销售合计" },
   "record.invalidDateTime": { ja: "開始日時の形式が正しくありません", "zh-TW": "開始日期時間格式不正確", en: "Invalid start date/time format", zh: "开始日期时间格式不正确" },
+  "record.brandDuration": { ja: "配信時間（分）", "zh-TW": "直播時間（分鐘）", en: "Duration (min)", zh: "直播时间（分钟）" },
+  "record.brandDurationHint": { ja: "各ブランドの配信時間を入力してください", "zh-TW": "請輸入各品牌的直播時間", en: "Enter streaming duration for each brand", zh: "请输入各品牌的直播时间" },
+  "record.selectBrandFirst": { ja: "まずブランドを選択してください", "zh-TW": "請先選擇品牌", en: "Please select a brand first", zh: "请先选择品牌" },
+  "record.brandRequired": { ja: "必須", "zh-TW": "必填", en: "Required", zh: "必填" },
+  "record.minLabel": { ja: "分", "zh-TW": "分鐘", en: "min", zh: "分钟" },
 
   // === Reset Password ===
   "reset.title": { ja: "パスワードリセット", "zh-TW": "重設密碼", en: "Reset Password", zh: "重置密码" },

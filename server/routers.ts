@@ -9953,6 +9953,7 @@ ${conversationText}
       .input(z.object({
         brandId: z.number(),
         brandIds: z.array(z.number()).optional(), // Additional brands (multi-brand support)
+        brandDurations: z.record(z.string(), z.number()).optional(), // { brandId: durationMinutes } - 各ブランドへの配信時間（分）
         liverId: z.number(),
         scheduleId: z.number().optional(),
         livestreamDate: z.string(),
@@ -10170,7 +10171,8 @@ ${conversationText}
         }
         for (const bid of allBrandIds) {
           try {
-            await createLivestreamBrand({ livestreamId: id, brandId: bid });
+            const dur = input.brandDurations?.[bid.toString()];
+            await createLivestreamBrand({ livestreamId: id, brandId: bid, durationMinutes: dur ?? null });
           } catch (e) {
             console.error('[createLivestreamBrand] Failed:', e);
           }

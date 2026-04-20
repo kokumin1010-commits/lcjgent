@@ -79,6 +79,7 @@ export default function LiverSelfRecord() {
 
   const [brandSearchOpen, setBrandSearchOpen] = useState(false);
   const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([]);
+  const [brandDurations, setBrandDurations] = useState<Record<string, string>>({});
   const [newBrandName, setNewBrandName] = useState("");
   const [showAddBrand, setShowAddBrand] = useState(false);
   const addBrandMutation = trpc.liverManagement.addBrand.useMutation({
@@ -269,6 +270,11 @@ export default function LiverSelfRecord() {
     addBrandPlaceholder: t("record.addBrandPlaceholder"),
     selectedBrands: t("record.selectedBrands"),
     selectBrandHint: t("record.selectBrandHint"),
+    brandDuration: t("record.brandDuration"),
+    brandDurationHint: t("record.brandDurationHint"),
+    selectBrandFirst: t("record.selectBrandFirst"),
+    brandRequired: t("record.brandRequired"),
+    minLabel: t("record.minLabel"),
   };
 
   const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -485,6 +491,17 @@ export default function LiverSelfRecord() {
       return;
     }
 
+    // ブランド配信時間のバリデーション
+    const missingDurations = selectedBrandIds.filter(id => {
+      const dur = brandDurations[id];
+      return !dur || parseInt(dur) <= 0;
+    });
+    if (missingDurations.length > 0) {
+      const missingNames = missingDurations.map(id => brands?.find((b: { id: number; name: string }) => b.id.toString() === id)?.name || id).join(', ');
+      toast.error(`${missingNames} ${tr.brandDuration}を入力してください`);
+      return;
+    }
+
     if (!formData.livestreamDate || !formData.livestreamStartTime) {
       toast.error(tr.enterDateTimeError);
       return;
@@ -579,9 +596,17 @@ export default function LiverSelfRecord() {
         cvr = ((orderCount / productClicks) * 100).toFixed(2) + '%';
       }
 
+      // brandDurationsを数値に変換
+      const brandDurationsNumeric: Record<string, number> = {};
+      for (const [bid, dur] of Object.entries(brandDurations)) {
+        const val = parseInt(dur);
+        if (val > 0) brandDurationsNumeric[bid] = val;
+      }
+
       createLivestreamMutation.mutate({
         brandId: parseInt(selectedBrandIds[0]),
         brandIds: selectedBrandIds.map(id => parseInt(id)),
+        brandDurations: Object.keys(brandDurationsNumeric).length > 0 ? brandDurationsNumeric : undefined,
         liverId: liverInfo.id,
         livestreamDate: livestreamDateTime.toISOString(),
         livestreamEndTime: endDateTime?.toISOString(),
@@ -986,25 +1011,11 @@ export default function LiverSelfRecord() {
                   <span className="text-white/70 text-xs font-normal">({tr.selectBrandHint})</span>
                 </Label>
                 
-                {/* Selected brands display */}
-                {selectedBrandIds.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {selectedBrandIds.map(id => {
-                      const brand = brands?.find((b: { id: number; name: string }) => b.id.toString() === id);
-                      return brand ? (
-                        <span key={id} className="inline-flex items-center gap-1 bg-red-600/20 text-red-300 border border-red-600/40 rounded-full px-3 py-1 text-sm">
-                          <Tag className="h-3 w-3" />
-                          {brand.name}
-                          <button
-                            type="button"
-                            onClick={() => setSelectedBrandIds(prev => prev.filter(bid => bid !== id))}
-                            className="ml-1 hover:text-red-100"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
-                      ) : null;
-                    })}
+                {/* Brand not selected warning */}
+                {selectedBrandIds.length === 0 && (
+                  <div className="bg-red-600/10 border border-red-500/40 rounded-lg p-3 flex items-center gap-2">
+                    <Video className="h-5 w-5 text-red-400 shrink-0" />
+                    <p className="text-red-300 text-sm font-medium">{tr.selectBrandFirst}</p>
                   </div>
                 )}
                 
@@ -1118,7 +1129,67 @@ export default function LiverSelfRecord() {
                 </Popover>
               </div>
 
-              {/* Date & Time */}
+              {/* Brand Duration Input - 各ブランドの配信時間 */}
+              {selectedBrandIds.length > 0 && (
+                <div className="space-y-3">
+                  <Label className="text-white text-sm flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-yellow-500" />
+                    {tr.brandDuration} <span className="text-red-500">*</span>
+                  </Label>
+                  <p className="text-xs text-white/60">{tr.brandDurationHint}</p>
+                  <div className="space-y-2">
+                    {selectedBrandIds.map(id => {
+                      const brand = brands?.find((b: { id: number; name: string }) => b.id.toString() === id);
+                      const duration = brandDurations[id] || "";
+                      const hasDuration = duration !== "" && parseInt(duration) > 0;
+                      return brand ? (
+                        <div key={id} className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                          hasDuration 
+                            ? 'bg-green-900/10 border-green-600/30' 
+                            : 'bg-red-900/10 border-red-500/40'
+                        }`}>
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <Tag className={`h-4 w-4 shrink-0 ${hasDuration ? 'text-green-400' : 'text-red-400'}`} />
+                            <span className="text-white text-sm font-medium truncate">{brand.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Input
+                              type="number"
+                              min="1"
+                              placeholder="0"
+                              value={duration}
+                              onChange={(e) => setBrandDurations(prev => ({ ...prev, [id]: e.target.value }))}
+                              className={`w-20 h-9 text-center text-white text-sm ${
+                                hasDuration 
+                                  ? 'bg-gray-800 border-green-600/50' 
+                                  : 'bg-gray-800 border-red-500/50'
+                              }`}
+                            />
+                            <span className="text-white/60 text-xs">{tr.minLabel}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedBrandIds(prev => prev.filter(bid => bid !== id));
+                              setBrandDurations(prev => {
+                                const next = { ...prev };
+                                delete next[id];
+                                return next;
+                              });
+                            }}
+                            className="text-white/40 hover:text-red-400 transition-colors shrink-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Date & Time - ブランド選択後のみ表示 */}
+              {selectedBrandIds.length === 0 ? null : (<>
               <div className="space-y-2">
                 <Label className="text-white text-sm flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-red-500" />
@@ -1414,6 +1485,7 @@ export default function LiverSelfRecord() {
                   className="bg-gray-800 border-gray-700 text-white min-h-[80px]"
                 />
               </div>
+              </>)}
             </CardContent>
           </Card>
 
@@ -1426,13 +1498,27 @@ export default function LiverSelfRecord() {
                 toast.error(tr.selectBrandError);
                 return;
               }
+              // ブランド配信時間のバリデーション
+              const missingDurs = selectedBrandIds.filter(id => {
+                const dur = brandDurations[id];
+                return !dur || parseInt(dur) <= 0;
+              });
+              if (missingDurs.length > 0) {
+                const missingNames = missingDurs.map(id => brands?.find((b: { id: number; name: string }) => b.id.toString() === id)?.name || id).join(', ');
+                toast.error(`${missingNames} ${tr.brandDuration}を入力してください`);
+                return;
+              }
               if (!formData.livestreamDate || !formData.livestreamStartTime) {
                 toast.error(tr.enterDateTimeError);
                 return;
               }
               // Use native confirm for better LINE browser compatibility
-              const brandNames = selectedBrandIds.map(id => brands?.find(b => b.id.toString() === id)?.name || '').filter(Boolean).join(', ');
-              const confirmMessage = `${tr.confirmTitle}\n\n${tr.selectBrand}: ${brandNames}\n${tr.livestreamDate}: ${formData.livestreamDate}\n${tr.startTime}: ${formData.livestreamStartTime}\n${formData.salesAmount ? `${tr.salesAmount}: \u00a5${Number(parseInt(formData.salesAmount)).toLocaleString()}` : ''}\n\n${tr.confirmDescription}`;
+              const brandDetails = selectedBrandIds.map(id => {
+                const name = brands?.find((b: { id: number; name: string }) => b.id.toString() === id)?.name || '';
+                const dur = brandDurations[id] || '0';
+                return `  ${name}: ${dur}${tr.minLabel}`;
+              }).filter(Boolean).join('\n');
+              const confirmMessage = `${tr.confirmTitle}\n\n${tr.selectBrand}:\n${brandDetails}\n\n${tr.livestreamDate}: ${formData.livestreamDate}\n${tr.startTime}: ${formData.livestreamStartTime}\n${formData.salesAmount ? `${tr.salesAmount}: \u00a5${Number(parseInt(formData.salesAmount)).toLocaleString()}` : ''}\n\n${tr.confirmDescription}`;
               if (window.confirm(confirmMessage)) {
                 handleSubmit(e as unknown as React.FormEvent);
               }
@@ -1469,14 +1555,25 @@ export default function LiverSelfRecord() {
             </DialogHeader>
             
             <div className="space-y-4 py-4">
-              {/* Brand */}
-              <div className="flex justify-between items-center py-2 border-b border-gray-700">
-                <span className="text-white">{tr.selectBrand}</span>
-                <span className="text-white font-medium">
-                  {selectedBrandIds.length > 0
-                    ? selectedBrandIds.map(id => brands?.find(b => b.id.toString() === id)?.name || '').filter(Boolean).join(', ')
-                    : tr.notSet}
-                </span>
+              {/* Brand with Duration */}
+              <div className="py-2 border-b border-gray-700">
+                <span className="text-white block mb-2">{tr.selectBrand}</span>
+                {selectedBrandIds.length > 0 ? (
+                  <div className="space-y-1">
+                    {selectedBrandIds.map(id => {
+                      const name = brands?.find((b: { id: number; name: string }) => b.id.toString() === id)?.name || '';
+                      const dur = brandDurations[id] || '0';
+                      return (
+                        <div key={id} className="flex justify-between items-center bg-gray-800 rounded px-3 py-1.5">
+                          <span className="text-white font-medium text-sm">{name}</span>
+                          <span className="text-yellow-400 font-medium text-sm">{dur}{tr.minLabel}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span className="text-white font-medium">{tr.notSet}</span>
+                )}
               </div>
               
               {/* Date & Time */}

@@ -1966,6 +1966,11 @@ async function startServer() {
               console.error("[Migration] brand_contracts columns error:", err);
             });
           });
+          import("../migrations/addLivestreamBrandDuration").then(({ addLivestreamBrandDuration }) => {
+            addLivestreamBrandDuration(db).catch((err: unknown) => {
+              console.error("[Migration] livestream_brands durationMinutes error:", err);
+            });
+          });
         }
       });
     });

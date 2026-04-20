@@ -3879,6 +3879,7 @@ export const livestreamBrands = mysqlTable("livestream_brands", {
   id: int("id").autoincrement().primaryKey(),
   livestreamId: int("livestreamId").notNull(), // References brandLivestreams.id
   brandId: int("brandId").notNull(), // References brands.id
+  durationMinutes: int("durationMinutes"), // 該当ブランドへの配信時間（分）
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type LivestreamBrand = typeof livestreamBrands.$inferSelect;
