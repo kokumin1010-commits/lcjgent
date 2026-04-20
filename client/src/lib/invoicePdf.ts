@@ -9,16 +9,19 @@ import autoTable from "jspdf-autotable";
 
 // フォントキャッシュ（一度ロードしたら再利用）
 let _fontBase64Cache: string | null = null;
-const FONT_CDN_URL = "https://kyogokucdn.com/fonts/NotoSansJP-Regular-subset.ttf";
+const FONT_ORIGINAL_URL = "https://kyogokucdn.com/fonts/NotoSansJP-Regular-subset.ttf";
 
 /**
- * CDNからNotoSansJPフォントをロードしてBase64に変換
+ * NotoSansJPフォントをロードしてBase64に変換
+ * 同一オリジンのプロキシ経由でCORS問題を回避
  * 一度ロードしたらキャッシュする
  */
 async function loadFontBase64(): Promise<string> {
   if (_fontBase64Cache) return _fontBase64Cache;
   
-  const response = await fetch(FONT_CDN_URL);
+  // 同一オリジンのimage-proxyを経由してCORS問題を回避
+  const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(FONT_ORIGINAL_URL)}`;
+  const response = await fetch(proxyUrl);
   if (!response.ok) throw new Error(`Font load failed: ${response.status}`);
   
   const arrayBuffer = await response.arrayBuffer();
