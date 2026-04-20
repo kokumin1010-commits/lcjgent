@@ -633,7 +633,7 @@ export default function OrderManagement({ onMemberClick }: OrderManagementProps)
                                     const detail = await utils.mall.getOrderById.fetch({ id: item.order.id });
                                     if (!detail) throw new Error("注文詳細の取得に失敗");
                                     const invoiceData = convertOrderToInvoiceData(detail as any);
-                                    downloadInvoicePdf(doc.type, invoiceData);
+                                    await downloadInvoicePdf(doc.type, invoiceData);
                                     toast.success(`${doc.label}をダウンロードしました`);
                                   } catch (err) {
                                     console.error(`PDF生成エラー:`, err);
@@ -985,10 +985,10 @@ export default function OrderManagement({ onMemberClick }: OrderManagementProps)
                         variant="outline"
                         size="sm"
                         className="gap-1.5 h-10"
-                        onClick={() => {
+                        onClick={async () => {
                           try {
                             const invoiceData = convertOrderToInvoiceData(orderDetail as any);
-                            downloadInvoicePdf(doc.type, invoiceData);
+                            await downloadInvoicePdf(doc.type, invoiceData);
                             toast.success(`${doc.label}をダウンロードしました`);
                           } catch (e) {
                             console.error(`PDF生成エラー:`, e);

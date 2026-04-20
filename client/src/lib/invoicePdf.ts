@@ -6,7 +6,35 @@
  */
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { NOTO_SANS_JP_BASE64 } from "./notoSansJpBase64";
+
+// フォントキャッシュ（一度ロードしたら再利用）
+let _fontBase64Cache: string | null = null;
+const FONT_CDN_URL = "https://kyogokucdn.com/fonts/NotoSansJP-Regular-subset.ttf";
+
+/**
+ * CDNからNotoSansJPフォントをロードしてBase64に変換
+ * 一度ロードしたらキャッシュする
+ */
+async function loadFontBase64(): Promise<string> {
+  if (_fontBase64Cache) return _fontBase64Cache;
+  
+  const response = await fetch(FONT_CDN_URL);
+  if (!response.ok) throw new Error(`Font load failed: ${response.status}`);
+  
+  const arrayBuffer = await response.arrayBuffer();
+  const uint8Array = new Uint8Array(arrayBuffer);
+  
+  // ArrayBufferをBase64に変換
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < uint8Array.length; i += chunkSize) {
+    const chunk = uint8Array.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  _fontBase64Cache = btoa(binary);
+  
+  return _fontBase64Cache;
+}
 
 // ── 発行元情報 ──
 const COMPANY = {
@@ -80,11 +108,12 @@ const GREETING_MAP: Record<DocumentType, string[]> = {
 };
 
 /**
- * フォントを登録してjsPDFインスタンスを返す
+ * フォントを登録してjsPDFインスタンスを返す（非同期）
  */
-function createPdf(): jsPDF {
+async function createPdf(): Promise<jsPDF> {
+  const fontBase64 = await loadFontBase64();
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  doc.addFileToVFS("NotoSansJP-Regular.ttf", NOTO_SANS_JP_BASE64);
+  doc.addFileToVFS("NotoSansJP-Regular.ttf", fontBase64);
   doc.addFont("NotoSansJP-Regular.ttf", "NotoSansJP", "normal");
   doc.setFont("NotoSansJP");
   return doc;
@@ -330,8 +359,8 @@ function renderInvoicePage(doc: jsPDF, type: DocumentType, order: OrderData): vo
 /**
  * PDF生成メイン関数（単一注文）
  */
-export function generateInvoicePdf(type: DocumentType, order: OrderData): jsPDF {
-  const doc = createPdf();
+export async function generateInvoicePdf(type: DocumentType, order: OrderData): Promise<jsPDF> {
+  const doc = await createPdf();
   renderInvoicePage(doc, type, order);
   return doc;
 }
@@ -339,8 +368,8 @@ export function generateInvoicePdf(type: DocumentType, order: OrderData): jsPDF 
 /**
  * 複数注文をまとめて1つのPDFに生成（各注文が1ページ）
  */
-export function generateBulkInvoicePdf(type: DocumentType, orders: OrderData[]): jsPDF {
-  const doc = createPdf();
+export async function generateBulkInvoicePdf(type: DocumentType, orders: OrderData[]): Promise<jsPDF> {
+  const doc = await createPdf();
   for (let i = 0; i < orders.length; i++) {
     if (i > 0) {
       doc.addPage();
@@ -354,8 +383,8 @@ export function generateBulkInvoicePdf(type: DocumentType, orders: OrderData[]):
 /**
  * PDFをダウンロード
  */
-export function downloadInvoicePdf(type: DocumentType, order: OrderData): void {
-  const doc = generateInvoicePdf(type, order);
+export async function downloadInvoicePdf(type: DocumentType, order: OrderData): Promise<void> {
+  const doc = await generateInvoicePdf(type, order);
   const typeLabel = type === "delivery" ? "納品書" : type === "invoice" ? "請求書" : "領収書";
   doc.save(`${typeLabel}_${order.orderNumber}.pdf`);
 }

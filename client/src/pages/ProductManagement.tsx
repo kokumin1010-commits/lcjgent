@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Package, ImageIcon, GripVertical, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Package, ImageIcon, GripVertical, X, Search } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import {
@@ -172,6 +172,7 @@ export default function ProductManagement() {
   const [editingProduct, setEditingProduct] = useState<number | null>(null);
   const [formData, setFormData] = useState<ProductFormData>(initialFormData);
   const [filterStatus, setFilterStatus] = useState<ProductStatus | "all">("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
   const utils = trpc.useUtils();
@@ -687,7 +688,7 @@ export default function ProductManagement() {
         {/* フィルター */}
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
               <label className="text-sm font-medium">ステータス:</label>
               <Select
                 value={filterStatus}
@@ -704,6 +705,23 @@ export default function ProductManagement() {
                   <SelectItem value="archived">アーカイブ</SelectItem>
                 </SelectContent>
               </Select>
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="商品名・ブランド・カテゴリで検索..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -713,7 +731,19 @@ export default function ProductManagement() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" />
-              商品一覧 {products && products.length > 0 && <span className="text-sm font-normal text-muted-foreground">({products.length}件)</span>}
+              商品一覧 {products && products.length > 0 && (
+                <span className="text-sm font-normal text-muted-foreground">
+                  {searchQuery
+                    ? `(${products.filter((p) => {
+                        const q = searchQuery.toLowerCase();
+                        const bn = getBrandName(p.brandId).toLowerCase();
+                        const cn = getCategoryName(p.categoryId, p.category).toLowerCase();
+                        return p.name.toLowerCase().includes(q) || bn.includes(q) || cn.includes(q) || (p.description?.toLowerCase().includes(q) ?? false);
+                      }).length}件 / 全${products.length}件)`
+                    : `(${products.length}件)`
+                  }
+                </span>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -727,7 +757,20 @@ export default function ProductManagement() {
               </div>
             ) : (
               <div className="space-y-3">
-                {products.map((product) => {
+                {products
+                .filter((product) => {
+                  if (!searchQuery) return true;
+                  const q = searchQuery.toLowerCase();
+                  const brandName = getBrandName(product.brandId).toLowerCase();
+                  const categoryName = getCategoryName(product.categoryId, product.category).toLowerCase();
+                  return (
+                    product.name.toLowerCase().includes(q) ||
+                    brandName.includes(q) ||
+                    categoryName.includes(q) ||
+                    (product.description?.toLowerCase().includes(q) ?? false)
+                  );
+                })
+                .map((product) => {
                   const imageCount = product.imageUrls?.length || (product.imageUrl ? 1 : 0);
                   return (
                     <div key={product.id} className="border rounded-lg p-4 hover:bg-muted/30 transition-colors">

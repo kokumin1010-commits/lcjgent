@@ -35,12 +35,12 @@ export default function BulkInvoicePrint() {
     .filter((d): d is NonNullable<typeof d> => !!d);
 
   // PDF生成
-  const generatePdf = useCallback(() => {
+  const generatePdf = useCallback(async () => {
     if (allData.length === 0) return;
     setIsGenerating(true);
     try {
       const allInvoices = allData.map((d) => convertOrderToInvoiceData(d as any));
-      const doc = generateBulkInvoicePdf(docType, allInvoices);
+      const doc = await generateBulkInvoicePdf(docType, allInvoices);
       const blobUrl = doc.output("bloburl");
       setPdfUrl(typeof blobUrl === "string" ? blobUrl : blobUrl.toString());
     } catch (err) {
