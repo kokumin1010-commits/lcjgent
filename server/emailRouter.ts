@@ -1,0 +1,405 @@
+/**
+ * メールルーター (Email Router)
+ * 独立ファイル: server/emailRouter.ts
+ * 
+ * 機能:
+ * - IMAP経由でメール受信一覧取得
+ * - SMTP経由でメール送信
+ * - メール本文取得
+ * - 招商管理ページからのメール操作
+ * 
+ * 使用アカウント: lcj.inquiry@livecommercejapan.jp (Alibaba Cloud Enterprise Mail)
+ */
+import { router, protectedProcedure } from "./_core/trpc";
+import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { ENV } from "./_core/env";
+import nodemailer from "nodemailer";
+
+// ===== IMAP接続ヘルパー =====
+async function getImapClient() {
+  const { ImapFlow } = await import("imapflow");
+  const client = new ImapFlow({
+    host: ENV.emailPopHost.replace("pop.", "imap."), // pop.qiye.aliyun.com → imap.qiye.aliyun.com
+    port: 993,
+    secure: true,
+    auth: {
+      user: ENV.emailUser,
+      pass: ENV.emailPassword,
+    },
+    logger: false,
+  });
+  return client;
+}
+
+// ===== SMTP送信ヘルパー =====
+function createSmtpTransporter() {
+  return nodemailer.createTransport({
+    host: ENV.emailSmtpHost,
+    port: 465,
+    secure: true,
+    auth: {
+      user: ENV.emailUser,
+      pass: ENV.emailPassword,
+    },
+  });
+}
+
+// ===== メールパーサーヘルパー =====
+async function parseMessage(source: any) {
+  const { simpleParser } = await import("mailparser");
+  return simpleParser(source);
+}
+
+export const emailRouter = router({
+  // ===== 1. 受信メール一覧取得 =====
+  listInbox: protectedProcedure
+    .input(z.object({
+      page: z.number().min(1).default(1),
+      pageSize: z.number().min(1).max(100).default(20),
+      folder: z.string().default("INBOX"),
+    }))
+    .query(async ({ input }) => {
+      if (!ENV.emailUser || !ENV.emailPassword) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "メール設定が未構成です" });
+      }
+
+      const client = await getImapClient();
+      try {
+        await client.connect();
+        const lock = await client.getMailboxLock(input.folder);
+        try {
+          const mailbox = client.mailbox;
+          const total = mailbox?.exists ?? 0;
+          
+          if (total === 0) {
+            return { emails: [], total: 0, page: input.page, pageSize: input.pageSize };
+          }
+
+          // 最新メールから取得（降順）
+          const start = Math.max(1, total - (input.page * input.pageSize) + 1);
+          const end = Math.max(1, total - ((input.page - 1) * input.pageSize));
+          
+          const emails: any[] = [];
+          
+          // IMAP SEQUENCEで取得（新しい順）
+          const range = `${start}:${end}`;
+          
+          for await (const message of client.fetch(range, {
+            envelope: true,
+            flags: true,
+            bodyStructure: true,
+            uid: true,
+          })) {
+            const envelope = message.envelope;
+            emails.push({
+              uid: message.uid,
+              seq: message.seq,
+              subject: envelope.subject || "(件名なし)",
+              from: envelope.from?.[0] ? {
+                name: envelope.from[0].name || "",
+                address: envelope.from[0].address || "",
+              } : { name: "", address: "" },
+              to: (envelope.to || []).map((t: any) => ({
+                name: t.name || "",
+                address: t.address || "",
+              })),
+              date: envelope.date ? new Date(envelope.date).toISOString() : null,
+              flags: Array.from(message.flags || []),
+              seen: message.flags?.has("\\Seen") || false,
+              hasAttachments: !!(message.bodyStructure as any)?.childNodes?.some(
+                (n: any) => n.disposition === "attachment"
+              ),
+            });
+          }
+
+          // 新しい順にソート
+          emails.sort((a, b) => {
+            const da = a.date ? new Date(a.date).getTime() : 0;
+            const db = b.date ? new Date(b.date).getTime() : 0;
+            return db - da;
+          });
+
+          return {
+            emails,
+            total,
+            page: input.page,
+            pageSize: input.pageSize,
+          };
+        } finally {
+          lock.release();
+        }
+      } catch (err: any) {
+        console.error("[Email Router] IMAP fetch error:", err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "メール取得に失敗しました: " + (err.message || "不明なエラー"),
+        });
+      } finally {
+        try { await client.logout(); } catch {}
+      }
+    }),
+
+  // ===== 2. メール本文取得 =====
+  getMessage: protectedProcedure
+    .input(z.object({
+      uid: z.number(),
+      folder: z.string().default("INBOX"),
+    }))
+    .query(async ({ input }) => {
+      if (!ENV.emailUser || !ENV.emailPassword) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "メール設定が未構成です" });
+      }
+
+      const client = await getImapClient();
+      try {
+        await client.connect();
+        const lock = await client.getMailboxLock(input.folder);
+        try {
+          // メッセージソースを取得
+          const message = await client.fetchOne(String(input.uid), {
+            source: true,
+            uid: true,
+          }, { uid: true });
+
+          if (!message?.source) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "メールが見つかりません" });
+          }
+
+          // メールをパース
+          const parsed = await parseMessage(message.source);
+
+          // 既読にマーク
+          await client.messageFlagsAdd(String(input.uid), ["\\Seen"], { uid: true });
+
+          return {
+            uid: input.uid,
+            subject: parsed.subject || "(件名なし)",
+            from: parsed.from?.value?.[0] ? {
+              name: parsed.from.value[0].name || "",
+              address: parsed.from.value[0].address || "",
+            } : { name: "", address: "" },
+            to: (parsed.to as any)?.value?.map((t: any) => ({
+              name: t.name || "",
+              address: t.address || "",
+            })) || [],
+            cc: (parsed.cc as any)?.value?.map((t: any) => ({
+              name: t.name || "",
+              address: t.address || "",
+            })) || [],
+            date: parsed.date?.toISOString() || null,
+            html: parsed.html || null,
+            text: parsed.text || "",
+            attachments: (parsed.attachments || []).map((att) => ({
+              filename: att.filename || "attachment",
+              contentType: att.contentType || "application/octet-stream",
+              size: att.size || 0,
+            })),
+          };
+        } finally {
+          lock.release();
+        }
+      } catch (err: any) {
+        if (err instanceof TRPCError) throw err;
+        console.error("[Email Router] getMessage error:", err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "メール取得に失敗しました: " + (err.message || "不明なエラー"),
+        });
+      } finally {
+        try { await client.logout(); } catch {}
+      }
+    }),
+
+  // ===== 3. メール送信 =====
+  sendEmail: protectedProcedure
+    .input(z.object({
+      to: z.array(z.string().email()),
+      cc: z.array(z.string().email()).optional(),
+      bcc: z.array(z.string().email()).optional(),
+      subject: z.string().min(1, "件名は必須です"),
+      text: z.string().optional(),
+      html: z.string().optional(),
+      inReplyTo: z.string().optional(),
+      references: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      if (!ENV.emailUser || !ENV.emailPassword) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "メール設定が未構成です" });
+      }
+
+      try {
+        const transporter = createSmtpTransporter();
+        const mailOptions: any = {
+          from: `"LCJ Inquiry" <${ENV.emailUser}>`,
+          to: input.to.join(", "),
+          subject: input.subject,
+        };
+
+        if (input.cc?.length) mailOptions.cc = input.cc.join(", ");
+        if (input.bcc?.length) mailOptions.bcc = input.bcc.join(", ");
+        if (input.html) mailOptions.html = input.html;
+        if (input.text) mailOptions.text = input.text;
+        if (input.inReplyTo) mailOptions.inReplyTo = input.inReplyTo;
+        if (input.references) mailOptions.references = input.references;
+
+        const info = await transporter.sendMail(mailOptions);
+        console.log("[Email Router] Email sent:", info.messageId);
+
+        return { success: true, messageId: info.messageId };
+      } catch (err: any) {
+        console.error("[Email Router] Send error:", err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "メール送信に失敗しました: " + (err.message || "不明なエラー"),
+        });
+      }
+    }),
+
+  // ===== 4. 送信済みメール一覧 =====
+  listSent: protectedProcedure
+    .input(z.object({
+      page: z.number().min(1).default(1),
+      pageSize: z.number().min(1).max(100).default(20),
+    }))
+    .query(async ({ input }) => {
+      if (!ENV.emailUser || !ENV.emailPassword) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "メール設定が未構成です" });
+      }
+
+      const client = await getImapClient();
+      try {
+        await client.connect();
+        
+        // Alibaba Cloud の送信済みフォルダ名を試行
+        const sentFolders = ["Sent Messages", "Sent", "已发送", "INBOX.Sent"];
+        let sentFolder = "Sent Messages";
+        
+        const mailboxes = await client.list();
+        for (const mb of mailboxes) {
+          const path = mb.path || "";
+          if (sentFolders.some(f => path.toLowerCase() === f.toLowerCase())) {
+            sentFolder = path;
+            break;
+          }
+        }
+
+        const lock = await client.getMailboxLock(sentFolder);
+        try {
+          const mailbox = client.mailbox;
+          const total = mailbox?.exists ?? 0;
+          
+          if (total === 0) {
+            return { emails: [], total: 0, page: input.page, pageSize: input.pageSize };
+          }
+
+          const start = Math.max(1, total - (input.page * input.pageSize) + 1);
+          const end = Math.max(1, total - ((input.page - 1) * input.pageSize));
+          const range = `${start}:${end}`;
+          
+          const emails: any[] = [];
+          for await (const message of client.fetch(range, {
+            envelope: true,
+            flags: true,
+            uid: true,
+          })) {
+            const envelope = message.envelope;
+            emails.push({
+              uid: message.uid,
+              seq: message.seq,
+              subject: envelope.subject || "(件名なし)",
+              from: envelope.from?.[0] ? {
+                name: envelope.from[0].name || "",
+                address: envelope.from[0].address || "",
+              } : { name: "", address: "" },
+              to: (envelope.to || []).map((t: any) => ({
+                name: t.name || "",
+                address: t.address || "",
+              })),
+              date: envelope.date ? new Date(envelope.date).toISOString() : null,
+              flags: Array.from(message.flags || []),
+            });
+          }
+
+          emails.sort((a, b) => {
+            const da = a.date ? new Date(a.date).getTime() : 0;
+            const db = b.date ? new Date(b.date).getTime() : 0;
+            return db - da;
+          });
+
+          return { emails, total, page: input.page, pageSize: input.pageSize };
+        } finally {
+          lock.release();
+        }
+      } catch (err: any) {
+        console.error("[Email Router] listSent error:", err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "送信済みメール取得に失敗しました: " + (err.message || "不明なエラー"),
+        });
+      } finally {
+        try { await client.logout(); } catch {}
+      }
+    }),
+
+  // ===== 5. メールフォルダ一覧 =====
+  listFolders: protectedProcedure.query(async () => {
+    if (!ENV.emailUser || !ENV.emailPassword) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "メール設定が未構成です" });
+    }
+
+    const client = await getImapClient();
+    try {
+      await client.connect();
+      const mailboxes = await client.list();
+      return mailboxes.map((mb: any) => ({
+        path: mb.path,
+        name: mb.name,
+        delimiter: mb.delimiter,
+        flags: Array.from(mb.flags || []),
+        specialUse: mb.specialUse || null,
+      }));
+    } catch (err: any) {
+      console.error("[Email Router] listFolders error:", err);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "フォルダ一覧取得に失敗しました: " + (err.message || "不明なエラー"),
+      });
+    } finally {
+      try { await client.logout(); } catch {}
+    }
+  }),
+
+  // ===== 6. メール削除（ゴミ箱へ移動） =====
+  deleteEmail: protectedProcedure
+    .input(z.object({
+      uid: z.number(),
+      folder: z.string().default("INBOX"),
+    }))
+    .mutation(async ({ input }) => {
+      if (!ENV.emailUser || !ENV.emailPassword) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "メール設定が未構成です" });
+      }
+
+      const client = await getImapClient();
+      try {
+        await client.connect();
+        const lock = await client.getMailboxLock(input.folder);
+        try {
+          await client.messageFlagsAdd(String(input.uid), ["\\Deleted"], { uid: true });
+          await client.messageDelete(String(input.uid), { uid: true });
+          return { success: true };
+        } finally {
+          lock.release();
+        }
+      } catch (err: any) {
+        console.error("[Email Router] delete error:", err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "メール削除に失敗しました: " + (err.message || "不明なエラー"),
+        });
+      } finally {
+        try { await client.logout(); } catch {}
+      }
+    }),
+});

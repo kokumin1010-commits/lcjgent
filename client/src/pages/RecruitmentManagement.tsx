@@ -55,6 +55,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { lazy, Suspense } from "react";
+const RecruitmentEmail = lazy(() => import("./RecruitmentEmail"));
 
 // ===== ステータス定義 =====
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
@@ -179,6 +181,9 @@ export default function RecruitmentManagement() {
   const [aiSelectedResults, setAiSelectedResults] = useState<Set<number>>(new Set());
   const aiFileInputRef = useRef<HTMLInputElement>(null);
   const [aiDragOver, setAiDragOver] = useState(false);
+
+  // タブ状態
+  const [activeView, setActiveView] = useState<"list" | "email">("list");
 
   // インポート状態
   const [importData, setImportData] = useState<any[]>([]);
@@ -650,6 +655,33 @@ export default function RecruitmentManagement() {
         </div>
       </div>
 
+      {/* View Toggle: リスト / メール */}
+      <div className="flex gap-1 mb-4 bg-gray-900/50 rounded-lg p-1 w-fit">
+        <button
+          onClick={() => setActiveView("list")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            activeView === "list" ? "bg-red-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800"
+          }`}
+        >
+          <Handshake className="w-4 h-4" /> 品牌管理
+        </button>
+        <button
+          onClick={() => setActiveView("email")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            activeView === "email" ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800"
+          }`}
+        >
+          <Mail className="w-4 h-4" /> メール
+        </button>
+      </div>
+
+      {/* メールビュー */}
+      {activeView === "email" ? (
+        <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /><span className="ml-2 text-gray-400">読み込み中...</span></div>}>
+          <RecruitmentEmail />
+        </Suspense>
+      ) : (
+      <>
       {/* Status Summary Cards */}
       <div className="grid grid-cols-7 gap-3 mb-6">
         {[
@@ -1476,6 +1508,8 @@ export default function RecruitmentManagement() {
         ref={fileInputRef}
         onChange={handleFileImport}
       />
+      </>
+      )}
     </div>
   );
 }

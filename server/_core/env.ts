@@ -18,4 +18,9 @@ export const ENV = {
   // Beauty Wallet連携
   bwApiUrl: process.env.BW_API_URL ?? "",
   bwApiSecret: process.env.BW_API_SECRET ?? "",
+  // Email (Alibaba Cloud Enterprise Mail)
+  emailUser: process.env.EMAIL_USER ?? "",
+  emailPassword: process.env.EMAIL_PASSWORD ?? "",
+  emailSmtpHost: process.env.EMAIL_SMTP_HOST ?? "smtp.qiye.aliyun.com",
+  emailPopHost: process.env.EMAIL_POP_HOST ?? "pop.qiye.aliyun.com",
 };
