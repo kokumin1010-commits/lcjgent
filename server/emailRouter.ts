@@ -370,7 +370,143 @@ export const emailRouter = router({
     }
   }),
 
-  // ===== 6. メール削除（ゴミ箱へ移動） =====
+  // ===== 6. 特定メールアドレスに関連するメール一覧（受信+送信） =====
+  listByAddress: protectedProcedure
+    .input(z.object({
+      emailAddress: z.string().min(1),
+      page: z.number().min(1).default(1),
+      pageSize: z.number().min(1).max(100).default(20),
+    }))
+    .query(async ({ input }) => {
+      if (!ENV.emailUser || !ENV.emailPassword) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "メール設定が未構成です" });
+      }
+
+      const addr = input.emailAddress.toLowerCase().trim();
+      const allEmails: any[] = [];
+
+      const client = await getImapClient();
+      try {
+        await client.connect();
+
+        // 1) 受信メール（INBOX）からアドレスで検索
+        try {
+          const inboxLock = await client.getMailboxLock("INBOX");
+          try {
+            // IMAP SEARCH: FROM に該当アドレスを含むメール
+            const inboxUidsResult = await client.search({ from: addr }, { uid: true });
+            const inboxUids = Array.isArray(inboxUidsResult) ? inboxUidsResult : [];
+            if (inboxUids.length > 0) {
+              const uidRange = inboxUids.join(",");
+              for await (const message of client.fetch(uidRange, {
+                envelope: true,
+                flags: true,
+                uid: true,
+              }, { uid: true })) {
+                const envelope = message.envelope;
+                allEmails.push({
+                  uid: message.uid,
+                  folder: "INBOX",
+                  direction: "received" as const,
+                  subject: envelope.subject || "(件名なし)",
+                  from: envelope.from?.[0] ? {
+                    name: envelope.from[0].name || "",
+                    address: envelope.from[0].address || "",
+                  } : { name: "", address: "" },
+                  to: (envelope.to || []).map((t: any) => ({
+                    name: t.name || "",
+                    address: t.address || "",
+                  })),
+                  date: envelope.date ? new Date(envelope.date).toISOString() : null,
+                  flags: Array.from(message.flags || []),
+                  seen: message.flags?.has("\\Seen") || false,
+                });
+              }
+            }
+          } finally {
+            inboxLock.release();
+          }
+        } catch (e: any) {
+          console.warn("[Email Router] listByAddress INBOX search error:", e.message);
+        }
+
+        // 2) 送信済みフォルダからアドレスで検索
+        try {
+          const sentFolders = ["Sent Messages", "Sent", "已发送", "INBOX.Sent"];
+          let sentFolder = "Sent Messages";
+          const mailboxes = await client.list();
+          for (const mb of mailboxes) {
+            const path = mb.path || "";
+            if (sentFolders.some(f => path.toLowerCase() === f.toLowerCase())) {
+              sentFolder = path;
+              break;
+            }
+          }
+
+          const sentLock = await client.getMailboxLock(sentFolder);
+          try {
+            // IMAP SEARCH: TO に該当アドレスを含むメール
+            const sentUidsResult = await client.search({ to: addr }, { uid: true });
+            const sentUids = Array.isArray(sentUidsResult) ? sentUidsResult : [];
+            if (sentUids.length > 0) {
+              const uidRange = sentUids.join(",");
+              for await (const message of client.fetch(uidRange, {
+                envelope: true,
+                flags: true,
+                uid: true,
+              }, { uid: true })) {
+                const envelope = message.envelope;
+                allEmails.push({
+                  uid: message.uid,
+                  folder: sentFolder,
+                  direction: "sent" as const,
+                  subject: envelope.subject || "(件名なし)",
+                  from: envelope.from?.[0] ? {
+                    name: envelope.from[0].name || "",
+                    address: envelope.from[0].address || "",
+                  } : { name: "", address: "" },
+                  to: (envelope.to || []).map((t: any) => ({
+                    name: t.name || "",
+                    address: t.address || "",
+                  })),
+                  date: envelope.date ? new Date(envelope.date).toISOString() : null,
+                  flags: Array.from(message.flags || []),
+                  seen: true,
+                });
+              }
+            }
+          } finally {
+            sentLock.release();
+          }
+        } catch (e: any) {
+          console.warn("[Email Router] listByAddress Sent search error:", e.message);
+        }
+
+        // 日付降順ソート
+        allEmails.sort((a, b) => {
+          const da = a.date ? new Date(a.date).getTime() : 0;
+          const db = b.date ? new Date(b.date).getTime() : 0;
+          return db - da;
+        });
+
+        // ページネーション
+        const total = allEmails.length;
+        const start = (input.page - 1) * input.pageSize;
+        const paged = allEmails.slice(start, start + input.pageSize);
+
+        return { emails: paged, total, page: input.page, pageSize: input.pageSize };
+      } catch (err: any) {
+        console.error("[Email Router] listByAddress error:", err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "メール検索に失敗しました: " + (err.message || "不明なエラー"),
+        });
+      } finally {
+        try { await client.logout(); } catch {}
+      }
+    }),
+
+  // ===== 7. メール削除（ゴミ箱へ移動） =====
   deleteEmail: protectedProcedure
     .input(z.object({
       uid: z.number(),

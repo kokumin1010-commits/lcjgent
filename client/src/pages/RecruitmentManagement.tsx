@@ -49,6 +49,12 @@ import {
   ImagePlus,
   FileText,
   AlertCircle,
+  Send,
+  Inbox,
+  ChevronLeft,
+  ChevronRight,
+  MailOpen,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -185,6 +191,17 @@ export default function RecruitmentManagement() {
   // タブ状態
   const [activeView, setActiveView] = useState<"list" | "email">("list");
 
+  // ブランドメールダイアログ状態
+  const [brandEmailOpen, setBrandEmailOpen] = useState(false);
+  const [brandEmailTarget, setBrandEmailTarget] = useState<{brandName: string; emailAddress: string} | null>(null);
+  const [brandEmailTab, setBrandEmailTab] = useState<"history" | "compose">("history");
+  const [brandEmailPage, setBrandEmailPage] = useState(1);
+  const [brandComposeTo, setBrandComposeTo] = useState("");
+  const [brandComposeCc, setBrandComposeCc] = useState("");
+  const [brandComposeSubject, setBrandComposeSubject] = useState("");
+  const [brandComposeBody, setBrandComposeBody] = useState("");
+  const [brandViewUid, setBrandViewUid] = useState<{uid: number; folder: string} | null>(null);
+
   // インポート状態
   const [importData, setImportData] = useState<any[]>([]);
   const [importStep, setImportStep] = useState<"upload" | "preview" | "mapping">("upload");
@@ -215,6 +232,29 @@ export default function RecruitmentManagement() {
     { id: currentBrand?.id ?? 0 },
     { enabled: !!currentBrand?.id && detailOpen }
   );
+
+  // ===== ブランドメール用クエリ =====
+  const { data: brandEmailData, isLoading: brandEmailLoading } = trpc.email.listByAddress.useQuery(
+    { emailAddress: brandEmailTarget?.emailAddress ?? "", page: brandEmailPage, pageSize: 20 },
+    { enabled: !!brandEmailTarget?.emailAddress && brandEmailOpen && brandEmailTab === "history", refetchOnWindowFocus: false }
+  );
+
+  const { data: brandMessageData, isLoading: brandMessageLoading } = trpc.email.getMessage.useQuery(
+    { uid: brandViewUid?.uid ?? 0, folder: brandViewUid?.folder ?? "INBOX" },
+    { enabled: !!brandViewUid, refetchOnWindowFocus: false }
+  );
+
+  const brandSendMutation = trpc.email.sendEmail.useMutation({
+    onSuccess: () => {
+      toast.success("メール送信完了");
+      setBrandComposeSubject("");
+      setBrandComposeBody("");
+      setBrandComposeCc("");
+      setBrandEmailTab("history");
+      utils.email.listByAddress.invalidate();
+    },
+    onError: (err) => toast.error("送信失敗: " + err.message),
+  });
 
   // Mutations
   const createMutation = trpc.recruitment.create.useMutation({
@@ -384,6 +424,59 @@ export default function RecruitmentManagement() {
   const openDetail = (brand: any) => {
     setCurrentBrand(brand);
     setDetailOpen(true);
+  };
+
+  // ===== ブランドメール機能 =====
+  const extractEmail = (text: string): string | null => {
+    if (!text) return null;
+    const match = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+    return match ? match[0] : null;
+  };
+
+  const openBrandEmail = (brand: any) => {
+    const email = extractEmail(brand.contactInfo || "");
+    if (!email) {
+      toast.error("该品牌的联系方式中未找到邮箱地址");
+      return;
+    }
+    setBrandEmailTarget({ brandName: brand.brandName, emailAddress: email });
+    setBrandEmailTab("history");
+    setBrandEmailPage(1);
+    setBrandComposeTo(email);
+    setBrandComposeCc("");
+    setBrandComposeSubject("");
+    setBrandComposeBody("");
+    setBrandViewUid(null);
+    setBrandEmailOpen(true);
+  };
+
+  const handleBrandSend = () => {
+    if (!brandComposeTo.trim()) {
+      toast.error("宛先を入力してください");
+      return;
+    }
+    if (!brandComposeSubject.trim()) {
+      toast.error("件名を入力してください");
+      return;
+    }
+    const toList = brandComposeTo.split(/[,;，；\s]+/).filter(Boolean).map(s => s.trim());
+    const ccList = brandComposeCc ? brandComposeCc.split(/[,;，；\s]+/).filter(Boolean).map(s => s.trim()) : undefined;
+    brandSendMutation.mutate({
+      to: toList,
+      cc: ccList,
+      subject: brandComposeSubject,
+      text: brandComposeBody,
+      html: brandComposeBody.replace(/\n/g, "<br>"),
+    });
+  };
+
+  const formatBrandEmailDate = (d: string | null) => {
+    if (!d) return "-";
+    const date = new Date(d);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    if (isToday) return date.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+    return date.toLocaleDateString("ja-JP", { year: "numeric", month: "short", day: "numeric" });
   };
 
   // ===== Excel エクスポート =====
@@ -858,6 +951,11 @@ export default function RecruitmentManagement() {
                         {STATUS_CONFIG[ns]?.label}
                       </Button>
                     ))}
+                    <Button size="sm" variant="ghost" className="text-gray-400 hover:text-blue-400 h-7 w-7 p-0"
+                      onClick={() => openBrandEmail(item)}
+                      title="邮件">
+                      <Mail className="w-3 h-3" />
+                    </Button>
                     <Button size="sm" variant="ghost" className="text-gray-400 hover:text-white h-7 w-7 p-0"
                       onClick={() => openEdit(item)}>
                       <Edit className="w-3 h-3" />
@@ -1496,6 +1594,199 @@ export default function RecruitmentManagement() {
                 确认导入 ({importData.length}条)
               </Button>
             </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== ブランドメールダイアログ ===== */}
+      <Dialog open={brandEmailOpen} onOpenChange={(open) => { setBrandEmailOpen(open); if (!open) { setBrandViewUid(null); } }}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="w-5 h-5 text-blue-400" />
+              {brandEmailTarget?.brandName || "品牌"} - 邮件
+              <span className="text-xs text-gray-400 font-normal ml-2">{brandEmailTarget?.emailAddress}</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* タブ切り替え */}
+          <div className="flex gap-1 bg-gray-800/50 rounded-lg p-1 w-fit">
+            <button
+              onClick={() => { setBrandEmailTab("history"); setBrandViewUid(null); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                brandEmailTab === "history" ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-700"
+              }`}
+            >
+              <Inbox className="w-3.5 h-3.5" /> 邮件履歴
+            </button>
+            <button
+              onClick={() => { setBrandEmailTab("compose"); setBrandViewUid(null); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                brandEmailTab === "compose" ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-700"
+              }`}
+            >
+              <Send className="w-3.5 h-3.5" /> 新規送信
+            </button>
+          </div>
+
+          {/* メール履歴タブ */}
+          {brandEmailTab === "history" && (
+            <div className="space-y-3">
+              {brandViewUid ? (
+                /* メール本文表示 */
+                <div className="space-y-3">
+                  <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white" onClick={() => setBrandViewUid(null)}>
+                    <ArrowLeft className="w-4 h-4 mr-1" /> 一覧に戻る
+                  </Button>
+                  {brandMessageLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                      <span className="ml-2 text-gray-400 text-sm">読み込み中...</span>
+                    </div>
+                  ) : brandMessageData ? (
+                    <div className="space-y-3">
+                      <div className="bg-gray-800/50 rounded-lg p-4">
+                        <h3 className="text-white font-medium mb-2">{brandMessageData.subject}</h3>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400">
+                          <span>From: {brandMessageData.from.name ? `${brandMessageData.from.name} <${brandMessageData.from.address}>` : brandMessageData.from.address}</span>
+                          <span>To: {brandMessageData.to.map((t: any) => t.address).join(", ")}</span>
+                          <span>{brandMessageData.date ? new Date(brandMessageData.date).toLocaleString("ja-JP") : "-"}</span>
+                        </div>
+                      </div>
+                      <div className="bg-gray-800/30 rounded-lg p-4 text-sm text-gray-300 whitespace-pre-wrap max-h-[40vh] overflow-y-auto">
+                        {brandMessageData.html ? (
+                          <div dangerouslySetInnerHTML={{ __html: brandMessageData.html }} />
+                        ) : (
+                          brandMessageData.text || "(本文なし)"
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">メールが見つかりません</div>
+                  )}
+                </div>
+              ) : (
+                /* メール一覧 */
+                <>
+                  {brandEmailLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                      <span className="ml-2 text-gray-400 text-sm">メール検索中...</span>
+                    </div>
+                  ) : !brandEmailData?.emails?.length ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <MailOpen className="w-8 h-8 mx-auto mb-2 text-gray-600" />
+                      <p>このアドレスとのメール履歴はありません</p>
+                      <Button size="sm" className="mt-3 bg-blue-600 hover:bg-blue-700" onClick={() => setBrandEmailTab("compose")}>
+                        <Send className="w-3.5 h-3.5 mr-1" /> 新規メールを作成
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-xs text-gray-500 mb-1">全 {brandEmailData.total} 件</div>
+                      <div className="space-y-1">
+                        {brandEmailData.emails.map((email: any, idx: number) => (
+                          <button
+                            key={`${email.folder}-${email.uid}-${idx}`}
+                            className="w-full text-left bg-gray-800/40 hover:bg-gray-800/70 rounded-lg p-3 transition-colors"
+                            onClick={() => setBrandViewUid({ uid: email.uid, folder: email.folder })}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge className={`text-[10px] px-1.5 py-0 ${
+                                email.direction === "sent" ? "bg-green-600/80 text-white" : "bg-blue-600/80 text-white"
+                              }`}>
+                                {email.direction === "sent" ? "送信" : "受信"}
+                              </Badge>
+                              <span className="text-xs text-gray-400 truncate flex-1">
+                                {email.direction === "sent"
+                                  ? `To: ${email.to?.[0]?.address || "-"}`
+                                  : `From: ${email.from?.name || email.from?.address || "-"}`
+                                }
+                              </span>
+                              <span className="text-xs text-gray-500 shrink-0">{formatBrandEmailDate(email.date)}</span>
+                            </div>
+                            <div className="text-sm text-white truncate">{email.subject}</div>
+                          </button>
+                        ))}
+                      </div>
+                      {/* ページネーション */}
+                      {brandEmailData.total > 20 && (
+                        <div className="flex items-center justify-center gap-2 pt-2">
+                          <Button variant="ghost" size="sm" disabled={brandEmailPage <= 1}
+                            onClick={() => setBrandEmailPage(p => p - 1)} className="text-gray-400">
+                            <ChevronLeft className="w-4 h-4" />
+                          </Button>
+                          <span className="text-sm text-gray-400">{brandEmailPage} / {Math.ceil(brandEmailData.total / 20)}</span>
+                          <Button variant="ghost" size="sm" disabled={brandEmailPage >= Math.ceil(brandEmailData.total / 20)}
+                            onClick={() => setBrandEmailPage(p => p + 1)} className="text-gray-400">
+                            <ChevronRight className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* 新規送信タブ */}
+          {brandEmailTab === "compose" && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">宛先 *</label>
+                <Input
+                  value={brandComposeTo}
+                  onChange={e => setBrandComposeTo(e.target.value)}
+                  placeholder="example@email.com"
+                  className="bg-gray-800 border-gray-700 text-white"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">CC</label>
+                <Input
+                  value={brandComposeCc}
+                  onChange={e => setBrandComposeCc(e.target.value)}
+                  placeholder="cc@email.com"
+                  className="bg-gray-800 border-gray-700 text-white"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">件名 *</label>
+                <Input
+                  value={brandComposeSubject}
+                  onChange={e => setBrandComposeSubject(e.target.value)}
+                  placeholder="件名を入力"
+                  className="bg-gray-800 border-gray-700 text-white"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">本文</label>
+                <Textarea
+                  value={brandComposeBody}
+                  onChange={e => setBrandComposeBody(e.target.value)}
+                  placeholder="メール本文を入力..."
+                  rows={10}
+                  className="bg-gray-800 border-gray-700 text-white resize-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setBrandEmailTab("history")} className="border-gray-600 text-gray-300">
+                  キャンセル
+                </Button>
+                <Button
+                  onClick={handleBrandSend}
+                  disabled={brandSendMutation.isPending}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {brandSendMutation.isPending ? (
+                    <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> 送信中...</>
+                  ) : (
+                    <><Send className="w-4 h-4 mr-1" /> 送信</>
+                  )}
+                </Button>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>
