@@ -362,12 +362,12 @@ const RETRY_CONFIG = {
  * Check if an error is retryable (rate limit / server error)
  */
 const isRetryableError = (status: number, errorText: string): boolean => {
-  // 429 Too Many Requests - レート制限
-  if (status === 429) return true;
+  // 429 Too Many Requests - レート制限（ただしinsufficient_quotaはリトライ不可）
+  if (status === 429 && !errorText.includes("insufficient_quota")) return true;
   // 500, 502, 503 - サーバーエラー（一時的な問題）
   if (status >= 500 && status <= 503) return true;
-  // insufficient_quota - クォータ超過（リトライで回復する可能性あり）
-  if (errorText.includes("insufficient_quota")) return true;
+  // insufficient_quota - クォータ超過はリトライしても回復しないため除外
+  // if (errorText.includes("insufficient_quota")) return true;
   return false;
 };
 

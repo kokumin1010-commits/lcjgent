@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, rateLimitedPublicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { storagePut } from "./storage";
@@ -1794,7 +1794,7 @@ export const lineLoginRouter = router({
   // ==========================================
 
   // Submit receipt via Web form (uses S3 URL instead of Base64 for better LLM analysis)
-  submitWebReceipt: publicProcedure
+  submitWebReceipt: rateLimitedPublicProcedure
     .input(z.object({
       images: z.array(z.object({
         base64: z.string(),
@@ -10339,7 +10339,7 @@ ${conversationText}
       }),
 
     // Analyze screenshot to extract livestream data
-    analyzeScreenshot: publicProcedure
+    analyzeScreenshot: rateLimitedPublicProcedure
       .input(z.object({
         imageUrl: z.string().optional(),
         imageBase64: z.string().optional(),
@@ -10576,7 +10576,7 @@ ${conversationText}
       }),
 
     // Generate advice based on livestream data
-    generateAdvice: publicProcedure
+    generateAdvice: rateLimitedPublicProcedure
       .input(z.object({
         salesAmount: z.number().optional(),
         viewerCount: z.number().optional(),
@@ -11121,7 +11121,7 @@ ${metricsDescription}${historicalContext}`,
       }),
 
     // AI-powered liver-product matching suggestions (AIマッチング提案)
-    getAiMatchingSuggestions: publicProcedure
+    getAiMatchingSuggestions: rateLimitedPublicProcedure
       .input(z.object({ 
         month: z.string().optional(), // format: "YYYY-MM"
         language: z.enum(["ja", "zh"]).optional().default("ja")
