@@ -144,6 +144,9 @@ export default function LiverDashboardNew() {
   // Monthly Sales Trend
   const { data: salesTrend } = trpc.liverManagement.monthlySalesTrend.useQuery();
   
+  // All Livers Monthly Trend (for sparklines)
+  const { data: allLiversTrend } = trpc.liverManagement.allLiversMonthlyTrend.useQuery();
+  
   // Product Ranking (全商品取得、表示はshowAllProductsで制御)
   const { data: productRanking } = trpc.liverManagement.getProductRanking.useQuery({
     month: selectedMonth,
@@ -643,6 +646,77 @@ export default function LiverDashboardNew() {
           </Card>
         )}
         
+        {/* Growth Leaders - 成長率TOP3 */}
+        {rankings?.salesRanking && rankings.salesRanking.length > 0 && (
+          <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 backdrop-blur-sm">
+            <CardContent className="p-6">
+              <h2 className="text-lg font-bold mb-4 flex items-center gap-3">
+                <TrendingUp className="w-6 h-6 text-emerald-400" />
+                <span className="text-cyan-100">成長率TOP3</span>
+                <span className="text-cyan-500/50 text-sm">（前月比売上成長率）</span>
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[...rankings.salesRanking]
+                  .filter((item: any) => item.salesGrowth !== undefined && item.prevSales > 0)
+                  .sort((a: any, b: any) => b.salesGrowth - a.salesGrowth)
+                  .slice(0, 3)
+                  .map((item: any, index: number) => {
+                    const liverTrend = allLiversTrend?.find((t: any) => t.liverId === item.liverId);
+                    const trendValues = liverTrend?.months?.map((m: any) => m.totalSales) || [];
+                    const trendMax = Math.max(...trendValues, 1);
+                    return (
+                      <Link key={item.liverId || index} href={`/master/livers-dashboard/${item.liverId || 0}`}>
+                        <div className={`p-4 rounded-xl border transition-all cursor-pointer hover:scale-[1.02] ${
+                          index === 0 
+                            ? 'bg-gradient-to-br from-emerald-900/40 to-emerald-800/20 border-emerald-500/30 hover:border-emerald-400/50 shadow-[0_0_20px_rgba(16,185,129,0.15)]'
+                            : 'bg-[#0a1520]/40 border-cyan-500/10 hover:border-cyan-400/30'
+                        }`}>
+                          <div className="flex items-center gap-3 mb-3">
+                            <Avatar className="w-10 h-10 ring-2 ring-emerald-500/30">
+                              <AvatarImage src={item.avatarUrl || undefined} />
+                              <AvatarFallback className="bg-gradient-to-br from-emerald-900 to-cyan-900 text-emerald-100">
+                                {(item.liverName || item.streamerName)?.charAt(0) || '?'}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <p className="font-semibold text-cyan-100 text-sm">{item.liverName || item.streamerName || '不明'}</p>
+                              <span className={`text-lg font-bold ${
+                                item.salesGrowth > 0 ? 'text-emerald-400' : item.salesGrowth < 0 ? 'text-red-400' : 'text-gray-400'
+                              }`}>
+                                {item.salesGrowth > 0 ? '↑' : item.salesGrowth < 0 ? '↓' : '→'}{Math.abs(item.salesGrowth)}%
+                              </span>
+                            </div>
+                            {index === 0 && <span className="text-2xl">🚀</span>}
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-cyan-500/50">前月: {formatCurrency(item.prevSales)}</span>
+                            <span className="text-yellow-400 font-bold">今月: {formatCurrency(item.totalSales)}</span>
+                          </div>
+                          {/* Mini trend sparkline */}
+                          {trendValues.length > 0 && (
+                            <div className="flex items-end gap-0.5 h-6 mt-2">
+                              {trendValues.map((v: number, i: number) => (
+                                <div 
+                                  key={i} 
+                                  className={`flex-1 rounded-t-sm ${
+                                    i === trendValues.length - 1 
+                                      ? 'bg-gradient-to-t from-emerald-500 to-emerald-300' 
+                                      : 'bg-cyan-500/20'
+                                  }`}
+                                  style={{ height: `${Math.max(8, (v / trendMax) * 100)}%` }}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </Link>
+                    );
+                  })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Sales Ranking */}
         <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 backdrop-blur-sm">
           <CardContent className="p-6">
@@ -670,13 +744,33 @@ export default function LiverDashboardNew() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
-                        <p className="font-semibold text-cyan-100 group-hover:text-cyan-50 transition-colors">{(item as any).liverName || item.streamerName || "不明"}</p>
+                        <div className="flex items-center justify-between">
+                          <p className="font-semibold text-cyan-100 group-hover:text-cyan-50 transition-colors">{(item as any).liverName || item.streamerName || "不明"}</p>
+                          {/* Growth badge */}
+                          {(item as any).salesGrowth !== undefined && (
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                              (item as any).salesGrowth > 0 
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                                : (item as any).salesGrowth < 0 
+                                  ? 'bg-red-500/20 text-red-400 border border-red-500/30' 
+                                  : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+                            }`}>
+                              {(item as any).salesGrowth > 0 ? '↑' : (item as any).salesGrowth < 0 ? '↓' : '→'}
+                              {Math.abs((item as any).salesGrowth)}% 前月比
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-6 mt-2">
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-yellow-400 font-bold text-lg drop-shadow-[0_0_8px_rgba(250,204,21,0.4)]">
-                                {formatCurrency(item.totalSales)}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-yellow-400 font-bold text-lg drop-shadow-[0_0_8px_rgba(250,204,21,0.4)]">
+                                  {formatCurrency(item.totalSales)}
+                                </span>
+                                {(item as any).prevSales > 0 && (
+                                  <span className="text-xs text-cyan-500/40">← {formatCurrency((item as any).prevSales)}</span>
+                                )}
+                              </div>
                               <span className="text-xs text-cyan-500/50">{tr.sales}</span>
                             </div>
                             <div className="h-1.5 bg-yellow-500/20 rounded-full overflow-hidden">
@@ -688,6 +782,28 @@ export default function LiverDashboardNew() {
                               />
                             </div>
                           </div>
+                          {/* Mini sparkline */}
+                          {(() => {
+                            const liverTrend = allLiversTrend?.find((t: any) => t.liverId === item.liverId);
+                            if (!liverTrend || !liverTrend.months) return null;
+                            const values = liverTrend.months.map((m: any) => m.totalSales);
+                            const max = Math.max(...values, 1);
+                            return (
+                              <div className="w-16 h-8 flex items-end gap-0.5" title={liverTrend.months.map((m: any) => `${m.label}: ${formatCurrency(m.totalSales)}`).join('\n')}>
+                                {values.map((v: number, i: number) => (
+                                  <div 
+                                    key={i} 
+                                    className={`flex-1 rounded-t-sm transition-all ${
+                                      i === values.length - 1 
+                                        ? 'bg-gradient-to-t from-yellow-500 to-yellow-300' 
+                                        : 'bg-cyan-500/30'
+                                    }`}
+                                    style={{ height: `${Math.max(4, (v / max) * 100)}%` }}
+                                  />
+                                ))}
+                              </div>
+                            );
+                          })()}
                           <div className="w-24 text-right">
                             <span className="text-cyan-400 font-mono">
                               {formatDuration(item.totalDuration)}

@@ -3840,6 +3840,11 @@ export async function getLiverRankings(month: string, agencyId?: number | null) 
   
   const { startDate, endDate } = getJSTMonthRange(month);
   
+  // Previous month for growth calculation
+  const [year, monthNum] = month.split('-').map(Number);
+  const prevMonthStr = monthNum === 1 ? `${year - 1}-12` : `${year}-${String(monthNum - 1).padStart(2, '0')}`;
+  const { startDate: prevStartDate, endDate: prevEndDate } = getJSTMonthRange(prevMonthStr);
+  
   // Build agency filter condition
   const agencyFilter = agencyId === null 
     ? isNull(livers.agencyId) // LCJ own livers only
@@ -3871,6 +3876,57 @@ export async function getLiverRankings(month: string, agencyId?: number | null) 
     .groupBy(brandLivestreams.liverId, livers.name, livers.avatarUrl)
     .orderBy(sql`SUM(${brandLivestreams.salesAmount}) DESC`);
   
+  // Previous month sales per liver (for growth calculation)
+  const prevSalesData = await db
+    .select({
+      liverId: brandLivestreams.liverId,
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+      totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+      livestreamCount: sql<number>`COUNT(*)`,
+    })
+    .from(brandLivestreams)
+    .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
+    .where(
+      and(
+        isNull(brandLivestreams.deletedAt),
+        sql`${brandLivestreams.livestreamDate} >= ${prevStartDate}`,
+        sql`${brandLivestreams.livestreamDate} <= ${prevEndDate}`,
+        isNotNull(brandLivestreams.liverId),
+        agencyFilter
+      )
+    )
+    .groupBy(brandLivestreams.liverId);
+  
+  // Build prev month lookup map
+  const prevSalesMap = new Map<number | null, { totalSales: number; totalDuration: number; livestreamCount: number }>();
+  for (const row of prevSalesData) {
+    prevSalesMap.set(row.liverId, {
+      totalSales: Number(row.totalSales),
+      totalDuration: Number(row.totalDuration),
+      livestreamCount: Number(row.livestreamCount),
+    });
+  }
+  
+  // Enrich sales ranking with growth data
+  const salesRankingWithGrowth = salesRanking.map(item => {
+    const prev = prevSalesMap.get(item.liverId);
+    const prevSales = prev?.totalSales || 0;
+    const prevDuration = prev?.totalDuration || 0;
+    const salesGrowth = prevSales > 0 
+      ? Math.round(((Number(item.totalSales) - prevSales) / prevSales) * 100) 
+      : Number(item.totalSales) > 0 ? 100 : 0;
+    const durationGrowth = prevDuration > 0 
+      ? Math.round(((Number(item.totalDuration) - prevDuration) / prevDuration) * 100) 
+      : Number(item.totalDuration) > 0 ? 100 : 0;
+    return {
+      ...item,
+      prevSales,
+      prevDuration,
+      salesGrowth,
+      durationGrowth,
+    };
+  });
+  
   // Duration ranking - JOIN livers to get correct name and avatar
   const durationRanking = await db
     .select({
@@ -3895,7 +3951,27 @@ export async function getLiverRankings(month: string, agencyId?: number | null) 
     .groupBy(brandLivestreams.liverId, livers.name, livers.avatarUrl)
     .orderBy(sql`SUM(${brandLivestreams.duration}) DESC`);
   
-  return { salesRanking, durationRanking };
+  // Enrich duration ranking with growth data
+  const durationRankingWithGrowth = durationRanking.map(item => {
+    const prev = prevSalesMap.get(item.liverId);
+    const prevSales = prev?.totalSales || 0;
+    const prevDuration = prev?.totalDuration || 0;
+    const salesGrowth = prevSales > 0 
+      ? Math.round(((Number(item.totalSales) - prevSales) / prevSales) * 100) 
+      : Number(item.totalSales) > 0 ? 100 : 0;
+    const durationGrowth = prevDuration > 0 
+      ? Math.round(((Number(item.totalDuration) - prevDuration) / prevDuration) * 100) 
+      : Number(item.totalDuration) > 0 ? 100 : 0;
+    return {
+      ...item,
+      prevSales,
+      prevDuration,
+      salesGrowth,
+      durationGrowth,
+    };
+  });
+  
+  return { salesRanking: salesRankingWithGrowth, durationRanking: durationRankingWithGrowth };
 }
 
 // Get livestream by ID with brand info
@@ -20598,4 +20674,74 @@ export async function grantAdminRole(email: string): Promise<boolean> {
     console.error(`[Admin] Failed to grant admin role to ${email}:`, err);
     return false;
   }
+}
+
+
+/**
+ * Get all livers' monthly sales trend (past 3 months) for sparkline display
+ * Returns a map of liverId -> [month1, month2, month3] sales data
+ */
+export async function getAllLiversMonthlyTrend(agencyId?: number | null) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const agencyFilter = agencyId === null 
+    ? isNull(livers.agencyId)
+    : agencyId !== undefined 
+      ? eq(livers.agencyId, agencyId)
+      : undefined;
+  
+  const now = new Date();
+  const monthKeys: string[] = [];
+  for (let i = 2; i >= 0; i--) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    monthKeys.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+  }
+  
+  // Get all active livers
+  const allLivers = await db
+    .select({ id: livers.id, name: livers.name })
+    .from(livers)
+    .where(and(eq(livers.isActive, true), agencyFilter));
+  
+  // For each month, get per-liver aggregated data in one query
+  const results: { liverId: number; liverName: string; months: { month: string; label: string; totalSales: number; totalDuration: number; livestreamCount: number }[] }[] = [];
+  
+  for (const liver of allLivers) {
+    const monthData: { month: string; label: string; totalSales: number; totalDuration: number; livestreamCount: number }[] = [];
+    
+    for (const mk of monthKeys) {
+      const { startDate, endDate } = getJSTMonthRange(mk);
+      const result = await db
+        .select({
+          totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+          totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+          livestreamCount: sql<number>`COUNT(*)`,
+        })
+        .from(brandLivestreams)
+        .where(and(
+          isNull(brandLivestreams.deletedAt),
+          eq(brandLivestreams.liverId, liver.id),
+          sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+          sql`${brandLivestreams.livestreamDate} <= ${endDate}`
+        ));
+      
+      const [, monthNum] = mk.split('-').map(Number);
+      monthData.push({
+        month: mk,
+        label: `${monthNum}月`,
+        totalSales: Number(result[0]?.totalSales || 0),
+        totalDuration: Number(result[0]?.totalDuration || 0),
+        livestreamCount: Number(result[0]?.livestreamCount || 0),
+      });
+    }
+    
+    results.push({
+      liverId: liver.id,
+      liverName: liver.name,
+      months: monthData,
+    });
+  }
+  
+  return results;
 }

@@ -208,6 +208,7 @@ import {
   getLiverMonthlySalesTrend,
   getLiverDetailWithStats,
   getLiverMonthlySalesTrendById,
+  getAllLiversMonthlyTrend,
   getLiverRecentLivestreams,
   getLiverBrandPerformance,
   getTopProductsByLiver,
@@ -9850,6 +9851,13 @@ ${conversationText}
       .input(z.object({ agencyId: z.number().nullable().optional() }).optional())
       .query(async ({ input }) => {
         return await getLiverMonthlySalesTrend(input?.agencyId);
+      }),
+
+    // Get all livers' monthly trend (全ライバーの月別推移 - スパークライン用)
+    allLiversMonthlyTrend: publicProcedure
+      .input(z.object({ agencyId: z.number().nullable().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getAllLiversMonthlyTrend(input?.agencyId);
       }),
 
     // Get liver detail with stats (ライバー詳細情報)
