@@ -6,7 +6,7 @@ export const ENV = {
   ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
-  forgeApiKey: (process.env.BUILT_IN_FORGE_API_KEY || process.env.OPENAI_API_KEY) ?? "",
+  forgeApiKey: ((process.env.BUILT_IN_FORGE_API_KEY || process.env.OPENAI_API_KEY) ?? "").replace(/[\r\n\s]+/g, ""),
   // LINE Messaging API
   lineChannelSecret: process.env.LINE_CHANNEL_SECRET ?? "",
   lineChannelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN ?? "",
