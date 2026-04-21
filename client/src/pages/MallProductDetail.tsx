@@ -822,10 +822,7 @@ export default function MallProductDetail() {
 
             {/* 特典バッジ */}
             <div className="flex flex-wrap gap-3">
-              <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-full text-sm">
-                <Truck className="h-4 w-4" />
-                送料無料
-              </div>
+
               <div className="flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-full text-sm">
                 <Shield className="h-4 w-4" />
                 品質保証
