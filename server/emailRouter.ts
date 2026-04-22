@@ -542,7 +542,8 @@ export const emailRouter = router({
   // ===== 8. メールテンプレート一覧 =====
   listTemplates: protectedProcedure.query(async () => {
     const { getDb } = await import("./db");
-    const db = getDb();
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
     const { recruitmentEmailTemplates } = await import("../drizzle/schema");
     const { asc } = await import("drizzle-orm");
     return db.select().from(recruitmentEmailTemplates).orderBy(asc(recruitmentEmailTemplates.sortOrder));
@@ -561,7 +562,7 @@ export const emailRouter = router({
     }))
     .mutation(async ({ input }) => {
       const { getDb } = await import("./db");
-      const db = getDb();
+      const db = await getDb();
       const { recruitmentEmailTemplates } = await import("../drizzle/schema");
       const [result] = await db.insert(recruitmentEmailTemplates).values({
         ...input,
@@ -585,7 +586,7 @@ export const emailRouter = router({
     }))
     .mutation(async ({ input }) => {
       const { getDb } = await import("./db");
-      const db = getDb();
+      const db = await getDb();
       const { recruitmentEmailTemplates } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       const { id, ...data } = input;
@@ -598,7 +599,7 @@ export const emailRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const { getDb } = await import("./db");
-      const db = getDb();
+      const db = await getDb();
       const { recruitmentEmailTemplates } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       await db.delete(recruitmentEmailTemplates).where(eq(recruitmentEmailTemplates.id, input.id));
@@ -608,7 +609,7 @@ export const emailRouter = router({
   // ===== 12. メール署名一覧 =====
   listSignatures: protectedProcedure.query(async () => {
     const { getDb } = await import("./db");
-    const db = getDb();
+    const db = await getDb();
     const { emailSignatures } = await import("../drizzle/schema");
     return db.select().from(emailSignatures);
   }),
@@ -623,7 +624,7 @@ export const emailRouter = router({
     }))
     .mutation(async ({ input }) => {
       const { getDb } = await import("./db");
-      const db = getDb();
+      const db = await getDb();
       const { emailSignatures } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       if (input.isDefault) {
@@ -643,7 +644,7 @@ export const emailRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const { getDb } = await import("./db");
-      const db = getDb();
+      const db = await getDb();
       const { emailSignatures } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       await db.delete(emailSignatures).where(eq(emailSignatures.id, input.id));
@@ -680,7 +681,7 @@ export const emailRouter = router({
 
         // ログ記録（body + sentBy保存）
         const { getDb } = await import("./db");
-        const db = getDb();
+        const db = await getDb();
         const { recruitmentEmailLogs, recruitmentBrands } = await import("../drizzle/schema");
         const { eq } = await import("drizzle-orm");
         await db.insert(recruitmentEmailLogs).values({
@@ -722,7 +723,7 @@ export const emailRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "メール設定が未構成です" });
       }
       const { getDb } = await import("./db");
-      const db = getDb();
+      const db = await getDb();
       const { recruitmentBrands, recruitmentEmailLogs } = await import("../drizzle/schema");
       const { eq, inArray } = await import("drizzle-orm");
 
@@ -799,7 +800,7 @@ export const emailRouter = router({
     .input(z.object({ brandId: z.number() }))
     .query(async ({ input }) => {
       const { getDb } = await import("./db");
-      const db = getDb();
+      const db = await getDb();
       const { recruitmentEmailLogs } = await import("../drizzle/schema");
       const { eq, desc } = await import("drizzle-orm");
       return db.select().from(recruitmentEmailLogs).where(eq(recruitmentEmailLogs.brandId, input.brandId)).orderBy(desc(recruitmentEmailLogs.sentAt)).limit(50);
@@ -814,7 +815,7 @@ export const emailRouter = router({
     }))
     .query(async ({ input }) => {
       const { getDb } = await import("./db");
-      const db = getDb();
+      const db = await getDb();
       const { recruitmentEmailLogs, recruitmentBrands } = await import("../drizzle/schema");
       const { desc, eq, sql } = await import("drizzle-orm");
 
