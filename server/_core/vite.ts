@@ -79,10 +79,11 @@ export function serveStatic(app: Express) {
     immutable: true,
   }));
 
-  // Serve other static files with short cache
+  // Serve other static files with short cache (exclude index.html so SPA fallback handles it)
   app.use(express.static(distPath, {
     maxAge: "1h",
     etag: true,
+    index: false, // Don't serve index.html from static middleware - let SPA fallback handle it with SEO injection
   }));
 
   // Read the index.html template once for dynamic SEO injection
