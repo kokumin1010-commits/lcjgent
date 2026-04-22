@@ -71,7 +71,7 @@ import {
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { lazy, Suspense } from "react";
@@ -278,7 +278,9 @@ export default function RecruitmentManagement() {
 
   // ブランドメールダイアログ状態
   const [brandEmailOpen, setBrandEmailOpen] = useState(false);
-  const [brandEmailTarget, setBrandEmailTarget] = useState<{brandName: string; emailAddress: string} | null>(null);
+  const [brandEmailTarget, setBrandEmailTarget] = useState<{brandId: number; brandName: string; emailAddress: string} | null>(null);
+  const [brandTemplateId, setBrandTemplateId] = useState<string>("none");
+  const [brandUseSignature, setBrandUseSignature] = useState(true);
   const [brandEmailTab, setBrandEmailTab] = useState<"history" | "compose">("history");
   const [brandEmailPage, setBrandEmailPage] = useState(1);
   const [brandComposeTo, setBrandComposeTo] = useState("");
@@ -318,6 +320,15 @@ export default function RecruitmentManagement() {
     { enabled: !!currentBrand?.id && detailOpen }
   );
 
+  // ===== テンプレート・署名クエリ =====
+  const { data: emailTemplates } = trpc.email.listTemplates.useQuery(undefined, { refetchOnWindowFocus: false });
+  const { data: emailSignatures } = trpc.email.listSignatures.useQuery(undefined, { refetchOnWindowFocus: false });
+  const defaultSig = useMemo(() => emailSignatures?.find((s: any) => s.isDefault) || emailSignatures?.[0], [emailSignatures]);
+  // ===== 送信ログクエリ =====
+  const { data: brandEmailLogs } = trpc.email.getRecruitmentEmailLogs.useQuery(
+    { brandId: brandEmailTarget?.brandId ?? 0 },
+    { enabled: !!brandEmailTarget?.brandId && brandEmailOpen, refetchOnWindowFocus: false }
+  );
   // ===== ブランドメール用クエリ =====
   const { data: brandEmailData, isLoading: brandEmailLoading } = trpc.email.listByAddress.useQuery(
     { emailAddress: brandEmailTarget?.emailAddress ?? "", page: brandEmailPage, pageSize: 20 },
@@ -329,14 +340,17 @@ export default function RecruitmentManagement() {
     { enabled: !!brandViewUid, refetchOnWindowFocus: false }
   );
 
-  const brandSendMutation = trpc.email.sendEmail.useMutation({
+  const brandSendMutation = trpc.email.sendRecruitmentEmail.useMutation({
     onSuccess: () => {
-      toast.success("メール送信完了");
+      toast.success("メール送信完了（ステータス自動更新済み）");
       setBrandComposeSubject("");
       setBrandComposeBody("");
       setBrandComposeCc("");
+      setBrandTemplateId("none");
       setBrandEmailTab("history");
       utils.email.listByAddress.invalidate();
+      utils.email.getRecruitmentEmailLogs.invalidate();
+      utils.recruitment.list.invalidate();
     },
     onError: (err) => toast.error("送信失敗: " + err.message),
   });
@@ -552,13 +566,14 @@ export default function RecruitmentManagement() {
       toast.error("该品牌的联系方式中未找到邮箱地址");
       return;
     }
-    setBrandEmailTarget({ brandName: brand.brandName, emailAddress: email });
+    setBrandEmailTarget({ brandId: brand.id, brandName: brand.brandName, emailAddress: email });
     setBrandEmailTab("history");
     setBrandEmailPage(1);
     setBrandComposeTo(email);
     setBrandComposeCc("");
     setBrandComposeSubject("");
     setBrandComposeBody("");
+    setBrandTemplateId("none");
     setBrandViewUid(null);
     setBrandEmailOpen(true);
   };
@@ -575,11 +590,13 @@ export default function RecruitmentManagement() {
     const toList = brandComposeTo.split(/[,;，；\s]+/).filter(Boolean).map(s => s.trim());
     const ccList = brandComposeCc ? brandComposeCc.split(/[,;，；\s]+/).filter(Boolean).map(s => s.trim()) : undefined;
     brandSendMutation.mutate({
+      brandId: brandEmailTarget?.brandId ?? 0,
       to: toList,
       cc: ccList,
       subject: brandComposeSubject,
-      text: brandComposeBody,
       html: brandComposeBody.replace(/\n/g, "<br>"),
+      templateId: brandTemplateId !== "none" ? Number(brandTemplateId) : undefined,
+      autoUpdateStatus: true,
     });
   };
 
@@ -1961,6 +1978,48 @@ export default function RecruitmentManagement() {
           {/* 新規送信タブ */}
           {brandEmailTab === "compose" && (
             <div className="space-y-3">
+              {/* テンプレート選択 */}
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">テンプレート</label>
+                <Select value={brandTemplateId} onValueChange={(v) => {
+                  setBrandTemplateId(v);
+                  if (v !== "none" && emailTemplates) {
+                    const tpl = emailTemplates.find((t: any) => t.id === Number(v));
+                    if (tpl) {
+                      const vars: Record<string, string> = {
+                        brandName: brandEmailTarget?.brandName || "{{brandName}}",
+                        senderName: "LCJ招商チーム",
+                        contactPerson: "ご担当者",
+                        companyName: "Live Commerce Japan",
+                      };
+                      let subj = tpl.subject;
+                      let body = tpl.body;
+                      for (const [k, val] of Object.entries(vars)) {
+                        subj = subj.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), val);
+                        body = body.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), val);
+                      }
+                      setBrandComposeSubject(subj);
+                      let finalBody = body;
+                      if (brandUseSignature && defaultSig) {
+                        finalBody += "\n\n" + defaultSig.content;
+                      }
+                      setBrandComposeBody(finalBody);
+                    }
+                  }
+                }}>
+                  <SelectTrigger className="bg-gray-800 border-gray-700 text-white h-8 text-xs">
+                    <SelectValue placeholder="テンプレートを選択..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-800 border-gray-700">
+                    <SelectItem value="none" className="text-gray-300 text-xs">テンプレートなし（手動入力）</SelectItem>
+                    {emailTemplates?.map((tpl: any) => (
+                      <SelectItem key={tpl.id} value={String(tpl.id)} className="text-gray-300 text-xs">
+                        {tpl.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">宛先 *</label>
                 <Input
@@ -1989,7 +2048,13 @@ export default function RecruitmentManagement() {
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-400 mb-1 block">本文</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-gray-400">本文</label>
+                  <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer">
+                    <input type="checkbox" checked={brandUseSignature} onChange={e => setBrandUseSignature(e.target.checked)} className="rounded border-gray-600" />
+                    署名自動挿入
+                  </label>
+                </div>
                 <Textarea
                   value={brandComposeBody}
                   onChange={e => setBrandComposeBody(e.target.value)}
@@ -2010,10 +2075,27 @@ export default function RecruitmentManagement() {
                   {brandSendMutation.isPending ? (
                     <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> 送信中...</>
                   ) : (
-                    <><Send className="w-4 h-4 mr-1" /> 送信</>
+                    <><Send className="w-4 h-4 mr-1" /> 送信（ステータス自動更新）</>
                   )}
                 </Button>
               </div>
+
+              {/* 送信ログ */}
+              {brandEmailLogs && brandEmailLogs.length > 0 && (
+                <div className="mt-4 border-t border-gray-700 pt-3">
+                  <h4 className="text-xs text-gray-400 mb-2 flex items-center gap-1"><Clock className="w-3 h-3" /> 送信履歴</h4>
+                  <div className="space-y-1 max-h-[120px] overflow-y-auto">
+                    {brandEmailLogs.map((log: any) => (
+                      <div key={log.id} className="flex items-center gap-2 text-xs text-gray-500 py-1">
+                        <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" />
+                        <span className="truncate flex-1">{log.subject}</span>
+                        <span className="flex-shrink-0">{formatBrandEmailDate(log.sentAt)}</span>
+                        {log.isBulk && <Badge variant="outline" className="border-purple-500/30 text-purple-400 text-[10px] h-4">一括</Badge>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

@@ -538,4 +538,255 @@ export const emailRouter = router({
         try { await client.logout(); } catch {}
       }
     }),
+
+  // ===== 8. メールテンプレート一覧 =====
+  listTemplates: protectedProcedure.query(async () => {
+    const { getDb } = await import("./db");
+    const db = getDb();
+    const { recruitmentEmailTemplates } = await import("../drizzle/schema");
+    const { asc } = await import("drizzle-orm");
+    return db.select().from(recruitmentEmailTemplates).orderBy(asc(recruitmentEmailTemplates.sortOrder));
+  }),
+
+  // ===== 9. メールテンプレート作成 =====
+  createTemplate: protectedProcedure
+    .input(z.object({
+      name: z.string().min(1),
+      category: z.string().default("general"),
+      subject: z.string().min(1),
+      body: z.string().min(1),
+      variables: z.string().optional(),
+      isDefault: z.boolean().default(false),
+      sortOrder: z.number().default(0),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("./db");
+      const db = getDb();
+      const { recruitmentEmailTemplates } = await import("../drizzle/schema");
+      const [result] = await db.insert(recruitmentEmailTemplates).values({
+        ...input,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      return { id: result.insertId };
+    }),
+
+  // ===== 10. メールテンプレート更新 =====
+  updateTemplate: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      name: z.string().optional(),
+      category: z.string().optional(),
+      subject: z.string().optional(),
+      body: z.string().optional(),
+      variables: z.string().optional(),
+      isDefault: z.boolean().optional(),
+      sortOrder: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("./db");
+      const db = getDb();
+      const { recruitmentEmailTemplates } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const { id, ...data } = input;
+      await db.update(recruitmentEmailTemplates).set({ ...data, updatedAt: new Date() }).where(eq(recruitmentEmailTemplates.id, id));
+      return { success: true };
+    }),
+
+  // ===== 11. メールテンプレート削除 =====
+  deleteTemplate: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("./db");
+      const db = getDb();
+      const { recruitmentEmailTemplates } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.delete(recruitmentEmailTemplates).where(eq(recruitmentEmailTemplates.id, input.id));
+      return { success: true };
+    }),
+
+  // ===== 12. メール署名一覧 =====
+  listSignatures: protectedProcedure.query(async () => {
+    const { getDb } = await import("./db");
+    const db = getDb();
+    const { emailSignatures } = await import("../drizzle/schema");
+    return db.select().from(emailSignatures);
+  }),
+
+  // ===== 13. メール署名作成/更新 =====
+  upsertSignature: protectedProcedure
+    .input(z.object({
+      id: z.number().optional(),
+      name: z.string().min(1),
+      content: z.string().min(1),
+      isDefault: z.boolean().default(false),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("./db");
+      const db = getDb();
+      const { emailSignatures } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      if (input.isDefault) {
+        await db.update(emailSignatures).set({ isDefault: false }).where(eq(emailSignatures.isDefault, true));
+      }
+      if (input.id) {
+        await db.update(emailSignatures).set({ name: input.name, content: input.content, isDefault: input.isDefault, updatedAt: new Date() }).where(eq(emailSignatures.id, input.id));
+        return { id: input.id };
+      } else {
+        const [result] = await db.insert(emailSignatures).values({ name: input.name, content: input.content, isDefault: input.isDefault, createdAt: new Date(), updatedAt: new Date() });
+        return { id: result.insertId };
+      }
+    }),
+
+  // ===== 14. 招商メール送信（テンプレート対応 + ステータス自動更新 + ログ記録） =====
+  sendRecruitmentEmail: protectedProcedure
+    .input(z.object({
+      brandId: z.number(),
+      to: z.array(z.string().email()),
+      cc: z.array(z.string().email()).optional(),
+      subject: z.string().min(1),
+      html: z.string().min(1),
+      templateId: z.number().optional(),
+      autoUpdateStatus: z.boolean().default(true),
+    }))
+    .mutation(async ({ input }) => {
+      if (!ENV.emailUser || !ENV.emailPassword) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "メール設定が未構成です" });
+      }
+      try {
+        const transporter = createSmtpTransporter();
+        const mailOptions: any = {
+          from: `"LCJ Inquiry" <${ENV.emailUser}>`,
+          to: input.to.join(", "),
+          subject: input.subject,
+          html: input.html,
+        };
+        if (input.cc?.length) mailOptions.cc = input.cc.join(", ");
+        const info = await transporter.sendMail(mailOptions);
+        console.log("[Email Router] Recruitment email sent:", info.messageId);
+
+        // ログ記録
+        const { getDb } = await import("./db");
+        const db = getDb();
+        const { recruitmentEmailLogs, recruitmentBrands } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await db.insert(recruitmentEmailLogs).values({
+          brandId: input.brandId,
+          templateId: input.templateId || null,
+          toAddress: input.to.join(", "),
+          subject: input.subject,
+          sentAt: new Date(),
+          isBulk: false,
+        });
+
+        // ステータス自動更新
+        if (input.autoUpdateStatus) {
+          const [brand] = await db.select({ status: recruitmentBrands.status }).from(recruitmentBrands).where(eq(recruitmentBrands.id, input.brandId));
+          if (brand && brand.status === "registered") {
+            await db.update(recruitmentBrands).set({ status: "email_sent" }).where(eq(recruitmentBrands.id, input.brandId));
+          }
+        }
+
+        return { success: true, messageId: info.messageId };
+      } catch (err: any) {
+        console.error("[Email Router] Recruitment send error:", err);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "メール送信に失敗しました: " + (err.message || "不明なエラー") });
+      }
+    }),
+
+  // ===== 15. 一括メール送信 =====
+  sendBulkRecruitmentEmail: protectedProcedure
+    .input(z.object({
+      brandIds: z.array(z.number()).min(1),
+      subject: z.string().min(1),
+      bodyTemplate: z.string().min(1),
+      templateId: z.number().optional(),
+      autoUpdateStatus: z.boolean().default(true),
+    }))
+    .mutation(async ({ input }) => {
+      if (!ENV.emailUser || !ENV.emailPassword) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "メール設定が未構成です" });
+      }
+      const { getDb } = await import("./db");
+      const db = getDb();
+      const { recruitmentBrands, recruitmentEmailLogs } = await import("../drizzle/schema");
+      const { eq, inArray } = await import("drizzle-orm");
+
+      const brands = await db.select({
+        id: recruitmentBrands.id,
+        brandName: recruitmentBrands.brandName,
+        contactInfo: recruitmentBrands.contactInfo,
+        status: recruitmentBrands.status,
+      }).from(recruitmentBrands).where(inArray(recruitmentBrands.id, input.brandIds));
+
+      const extractEmail = (text: string | null): string | null => {
+        if (!text) return null;
+        const match = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+        return match ? match[0] : null;
+      };
+
+      const transporter = createSmtpTransporter();
+      let sent = 0, failed = 0;
+      const errors: string[] = [];
+
+      for (const brand of brands) {
+        const brandEmail = extractEmail(brand.contactInfo);
+        if (!brandEmail) {
+          errors.push(`${brand.brandName}: メールアドレスなし`);
+          failed++;
+          continue;
+        }
+        try {
+          // テンプレート変数置換
+          const html = input.bodyTemplate
+            .replace(/\{\{brandName\}\}/g, brand.brandName || "")
+            .replace(/\{\{contactPerson\}\}/g, "ご担当者")
+            .replace(/\n/g, "<br>");
+          const subject = input.subject
+            .replace(/\{\{brandName\}\}/g, brand.brandName || "");
+
+          await transporter.sendMail({
+            from: `"LCJ Inquiry" <${ENV.emailUser}>`,
+            to: brandEmail,
+            subject,
+            html,
+          });
+
+          // ログ記録
+          await db.insert(recruitmentEmailLogs).values({
+            brandId: brand.id,
+            templateId: input.templateId || null,
+            toAddress: brandEmail,
+            subject,
+            sentAt: new Date(),
+            isBulk: true,
+          });
+
+          // ステータス自動更新
+          if (input.autoUpdateStatus && brand.status === "registered") {
+            await db.update(recruitmentBrands).set({ status: "email_sent" }).where(eq(recruitmentBrands.id, brand.id));
+          }
+
+          sent++;
+          // レート制限（1秒間隔）
+          await new Promise(r => setTimeout(r, 1000));
+        } catch (err: any) {
+          errors.push(`${brand.brandName}: ${err.message}`);
+          failed++;
+        }
+      }
+
+      return { sent, failed, total: brands.length, errors };
+    }),
+
+  // ===== 16. 招商メール送信ログ取得 =====
+  getRecruitmentEmailLogs: protectedProcedure
+    .input(z.object({ brandId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("./db");
+      const db = getDb();
+      const { recruitmentEmailLogs } = await import("../drizzle/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      return db.select().from(recruitmentEmailLogs).where(eq(recruitmentEmailLogs.brandId, input.brandId)).orderBy(desc(recruitmentEmailLogs.sentAt)).limit(50);
+    }),
 });

@@ -4952,3 +4952,46 @@ export const indexNowLogs = mysqlTable("index_now_logs", {
 });
 export type IndexNowLog = typeof indexNowLogs.$inferSelect;
 export type InsertIndexNowLog = typeof indexNowLogs.$inferInsert;
+
+// 招商メールテンプレート
+export const recruitmentEmailTemplates = mysqlTable("recruitment_email_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  category: varchar("category", { length: 50 }).notNull().default("general"),
+  subject: varchar("subject", { length: 500 }).notNull(),
+  body: text("body").notNull(),
+  variables: text("variables"),
+  isDefault: boolean("isDefault").notNull().default(false),
+  sortOrder: int("sortOrder").notNull().default(0),
+  createdBy: varchar("createdBy", { length: 100 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type RecruitmentEmailTemplate = typeof recruitmentEmailTemplates.$inferSelect;
+export type InsertRecruitmentEmailTemplate = typeof recruitmentEmailTemplates.$inferInsert;
+
+// メール署名
+export const emailSignatures = mysqlTable("email_signatures", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  content: text("content").notNull(),
+  isDefault: boolean("isDefault").notNull().default(false),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type EmailSignature = typeof emailSignatures.$inferSelect;
+export type InsertEmailSignature = typeof emailSignatures.$inferInsert;
+
+// 招商メール送信ログ
+export const recruitmentEmailLogs = mysqlTable("recruitment_email_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(),
+  templateId: int("templateId"),
+  toAddress: varchar("toAddress", { length: 255 }).notNull(),
+  subject: varchar("subject", { length: 500 }).notNull(),
+  sentBy: varchar("sentBy", { length: 100 }),
+  sentAt: timestamp("sentAt").defaultNow().notNull(),
+  isBulk: boolean("isBulk").notNull().default(false),
+});
+export type RecruitmentEmailLog = typeof recruitmentEmailLogs.$inferSelect;
+export type InsertRecruitmentEmailLog = typeof recruitmentEmailLogs.$inferInsert;
