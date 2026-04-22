@@ -4989,9 +4989,11 @@ export const recruitmentEmailLogs = mysqlTable("recruitment_email_logs", {
   templateId: int("templateId"),
   toAddress: varchar("toAddress", { length: 255 }).notNull(),
   subject: varchar("subject", { length: 500 }).notNull(),
+  body: text("body"),
   sentBy: varchar("sentBy", { length: 100 }),
   sentAt: timestamp("sentAt").defaultNow().notNull(),
   isBulk: boolean("isBulk").notNull().default(false),
+  status: varchar("status", { length: 20 }).notNull().default("sent"),
 });
 export type RecruitmentEmailLog = typeof recruitmentEmailLogs.$inferSelect;
 export type InsertRecruitmentEmailLog = typeof recruitmentEmailLogs.$inferInsert;

@@ -43,10 +43,11 @@ import {
   Users,
   CheckCircle2,
   Clock,
-  Settings,
-  Copy,
   Eye,
   MailPlus,
+  History,
+  AlertTriangle,
+  Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -79,6 +80,26 @@ function replaceTemplateVars(text: string, vars: Record<string, string>): string
   }
   return result;
 }
+
+// ===== カテゴリラベル =====
+const CATEGORY_LABELS: Record<string, string> = {
+  general: "一般",
+  first_contact: "初回連絡",
+  follow_up: "フォローアップ",
+  proposal: "提案",
+  thank_you: "お礼",
+  contract: "契約",
+};
+
+// ===== ステータスラベル =====
+const STATUS_LABELS: Record<string, string> = {
+  registered: "登録済み",
+  email_sent: "メール送信済み",
+  replied: "返信あり",
+  agreed: "合意",
+  cooperating: "協力中",
+  rejected: "拒否",
+};
 
 // ===== エクスポート用: ブランドからのメール送信ダイアログを開くためのprops型 =====
 export interface ComposeEmailProps {
@@ -114,6 +135,8 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
   const [bulkBrandIds, setBulkBrandIds] = useState<number[]>([]);
   const [bulkSubject, setBulkSubject] = useState("");
   const [bulkBody, setBulkBody] = useState("");
+  const [bulkStatusFilter, setBulkStatusFilter] = useState<string>("_all");
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
 
   // テンプレート管理
   const [templateEditOpen, setTemplateEditOpen] = useState(false);
@@ -123,6 +146,8 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
   const [tplSubject, setTplSubject] = useState("");
   const [tplBody, setTplBody] = useState("");
   const [tplVariables, setTplVariables] = useState("");
+  const [tplPreviewOpen, setTplPreviewOpen] = useState(false);
+  const [tplPreviewData, setTplPreviewData] = useState<any>(null);
 
   // 署名管理
   const [sigEditOpen, setSigEditOpen] = useState(false);
@@ -130,6 +155,10 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
   const [sigName, setSigName] = useState("");
   const [sigContent, setSigContent] = useState("");
   const [sigIsDefault, setSigIsDefault] = useState(false);
+
+  // 送信ログ
+  const [logsOpen, setLogsOpen] = useState(false);
+  const [logsPage, setLogsPage] = useState(1);
 
   const utils = trpc.useUtils();
 
@@ -162,6 +191,12 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
     { enabled: bulkOpen, refetchOnWindowFocus: false }
   );
 
+  // ===== 送信ログ =====
+  const { data: logsData, isLoading: logsLoading } = trpc.email.getAllEmailLogs.useQuery(
+    { page: logsPage, pageSize: 50 },
+    { enabled: logsOpen, refetchOnWindowFocus: false }
+  );
+
   // ===== Mutations =====
   const sendMutation = trpc.email.sendEmail.useMutation({
     onSuccess: () => {
@@ -175,7 +210,7 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
   });
 
   const sendRecruitmentMutation = trpc.email.sendRecruitmentEmail.useMutation({
-    onSuccess: (data) => {
+    onSuccess: () => {
       toast.success("招商メール送信完了（ステータス自動更新済み）");
       setComposeOpen(false);
       resetCompose();
@@ -193,8 +228,9 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
       }
       setBulkOpen(false);
       setBulkBrandIds([]);
+      setBulkConfirmOpen(false);
     },
-    onError: (err) => toast.error("一括送信失敗: " + err.message),
+    onError: (err) => { toast.error("一括送信失敗: " + err.message); setBulkConfirmOpen(false); },
   });
 
   const deleteMutation = trpc.email.deleteEmail.useMutation({
@@ -224,6 +260,10 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
   const upsertSignatureMutation = trpc.email.upsertSignature.useMutation({
     onSuccess: () => { toast.success("署名保存完了"); setSigEditOpen(false); utils.email.listSignatures.invalidate(); },
     onError: (err) => toast.error("保存失敗: " + err.message),
+  });
+  const deleteSignatureMutation = trpc.email.deleteSignature.useMutation({
+    onSuccess: () => { toast.success("署名削除完了"); utils.email.listSignatures.invalidate(); },
+    onError: (err) => toast.error("削除失敗: " + err.message),
   });
 
   // ===== initialCompose対応 =====
@@ -299,6 +339,7 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
         subject: composeSubject,
         html: composeBody.replace(/\n/g, "<br>"),
         templateId: selectedTemplateId !== "none" ? Number(selectedTemplateId) : undefined,
+        sentBy: "manual",
         autoUpdateStatus: true,
       });
     } else {
@@ -316,6 +357,11 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
     if (bulkBrandIds.length === 0) { toast.error("送信先ブランドを選択してください"); return; }
     if (!bulkSubject.trim()) { toast.error("件名を入力してください"); return; }
     if (!bulkBody.trim()) { toast.error("本文を入力してください"); return; }
+    // 確認ダイアログを表示
+    setBulkConfirmOpen(true);
+  };
+
+  const executeBulkSend = () => {
     bulkSendMutation.mutate({
       brandIds: bulkBrandIds,
       subject: bulkSubject,
@@ -392,14 +438,17 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
 
   const totalPages = Math.ceil((currentTotal || 0) / 20);
 
-  const CATEGORY_LABELS: Record<string, string> = {
-    general: "一般",
-    first_contact: "初回連絡",
-    follow_up: "フォローアップ",
-    proposal: "提案",
-    thank_you: "お礼",
-    contract: "契約",
-  };
+  // 一括送信: ステータスフィルタ適用後のブランドリスト
+  const filteredBulkBrands = useMemo(() => {
+    if (!brandsData?.items) return [];
+    let items = brandsData.items;
+    if (bulkStatusFilter !== "_all") {
+      items = items.filter((b: any) => b.status === bulkStatusFilter);
+    }
+    return items.filter((b: any) =>
+      b.contactInfo?.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/)
+    );
+  }, [brandsData, bulkStatusFilter]);
 
   const isSending = sendMutation.isPending || sendRecruitmentMutation.isPending;
 
@@ -417,6 +466,13 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
             <ArrowLeft className="w-4 h-4 mr-1" /> 戻る
           </Button>
           <div className="flex-1" />
+          <Button variant="ghost" size="sm" onClick={() => {
+            resetCompose();
+            setComposeTo(messageData.from.address);
+            setComposeOpen(true);
+          }} className="text-green-400 hover:text-green-300">
+            <MailPlus className="w-4 h-4 mr-1" /> 新規メール
+          </Button>
           <Button variant="ghost" size="sm" onClick={handleReply} className="text-blue-400 hover:text-blue-300">
             <Reply className="w-4 h-4 mr-1" /> 返信
           </Button>
@@ -505,6 +561,10 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
             </TabsTrigger>
           </TabsList>
           <div className="flex-1" />
+          {/* 送信ログボタン */}
+          <Button size="sm" variant="outline" className="border-gray-600 text-gray-300 hover:text-white" onClick={() => { setLogsOpen(true); setLogsPage(1); }}>
+            <History className="w-4 h-4 mr-1" /> 送信ログ
+          </Button>
           {mainTab === "mailbox" && (
             <Button size="sm" className="bg-purple-600 hover:bg-purple-700" onClick={() => setBulkOpen(true)}>
               <Users className="w-4 h-4 mr-1" /> 一括送信
@@ -653,6 +713,12 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
                         {tpl.isDefault && <Badge className="bg-blue-600 text-xs">デフォルト</Badge>}
                       </div>
                       <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300 h-7 w-7 p-0" onClick={() => {
+                          setTplPreviewData(tpl);
+                          setTplPreviewOpen(true);
+                        }}>
+                          <Eye className="w-3.5 h-3.5" />
+                        </Button>
                         <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white h-7 w-7 p-0" onClick={() => {
                           setEditingTemplate(tpl);
                           setTplName(tpl.name); setTplCategory(tpl.category); setTplSubject(tpl.subject); setTplBody(tpl.body);
@@ -672,9 +738,14 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
                     <div className="text-xs text-gray-500 line-clamp-2">{tpl.body}</div>
                     {tpl.variables && (
                       <div className="mt-2 flex gap-1 flex-wrap">
-                        {(typeof tpl.variables === 'string' ? JSON.parse(tpl.variables) : tpl.variables).map((v: string) => (
-                          <Badge key={v} variant="outline" className="border-purple-500/30 text-purple-400 text-xs">{`{{${v}}}`}</Badge>
-                        ))}
+                        {(() => {
+                          try {
+                            const vars = typeof tpl.variables === 'string' ? JSON.parse(tpl.variables) : tpl.variables;
+                            return Array.isArray(vars) ? vars.map((v: string) => (
+                              <Badge key={v} variant="outline" className="border-purple-500/30 text-purple-400 text-xs">{`{{${v}}}`}</Badge>
+                            )) : null;
+                          } catch { return null; }
+                        })()}
                       </div>
                     )}
                   </div>
@@ -709,13 +780,20 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
                         <span className="font-medium text-white">{sig.name}</span>
                         {sig.isDefault && <Badge className="bg-green-600 text-xs">デフォルト</Badge>}
                       </div>
-                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white h-7 w-7 p-0" onClick={() => {
-                        setEditingSig(sig);
-                        setSigName(sig.name); setSigContent(sig.content); setSigIsDefault(sig.isDefault);
-                        setSigEditOpen(true);
-                      }}>
-                        <Pen className="w-3.5 h-3.5" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white h-7 w-7 p-0" onClick={() => {
+                          setEditingSig(sig);
+                          setSigName(sig.name); setSigContent(sig.content); setSigIsDefault(sig.isDefault);
+                          setSigEditOpen(true);
+                        }}>
+                          <Pen className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300 h-7 w-7 p-0" onClick={() => {
+                          if (confirm(`署名「${sig.name}」を削除しますか？`)) deleteSignatureMutation.mutate({ id: sig.id });
+                        }}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     </div>
                     <pre className="text-xs text-gray-400 whitespace-pre-wrap font-sans">{sig.content}</pre>
                   </div>
@@ -734,7 +812,7 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
               <Mail className="w-5 h-5 text-blue-400" />
               {replyMode ? "返信" : composeBrandId ? `${composeBrandName}へメール送信` : "新規メール作成"}
               {composeBrandId && (
-                <Badge className="bg-purple-600 text-xs ml-2">招商メール（ステータス自動更新）</Badge>
+                <Badge className="bg-green-600 text-xs">招商メール（ステータス自動更新）</Badge>
               )}
             </DialogTitle>
           </DialogHeader>
@@ -876,34 +954,59 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
 
             {/* ブランド選択 */}
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">送信先ブランド（{bulkBrandIds.length}件選択中）</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-gray-400">送信先ブランド（{bulkBrandIds.length}件選択中）</label>
+                <div className="flex items-center gap-2">
+                  <Filter className="w-3 h-3 text-gray-500" />
+                  <Select value={bulkStatusFilter} onValueChange={setBulkStatusFilter}>
+                    <SelectTrigger className="bg-gray-800 border-gray-700 text-white h-7 text-xs w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-800 border-gray-700">
+                      <SelectItem value="_all" className="text-gray-300 text-xs">全ステータス</SelectItem>
+                      <SelectItem value="registered" className="text-gray-300 text-xs">登録済み</SelectItem>
+                      <SelectItem value="email_sent" className="text-gray-300 text-xs">メール送信済み</SelectItem>
+                      <SelectItem value="replied" className="text-gray-300 text-xs">返信あり</SelectItem>
+                      <SelectItem value="agreed" className="text-gray-300 text-xs">合意</SelectItem>
+                      <SelectItem value="cooperating" className="text-gray-300 text-xs">協力中</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <div className="bg-gray-800 border border-gray-700 rounded-md max-h-[200px] overflow-y-auto p-2 space-y-1">
-                {brandsData?.items?.map((brand: any) => {
-                  const email = brand.contactInfo?.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/)?.[0];
-                  if (!email) return null;
-                  const isSelected = bulkBrandIds.includes(brand.id);
-                  return (
-                    <label key={brand.id} className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm ${isSelected ? "bg-purple-600/20 text-white" : "text-gray-300 hover:bg-gray-700/50"}`}>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => {
-                          setBulkBrandIds(prev => isSelected ? prev.filter(id => id !== brand.id) : [...prev, brand.id]);
-                        }}
-                        className="rounded border-gray-600"
-                      />
-                      <span className="truncate">{brand.brandName}</span>
-                      <span className="text-xs text-gray-500 ml-auto">{email}</span>
-                    </label>
-                  );
-                })}
+                {filteredBulkBrands.length === 0 ? (
+                  <div className="text-center py-4 text-gray-500 text-sm">該当するブランドがありません</div>
+                ) : (
+                  filteredBulkBrands.map((brand: any) => {
+                    const email = brand.contactInfo?.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/)?.[0];
+                    const isSelected = bulkBrandIds.includes(brand.id);
+                    return (
+                      <label key={brand.id} className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm ${isSelected ? "bg-purple-600/20 text-white" : "text-gray-300 hover:bg-gray-700/50"}`}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {
+                            setBulkBrandIds(prev => isSelected ? prev.filter(id => id !== brand.id) : [...prev, brand.id]);
+                          }}
+                          className="rounded border-gray-600"
+                        />
+                        <span className="truncate">{brand.brandName}</span>
+                        <Badge variant="outline" className="border-gray-600 text-gray-500 text-[10px] ml-auto mr-1">
+                          {STATUS_LABELS[brand.status] || brand.status}
+                        </Badge>
+                        <span className="text-xs text-gray-500">{email}</span>
+                      </label>
+                    );
+                  })
+                )}
               </div>
               <div className="flex gap-2 mt-1">
                 <Button variant="ghost" size="sm" className="text-xs text-blue-400 h-6" onClick={() => {
-                  const allIds = brandsData?.items?.filter((b: any) => b.contactInfo?.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/)).map((b: any) => b.id) || [];
+                  const allIds = filteredBulkBrands.map((b: any) => b.id);
                   setBulkBrandIds(allIds);
                 }}>全選択</Button>
                 <Button variant="ghost" size="sm" className="text-xs text-gray-400 h-6" onClick={() => setBulkBrandIds([])}>全解除</Button>
+                <span className="text-xs text-gray-500 ml-auto mt-1">メールアドレスのあるブランド: {filteredBulkBrands.length}件</span>
               </div>
             </div>
 
@@ -934,11 +1037,48 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
             <Button variant="outline" onClick={() => setBulkOpen(false)} className="border-gray-600 text-gray-300">
               キャンセル
             </Button>
-            <Button onClick={handleBulkSend} disabled={bulkSendMutation.isPending} className="bg-purple-600 hover:bg-purple-700">
+            <Button onClick={handleBulkSend} disabled={bulkSendMutation.isPending || bulkBrandIds.length === 0} className="bg-purple-600 hover:bg-purple-700">
               {bulkSendMutation.isPending ? (
                 <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> 送信中...</>
               ) : (
                 <><Send className="w-4 h-4 mr-1" /> {bulkBrandIds.length}件に一括送信</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== 一括送信確認ダイアログ ===== */}
+      <Dialog open={bulkConfirmOpen} onOpenChange={setBulkConfirmOpen}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-yellow-400">
+              <AlertTriangle className="w-5 h-5" />
+              一括送信の確認
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-gray-300">
+              以下の内容で<span className="text-yellow-400 font-bold">{bulkBrandIds.length}件</span>のブランドにメールを送信します。
+            </p>
+            <div className="bg-gray-800 rounded-lg p-3 space-y-2 text-sm">
+              <div><span className="text-gray-500">件名:</span> <span className="text-white">{bulkSubject}</span></div>
+              <div><span className="text-gray-500">送信先:</span> <span className="text-white">{bulkBrandIds.length}件のブランド</span></div>
+              <div><span className="text-gray-500">ステータス更新:</span> <span className="text-green-400">自動（registered → email_sent）</span></div>
+            </div>
+            <p className="text-xs text-gray-500">
+              送信後はキャンセルできません。送信間隔は2秒です。
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkConfirmOpen(false)} className="border-gray-600 text-gray-300">
+              キャンセル
+            </Button>
+            <Button onClick={executeBulkSend} disabled={bulkSendMutation.isPending} className="bg-red-600 hover:bg-red-700">
+              {bulkSendMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> 送信中...</>
+              ) : (
+                <><Send className="w-4 h-4 mr-1" /> 送信実行</>
               )}
             </Button>
           </DialogFooter>
@@ -997,6 +1137,67 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
         </DialogContent>
       </Dialog>
 
+      {/* ===== テンプレートプレビューダイアログ ===== */}
+      <Dialog open={tplPreviewOpen} onOpenChange={setTplPreviewOpen}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5 text-blue-400" />
+              テンプレートプレビュー: {tplPreviewData?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {tplPreviewData && (
+            <div className="space-y-4">
+              <div className="bg-gray-800 rounded-lg p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="border-gray-600 text-gray-400 text-xs">
+                    {CATEGORY_LABELS[tplPreviewData.category] || tplPreviewData.category}
+                  </Badge>
+                  {tplPreviewData.isDefault && <Badge className="bg-blue-600 text-xs">デフォルト</Badge>}
+                </div>
+                <div className="text-sm">
+                  <span className="text-gray-500">件名: </span>
+                  <span className="text-white font-medium">{tplPreviewData.subject}</span>
+                </div>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-4">
+                <div className="text-xs text-gray-500 mb-2">本文プレビュー（変数はサンプル値で表示）:</div>
+                <div className="prose prose-invert max-w-none text-sm text-gray-300" dangerouslySetInnerHTML={{
+                  __html: replaceTemplateVars(tplPreviewData.body, {
+                    brandName: "サンプルブランド株式会社",
+                    senderName: "LCJ招商チーム",
+                    contactPerson: "田中太郎",
+                    companyName: "Live Commerce Japan",
+                  }).replace(/\n/g, "<br>")
+                }} />
+                {defaultSignature && (
+                  <>
+                    <div className="border-t border-gray-700 mt-4 pt-3">
+                      <div className="text-xs text-gray-500 mb-1">署名（デフォルト）:</div>
+                      <pre className="text-xs text-gray-400 whitespace-pre-wrap font-sans">{defaultSignature.content}</pre>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTplPreviewOpen(false)} className="border-gray-600 text-gray-300">閉じる</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => {
+              if (tplPreviewData) {
+                resetCompose();
+                handleTemplateSelect(String(tplPreviewData.id));
+                setSelectedTemplateId(String(tplPreviewData.id));
+                setComposeOpen(true);
+                setTplPreviewOpen(false);
+              }
+            }}>
+              <MailPlus className="w-4 h-4 mr-1" /> このテンプレートでメール作成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ===== 署名編集ダイアログ ===== */}
       <Dialog open={sigEditOpen} onOpenChange={setSigEditOpen}>
         <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-lg">
@@ -1022,6 +1223,66 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
             <Button onClick={handleSaveSignature} disabled={upsertSignatureMutation.isPending} className="bg-blue-600 hover:bg-blue-700">
               {upsertSignatureMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "保存"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== 送信ログダイアログ ===== */}
+      <Dialog open={logsOpen} onOpenChange={setLogsOpen}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="w-5 h-5 text-blue-400" />
+              招商メール送信ログ
+              {logsData && <Badge variant="outline" className="border-gray-600 text-gray-400 text-xs ml-2">全{logsData.total}件</Badge>}
+            </DialogTitle>
+          </DialogHeader>
+          {logsLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            </div>
+          ) : !logsData?.logs || logsData.logs.length === 0 ? (
+            <div className="text-center py-10 text-gray-500">送信ログがありません</div>
+          ) : (
+            <div className="space-y-2">
+              <div className="grid grid-cols-[1fr_1.5fr_2fr_100px_80px] gap-2 px-3 py-2 text-xs text-gray-500 font-medium border-b border-gray-800">
+                <div>ブランド</div>
+                <div>宛先</div>
+                <div>件名</div>
+                <div>送信日時</div>
+                <div>種別</div>
+              </div>
+              {logsData.logs.map((log: any) => (
+                <div key={log.id} className="grid grid-cols-[1fr_1.5fr_2fr_100px_80px] gap-2 px-3 py-2 text-sm rounded-lg hover:bg-gray-800/50 items-center">
+                  <div className="text-white truncate font-medium">{log.brandName || `ID:${log.brandId}`}</div>
+                  <div className="text-gray-400 truncate">{log.toAddress}</div>
+                  <div className="text-gray-300 truncate">{log.subject}</div>
+                  <div className="text-gray-500 text-xs">{formatEmailDate(log.sentAt)}</div>
+                  <div>
+                    {log.isBulk ? (
+                      <Badge className="bg-purple-600/20 text-purple-400 text-[10px]">一括</Badge>
+                    ) : (
+                      <Badge className="bg-blue-600/20 text-blue-400 text-[10px]">個別</Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {/* ページネーション */}
+              {logsData.total > 50 && (
+                <div className="flex items-center justify-center gap-2 pt-3 border-t border-gray-800">
+                  <Button variant="ghost" size="sm" disabled={logsPage <= 1} onClick={() => setLogsPage(p => p - 1)} className="text-gray-400">
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="text-sm text-gray-400">{logsPage} / {Math.ceil(logsData.total / 50)}</span>
+                  <Button variant="ghost" size="sm" disabled={logsPage >= Math.ceil(logsData.total / 50)} onClick={() => setLogsPage(p => p + 1)} className="text-gray-400">
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLogsOpen(false)} className="border-gray-600 text-gray-300">閉じる</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

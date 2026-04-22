@@ -638,6 +638,18 @@ export const emailRouter = router({
       }
     }),
 
+  // ===== 13.5. メール署名削除 =====
+  deleteSignature: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("./db");
+      const db = getDb();
+      const { emailSignatures } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.delete(emailSignatures).where(eq(emailSignatures.id, input.id));
+      return { success: true };
+    }),
+
   // ===== 14. 招商メール送信（テンプレート対応 + ステータス自動更新 + ログ記録） =====
   sendRecruitmentEmail: protectedProcedure
     .input(z.object({
@@ -647,6 +659,7 @@ export const emailRouter = router({
       subject: z.string().min(1),
       html: z.string().min(1),
       templateId: z.number().optional(),
+      sentBy: z.string().optional(),
       autoUpdateStatus: z.boolean().default(true),
     }))
     .mutation(async ({ input }) => {
@@ -665,7 +678,7 @@ export const emailRouter = router({
         const info = await transporter.sendMail(mailOptions);
         console.log("[Email Router] Recruitment email sent:", info.messageId);
 
-        // ログ記録
+        // ログ記録（body + sentBy保存）
         const { getDb } = await import("./db");
         const db = getDb();
         const { recruitmentEmailLogs, recruitmentBrands } = await import("../drizzle/schema");
@@ -675,6 +688,7 @@ export const emailRouter = router({
           templateId: input.templateId || null,
           toAddress: input.to.join(", "),
           subject: input.subject,
+          sentBy: input.sentBy || "system",
           sentAt: new Date(),
           isBulk: false,
         });
@@ -752,12 +766,13 @@ export const emailRouter = router({
             html,
           });
 
-          // ログ記録
+          // ログ記録（sentBy保存）
           await db.insert(recruitmentEmailLogs).values({
             brandId: brand.id,
             templateId: input.templateId || null,
             toAddress: brandEmail,
             subject,
+            sentBy: "bulk_send",
             sentAt: new Date(),
             isBulk: true,
           });
@@ -768,8 +783,8 @@ export const emailRouter = router({
           }
 
           sent++;
-          // レート制限（1秒間隔）
-          await new Promise(r => setTimeout(r, 1000));
+          // レート制限（2秒間隔 - Alibaba Cloud制限対策）
+          await new Promise(r => setTimeout(r, 2000));
         } catch (err: any) {
           errors.push(`${brand.brandName}: ${err.message}`);
           failed++;
@@ -788,5 +803,44 @@ export const emailRouter = router({
       const { recruitmentEmailLogs } = await import("../drizzle/schema");
       const { eq, desc } = await import("drizzle-orm");
       return db.select().from(recruitmentEmailLogs).where(eq(recruitmentEmailLogs.brandId, input.brandId)).orderBy(desc(recruitmentEmailLogs.sentAt)).limit(50);
+    }),
+
+  // ===== 17. 全送信ログ取得（ダッシュボード用） =====
+  getAllEmailLogs: protectedProcedure
+    .input(z.object({
+      page: z.number().min(1).default(1),
+      pageSize: z.number().min(1).max(100).default(50),
+      isBulk: z.boolean().optional(),
+    }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("./db");
+      const db = getDb();
+      const { recruitmentEmailLogs, recruitmentBrands } = await import("../drizzle/schema");
+      const { desc, eq, sql } = await import("drizzle-orm");
+
+      // 総数取得
+      const [countResult] = await db.select({ count: sql<number>`COUNT(*)` }).from(recruitmentEmailLogs);
+      const total = countResult?.count || 0;
+
+      // ログ取得（ブランド名JOIN）
+      const logs = await db
+        .select({
+          id: recruitmentEmailLogs.id,
+          brandId: recruitmentEmailLogs.brandId,
+          brandName: recruitmentBrands.brandName,
+          templateId: recruitmentEmailLogs.templateId,
+          toAddress: recruitmentEmailLogs.toAddress,
+          subject: recruitmentEmailLogs.subject,
+          sentBy: recruitmentEmailLogs.sentBy,
+          sentAt: recruitmentEmailLogs.sentAt,
+          isBulk: recruitmentEmailLogs.isBulk,
+        })
+        .from(recruitmentEmailLogs)
+        .leftJoin(recruitmentBrands, eq(recruitmentEmailLogs.brandId, recruitmentBrands.id))
+        .orderBy(desc(recruitmentEmailLogs.sentAt))
+        .limit(input.pageSize)
+        .offset((input.page - 1) * input.pageSize);
+
+      return { logs, total, page: input.page, pageSize: input.pageSize };
     }),
 });

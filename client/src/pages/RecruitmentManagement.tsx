@@ -596,6 +596,7 @@ export default function RecruitmentManagement() {
       subject: brandComposeSubject,
       html: brandComposeBody.replace(/\n/g, "<br>"),
       templateId: brandTemplateId !== "none" ? Number(brandTemplateId) : undefined,
+      sentBy: "brand_dialog",
       autoUpdateStatus: true,
     });
   };
