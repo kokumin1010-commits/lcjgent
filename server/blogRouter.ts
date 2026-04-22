@@ -1159,7 +1159,7 @@ Identify up to ${input.maxImages} optimal image insertion points. For each, prov
       return logs;
     }),
 });
-export const autoPostRouter = router({{
+export const autoPostRouter = router({
   // --- Schedule CRUD ---
   listSchedules: protectedProcedure.query(async () => {
     return await listAutoPostSchedules();
