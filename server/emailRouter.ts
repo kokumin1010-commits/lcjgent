@@ -571,7 +571,6 @@ export const emailRouter = router({
         brandType: recruitmentBrands.brandType,
         status: recruitmentBrands.status,
         contactInfo: recruitmentBrands.contactInfo,
-        personInChargeName: recruitmentBrands.personInChargeName,
       }).from(recruitmentBrands)
         .where(whereClause)
         .orderBy(desc(recruitmentBrands.createdAt))
