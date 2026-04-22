@@ -4935,3 +4935,20 @@ export const adDailyRecords = mysqlTable("ad_daily_records", {
 });
 export type AdDailyRecord = typeof adDailyRecords.$inferSelect;
 export type InsertAdDailyRecord = typeof adDailyRecords.$inferInsert;
+
+
+// IndexNow送信ログ
+export const indexNowLogs = mysqlTable("index_now_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  urls: text("urls").notNull(), // JSON array of submitted URLs
+  urlCount: int("urlCount").notNull().default(1),
+  trigger: varchar("trigger", { length: 50 }).notNull().default("manual"), // manual, auto_create, auto_update, auto_publish, auto_post, bulk
+  indexNowStatus: int("indexNowStatus"),
+  bingStatus: int("bingStatus"),
+  yandexStatus: int("yandexStatus"),
+  success: boolean("success").notNull().default(true),
+  errorMessage: text("errorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type IndexNowLog = typeof indexNowLogs.$inferSelect;
+export type InsertIndexNowLog = typeof indexNowLogs.$inferInsert;

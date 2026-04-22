@@ -58,11 +58,10 @@ function slugify(text: string): string {
 
 // --- SEO Tools ---
 function SEOTools() {
-  const [submitting, setSubmitting] = useState(false);
   const [submittingAll, setSubmittingAll] = useState(false);
-  const submitMutation = trpc.blog.submitToSearchEngines.useMutation();
   const submitAllMutation = trpc.blog.submitAllToSearchEngines.useMutation();
   const { data: articles } = trpc.blog.list.useQuery({ status: "published", limit: 1000 });
+  const { data: indexNowLogs, refetch: refetchLogs } = trpc.blog.getIndexNowLogs.useQuery({ limit: 20 });
   const siteUrl = window.location.origin;
 
   const handleSubmitAll = async () => {
@@ -70,6 +69,7 @@ function SEOTools() {
     try {
       const result = await submitAllMutation.mutateAsync();
       toast.success(`${result.totalArticles || 0}件の記事を検索エンジンに送信しました`);
+      refetchLogs();
     } catch (e: any) {
       toast.error("送信に失敗しました: " + e.message);
     } finally {
@@ -77,10 +77,60 @@ function SEOTools() {
     }
   };
 
+  const triggerLabels: Record<string, string> = {
+    auto_create: "記事作成",
+    auto_update: "記事更新",
+    auto_publish: "公開切替",
+    auto_post: "自動投稿",
+    manual: "手動送信",
+    bulk: "一括送信",
+  };
+
+  const formatDate = (d: string | Date) => {
+    const date = new Date(d);
+    return date.toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  };
+
+  // Calculate auto-send stats
+  const autoSendCount = indexNowLogs?.filter((l: any) => l.trigger?.startsWith("auto_")).length || 0;
+  const totalSendCount = indexNowLogs?.length || 0;
+  const lastAutoSend = indexNowLogs?.find((l: any) => l.trigger?.startsWith("auto_"));
+
   return (
     <div className="space-y-6">
+      {/* Auto-Send Status Banner */}
+      <Card className="border-green-200 bg-green-50/50">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-full bg-green-100">
+                <Zap className="h-6 w-6 text-green-600" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-lg">IndexNow 自動送信</h3>
+                  <Badge className="bg-green-600 text-white">有効</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  記事の作成・更新・公開・自動投稿時に、Bing・Yandex・IndexNowへ自動送信されます
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-green-600">{autoSendCount}</p>
+              <p className="text-xs text-muted-foreground">自動送信（直近20件中）</p>
+            </div>
+          </div>
+          {lastAutoSend && (
+            <p className="text-xs text-muted-foreground mt-3">
+              最終自動送信: {formatDate(lastAutoSend.createdAt)} - {triggerLabels[lastAutoSend.trigger] || lastAutoSend.trigger}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Status Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -127,6 +177,20 @@ function SEOTools() {
             <p className="text-xs text-muted-foreground mt-2">Article + BreadcrumbList</p>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-green-100">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">canonical URL</p>
+                <p className="font-semibold text-green-600">動的生成</p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">各ページに自動設定</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* IndexNow / Search Engine Submission */}
@@ -138,20 +202,87 @@ function SEOTools() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            記事を公開すると自動的にIndexNowでBing・Yandex等の検索エンジンに通知されます。
-            Googleへは、Search Consoleでサイトマップを送信してください。
-            以下のボタンで全公開記事をIndexNowに手動で再送信できます。
-          </p>
+          <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+            <div className="flex items-center gap-2 mb-1">
+              <Zap className="h-4 w-4 text-blue-600" />
+              <span className="font-medium text-sm text-blue-800">自動送信トリガー</span>
+            </div>
+            <ul className="text-xs text-blue-700 space-y-1 ml-6">
+              <li>記事を新規作成（公開状態）→ 自動送信</li>
+              <li>記事を更新（公開状態）→ 自動送信</li>
+              <li>下書き → 公開に切替 → 自動送信</li>
+              <li>自動投稿スケジュール実行 → 自動送信</li>
+            </ul>
+          </div>
           <div className="flex items-center gap-3">
             <Button onClick={handleSubmitAll} disabled={submittingAll} className="gap-2">
               {submittingAll ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              全公開記事を検索エンジンに送信
+              全公開記事を一括再送信
             </Button>
             <span className="text-sm text-muted-foreground">
               {articles?.articles?.length || 0}件の公開記事
             </span>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* IndexNow Submission History */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            IndexNow 送信履歴（直近20件）
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!indexNowLogs || indexNowLogs.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">送信履歴はまだありません</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-2 font-medium">日時</th>
+                    <th className="text-left py-2 px-2 font-medium">トリガー</th>
+                    <th className="text-center py-2 px-2 font-medium">URL数</th>
+                    <th className="text-center py-2 px-2 font-medium">IndexNow</th>
+                    <th className="text-center py-2 px-2 font-medium">Bing</th>
+                    <th className="text-center py-2 px-2 font-medium">Yandex</th>
+                    <th className="text-center py-2 px-2 font-medium">結果</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {indexNowLogs.map((log: any) => (
+                    <tr key={log.id} className="border-b hover:bg-muted/50">
+                      <td className="py-2 px-2 text-xs">{formatDate(log.createdAt)}</td>
+                      <td className="py-2 px-2">
+                        <Badge variant={log.trigger?.startsWith("auto_") ? "default" : "outline"} className="text-xs">
+                          {triggerLabels[log.trigger] || log.trigger}
+                        </Badge>
+                      </td>
+                      <td className="py-2 px-2 text-center">{log.urlCount}</td>
+                      <td className="py-2 px-2 text-center">
+                        <StatusBadge status={log.indexNowStatus} />
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        <StatusBadge status={log.bingStatus} />
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        <StatusBadge status={log.yandexStatus} />
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        {log.success ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-600 inline" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-red-600 inline" />
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -219,15 +350,16 @@ function SEOTools() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {[
-              { name: "動的sitemap.xml", desc: "記事・カテゴリ・画像サイトマップ自動生成", active: true },
+              { name: "動的sitemap.xml", desc: "記事・カテゴリ・商品・レビュー・画像サイトマップ自動生成", active: true },
               { name: "robots.txt", desc: "クローラー制御・サイトマップ指定", active: true },
               { name: "JSON-LD構造化データ", desc: "Article + BreadcrumbListスキーマ", active: true },
               { name: "OGPメタタグ", desc: "Open Graph + Twitter Card対応", active: true },
-              { name: "canonical URL", desc: "重複コンテンツ防止", active: true },
-              { name: "IndexNow自動通知", desc: "記事公開時にBing・Yandexに自動通知", active: true },
+              { name: "canonical URL動的生成", desc: "全ページで自動設定（重複コンテンツ防止）", active: true },
+              { name: "IndexNow自動通知", desc: "記事作成・更新・公開・自動投稿時に自動送信", active: true },
               { name: "画像サイトマップ", desc: "カバー画像をサイトマップに含む", active: true },
               { name: "SEOメタ自動生成", desc: "AI記事生成時にSEOタイトル・ディスクリプション自動生成", active: true },
               { name: "Botプリレンダリング", desc: "Googlebot等にSSR HTMLを返却（メタタグ・構造化データ完備）", active: true },
+              { name: "送信ログ記録", desc: "全IndexNow送信をDBに記録・履歴表示", active: true },
             ].map((feature, i) => (
               <div key={i} className="flex items-center gap-2 p-2 rounded-lg border">
                 <CheckCircle2 className={`h-4 w-4 ${feature.active ? "text-green-600" : "text-muted-foreground"}`} />
@@ -241,6 +373,16 @@ function SEOTools() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function StatusBadge({ status }: { status: number | null }) {
+  if (!status) return <span className="text-xs text-muted-foreground">-</span>;
+  const isOk = status >= 200 && status < 300;
+  return (
+    <span className={`text-xs font-mono ${isOk ? "text-green-600" : "text-red-600"}`}>
+      {status}
+    </span>
   );
 }
 

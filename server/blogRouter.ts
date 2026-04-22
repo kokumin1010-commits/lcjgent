@@ -190,7 +190,7 @@ export const blogRouter = router({
             await fetch(`${baseUrl}/api/indexnow/submit`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ urls: [articleUrl] }),
+              body: JSON.stringify({ urls: [articleUrl], trigger: "auto_create" }),
             });
             console.log(`[SEO] IndexNow auto-triggered on create for: ${articleUrl}`);
           } catch (e) {
@@ -247,7 +247,7 @@ export const blogRouter = router({
               await fetch(`${baseUrl}/api/indexnow/submit`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ urls: [articleUrl] }),
+                body: JSON.stringify({ urls: [articleUrl], trigger: "auto_update" }),
               });
               console.log(`[SEO] IndexNow auto-triggered on update for: ${articleUrl}`);
             } catch (e) {
@@ -288,7 +288,7 @@ export const blogRouter = router({
             await fetch(`${baseUrl}/api/indexnow/submit`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ urls: [articleUrl] }),
+              body: JSON.stringify({ urls: [articleUrl], trigger: "auto_publish" }),
             });
             console.log(`[SEO] IndexNow notification sent for: ${articleUrl}`);
           } catch (e) {
@@ -1117,7 +1117,7 @@ Identify up to ${input.maxImages} optimal image insertion points. For each, prov
         const resp = await fetch(`${baseUrl}/api/indexnow/submit`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ urls: fullUrls }),
+          body: JSON.stringify({ urls: fullUrls, trigger: "manual" }),
         });
         const result = await resp.json();
         return { success: true, ...result };
@@ -1138,7 +1138,7 @@ Identify up to ${input.maxImages} optimal image insertion points. For each, prov
         const resp = await fetch(`${baseUrl}/api/indexnow/submit`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ urls }),
+          body: JSON.stringify({ urls, trigger: "bulk" }),
         });
         const result = await resp.json();
         return { success: true, ...result, totalArticles: articles.length };
@@ -1146,9 +1146,20 @@ Identify up to ${input.maxImages} optimal image insertion points. For each, prov
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message });
       }
     }),
+  // Get IndexNow submission logs
+  getIndexNowLogs: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(20) }).optional())
+    .query(async ({ input }) => {
+      const { indexNowLogs } = await import("../drizzle/schema");
+      const { desc } = await import("drizzle-orm");
+      const { getDb } = await import("./db");
+      const dbConn = await getDb();
+      const limit = input?.limit || 20;
+      const logs = await dbConn.select().from(indexNowLogs).orderBy(desc(indexNowLogs.createdAt)).limit(limit);
+      return logs;
+    }),
 });
-
-export const autoPostRouter = router({
+export const autoPostRouter = router({{
   // --- Schedule CRUD ---
   listSchedules: protectedProcedure.query(async () => {
     return await listAutoPostSchedules();
@@ -1626,7 +1637,7 @@ SEO/GEO最適化要件:
               await fetch(`${baseUrl}/api/indexnow/submit`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ urls: [`/blog/${finalSlug}`] }),
+                body: JSON.stringify({ urls: [`/blog/${finalSlug}`], trigger: "auto_post" }),
               });
               console.log(`[AutoPost][SEO] IndexNow notification sent for: /blog/${finalSlug}`);
             } catch (e) {
@@ -1921,7 +1932,7 @@ SEO/GEO最適化要件:
               await fetch(`${baseUrl}/api/indexnow/submit`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ urls: [`/blog/${finalSlug}`] }),
+                body: JSON.stringify({ urls: [`/blog/${finalSlug}`], trigger: "auto_post" }),
               });
             } catch (e) {
               console.warn("[triggerNow] IndexNow notification failed:", e);

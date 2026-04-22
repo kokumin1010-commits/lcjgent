@@ -1731,20 +1731,21 @@ async function startServer() {
   // IndexNow API endpoint for notifying search engines of new/updated content
   app.post("/api/indexnow/submit", async (req, res) => {
     try {
-      const { urls } = req.body;
+      const { urls, trigger: triggerType } = req.body;
       if (!urls || !Array.isArray(urls) || urls.length === 0) {
         return res.status(400).json({ error: "urls array is required" });
       }
       const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
       const host = new URL(baseUrl).host;
       const indexNowKey = process.env.INDEXNOW_API_KEY || "69483c16f52c9802f4ffd3e2a64cf60d";
+      const resolvedUrls = urls.map((u: string) => u.startsWith("http") ? u : `${baseUrl}${u}`);
 
       // Submit to IndexNow (Bing, Yandex, etc.)
       const indexNowPayload = {
         host,
         key: indexNowKey,
         keyLocation: `${baseUrl}/${indexNowKey}.txt`,
-        urlList: urls.map((u: string) => u.startsWith("http") ? u : `${baseUrl}${u}`),
+        urlList: resolvedUrls,
       };
 
       const indexNowResp = await fetch("https://api.indexnow.org/indexnow", {
@@ -1779,10 +1780,27 @@ async function startServer() {
         console.warn("[IndexNow] Yandex direct submit failed:", e);
       }
 
-      // Note: Google Ping API was deprecated in 2023. Google discovers content via sitemap.xml and Googlebot crawling.
-      // For Google indexing, ensure sitemap.xml is submitted in Google Search Console.
+      const isSuccess = indexNowResp.status >= 200 && indexNowResp.status < 300;
 
-      console.log(`[IndexNow] Submitted ${urls.length} URLs. IndexNow: ${indexNowResp.status}, Bing: ${bingStatus}, Yandex: ${yandexStatus}`);
+      // Log to DB
+      try {
+        const { indexNowLogs } = await import("../../drizzle/schema");
+        const { getDb } = await import("../db");
+        const logDb = await getDb();
+        await logDb.insert(indexNowLogs).values({
+          urls: JSON.stringify(resolvedUrls),
+          urlCount: resolvedUrls.length,
+          trigger: triggerType || "manual",
+          indexNowStatus: indexNowResp.status,
+          bingStatus,
+          yandexStatus,
+          success: isSuccess,
+        });
+      } catch (logErr) {
+        console.warn("[IndexNow] Failed to log submission:", logErr);
+      }
+
+      console.log(`[IndexNow] Submitted ${urls.length} URLs (trigger: ${triggerType || "manual"}). IndexNow: ${indexNowResp.status}, Bing: ${bingStatus}, Yandex: ${yandexStatus}`);
       res.json({
         success: true,
         indexNowStatus: indexNowResp.status,
@@ -1792,6 +1810,21 @@ async function startServer() {
       });
     } catch (error) {
       console.error("[IndexNow] Error:", error);
+      // Log error to DB
+      try {
+        const { indexNowLogs } = await import("../../drizzle/schema");
+        const { getDb } = await import("../db");
+        const logDb = await getDb();
+        await logDb.insert(indexNowLogs).values({
+          urls: JSON.stringify(req.body?.urls || []),
+          urlCount: req.body?.urls?.length || 0,
+          trigger: req.body?.trigger || "manual",
+          success: false,
+          errorMessage: String(error),
+        });
+      } catch (logErr) {
+        console.warn("[IndexNow] Failed to log error:", logErr);
+      }
       res.status(500).json({ error: "Failed to submit URLs" });
     }
   });
