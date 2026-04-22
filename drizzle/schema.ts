@@ -4122,6 +4122,19 @@ export const recruitmentBrands = mysqlTable("recruitment_brands", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   deletedAt: timestamp("deleted_at"),
+  // === 招商アップグレード: 新カラム ===
+  brandStage: mysqlEnum("brand_stage", ["startup", "growth", "mature", "famous"]),
+  annualRevenue: varchar("annual_revenue", { length: 50 }),
+  cooperationHistory: varchar("cooperation_history", { length: 50 }),
+  sourceChannel: varchar("source_channel", { length: 100 }),
+  wechat: varchar("wechat", { length: 100 }),
+  websiteUrl: varchar("website_url", { length: 500 }),
+  intentLevel: mysqlEnum("intent_level", ["high", "normal", "dormant"]),
+  clientValue: mysqlEnum("client_value", ["high", "medium", "low"]),
+  followDifficulty: mysqlEnum("follow_difficulty", ["easy", "medium", "hard"]),
+  customTags: text("custom_tags"),
+  nextFollowDate: timestamp("next_follow_date"),
+  nextFollowAction: varchar("next_follow_action", { length: 255 }),
 });
 export type RecruitmentBrand = typeof recruitmentBrands.$inferSelect;
 export type InsertRecruitmentBrand = typeof recruitmentBrands.$inferInsert;
@@ -4136,6 +4149,22 @@ export const recruitmentStatusHistory = mysqlTable("recruitment_status_history",
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 export type RecruitmentStatusHistory = typeof recruitmentStatusHistory.$inferSelect;
+
+// 跟進記録テーブル (Follow-up Records)
+export const recruitmentFollowRecords = mysqlTable("recruitment_follow_records", {
+  id: int("id").autoincrement().primaryKey(),
+  recruitmentBrandId: int("recruitment_brand_id").notNull(),
+  staffId: int("staff_id"),
+  communicationType: mysqlEnum("communication_type", ["email", "phone", "wechat", "meeting", "other"]).notNull().default("other"),
+  durationMinutes: int("duration_minutes"),
+  summary: text("summary"),
+  keyPoints: text("key_points"),
+  nextAction: varchar("next_action", { length: 255 }),
+  nextFollowDate: timestamp("next_follow_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type RecruitmentFollowRecord = typeof recruitmentFollowRecords.$inferSelect;
+export type InsertRecruitmentFollowRecord = typeof recruitmentFollowRecords.$inferInsert;
 
 
 // ============================================

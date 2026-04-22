@@ -15,8 +15,8 @@ import { router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
-import { recruitmentBrands, recruitmentStatusHistory, staff, brands } from "../drizzle/schema";
-import { eq, desc, and, sql, isNull, inArray, between, like, or, asc, count } from "drizzle-orm";
+import { recruitmentBrands, recruitmentStatusHistory, recruitmentFollowRecords, staff, brands } from "../drizzle/schema";
+import { eq, desc, and, sql, isNull, inArray, between, like, or, asc, count, gte, lte } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 
 // ステータス定義
@@ -43,6 +43,18 @@ export const recruitmentRouter = router({
       personInCharge: z.number().nullable().optional(),
       contactInfo: z.string().optional(),
       memo: z.string().optional(),
+      brandStage: z.enum(["startup", "growth", "mature", "famous"]).nullable().optional(),
+      annualRevenue: z.string().nullable().optional(),
+      cooperationHistory: z.string().nullable().optional(),
+      sourceChannel: z.string().nullable().optional(),
+      wechat: z.string().nullable().optional(),
+      websiteUrl: z.string().nullable().optional(),
+      intentLevel: z.enum(["high", "normal", "dormant"]).nullable().optional(),
+      clientValue: z.enum(["high", "medium", "low"]).nullable().optional(),
+      followDifficulty: z.enum(["easy", "medium", "hard"]).nullable().optional(),
+      customTags: z.string().nullable().optional(),
+      nextFollowDate: z.string().nullable().optional(),
+      nextFollowAction: z.string().nullable().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
@@ -54,6 +66,18 @@ export const recruitmentRouter = router({
         memo: input.memo || null,
         status: "registered",
         createdBy: ctx.user?.id ?? null,
+        brandStage: input.brandStage ?? null,
+        annualRevenue: input.annualRevenue ?? null,
+        cooperationHistory: input.cooperationHistory ?? null,
+        sourceChannel: input.sourceChannel ?? null,
+        wechat: input.wechat ?? null,
+        websiteUrl: input.websiteUrl ?? null,
+        intentLevel: input.intentLevel ?? null,
+        clientValue: input.clientValue ?? null,
+        followDifficulty: input.followDifficulty ?? null,
+        customTags: input.customTags ?? null,
+        nextFollowDate: input.nextFollowDate ? new Date(input.nextFollowDate) : null,
+        nextFollowAction: input.nextFollowAction ?? null,
       });
       const insertId = result.insertId;
 
@@ -176,6 +200,18 @@ export const recruitmentRouter = router({
       personInCharge: z.number().nullable().optional(),
       contactInfo: z.string().optional(),
       memo: z.string().optional(),
+      brandStage: z.enum(["startup", "growth", "mature", "famous"]).nullable().optional(),
+      annualRevenue: z.string().nullable().optional(),
+      cooperationHistory: z.string().nullable().optional(),
+      sourceChannel: z.string().nullable().optional(),
+      wechat: z.string().nullable().optional(),
+      websiteUrl: z.string().nullable().optional(),
+      intentLevel: z.enum(["high", "normal", "dormant"]).nullable().optional(),
+      clientValue: z.enum(["high", "medium", "low"]).nullable().optional(),
+      followDifficulty: z.enum(["easy", "medium", "hard"]).nullable().optional(),
+      customTags: z.string().nullable().optional(),
+      nextFollowDate: z.string().nullable().optional(),
+      nextFollowAction: z.string().nullable().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -185,6 +221,18 @@ export const recruitmentRouter = router({
       if (input.personInCharge !== undefined) updateData.personInCharge = input.personInCharge;
       if (input.contactInfo !== undefined) updateData.contactInfo = input.contactInfo;
       if (input.memo !== undefined) updateData.memo = input.memo;
+      if (input.brandStage !== undefined) updateData.brandStage = input.brandStage;
+      if (input.annualRevenue !== undefined) updateData.annualRevenue = input.annualRevenue;
+      if (input.cooperationHistory !== undefined) updateData.cooperationHistory = input.cooperationHistory;
+      if (input.sourceChannel !== undefined) updateData.sourceChannel = input.sourceChannel;
+      if (input.wechat !== undefined) updateData.wechat = input.wechat;
+      if (input.websiteUrl !== undefined) updateData.websiteUrl = input.websiteUrl;
+      if (input.intentLevel !== undefined) updateData.intentLevel = input.intentLevel;
+      if (input.clientValue !== undefined) updateData.clientValue = input.clientValue;
+      if (input.followDifficulty !== undefined) updateData.followDifficulty = input.followDifficulty;
+      if (input.customTags !== undefined) updateData.customTags = input.customTags;
+      if (input.nextFollowDate !== undefined) updateData.nextFollowDate = input.nextFollowDate ? new Date(input.nextFollowDate) : null;
+      if (input.nextFollowAction !== undefined) updateData.nextFollowAction = input.nextFollowAction;
 
       if (Object.keys(updateData).length > 0) {
         await db.update(recruitmentBrands)
@@ -430,6 +478,18 @@ export const recruitmentRouter = router({
           rejectReason: r.rejectReason || "",
           createdAt: r.createdAt,
           lastFollowedAt: r.lastFollowedAt,
+          brandStage: r.brandStage || null,
+          annualRevenue: r.annualRevenue || null,
+          cooperationHistory: r.cooperationHistory || null,
+          sourceChannel: r.sourceChannel || null,
+          wechat: r.wechat || null,
+          websiteUrl: r.websiteUrl || null,
+          intentLevel: r.intentLevel || null,
+          clientValue: r.clientValue || null,
+          followDifficulty: r.followDifficulty || null,
+          customTags: r.customTags || null,
+          nextFollowDate: r.nextFollowDate || null,
+          nextFollowAction: r.nextFollowAction || null,
         })),
         total: Number(cnt),
         page: input.page,
@@ -681,4 +741,143 @@ export const recruitmentRouter = router({
   getBrandTypes: protectedProcedure.query(async () => {
     return BRAND_TYPES;
   }),
+
+  // ===== 12. 跟進記録作成 =====
+  createFollowRecord: protectedProcedure
+    .input(z.object({
+      recruitmentBrandId: z.number(),
+      staffId: z.number().nullable().optional(),
+      communicationType: z.enum(["email", "phone", "wechat", "meeting", "other"]).default("other"),
+      durationMinutes: z.number().nullable().optional(),
+      summary: z.string().optional(),
+      keyPoints: z.string().optional(),
+      nextAction: z.string().optional(),
+      nextFollowDate: z.string().nullable().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      const [result] = await db.insert(recruitmentFollowRecords).values({
+        recruitmentBrandId: input.recruitmentBrandId,
+        staffId: input.staffId ?? ctx.user?.id ?? null,
+        communicationType: input.communicationType,
+        durationMinutes: input.durationMinutes ?? null,
+        summary: input.summary || null,
+        keyPoints: input.keyPoints || null,
+        nextAction: input.nextAction || null,
+        nextFollowDate: input.nextFollowDate ? new Date(input.nextFollowDate) : null,
+      });
+      // ブランドのlastFollowedAtを更新
+      await db.update(recruitmentBrands)
+        .set({
+          lastFollowedAt: new Date(),
+          ...(input.nextFollowDate ? { nextFollowDate: new Date(input.nextFollowDate) } : {}),
+          ...(input.nextAction ? { nextFollowAction: input.nextAction } : {}),
+        })
+        .where(eq(recruitmentBrands.id, input.recruitmentBrandId));
+      return { success: true, id: result.insertId };
+    }),
+
+  // ===== 13. 跟進記録一覧（ブランド別） =====
+  listFollowRecords: protectedProcedure
+    .input(z.object({ recruitmentBrandId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      const records = await db.select()
+        .from(recruitmentFollowRecords)
+        .where(eq(recruitmentFollowRecords.recruitmentBrandId, input.recruitmentBrandId))
+        .orderBy(desc(recruitmentFollowRecords.createdAt));
+      const staffIds = [...new Set(records.map(r => r.staffId).filter(Boolean))] as number[];
+      const staffMap: Record<number, string> = {};
+      if (staffIds.length > 0) {
+        const staffRows = await db.select({ id: staff.id, name: staff.name })
+          .from(staff).where(inArray(staff.id, staffIds));
+        for (const s of staffRows) staffMap[s.id] = s.name;
+      }
+      return records.map(r => ({ ...r, staffName: r.staffId ? staffMap[r.staffId] || "" : "" }));
+    }),
+
+  // ===== 14. 跟進提醒（今日・今週・期限切れ） =====
+  getFollowReminders: protectedProcedure
+    .input(z.object({ range: z.enum(["today", "week", "overdue"]).default("today") }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+      const weekEnd = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+      let conditions: any[] = [isNull(recruitmentBrands.deletedAt)];
+      if (input.range === "today") {
+        conditions.push(gte(recruitmentBrands.nextFollowDate, todayStart));
+        conditions.push(lte(recruitmentBrands.nextFollowDate, todayEnd));
+      } else if (input.range === "week") {
+        conditions.push(gte(recruitmentBrands.nextFollowDate, todayStart));
+        conditions.push(lte(recruitmentBrands.nextFollowDate, weekEnd));
+      } else if (input.range === "overdue") {
+        conditions.push(lte(recruitmentBrands.nextFollowDate, todayStart));
+        conditions.push(sql`${recruitmentBrands.nextFollowDate} IS NOT NULL`);
+      }
+      const rows = await db.select().from(recruitmentBrands)
+        .where(and(...conditions))
+        .orderBy(asc(recruitmentBrands.nextFollowDate)).limit(100);
+      const staffIds = [...new Set(rows.map(r => r.personInCharge).filter(Boolean))] as number[];
+      const staffMap: Record<number, string> = {};
+      if (staffIds.length > 0) {
+        const staffRows = await db.select({ id: staff.id, name: staff.name })
+          .from(staff).where(inArray(staff.id, staffIds));
+        for (const s of staffRows) staffMap[s.id] = s.name;
+      }
+      return rows.map(r => ({
+        id: r.id, brandName: r.brandName, status: r.status,
+        statusLabel: STATUS_LABELS[r.status] || r.status,
+        personInCharge: r.personInCharge,
+        personInChargeName: r.personInCharge ? staffMap[r.personInCharge] || "" : "",
+        nextFollowDate: r.nextFollowDate, nextFollowAction: r.nextFollowAction || "",
+        intentLevel: r.intentLevel || null, clientValue: r.clientValue || null,
+      }));
+    }),
+
+  // ===== 15. 業績統計（担当者別） =====
+  getPerformanceStats: protectedProcedure
+    .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      const brandsByStaff = await db.select({
+        personInCharge: recruitmentBrands.personInCharge,
+        status: recruitmentBrands.status, cnt: count(),
+      }).from(recruitmentBrands).where(isNull(recruitmentBrands.deletedAt))
+        .groupBy(recruitmentBrands.personInCharge, recruitmentBrands.status);
+      let followConditions: any[] = [];
+      if (input.dateFrom) followConditions.push(gte(recruitmentFollowRecords.createdAt, new Date(input.dateFrom)));
+      if (input.dateTo) followConditions.push(lte(recruitmentFollowRecords.createdAt, new Date(input.dateTo + " 23:59:59")));
+      const followsByStaff = await db.select({
+        staffId: recruitmentFollowRecords.staffId, cnt: count(),
+      }).from(recruitmentFollowRecords)
+        .where(followConditions.length > 0 ? and(...followConditions) : undefined)
+        .groupBy(recruitmentFollowRecords.staffId);
+      const allStaffIds = [...new Set([
+        ...brandsByStaff.map(r => r.personInCharge).filter(Boolean),
+        ...followsByStaff.map(r => r.staffId).filter(Boolean),
+      ])] as number[];
+      const staffMap: Record<number, string> = {};
+      if (allStaffIds.length > 0) {
+        const staffRows = await db.select({ id: staff.id, name: staff.name })
+          .from(staff).where(inArray(staff.id, allStaffIds));
+        for (const s of staffRows) staffMap[s.id] = s.name;
+      }
+      const statsMap: Record<number, { staffId: number; staffName: string; totalBrands: number; cooperating: number; agreed: number; rejected: number; followRecords: number }> = {};
+      for (const r of brandsByStaff) {
+        const sid = r.personInCharge || 0;
+        if (!statsMap[sid]) statsMap[sid] = { staffId: sid, staffName: sid ? staffMap[sid] || "未分配" : "未分配", totalBrands: 0, cooperating: 0, agreed: 0, rejected: 0, followRecords: 0 };
+        statsMap[sid].totalBrands += Number(r.cnt);
+        if (r.status === "cooperating") statsMap[sid].cooperating += Number(r.cnt);
+        if (r.status === "agreed") statsMap[sid].agreed += Number(r.cnt);
+        if (r.status === "rejected") statsMap[sid].rejected += Number(r.cnt);
+      }
+      for (const r of followsByStaff) {
+        const sid = r.staffId || 0;
+        if (!statsMap[sid]) statsMap[sid] = { staffId: sid, staffName: sid ? staffMap[sid] || "未分配" : "未分配", totalBrands: 0, cooperating: 0, agreed: 0, rejected: 0, followRecords: 0 };
+        statsMap[sid].followRecords += Number(r.cnt);
+      }
+      return Object.values(statsMap).filter(s => s.staffId > 0).sort((a, b) => b.cooperating - a.cooperating);
+    }),
 });

@@ -55,14 +55,37 @@ import {
   ChevronRight,
   MailOpen,
   ExternalLink,
+  Globe,
+  Phone,
+  Tag,
+  TrendingUp,
+  CalendarDays,
+  BarChart3,
+  Bell,
+  MessageCircle,
+  Target,
+  Star,
+  Zap,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { lazy, Suspense } from "react";
 const RecruitmentEmail = lazy(() => import("./RecruitmentEmail"));
+import { ExtendedFormFields } from "./RecruitmentExtendedFields";
+import { FollowRemindersPanel } from "./RecruitmentReminders";
+import { PerformanceStatsPanel } from "./RecruitmentStats";
+
+// ===== 新ラベル定義 =====
+const BRAND_STAGE_LABELS: Record<string, string> = { startup: "初创期", growth: "成长期", mature: "成熟期", famous: "知名品牌" };
+const INTENT_LEVEL_LABELS: Record<string, string> = { high: "高意向", normal: "普通", dormant: "休眠" };
+const CLIENT_VALUE_LABELS: Record<string, string> = { high: "高价值", medium: "中价值", low: "低价值" };
+const FOLLOW_DIFFICULTY_LABELS: Record<string, string> = { easy: "容易", medium: "普通", hard: "困难" };
+const COMM_TYPE_LABELS: Record<string, string> = { email: "邮件", phone: "电话", wechat: "微信", meeting: "会议", other: "其他" };
 
 // ===== ステータス定義 =====
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
@@ -140,6 +163,44 @@ function SearchableStaffSelect({ value, onChange, staffList }: { value: number |
   );
 }
 
+// ===== 详情内跟进记录コンポーネント =====
+function DetailFollowRecords({ brandId }: { brandId: number }) {
+  const { data: records, isLoading } = trpc.recruitment.listFollowRecords.useQuery(
+    { recruitmentBrandId: brandId },
+    { enabled: !!brandId }
+  );
+  if (isLoading) return <div className="text-center py-4 text-gray-500"><Loader2 className="w-4 h-4 animate-spin inline mr-1" />加载中...</div>;
+  if (!records || records.length === 0) return <div className="text-center py-8 text-gray-500">暂无跟进记录</div>;
+  return (
+    <div className="space-y-3">
+      {records.map((r: any) => (
+        <div key={r.id} className="bg-gray-800/40 rounded-lg p-3 border border-gray-700/50">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Badge className="bg-gray-700 text-gray-300 text-[10px]">{COMM_TYPE_LABELS[r.communicationType] || r.communicationType}</Badge>
+              {r.staffName && <span className="text-xs text-gray-400">{r.staffName}</span>}
+              {r.durationMinutes && <span className="text-xs text-gray-500">{r.durationMinutes}分钟</span>}
+            </div>
+            <span className="text-xs text-gray-500">{new Date(r.createdAt).toLocaleString("zh-CN")}</span>
+          </div>
+          {r.summary && <div className="text-sm text-gray-300 mb-1">{r.summary}</div>}
+          {r.keyPoints && (
+            <div className="text-xs text-yellow-400/80 bg-yellow-900/10 rounded p-1.5 mb-1">
+              <Star className="w-3 h-3 inline mr-1" />要点: {r.keyPoints}
+            </div>
+          )}
+          {r.nextAction && (
+            <div className="text-xs text-blue-400/80">
+              <CalendarDays className="w-3 h-3 inline mr-1" />下次: {r.nextAction}
+              {r.nextFollowDate && <span className="ml-2 text-gray-500">({new Date(r.nextFollowDate).toLocaleDateString("zh-CN")})</span>}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ===== メインコンポーネント =====
 export default function RecruitmentManagement() {
   // フィルタ状態
@@ -177,6 +238,30 @@ export default function RecruitmentManagement() {
     personInCharge: null as number | null,
     contactInfo: "",
     memo: "",
+    brandStage: null as string | null,
+    annualRevenue: null as string | null,
+    cooperationHistory: null as string | null,
+    sourceChannel: null as string | null,
+    wechat: null as string | null,
+    websiteUrl: null as string | null,
+    intentLevel: null as string | null,
+    clientValue: null as string | null,
+    followDifficulty: null as string | null,
+    customTags: null as string | null,
+    nextFollowDate: null as string | null,
+    nextFollowAction: null as string | null,
+  });
+
+  // 跟進記録ダイアログ状態
+  const [followRecordOpen, setFollowRecordOpen] = useState(false);
+  const [followRecordBrand, setFollowRecordBrand] = useState<any>(null);
+  const [followForm, setFollowForm] = useState({
+    communicationType: "other" as string,
+    durationMinutes: null as number | null,
+    summary: "",
+    keyPoints: "",
+    nextAction: "",
+    nextFollowDate: null as string | null,
   });
 
   // AI識別状態
@@ -189,7 +274,7 @@ export default function RecruitmentManagement() {
   const [aiDragOver, setAiDragOver] = useState(false);
 
   // タブ状態
-  const [activeView, setActiveView] = useState<"list" | "email">("list");
+  const [activeView, setActiveView] = useState<"list" | "email" | "reminders" | "stats">("list");
 
   // ブランドメールダイアログ状態
   const [brandEmailOpen, setBrandEmailOpen] = useState(false);
@@ -254,6 +339,17 @@ export default function RecruitmentManagement() {
       utils.email.listByAddress.invalidate();
     },
     onError: (err) => toast.error("送信失敗: " + err.message),
+  });
+
+  // Follow Record Mutation
+  const createFollowRecordMutation = trpc.recruitment.createFollowRecord.useMutation({
+    onSuccess: () => {
+      toast.success("跟进记录已保存");
+      setFollowRecordOpen(false);
+      utils.recruitment.list.invalidate();
+      utils.recruitment.listFollowRecords.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
   });
 
   // Mutations
@@ -357,7 +453,12 @@ export default function RecruitmentManagement() {
 
   // ===== ヘルパー関数 =====
   const resetForm = () => {
-    setFormData({ brandName: "", brandType: "", personInCharge: null, contactInfo: "", memo: "" });
+    setFormData({
+      brandName: "", brandType: "", personInCharge: null, contactInfo: "", memo: "",
+      brandStage: null, annualRevenue: null, cooperationHistory: null, sourceChannel: null,
+      wechat: null, websiteUrl: null, intentLevel: null, clientValue: null,
+      followDifficulty: null, customTags: null, nextFollowDate: null, nextFollowAction: null,
+    });
   };
 
   const toggleSelect = (id: number) => {
@@ -408,6 +509,18 @@ export default function RecruitmentManagement() {
       personInCharge: brand.personInCharge,
       contactInfo: brand.contactInfo || "",
       memo: brand.memo || "",
+      brandStage: brand.brandStage || null,
+      annualRevenue: brand.annualRevenue || null,
+      cooperationHistory: brand.cooperationHistory || null,
+      sourceChannel: brand.sourceChannel || null,
+      wechat: brand.wechat || null,
+      websiteUrl: brand.websiteUrl || null,
+      intentLevel: brand.intentLevel || null,
+      clientValue: brand.clientValue || null,
+      followDifficulty: brand.followDifficulty || null,
+      customTags: brand.customTags || null,
+      nextFollowDate: brand.nextFollowDate ? new Date(brand.nextFollowDate).toISOString().split('T')[0] : null,
+      nextFollowAction: brand.nextFollowAction || null,
     });
     setCurrentBrand(brand);
     setEditOpen(true);
@@ -748,7 +861,7 @@ export default function RecruitmentManagement() {
         </div>
       </div>
 
-      {/* View Toggle: リスト / メール */}
+      {/* View Toggle: リスト / メール / 跟進提醒 / 業績統計 */}
       <div className="flex gap-1 mb-4 bg-gray-900/50 rounded-lg p-1 w-fit">
         <button
           onClick={() => setActiveView("list")}
@@ -766,6 +879,22 @@ export default function RecruitmentManagement() {
         >
           <Mail className="w-4 h-4" /> メール
         </button>
+        <button
+          onClick={() => setActiveView("reminders")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            activeView === "reminders" ? "bg-yellow-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800"
+          }`}
+        >
+          <Bell className="w-4 h-4" /> 跟进提醒
+        </button>
+        <button
+          onClick={() => setActiveView("stats")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            activeView === "stats" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800"
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" /> 业绩统计
+        </button>
       </div>
 
       {/* メールビュー */}
@@ -773,6 +902,10 @@ export default function RecruitmentManagement() {
         <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /><span className="ml-2 text-gray-400">読み込み中...</span></div>}>
           <RecruitmentEmail />
         </Suspense>
+      ) : activeView === "reminders" ? (
+        <FollowRemindersPanel />
+      ) : activeView === "stats" ? (
+        <PerformanceStatsPanel />
       ) : (
       <>
       {/* Status Summary Cards */}
@@ -951,6 +1084,11 @@ export default function RecruitmentManagement() {
                         {STATUS_CONFIG[ns]?.label}
                       </Button>
                     ))}
+                    <Button size="sm" variant="ghost" className="text-gray-400 hover:text-green-400 h-7 w-7 p-0"
+                      onClick={() => { setFollowRecordBrand(item); setFollowRecordOpen(true); setFollowForm({ communicationType: "other", durationMinutes: null, summary: "", keyPoints: "", nextAction: "", nextFollowDate: null }); }}
+                      title="跟进记录">
+                      <MessageCircle className="w-3 h-3" />
+                    </Button>
                     <Button size="sm" variant="ghost" className="text-gray-400 hover:text-blue-400 h-7 w-7 p-0"
                       onClick={() => openBrandEmail(item)}
                       title="邮件">
@@ -992,7 +1130,7 @@ export default function RecruitmentManagement() {
 
       {/* ===== CREATE DIALOG ===== */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-lg">
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Plus className="w-5 h-5 text-red-400" /> 新增品牌
@@ -1035,6 +1173,7 @@ export default function RecruitmentManagement() {
               <Textarea value={formData.memo} onChange={e => setFormData(p => ({ ...p, memo: e.target.value }))}
                 className="bg-gray-800 border-gray-700 text-white" rows={3} />
             </div>
+            <ExtendedFormFields formData={formData} onChange={(updates) => setFormData(p => ({ ...p, ...updates }))} />
           </div>
           <DialogFooter>
             <Button variant="outline" className="border-gray-600" onClick={() => setCreateOpen(false)}>取消</Button>
@@ -1049,7 +1188,7 @@ export default function RecruitmentManagement() {
 
       {/* ===== EDIT DIALOG ===== */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-lg">
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit className="w-5 h-5 text-blue-400" /> 编辑品牌
@@ -1092,6 +1231,7 @@ export default function RecruitmentManagement() {
               <Textarea value={formData.memo} onChange={e => setFormData(p => ({ ...p, memo: e.target.value }))}
                 className="bg-gray-800 border-gray-700 text-white" rows={3} />
             </div>
+            <ExtendedFormFields formData={formData} onChange={(updates) => setFormData(p => ({ ...p, ...updates }))} />
           </div>
           <DialogFooter>
             <Button variant="outline" className="border-gray-600" onClick={() => setEditOpen(false)}>取消</Button>
@@ -1157,79 +1297,167 @@ export default function RecruitmentManagement() {
 
       {/* ===== DETAIL DIALOG ===== */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Building2 className="w-5 h-5 text-red-400" />
               {detailData?.brandName || "品牌详情"}
+              {detailData?.intentLevel && (
+                <Badge className={`text-[10px] ml-2 ${detailData.intentLevel === 'high' ? 'bg-green-600' : detailData.intentLevel === 'dormant' ? 'bg-gray-600' : 'bg-blue-600'} text-white`}>
+                  {INTENT_LEVEL_LABELS[detailData.intentLevel] || detailData.intentLevel}
+                </Badge>
+              )}
+              {detailData?.clientValue && (
+                <Badge className={`text-[10px] ${detailData.clientValue === 'high' ? 'bg-yellow-600' : detailData.clientValue === 'low' ? 'bg-gray-600' : 'bg-orange-600'} text-white`}>
+                  {CLIENT_VALUE_LABELS[detailData.clientValue] || detailData.clientValue}
+                </Badge>
+              )}
             </DialogTitle>
           </DialogHeader>
           {detailData && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-800/50 rounded-lg p-3">
-                  <div className="text-xs text-gray-500">品牌类型</div>
-                  <div className="text-white mt-1">{detailData.brandType || "-"}</div>
+            <Tabs defaultValue="basic" className="w-full">
+              <TabsList className="bg-gray-800 border-gray-700 mb-4">
+                <TabsTrigger value="basic" className="data-[state=active]:bg-gray-700">基本信息</TabsTrigger>
+                <TabsTrigger value="extended" className="data-[state=active]:bg-gray-700">扩展信息</TabsTrigger>
+                <TabsTrigger value="follow" className="data-[state=active]:bg-gray-700">跟进记录</TabsTrigger>
+                <TabsTrigger value="history" className="data-[state=active]:bg-gray-700">状态历史</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="basic" className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <div className="text-xs text-gray-500">品牌类型</div>
+                    <div className="text-white mt-1">{detailData.brandType || "-"}</div>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <div className="text-xs text-gray-500">当前状态</div>
+                    <Badge className={`${STATUS_CONFIG[detailData.status]?.color || "bg-gray-500"} text-white mt-1`}>
+                      {detailData.statusLabel}
+                    </Badge>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <div className="text-xs text-gray-500">招商负责人</div>
+                    <div className="text-white mt-1">{detailData.personInChargeName || "-"}</div>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <div className="text-xs text-gray-500">联系方式</div>
+                    <div className="text-white mt-1">{detailData.contactInfo || "-"}</div>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <div className="text-xs text-gray-500">添加时间</div>
+                    <div className="text-white mt-1">{formatDateTime(detailData.createdAt)}</div>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <div className="text-xs text-gray-500">最后跟进</div>
+                    <div className="text-white mt-1">{formatDateTime(detailData.lastFollowedAt)}</div>
+                  </div>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-3">
-                  <div className="text-xs text-gray-500">当前状态</div>
-                  <Badge className={`${STATUS_CONFIG[detailData.status]?.color || "bg-gray-500"} text-white mt-1`}>
-                    {detailData.statusLabel}
-                  </Badge>
-                </div>
-                <div className="bg-gray-800/50 rounded-lg p-3">
-                  <div className="text-xs text-gray-500">招商负责人</div>
-                  <div className="text-white mt-1">{detailData.personInChargeName || "-"}</div>
-                </div>
-                <div className="bg-gray-800/50 rounded-lg p-3">
-                  <div className="text-xs text-gray-500">联系方式</div>
-                  <div className="text-white mt-1">{detailData.contactInfo || "-"}</div>
-                </div>
-                <div className="bg-gray-800/50 rounded-lg p-3">
-                  <div className="text-xs text-gray-500">添加时间</div>
-                  <div className="text-white mt-1">{formatDateTime(detailData.createdAt)}</div>
-                </div>
-                <div className="bg-gray-800/50 rounded-lg p-3">
-                  <div className="text-xs text-gray-500">最后跟进</div>
-                  <div className="text-white mt-1">{formatDateTime(detailData.lastFollowedAt)}</div>
-                </div>
-              </div>
-              {detailData.memo && (
-                <div className="bg-gray-800/50 rounded-lg p-3">
-                  <div className="text-xs text-gray-500 mb-1">备注</div>
-                  <div className="text-gray-300 text-sm whitespace-pre-wrap">{detailData.memo}</div>
-                </div>
-              )}
-              {detailData.rejectReason && (
-                <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3">
-                  <div className="text-xs text-red-400 mb-1">拒绝原因</div>
-                  <div className="text-red-300 text-sm">{detailData.rejectReason}</div>
-                </div>
-              )}
-              <div>
-                <h4 className="text-sm font-bold text-gray-300 flex items-center gap-2 mb-3">
-                  <History className="w-4 h-4" /> 状态变更历史
-                </h4>
-                <div className="space-y-2">
-                  {(detailData.history || []).map((h: any) => (
-                    <div key={h.id} className="flex items-center gap-3 bg-gray-800/30 rounded-lg p-2 text-xs">
-                      <span className="text-gray-500 w-32 shrink-0">{formatDateTime(h.createdAt)}</span>
-                      {h.oldStatusLabel && (
-                        <>
-                          <Badge className="bg-gray-600 text-white text-[10px]">{h.oldStatusLabel}</Badge>
-                          <span className="text-gray-500">→</span>
-                        </>
-                      )}
-                      <Badge className={`${STATUS_CONFIG[h.newStatus]?.color || "bg-gray-500"} text-white text-[10px]`}>
-                        {h.newStatusLabel}
-                      </Badge>
-                      {h.changedByName && <span className="text-gray-500">by {h.changedByName}</span>}
-                      {h.note && <span className="text-gray-400 truncate">{h.note}</span>}
+                {detailData.memo && (
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <div className="text-xs text-gray-500 mb-1">备注</div>
+                    <div className="text-gray-300 text-sm whitespace-pre-wrap">{detailData.memo}</div>
+                  </div>
+                )}
+                {detailData.rejectReason && (
+                  <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3">
+                    <div className="text-xs text-red-400 mb-1">拒绝原因</div>
+                    <div className="text-red-300 text-sm">{detailData.rejectReason}</div>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="extended" className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <div className="text-xs text-gray-500">品牌阶段</div>
+                    <div className="text-white mt-1">{detailData.brandStage ? BRAND_STAGE_LABELS[detailData.brandStage] || detailData.brandStage : "-"}</div>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <div className="text-xs text-gray-500">年收入规模</div>
+                    <div className="text-white mt-1">{detailData.annualRevenue || "-"}</div>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <div className="text-xs text-gray-500">合作历史</div>
+                    <div className="text-white mt-1">{detailData.cooperationHistory || "-"}</div>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <div className="text-xs text-gray-500">来源渠道</div>
+                    <div className="text-white mt-1">{detailData.sourceChannel || "-"}</div>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <div className="text-xs text-gray-500">微信</div>
+                    <div className="text-white mt-1">{detailData.wechat || "-"}</div>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <div className="text-xs text-gray-500">官网</div>
+                    <div className="text-white mt-1">
+                      {detailData.websiteUrl ? (
+                        <a href={detailData.websiteUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline flex items-center gap-1">
+                          {detailData.websiteUrl.replace(/^https?:\/\//, '').substring(0, 30)}
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      ) : "-"}
                     </div>
+                  </div>
+                </div>
+                {/* 智能标签 */}
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {detailData.intentLevel && (
+                    <Badge className={`${detailData.intentLevel === 'high' ? 'bg-green-600' : detailData.intentLevel === 'dormant' ? 'bg-gray-600' : 'bg-blue-600'} text-white`}>
+                      意向: {INTENT_LEVEL_LABELS[detailData.intentLevel]}
+                    </Badge>
+                  )}
+                  {detailData.clientValue && (
+                    <Badge className={`${detailData.clientValue === 'high' ? 'bg-yellow-600' : detailData.clientValue === 'low' ? 'bg-gray-600' : 'bg-orange-600'} text-white`}>
+                      价值: {CLIENT_VALUE_LABELS[detailData.clientValue]}
+                    </Badge>
+                  )}
+                  {detailData.followDifficulty && (
+                    <Badge className={`${detailData.followDifficulty === 'easy' ? 'bg-green-600' : detailData.followDifficulty === 'hard' ? 'bg-red-600' : 'bg-yellow-600'} text-white`}>
+                      难度: {FOLLOW_DIFFICULTY_LABELS[detailData.followDifficulty]}
+                    </Badge>
+                  )}
+                  {detailData.customTags && detailData.customTags.split(',').map((tag: string, i: number) => (
+                    <Badge key={i} className="bg-purple-600/50 text-purple-200 border border-purple-500/30">
+                      <Tag className="w-3 h-3 mr-1" />{tag.trim()}
+                    </Badge>
                   ))}
                 </div>
-              </div>
-            </div>
+                {/* 下次跟进予定 */}
+                {(detailData.nextFollowDate || detailData.nextFollowAction) && (
+                  <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3">
+                    <div className="text-xs text-blue-400 mb-1 flex items-center gap-1"><CalendarDays className="w-3 h-3" /> 下次跟进计划</div>
+                    <div className="text-sm text-white">
+                      {detailData.nextFollowDate && <span className="mr-3">{formatDate(detailData.nextFollowDate)}</span>}
+                      {detailData.nextFollowAction && <span className="text-gray-300">{detailData.nextFollowAction}</span>}
+                    </div>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="follow" className="space-y-4">
+                <DetailFollowRecords brandId={detailData.id} />
+              </TabsContent>
+
+              <TabsContent value="history" className="space-y-2">
+                {(detailData.history || []).map((h: any) => (
+                  <div key={h.id} className="flex items-center gap-3 bg-gray-800/30 rounded-lg p-2 text-xs">
+                    <span className="text-gray-500 w-32 shrink-0">{formatDateTime(h.createdAt)}</span>
+                    {h.oldStatusLabel && (
+                      <>
+                        <Badge className="bg-gray-600 text-white text-[10px]">{h.oldStatusLabel}</Badge>
+                        <span className="text-gray-500">→</span>
+                      </>
+                    )}
+                    <Badge className={`${STATUS_CONFIG[h.newStatus]?.color || "bg-gray-500"} text-white text-[10px]`}>
+                      {h.newStatusLabel}
+                    </Badge>
+                    {h.changedByName && <span className="text-gray-500">by {h.changedByName}</span>}
+                    {h.note && <span className="text-gray-400 truncate">{h.note}</span>}
+                  </div>
+                ))}
+              </TabsContent>
+            </Tabs>
           )}
         </DialogContent>
       </Dialog>
@@ -1788,6 +2016,85 @@ export default function RecruitmentManagement() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== FOLLOW RECORD DIALOG ===== */}
+      <Dialog open={followRecordOpen} onOpenChange={setFollowRecordOpen}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageCircle className="w-5 h-5 text-green-400" /> 新增跟进记录
+              {followRecordBrand && <span className="text-sm text-gray-400 ml-2">- {followRecordBrand.brandName}</span>}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">沟通方式</label>
+                <Select value={followForm.communicationType} onValueChange={v => setFollowForm(p => ({ ...p, communicationType: v }))}>
+                  <SelectTrigger className="bg-gray-800 border-gray-700 text-white h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-800 border-gray-700">
+                    <SelectItem value="email" className="text-white text-xs">邮件</SelectItem>
+                    <SelectItem value="phone" className="text-white text-xs">电话</SelectItem>
+                    <SelectItem value="wechat" className="text-white text-xs">微信</SelectItem>
+                    <SelectItem value="meeting" className="text-white text-xs">会议</SelectItem>
+                    <SelectItem value="other" className="text-white text-xs">其他</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">时长(分钟)</label>
+                <Input type="number" value={followForm.durationMinutes || ""}
+                  onChange={e => setFollowForm(p => ({ ...p, durationMinutes: e.target.value ? Number(e.target.value) : null }))}
+                  className="bg-gray-800 border-gray-700 text-white h-8 text-xs" placeholder="可选" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">沟通摘要</label>
+              <Textarea value={followForm.summary} onChange={e => setFollowForm(p => ({ ...p, summary: e.target.value }))}
+                className="bg-gray-800 border-gray-700 text-white text-xs" rows={3} placeholder="本次沟通的主要内容..." />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block flex items-center gap-1"><Star className="w-3 h-3 text-yellow-400" /> 关键要点</label>
+              <Input value={followForm.keyPoints} onChange={e => setFollowForm(p => ({ ...p, keyPoints: e.target.value }))}
+                className="bg-gray-800 border-gray-700 text-white h-8 text-xs" placeholder="客户关注的重点、关键决策人等" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">下次跟进日期</label>
+                <Input type="date" value={followForm.nextFollowDate || ""}
+                  onChange={e => setFollowForm(p => ({ ...p, nextFollowDate: e.target.value || null }))}
+                  className="bg-gray-800 border-gray-700 text-white h-8 text-xs" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">下次跟进内容</label>
+                <Input value={followForm.nextAction} onChange={e => setFollowForm(p => ({ ...p, nextAction: e.target.value }))}
+                  className="bg-gray-800 border-gray-700 text-white h-8 text-xs" placeholder="如: 发送报价单" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="border-gray-600" onClick={() => setFollowRecordOpen(false)}>取消</Button>
+            <Button className="bg-green-600 hover:bg-green-700" disabled={createFollowRecordMutation.isPending}
+              onClick={() => {
+                if (!followRecordBrand) return;
+                createFollowRecordMutation.mutate({
+                  recruitmentBrandId: followRecordBrand.id,
+                  communicationType: followForm.communicationType as any,
+                  durationMinutes: followForm.durationMinutes,
+                  summary: followForm.summary,
+                  keyPoints: followForm.keyPoints,
+                  nextAction: followForm.nextAction,
+                  nextFollowDate: followForm.nextFollowDate,
+                });
+              }}>
+              {createFollowRecordMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              保存记录
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
