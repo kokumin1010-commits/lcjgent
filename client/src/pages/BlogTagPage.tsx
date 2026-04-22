@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,6 +21,13 @@ export default function BlogTagPage() {
 
   const { data: tags } = trpc.blog.listTags.useQuery();
   const tag = tags?.find((t: any) => t.id === tagId);
+
+  usePageSEO({
+    title: tag ? `${tag.name} - ブログタグ` : `タグ #${tagId}`,
+    description: tag ? `LCJ MALLブログの「${tag.name}」タグが付いた記事一覧です。` : undefined,
+    canonical: `${window.location.origin}/blog/tag/${tagId}`,
+    ogType: "website",
+  });
 
   const queryInput = useMemo(() => ({ tagId, limit: 20, offset: 0 }), [tagId]);
   const { data, isLoading } = trpc.blog.listByTag.useQuery(queryInput, { enabled: tagId > 0 });

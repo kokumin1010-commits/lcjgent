@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -883,6 +884,14 @@ export default function ReviewDatabase() {
   const [, setLocation] = useLocation();
   const { data: lineUser } = trpc.lineLogin.me.useQuery();
   const isLoggedIn = !!lineUser;
+
+  usePageSEO({
+    title: "口コミ・レビューデータベース",
+    description: "LCJ MALLの商品口コミ・レビューデータベース。実際の購入者によるリアルな評価と感想を確認できます。",
+    canonical: `${window.location.origin}/reviews`,
+    ogType: "website",
+    keywords: "口コミ, レビュー, 商品評価, LCJ MALL, TikTok Shop",
+  });
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"ranking" | "latest" | "qa">("ranking");

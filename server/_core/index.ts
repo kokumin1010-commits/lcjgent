@@ -1367,7 +1367,7 @@ async function startServer() {
   app.get("/blog/:slug", async (req, res, next) => {
     try {
       const ua = (req.headers["user-agent"] || "").toLowerCase();
-      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot/i.test(ua);
+      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic/i.test(ua);
       if (!isBot) return next();
 
       const { getBlogArticleBySlug, getAllBlogCategories } = await import("../db");
@@ -1642,6 +1642,8 @@ async function startServer() {
         `  <url>\n    <loc>${baseUrl}/</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>`,
         `  <url>\n    <loc>${baseUrl}/blog</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>`,
         `  <url>\n    <loc>${baseUrl}/mall</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>`,
+        `  <url>\n    <loc>${baseUrl}/mall/products</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.8</priority>\n  </url>`,
+        `  <url>\n    <loc>${baseUrl}/reviews</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.8</priority>\n  </url>`,
       ];
 
       // Category pages
@@ -1751,10 +1753,36 @@ async function startServer() {
         body: JSON.stringify(indexNowPayload),
       });
 
-      console.log(`[IndexNow] Submitted ${urls.length} URLs. IndexNow: ${indexNowResp.status}`);
+      // Also submit to Bing directly
+      let bingStatus = 0;
+      try {
+        const bingResp = await fetch("https://www.bing.com/indexnow", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(indexNowPayload),
+        });
+        bingStatus = bingResp.status;
+      } catch (e) {
+        console.warn("[IndexNow] Bing direct submit failed:", e);
+      }
+
+      // Ping Google sitemap (triggers re-crawl)
+      let googlePingStatus = 0;
+      try {
+        const sitemapUrl = encodeURIComponent(`${baseUrl}/sitemap.xml`);
+        const googleResp = await fetch(`https://www.google.com/ping?sitemap=${sitemapUrl}`);
+        googlePingStatus = googleResp.status;
+        console.log(`[IndexNow] Google sitemap ping: ${googleResp.status}`);
+      } catch (e) {
+        console.warn("[IndexNow] Google ping failed:", e);
+      }
+
+      console.log(`[IndexNow] Submitted ${urls.length} URLs. IndexNow: ${indexNowResp.status}, Bing: ${bingStatus}, Google Ping: ${googlePingStatus}`);
       res.json({
         success: true,
         indexNowStatus: indexNowResp.status,
+        bingStatus,
+        googlePingStatus,
         submittedUrls: urls.length,
       });
     } catch (error) {

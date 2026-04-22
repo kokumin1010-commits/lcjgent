@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { Link, useParams } from "wouter";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import {
   Star,
   Package,
@@ -23,6 +24,14 @@ export default function BrandDetailPage() {
     { brandId },
     { enabled: !!brandId && !isNaN(brandId) }
   );
+
+  usePageSEO({
+    title: data?.brand?.name ? `${data.brand.name} - LCJ MALL` : "ブランド詳細",
+    description: data?.brand?.description || `LCJ MALLのブランド詳細ページ。`,
+    canonical: `${window.location.origin}/brands/${brandId}`,
+    ogType: "website",
+    ogImage: data?.brand?.logoUrl || undefined,
+  });
 
   if (isLoading) {
     return (

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -444,6 +445,14 @@ export default function MallHome() {
   const [, setLocation] = useLocation();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [showRoulette, setShowRoulette] = useState(false);
+
+  usePageSEO({
+    title: "LCJ MALL - TikTok Shopで買う。そのすべてが、価値になる。",
+    description: "LCJ Mallは、TikTok Shopで購入したすべての商品を対象に、ポイントが貯まり、LCJモールで使えるLCJ公式ショッピングサービスです。購入金額の1%還元。",
+    canonical: window.location.origin,
+    ogType: "website",
+    keywords: "LCJ MALL, lcjモール, ポイ活, レシート副業, TikTok Shop, ライブコマース, ポイント還元, 美容, シャンプー, KYOGOKU",
+  });
 
   // ログイン状態を確認
   const { data: lineUser } = trpc.lineLogin.me.useQuery();

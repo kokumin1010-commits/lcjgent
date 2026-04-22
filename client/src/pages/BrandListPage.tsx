@@ -1,11 +1,19 @@
 import { trpc } from "@/lib/trpc";
 import { Link } from "wouter";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { Star, Package, ShoppingCart, ChevronRight, Building2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function BrandListPage() {
+  usePageSEO({
+    title: "ブランド一覧 - LCJ MALL",
+    description: "LCJ MALL取り扱いブランド一覧。美容・ヘアケア・スキンケアの人気ブランドをご紹介。",
+    canonical: `${window.location.origin}/brands`,
+    ogType: "website",
+    keywords: "LCJ MALL, ブランド, 美容, ヘアケア, KYOGOKU",
+  });
   const { data: brands, isLoading } = trpc.blog.brandList.useQuery();
 
   return (

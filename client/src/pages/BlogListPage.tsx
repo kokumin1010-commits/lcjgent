@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,6 +21,14 @@ import { useLocation, Link } from "wouter";
 export default function BlogListPage() {
   const [, navigate] = useLocation();
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+
+  usePageSEO({
+    title: "ブログ - LCJ MALLメディア",
+    description: "LCJ MALLのブログ記事一覧。ポイ活・レシート副業・TikTok Shop・ライブコマース・美容・ヘアケアなどの最新情報をお届けします。",
+    canonical: `${window.location.origin}/blog`,
+    ogType: "website",
+    keywords: "LCJ MALL, ブログ, ポイ活, レシート副業, TikTok Shop, ライブコマース, 美容, ヘアケア",
+  });
   const [page, setPage] = useState(0);
   const LIMIT = 12;
 

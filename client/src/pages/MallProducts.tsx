@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -140,6 +141,13 @@ function RecommendedInline() {
 }
 
 export default function MallProducts() {
+  usePageSEO({
+    title: "商品一覧 - LCJ MALL",
+    description: "LCJ MALLの商品一覧。美容・ヘアケア・スキンケアなどの商品をお得に購入。",
+    canonical: `${window.location.origin}/mall/products`,
+    ogType: "website",
+    keywords: "LCJ MALL, 商品, 美容, ヘアケア, シャンプー, KYOGOKU",
+  });
   const [category, setCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("newest");

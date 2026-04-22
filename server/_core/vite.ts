@@ -6,6 +6,18 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
 
+/**
+ * Replace dynamic SEO placeholders in the HTML template.
+ * __CANONICAL_URL__ → full request URL
+ * __OG_URL__ → same as canonical
+ */
+function injectSeoMeta(html: string, reqUrl: string, baseUrl: string): string {
+  const fullUrl = reqUrl === "/" ? baseUrl : `${baseUrl}${reqUrl.split("?")[0]}`;
+  return html
+    .replace(/__CANONICAL_URL__/g, fullUrl)
+    .replace(/__OG_URL__/g, fullUrl);
+}
+
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
@@ -38,7 +50,10 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx"`,
         `src="/src/main.tsx?v=${nanoid()}"`
       );
-      const page = await vite.transformIndexHtml(url, template);
+      let page = await vite.transformIndexHtml(url, template);
+      // Inject dynamic SEO meta (canonical, og:url)
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      page = injectSeoMeta(page, url, baseUrl);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
@@ -70,9 +85,22 @@ export function serveStatic(app: Express) {
     etag: true,
   }));
 
+  // Read the index.html template once for dynamic SEO injection
+  const indexPath = path.resolve(distPath, "index.html");
+  let indexTemplate = "";
+  try {
+    indexTemplate = fs.readFileSync(indexPath, "utf-8");
+  } catch (e) {
+    console.error("[serveStatic] Failed to read index.html:", e);
+  }
+
   // fall through to index.html if the file doesn't exist (SPA)
-  app.use("*", (_req, res) => {
+  // Inject dynamic canonical/og:url based on request URL
+  app.use("*", (req, res) => {
+    const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+    const html = injectSeoMeta(indexTemplate, req.originalUrl, baseUrl);
     res.setHeader("Cache-Control", "no-cache");
-    res.sendFile(path.resolve(distPath, "index.html"));
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
   });
 }
