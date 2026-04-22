@@ -539,6 +539,48 @@ export const emailRouter = router({
       }
     }),
 
+  // ===== 7.5 一括送信用ブランドリスト取得（メールアドレスフィルタ付き） =====
+  getBrandsForBulkSend: protectedProcedure
+    .input(z.object({
+      status: z.string().optional(),
+      page: z.number().min(1).default(1),
+      pageSize: z.number().min(1).max(2000).default(500),
+    }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      const { recruitmentBrands } = await import("../drizzle/schema");
+      const { eq, sql, and, desc } = await import("drizzle-orm");
+
+      const conditions: any[] = [
+        sql`${recruitmentBrands.contactInfo} LIKE '%@%'`
+      ];
+      if (input.status && input.status !== "_all") {
+        conditions.push(eq(recruitmentBrands.status, input.status as any));
+      }
+
+      const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
+
+      const [countResult] = await db.select({ count: sql<number>`COUNT(*)` }).from(recruitmentBrands).where(whereClause);
+      const total = countResult?.count || 0;
+
+      const items = await db.select({
+        id: recruitmentBrands.id,
+        brandName: recruitmentBrands.brandName,
+        brandType: recruitmentBrands.brandType,
+        status: recruitmentBrands.status,
+        contactInfo: recruitmentBrands.contactInfo,
+        personInChargeName: recruitmentBrands.personInChargeName,
+      }).from(recruitmentBrands)
+        .where(whereClause)
+        .orderBy(desc(recruitmentBrands.createdAt))
+        .limit(input.pageSize)
+        .offset((input.page - 1) * input.pageSize);
+
+      return { items, total, page: input.page, pageSize: input.pageSize };
+    }),
+
   // ===== 8. メールテンプレート一覧 =====
   listTemplates: protectedProcedure.query(async () => {
     const { getDb } = await import("./db");

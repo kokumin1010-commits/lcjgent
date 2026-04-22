@@ -185,9 +185,9 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
     { enabled: !!selectedUid, refetchOnWindowFocus: false }
   );
 
-  // ===== ブランド一覧（一括送信用） =====
-  const { data: brandsData } = trpc.recruitment.list.useQuery(
-    { page: 1, pageSize: 500 },
+  // ===== ブランド一覧（一括送信用 - メールアドレス付きのみ） =====
+  const { data: brandsData } = trpc.email.getBrandsForBulkSend.useQuery(
+    { status: bulkStatusFilter === "_all" ? undefined : bulkStatusFilter, page: 1, pageSize: 500 },
     { enabled: bulkOpen, refetchOnWindowFocus: false }
   );
 
@@ -438,17 +438,11 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
 
   const totalPages = Math.ceil((currentTotal || 0) / 20);
 
-  // 一括送信: ステータスフィルタ適用後のブランドリスト
+  // 一括送信: サーバーサイドでメールアドレス付きブランドのみ取得済み
   const filteredBulkBrands = useMemo(() => {
     if (!brandsData?.items) return [];
-    let items = brandsData.items;
-    if (bulkStatusFilter !== "_all") {
-      items = items.filter((b: any) => b.status === bulkStatusFilter);
-    }
-    return items.filter((b: any) =>
-      b.contactInfo?.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/)
-    );
-  }, [brandsData, bulkStatusFilter]);
+    return brandsData.items;
+  }, [brandsData]);
 
   const isSending = sendMutation.isPending || sendRecruitmentMutation.isPending;
 
