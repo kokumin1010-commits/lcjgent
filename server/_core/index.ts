@@ -1766,23 +1766,28 @@ async function startServer() {
         console.warn("[IndexNow] Bing direct submit failed:", e);
       }
 
-      // Ping Google sitemap (triggers re-crawl)
-      let googlePingStatus = 0;
+      // Submit to Yandex directly
+      let yandexStatus = 0;
       try {
-        const sitemapUrl = encodeURIComponent(`${baseUrl}/sitemap.xml`);
-        const googleResp = await fetch(`https://www.google.com/ping?sitemap=${sitemapUrl}`);
-        googlePingStatus = googleResp.status;
-        console.log(`[IndexNow] Google sitemap ping: ${googleResp.status}`);
+        const yandexResp = await fetch("https://yandex.com/indexnow", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(indexNowPayload),
+        });
+        yandexStatus = yandexResp.status;
       } catch (e) {
-        console.warn("[IndexNow] Google ping failed:", e);
+        console.warn("[IndexNow] Yandex direct submit failed:", e);
       }
 
-      console.log(`[IndexNow] Submitted ${urls.length} URLs. IndexNow: ${indexNowResp.status}, Bing: ${bingStatus}, Google Ping: ${googlePingStatus}`);
+      // Note: Google Ping API was deprecated in 2023. Google discovers content via sitemap.xml and Googlebot crawling.
+      // For Google indexing, ensure sitemap.xml is submitted in Google Search Console.
+
+      console.log(`[IndexNow] Submitted ${urls.length} URLs. IndexNow: ${indexNowResp.status}, Bing: ${bingStatus}, Yandex: ${yandexStatus}`);
       res.json({
         success: true,
         indexNowStatus: indexNowResp.status,
         bingStatus,
-        googlePingStatus,
+        yandexStatus,
         submittedUrls: urls.length,
       });
     } catch (error) {
