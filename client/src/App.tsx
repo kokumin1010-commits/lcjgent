@@ -480,9 +480,7 @@ function Router() {
           </DashboardLayout>
         </Route>
         <Route path="/master/lcj-coin">
-          <DashboardLayout>
-            <LcjCoinDashboard />
-          </DashboardLayout>
+          <LcjCoinDashboard />
         </Route>
         
         {/* 404 */}
