@@ -4,15 +4,19 @@
  * 独立ファイルとして管理。routers.tsにはimportのみ。
  * 
  * 機能:
- * - 擬似時価総額ダッシュボード
+ * - 擬似時価総額ダッシュボード（TikTok GMVデータ連携）
  * - コイン保有・ベスティング管理
  * - ゲーミフィケーション（バッジ・ランキング・レベル・シーズン）
  * - 管理画面（設定変更・コイン付与・レポート）
+ * - 財務資料アップロード・履歴管理
+ * - 株主名簿管理
  */
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
-import { getDb } from "./db";
+import { getDb, getTiktokTapMonthlySummary } from "./db";
 import { sql, eq, and, desc, asc, count, sum } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { storagePut } from "./storage";
 import {
   lcjCoinSettings,
   lcjCoinValuationLog,
@@ -23,6 +27,8 @@ import {
   lcjCoinBadgeAwards,
   lcjCoinSeasons,
   lcjCoinRankingHistory,
+  lcjCoinDocuments,
+  lcjCoinShareholders,
   staff,
   livers,
 } from "../drizzle/schema";
@@ -65,18 +71,74 @@ function calculateLevel(xp: number, xpPerLevel: number): number {
 
 export const lcjCoinRouter = router({
   // ============================================================
-  // Dashboard: Get overview data
+  // Dashboard: Get overview data (with real GMV data)
   // ============================================================
   getDashboard: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new Error("DB not available");
 
     const settings = await getSettingsMap(db);
-    const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
-    const psrMultiplier = parseFloat(settings.psr_multiplier || "5");
+    const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
     const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
     const xpPerLevel = parseInt(settings.xp_per_level || "1000");
+    const manualMonthlyRevenue = parseFloat(settings.monthly_revenue || "0");
 
+    // ---- Fetch real GMV data from TikTok TAP reports ----
+    let gmvMonthlyData: any[] = [];
+    let totalAffiliateGmv = 0;
+    let totalLcjCommission = 0;
+    let latestMonthLcjCommission = 0;
+    let latestMonthGmv = 0;
+    let avgMonthlyCommission = 0;
+    try {
+      gmvMonthlyData = await getTiktokTapMonthlySummary(0); // 0 = all brands
+      for (const m of gmvMonthlyData) {
+        totalAffiliateGmv += Number(m.totalAffiliateGmv || 0);
+        totalLcjCommission += Number(m.totalActualPartnerCommission || 0);
+      }
+      if (gmvMonthlyData.length > 0) {
+        // Latest month data
+        latestMonthGmv = Number(gmvMonthlyData[0].totalAffiliateGmv || 0);
+        latestMonthLcjCommission = Number(gmvMonthlyData[0].totalActualPartnerCommission || 0);
+        // Average of last 3 months for stable calculation
+        const recentMonths = gmvMonthlyData.slice(0, 3);
+        const recentCommissionSum = recentMonths.reduce((s: number, m: any) => s + Number(m.totalActualPartnerCommission || 0), 0);
+        avgMonthlyCommission = recentCommissionSum / recentMonths.length;
+      }
+    } catch (e) {
+      console.error("[LCJ Coin] Failed to fetch GMV data:", e);
+    }
+
+    // ---- Fetch latest financial statement revenue ----
+    let latestFinancialRevenue = 0;
+    let latestFinancialMonthlyRevenue = 0;
+    try {
+      const [latestDoc] = await db
+        .select()
+        .from(lcjCoinDocuments)
+        .where(and(
+          eq(lcjCoinDocuments.documentType, "financial_statement"),
+          eq(lcjCoinDocuments.isActive, true),
+        ))
+        .orderBy(desc(lcjCoinDocuments.createdAt))
+        .limit(1);
+      if (latestDoc && latestDoc.extractedRevenue) {
+        latestFinancialRevenue = Number(latestDoc.extractedRevenue);
+        // Calculate monthly average from period
+        if (latestDoc.periodStart && latestDoc.periodEnd) {
+          const start = new Date(latestDoc.periodStart);
+          const end = new Date(latestDoc.periodEnd);
+          const months = Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
+          latestFinancialMonthlyRevenue = latestFinancialRevenue / months;
+        }
+      }
+    } catch (e) {
+      console.error("[LCJ Coin] Failed to fetch financial data:", e);
+    }
+
+    // ---- Calculate valuation ----
+    // Total monthly revenue = LCJ commission (from GMV) + own revenue (from financial statement)
+    const monthlyRevenue = avgMonthlyCommission + latestFinancialMonthlyRevenue + manualMonthlyRevenue;
     const { annualRevenue, valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
     const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
 
@@ -106,6 +168,14 @@ export const lcjCoinRouter = router({
       .where(eq(lcjCoinSeasons.status, "active"))
       .limit(1);
 
+    // Get shareholders
+    const shareholders = await db
+      .select()
+      .from(lcjCoinShareholders)
+      .where(eq(lcjCoinShareholders.isActive, true))
+      .orderBy(desc(lcjCoinShareholders.shares));
+    const totalShares = shareholders.reduce((s: number, sh: any) => s + sh.shares, 0);
+
     return {
       valuation: {
         monthlyRevenue,
@@ -116,6 +186,32 @@ export const lcjCoinRouter = router({
         totalCoinsPool,
         totalIssuedCoins,
         remainingCoins: totalCoinsPool - totalIssuedCoins,
+      },
+      gmv: {
+        totalAffiliateGmv,
+        totalLcjCommission,
+        latestMonthGmv,
+        latestMonthLcjCommission,
+        avgMonthlyCommission,
+        monthlyData: gmvMonthlyData.slice(0, 12).map((m: any) => ({
+          month: m.reportMonth,
+          affiliateGmv: Number(m.totalAffiliateGmv || 0),
+          liveGmv: Number(m.totalLiveGmv || 0),
+          videoGmv: Number(m.totalVideoGmv || 0),
+          lcjCommission: Number(m.totalActualPartnerCommission || 0),
+          orders: Number(m.totalOrders || 0),
+          liveViews: Number(m.totalLiveViews || 0),
+        })),
+      },
+      financial: {
+        latestRevenue: latestFinancialRevenue,
+        monthlyRevenue: latestFinancialMonthlyRevenue,
+        manualMonthlyRevenue,
+      },
+      shareholders: {
+        list: shareholders,
+        totalShares,
+        pricePerShare: totalShares > 0 ? valuation / totalShares : 0,
       },
       stats: {
         totalHolders,
@@ -140,7 +236,7 @@ export const lcjCoinRouter = router({
 
       const settings = await getSettingsMap(db);
       const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
-      const psrMultiplier = parseFloat(settings.psr_multiplier || "5");
+      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
       const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
       const xpPerLevel = parseInt(settings.xp_per_level || "1000");
 
@@ -239,7 +335,7 @@ export const lcjCoinRouter = router({
 
       const settings = await getSettingsMap(db);
       const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
-      const psrMultiplier = parseFloat(settings.psr_multiplier || "5");
+      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
       const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
       const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
       const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
@@ -338,7 +434,7 @@ export const lcjCoinRouter = router({
       if (!db) throw new Error("DB not available");
 
       const settings = await getSettingsMap(db);
-      const psrMultiplier = parseFloat(settings.psr_multiplier || "5");
+      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
       const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
 
       const { valuation } = calculateValuation(input.monthlyRevenue, psrMultiplier);
@@ -391,7 +487,7 @@ export const lcjCoinRouter = router({
       const vestingPeriodMonths = parseInt(settings.vesting_period_months || "48");
       const cliffMonths = parseInt(settings.cliff_months || "12");
       const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
-      const psrMultiplier = parseFloat(settings.psr_multiplier || "5");
+      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
       const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
       const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
       const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
@@ -465,6 +561,127 @@ export const lcjCoinRouter = router({
     }),
 
   // ============================================================
+  // Admin: Bulk grant coins to all staff + livers
+  // ============================================================
+  bulkGrantCoins: protectedProcedure
+    .input(z.object({
+      coinAmountPerPerson: z.number().min(1),
+      reason: z.string().optional(),
+      vestingType: z.enum(["backloaded", "frontloaded", "flat", "custom"]).default("backloaded"),
+      targetType: z.enum(["all", "staff_only", "liver_only"]).default("all"),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+
+      const settings = await getSettingsMap(db);
+      const defaultVestingRates = JSON.parse(settings.default_vesting_rates || '{"year1":5,"year2":15,"year3":40,"year4":40}');
+      const vestingPeriodMonths = parseInt(settings.vesting_period_months || "48");
+      const cliffMonths = parseInt(settings.cliff_months || "12");
+      const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
+      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
+      const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
+      const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
+      const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
+
+      let grantedCount = 0;
+      const targets: { holderType: "staff" | "liver"; holderId: number }[] = [];
+
+      // Get all active staff
+      if (input.targetType === "all" || input.targetType === "staff_only") {
+        const staffList = await db
+          .select({ id: staff.id })
+          .from(staff)
+          .where(eq(staff.isActive, "active"));
+        for (const s of staffList) {
+          targets.push({ holderType: "staff", holderId: s.id });
+        }
+      }
+
+      // Get all active livers
+      if (input.targetType === "all" || input.targetType === "liver_only") {
+        const liverList = await db
+          .select({ id: livers.id })
+          .from(livers)
+          .where(eq(livers.isActive, true));
+        for (const l of liverList) {
+          targets.push({ holderType: "liver", holderId: l.id });
+        }
+      }
+
+      // Grant to each target
+      for (const target of targets) {
+        try {
+          let [holding] = await db
+            .select()
+            .from(lcjCoinHoldings)
+            .where(and(
+              eq(lcjCoinHoldings.holderType, target.holderType),
+              eq(lcjCoinHoldings.holderId, target.holderId),
+            ))
+            .limit(1);
+
+          if (!holding) {
+            const [result] = await db.insert(lcjCoinHoldings).values({
+              holderType: target.holderType,
+              holderId: target.holderId,
+              totalCoins: input.coinAmountPerPerson,
+              vestedCoins: 0,
+              exercisedCoins: 0,
+              level: 1,
+              xp: 100,
+              streak: 0,
+            });
+            const holdingId = result.insertId;
+            [holding] = await db.select().from(lcjCoinHoldings).where(eq(lcjCoinHoldings.id, Number(holdingId))).limit(1);
+          } else {
+            await db.execute(
+              sql`UPDATE lcj_coin_holdings SET totalCoins = totalCoins + ${input.coinAmountPerPerson}, xp = xp + 100 WHERE id = ${holding.id}`
+            );
+            [holding] = await db.select().from(lcjCoinHoldings).where(eq(lcjCoinHoldings.id, holding.id)).limit(1);
+          }
+
+          // Create vesting schedule
+          const grantDate = new Date();
+          const nextVestDate = new Date(grantDate);
+          nextVestDate.setMonth(nextVestDate.getMonth() + cliffMonths);
+
+          await db.insert(lcjCoinVestingSchedules).values({
+            holdingId: holding.id,
+            holderType: target.holderType,
+            holderId: target.holderId,
+            grantDate,
+            totalGrantCoins: input.coinAmountPerPerson,
+            vestingType: input.vestingType as any,
+            vestingRates: defaultVestingRates,
+            vestingPeriodMonths,
+            cliffMonths,
+            vestedSoFar: 0,
+            nextVestDate,
+            status: "active",
+          });
+
+          // Record transaction
+          await db.insert(lcjCoinTransactions).values({
+            holdingId: holding.id,
+            holderType: target.holderType,
+            holderId: target.holderId,
+            transactionType: "grant",
+            coinAmount: input.coinAmountPerPerson,
+            coinPriceAtTime: String(coinPrice),
+            reason: input.reason || "Bulk grant",
+          });
+
+          grantedCount++;
+        } catch (e) {
+          console.error(`[LCJ Coin] Failed to grant to ${target.holderType}:${target.holderId}`, e);
+        }
+      }
+
+      return { success: true, grantedCount, totalTargets: targets.length };
+    }),
+
+  // ============================================================
   // Admin: Get all holders with details
   // ============================================================
   getAllHolders: protectedProcedure
@@ -482,7 +699,7 @@ export const lcjCoinRouter = router({
 
       const settings = await getSettingsMap(db);
       const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
-      const psrMultiplier = parseFloat(settings.psr_multiplier || "5");
+      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
       const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
       const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
       const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
@@ -703,4 +920,186 @@ export const lcjCoinRouter = router({
       livers: liverList.map(l => ({ ...l, holderType: "liver" as const, department: "ライバー" })),
     };
   }),
+
+  // ============================================================
+  // Financial Documents: Upload
+  // ============================================================
+  uploadDocument: protectedProcedure
+    .input(z.object({
+      documentType: z.enum(["financial_statement", "shareholder_registry", "other"]),
+      title: z.string(),
+      fileName: z.string(),
+      base64: z.string(),
+      mimeType: z.string(),
+      periodStart: z.string().optional(),
+      periodEnd: z.string().optional(),
+      extractedRevenue: z.number().optional(),
+      extractedNetIncome: z.number().optional(),
+      extractedTotalAssets: z.number().optional(),
+      extractedNetAssets: z.number().optional(),
+      notes: z.string().optional(),
+      // For shareholder registry
+      shareholders: z.array(z.object({
+        shareholderNo: z.number().optional(),
+        name: z.string(),
+        shares: z.number(),
+        ratio: z.string().optional(),
+        shareType: z.string().optional(),
+        acquisitionDate: z.string().optional(),
+        address: z.string().optional(),
+      })).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+
+      // Upload file to S3
+      const buffer = Buffer.from(input.base64, "base64");
+      const ext = input.fileName.split(".").pop() || "pdf";
+      const fileKey = `lcj-coin-docs/${nanoid()}.${ext}`;
+      const { url } = await storagePut(fileKey, buffer, input.mimeType);
+
+      // Insert document record
+      const [result] = await db.insert(lcjCoinDocuments).values({
+        documentType: input.documentType,
+        title: input.title,
+        fileName: input.fileName,
+        fileUrl: url,
+        fileKey,
+        fileSize: buffer.length,
+        mimeType: input.mimeType,
+        periodStart: input.periodStart,
+        periodEnd: input.periodEnd,
+        extractedRevenue: input.extractedRevenue,
+        extractedNetIncome: input.extractedNetIncome,
+        extractedTotalAssets: input.extractedTotalAssets,
+        extractedNetAssets: input.extractedNetAssets,
+        notes: input.notes,
+      });
+
+      const documentId = Number(result.insertId);
+
+      // If shareholder registry, insert shareholders
+      if (input.documentType === "shareholder_registry" && input.shareholders) {
+        // Deactivate old shareholders
+        await db.execute(sql`UPDATE lcj_coin_shareholders SET isActive = 0`);
+        
+        for (const sh of input.shareholders) {
+          await db.insert(lcjCoinShareholders).values({
+            documentId,
+            shareholderNo: sh.shareholderNo,
+            name: sh.name,
+            shares: sh.shares,
+            ratio: sh.ratio,
+            shareType: sh.shareType || "普通株式",
+            acquisitionDate: sh.acquisitionDate,
+            address: sh.address,
+          });
+        }
+      }
+
+      return { success: true, documentId, fileUrl: url };
+    }),
+
+  // ============================================================
+  // Financial Documents: Get list
+  // ============================================================
+  getDocuments: protectedProcedure
+    .input(z.object({
+      documentType: z.string().optional(),
+      limit: z.number().default(20),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+
+      const conditions = [eq(lcjCoinDocuments.isActive, true)];
+      if (input?.documentType) {
+        conditions.push(eq(lcjCoinDocuments.documentType, input.documentType));
+      }
+
+      return db
+        .select()
+        .from(lcjCoinDocuments)
+        .where(and(...conditions))
+        .orderBy(desc(lcjCoinDocuments.createdAt))
+        .limit(input?.limit || 20);
+    }),
+
+  // ============================================================
+  // Financial Documents: Delete
+  // ============================================================
+  deleteDocument: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      await db.update(lcjCoinDocuments).set({ isActive: false }).where(eq(lcjCoinDocuments.id, input.id));
+      return { success: true };
+    }),
+
+  // ============================================================
+  // Shareholders: Get list
+  // ============================================================
+  getShareholders: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new Error("DB not available");
+    return db
+      .select()
+      .from(lcjCoinShareholders)
+      .where(eq(lcjCoinShareholders.isActive, true))
+      .orderBy(desc(lcjCoinShareholders.shares));
+  }),
+
+  // ============================================================
+  // Shareholders: Upsert
+  // ============================================================
+  upsertShareholder: protectedProcedure
+    .input(z.object({
+      id: z.number().optional(),
+      name: z.string(),
+      shares: z.number(),
+      ratio: z.string().optional(),
+      shareType: z.string().optional(),
+      acquisitionDate: z.string().optional(),
+      address: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+
+      if (input.id) {
+        await db.update(lcjCoinShareholders).set({
+          name: input.name,
+          shares: input.shares,
+          ratio: input.ratio,
+          shareType: input.shareType,
+          acquisitionDate: input.acquisitionDate,
+          address: input.address,
+        }).where(eq(lcjCoinShareholders.id, input.id));
+        return { success: true, id: input.id };
+      } else {
+        const [result] = await db.insert(lcjCoinShareholders).values({
+          name: input.name,
+          shares: input.shares,
+          ratio: input.ratio,
+          shareType: input.shareType || "普通株式",
+          acquisitionDate: input.acquisitionDate,
+          address: input.address,
+        });
+        return { success: true, id: result.insertId };
+      }
+    }),
+
+  // ============================================================
+  // Shareholders: Delete
+  // ============================================================
+  deleteShareholder: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      await db.update(lcjCoinShareholders).set({ isActive: false }).where(eq(lcjCoinShareholders.id, input.id));
+      return { success: true };
+    }),
 });

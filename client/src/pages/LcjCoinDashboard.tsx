@@ -4,8 +4,10 @@
  * ダークテーマ＋ネオングロー＋IRデータ連携
  * ブランド詳細ページ風の脳汁バグバグなUI
  * フルスクリーン表示（サイドバーなし）
+ * 
+ * v2: リアルGMVデータ連携、財務資料アップロード、株主名簿管理
  */
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +22,8 @@ import {
   ArrowUpRight, ArrowDownRight, Crown, Flame, Target, Sparkles,
   Settings, Plus, BarChart3, Medal, Shield, Gem, ChevronRight,
   Clock, Calendar, Rocket, Heart, ArrowLeft, ChevronDown,
-  Building2, Percent, DollarSign, Landmark
+  Building2, Percent, DollarSign, Landmark, Upload, FileText,
+  PieChart, Eye, Trash2, Download, ExternalLink, Activity
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -66,6 +69,7 @@ function NeonCard({ children, color = "red", className = "" }: { children: React
     orange: "shadow-[0_0_30px_rgba(249,115,22,0.3),inset_0_1px_0_rgba(249,115,22,0.1)] border-orange-500/30",
     blue: "shadow-[0_0_30px_rgba(59,130,246,0.3),inset_0_1px_0_rgba(59,130,246,0.1)] border-blue-500/30",
     cyan: "shadow-[0_0_30px_rgba(6,182,212,0.3),inset_0_1px_0_rgba(6,182,212,0.1)] border-cyan-500/30",
+    pink: "shadow-[0_0_30px_rgba(236,72,153,0.3),inset_0_1px_0_rgba(236,72,153,0.1)] border-pink-500/30",
   };
   return (
     <div className={`relative rounded-2xl border bg-[#0a0a0f]/80 backdrop-blur-sm p-6 ${glowColors[color] || glowColors.red} ${className}`}>
@@ -75,28 +79,7 @@ function NeonCard({ children, color = "red", className = "" }: { children: React
 }
 
 // ============================================================
-// IR Data (from livecommercejapan.jp/ir)
-// ============================================================
-const IR_DATA = {
-  valuation: "5億円",
-  valuationNum: 500000000,
-  revenue: "3,777万円",
-  revenueNum: 37766472,
-  gmvTarget: "10億円+",
-  grossMargin: "100%",
-  equityRatio: "99.3%",
-  netAssets: 76475999,
-  currentCash: 75980479,
-  operatingProfit: 949050,
-  ordinaryProfit: 1786799,
-  teamSize: 20,
-  liverCount: "294+",
-  ipoTarget: "2029年",
-  ipoValuation: "1,000億円",
-};
-
-// ============================================================
-// Sparkline Mini Chart (Neon)
+// Neon Sparkline Mini Chart
 // ============================================================
 function NeonSparkline({ data, color = "#ef4444", height = 60, width = 200 }: { data: number[]; color?: string; height?: number; width?: number }) {
   if (!data.length) return null;
@@ -134,7 +117,20 @@ function NeonSparkline({ data, color = "#ef4444", height = 60, width = 200 }: { 
 }
 
 // ============================================================
-// Leaderboard Row (Dark Theme)
+// Format helpers
+// ============================================================
+function formatYen(n: number): string {
+  if (n >= 100000000) return `${(n / 100000000).toFixed(2)}億円`;
+  if (n >= 10000) return `${Math.round(n / 10000).toLocaleString()}万円`;
+  return `¥${n.toLocaleString()}`;
+}
+
+function formatYenFull(n: number): string {
+  return `¥${Math.round(n).toLocaleString()}`;
+}
+
+// ============================================================
+// Leaderboard Row
 // ============================================================
 function LeaderboardRow({ entry, index, coinPrice }: { entry: any; index: number; coinPrice: number }) {
   const rankIcons: Record<number, JSX.Element> = {
@@ -164,7 +160,7 @@ function LeaderboardRow({ entry, index, coinPrice }: { entry: any; index: number
         </div>
       </div>
       <div className="text-right">
-        <div className="font-bold text-white font-mono">¥{totalValue.toLocaleString()}</div>
+        <div className="font-bold text-white font-mono">{formatYenFull(totalValue)}</div>
         <div className="text-xs text-white/40 font-mono">{Number(entry.totalCoins || 0).toLocaleString()} coins</div>
       </div>
     </div>
@@ -172,7 +168,7 @@ function LeaderboardRow({ entry, index, coinPrice }: { entry: any; index: number
 }
 
 // ============================================================
-// Badge Card (Dark Neon)
+// Badge Card
 // ============================================================
 const rarityNeonConfig: Record<string, { glow: string; text: string; border: string; bg: string }> = {
   common: { glow: "", text: "text-zinc-400", border: "border-zinc-700", bg: "bg-zinc-900/50" },
@@ -200,6 +196,105 @@ function BadgeCard({ badge, earned = false }: { badge: any; earned?: boolean }) 
 }
 
 // ============================================================
+// Shareholder Pie Chart (SVG)
+// ============================================================
+function ShareholderPieChart({ shareholders, totalShares }: { shareholders: any[]; totalShares: number }) {
+  if (!shareholders?.length || !totalShares) return null;
+  const colors = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#8b5cf6", "#ec4899", "#06b6d4"];
+  let cumulativeAngle = 0;
+
+  const slices = shareholders.map((sh, i) => {
+    const ratio = sh.shares / totalShares;
+    const startAngle = cumulativeAngle;
+    const endAngle = cumulativeAngle + ratio * 360;
+    cumulativeAngle = endAngle;
+
+    const startRad = (startAngle - 90) * Math.PI / 180;
+    const endRad = (endAngle - 90) * Math.PI / 180;
+    const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+
+    const x1 = 100 + 80 * Math.cos(startRad);
+    const y1 = 100 + 80 * Math.sin(startRad);
+    const x2 = 100 + 80 * Math.cos(endRad);
+    const y2 = 100 + 80 * Math.sin(endRad);
+
+    const d = `M 100 100 L ${x1} ${y1} A 80 80 0 ${largeArc} 1 ${x2} ${y2} Z`;
+
+    return { d, color: colors[i % colors.length], name: sh.name, ratio, shares: sh.shares };
+  });
+
+  return (
+    <div className="flex items-center gap-6">
+      <svg width="200" height="200" viewBox="0 0 200 200" className="shrink-0">
+        {slices.map((s, i) => (
+          <path key={i} d={s.d} fill={s.color} stroke="#0a0a0f" strokeWidth="2" opacity="0.85"
+            className="transition-opacity hover:opacity-100 cursor-default" />
+        ))}
+        <circle cx="100" cy="100" r="40" fill="#0a0a0f" />
+        <text x="100" y="95" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold">発行済</text>
+        <text x="100" y="112" textAnchor="middle" fill="#f97316" fontSize="12" fontWeight="bold" fontFamily="monospace">
+          {totalShares.toLocaleString()}株
+        </text>
+      </svg>
+      <div className="space-y-2 flex-1 min-w-0">
+        {slices.map((s, i) => (
+          <div key={i} className="flex items-center gap-3 text-sm">
+            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+            <span className="text-white truncate flex-1">{s.name}</span>
+            <span className="text-white/40 font-mono shrink-0">{s.shares.toLocaleString()}株</span>
+            <span className="text-orange-400 font-mono font-bold shrink-0">{(s.ratio * 100).toFixed(1)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// GMV Monthly Bar Chart (SVG)
+// ============================================================
+function GmvBarChart({ data }: { data: any[] }) {
+  if (!data?.length) return null;
+  const reversed = [...data].reverse();
+  const maxGmv = Math.max(...reversed.map(d => d.affiliateGmv));
+  const barWidth = Math.max(20, Math.min(60, 600 / reversed.length - 8));
+  const chartWidth = reversed.length * (barWidth + 8);
+  const chartHeight = 180;
+
+  return (
+    <div className="overflow-x-auto">
+      <svg width={Math.max(chartWidth, 400)} height={chartHeight + 40} className="overflow-visible">
+        {reversed.map((d, i) => {
+          const barH = maxGmv > 0 ? (d.affiliateGmv / maxGmv) * chartHeight : 0;
+          const commH = maxGmv > 0 ? (d.lcjCommission / maxGmv) * chartHeight : 0;
+          const x = i * (barWidth + 8) + 4;
+          return (
+            <g key={i}>
+              {/* GMV bar */}
+              <rect x={x} y={chartHeight - barH} width={barWidth} height={barH}
+                fill="#3b82f6" opacity="0.3" rx="4" />
+              {/* Commission bar */}
+              <rect x={x} y={chartHeight - commH} width={barWidth} height={commH}
+                fill="#f97316" opacity="0.8" rx="4" />
+              {/* Month label */}
+              <text x={x + barWidth / 2} y={chartHeight + 16} textAnchor="middle"
+                fill="rgba(255,255,255,0.3)" fontSize="9" fontFamily="monospace">
+                {d.month?.slice(5)}
+              </text>
+            </g>
+          );
+        })}
+        {/* Legend */}
+        <rect x="0" y={chartHeight + 28} width="10" height="10" fill="#3b82f6" opacity="0.3" rx="2" />
+        <text x="14" y={chartHeight + 37} fill="rgba(255,255,255,0.4)" fontSize="9">流通GMV</text>
+        <rect x="70" y={chartHeight + 28} width="10" height="10" fill="#f97316" opacity="0.8" rx="2" />
+        <text x="84" y={chartHeight + 37} fill="rgba(255,255,255,0.4)" fontSize="9">LCJ手数料</text>
+      </svg>
+    </div>
+  );
+}
+
+// ============================================================
 // Main Dashboard Component
 // ============================================================
 export default function LcjCoinDashboard() {
@@ -220,6 +315,22 @@ export default function LcjCoinDashboard() {
   });
   const [syncAllDialog, setSyncAllDialog] = useState(false);
   const [syncCoinAmount, setSyncCoinAmount] = useState(1000);
+  const [uploadDialog, setUploadDialog] = useState(false);
+  const [uploadForm, setUploadForm] = useState({
+    documentType: "financial_statement" as "financial_statement" | "shareholder_registry" | "other",
+    title: "",
+    periodStart: "",
+    periodEnd: "",
+    extractedRevenue: 0,
+    extractedNetIncome: 0,
+    extractedTotalAssets: 0,
+    extractedNetAssets: 0,
+    notes: "",
+    // Shareholder fields
+    shareholders: [] as { name: string; shares: number; ratio: string; shareType: string; acquisitionDate: string; address: string }[],
+  });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Data queries
   const dashboardQuery = trpc.lcjCoin.getDashboard.useQuery();
@@ -229,144 +340,192 @@ export default function LcjCoinDashboard() {
   const settingsQuery = trpc.lcjCoin.getSettings.useQuery();
   const seasonsQuery = trpc.lcjCoin.getSeasons.useQuery();
   const targetsQuery = trpc.lcjCoin.getGrantTargets.useQuery();
-
-  const dashboard = dashboardQuery.data;
-  const leaderboard = leaderboardQuery.data;
+  const documentsQuery = trpc.lcjCoin.getDocuments.useQuery();
+  const shareholdersQuery = trpc.lcjCoin.getShareholders.useQuery();
 
   // Mutations
   const grantMutation = trpc.lcjCoin.grantCoins.useMutation({
     onSuccess: () => {
-      toast.success("コインを付与しました！", { description: "ランキングが更新されます" });
+      toast.success("コインを付与しました");
       setGrantDialog(false);
       dashboardQuery.refetch();
-      leaderboardQuery.refetch();
       holdersQuery.refetch();
+      leaderboardQuery.refetch();
     },
-    onError: (err) => toast.error("エラー", { description: err.message }),
+    onError: (e) => toast.error(`エラー: ${e.message}`),
+  });
+
+  const bulkGrantMutation = trpc.lcjCoin.bulkGrantCoins.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.grantedCount}名にコインを付与しました`);
+      setSyncAllDialog(false);
+      dashboardQuery.refetch();
+      holdersQuery.refetch();
+      leaderboardQuery.refetch();
+    },
+    onError: (e) => toast.error(`エラー: ${e.message}`),
   });
 
   const recordValuationMutation = trpc.lcjCoin.recordValuation.useMutation({
     onSuccess: () => {
-      toast.success("時価総額を記録しました！");
+      toast.success("時価総額を記録しました");
       setValuationDialog(false);
       dashboardQuery.refetch();
     },
-    onError: (err) => toast.error("エラー", { description: err.message }),
+    onError: (e) => toast.error(`エラー: ${e.message}`),
   });
 
   const updateSettingMutation = trpc.lcjCoin.updateSetting.useMutation({
     onSuccess: () => {
       toast.success("設定を更新しました");
-      settingsQuery.refetch();
       dashboardQuery.refetch();
+      settingsQuery.refetch();
     },
-    onError: (err) => toast.error("エラー", { description: err.message }),
+    onError: (e) => toast.error(`エラー: ${e.message}`),
   });
 
-  // Sparkline data from valuation history
-  const sparklineData = useMemo(() => {
-    if (!dashboard?.valuationHistory?.length) return [0, 0, 0, 0, 0];
-    return [...dashboard.valuationHistory].reverse().map((v: any) => Number(v.valuationAmount));
-  }, [dashboard?.valuationHistory]);
+  const uploadDocMutation = trpc.lcjCoin.uploadDocument.useMutation({
+    onSuccess: () => {
+      toast.success("ドキュメントをアップロードしました");
+      setUploadDialog(false);
+      setSelectedFile(null);
+      documentsQuery.refetch();
+      shareholdersQuery.refetch();
+      dashboardQuery.refetch();
+    },
+    onError: (e) => toast.error(`エラー: ${e.message}`),
+  });
 
+  const deleteDocMutation = trpc.lcjCoin.deleteDocument.useMutation({
+    onSuccess: () => {
+      toast.success("ドキュメントを削除しました");
+      documentsQuery.refetch();
+    },
+  });
+
+  // Derived data
+  const dashboard = dashboardQuery.data;
+  const leaderboard = leaderboardQuery.data;
   const coinPrice = dashboard?.valuation?.coinPrice || 0;
+  const totalStaffAndLivers = (targetsQuery.data?.staff?.length || 0) + (targetsQuery.data?.livers?.length || 0);
 
-  // Sync all staff handler
-  const handleSyncAllStaff = useCallback(async () => {
-    if (!targetsQuery.data) return;
-    const allTargets = [
-      ...targetsQuery.data.staff.map(s => ({ holderType: "staff" as const, holderId: s.id, name: s.name })),
-      ...targetsQuery.data.livers.map(l => ({ holderType: "liver" as const, holderId: l.id, name: l.name })),
-    ];
-    
-    let success = 0;
-    let failed = 0;
-    for (const target of allTargets) {
-      try {
-        await grantMutation.mutateAsync({
-          holderType: target.holderType,
-          holderId: target.holderId,
-          coinAmount: syncCoinAmount,
-          reason: "全員一括付与",
-          vestingType: "backloaded",
-        });
-        success++;
-      } catch {
-        failed++;
-      }
-    }
-    toast.success(`${success}名にコインを付与しました${failed > 0 ? `（${failed}名失敗）` : ""}`);
-    setSyncAllDialog(false);
-    dashboardQuery.refetch();
-    leaderboardQuery.refetch();
-    holdersQuery.refetch();
-  }, [targetsQuery.data, syncCoinAmount]);
+  const gmvChartData = useMemo(() => {
+    return dashboard?.gmv?.monthlyData?.map((m: any) => m.lcjCommission) || [];
+  }, [dashboard]);
 
+  const gmvSparklineData = useMemo(() => {
+    return [...(dashboard?.gmv?.monthlyData?.map((m: any) => m.affiliateGmv) || [])].reverse();
+  }, [dashboard]);
+
+  // Handlers
+  const handleSyncAllStaff = useCallback(() => {
+    bulkGrantMutation.mutate({
+      coinAmountPerPerson: syncCoinAmount,
+      reason: "全員一括付与",
+      vestingType: "backloaded",
+      targetType: "all",
+    });
+  }, [syncCoinAmount, bulkGrantMutation]);
+
+  const handleFileUpload = useCallback(async () => {
+    if (!selectedFile) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = (reader.result as string).split(",")[1];
+      uploadDocMutation.mutate({
+        documentType: uploadForm.documentType,
+        title: uploadForm.title || selectedFile.name,
+        fileName: selectedFile.name,
+        base64,
+        mimeType: selectedFile.type,
+        periodStart: uploadForm.periodStart || undefined,
+        periodEnd: uploadForm.periodEnd || undefined,
+        extractedRevenue: uploadForm.extractedRevenue || undefined,
+        extractedNetIncome: uploadForm.extractedNetIncome || undefined,
+        extractedTotalAssets: uploadForm.extractedTotalAssets || undefined,
+        extractedNetAssets: uploadForm.extractedNetAssets || undefined,
+        notes: uploadForm.notes || undefined,
+        shareholders: uploadForm.documentType === "shareholder_registry" ? uploadForm.shareholders : undefined,
+      });
+    };
+    reader.readAsDataURL(selectedFile);
+  }, [selectedFile, uploadForm, uploadDocMutation]);
+
+  // Tab config
   const tabs = [
     { id: "overview", label: "概要", icon: BarChart3 },
+    { id: "gmv", label: "GMV・収益", icon: Activity },
     { id: "leaderboard", label: "ランキング", icon: Trophy },
+    { id: "shareholders", label: "株主構成", icon: PieChart },
+    { id: "documents", label: "財務資料", icon: FileText },
     { id: "badges", label: "バッジ", icon: Award },
     { id: "holders", label: "保有者", icon: Users },
     { id: "settings", label: "設定", icon: Settings },
   ];
 
-  const totalStaffAndLivers = (targetsQuery.data?.staff?.length || 0) + (targetsQuery.data?.livers?.length || 0);
-
   return (
-    <div className="min-h-screen bg-[#050508] text-white">
-      {/* Animated background effects */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-red-500/5 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/5 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: "1s" }} />
-        <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-orange-500/3 rounded-full blur-[150px] animate-pulse" style={{ animationDelay: "2s" }} />
+    <div className="min-h-screen bg-[#050508] text-white relative overflow-hidden">
+      {/* Background effects */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-orange-500/[0.03] rounded-full blur-[150px]" />
+        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-red-500/[0.03] rounded-full blur-[150px]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-purple-500/[0.02] rounded-full blur-[200px]" />
       </div>
 
       {/* Header */}
-      <header className="relative z-10 border-b border-white/5 bg-[#050508]/80 backdrop-blur-xl sticky top-0">
-        <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-50 bg-[#050508]/80 backdrop-blur-xl border-b border-white/5">
+        <div className="max-w-[1600px] mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/master">
-              <button className="flex items-center gap-2 text-white/50 hover:text-white transition-colors text-sm">
+              <button className="flex items-center gap-1 text-white/40 hover:text-white transition-colors text-sm">
                 <ArrowLeft className="w-4 h-4" />
                 戻る
               </button>
             </Link>
-            <div className="h-6 w-px bg-white/10" />
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
                 <Coins className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-bold tracking-tight">LCJコイン</h1>
+                <h1 className="text-lg font-bold">LCJコイン</h1>
                 <p className="text-xs text-white/40">ファントムストック報酬システム</p>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              className="border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+              className="border-white/10 text-white/60 hover:bg-white/5 hover:text-white"
+              onClick={() => setUploadDialog(true)}
+            >
+              <Upload className="w-4 h-4 mr-1" />
+              資料アップロード
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-green-500/30 text-green-400 hover:bg-green-500/10"
               onClick={() => setSyncAllDialog(true)}
             >
-              <Users className="w-4 h-4 mr-2" />
+              <Users className="w-4 h-4 mr-1" />
               全員にコイン付与
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+              className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
               onClick={() => setValuationDialog(true)}
             >
-              <BarChart3 className="w-4 h-4 mr-2" />
+              <BarChart3 className="w-4 h-4 mr-1" />
               時価総額記録
             </Button>
             <Button
               size="sm"
-              className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white shadow-lg shadow-orange-500/20"
+              className="bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg shadow-orange-500/20"
               onClick={() => setGrantDialog(true)}
             >
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="w-4 h-4 mr-1" />
               コイン付与
             </Button>
           </div>
@@ -374,128 +533,85 @@ export default function LcjCoinDashboard() {
       </header>
 
       <main className="relative z-10 max-w-[1600px] mx-auto px-6 py-8 space-y-8">
+
         {/* ============================================================ */}
-        {/* HERO: LCJ時価総額 (IR連携) */}
+        {/* Hero: Valuation Display */}
         {/* ============================================================ */}
         <NeonCard color="red" className="text-center py-12">
-          <div className="text-sm text-white/50 mb-2 flex items-center justify-center gap-2">
+          <div className="text-sm text-white/40 mb-2 flex items-center justify-center gap-2">
             <Flame className="w-4 h-4 text-orange-400" />
             LCJ 擬似時価総額
           </div>
-          <div className="text-6xl md:text-8xl font-black font-mono tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-orange-400 to-red-500 drop-shadow-[0_0_40px_rgba(255,50,50,0.4)]">
+          <div className="text-6xl md:text-8xl font-black font-mono tracking-tight"
+            style={{
+              background: "linear-gradient(135deg, #ff6b35, #ff4444, #ff6b35)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              filter: "drop-shadow(0 0 40px rgba(255,68,68,0.4))",
+            }}>
             <AnimatedCounter value={dashboard?.valuation?.valuationAmount || 0} prefix="¥" />
           </div>
-          <div className="mt-4 flex items-center justify-center gap-2 text-sm">
-            <span className="text-white/40">1コイン =</span>
-            <span className="text-orange-400 font-bold font-mono text-lg">
-              ¥{(dashboard?.valuation?.coinPrice || 0).toFixed(2)}
+          <div className="mt-4 text-lg text-white/50">
+            1コイン = <span className="text-purple-400 font-bold font-mono" style={{ textShadow: "0 0 20px rgba(168,85,247,0.5)" }}>
+              <AnimatedCounter value={coinPrice} prefix="¥" decimals={2} />
             </span>
           </div>
-          <div className="mt-6 flex justify-center">
-            <NeonSparkline data={sparklineData} color="#ef4444" height={60} width={300} />
+          <div className="mt-6 flex items-center justify-center gap-8 text-sm text-white/30">
+            <span>計算式: (LCJ手数料 + 自社売上) × 12ヶ月 × PSR {dashboard?.valuation?.psrMultiplier || 15}倍</span>
           </div>
-          <div className="mt-4 text-xs text-white/30">
-            計算式: 月間売上 ¥{(dashboard?.valuation?.monthlyRevenue || 0).toLocaleString()} × 12ヶ月 × PSR {dashboard?.valuation?.psrMultiplier || 5}倍
-          </div>
-        </NeonCard>
-
-        {/* ============================================================ */}
-        {/* IR KPIs from livecommercejapan.jp/ir */}
-        {/* ============================================================ */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {[
-            { icon: Target, label: "バリュエーション", value: IR_DATA.valuation, color: "text-orange-400" },
-            { icon: BarChart3, label: "売上高（累計）", value: IR_DATA.revenue, color: "text-green-400" },
-            { icon: DollarSign, label: "流通GMV目標", value: IR_DATA.gmvTarget, color: "text-cyan-400" },
-            { icon: Percent, label: "粗利率", value: IR_DATA.grossMargin, color: "text-yellow-400" },
-            { icon: Shield, label: "自己資本比率", value: IR_DATA.equityRatio, color: "text-purple-400" },
-          ].map((kpi, i) => (
-            <div key={i} className="rounded-xl border border-white/5 bg-white/[0.02] p-4 hover:bg-white/[0.04] transition-colors">
-              <div className="flex items-center gap-2 mb-2">
-                <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
-                <span className="text-xs text-white/40">{kpi.label}</span>
-              </div>
-              <div className={`text-xl font-bold font-mono ${kpi.color}`}>{kpi.value}</div>
+          {/* Sparkline */}
+          {gmvSparklineData.length > 1 && (
+            <div className="mt-6 flex justify-center">
+              <NeonSparkline data={gmvSparklineData} color="#ff4444" height={60} width={400} />
             </div>
-          ))}
-        </div>
+          )}
+        </NeonCard>
 
         {/* ============================================================ */}
         {/* Stats Row */}
         {/* ============================================================ */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <NeonCard color="green" className="!p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm text-white/50">発行済みコイン</span>
-              <Coins className="w-4 h-4 text-green-400" />
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <NeonCard color="orange" className="!p-4">
+            <div className="text-xs text-white/40 mb-1">流通GMV（累計）</div>
+            <div className="text-xl font-bold font-mono text-orange-400">
+              {formatYen(dashboard?.gmv?.totalAffiliateGmv || 0)}
             </div>
-            <div className="text-2xl font-bold font-mono text-green-400">
-              <AnimatedCounter value={dashboard?.valuation?.totalIssuedCoins || 0} />
-            </div>
-            <div className="mt-2 h-1.5 bg-white/5 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full transition-all duration-1000"
-                style={{ width: `${((dashboard?.valuation?.totalIssuedCoins || 0) / (dashboard?.valuation?.totalCoinsPool || 1)) * 100}%` }}
-              />
-            </div>
-            <div className="text-xs text-white/30 mt-1 font-mono">
-              / {(dashboard?.valuation?.totalCoinsPool || 10000000).toLocaleString()}
+            <div className="text-[10px] text-white/20 mt-1">参考指標</div>
+          </NeonCard>
+          <NeonCard color="green" className="!p-4">
+            <div className="text-xs text-white/40 mb-1">LCJ手数料（累計）</div>
+            <div className="text-xl font-bold font-mono text-green-400">
+              {formatYen(dashboard?.gmv?.totalLcjCommission || 0)}
             </div>
           </NeonCard>
-
-          <NeonCard color="purple" className="!p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm text-white/50">コイン保有者</span>
-              <Users className="w-4 h-4 text-purple-400" />
-            </div>
-            <div className="text-2xl font-bold font-mono text-purple-400">
-              <AnimatedCounter value={dashboard?.stats?.totalHolders || 0} suffix="人" />
-            </div>
-            <div className="text-xs text-white/30 mt-2">
-              対象: {totalStaffAndLivers}名（スタッフ {targetsQuery.data?.staff?.length || 0} + ライバー {targetsQuery.data?.livers?.length || 0}）
+          <NeonCard color="purple" className="!p-4">
+            <div className="text-xs text-white/40 mb-1">自社売上（月間）</div>
+            <div className="text-xl font-bold font-mono text-purple-400">
+              {formatYen(dashboard?.financial?.monthlyRevenue || 0)}
             </div>
           </NeonCard>
-
-          <NeonCard color="orange" className="!p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm text-white/50">組織体制</span>
-              <Building2 className="w-4 h-4 text-orange-400" />
+          <NeonCard color="blue" className="!p-4">
+            <div className="text-xs text-white/40 mb-1">発行済みコイン</div>
+            <div className="text-xl font-bold font-mono text-blue-400">
+              {(dashboard?.valuation?.totalIssuedCoins || 0).toLocaleString()}
             </div>
-            <div className="text-2xl font-bold font-mono text-orange-400">{IR_DATA.teamSize}名</div>
-            <div className="text-xs text-white/30 mt-2">日本8名 + 中国12名</div>
+            <div className="text-[10px] text-white/20 mt-1">/ {(dashboard?.valuation?.totalCoinsPool || 10000000).toLocaleString()}</div>
           </NeonCard>
-
-          <NeonCard color="cyan" className="!p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm text-white/50">ライバーネットワーク</span>
-              <Star className="w-4 h-4 text-cyan-400" />
+          <NeonCard color="cyan" className="!p-4">
+            <div className="text-xs text-white/40 mb-1">コイン保有者</div>
+            <div className="text-xl font-bold font-mono text-cyan-400">
+              {dashboard?.stats?.totalHolders || 0}人
             </div>
-            <div className="text-2xl font-bold font-mono text-cyan-400">{IR_DATA.liverCount}</div>
-            <div className="text-xs text-white/30 mt-2">目標: 1,000名規模</div>
+            <div className="text-[10px] text-white/20 mt-1">対象: {totalStaffAndLivers}名</div>
+          </NeonCard>
+          <NeonCard color="pink" className="!p-4">
+            <div className="text-xs text-white/40 mb-1">1株あたり価値</div>
+            <div className="text-xl font-bold font-mono text-pink-400">
+              {formatYenFull(dashboard?.shareholders?.pricePerShare || 0)}
+            </div>
+            <div className="text-[10px] text-white/20 mt-1">{(dashboard?.shareholders?.totalShares || 0).toLocaleString()}株</div>
           </NeonCard>
         </div>
-
-        {/* ============================================================ */}
-        {/* IPO Roadmap Banner */}
-        {/* ============================================================ */}
-        <NeonCard color="yellow" className="!py-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm text-white/50 mb-1">上場目標</div>
-              <div className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-orange-400 to-yellow-300">
-                {IR_DATA.ipoTarget} — 時価総額{IR_DATA.ipoValuation}
-              </div>
-            </div>
-            <div className="hidden md:flex items-center gap-4">
-              {["2025 ✓", "2026 ✓", "2027", "2028", "2029 🎯"].map((year, i) => (
-                <div key={i} className={`text-center ${i < 2 ? "text-green-400" : i === 4 ? "text-yellow-400" : "text-white/30"}`}>
-                  <div className={`w-3 h-3 rounded-full mx-auto mb-1 ${i < 2 ? "bg-green-400 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : i === 4 ? "bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]" : "bg-white/10"}`} />
-                  <div className="text-xs font-mono">{year}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </NeonCard>
 
         {/* ============================================================ */}
         {/* Tabs */}
@@ -528,27 +644,38 @@ export default function LcjCoinDashboard() {
                 <BarChart3 className="w-5 h-5 text-blue-400" />
                 評価算出ロジック
               </h3>
-              <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
                 <div className="p-5 rounded-xl bg-white/[0.03] border border-white/5">
-                  <div className="text-xs text-white/40 mb-2">月間売上</div>
-                  <div className="text-2xl font-bold font-mono text-blue-400">
-                    ¥{(dashboard?.valuation?.monthlyRevenue || 0).toLocaleString()}
+                  <div className="text-xs text-white/40 mb-2">LCJ手数料（月間平均）</div>
+                  <div className="text-xl font-bold font-mono text-green-400">
+                    {formatYenFull(dashboard?.gmv?.avgMonthlyCommission || 0)}
                   </div>
                 </div>
                 <div className="p-5 rounded-xl bg-white/[0.03] border border-white/5 relative">
-                  <div className="absolute -left-4 top-1/2 -translate-y-1/2 text-white/20 font-bold text-xl">×</div>
-                  <div className="text-xs text-white/40 mb-2">12ヶ月 × PSR倍率</div>
-                  <div className="text-2xl font-bold font-mono text-blue-400">
-                    12 × {dashboard?.valuation?.psrMultiplier || 5}
+                  <div className="absolute -left-3 top-1/2 -translate-y-1/2 text-white/20 font-bold text-lg">+</div>
+                  <div className="text-xs text-white/40 mb-2">自社売上（月間）</div>
+                  <div className="text-xl font-bold font-mono text-purple-400">
+                    {formatYenFull(dashboard?.financial?.monthlyRevenue || 0)}
+                  </div>
+                </div>
+                <div className="p-5 rounded-xl bg-white/[0.03] border border-white/5 relative">
+                  <div className="absolute -left-3 top-1/2 -translate-y-1/2 text-white/20 font-bold text-lg">×</div>
+                  <div className="text-xs text-white/40 mb-2">年間化 × PSR倍率</div>
+                  <div className="text-xl font-bold font-mono text-blue-400">
+                    12 × {dashboard?.valuation?.psrMultiplier || 15}
                   </div>
                 </div>
                 <div className="p-5 rounded-xl bg-orange-500/5 border border-orange-500/20 relative">
-                  <div className="absolute -left-4 top-1/2 -translate-y-1/2 text-white/20 font-bold text-xl">=</div>
+                  <div className="absolute -left-3 top-1/2 -translate-y-1/2 text-white/20 font-bold text-lg">=</div>
                   <div className="text-xs text-orange-400/60 mb-2">擬似時価総額</div>
-                  <div className="text-2xl font-bold font-mono text-orange-400">
-                    ¥{(dashboard?.valuation?.valuationAmount || 0).toLocaleString()}
+                  <div className="text-xl font-bold font-mono text-orange-400">
+                    {formatYen(dashboard?.valuation?.valuationAmount || 0)}
                   </div>
                 </div>
+              </div>
+              <div className="mt-4 p-3 rounded-lg bg-white/[0.02] text-xs text-white/30 space-y-1">
+                <p>計算式: 擬似時価総額 = (LCJ手数料月間平均 + 自社売上月間) × 12 × PSR倍率({dashboard?.valuation?.psrMultiplier || 15}倍)</p>
+                <p>1コイン価格: 擬似時価総額 ÷ 総発行コイン数 = {formatYenFull(coinPrice)}</p>
               </div>
             </NeonCard>
 
@@ -575,18 +702,17 @@ export default function LcjCoinDashboard() {
                 )}
               </NeonCard>
 
-              {/* Valuation History */}
               <NeonCard color="blue">
                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-blue-400" />
                   時価総額推移
                 </h3>
                 {dashboard?.valuationHistory?.length ? (
-                  <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
                     {dashboard.valuationHistory.map((v: any) => (
                       <div key={v.id} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
                         <span className="text-sm font-mono text-white/60">{v.yearMonth}</span>
-                        <span className="font-bold font-mono text-blue-400">¥{Number(v.valuationAmount).toLocaleString()}</span>
+                        <span className="font-bold font-mono text-blue-400">{formatYen(Number(v.valuationAmount))}</span>
                       </div>
                     ))}
                   </div>
@@ -598,6 +724,109 @@ export default function LcjCoinDashboard() {
                 )}
               </NeonCard>
             </div>
+
+            {/* IPO Roadmap */}
+            <NeonCard color="purple">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <Rocket className="w-5 h-5 text-purple-400" />
+                IPOロードマップ
+              </h3>
+              <div className="flex items-center gap-4 overflow-x-auto pb-2">
+                {[
+                  { year: "2025", label: "創業", value: "5億円", color: "border-green-500/30 text-green-400", active: true },
+                  { year: "2026", label: "成長期", value: "30億円", color: "border-blue-500/30 text-blue-400", active: false },
+                  { year: "2027", label: "拡大期", value: "100億円", color: "border-purple-500/30 text-purple-400", active: false },
+                  { year: "2028", label: "Pre-IPO", value: "300億円", color: "border-orange-500/30 text-orange-400", active: false },
+                  { year: "2029", label: "IPO", value: "1,000億円", color: "border-red-500/30 text-red-400", active: false },
+                ].map((step, i) => (
+                  <div key={i} className="flex items-center gap-3 shrink-0">
+                    <div className={`p-4 rounded-xl border ${step.color} bg-white/[0.02] text-center min-w-[120px] ${step.active ? "ring-2 ring-green-500/30" : ""}`}>
+                      <div className="text-xs text-white/40">{step.year}</div>
+                      <div className="font-bold text-lg font-mono">{step.value}</div>
+                      <div className="text-xs text-white/30 mt-1">{step.label}</div>
+                    </div>
+                    {i < 4 && <ChevronRight className="w-5 h-5 text-white/10 shrink-0" />}
+                  </div>
+                ))}
+              </div>
+            </NeonCard>
+          </div>
+        )}
+
+        {/* ============================================================ */}
+        {/* TAB: GMV & Revenue */}
+        {/* ============================================================ */}
+        {activeTab === "gmv" && (
+          <div className="space-y-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <NeonCard color="blue" className="!p-5">
+                <div className="text-xs text-white/40 mb-1">流通GMV（累計）</div>
+                <div className="text-3xl font-bold font-mono text-blue-400">
+                  {formatYen(dashboard?.gmv?.totalAffiliateGmv || 0)}
+                </div>
+                <div className="text-xs text-white/20 mt-2">直近月: {formatYen(dashboard?.gmv?.latestMonthGmv || 0)}</div>
+              </NeonCard>
+              <NeonCard color="green" className="!p-5">
+                <div className="text-xs text-white/40 mb-1">LCJ手数料（累計）</div>
+                <div className="text-3xl font-bold font-mono text-green-400">
+                  {formatYen(dashboard?.gmv?.totalLcjCommission || 0)}
+                </div>
+                <div className="text-xs text-white/20 mt-2">直近月: {formatYen(dashboard?.gmv?.latestMonthLcjCommission || 0)}</div>
+              </NeonCard>
+              <NeonCard color="orange" className="!p-5">
+                <div className="text-xs text-white/40 mb-1">手数料月間平均（直近3ヶ月）</div>
+                <div className="text-3xl font-bold font-mono text-orange-400">
+                  {formatYen(dashboard?.gmv?.avgMonthlyCommission || 0)}
+                </div>
+                <div className="text-xs text-white/20 mt-2">→ 時価総額計算に使用</div>
+              </NeonCard>
+            </div>
+
+            {/* GMV Chart */}
+            <NeonCard color="blue">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <Activity className="w-5 h-5 text-blue-400" />
+                月別GMV・LCJ手数料推移
+              </h3>
+              <GmvBarChart data={dashboard?.gmv?.monthlyData || []} />
+            </NeonCard>
+
+            {/* Monthly Data Table */}
+            <NeonCard color="cyan">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-cyan-400" />
+                TAP月別推移（詳細）
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 text-white/40">
+                      <th className="text-left py-3 px-3">月</th>
+                      <th className="text-right py-3 px-3">アフィリGMV</th>
+                      <th className="text-right py-3 px-3">LIVE GMV</th>
+                      <th className="text-right py-3 px-3">動画GMV</th>
+                      <th className="text-right py-3 px-3">LCJ手数料</th>
+                      <th className="text-right py-3 px-3">注文数</th>
+                      <th className="text-right py-3 px-3">LIVE視聴</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboard?.gmv?.monthlyData?.map((m: any) => (
+                      <tr key={m.month} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+                        <td className="py-3 px-3 font-mono text-white/60">{m.month}</td>
+                        <td className="py-3 px-3 text-right font-mono text-green-400">{formatYenFull(m.affiliateGmv)}</td>
+                        <td className="py-3 px-3 text-right font-mono text-white/60">{formatYenFull(m.liveGmv)}</td>
+                        <td className="py-3 px-3 text-right font-mono text-white/60">{formatYenFull(m.videoGmv)}</td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-orange-400">{formatYenFull(m.lcjCommission)}</td>
+                        <td className="py-3 px-3 text-right font-mono text-white/40">{m.orders.toLocaleString()}</td>
+                        <td className="py-3 px-3 text-right font-mono text-white/40">{m.liveViews.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </NeonCard>
           </div>
         )}
 
@@ -624,6 +853,201 @@ export default function LcjCoinDashboard() {
               </div>
             )}
           </NeonCard>
+        )}
+
+        {/* ============================================================ */}
+        {/* TAB: Shareholders */}
+        {/* ============================================================ */}
+        {activeTab === "shareholders" && (
+          <div className="space-y-6">
+            <NeonCard color="pink">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <PieChart className="w-5 h-5 text-pink-400" />
+                株主構成
+              </h3>
+              {dashboard?.shareholders?.list?.length ? (
+                <ShareholderPieChart
+                  shareholders={dashboard.shareholders.list}
+                  totalShares={dashboard.shareholders.totalShares}
+                />
+              ) : shareholdersQuery.data?.length ? (
+                <ShareholderPieChart
+                  shareholders={shareholdersQuery.data}
+                  totalShares={shareholdersQuery.data.reduce((s: number, sh: any) => s + sh.shares, 0)}
+                />
+              ) : (
+                <div className="text-center py-12 text-white/30">
+                  <PieChart className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                  <p>株主名簿がまだアップロードされていません</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4 border-pink-500/30 text-pink-400"
+                    onClick={() => {
+                      setUploadForm(f => ({ ...f, documentType: "shareholder_registry" }));
+                      setUploadDialog(true);
+                    }}
+                  >
+                    <Upload className="w-4 h-4 mr-1" />
+                    株主名簿をアップロード
+                  </Button>
+                </div>
+              )}
+            </NeonCard>
+
+            {/* Per-share value */}
+            {dashboard?.shareholders?.totalShares ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <NeonCard color="orange" className="!p-5">
+                  <div className="text-xs text-white/40 mb-1">1株あたり価値</div>
+                  <div className="text-3xl font-bold font-mono text-orange-400">
+                    {formatYenFull(dashboard.shareholders.pricePerShare)}
+                  </div>
+                </NeonCard>
+                <NeonCard color="blue" className="!p-5">
+                  <div className="text-xs text-white/40 mb-1">発行済株式数</div>
+                  <div className="text-3xl font-bold font-mono text-blue-400">
+                    {dashboard.shareholders.totalShares.toLocaleString()}株
+                  </div>
+                </NeonCard>
+                <NeonCard color="purple" className="!p-5">
+                  <div className="text-xs text-white/40 mb-1">擬似時価総額</div>
+                  <div className="text-3xl font-bold font-mono text-purple-400">
+                    {formatYen(dashboard.valuation?.valuationAmount || 0)}
+                  </div>
+                </NeonCard>
+              </div>
+            ) : null}
+
+            {/* Shareholder Table */}
+            {(dashboard?.shareholders?.list?.length || shareholdersQuery.data?.length) ? (
+              <NeonCard color="cyan">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-cyan-400" />
+                  株主一覧
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-white/10 text-white/40">
+                        <th className="text-left py-3 px-3">株主名</th>
+                        <th className="text-left py-3 px-3">株式種類</th>
+                        <th className="text-right py-3 px-3">株数</th>
+                        <th className="text-right py-3 px-3">持株比率</th>
+                        <th className="text-right py-3 px-3">評価額</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(dashboard?.shareholders?.list || shareholdersQuery.data || []).map((sh: any) => (
+                        <tr key={sh.id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+                          <td className="py-3 px-3 font-medium text-white">{sh.name}</td>
+                          <td className="py-3 px-3 text-white/40">{sh.shareType || "普通株式"}</td>
+                          <td className="py-3 px-3 text-right font-mono text-white">{sh.shares.toLocaleString()}</td>
+                          <td className="py-3 px-3 text-right font-mono text-orange-400">{sh.ratio || "-"}</td>
+                          <td className="py-3 px-3 text-right font-mono font-bold text-green-400">
+                            {formatYenFull(sh.shares * (dashboard?.shareholders?.pricePerShare || 0))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </NeonCard>
+            ) : null}
+          </div>
+        )}
+
+        {/* ============================================================ */}
+        {/* TAB: Documents */}
+        {/* ============================================================ */}
+        {activeTab === "documents" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-400" />
+                財務資料・アップロード履歴
+              </h3>
+              <Button
+                size="sm"
+                className="bg-gradient-to-r from-blue-500 to-cyan-600 text-white"
+                onClick={() => setUploadDialog(true)}
+              >
+                <Upload className="w-4 h-4 mr-1" />
+                新規アップロード
+              </Button>
+            </div>
+
+            {documentsQuery.data?.length ? (
+              <div className="space-y-3">
+                {documentsQuery.data.map((doc: any) => (
+                  <NeonCard key={doc.id} color={doc.documentType === "financial_statement" ? "blue" : doc.documentType === "shareholder_registry" ? "pink" : "cyan"} className="!p-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center shrink-0">
+                        <FileText className={`w-6 h-6 ${doc.documentType === "financial_statement" ? "text-blue-400" : "text-pink-400"}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-white truncate">{doc.title || doc.fileName}</div>
+                        <div className="flex items-center gap-3 text-xs text-white/30 mt-1">
+                          <Badge variant="outline" className={`text-[10px] ${doc.documentType === "financial_statement" ? "text-blue-400 border-blue-500/30" : "text-pink-400 border-pink-500/30"}`}>
+                            {doc.documentType === "financial_statement" ? "財務諸表" : doc.documentType === "shareholder_registry" ? "株主名簿" : "その他"}
+                          </Badge>
+                          {doc.periodStart && doc.periodEnd && (
+                            <span className="font-mono">{doc.periodStart} 〜 {doc.periodEnd}</span>
+                          )}
+                          <span>{new Date(doc.createdAt).toLocaleDateString("ja-JP")}</span>
+                          <span>{(doc.fileSize / 1024).toFixed(0)} KB</span>
+                        </div>
+                        {doc.extractedRevenue ? (
+                          <div className="text-xs text-green-400 mt-1">
+                            売上高: {formatYenFull(Number(doc.extractedRevenue))}
+                            {doc.extractedNetIncome ? ` / 純利益: ${formatYenFull(Number(doc.extractedNetIncome))}` : ""}
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {doc.fileUrl && (
+                          <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">
+                            <Button variant="outline" size="sm" className="border-white/10 text-white/40 hover:text-white">
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          </a>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-red-500/20 text-red-400/60 hover:text-red-400 hover:bg-red-500/10"
+                          onClick={() => {
+                            if (confirm("このドキュメントを削除しますか？")) {
+                              deleteDocMutation.mutate({ id: doc.id });
+                            }
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </NeonCard>
+                ))}
+              </div>
+            ) : (
+              <NeonCard color="blue">
+                <div className="text-center py-16 text-white/30">
+                  <FileText className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                  <p className="text-lg">まだ資料がアップロードされていません</p>
+                  <p className="text-sm mt-2">試算表や株主名簿をアップロードして管理しましょう</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4 border-blue-500/30 text-blue-400"
+                    onClick={() => setUploadDialog(true)}
+                  >
+                    <Upload className="w-4 h-4 mr-1" />
+                    アップロード
+                  </Button>
+                </div>
+              </NeonCard>
+            )}
+          </div>
         )}
 
         {/* ============================================================ */}
@@ -687,7 +1111,7 @@ export default function LcjCoinDashboard() {
                         <td className="py-3 px-4 text-right font-mono text-white">{Number(h.totalCoins).toLocaleString()}</td>
                         <td className="py-3 px-4 text-right font-mono text-white/60">{Number(h.vestedCoins).toLocaleString()}</td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-orange-400">
-                          ¥{(Number(h.totalCoins) * coinPrice).toLocaleString()}
+                          {formatYenFull(Number(h.totalCoins) * coinPrice)}
                         </td>
                         <td className="py-3 px-4 text-center">
                           <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-600 text-white text-xs font-bold shadow-lg shadow-orange-500/20">
@@ -834,7 +1258,7 @@ export default function LcjCoinDashboard() {
                 <SelectTrigger className="bg-white/5 border-white/10 text-white">
                   <SelectValue placeholder="選択してください" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0a0a0f] border-white/10">
+                <SelectContent className="bg-[#0a0a0f] border-white/10 max-h-60">
                   {(grantForm.holderType === "staff" ? targetsQuery.data?.staff : targetsQuery.data?.livers)?.map((t: any) => (
                     <SelectItem key={t.id} value={String(t.id)}>{t.name}{t.department ? ` (${t.department})` : ""}</SelectItem>
                   ))}
@@ -981,9 +1405,161 @@ export default function LcjCoinDashboard() {
             <Button
               className="bg-gradient-to-r from-green-500 to-emerald-600 text-white"
               onClick={handleSyncAllStaff}
-              disabled={grantMutation.isPending}
+              disabled={bulkGrantMutation.isPending}
             >
-              {grantMutation.isPending ? "処理中..." : `${totalStaffAndLivers}名に付与する`}
+              {bulkGrantMutation.isPending ? "処理中..." : `${totalStaffAndLivers}名に付与する`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload Document Dialog */}
+      <Dialog open={uploadDialog} onOpenChange={setUploadDialog}>
+        <DialogContent className="bg-[#0a0a0f] border-white/10 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="w-5 h-5 text-blue-400" />
+              財務資料アップロード
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-white/60">資料タイプ</Label>
+              <Select value={uploadForm.documentType} onValueChange={(v: any) => setUploadForm(f => ({ ...f, documentType: v }))}>
+                <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#0a0a0f] border-white/10">
+                  <SelectItem value="financial_statement">財務諸表（試算表・決算書）</SelectItem>
+                  <SelectItem value="shareholder_registry">株主名簿</SelectItem>
+                  <SelectItem value="other">その他</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-white/60">タイトル</Label>
+              <Input
+                className="bg-white/5 border-white/10 text-white"
+                value={uploadForm.title}
+                onChange={(e) => setUploadForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="例: 試算表 R7.8.14-R8.01.31"
+              />
+            </div>
+
+            <div>
+              <Label className="text-white/60">ファイル</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.xlsx,.xls,.csv,.doc,.docx"
+                className="hidden"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              />
+              <div
+                className="border-2 border-dashed border-white/10 rounded-xl p-8 text-center cursor-pointer hover:border-white/20 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {selectedFile ? (
+                  <div>
+                    <FileText className="w-8 h-8 mx-auto mb-2 text-blue-400" />
+                    <p className="text-white font-medium">{selectedFile.name}</p>
+                    <p className="text-xs text-white/30 mt-1">{(selectedFile.size / 1024).toFixed(0)} KB</p>
+                  </div>
+                ) : (
+                  <div>
+                    <Upload className="w-8 h-8 mx-auto mb-2 text-white/20" />
+                    <p className="text-white/40">クリックしてファイルを選択</p>
+                    <p className="text-xs text-white/20 mt-1">PDF, Excel, CSV, Word対応</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {uploadForm.documentType === "financial_statement" && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-white/60">期間開始</Label>
+                    <Input
+                      type="date"
+                      className="bg-white/5 border-white/10 text-white"
+                      value={uploadForm.periodStart}
+                      onChange={(e) => setUploadForm(f => ({ ...f, periodStart: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-white/60">期間終了</Label>
+                    <Input
+                      type="date"
+                      className="bg-white/5 border-white/10 text-white"
+                      value={uploadForm.periodEnd}
+                      onChange={(e) => setUploadForm(f => ({ ...f, periodEnd: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-white/60">売上高（円）</Label>
+                    <Input
+                      type="number"
+                      className="bg-white/5 border-white/10 text-white"
+                      value={uploadForm.extractedRevenue || ""}
+                      onChange={(e) => setUploadForm(f => ({ ...f, extractedRevenue: Number(e.target.value) }))}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-white/60">純利益（円）</Label>
+                    <Input
+                      type="number"
+                      className="bg-white/5 border-white/10 text-white"
+                      value={uploadForm.extractedNetIncome || ""}
+                      onChange={(e) => setUploadForm(f => ({ ...f, extractedNetIncome: Number(e.target.value) }))}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-white/60">総資産（円）</Label>
+                    <Input
+                      type="number"
+                      className="bg-white/5 border-white/10 text-white"
+                      value={uploadForm.extractedTotalAssets || ""}
+                      onChange={(e) => setUploadForm(f => ({ ...f, extractedTotalAssets: Number(e.target.value) }))}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-white/60">純資産（円）</Label>
+                    <Input
+                      type="number"
+                      className="bg-white/5 border-white/10 text-white"
+                      value={uploadForm.extractedNetAssets || ""}
+                      onChange={(e) => setUploadForm(f => ({ ...f, extractedNetAssets: Number(e.target.value) }))}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div>
+              <Label className="text-white/60">メモ（任意）</Label>
+              <Textarea
+                className="bg-white/5 border-white/10 text-white"
+                value={uploadForm.notes}
+                onChange={(e) => setUploadForm(f => ({ ...f, notes: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" className="border-white/10 text-white/60 hover:bg-white/5">キャンセル</Button>
+            </DialogClose>
+            <Button
+              className="bg-gradient-to-r from-blue-500 to-cyan-600 text-white"
+              onClick={handleFileUpload}
+              disabled={!selectedFile || uploadDocMutation.isPending}
+            >
+              {uploadDocMutation.isPending ? "アップロード中..." : "アップロード"}
             </Button>
           </DialogFooter>
         </DialogContent>

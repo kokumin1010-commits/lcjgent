@@ -5287,3 +5287,55 @@ export const lcjCoinRankingHistory = mysqlTable("lcj_coin_ranking_history", {
 });
 export type LcjCoinRankingHistory = typeof lcjCoinRankingHistory.$inferSelect;
 export type InsertLcjCoinRankingHistory = typeof lcjCoinRankingHistory.$inferInsert;
+
+// ============================================================
+// LCJ Coin: Financial Document Upload History
+// ============================================================
+export const lcjCoinDocuments = mysqlTable("lcj_coin_documents", {
+  id: int("id").autoincrement().primaryKey(),
+  documentType: varchar("documentType", { length: 50 }).notNull(), // 'financial_statement' | 'shareholder_registry' | 'other'
+  title: varchar("title", { length: 255 }).notNull(),
+  fileName: varchar("fileName", { length: 500 }).notNull(),
+  fileUrl: text("fileUrl").notNull(),
+  fileKey: varchar("fileKey", { length: 500 }),
+  fileSize: int("fileSize"),
+  mimeType: varchar("mimeType", { length: 100 }),
+  periodStart: varchar("periodStart", { length: 20 }), // e.g. '2025-08-14'
+  periodEnd: varchar("periodEnd", { length: 20 }), // e.g. '2026-01-31'
+  // Extracted data (JSON)
+  extractedData: text("extractedData"), // JSON: parsed financial data or shareholder data
+  // Revenue extracted from financial statement
+  extractedRevenue: bigint("extractedRevenue", { mode: "number" }),
+  extractedNetIncome: bigint("extractedNetIncome", { mode: "number" }),
+  extractedTotalAssets: bigint("extractedTotalAssets", { mode: "number" }),
+  extractedNetAssets: bigint("extractedNetAssets", { mode: "number" }),
+  // Upload info
+  uploadedBy: int("uploadedBy"),
+  uploadedByName: varchar("uploadedByName", { length: 255 }),
+  notes: text("notes"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type LcjCoinDocument = typeof lcjCoinDocuments.$inferSelect;
+export type InsertLcjCoinDocument = typeof lcjCoinDocuments.$inferInsert;
+
+// ============================================================
+// LCJ Coin: Shareholder Registry
+// ============================================================
+export const lcjCoinShareholders = mysqlTable("lcj_coin_shareholders", {
+  id: int("id").autoincrement().primaryKey(),
+  documentId: int("documentId"), // References lcjCoinDocuments.id
+  shareholderNo: int("shareholderNo"),
+  name: varchar("name", { length: 255 }).notNull(),
+  shares: int("shares").notNull(),
+  ratio: varchar("ratio", { length: 20 }), // e.g. '52.11%'
+  shareType: varchar("shareType", { length: 50 }).default("普通株式"),
+  acquisitionDate: varchar("acquisitionDate", { length: 20 }),
+  address: text("address"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type LcjCoinShareholder = typeof lcjCoinShareholders.$inferSelect;
+export type InsertLcjCoinShareholder = typeof lcjCoinShareholders.$inferInsert;

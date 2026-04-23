@@ -205,10 +205,59 @@ export async function createLcjCoinTables(db: any) {
     `);
     console.log("[Migration] Created: lcj_coin_ranking_history");
 
+    // 10. Financial Documents table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS lcj_coin_documents (
+        id int AUTO_INCREMENT NOT NULL,
+        documentType varchar(50) NOT NULL,
+        title varchar(255) NOT NULL,
+        fileName varchar(500) NOT NULL,
+        fileUrl text NOT NULL,
+        fileKey varchar(500),
+        fileSize int,
+        mimeType varchar(100),
+        periodStart varchar(20),
+        periodEnd varchar(20),
+        extractedData text,
+        extractedRevenue bigint,
+        extractedNetIncome bigint,
+        extractedTotalAssets bigint,
+        extractedNetAssets bigint,
+        uploadedBy int,
+        uploadedByName varchar(255),
+        notes text,
+        isActive tinyint(1) NOT NULL DEFAULT 1,
+        createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+      )
+    `);
+    console.log("[Migration] Created: lcj_coin_documents");
+
+    // 11. Shareholders table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS lcj_coin_shareholders (
+        id int AUTO_INCREMENT NOT NULL,
+        documentId int,
+        shareholderNo int,
+        name varchar(255) NOT NULL,
+        shares int NOT NULL,
+        ratio varchar(20),
+        shareType varchar(50) DEFAULT '普通株式',
+        acquisitionDate varchar(20),
+        address text,
+        isActive tinyint(1) NOT NULL DEFAULT 1,
+        createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+      )
+    `);
+    console.log("[Migration] Created: lcj_coin_shareholders");
+
     // Seed default settings
     await db.execute(sql`
       INSERT IGNORE INTO lcj_coin_settings (settingKey, settingValue, description, category) VALUES
-        ('psr_multiplier', '5', 'PSR倍率（時価総額 = 月間売上 × 12 × PSR倍率）', 'valuation'),
+        ('psr_multiplier', '15', 'PSR倍率（時価総額 = 月間売上 × 12 × PSR倍率）', 'valuation'),
         ('total_coins_pool', '10000000', '発行可能な総コイン数（1000万枚）', 'valuation'),
         ('default_vesting_type', 'backloaded', 'デフォルトのベスティングタイプ', 'vesting'),
         ('default_vesting_rates', '{"year1": 5, "year2": 15, "year3": 40, "year4": 40}', 'デフォルトのベスティング率（Amazonバックローデッド型）', 'vesting'),
