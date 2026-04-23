@@ -2037,6 +2037,12 @@ async function startServer() {
               console.error("[Migration] livestream_brands durationMinutes error:", err);
             });
           });
+          // LCJ Coin (Phantom Stock) system tables
+          import("../migrations/createLcjCoinTables").then(({ createLcjCoinTables }) => {
+            createLcjCoinTables(db).catch((err: unknown) => {
+              console.error("[Migration] LCJ Coin tables error:", err);
+            });
+          });
         }
       });
     });

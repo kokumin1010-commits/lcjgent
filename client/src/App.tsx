@@ -136,6 +136,7 @@ const BrandPortalAdmin = lazy(() => import("./pages/BrandPortalAdmin"));
 const AdDashboard = lazy(() => import("./pages/AdDashboard"));
 const Recruit = lazy(() => import("./pages/Recruit"));
 const ShortVideoMatrix = lazy(() => import("./pages/ShortVideoMatrix"));
+const LcjCoinDashboard = lazy(() => import("./pages/LcjCoinDashboard"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -476,6 +477,11 @@ function Router() {
         <Route path="/master/short-video">
           <DashboardLayout>
             <ShortVideoMatrix />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/lcj-coin">
+          <DashboardLayout>
+            <LcjCoinDashboard />
           </DashboardLayout>
         </Route>
         

@@ -5099,3 +5099,191 @@ export const svmContentPlans = mysqlTable("svm_content_plans", {
 });
 export type SvmContentPlan = typeof svmContentPlans.$inferSelect;
 export type InsertSvmContentPlan = typeof svmContentPlans.$inferInsert;
+
+
+// ============================================================
+// LCJ Coin (Phantom Stock) System - ファントムストック報酬システム
+// ============================================================
+
+/**
+ * LCJコイン設定テーブル - システム全体の設定（PSR倍率、ベスティング率など）
+ * 管理画面から自由に変更可能
+ */
+export const lcjCoinSettings = mysqlTable("lcj_coin_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  settingKey: varchar("settingKey", { length: 100 }).notNull().unique(),
+  settingValue: text("settingValue").notNull(), // JSON or string value
+  description: text("description"), // 設定の説明
+  category: mysqlEnum("category", ["valuation", "vesting", "gamification", "general"]).default("general").notNull(),
+  updatedBy: int("updatedBy"), // staff id who last updated
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type LcjCoinSetting = typeof lcjCoinSettings.$inferSelect;
+export type InsertLcjCoinSetting = typeof lcjCoinSettings.$inferInsert;
+
+/**
+ * LCJコイン擬似時価総額ログ - 月次の擬似時価総額を記録
+ * 月間売上 × 12 × PSR倍率 で算出
+ */
+export const lcjCoinValuationLog = mysqlTable("lcj_coin_valuation_log", {
+  id: int("id").autoincrement().primaryKey(),
+  yearMonth: varchar("yearMonth", { length: 7 }).notNull(), // "2026-04" format
+  monthlyRevenue: decimal("monthlyRevenue", { precision: 15, scale: 2 }).notNull(), // 月間売上
+  psrMultiplier: decimal("psrMultiplier", { precision: 5, scale: 2 }).notNull(), // PSR倍率
+  valuationAmount: decimal("valuationAmount", { precision: 18, scale: 2 }).notNull(), // 擬似時価総額
+  totalCoinsIssued: bigint("totalCoinsIssued", { mode: "number" }).notNull(), // 発行済み総コイン数
+  coinPrice: decimal("coinPrice", { precision: 12, scale: 4 }).notNull(), // 1コインあたりの価格
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type LcjCoinValuationLog = typeof lcjCoinValuationLog.$inferSelect;
+export type InsertLcjCoinValuationLog = typeof lcjCoinValuationLog.$inferInsert;
+
+/**
+ * LCJコイン保有テーブル - 各ユーザーのコイン保有状況
+ * staff / liver の両方に対応
+ */
+export const lcjCoinHoldings = mysqlTable("lcj_coin_holdings", {
+  id: int("id").autoincrement().primaryKey(),
+  holderType: mysqlEnum("holderType", ["staff", "liver"]).notNull(),
+  holderId: int("holderId").notNull(), // staff.id or livers.id
+  totalCoins: bigint("totalCoins", { mode: "number" }).default(0).notNull(), // 総付与コイン数
+  vestedCoins: bigint("vestedCoins", { mode: "number" }).default(0).notNull(), // ベスティング済みコイン数
+  exercisedCoins: bigint("exercisedCoins", { mode: "number" }).default(0).notNull(), // 行使済みコイン数
+  level: int("level").default(1).notNull(), // ゲーミフィケーション レベル
+  xp: bigint("xp", { mode: "number" }).default(0).notNull(), // 経験値
+  streak: int("streak").default(0).notNull(), // 連続日数
+  lastActiveDate: timestamp("lastActiveDate"), // 最終アクティブ日
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type LcjCoinHolding = typeof lcjCoinHoldings.$inferSelect;
+export type InsertLcjCoinHolding = typeof lcjCoinHoldings.$inferInsert;
+
+/**
+ * LCJコイン付与トランザクション - コイン付与・行使の全履歴
+ */
+export const lcjCoinTransactions = mysqlTable("lcj_coin_transactions", {
+  id: int("id").autoincrement().primaryKey(),
+  holdingId: int("holdingId").notNull(), // lcj_coin_holdings.id
+  holderType: mysqlEnum("holderType", ["staff", "liver"]).notNull(),
+  holderId: int("holderId").notNull(),
+  transactionType: mysqlEnum("transactionType", [
+    "grant",           // 初回付与
+    "refresh_grant",   // リフレッシュグラント（追加付与）
+    "vest",            // ベスティング確定
+    "exercise",        // 行使（換金）
+    "bonus",           // ボーナス付与
+    "season_reward",   // シーズン報酬
+    "achievement",     // 実績達成報酬
+    "penalty",         // ペナルティ（減額）
+    "adjustment",      // 管理者調整
+  ]).notNull(),
+  coinAmount: bigint("coinAmount", { mode: "number" }).notNull(), // コイン数（マイナスも可）
+  coinPriceAtTime: decimal("coinPriceAtTime", { precision: 12, scale: 4 }), // 取引時のコイン価格
+  vestingScheduleId: int("vestingScheduleId"), // ベスティングスケジュールID
+  reason: text("reason"), // 付与理由
+  approvedBy: int("approvedBy"), // 承認者 staff.id
+  metadata: json("metadata").$type<Record<string, any>>(), // 追加メタデータ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type LcjCoinTransaction = typeof lcjCoinTransactions.$inferSelect;
+export type InsertLcjCoinTransaction = typeof lcjCoinTransactions.$inferInsert;
+
+/**
+ * LCJコイン ベスティングスケジュール - 個人ごとのベスティング計画
+ * Amazonバックローデッド型: Year1=5%, Year2=15%, Year3=40%, Year4=40%
+ */
+export const lcjCoinVestingSchedules = mysqlTable("lcj_coin_vesting_schedules", {
+  id: int("id").autoincrement().primaryKey(),
+  holdingId: int("holdingId").notNull(),
+  holderType: mysqlEnum("holderType", ["staff", "liver"]).notNull(),
+  holderId: int("holderId").notNull(),
+  grantDate: timestamp("grantDate").notNull(), // 付与日
+  totalGrantCoins: bigint("totalGrantCoins", { mode: "number" }).notNull(), // 付与総数
+  vestingType: mysqlEnum("vestingType", ["backloaded", "frontloaded", "flat", "custom"]).default("backloaded").notNull(),
+  // ベスティング率（JSON: {"year1": 5, "year2": 15, "year3": 40, "year4": 40}）
+  vestingRates: json("vestingRates").$type<Record<string, number>>().notNull(),
+  vestingPeriodMonths: int("vestingPeriodMonths").default(48).notNull(), // ベスティング期間（月）
+  cliffMonths: int("cliffMonths").default(12).notNull(), // クリフ期間（月）
+  vestedSoFar: bigint("vestedSoFar", { mode: "number" }).default(0).notNull(), // これまでのベスティング済み
+  nextVestDate: timestamp("nextVestDate"), // 次回ベスティング日
+  status: mysqlEnum("status", ["active", "completed", "cancelled", "paused"]).default("active").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type LcjCoinVestingSchedule = typeof lcjCoinVestingSchedules.$inferSelect;
+export type InsertLcjCoinVestingSchedule = typeof lcjCoinVestingSchedules.$inferInsert;
+
+/**
+ * LCJコイン バッジ定義テーブル - 獲得可能なバッジの一覧
+ */
+export const lcjCoinBadges = mysqlTable("lcj_coin_badges", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  nameEn: varchar("nameEn", { length: 100 }),
+  description: text("description"),
+  iconUrl: text("iconUrl"), // バッジアイコンURL
+  iconEmoji: varchar("iconEmoji", { length: 10 }), // 絵文字アイコン
+  category: mysqlEnum("category", ["performance", "loyalty", "special", "season", "social"]).default("performance").notNull(),
+  rarity: mysqlEnum("rarity", ["common", "rare", "epic", "legendary"]).default("common").notNull(),
+  requirement: json("requirement").$type<Record<string, any>>(), // 獲得条件（JSON）
+  xpReward: int("xpReward").default(0).notNull(), // 獲得時のXP報酬
+  coinReward: bigint("coinReward", { mode: "number" }).default(0).notNull(), // 獲得時のコイン報酬
+  isActive: boolean("isActive").default(true).notNull(),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type LcjCoinBadge = typeof lcjCoinBadges.$inferSelect;
+export type InsertLcjCoinBadge = typeof lcjCoinBadges.$inferInsert;
+
+/**
+ * LCJコイン バッジ獲得履歴 - ユーザーが獲得したバッジ
+ */
+export const lcjCoinBadgeAwards = mysqlTable("lcj_coin_badge_awards", {
+  id: int("id").autoincrement().primaryKey(),
+  badgeId: int("badgeId").notNull(),
+  holderType: mysqlEnum("holderType", ["staff", "liver"]).notNull(),
+  holderId: int("holderId").notNull(),
+  awardedAt: timestamp("awardedAt").defaultNow().notNull(),
+  metadata: json("metadata").$type<Record<string, any>>(), // 獲得時の追加情報
+});
+export type LcjCoinBadgeAward = typeof lcjCoinBadgeAwards.$inferSelect;
+export type InsertLcjCoinBadgeAward = typeof lcjCoinBadgeAwards.$inferInsert;
+
+/**
+ * LCJコイン シーズン定義 - 期間限定イベント・シーズン
+ */
+export const lcjCoinSeasons = mysqlTable("lcj_coin_seasons", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  startDate: timestamp("startDate").notNull(),
+  endDate: timestamp("endDate").notNull(),
+  theme: varchar("theme", { length: 100 }), // テーマカラーやスタイル
+  bonusMultiplier: decimal("bonusMultiplier", { precision: 5, scale: 2 }).default("1.00").notNull(), // ボーナス倍率
+  rewards: json("rewards").$type<Record<string, any>>(), // シーズン報酬定義
+  status: mysqlEnum("status", ["upcoming", "active", "ended"]).default("upcoming").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type LcjCoinSeason = typeof lcjCoinSeasons.$inferSelect;
+export type InsertLcjCoinSeason = typeof lcjCoinSeasons.$inferInsert;
+
+/**
+ * LCJコイン ランキング履歴 - 月次/シーズンのランキングスナップショット
+ */
+export const lcjCoinRankingHistory = mysqlTable("lcj_coin_ranking_history", {
+  id: int("id").autoincrement().primaryKey(),
+  period: varchar("period", { length: 20 }).notNull(), // "2026-04" or "season-1"
+  periodType: mysqlEnum("periodType", ["monthly", "season", "yearly"]).notNull(),
+  holderType: mysqlEnum("holderType", ["staff", "liver"]).notNull(),
+  holderId: int("holderId").notNull(),
+  rank: int("rank").notNull(),
+  totalValue: decimal("totalValue", { precision: 18, scale: 2 }).notNull(), // ランキング時の総資産価値
+  xpEarned: bigint("xpEarned", { mode: "number" }).default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type LcjCoinRankingHistory = typeof lcjCoinRankingHistory.$inferSelect;
+export type InsertLcjCoinRankingHistory = typeof lcjCoinRankingHistory.$inferInsert;
