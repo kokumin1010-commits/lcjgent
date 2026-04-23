@@ -561,8 +561,120 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
   }, [composeBody]);
 
   // ===== メール詳細ビュー =====
+  // ===== ダイアログ群（全ビューで共有） =====
+  const renderDialogs = () => (
+    <>
+      {/* ===== 新規メール作成ダイアログ ===== */}
+      <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="w-5 h-5 text-blue-400" />
+              {replyMode ? "返信" : composeBrandId ? `${composeBrandName}へメール送信` : "新規メール作成"}
+              {composeBrandId && (
+                <Badge className="bg-green-600 text-xs">招商メール（ステータス自動更新）</Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {!replyMode && (
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">テンプレート</label>
+                <Select value={selectedTemplateId} onValueChange={handleTemplateSelect}>
+                  <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                    <SelectValue placeholder="テンプレートを選択..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-800 border-gray-700">
+                    <SelectItem value="none" className="text-gray-300">テンプレートなし（手動入力）</SelectItem>
+                    {templates?.map((tpl: any) => (
+                      <SelectItem key={tpl.id} value={String(tpl.id)} className="text-gray-300">
+                        <div className="flex items-center gap-2">
+                          <span>{tpl.name}</span>
+                          <span className="text-xs text-gray-500">({CATEGORY_LABELS[tpl.category] || tpl.category})</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">宛先 *</label>
+              <Input value={composeTo} onChange={e => setComposeTo(e.target.value)} placeholder="example@email.com（複数はカンマ区切り）" className="bg-gray-800 border-gray-700 text-white" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">CC</label>
+              <Input value={composeCc} onChange={e => setComposeCc(e.target.value)} placeholder="cc@email.com" className="bg-gray-800 border-gray-700 text-white" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">件名 *</label>
+              <Input value={composeSubject} onChange={e => setComposeSubject(e.target.value)} placeholder="件名を入力" className="bg-gray-800 border-gray-700 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-gray-400">本文</label>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer">
+                    <input type="checkbox" checked={useSignature} onChange={e => setUseSignature(e.target.checked)} className="rounded border-gray-600" />
+                    署名を自動挿入
+                  </label>
+                  <Button variant="ghost" size="sm" className={`h-6 px-2 text-xs ${previewMode ? "text-blue-400" : "text-gray-400"}`} onClick={() => setPreviewMode(!previewMode)}>
+                    <Eye className="w-3 h-3 mr-1" /> プレビュー
+                  </Button>
+                </div>
+              </div>
+              {previewMode ? (
+                <div className="bg-gray-800 border border-gray-700 rounded-md p-4 min-h-[200px]">
+                  <div className="prose prose-invert max-w-none text-sm text-gray-300" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                </div>
+              ) : (
+                <Textarea value={composeBody} onChange={e => setComposeBody(e.target.value)} placeholder="メール本文を入力..." rows={12} className="bg-gray-800 border-gray-700 text-white resize-none" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-gray-400">添付ファイル</label>
+                {totalAttachmentSize > 0 && <span className="text-xs text-gray-500">合計: {formatFileSize(totalAttachmentSize)} / 10MB</span>}
+              </div>
+              <div className="border-2 border-dashed border-gray-700 hover:border-gray-500 rounded-lg p-3 transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()} onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleFileSelect(e.dataTransfer.files); }}>
+                <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => { handleFileSelect(e.target.files); e.target.value = ""; }} />
+                {attachments.length === 0 ? (
+                  <div className="flex flex-col items-center gap-1 py-2 text-gray-500">
+                    <Upload className="w-5 h-5" />
+                    <span className="text-xs">クリックまたはドラッグ&ドロップでファイルを追加（合計10MBまで）</span>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {attachments.map((att, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-gray-800/50 rounded px-2 py-1.5">
+                        <File className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        <span className="text-sm text-gray-300 truncate flex-1">{att.filename}</span>
+                        <span className="text-xs text-gray-500 flex-shrink-0">{formatFileSize(att.size)}</span>
+                        <button onClick={(e) => { e.stopPropagation(); removeAttachment(i); }} className="text-gray-500 hover:text-red-400 p-0.5 flex-shrink-0">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <div className="text-center pt-1"><span className="text-xs text-gray-500 hover:text-gray-400 cursor-pointer">+ ファイルを追加</span></div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setComposeOpen(false)} className="border-gray-600 text-gray-300">キャンセル</Button>
+            <Button onClick={handleSend} disabled={isSending} className="bg-blue-600 hover:bg-blue-700">
+              {isSending ? (<><Loader2 className="w-4 h-4 mr-1 animate-spin" /> 送信中...</>) : (<><Send className="w-4 h-4 mr-1" /> 送信{attachments.length > 0 && <Badge className="bg-blue-500 text-[10px] ml-1">{attachments.length}件</Badge>}</>)}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+
   if (selectedUid && messageData) {
     return (
+      <>
       <div className="min-h-[600px] bg-gray-900/50 rounded-xl">
         <div className="flex items-center gap-2 p-4 border-b border-gray-800">
           <Button variant="ghost" size="sm" onClick={() => setSelectedUid(null)} className="text-gray-400 hover:text-white">
@@ -684,6 +796,8 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
           </div>
         </div>
       </div>
+      {renderDialogs()}
+      </>
     );
   }
 
@@ -957,176 +1071,7 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
         </TabsContent>
       </Tabs>
 
-      {/* ===== 新規メール作成ダイアログ ===== */}
-      <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
-        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Mail className="w-5 h-5 text-blue-400" />
-              {replyMode ? "返信" : composeBrandId ? `${composeBrandName}へメール送信` : "新規メール作成"}
-              {composeBrandId && (
-                <Badge className="bg-green-600 text-xs">招商メール（ステータス自動更新）</Badge>
-              )}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            {/* テンプレート選択 */}
-            {!replyMode && (
-              <div>
-                <label className="text-xs text-gray-400 mb-1 block">テンプレート</label>
-                <Select value={selectedTemplateId} onValueChange={handleTemplateSelect}>
-                  <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                    <SelectValue placeholder="テンプレートを選択..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-gray-800 border-gray-700">
-                    <SelectItem value="none" className="text-gray-300">テンプレートなし（手動入力）</SelectItem>
-                    {templates?.map((tpl: any) => (
-                      <SelectItem key={tpl.id} value={String(tpl.id)} className="text-gray-300">
-                        <div className="flex items-center gap-2">
-                          <span>{tpl.name}</span>
-                          <span className="text-xs text-gray-500">({CATEGORY_LABELS[tpl.category] || tpl.category})</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <div>
-              <label className="text-xs text-gray-400 mb-1 block">宛先 *</label>
-              <Input
-                value={composeTo}
-                onChange={e => setComposeTo(e.target.value)}
-                placeholder="example@email.com（複数はカンマ区切り）"
-                className="bg-gray-800 border-gray-700 text-white"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 mb-1 block">CC</label>
-              <Input
-                value={composeCc}
-                onChange={e => setComposeCc(e.target.value)}
-                placeholder="cc@email.com"
-                className="bg-gray-800 border-gray-700 text-white"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 mb-1 block">件名 *</label>
-              <Input
-                value={composeSubject}
-                onChange={e => setComposeSubject(e.target.value)}
-                placeholder="件名を入力"
-                className="bg-gray-800 border-gray-700 text-white"
-              />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs text-gray-400">本文</label>
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={useSignature}
-                      onChange={e => setUseSignature(e.target.checked)}
-                      className="rounded border-gray-600"
-                    />
-                    署名を自動挿入
-                  </label>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={`h-6 px-2 text-xs ${previewMode ? "text-blue-400" : "text-gray-400"}`}
-                    onClick={() => setPreviewMode(!previewMode)}
-                  >
-                    <Eye className="w-3 h-3 mr-1" /> プレビュー
-                  </Button>
-                </div>
-              </div>
-              {previewMode ? (
-                <div className="bg-gray-800 border border-gray-700 rounded-md p-4 min-h-[200px]">
-                  <div className="prose prose-invert max-w-none text-sm text-gray-300" dangerouslySetInnerHTML={{ __html: previewHtml }} />
-                </div>
-              ) : (
-                <Textarea
-                  value={composeBody}
-                  onChange={e => setComposeBody(e.target.value)}
-                  placeholder="メール本文を入力..."
-                  rows={12}
-                  className="bg-gray-800 border-gray-700 text-white resize-none"
-                />
-              )}
-            </div>
-
-            {/* 添付ファイル */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs text-gray-400">添付ファイル</label>
-                {totalAttachmentSize > 0 && (
-                  <span className="text-xs text-gray-500">合計: {formatFileSize(totalAttachmentSize)} / 10MB</span>
-                )}
-              </div>
-              <div
-                className="border-2 border-dashed border-gray-700 hover:border-gray-500 rounded-lg p-3 transition-colors cursor-pointer"
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleFileSelect(e.dataTransfer.files); }}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => { handleFileSelect(e.target.files); e.target.value = ""; }}
-                />
-                {attachments.length === 0 ? (
-                  <div className="flex flex-col items-center gap-1 py-2 text-gray-500">
-                    <Upload className="w-5 h-5" />
-                    <span className="text-xs">クリックまたはドラッグ&ドロップでファイルを追加（合計10MBまで）</span>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {attachments.map((att, i) => (
-                      <div key={i} className="flex items-center gap-2 bg-gray-800/50 rounded px-2 py-1.5">
-                        <File className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                        <span className="text-sm text-gray-300 truncate flex-1">{att.filename}</span>
-                        <span className="text-xs text-gray-500 flex-shrink-0">{formatFileSize(att.size)}</span>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); removeAttachment(i); }}
-                          className="text-gray-500 hover:text-red-400 p-0.5 flex-shrink-0"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                    <div className="text-center pt-1">
-                      <span className="text-xs text-gray-500 hover:text-gray-400 cursor-pointer">
-                        + ファイルを追加
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setComposeOpen(false)} className="border-gray-600 text-gray-300">
-              キャンセル
-            </Button>
-            <Button onClick={handleSend} disabled={isSending} className="bg-blue-600 hover:bg-blue-700">
-              {isSending ? (
-                <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> 送信中...</>
-              ) : (
-                <>
-                  <Send className="w-4 h-4 mr-1" />
-                  送信
-                  {attachments.length > 0 && <Badge className="bg-blue-500 text-[10px] ml-1">{attachments.length}件</Badge>}
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {renderDialogs()}
 
       {/* ===== 一括送信ダイアログ ===== */}
       <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
