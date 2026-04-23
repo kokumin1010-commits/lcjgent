@@ -23,8 +23,24 @@ export async function createLcjCoinTables(db: any) {
       WHERE TABLE_NAME = 'lcj_coin_settings'
     `);
     
-    if ((rows as any[]).length > 0) {
-      console.log("[Migration] LCJ Coin tables already exist, skipping.");
+    const mainTablesExist = (rows as any[]).length > 0;
+    
+    // Check if new v2 tables exist
+    const [docRows] = await db.execute(sql`
+      SELECT TABLE_NAME 
+      FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_NAME = 'lcj_coin_documents'
+    `);
+    const docTablesExist = (docRows as any[]).length > 0;
+    
+    if (mainTablesExist && docTablesExist) {
+      console.log("[Migration] LCJ Coin tables already exist (including v2), skipping.");
+      return;
+    }
+    
+    if (mainTablesExist && !docTablesExist) {
+      console.log("[Migration] LCJ Coin v1 tables exist, creating v2 tables (documents + shareholders)...");
+      await createV2Tables(db);
       return;
     }
 
@@ -286,9 +302,74 @@ export async function createLcjCoinTables(db: any) {
     `);
     console.log("[Migration] Seeded: lcj_coin_badges defaults");
 
+    // Also create v2 tables
+    await createV2Tables(db);
+
     console.log("[Migration] LCJ Coin system tables created successfully!");
   } catch (err: any) {
     // Don't throw - just log. Tables may already exist partially.
     console.error("[Migration] LCJ Coin tables error:", err?.message || err);
+  }
+}
+
+// V2 tables: Documents + Shareholders
+async function createV2Tables(db: any) {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS lcj_coin_documents (
+        id int AUTO_INCREMENT NOT NULL,
+        documentType varchar(50) NOT NULL,
+        title varchar(255) NOT NULL,
+        fileName varchar(500) NOT NULL,
+        fileUrl text NOT NULL,
+        fileKey varchar(500),
+        fileSize int,
+        mimeType varchar(100),
+        periodStart varchar(20),
+        periodEnd varchar(20),
+        extractedData text,
+        extractedRevenue bigint,
+        extractedNetIncome bigint,
+        extractedTotalAssets bigint,
+        extractedNetAssets bigint,
+        uploadedBy int,
+        uploadedByName varchar(255),
+        notes text,
+        isActive tinyint(1) NOT NULL DEFAULT 1,
+        createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+      )
+    `);
+    console.log("[Migration] Created: lcj_coin_documents");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS lcj_coin_shareholders (
+        id int AUTO_INCREMENT NOT NULL,
+        documentId int,
+        shareholderNo int,
+        name varchar(255) NOT NULL,
+        shares int NOT NULL,
+        ratio varchar(20),
+        shareType varchar(50) DEFAULT '普通株式',
+        acquisitionDate varchar(20),
+        address text,
+        isActive tinyint(1) NOT NULL DEFAULT 1,
+        createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+      )
+    `);
+    console.log("[Migration] Created: lcj_coin_shareholders");
+
+    // Update PSR to 15 if it was set to 5 previously
+    await db.execute(sql`
+      UPDATE lcj_coin_settings SET settingValue = '15' WHERE settingKey = 'psr_multiplier' AND settingValue = '5'
+    `);
+    console.log("[Migration] Updated PSR multiplier to 15");
+
+    console.log("[Migration] LCJ Coin v2 tables created successfully!");
+  } catch (err: any) {
+    console.error("[Migration] LCJ Coin v2 tables error:", err?.message || err);
   }
 }
