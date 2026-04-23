@@ -135,6 +135,7 @@ const BrandSimulationView = lazy(() => import("./pages/BrandSimulationView"));
 const BrandPortalAdmin = lazy(() => import("./pages/BrandPortalAdmin"));
 const AdDashboard = lazy(() => import("./pages/AdDashboard"));
 const Recruit = lazy(() => import("./pages/Recruit"));
+const ShortVideoMatrix = lazy(() => import("./pages/ShortVideoMatrix"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -470,6 +471,11 @@ function Router() {
         <Route path="/master/agencies">
           <DashboardLayout>
             <AgencyManagement />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/short-video">
+          <DashboardLayout>
+            <ShortVideoMatrix />
           </DashboardLayout>
         </Route>
         

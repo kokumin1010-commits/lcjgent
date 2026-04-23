@@ -4997,3 +4997,105 @@ export const recruitmentEmailLogs = mysqlTable("recruitment_email_logs", {
 });
 export type RecruitmentEmailLog = typeof recruitmentEmailLogs.$inferSelect;
 export type InsertRecruitmentEmailLog = typeof recruitmentEmailLogs.$inferInsert;
+
+// ============================================================
+// 短動画マトリックス管理 (Short Video Matrix Management)
+// ============================================================
+
+/**
+ * TikTokアカウント管理テーブル
+ * 50+アカウントの一元管理
+ */
+export const svmAccounts = mysqlTable("svm_accounts", {
+  id: int("id").primaryKey().autoincrement(),
+  accountName: varchar("accountName", { length: 255 }).notNull(), // @username
+  displayName: varchar("displayName", { length: 255 }), // 表示名
+  platform: varchar("platform", { length: 50 }).notNull().default("tiktok"), // tiktok, youtube_shorts, instagram_reels
+  category: varchar("category", { length: 100 }), // カテゴリ（美容, ヘアケア等）
+  assignedTo: varchar("assignedTo", { length: 100 }), // 担当者名
+  followerCount: int("followerCount").default(0),
+  profileUrl: varchar("profileUrl", { length: 500 }),
+  avatarUrl: varchar("avatarUrl", { length: 500 }),
+  description: text("description"),
+  tags: text("tags"), // JSON配列
+  status: mysqlEnum("status", ["active", "paused", "archived"]).notNull().default("active"),
+  targetPostsPerDay: int("targetPostsPerDay").default(1),
+  lastPostDate: timestamp("lastPostDate"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type SvmAccount = typeof svmAccounts.$inferSelect;
+export type InsertSvmAccount = typeof svmAccounts.$inferInsert;
+
+/**
+ * 動画投稿記録テーブル
+ */
+export const svmVideoPosts = mysqlTable("svm_video_posts", {
+  id: int("id").primaryKey().autoincrement(),
+  accountId: int("accountId").notNull(),
+  title: varchar("title", { length: 500 }),
+  description: text("description"),
+  videoUrl: varchar("videoUrl", { length: 500 }),
+  thumbnailUrl: varchar("thumbnailUrl", { length: 500 }),
+  postDate: timestamp("postDate").notNull(),
+  duration: int("duration"), // 秒
+  hashtags: text("hashtags"), // JSON配列
+  views: int("views").default(0),
+  likes: int("likes").default(0),
+  comments: int("comments").default(0),
+  shares: int("shares").default(0),
+  saves: int("saves").default(0),
+  contentType: varchar("contentType", { length: 50 }), // original, repost, collaboration
+  productName: varchar("productName", { length: 255 }),
+  status: mysqlEnum("status", ["draft", "scheduled", "posted", "failed"]).notNull().default("posted"),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type SvmVideoPost = typeof svmVideoPosts.$inferSelect;
+export type InsertSvmVideoPost = typeof svmVideoPosts.$inferInsert;
+
+/**
+ * 投稿スケジュールテーブル
+ */
+export const svmSchedules = mysqlTable("svm_schedules", {
+  id: int("id").primaryKey().autoincrement(),
+  accountId: int("accountId").notNull(),
+  scheduledDate: timestamp("scheduledDate").notNull(),
+  title: varchar("title", { length: 500 }),
+  description: text("description"),
+  contentPlan: text("contentPlan"),
+  hashtags: text("hashtags"),
+  assignedTo: varchar("assignedTo", { length: 100 }),
+  status: mysqlEnum("status", ["planned", "in_progress", "ready", "posted", "cancelled"]).notNull().default("planned"),
+  videoPostId: int("videoPostId"),
+  priority: mysqlEnum("priority", ["low", "medium", "high", "urgent"]).notNull().default("medium"),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type SvmSchedule = typeof svmSchedules.$inferSelect;
+export type InsertSvmSchedule = typeof svmSchedules.$inferInsert;
+
+/**
+ * コンテンツ企画テーブル
+ */
+export const svmContentPlans = mysqlTable("svm_content_plans", {
+  id: int("id").primaryKey().autoincrement(),
+  title: varchar("title", { length: 500 }).notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 100 }),
+  targetAccounts: text("targetAccounts"), // JSON配列
+  scriptContent: text("scriptContent"),
+  referenceUrls: text("referenceUrls"), // JSON配列
+  hashtags: text("hashtags"),
+  status: mysqlEnum("status", ["idea", "planning", "scripted", "filming", "editing", "ready", "used", "archived"]).notNull().default("idea"),
+  assignedTo: varchar("assignedTo", { length: 100 }),
+  priority: mysqlEnum("priority", ["low", "medium", "high", "urgent"]).notNull().default("medium"),
+  dueDate: timestamp("dueDate"),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type SvmContentPlan = typeof svmContentPlans.$inferSelect;
+export type InsertSvmContentPlan = typeof svmContentPlans.$inferInsert;
