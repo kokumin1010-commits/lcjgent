@@ -174,6 +174,9 @@ export const emailRouter = router({
 
           return {
             uid: input.uid,
+            messageId: parsed.messageId || null,
+            inReplyTo: parsed.inReplyTo || null,
+            references: (parsed.references ? (Array.isArray(parsed.references) ? parsed.references.join(" ") : String(parsed.references)) : null),
             subject: parsed.subject || "(件名なし)",
             from: parsed.from?.value?.[0] ? {
               name: parsed.from.value[0].name || "",
@@ -194,6 +197,8 @@ export const emailRouter = router({
               filename: att.filename || "attachment",
               contentType: att.contentType || "application/octet-stream",
               size: att.size || 0,
+              contentId: att.cid || null,
+              content: att.content ? Buffer.from(att.content).toString("base64") : null,
             })),
           };
         } finally {
@@ -222,6 +227,11 @@ export const emailRouter = router({
       html: z.string().optional(),
       inReplyTo: z.string().optional(),
       references: z.string().optional(),
+      attachments: z.array(z.object({
+        filename: z.string(),
+        contentType: z.string(),
+        content: z.string(), // Base64
+      })).optional(),
     }))
     .mutation(async ({ input }) => {
       if (!ENV.emailUser || !ENV.emailPassword) {
@@ -242,6 +252,13 @@ export const emailRouter = router({
         if (input.text) mailOptions.text = input.text;
         if (input.inReplyTo) mailOptions.inReplyTo = input.inReplyTo;
         if (input.references) mailOptions.references = input.references;
+        if (input.attachments?.length) {
+          mailOptions.attachments = input.attachments.map(att => ({
+            filename: att.filename,
+            contentType: att.contentType,
+            content: Buffer.from(att.content, "base64"),
+          }));
+        }
 
         const info = await transporter.sendMail(mailOptions);
         console.log("[Email Router] Email sent:", info.messageId);
@@ -703,6 +720,13 @@ export const emailRouter = router({
       templateId: z.number().optional(),
       sentBy: z.string().optional(),
       autoUpdateStatus: z.boolean().default(true),
+      inReplyTo: z.string().optional(),
+      references: z.string().optional(),
+      attachments: z.array(z.object({
+        filename: z.string(),
+        contentType: z.string(),
+        content: z.string(), // Base64
+      })).optional(),
     }))
     .mutation(async ({ input }) => {
       if (!ENV.emailUser || !ENV.emailPassword) {
@@ -717,6 +741,15 @@ export const emailRouter = router({
           html: input.html,
         };
         if (input.cc?.length) mailOptions.cc = input.cc.join(", ");
+        if (input.inReplyTo) mailOptions.inReplyTo = input.inReplyTo;
+        if (input.references) mailOptions.references = input.references;
+        if (input.attachments?.length) {
+          mailOptions.attachments = input.attachments.map(att => ({
+            filename: att.filename,
+            contentType: att.contentType,
+            content: Buffer.from(att.content, "base64"),
+          }));
+        }
         const info = await transporter.sendMail(mailOptions);
         console.log("[Email Router] Recruitment email sent:", info.messageId);
 

@@ -2,7 +2,7 @@
  * 招商管理メールクライアント
  * 受信トレイ・送信済み・メール作成・テンプレート管理・署名管理・一括送信・送信ログを一体化したUI
  */
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,10 @@ import {
   History,
   AlertTriangle,
   Filter,
+  ReplyAll,
+  Download,
+  Upload,
+  File,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -128,6 +132,13 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("none");
   const [useSignature, setUseSignature] = useState(true);
   const [previewMode, setPreviewMode] = useState(false);
+  const [composeInReplyTo, setComposeInReplyTo] = useState<string | null>(null);
+  const [composeReferences, setComposeReferences] = useState<string | null>(null);
+
+  // 添付ファイル
+  const [attachments, setAttachments] = useState<{ filename: string; contentType: string; content: string; size: number }[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB
 
   // 一括送信
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -287,7 +298,70 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
     setSelectedTemplateId("none");
     setReplyMode(false);
     setPreviewMode(false);
+    setComposeInReplyTo(null);
+    setComposeReferences(null);
+    setAttachments([]);
   };
+
+  // ===== 添付ファイルハンドラー =====
+  const handleFileSelect = useCallback((files: FileList | null) => {
+    if (!files) return;
+    const fileArray = Array.from(files);
+    const currentTotalSize = attachments.reduce((sum, a) => sum + a.size, 0);
+
+    for (const file of fileArray) {
+      if (currentTotalSize + file.size > MAX_ATTACHMENT_SIZE) {
+        toast.error(`添付ファイルの合計サイズが10MBを超えます`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(",")[1];
+        setAttachments(prev => [...prev, {
+          filename: file.name,
+          contentType: file.type || "application/octet-stream",
+          content: base64,
+          size: file.size,
+        }]);
+      };
+      reader.readAsDataURL(file);
+    }
+  }, [attachments]);
+
+  const removeAttachment = useCallback((index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const totalAttachmentSize = useMemo(() => attachments.reduce((sum, a) => sum + a.size, 0), [attachments]);
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  };
+
+  // ===== 添付ファイルダウンロード（受信メールの添付ファイル） =====
+  const downloadAttachment = useCallback((att: { filename: string; contentType: string; content: string | null }) => {
+    if (!att.content) {
+      toast.error("添付ファイルのデータがありません");
+      return;
+    }
+    const byteCharacters = atob(att.content);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: att.contentType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = att.filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, []);
 
   // ===== テンプレート選択時の処理 =====
   const handleTemplateSelect = (templateId: string) => {
@@ -329,6 +403,7 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
 
     const toList = composeTo.split(/[,;，；\s]+/).filter(Boolean).map(s => s.trim());
     const ccList = composeCc ? composeCc.split(/[,;，；\s]+/).filter(Boolean).map(s => s.trim()) : undefined;
+    const attData = attachments.length > 0 ? attachments.map(a => ({ filename: a.filename, contentType: a.contentType, content: a.content })) : undefined;
 
     // brandIdがある場合は招商メール送信APIを使用（ステータス自動更新+ログ記録）
     if (composeBrandId) {
@@ -341,6 +416,9 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
         templateId: selectedTemplateId !== "none" ? Number(selectedTemplateId) : undefined,
         sentBy: "manual",
         autoUpdateStatus: true,
+        inReplyTo: composeInReplyTo || undefined,
+        references: composeReferences || undefined,
+        attachments: attData,
       });
     } else {
       sendMutation.mutate({
@@ -349,6 +427,9 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
         subject: composeSubject,
         text: composeBody,
         html: composeBody.replace(/\n/g, "<br>"),
+        inReplyTo: composeInReplyTo || undefined,
+        references: composeReferences || undefined,
+        attachments: attData,
       });
     }
   };
@@ -371,11 +452,39 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
     });
   };
 
-  const handleReply = () => {
+  const handleReply = (replyAll = false) => {
     if (!messageData) return;
+    resetCompose();
+
+    // 宛先設定
     setComposeTo(messageData.from.address);
+    if (replyAll) {
+      // 全員に返信: CCに元のtoとccを追加（自分自身を除く）
+      const myAddress = "lcj.inquiry@livecommercejapan.jp";
+      const allRecipients = [
+        ...(messageData.to || []).map((t: any) => t.address),
+        ...(messageData.cc || []).map((t: any) => t.address),
+      ].filter(addr => addr && addr.toLowerCase() !== myAddress.toLowerCase() && addr.toLowerCase() !== messageData.from.address.toLowerCase());
+      setComposeCc(allRecipients.join(", "));
+    }
+
+    // 件名
     setComposeSubject(`Re: ${messageData.subject.replace(/^Re:\s*/i, "")}`);
-    setComposeBody(`\n\n---\n${formatFullDate(messageData.date)} ${messageData.from.name} <${messageData.from.address}>:\n${messageData.text}`);
+
+    // スレッド追跡用ヘッダー
+    setComposeInReplyTo(messageData.messageId || null);
+    const refs = messageData.references
+      ? `${messageData.references} ${messageData.messageId || ""}`
+      : (messageData.messageId || null);
+    setComposeReferences(refs);
+
+    // 引用本文
+    const quotedHeader = `\n\n---\n${formatFullDate(messageData.date)} ${messageData.from.name || messageData.from.address} <${messageData.from.address}>:`;
+    const quotedBody = messageData.text
+      ? messageData.text.split("\n").map((line: string) => `> ${line}`).join("\n")
+      : "";
+    setComposeBody(quotedHeader + "\n" + quotedBody);
+
     setReplyMode(true);
     setComposeOpen(true);
   };
@@ -467,8 +576,11 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
           }} className="text-green-400 hover:text-green-300">
             <MailPlus className="w-4 h-4 mr-1" /> 新規メール
           </Button>
-          <Button variant="ghost" size="sm" onClick={handleReply} className="text-blue-400 hover:text-blue-300">
+          <Button variant="ghost" size="sm" onClick={() => handleReply(false)} className="text-blue-400 hover:text-blue-300">
             <Reply className="w-4 h-4 mr-1" /> 返信
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => handleReply(true)} className="text-blue-400 hover:text-blue-300">
+            <ReplyAll className="w-4 h-4 mr-1" /> 全員に返信
           </Button>
           {activeTab === "inbox" && (
             <Button variant="ghost" size="sm"
@@ -506,13 +618,27 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
             </div>
           </div>
           {messageData.attachments && messageData.attachments.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4 p-3 bg-gray-800/50 rounded-lg">
-              <Paperclip className="w-4 h-4 text-gray-400 mt-0.5" />
-              {messageData.attachments.map((att: any, i: number) => (
-                <Badge key={i} variant="outline" className="border-gray-600 text-gray-300">
-                  {att.filename} ({(att.size / 1024).toFixed(1)}KB)
-                </Badge>
-              ))}
+            <div className="mb-4 p-3 bg-gray-800/50 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Paperclip className="w-4 h-4 text-gray-400" />
+                <span className="text-sm text-gray-400">添付ファイル ({messageData.attachments.length}件)</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {messageData.attachments.map((att: any, i: number) => (
+                  <button
+                    key={i}
+                    onClick={() => downloadAttachment(att)}
+                    className="flex items-center gap-2 px-3 py-2 bg-gray-700/50 hover:bg-gray-700 rounded-lg border border-gray-600/50 transition-colors group"
+                  >
+                    <File className="w-4 h-4 text-gray-400 group-hover:text-blue-400" />
+                    <div className="text-left">
+                      <div className="text-sm text-gray-300 group-hover:text-white">{att.filename}</div>
+                      <div className="text-xs text-gray-500">{formatFileSize(att.size)}</div>
+                    </div>
+                    <Download className="w-3.5 h-3.5 text-gray-500 group-hover:text-blue-400 ml-1" />
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           <div className="border-t border-gray-800 pt-4">
@@ -522,6 +648,39 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
             ) : (
               <pre className="whitespace-pre-wrap text-gray-300 font-sans text-sm leading-relaxed">{messageData.text}</pre>
             )}
+          </div>
+
+          {/* 返信ボタンエリア（下部） */}
+          <div className="border-t border-gray-800 mt-6 pt-4 flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => handleReply(false)}
+              className="border-gray-600 text-blue-400 hover:bg-blue-600/10"
+            >
+              <Reply className="w-4 h-4 mr-1" /> 返信
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleReply(true)}
+              className="border-gray-600 text-blue-400 hover:bg-blue-600/10"
+            >
+              <ReplyAll className="w-4 h-4 mr-1" /> 全員に返信
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                resetCompose();
+                if (messageData) {
+                  setComposeSubject(`Fwd: ${messageData.subject.replace(/^Fwd:\s*/i, "")}`);
+                  const fwdHeader = `\n\n---------- 転送メッセージ ----------\n差出人: ${messageData.from.name || messageData.from.address} <${messageData.from.address}>\n日時: ${formatFullDate(messageData.date)}\n件名: ${messageData.subject}\n宛先: ${messageData.to.map((t: any) => t.address).join(", ")}\n\n`;
+                  setComposeBody(fwdHeader + (messageData.text || ""));
+                }
+                setComposeOpen(true);
+              }}
+              className="border-gray-600 text-gray-400 hover:bg-gray-600/10"
+            >
+              <Send className="w-4 h-4 mr-1" /> 転送
+            </Button>
           </div>
         </div>
       </div>
@@ -898,6 +1057,57 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
                 />
               )}
             </div>
+
+            {/* 添付ファイル */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-gray-400">添付ファイル</label>
+                {totalAttachmentSize > 0 && (
+                  <span className="text-xs text-gray-500">合計: {formatFileSize(totalAttachmentSize)} / 10MB</span>
+                )}
+              </div>
+              <div
+                className="border-2 border-dashed border-gray-700 hover:border-gray-500 rounded-lg p-3 transition-colors cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleFileSelect(e.dataTransfer.files); }}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => { handleFileSelect(e.target.files); e.target.value = ""; }}
+                />
+                {attachments.length === 0 ? (
+                  <div className="flex flex-col items-center gap-1 py-2 text-gray-500">
+                    <Upload className="w-5 h-5" />
+                    <span className="text-xs">クリックまたはドラッグ&ドロップでファイルを追加（合計10MBまで）</span>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {attachments.map((att, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-gray-800/50 rounded px-2 py-1.5">
+                        <File className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        <span className="text-sm text-gray-300 truncate flex-1">{att.filename}</span>
+                        <span className="text-xs text-gray-500 flex-shrink-0">{formatFileSize(att.size)}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); removeAttachment(i); }}
+                          className="text-gray-500 hover:text-red-400 p-0.5 flex-shrink-0"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <div className="text-center pt-1">
+                      <span className="text-xs text-gray-500 hover:text-gray-400 cursor-pointer">
+                        + ファイルを追加
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setComposeOpen(false)} className="border-gray-600 text-gray-300">
@@ -907,7 +1117,11 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
               {isSending ? (
                 <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> 送信中...</>
               ) : (
-                <><Send className="w-4 h-4 mr-1" /> 送信</>
+                <>
+                  <Send className="w-4 h-4 mr-1" />
+                  送信
+                  {attachments.length > 0 && <Badge className="bg-blue-500 text-[10px] ml-1">{attachments.length}件</Badge>}
+                </>
               )}
             </Button>
           </DialogFooter>

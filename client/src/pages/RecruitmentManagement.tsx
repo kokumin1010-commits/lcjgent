@@ -67,6 +67,7 @@ import {
   Star,
   Zap,
   Users,
+  Paperclip,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -288,6 +289,9 @@ export default function RecruitmentManagement() {
   const [brandComposeSubject, setBrandComposeSubject] = useState("");
   const [brandComposeBody, setBrandComposeBody] = useState("");
   const [brandViewUid, setBrandViewUid] = useState<{uid: number; folder: string} | null>(null);
+  const [brandAttachments, setBrandAttachments] = useState<{ filename: string; contentType: string; content: string; size: number }[]>([]);
+  const brandFileInputRef = useRef<HTMLInputElement>(null);
+  const MAX_BRAND_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 
   // インポート状態
   const [importData, setImportData] = useState<any[]>([]);
@@ -575,6 +579,7 @@ export default function RecruitmentManagement() {
     setBrandComposeBody("");
     setBrandTemplateId("none");
     setBrandViewUid(null);
+    setBrandAttachments([]);
     setBrandEmailOpen(true);
   };
 
@@ -589,6 +594,7 @@ export default function RecruitmentManagement() {
     }
     const toList = brandComposeTo.split(/[,;，；\s]+/).filter(Boolean).map(s => s.trim());
     const ccList = brandComposeCc ? brandComposeCc.split(/[,;，；\s]+/).filter(Boolean).map(s => s.trim()) : undefined;
+    const attData = brandAttachments.length > 0 ? brandAttachments.map(a => ({ filename: a.filename, contentType: a.contentType, content: a.content })) : undefined;
     brandSendMutation.mutate({
       brandId: brandEmailTarget?.brandId ?? 0,
       to: toList,
@@ -598,6 +604,7 @@ export default function RecruitmentManagement() {
       templateId: brandTemplateId !== "none" ? Number(brandTemplateId) : undefined,
       sentBy: "brand_dialog",
       autoUpdateStatus: true,
+      attachments: attData,
     });
   };
 
@@ -2064,6 +2071,86 @@ export default function RecruitmentManagement() {
                   className="bg-gray-800 border-gray-700 text-white resize-none"
                 />
               </div>
+
+              {/* 添付ファイル */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-gray-400">添付ファイル</label>
+                  {brandAttachments.length > 0 && (
+                    <span className="text-xs text-gray-500">合計: {(brandAttachments.reduce((s, a) => s + a.size, 0) / 1024).toFixed(1)}KB / 10MB</span>
+                  )}
+                </div>
+                <div
+                  className="border-2 border-dashed border-gray-700 hover:border-gray-500 rounded-lg p-2 transition-colors cursor-pointer"
+                  onClick={() => brandFileInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={(e) => {
+                    e.preventDefault(); e.stopPropagation();
+                    const files = e.dataTransfer.files;
+                    if (files) {
+                      Array.from(files).forEach(file => {
+                        const totalSize = brandAttachments.reduce((s, a) => s + a.size, 0);
+                        if (totalSize + file.size > MAX_BRAND_ATTACHMENT_SIZE) {
+                          toast.error("添付ファイルの合計サイズが10MBを超えます");
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const base64 = (reader.result as string).split(",")[1];
+                          setBrandAttachments(prev => [...prev, { filename: file.name, contentType: file.type || "application/octet-stream", content: base64, size: file.size }]);
+                        };
+                        reader.readAsDataURL(file);
+                      });
+                    }
+                  }}
+                >
+                  <input
+                    ref={brandFileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = e.target.files;
+                      if (files) {
+                        Array.from(files).forEach(file => {
+                          const totalSize = brandAttachments.reduce((s, a) => s + a.size, 0);
+                          if (totalSize + file.size > MAX_BRAND_ATTACHMENT_SIZE) {
+                            toast.error("添付ファイルの合計サイズが10MBを超えます");
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            const base64 = (reader.result as string).split(",")[1];
+                            setBrandAttachments(prev => [...prev, { filename: file.name, contentType: file.type || "application/octet-stream", content: base64, size: file.size }]);
+                          };
+                          reader.readAsDataURL(file);
+                        });
+                      }
+                      e.target.value = "";
+                    }}
+                  />
+                  {brandAttachments.length === 0 ? (
+                    <div className="flex items-center justify-center gap-2 py-1 text-gray-500 text-xs">
+                      <Upload className="w-4 h-4" />
+                      <span>クリックまたはドラッグ&ドロップでファイルを追加</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {brandAttachments.map((att, i) => (
+                        <div key={i} className="flex items-center gap-2 bg-gray-800/50 rounded px-2 py-1">
+                          <Paperclip className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                          <span className="text-xs text-gray-300 truncate flex-1">{att.filename}</span>
+                          <span className="text-[10px] text-gray-500">{(att.size / 1024).toFixed(1)}KB</span>
+                          <button onClick={(e) => { e.stopPropagation(); setBrandAttachments(prev => prev.filter((_, idx) => idx !== i)); }} className="text-gray-500 hover:text-red-400">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setBrandEmailTab("history")} className="border-gray-600 text-gray-300">
                   キャンセル
