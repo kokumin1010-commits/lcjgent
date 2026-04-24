@@ -9,7 +9,7 @@
  * - 配信実績の手動登録
  * - ステータス管理・承認フロー
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -440,7 +440,9 @@ function ProductsTab({
   const tuneMutation = trpc.brandPortal.tuneProduct.useMutation();
   const statusMutation = trpc.brandPortal.updateProductStatus.useMutation();
   const addProductMutation = trpc.brandPortal.adminAddProduct.useMutation();
+  const deleteProductMutation = trpc.brandPortal.adminDeleteProduct.useMutation();
   const [showAddForm, setShowAddForm] = useState(false);
+  const [deletingProductId, setDeletingProductId] = useState<string | number | null>(null);
   const [newProduct, setNewProduct] = useState({
     productName: "",
     productCode: "",
@@ -654,8 +656,56 @@ function ProductsTab({
                     </div>
                   </div>
                 </div>
-                <StatusBadge status={product.status} />
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={product.status} />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeletingProductId(product.id);
+                    }}
+                    className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                    title={t("bp.deleteProduct")}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
+              {/* Delete confirmation */}
+              {deletingProductId === product.id && (
+                <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg" onClick={(e) => e.stopPropagation()}>
+                  <p className="text-sm text-red-700 font-medium mb-2">{t("bp.deleteConfirm")}</p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setDeletingProductId(null)}
+                      className="text-gray-600"
+                    >
+                      {t("bp.cancel")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          const source = product.source === 'brand_products' ? 'brand_products' : 'brand_portal_products';
+                          const realId = product.source === 'brand_products' ? product.originalId : product.id;
+                          await deleteProductMutation.mutateAsync({ productId: realId, source });
+                          toast.success(t("bp.productDeleted"));
+                          setDeletingProductId(null);
+                          onRefresh();
+                        } catch (err: any) {
+                          toast.error(err?.message || t("bp.deleteFailed"));
+                        }
+                      }}
+                      disabled={deleteProductMutation.isPending}
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      {deleteProductMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Trash2 className="w-3 h-3 mr-1" />}
+                      {t("bp.delete")}
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div className="flex gap-4 mt-2 text-sm">
                 {product.listPrice && <span className="text-gray-500">{t("bp.normal")}: ¥{Number(product.listPrice).toLocaleString()}</span>}
                 {product.livePrice && <span className="text-blue-600">{t("bp.special")}: ¥{Number(product.livePrice).toLocaleString()}</span>}
@@ -1466,8 +1516,10 @@ function BrandProductsView({
   const { t } = useLanguage();
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [deletingProductId, setDeletingProductId] = useState<string | number | null>(null);
+  const deleteProductMutation = trpc.brandPortal.adminDeleteProduct.useMutation();
 
-  const { data, isLoading } = trpc.brandPortal.getProductCardsByBrand.useQuery({ brandId });
+  const { data, isLoading, refetch } = trpc.brandPortal.getProductCardsByBrand.useQuery({ brandId });
 
   if (isLoading) {
     return (
@@ -1550,7 +1602,49 @@ function BrandProductsView({
                   </div>
                   {/* Info */}
                   <div className="p-3">
-                    <p className="font-medium text-gray-900 text-sm truncate">{product.productName}</p>
+                    <div className="flex items-start justify-between">
+                      <p className="font-medium text-gray-900 text-sm truncate flex-1">{product.productName}</p>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingProductId(product.id);
+                        }}
+                        className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors flex-shrink-0 ml-1"
+                        title={t("bp.deleteProduct")}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    {deletingProductId === product.id && (
+                      <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg" onClick={(e) => e.stopPropagation()}>
+                        <p className="text-xs text-red-700 font-medium mb-2">{t("bp.deleteConfirm")}</p>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => setDeletingProductId(null)} className="text-gray-600 text-xs h-7">
+                            {t("bp.cancel")}
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                const source = product.source === 'brand_products' ? 'brand_products' : 'brand_portal_products';
+                                const realId = product.source === 'brand_products' ? product.originalId : product.id;
+                                await deleteProductMutation.mutateAsync({ productId: realId, source: source as any });
+                                toast.success(t("bp.productDeleted"));
+                                setDeletingProductId(null);
+                                refetch();
+                              } catch (err: any) {
+                                toast.error(err?.message || t("bp.deleteFailed"));
+                              }
+                            }}
+                            disabled={deleteProductMutation.isPending}
+                            className="bg-red-600 hover:bg-red-700 text-white text-xs h-7"
+                          >
+                            {deleteProductMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Trash2 className="w-3 h-3 mr-1" />}
+                            {t("bp.delete")}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex items-center gap-3 mt-2">
                       {listPrice && (
                         <span className="text-xs text-gray-400 line-through">¥{Number(listPrice).toLocaleString()}</span>
@@ -1717,8 +1811,28 @@ function BrandProductsView({
 // Main Component
 // ============================================================
 export default function BrandPortalAdmin() {
-  const [selectedPortalId, setSelectedPortalId] = useState<number | null>(null);
-  const [selectedBrandId, setSelectedBrandIdMain] = useState<number | null>(null);
+  // URL parameter support: ?brand=123 or ?portal=456
+  const [selectedPortalId, setSelectedPortalId] = useState<number | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const p = params.get('portal');
+    return p ? Number(p) : null;
+  });
+  const [selectedBrandId, setSelectedBrandIdMain] = useState<number | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const b = params.get('brand');
+    return b ? Number(b) : null;
+  });
+
+  // Sync URL params when selection changes
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (selectedPortalId) params.set('portal', String(selectedPortalId));
+    else if (selectedBrandId) params.set('brand', String(selectedBrandId));
+    const newUrl = params.toString()
+      ? `${window.location.pathname}?${params.toString()}`
+      : window.location.pathname;
+    window.history.replaceState(null, '', newUrl);
+  }, [selectedPortalId, selectedBrandId]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto">

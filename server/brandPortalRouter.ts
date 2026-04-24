@@ -1236,4 +1236,27 @@ export const brandPortalRouter = router({
 
       return { success: true };
     }),
+
+  // ============================================================
+  // 商品削除（ソフトデリート）
+  // ============================================================
+  adminDeleteProduct: protectedProcedure
+    .input(z.object({
+      productId: z.number(),
+      source: z.enum(["brand_portal_products", "brand_products"]),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+      if (input.source === "brand_portal_products") {
+        await db.update(brandPortalProducts)
+          .set({ deletedAt: new Date() } as any)
+          .where(eq(brandPortalProducts.id, input.productId));
+      } else {
+        await db.update(brandProducts)
+          .set({ deletedAt: new Date() } as any)
+          .where(eq(brandProducts.id, input.productId));
+      }
+      return { success: true };
+    }),
 });
