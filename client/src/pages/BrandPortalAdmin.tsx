@@ -789,7 +789,7 @@ function ProductsTab({
                       onClick={() => handleStatusChange(selectedProduct.id, s)}
                       className="text-xs"
                     >
-                      {STATUS_CONFIG[s]?.label}
+                      {t(`bp.status.${s}`)}
                     </Button>
                   ))}
                 </div>
