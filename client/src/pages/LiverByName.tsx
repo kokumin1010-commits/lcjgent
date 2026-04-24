@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2, UserCheck, Upload, Package, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ChevronDown, ChevronUp, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2, UserCheck, Upload, Package, FileSpreadsheet, Trophy, Crown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
@@ -354,6 +354,31 @@ export default function LiverByName() {
   const { data: growthData, isLoading: isGrowthLoading } = trpc.liverManagement.getLiverMonthlyGrowth.useQuery({
     streamerName: decodedName,
   });
+
+  // ライバー一覧からliverIdを取得
+  const { data: allLivers } = trpc.liverManagement.listAll.useQuery();
+  const liverId = useMemo(() => {
+    if (!allLivers) return null;
+    const liver = allLivers.find((l: any) => l.name === decodedName);
+    return liver?.id || null;
+  }, [allLivers, decodedName]);
+
+  // 商品ランキング（ライバー別）
+  const { data: topProducts } = trpc.liverManagement.getTopProducts.useQuery(
+    { liverId: liverId!, limit: 20, month: selectedMonth },
+    { enabled: !!liverId }
+  );
+
+  // セット活用分析（ライバー別）
+  const { data: setAnalysis } = trpc.livestreamSets.liverSetAnalysis.useQuery(
+    { liverId: liverId! },
+    { enabled: !!liverId }
+  );
+
+  // 商品ランキングの表示切り替え
+  const [showAllProducts, setShowAllProducts] = useState(false);
+  // セット詳細の展開
+  const [expandedSetId, setExpandedSetId] = useState<number | null>(null);
 
   const unverifiedIds = useMemo(() => {
     if (!data?.livestreams) return [];
@@ -1086,6 +1111,232 @@ export default function LiverByName() {
             )}
           </CardContent>
         </Card>
+        {/* 売れ筋商品ランキング */}
+        {topProducts && topProducts.length > 0 && (
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardContent className="p-6">
+              <h2 className="text-lg font-bold mb-6 flex items-center gap-3">
+                <Crown className="w-6 h-6 text-yellow-400" />
+                <span className="text-white">売れ筋商品ランキング</span>
+                <span className="text-gray-400 text-sm">
+                  {showAllProducts ? `全${topProducts.length}件` : `TOP10`}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
+                </span>
+              </h2>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-700">
+                      <th className="text-left py-3 px-2 text-cyan-400 text-sm font-medium">#</th>
+                      <th className="text-left py-3 px-2 text-cyan-400 text-sm font-medium">商品名</th>
+                      <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">GMV</th>
+                      <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">販売数</th>
+                      <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">配信回数</th>
+                      <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">平均GMV/配信</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(showAllProducts ? topProducts : topProducts.slice(0, 10)).map((product: any, index: number) => (
+                      <tr 
+                        key={product.productName} 
+                        className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors"
+                      >
+                        <td className="py-3 px-2">
+                          {index < 3 ? (
+                            <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full font-bold text-sm ${
+                              index === 0 ? 'bg-yellow-500 text-black' : 
+                              index === 1 ? 'bg-gray-400 text-black' : 
+                              'bg-amber-600 text-white'
+                            }`}>
+                              {index + 1}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 font-medium pl-2">{index + 1}</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-2 text-white font-medium max-w-[250px] truncate">
+                          {product.productName}
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          <span className="text-yellow-400 font-mono font-bold">
+                            ¥{Number(product.totalGmv).toLocaleString()}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 text-right text-cyan-300">
+                          {Number(product.totalItemsSold).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-2 text-right text-gray-300">
+                          {product.livestreamCount}
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          <span className="text-emerald-400 font-mono">
+                            ¥{Number(product.avgGmvPerStream).toLocaleString()}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {topProducts.length > 10 && (
+                <div className="mt-4 text-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAllProducts(!showAllProducts)}
+                    className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 hover:border-yellow-400/50"
+                  >
+                    {showAllProducts ? (
+                      <>閉じる <ChevronUp className="w-4 h-4 ml-1" /></>
+                    ) : (
+                      <>さらに見る（+{topProducts.length - 10}件） <ChevronDown className="w-4 h-4 ml-1" /></>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* セット活用情報 */}
+        {setAnalysis && setAnalysis.sets && setAnalysis.sets.length > 0 && (
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardContent className="p-6">
+              <h2 className="text-lg font-bold mb-4 flex items-center gap-3">
+                <Package className="w-6 h-6 text-pink-400" />
+                <span className="text-white">セット活用情報</span>
+              </h2>
+              
+              {/* サマリー */}
+              {setAnalysis.summary && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                  <div className="p-3 rounded-lg bg-gray-800/60 border border-gray-700/50 text-center">
+                    <div className="text-gray-400 text-xs mb-1">セット数</div>
+                    <div className="text-pink-400 font-bold text-lg">{setAnalysis.summary.totalSets}個</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-gray-800/60 border border-gray-700/50 text-center">
+                    <div className="text-gray-400 text-xs mb-1">セット売上</div>
+                    <div className="text-emerald-400 font-mono font-bold text-lg">¥{Number(setAnalysis.summary.totalSetRevenue).toLocaleString()}</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-gray-800/60 border border-gray-700/50 text-center">
+                    <div className="text-gray-400 text-xs mb-1">販売数</div>
+                    <div className="text-cyan-300 font-bold text-lg">{setAnalysis.summary.totalQuantitySold}個</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-gray-800/60 border border-gray-700/50 text-center">
+                    <div className="text-gray-400 text-xs mb-1">平均割引率</div>
+                    <div className="text-orange-400 font-bold text-lg">{setAnalysis.summary.avgDiscountRate}%OFF</div>
+                  </div>
+                </div>
+              )}
+
+              {/* セット一覧 */}
+              <div className="space-y-2">
+                {setAnalysis.sets.map((set: any) => {
+                  const isBest = setAnalysis.summary?.bestSetId === set.id;
+                  const isMostPopular = setAnalysis.summary?.mostPopularSetId === set.id && !isBest;
+                  const isExpanded = expandedSetId === set.id;
+                  return (
+                    <div key={set.id}>
+                      <div
+                        onClick={() => setExpandedSetId(isExpanded ? null : set.id)}
+                        className={`p-4 rounded-lg border transition-all cursor-pointer ${
+                          isExpanded
+                            ? 'bg-gray-800/80 border-pink-400/40'
+                            : 'bg-gray-800/40 border-gray-700/50 hover:border-pink-400/30'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Package className="w-4 h-4 text-pink-400 shrink-0" />
+                            <span className="text-white font-semibold text-sm">{set.setName}</span>
+                            {set.discountRate != null && Number(set.discountRate) > 0 && (
+                              <span className="px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 text-xs font-bold">
+                                {Math.round(Number(set.discountRate))}%OFF
+                              </span>
+                            )}
+                            {isBest && (
+                              <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 text-xs font-bold">
+                                ⭐ 最高売上
+                              </span>
+                            )}
+                            {isMostPopular && (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold">
+                                🔥 人気
+                              </span>
+                            )}
+                            {isExpanded
+                              ? <ChevronUp className="w-4 h-4 text-pink-400" />
+                              : <ChevronDown className="w-4 h-4 text-gray-500" />
+                            }
+                          </div>
+                          <div className="flex items-center gap-3 text-xs">
+                            {set.livestreamDate && (
+                              <span className="text-gray-400">
+                                {new Date(set.livestreamDate).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Tokyo' })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4 mt-2 text-xs">
+                          <div>
+                            <span className="text-gray-400">売値: </span>
+                            <span className="text-yellow-400 font-bold">¥{Number(set.setPrice || 0).toLocaleString()}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">販売数: </span>
+                            <span className="text-cyan-300 font-bold">{set.quantitySold || 0}セット</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">売上: </span>
+                            <span className="text-emerald-400 font-mono font-bold">¥{Number(set.totalRevenue || 0).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* セット内容（展開時） */}
+                      {isExpanded && set.items && set.items.length > 0 && (
+                        <div className="ml-4 mr-2 mt-1 p-3 rounded-lg bg-gray-800/30 border border-gray-700/30 animate-in slide-in-from-top-2 duration-200">
+                          <div className="text-gray-400 text-xs mb-2 flex items-center gap-1">
+                            <span>セット内容</span>
+                            {set.totalOriginalPrice != null && Number(set.totalOriginalPrice) > 0 && (
+                              <span className="text-gray-500">(定価合計: ¥{Number(set.totalOriginalPrice).toLocaleString()})</span>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            {set.items.map((item: any, idx: number) => (
+                              <div key={idx} className="flex items-center justify-between text-xs">
+                                <span className="text-gray-300">{item.productName}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}</span>
+                                <span className="text-gray-500 font-mono">¥{Number(item.originalPrice || 0).toLocaleString()}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* よく使われる商品 */}
+              {setAnalysis.topProducts && setAnalysis.topProducts.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-gray-700">
+                  <h3 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+                    <Trophy className="w-4 h-4 text-yellow-400" />
+                    セットでよく使われる商品
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {setAnalysis.topProducts.map((product: any, idx: number) => (
+                      <div key={idx} className="px-3 py-1.5 rounded-lg bg-gray-800/60 border border-gray-700/50 text-xs">
+                        <span className="text-white font-medium">{product.productName}</span>
+                        <span className="text-pink-400 ml-2">{product.count}回使用</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Image Zoom Modal */}
