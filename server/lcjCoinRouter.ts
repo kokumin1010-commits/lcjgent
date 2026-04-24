@@ -50,11 +50,31 @@ async function getSettingsMap(db: any): Promise<Record<string, string>> {
 
 // ============================================================
 // Helper: Calculate current valuation
+// Fiscal year: Aug ~ Jul (決算期7月)
+// Formula: 当期全収益実績合計 × PSR
 // ============================================================
-function calculateValuation(monthlyRevenue: number, psrMultiplier: number) {
-  const annualRevenue = monthlyRevenue * 12;
-  const valuation = annualRevenue * psrMultiplier;
-  return { annualRevenue, valuation };
+function getFiscalYearRange(): { start: string; end: string; months: string[] } {
+  const now = new Date();
+  let fyStartYear: number;
+  // Fiscal year starts in August
+  if (now.getMonth() >= 7) { // Aug(7) ~ Dec(11)
+    fyStartYear = now.getFullYear();
+  } else { // Jan(0) ~ Jul(6)
+    fyStartYear = now.getFullYear() - 1;
+  }
+  const start = `${fyStartYear}-08`;
+  const end = `${fyStartYear + 1}-07`;
+  const months: string[] = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(fyStartYear, 7 + i, 1); // Aug + i
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return { start, end, months };
+}
+
+function calculateValuationFromTotal(totalRevenue: number, psrMultiplier: number) {
+  const valuation = totalRevenue * psrMultiplier;
+  return { totalRevenue, valuation };
 }
 
 // ============================================================
@@ -223,22 +243,99 @@ export const lcjCoinRouter = router({
       console.error("[LCJ Coin] Failed to fetch TSP contracts:", e);
     }
 
-    // ---- Calculate valuation ----
-    // Total monthly revenue = all revenue sources combined
-    // 1. LCJ commission (monthly avg from TikTok TAP)
-    // 2. Brand contract fees (period-adjusted monthly)
-    // 3. TSP contract fees (monthly)
-    // 4. Financial statement revenue (if available, may overlap with above)
-    // 5. Manual adjustment
-    //
-    // Use financial statement as base if available (it may already include some sources),
-    // otherwise sum individual sources
-    const totalIndividualMonthly = Math.round(avgMonthlyCommission) + Math.round(brandContractMonthlyTotal) + tspMonthlyTotal;
-    const monthlyRevenue = latestFinancialMonthlyRevenue > 0
-      ? Math.max(latestFinancialMonthlyRevenue, totalIndividualMonthly) + manualMonthlyRevenue
-      : totalIndividualMonthly + manualMonthlyRevenue;
-    const { annualRevenue, valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
+    // ---- Calculate valuation (当期実績ベース) ----
+    // 決算期: 7月 → 会計年度: 8月〜翌7月
+    // 計算式: 当期全収益実績合計 × PSR
+    const fiscalYear = getFiscalYearRange();
+    
+    // Build monthly revenue data for fiscal year
+    const commissionByMonth: Record<string, number> = {};
+    for (const m of gmvMonthlyData) {
+      commissionByMonth[m.reportMonth] = Number(m.totalActualPartnerCommission || 0);
+    }
+    
+    // Calculate brand contract revenue per month for fiscal year
+    const brandByMonthFY: Record<string, { recurring: number; single: number }> = {};
+    for (const month of fiscalYear.months) {
+      brandByMonthFY[month] = { recurring: 0, single: 0 };
+    }
+    for (const c of brandContractDetails) {
+      if (!c.fixedFee) continue;
+      if (c.startDate && c.endDate) {
+        const start = new Date(c.startDate);
+        const end = new Date(c.endDate);
+        const contractMonths = Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
+        const monthlyAmt = Number(c.fixedFee) / contractMonths;
+        for (const month of fiscalYear.months) {
+          const [y, m] = month.split('-').map(Number);
+          const monthStart = new Date(y, m - 1, 1);
+          const monthEnd = new Date(y, m, 0);
+          if (start <= monthEnd && end >= monthStart) {
+            if (c.isSingleEvent) {
+              brandByMonthFY[month].single += monthlyAmt;
+            } else {
+              brandByMonthFY[month].recurring += monthlyAmt;
+            }
+          }
+        }
+      } else {
+        // No dates - assume current month
+        const currentMonth = fiscalYear.months.find(m => {
+          const now = new Date();
+          return m === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        });
+        if (currentMonth) {
+          if (c.isSingleEvent) {
+            brandByMonthFY[currentMonth].single += Number(c.fixedFee);
+          } else {
+            brandByMonthFY[currentMonth].recurring += Number(c.fixedFee);
+          }
+        }
+      }
+    }
+    
+    // TSP by month for fiscal year
+    const tspByMonthFY: Record<string, number> = {};
+    for (const month of fiscalYear.months) {
+      tspByMonthFY[month] = 0;
+    }
+    for (const c of tspContractDetails) {
+      for (const month of fiscalYear.months) {
+        const [y, m] = month.split('-').map(Number);
+        const monthStart = new Date(y, m - 1, 1);
+        const monthEnd = new Date(y, m, 0);
+        const cStart = c.contractStartDate ? new Date(c.contractStartDate) : new Date(0);
+        const cEnd = c.contractEndDate ? new Date(c.contractEndDate) : new Date(2099, 11, 31);
+        if (cStart <= monthEnd && cEnd >= monthStart) {
+          tspByMonthFY[month] += c.monthlyAmount;
+        }
+      }
+    }
+    
+    // Sum up fiscal year total (only months up to current month)
+    const nowMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    let fiscalYearTotal = 0;
+    let fiscalYearMonthsWithData = 0;
+    const fiscalYearMonthlyBreakdown: Array<{ month: string; lcjCommission: number; brandRecurring: number; brandSingle: number; tsp: number; total: number }> = [];
+    for (const month of fiscalYear.months) {
+      if (month > nowMonth) break; // Don't include future months
+      const lcj = commissionByMonth[month] || 0;
+      const brandRec = brandByMonthFY[month]?.recurring || 0;
+      const brandSng = brandByMonthFY[month]?.single || 0;
+      const tsp = tspByMonthFY[month] || 0;
+      const monthTotal = lcj + brandRec + brandSng + tsp;
+      fiscalYearTotal += monthTotal;
+      if (monthTotal > 0) fiscalYearMonthsWithData++;
+      fiscalYearMonthlyBreakdown.push({ month, lcjCommission: Math.round(lcj), brandRecurring: Math.round(brandRec), brandSingle: Math.round(brandSng), tsp: Math.round(tsp), total: Math.round(monthTotal) });
+    }
+    
+    // Valuation = fiscal year total revenue × PSR
+    const { totalRevenue: fyTotalRevenue, valuation } = calculateValuationFromTotal(Math.round(fiscalYearTotal), psrMultiplier);
     const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
+    
+    // Keep individual monthly for reference display
+    const totalIndividualMonthly = Math.round(avgMonthlyCommission) + Math.round(brandContractMonthlyTotal) + tspMonthlyTotal;
+    const monthlyRevenue = totalIndividualMonthly;
 
     // Get total issued coins
     const [issuedResult] = await db
@@ -277,13 +374,20 @@ export const lcjCoinRouter = router({
     return {
       valuation: {
         monthlyRevenue,
-        annualRevenue,
+        annualRevenue: fyTotalRevenue,
         psrMultiplier,
         valuationAmount: valuation,
         coinPrice,
         totalCoinsPool,
         totalIssuedCoins,
         remainingCoins: totalCoinsPool - totalIssuedCoins,
+        fiscalYear: {
+          start: fiscalYear.start,
+          end: fiscalYear.end,
+          totalRevenue: fyTotalRevenue,
+          monthsWithData: fiscalYearMonthsWithData,
+          totalMonths: fiscalYearMonthlyBreakdown.length,
+        },
       },
       gmv: {
         totalAffiliateGmv,

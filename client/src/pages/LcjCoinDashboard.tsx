@@ -582,7 +582,7 @@ export default function LcjCoinDashboard() {
             </span>
           </div>
           <div className="mt-6 flex items-center justify-center gap-8 text-sm text-white/30">
-            <span>計算式: 自社売上（月間） × 12ヶ月 × PSR {dashboard?.valuation?.psrMultiplier || 15}倍</span>
+            <span>計算式: 当期売上実績合計（{dashboard?.valuation?.fiscalYear?.start || '2025-08'}〜{dashboard?.valuation?.fiscalYear?.end || '2026-07'}） × PSR {dashboard?.valuation?.psrMultiplier || 15}倍</span>
           </div>
           {/* Sparkline */}
           {gmvSparklineData.length > 1 && (
@@ -610,11 +610,11 @@ export default function LcjCoinDashboard() {
             </div>
           </NeonCard>
           <NeonCard color="purple" className="!p-4">
-            <div className="text-xs text-white/40 mb-1">全収益合算（月間）</div>
+            <div className="text-xs text-white/40 mb-1">当期売上実績</div>
             <div className="text-xl font-bold font-mono text-purple-400">
-              {formatYen(dashboard?.valuation?.monthlyRevenue || 0)}
+              {formatYen(dashboard?.valuation?.fiscalYear?.totalRevenue || 0)}
             </div>
-            <div className="text-[10px] text-white/20 mt-1">手数料+ブランド+TSP</div>
+            <div className="text-[10px] text-white/20 mt-1">{dashboard?.valuation?.fiscalYear?.monthsWithData || 0}ヶ月分実績</div>
           </NeonCard>
           <NeonCard color="blue" className="!p-4">
             <div className="text-xs text-white/40 mb-1">発行済みコイン</div>
@@ -670,18 +670,19 @@ export default function LcjCoinDashboard() {
                 <BarChart3 className="w-5 h-5 text-blue-400" />
                 評価算出ロジック
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
                 <div className="p-5 rounded-xl bg-purple-500/5 border border-purple-500/20">
-                  <div className="text-xs text-white/40 mb-2">全収益合算（月間）</div>
+                  <div className="text-xs text-white/40 mb-2">当期売上実績合計</div>
                   <div className="text-xl font-bold font-mono text-purple-400">
-                    {formatYenFull(dashboard?.valuation?.monthlyRevenue || 0)}
+                    {formatYenFull(dashboard?.valuation?.fiscalYear?.totalRevenue || 0)}
                   </div>
+                  <div className="text-[10px] text-white/20 mt-1">{dashboard?.valuation?.fiscalYear?.start}〜{dashboard?.valuation?.fiscalYear?.end}（{dashboard?.valuation?.fiscalYear?.monthsWithData || 0}ヶ月実績）</div>
                 </div>
                 <div className="p-5 rounded-xl bg-white/[0.03] border border-white/5 relative">
                   <div className="absolute -left-3 top-1/2 -translate-y-1/2 text-white/20 font-bold text-lg">×</div>
-                  <div className="text-xs text-white/40 mb-2">年間化 × PSR倍率</div>
+                  <div className="text-xs text-white/40 mb-2">PSR倍率</div>
                   <div className="text-xl font-bold font-mono text-blue-400">
-                    12 × {dashboard?.valuation?.psrMultiplier || 15}
+                    {dashboard?.valuation?.psrMultiplier || 15}
                   </div>
                 </div>
                 <div className="p-5 rounded-xl bg-orange-500/5 border border-orange-500/20 relative">
@@ -724,8 +725,8 @@ export default function LcjCoinDashboard() {
                 </button>
               </div>
               <div className="mt-3 p-3 rounded-lg bg-white/[0.02] text-xs text-white/30 space-y-1">
-                <p>計算式: 擬似時価総額 = 全収益合算（月間） × 12 × PSR倍率({dashboard?.valuation?.psrMultiplier || 15}倍)</p>
-                <p>※ 全収益 = LCJ手数料 + ブランド契約（期間考慮月額換算） + TSP契約</p>
+                <p>計算式: 擬似時価総額 = 当期売上実績合計（{dashboard?.valuation?.fiscalYear?.start}〜{dashboard?.valuation?.fiscalYear?.end}） × PSR倍率({dashboard?.valuation?.psrMultiplier || 15}倍)</p>
+                <p>※ 全収益 = LCJ手数料 + ブランド契約（期間考慮） + 単発ライブ + TSP契約（決算期: 7月、会計年度: 8月〜翌7月）</p>
                 <p>1コイン価格: 擬似時価総額 ÷ 総発行コイン数 = {formatYenFull(coinPrice)}</p>
               </div>
             </NeonCard>
@@ -800,8 +801,13 @@ export default function LcjCoinDashboard() {
               const progressInPhase = Math.min(100, Math.max(0, ((currentValuation - prevTarget) / (currentPhase.target - prevTarget)) * 100));
               const remainingToNext = Math.max(0, currentPhase.target - currentValuation);
               // Required monthly revenue to reach next phase target
-              const requiredMonthlyRevenue = currentPhase.target / (12 * psrMultiplier);
-              const additionalMonthlyNeeded = Math.max(0, requiredMonthlyRevenue - monthlyRevenue);
+              // 当期実績ベース: 目標達成に必要な当期売上合計
+              const requiredAnnualRevenue = currentPhase.target / psrMultiplier;
+              const currentFYRevenue = dashboard?.valuation?.fiscalYear?.totalRevenue || 0;
+              const additionalRevenueNeeded = Math.max(0, requiredAnnualRevenue - currentFYRevenue);
+              const fyMonthsRemaining = Math.max(1, 12 - (dashboard?.valuation?.fiscalYear?.totalMonths || 0));
+              const requiredMonthlyRevenue = additionalRevenueNeeded / fyMonthsRemaining;
+              const additionalMonthlyNeeded = requiredMonthlyRevenue;
 
               return (
                 <NeonCard color="purple">
@@ -880,22 +886,22 @@ export default function LcjCoinDashboard() {
                         </div>
                       </div>
                       <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5 text-center">
-                        <div className="text-xs text-white/40 mb-1">目標達成に必要な月間売上</div>
+                        <div className="text-xs text-white/40 mb-1">残り{fyMonthsRemaining}ヶ月の目標月間売上</div>
                         <div className={`text-lg font-bold font-mono ${currentPhase.textColor}`}>
                           {formatYen(requiredMonthlyRevenue)}
                         </div>
                       </div>
                       <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5 text-center">
-                        <div className="text-xs text-white/40 mb-1">現在との差額（月間）</div>
+                        <div className="text-xs text-white/40 mb-1">当期残り必要額（合計）</div>
                         <div className="text-lg font-bold font-mono text-yellow-400">
-                          +{formatYen(additionalMonthlyNeeded)}
+                          +{formatYen(additionalRevenueNeeded)}
                         </div>
                       </div>
                     </div>
 
                     {/* Explanation */}
                     <div className="text-[11px] text-white/20 text-center">
-                      目標達成に必要な月間売上 = 目標時価総額 ÷ (12ヶ月 × PSR {psrMultiplier}倍)
+                      残り{fyMonthsRemaining}ヶ月で必要な月間売上 = (目標時価総額÷PSR{psrMultiplier} − 当期実績) ÷ 残り月数
                     </div>
                   </div>
                 </NeonCard>
@@ -962,11 +968,12 @@ export default function LcjCoinDashboard() {
                   <div className="text-[10px] text-white/20 mt-1">{dashboard?.referenceSources?.tsp?.activeCount || 0}件</div>
                 </div>
                 <div className="bg-gradient-to-br from-red-500/20 to-orange-500/20 rounded-xl p-4 border border-red-500/30">
-                  <div className="text-xs text-white/60 mb-1 font-semibold">合算月間売上</div>
+                  <div className="text-xs text-white/60 mb-1 font-semibold">当期売上実績合計</div>
                   <div className="text-xl font-bold font-mono text-red-400">
-                    {formatYenFull(dashboard?.valuation?.monthlyRevenue || 0)}
+                    {formatYenFull(dashboard?.valuation?.fiscalYear?.totalRevenue || 0)}
                   </div>
-                  <div className="text-[10px] text-white/30 mt-1">× 12ヶ月 × PSR {dashboard?.valuation?.psrMultiplier || 15}倍 = {formatYen(dashboard?.valuation?.valuationAmount || 0)}</div>
+                  <div className="text-[10px] text-white/30 mt-1">{dashboard?.valuation?.fiscalYear?.start}〜{dashboard?.valuation?.fiscalYear?.end}（{dashboard?.valuation?.fiscalYear?.monthsWithData || 0}ヶ月実績）</div>
+                  <div className="text-[10px] text-white/30 mt-0.5">× PSR {dashboard?.valuation?.psrMultiplier || 15}倍 = {formatYen(dashboard?.valuation?.valuationAmount || 0)}</div>
                 </div>
               </div>
             </NeonCard>
