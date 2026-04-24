@@ -720,31 +720,131 @@ export default function LcjCoinDashboard() {
               </NeonCard>
             </div>
 
-            {/* IPO Roadmap */}
-            <NeonCard color="purple">
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <Rocket className="w-5 h-5 text-purple-400" />
-                IPOロードマップ
-              </h3>
-              <div className="flex items-center gap-4 overflow-x-auto pb-2">
-                {[
-                  { year: "2025", label: "創業", value: "5億円", color: "border-green-500/30 text-green-400", active: true },
-                  { year: "2026", label: "成長期", value: "30億円", color: "border-blue-500/30 text-blue-400", active: false },
-                  { year: "2027", label: "拡大期", value: "100億円", color: "border-purple-500/30 text-purple-400", active: false },
-                  { year: "2028", label: "Pre-IPO", value: "300億円", color: "border-orange-500/30 text-orange-400", active: false },
-                  { year: "2029", label: "IPO", value: "1,000億円", color: "border-red-500/30 text-red-400", active: false },
-                ].map((step, i) => (
-                  <div key={i} className="flex items-center gap-3 shrink-0">
-                    <div className={`p-4 rounded-xl border ${step.color} bg-white/[0.02] text-center min-w-[120px] ${step.active ? "ring-2 ring-green-500/30" : ""}`}>
-                      <div className="text-xs text-white/40">{step.year}</div>
-                      <div className="font-bold text-lg font-mono">{step.value}</div>
-                      <div className="text-xs text-white/30 mt-1">{step.label}</div>
-                    </div>
-                    {i < 4 && <ChevronRight className="w-5 h-5 text-white/10 shrink-0" />}
+            {/* IPO Roadmap with Phase Progress */}
+            {(() => {
+              const currentValuation = dashboard?.valuation?.valuationAmount || 0;
+              const monthlyRevenue = dashboard?.valuation?.monthlyRevenue || 0;
+              const psrMultiplier = dashboard?.valuation?.psrMultiplier || 15;
+              const phases = [
+                { year: "2025", label: "創業", target: 500000000, displayValue: "5億円", borderColor: "border-green-500/50", textColor: "text-green-400", ringColor: "ring-green-500/40", bgGlow: "shadow-green-500/10", barColor: "bg-green-500" },
+                { year: "2026", label: "成長期", target: 3000000000, displayValue: "30億円", borderColor: "border-blue-500/50", textColor: "text-blue-400", ringColor: "ring-blue-500/40", bgGlow: "shadow-blue-500/10", barColor: "bg-blue-500" },
+                { year: "2027", label: "拡大期", target: 10000000000, displayValue: "100億円", borderColor: "border-purple-500/50", textColor: "text-purple-400", ringColor: "ring-purple-500/40", bgGlow: "shadow-purple-500/10", barColor: "bg-purple-500" },
+                { year: "2028", label: "Pre-IPO", target: 30000000000, displayValue: "300億円", borderColor: "border-orange-500/50", textColor: "text-orange-400", ringColor: "ring-orange-500/40", bgGlow: "shadow-orange-500/10", barColor: "bg-orange-500" },
+                { year: "2029", label: "IPO", target: 100000000000, displayValue: "1,000億円", borderColor: "border-red-500/50", textColor: "text-red-400", ringColor: "ring-red-500/40", bgGlow: "shadow-red-500/10", barColor: "bg-red-500" },
+              ];
+              // Determine current phase
+              let currentPhaseIdx = 0;
+              for (let i = 0; i < phases.length; i++) {
+                if (currentValuation >= phases[i].target && i < phases.length - 1) {
+                  currentPhaseIdx = i + 1;
+                }
+              }
+              const currentPhase = phases[currentPhaseIdx];
+              const prevTarget = currentPhaseIdx > 0 ? phases[currentPhaseIdx - 1].target : 0;
+              const progressInPhase = Math.min(100, Math.max(0, ((currentValuation - prevTarget) / (currentPhase.target - prevTarget)) * 100));
+              const remainingToNext = Math.max(0, currentPhase.target - currentValuation);
+              // Required monthly revenue to reach next phase target
+              const requiredMonthlyRevenue = currentPhase.target / (12 * psrMultiplier);
+              const additionalMonthlyNeeded = Math.max(0, requiredMonthlyRevenue - monthlyRevenue);
+
+              return (
+                <NeonCard color="purple">
+                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                    <Rocket className="w-5 h-5 text-purple-400" />
+                    IPOロードマップ
+                  </h3>
+
+                  {/* Phase Cards */}
+                  <div className="flex items-center gap-4 overflow-x-auto pb-4">
+                    {phases.map((step, i) => {
+                      const isActive = i === currentPhaseIdx;
+                      const isCompleted = i < currentPhaseIdx;
+                      return (
+                        <div key={i} className="flex items-center gap-3 shrink-0">
+                          <div className={`p-4 rounded-xl border ${step.borderColor} bg-white/[0.02] text-center min-w-[120px] transition-all duration-300 ${
+                            isActive ? `ring-2 ${step.ringColor} shadow-lg ${step.bgGlow}` : ""
+                          } ${isCompleted ? "opacity-50" : ""}`}>
+                            <div className="text-xs text-white/40">{step.year}</div>
+                            <div className={`font-bold text-lg font-mono ${step.textColor}`}>{step.displayValue}</div>
+                            <div className="text-xs text-white/30 mt-1">{step.label}</div>
+                            {isActive && (
+                              <div className={`text-[10px] mt-2 px-2 py-0.5 rounded-full ${step.barColor}/20 ${step.textColor} font-bold`}>
+                                ◀ 現在地
+                              </div>
+                            )}
+                            {isCompleted && (
+                              <div className="text-[10px] mt-2 text-green-400">✓ 達成</div>
+                            )}
+                          </div>
+                          {i < 4 && <ChevronRight className="w-5 h-5 text-white/10 shrink-0" />}
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
-            </NeonCard>
+
+                  {/* Progress Section */}
+                  <div className="mt-4 p-4 rounded-xl bg-white/[0.03] border border-white/5 space-y-4">
+                    {/* Current Status */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm text-white/40">現在のフェーズ: </span>
+                        <span className={`text-sm font-bold ${currentPhase.textColor}`}>
+                          {currentPhase.label}（{currentPhase.year}）
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-sm text-white/40">目標: </span>
+                        <span className={`text-sm font-bold ${currentPhase.textColor}`}>{currentPhase.displayValue}</span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div>
+                      <div className="flex justify-between text-xs text-white/30 mb-1">
+                        <span>{formatYen(currentValuation)}</span>
+                        <span className="font-bold text-white/50">{progressInPhase.toFixed(1)}%</span>
+                        <span>{currentPhase.displayValue}</span>
+                      </div>
+                      <div className="h-3 bg-white/5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${currentPhase.barColor} rounded-full transition-all duration-1000 relative`}
+                          style={{ width: `${progressInPhase}%` }}
+                        >
+                          <div className={`absolute inset-0 ${currentPhase.barColor}/50 animate-pulse rounded-full`} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Key Metrics */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5 text-center">
+                        <div className="text-xs text-white/40 mb-1">あと必要な時価総額</div>
+                        <div className={`text-lg font-bold font-mono ${currentPhase.textColor}`}>
+                          {formatYen(remainingToNext)}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5 text-center">
+                        <div className="text-xs text-white/40 mb-1">目標達成に必要な月間売上</div>
+                        <div className={`text-lg font-bold font-mono ${currentPhase.textColor}`}>
+                          {formatYen(requiredMonthlyRevenue)}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5 text-center">
+                        <div className="text-xs text-white/40 mb-1">現在との差額（月間）</div>
+                        <div className="text-lg font-bold font-mono text-yellow-400">
+                          +{formatYen(additionalMonthlyNeeded)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Explanation */}
+                    <div className="text-[11px] text-white/20 text-center">
+                      目標達成に必要な月間売上 = 目標時価総額 ÷ (12ヶ月 × PSR {psrMultiplier}倍)
+                    </div>
+                  </div>
+                </NeonCard>
+              );
+            })()}
           </div>
         )}
 
