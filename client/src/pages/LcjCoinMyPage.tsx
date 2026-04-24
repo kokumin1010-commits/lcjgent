@@ -52,14 +52,19 @@ export default function LcjCoinMyPage() {
     {
       enabled: !!authType,
       retry: false,
-      onError: (error: any) => {
-        if (error.message?.includes("認証") || error.message?.includes("ログイン")) {
-          toast.error("セッションが切れました。再度ログインしてください。");
-          navigate("/my/lcj-coin/login");
-        }
-      },
     }
   );
+
+  // Handle auth errors
+  useEffect(() => {
+    if (myPageQuery.error) {
+      const msg = myPageQuery.error.message || "";
+      if (msg.includes("認証") || msg.includes("ログイン")) {
+        toast.error("セッションが切れました。再度ログインしてください。");
+        navigate("/my/lcj-coin/login");
+      }
+    }
+  }, [myPageQuery.error]);
 
   const handleLogout = () => {
     if (authType === "liver") {

@@ -2405,15 +2405,24 @@ export const lcjCoinRouter = router({
 
           const [staffMember] = await db.select().from(staff)
             .where(eq(staff.email, user.email)).limit(1);
-          if (!staffMember) throw new Error("スタッフ情報が見つかりません。管理者にお問い合わせください。");
 
           holderType = "staff";
-          holderId = staffMember.id;
-          holderName = staffMember.name;
-          holderEmail = staffMember.email;
-          holderAvatar = staffMember.avatarUrl || null;
-          holderPosition = staffMember.position || null;
-          joinDate = staffMember.joinDate || staffMember.createdAt;
+          if (staffMember) {
+            holderId = staffMember.id;
+            holderName = staffMember.name;
+            holderEmail = staffMember.email;
+            holderAvatar = staffMember.avatarUrl || null;
+            holderPosition = staffMember.position || null;
+            joinDate = staffMember.joinDate || staffMember.createdAt;
+          } else {
+            // Fallback: use users table info (admin user not in staff table)
+            holderId = user.id;
+            holderName = user.name || user.email;
+            holderEmail = user.email;
+            holderAvatar = null;
+            holderPosition = "管理者";
+            joinDate = user.createdAt || null;
+          }
         } catch (e: any) {
           throw new Error(e.message || "認証に失敗しました。再度ログインしてください。");
         }
