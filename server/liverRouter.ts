@@ -1,7 +1,7 @@
 import bcrypt from "bcrypt";
 import { SignJWT, jwtVerify } from "jose";
 import { z } from "zod";
-import { publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { ENV } from "./_core/env";
 import {
@@ -702,4 +702,16 @@ export const liverRouter = router({
     const stats = await getReferralStats(payload.liverId);
     return stats;
   }),
+
+  // Admin: Bulk deactivate livers by IDs
+  bulkDeactivate: protectedProcedure
+    .input(z.object({ ids: z.array(z.number()) }))
+    .mutation(async ({ input }) => {
+      let count = 0;
+      for (const id of input.ids) {
+        await updateLiver(id, { isActive: false } as any);
+        count++;
+      }
+      return { success: true, deactivatedCount: count };
+    }),
 });
