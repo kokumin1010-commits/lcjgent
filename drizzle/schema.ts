@@ -5155,6 +5155,7 @@ export const lcjCoinHoldings = mysqlTable("lcj_coin_holdings", {
   xp: bigint("xp", { mode: "number" }).default(0).notNull(), // 経験値
   streak: int("streak").default(0).notNull(), // 連続日数
   lastActiveDate: timestamp("lastActiveDate"), // 最終アクティブ日
+  tierCode: varchar("tierCode", { length: 10 }), // 貢献期待度Tier（S/A/B/C/D）
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

@@ -1149,7 +1149,7 @@ export const lcjCoinRouter = router({
       const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
       const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
 
-      // 1. 全アクティブスタッフを取得
+      // 1. 全アクティブスタッフを取得（joinDate含む）
       const allStaff = filterType === "liver" ? [] : await db
         .select({
           id: staff.id,
@@ -1157,16 +1157,19 @@ export const lcjCoinRouter = router({
           department: staff.department,
           avatarUrl: staff.avatarUrl,
           position: staff.position,
+          joinDate: staff.joinDate,
+          createdAt: staff.createdAt,
         })
         .from(staff)
         .where(eq(staff.isActive, "active"));
 
-      // 2. 全アクティブライバーを取得
+      // 2. 全アクティブライバーを取得（createdAt含む）
       const allLivers = filterType === "staff" ? [] : await db
         .select({
           id: livers.id,
           name: livers.name,
           avatarUrl: livers.avatarUrl,
+          createdAt: livers.createdAt,
         })
         .from(livers)
         .where(eq(livers.isActive, true));
@@ -1196,12 +1199,31 @@ export const lcjCoinRouter = router({
         totalValue: number;
         vestedValue: number;
         hasHolding: boolean;
+        tierCode: string | null;
+        tenureMonths: number; // 在籍期間（月）
+        joinDate: string | null; // 入社日/登録日
       };
 
       const merged: MergedHolder[] = [];
 
+      const now = new Date();
+      const calcTenureMonths = (d: Date | string | null): number => {
+        if (!d) return 0;
+        const dt = typeof d === "string" ? new Date(d) : d;
+        if (isNaN(dt.getTime())) return 0;
+        const diffMs = now.getTime() - dt.getTime();
+        return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24 * 30.44)));
+      };
+      const fmtDate = (d: Date | string | null): string | null => {
+        if (!d) return null;
+        const dt = typeof d === "string" ? new Date(d) : d;
+        if (isNaN(dt.getTime())) return null;
+        return dt.toISOString().split("T")[0];
+      };
+
       for (const s of allStaff) {
         const holding = holdingsMap.get(`staff_${s.id}`);
+        const startDate = s.joinDate || s.createdAt;
         merged.push({
           id: holding?.id || null,
           holderType: "staff",
@@ -1219,6 +1241,9 @@ export const lcjCoinRouter = router({
           totalValue: (holding?.totalCoins || 0) * coinPrice,
           vestedValue: (holding?.vestedCoins || 0) * coinPrice,
           hasHolding: !!holding,
+          tierCode: holding?.tierCode || null,
+          tenureMonths: calcTenureMonths(startDate),
+          joinDate: fmtDate(startDate),
         });
       }
 
@@ -1241,6 +1266,9 @@ export const lcjCoinRouter = router({
           totalValue: (holding?.totalCoins || 0) * coinPrice,
           vestedValue: (holding?.vestedCoins || 0) * coinPrice,
           hasHolding: !!holding,
+          tierCode: holding?.tierCode || null,
+          tenureMonths: calcTenureMonths(l.createdAt),
+          joinDate: fmtDate(l.createdAt),
         });
       }
 
@@ -2245,5 +2273,91 @@ export const lcjCoinRouter = router({
       }
 
       return { processedCount, vestedTotal, coinPrice };
+    }),
+
+  // ============================================================
+  // Admin: Update holder tier code
+  // ============================================================
+  updateHolderTier: protectedProcedure
+    .input(z.object({
+      holderType: z.enum(["staff", "liver"]),
+      holderId: z.number(),
+      tierCode: z.string().nullable(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+
+      // Check if holding exists
+      const [existing] = await db.select().from(lcjCoinHoldings)
+        .where(and(
+          eq(lcjCoinHoldings.holderType, input.holderType),
+          eq(lcjCoinHoldings.holderId, input.holderId)
+        )).limit(1);
+
+      if (existing) {
+        // Update existing holding
+        await db.update(lcjCoinHoldings)
+          .set({ tierCode: input.tierCode })
+          .where(eq(lcjCoinHoldings.id, existing.id));
+        return { success: true, id: existing.id };
+      } else {
+        // Create new holding with tier
+        const [result] = await db.insert(lcjCoinHoldings).values({
+          holderType: input.holderType,
+          holderId: input.holderId,
+          tierCode: input.tierCode,
+          totalCoins: 0,
+          vestedCoins: 0,
+          exercisedCoins: 0,
+        });
+        return { success: true, id: result.insertId };
+      }
+    }),
+
+  // ============================================================
+  // Admin: Bulk update holder tier codes
+  // ============================================================
+  bulkUpdateHolderTier: protectedProcedure
+    .input(z.object({
+      updates: z.array(z.object({
+        holderType: z.enum(["staff", "liver"]),
+        holderId: z.number(),
+        tierCode: z.string().nullable(),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+
+      let updatedCount = 0;
+      let createdCount = 0;
+
+      for (const u of input.updates) {
+        const [existing] = await db.select().from(lcjCoinHoldings)
+          .where(and(
+            eq(lcjCoinHoldings.holderType, u.holderType),
+            eq(lcjCoinHoldings.holderId, u.holderId)
+          )).limit(1);
+
+        if (existing) {
+          await db.update(lcjCoinHoldings)
+            .set({ tierCode: u.tierCode })
+            .where(eq(lcjCoinHoldings.id, existing.id));
+          updatedCount++;
+        } else {
+          await db.insert(lcjCoinHoldings).values({
+            holderType: u.holderType,
+            holderId: u.holderId,
+            tierCode: u.tierCode,
+            totalCoins: 0,
+            vestedCoins: 0,
+            exercisedCoins: 0,
+          });
+          createdCount++;
+        }
+      }
+
+      return { success: true, updatedCount, createdCount };
     }),
 });

@@ -135,6 +135,25 @@ function formatYenFull(n: number): string {
   return `¥${Math.round(n).toLocaleString()}`;
 }
 
+function formatTenure(months: number): string {
+  if (months <= 0) return "-";
+  const years = Math.floor(months / 12);
+  const remainMonths = months % 12;
+  if (years > 0 && remainMonths > 0) return `${years}年${remainMonths}ヶ月`;
+  if (years > 0) return `${years}年`;
+  return `${remainMonths}ヶ月`;
+}
+
+const TIER_COLORS: Record<string, string> = {
+  S: "bg-red-500/20 text-red-400 border-red-500/30",
+  A: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  B: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+  C: "bg-green-500/20 text-green-400 border-green-500/30",
+  D: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+};
+
+const TIER_OPTIONS = ["S", "A", "B", "C", "D"];
+
 // ============================================================
 // Leaderboard Row
 // ============================================================
@@ -442,6 +461,14 @@ export default function LcjCoinDashboard() {
       toast.success("ドキュメントを削除しました");
       documentsQuery.refetch();
     },
+  });
+
+  const updateTierMutation = trpc.lcjCoin.updateHolderTier.useMutation({
+    onSuccess: () => {
+      toast.success("Tierを更新しました");
+      holdersQuery.refetch();
+    },
+    onError: (e) => toast.error(`エラー: ${e.message}`),
   });
 
   // Derived data
@@ -1477,13 +1504,15 @@ export default function LcjCoinDashboard() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-white/10 text-white/40">
-                      <th className="text-left py-3 px-4">名前</th>
-                      <th className="text-left py-3 px-4">タイプ</th>
-                      <th className="text-left py-3 px-4">部署</th>
-                      <th className="text-right py-3 px-4">総コイン</th>
-                      <th className="text-right py-3 px-4">確定済み</th>
-                      <th className="text-right py-3 px-4">資産価値</th>
-                      <th className="text-center py-3 px-4">Lv</th>
+                      <th className="text-left py-3 px-3">名前</th>
+                      <th className="text-left py-3 px-3">タイプ</th>
+                      <th className="text-center py-3 px-3">Tier</th>
+                      <th className="text-left py-3 px-3">部署</th>
+                      <th className="text-center py-3 px-3">在籍期間</th>
+                      <th className="text-right py-3 px-3">総コイン</th>
+                      <th className="text-right py-3 px-3">確定済み</th>
+                      <th className="text-right py-3 px-3">資産価値</th>
+                      <th className="text-center py-3 px-3">Lv</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1513,25 +1542,49 @@ export default function LcjCoinDashboard() {
                             {h.holderType === "liver" ? "ライバー" : "スタッフ"}
                           </Badge>
                         </td>
-                        <td className="py-3 px-4 text-white/40">{h.department || "-"}</td>
-                        <td className="py-3 px-4 text-right font-mono">
+                        <td className="py-3 px-3">
+                          <select
+                            className="bg-transparent border border-white/10 rounded px-1.5 py-1 text-xs cursor-pointer hover:border-white/20 focus:outline-none focus:border-orange-500/40 transition-colors"
+                            value={h.tierCode || ""}
+                            onChange={(e) => {
+                              const val = e.target.value || null;
+                              updateTierMutation.mutate({ holderType: h.holderType, holderId: h.holderId, tierCode: val });
+                            }}
+                          >
+                            <option value="" className="bg-gray-900 text-white/40">-</option>
+                            {TIER_OPTIONS.map(t => (
+                              <option key={t} value={t} className="bg-gray-900 text-white">{t}</option>
+                            ))}
+                          </select>
+                          {h.tierCode && (
+                            <Badge className={`ml-1 text-[10px] px-1.5 py-0 ${TIER_COLORS[h.tierCode] || ""}`}>
+                              {h.tierCode}
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-white/40">{h.department || "-"}</td>
+                        <td className="py-3 px-3 text-center">
+                          <div className="text-white/60 text-xs">{formatTenure(h.tenureMonths)}</div>
+                          {h.joinDate && <div className="text-[10px] text-white/20">{h.joinDate}</div>}
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono">
                           {h.hasHolding ? (
                             <span className="text-white">{Number(h.totalCoins).toLocaleString()}</span>
                           ) : (
                             <Badge variant="outline" className="text-xs border-white/10 text-white/30">未付与</Badge>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono text-white/60">
+                        <td className="py-3 px-3 text-right font-mono text-white/60">
                           {h.hasHolding ? Number(h.vestedCoins).toLocaleString() : "-"}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold">
+                        <td className="py-3 px-3 text-right font-mono font-bold">
                           {h.hasHolding ? (
                             <span className="text-orange-400">{formatYenFull(Number(h.totalValue))}</span>
                           ) : (
                             <span className="text-white/20">-</span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-center">
+                        <td className="py-3 px-3 text-center">
                           {h.hasHolding ? (
                             <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-600 text-white text-xs font-bold shadow-lg shadow-orange-500/20">
                               {h.level}

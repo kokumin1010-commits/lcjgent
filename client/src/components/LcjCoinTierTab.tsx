@@ -36,6 +36,13 @@ const tierColors: Record<string, string> = {
 export default function LcjCoinTierTab() {
   const [calcDialog, setCalcDialog] = useState(false);
   const [calcForm, setCalcForm] = useState({ annualSalary: 5000000, tierCode: "B" });
+  const [editingTier, setEditingTier] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{
+    tierCode: string; tierName: string; description: string;
+    exampleRoles: string; salaryCoefficient: number;
+    vestingPeriodMonths: number; cliffMonths: number;
+    coefficientMin: number; coefficientMax: number;
+  } | null>(null);
 
   const tiersQuery = trpc.lcjCoin.getTierTemplates.useQuery();
   const calcQuery = trpc.lcjCoin.calculateAutoGrant.useQuery(
@@ -47,6 +54,8 @@ export default function LcjCoinTierTab() {
     onSuccess: () => {
       toast.success("Tierテンプレートを更新しました");
       tiersQuery.refetch();
+      setEditingTier(null);
+      setEditForm(null);
     },
     onError: (e) => toast.error(`エラー: ${e.message}`),
   });
@@ -55,6 +64,37 @@ export default function LcjCoinTierTab() {
   const calcResult = calcQuery.data;
 
   const formatYen = (v: number) => `¥${Math.round(v).toLocaleString()}`;
+
+  const startEdit = (tier: any) => {
+    setEditingTier(tier.tierCode);
+    setEditForm({
+      tierCode: tier.tierCode,
+      tierName: tier.tierName || "",
+      description: tier.description || "",
+      exampleRoles: tier.exampleRoles || "",
+      salaryCoefficient: Number(tier.salaryCoefficient) || 0,
+      vestingPeriodMonths: tier.vestingPeriodMonths || 48,
+      cliffMonths: tier.cliffMonths || 12,
+      coefficientMin: Number(tier.coefficientMin) || 0,
+      coefficientMax: Number(tier.coefficientMax) || 0,
+    });
+  };
+
+  const saveEdit = () => {
+    if (!editForm) return;
+    // Find existing tier to get its ID for update
+    const existingTier = tiers.find((t: any) => t.tierCode === editForm.tierCode);
+    upsertMutation.mutate({
+      id: existingTier?.id,
+      tierCode: editForm.tierCode,
+      tierName: editForm.tierName,
+      description: editForm.description,
+      exampleRoles: editForm.exampleRoles,
+      salaryCoefficient: editForm.salaryCoefficient,
+      vestingPeriodMonths: editForm.vestingPeriodMonths,
+      cliffMonths: editForm.cliffMonths,
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -80,28 +120,101 @@ export default function LcjCoinTierTab() {
           <div className="space-y-3">
             {tiers.map((tier: any) => (
               <div key={tier.id} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors">
-                <div className="flex items-center gap-4">
-                  <Badge className={`text-lg px-3 py-1 ${tierColors[tier.tierCode] || tierColors.D}`}>
-                    {tier.tierCode}
-                  </Badge>
-                  <div className="flex-1">
-                    <div className="font-medium text-white">{tier.tierName}</div>
-                    <div className="text-xs text-white/40 mt-0.5">{tier.description}</div>
-                    <div className="text-xs text-white/30 mt-1">
-                      対象例: {tier.exampleRoles}
+                {editingTier === tier.tierCode && editForm ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Badge className={`text-lg px-3 py-1 ${tierColors[tier.tierCode] || tierColors.D}`}>
+                        {tier.tierCode}
+                      </Badge>
+                      <Input
+                        className="bg-white/5 border-white/10 text-white h-8 text-sm flex-1"
+                        value={editForm.tierName}
+                        onChange={(e) => setEditForm(f => f ? { ...f, tierName: e.target.value } : f)}
+                        placeholder="Tier名"
+                      />
+                    </div>
+                    <Input
+                      className="bg-white/5 border-white/10 text-white h-8 text-sm"
+                      value={editForm.description}
+                      onChange={(e) => setEditForm(f => f ? { ...f, description: e.target.value } : f)}
+                      placeholder="説明"
+                    />
+                    <Input
+                      className="bg-white/5 border-white/10 text-white h-8 text-sm"
+                      value={editForm.exampleRoles}
+                      onChange={(e) => setEditForm(f => f ? { ...f, exampleRoles: e.target.value } : f)}
+                      placeholder="対象例"
+                    />
+                    <div className="grid grid-cols-4 gap-2">
+                      <div>
+                        <Label className="text-[10px] text-white/40">係数(%)</Label>
+                        <Input
+                          type="number"
+                          className="bg-white/5 border-white/10 text-white h-8 text-sm"
+                          value={editForm.salaryCoefficient}
+                          onChange={(e) => setEditForm(f => f ? { ...f, salaryCoefficient: Number(e.target.value) } : f)}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-white/40">ベスティング(月)</Label>
+                        <Input
+                          type="number"
+                          className="bg-white/5 border-white/10 text-white h-8 text-sm"
+                          value={editForm.vestingPeriodMonths}
+                          onChange={(e) => setEditForm(f => f ? { ...f, vestingPeriodMonths: Number(e.target.value) } : f)}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-white/40">クリフ(月)</Label>
+                        <Input
+                          type="number"
+                          className="bg-white/5 border-white/10 text-white h-8 text-sm"
+                          value={editForm.cliffMonths}
+                          onChange={(e) => setEditForm(f => f ? { ...f, cliffMonths: Number(e.target.value) } : f)}
+                        />
+                      </div>
+                      <div className="flex items-end gap-1">
+                        <Button size="sm" className="h-8 bg-orange-500 hover:bg-orange-600 text-white" onClick={saveEdit} disabled={upsertMutation.isPending}>
+                          {upsertMutation.isPending ? "保存中..." : "保存"}
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-8 border-white/10 text-white/60" onClick={() => { setEditingTier(null); setEditForm(null); }}>
+                          取消
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold font-mono text-orange-400">
-                      {Number(tier.salaryCoefficient)}%
+                ) : (
+                  <div className="flex items-center gap-4">
+                    <Badge className={`text-lg px-3 py-1 ${tierColors[tier.tierCode] || tierColors.D}`}>
+                      {tier.tierCode}
+                    </Badge>
+                    <div className="flex-1">
+                      <div className="font-medium text-white">{tier.tierName}</div>
+                      <div className="text-xs text-white/40 mt-0.5">{tier.description}</div>
+                      <div className="text-xs text-white/30 mt-1">
+                        対象例: {tier.exampleRoles}
+                      </div>
                     </div>
-                    <div className="text-xs text-white/30">年収に対する係数</div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold font-mono text-orange-400">
+                        {Number(tier.salaryCoefficient)}%
+                      </div>
+                      <div className="text-xs text-white/30">年収に対する係数</div>
+                    </div>
+                    <div className="text-right text-xs text-white/40">
+                      <div>ベスティング: {tier.vestingPeriodMonths}ヶ月</div>
+                      <div>クリフ: {tier.cliffMonths}ヶ月</div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-white/30 hover:text-white hover:bg-white/5"
+                      onClick={() => startEdit(tier)}
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
                   </div>
-                  <div className="text-right text-xs text-white/40">
-                    <div>ベスティング: {tier.vestingPeriodMonths}ヶ月</div>
-                    <div>クリフ: {tier.cliffMonths}ヶ月</div>
-                  </div>
-                </div>
+                )}
               </div>
             ))}
           </div>

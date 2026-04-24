@@ -2049,6 +2049,12 @@ async function startServer() {
               console.error("[Migration] LCJ Coin V3 tables error:", err);
             });
           });
+          // LCJ Coin: Add tierCode to holdings
+          import("../migrations/addTierCodeToHoldings").then(({ addTierCodeToHoldings }) => {
+            addTierCodeToHoldings(db).catch((err: unknown) => {
+              console.error("[Migration] tierCode column error:", err);
+            });
+          });
         }
       });
     });
