@@ -4,7 +4,7 @@ import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { ENV } from "./_core/env";
-import { eq, and, desc, asc, sql, isNull } from "drizzle-orm";
+import { eq, and, desc, asc, sql, isNull, or, inArray } from "drizzle-orm";
 import { agencies, livers, schedules, brandLivestreams } from "../drizzle/schema";
 import type { Agency, InsertAgency } from "../drizzle/schema";
 
@@ -302,10 +302,20 @@ export const agencyRouter = router({
 
     let todaySchedules: any[] = [];
     if (liverIds.length > 0) {
-      const { inArray } = await import("drizzle-orm");
+      // Get liver names for matching (many schedules have liverId=NULL but liverName set)
+      const agencyLivers = await getLiversByAgencyId(payload.agencyId);
+      const liverNames = agencyLivers.map(l => l.name).filter(Boolean);
+      
+      const matchConditions = [
+        inArray(schedules.liverId, liverIds),
+      ];
+      if (liverNames.length > 0) {
+        matchConditions.push(inArray(schedules.liverName, liverNames));
+      }
+      
       todaySchedules = await db.select().from(schedules).where(
         and(
-          inArray(schedules.liverId, liverIds),
+          or(...matchConditions),
           sql`${schedules.startTime} >= ${todayStart}`,
           sql`${schedules.startTime} <= ${todayEnd}`
         )
@@ -392,12 +402,23 @@ export const agencyRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const liverIds = await getAgencyLiverIds(payload.agencyId);
-      if (liverIds.length === 0) return [];
+      // Get both liver IDs and liver names for the agency
+      const agencyLivers = await getLiversByAgencyId(payload.agencyId);
+      if (agencyLivers.length === 0) return [];
 
-      const { inArray } = await import("drizzle-orm");
+      const liverIds = agencyLivers.map(l => l.id);
+      const liverNames = agencyLivers.map(l => l.name).filter(Boolean);
+
+      // Match schedules by liverId OR liverName (many schedules have liverId=NULL but liverName set)
+      const matchConditions = [];
+      if (liverIds.length > 0) {
+        matchConditions.push(inArray(schedules.liverId, liverIds));
+      }
+      if (liverNames.length > 0) {
+        matchConditions.push(inArray(schedules.liverName, liverNames));
+      }
       
-      const conditions = [inArray(schedules.liverId, liverIds)];
+      const conditions = [or(...matchConditions)!];
       if (input?.startDate) {
         conditions.push(sql`${schedules.startTime} >= ${new Date(input.startDate)}`);
       }
