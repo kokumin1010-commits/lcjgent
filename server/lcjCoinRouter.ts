@@ -316,15 +316,16 @@ export const lcjCoinRouter = router({
         totalIndividualMonthly,
       },
       shareholders: {
-        list: shareholders,
         totalShares,
         pricePerShare: totalShares > 0 ? valuation / totalShares : 0,
+        count: shareholders.length,
       },
       stats: {
         totalHolders,
         xpPerLevel,
       },
-      valuationHistory,
+      valuationHistoryCount: valuationHistory.length,
+      latestValuationHistory: valuationHistory.slice(0, 3),
       activeSeason: activeSeason || null,
     };
   }),

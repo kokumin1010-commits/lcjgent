@@ -757,9 +757,9 @@ export default function LcjCoinDashboard() {
                   <TrendingUp className="w-5 h-5 text-blue-400" />
                   時価総額推移
                 </h3>
-                {dashboard?.valuationHistory?.length ? (
+                {(dashboard?.latestValuationHistory?.length) ? (
                   <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {dashboard.valuationHistory.map((v: any) => (
+                    {dashboard.latestValuationHistory.map((v: any) => (
                       <div key={v.id} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
                         <span className="text-sm font-mono text-white/60">{v.yearMonth}</span>
                         <span className="font-bold font-mono text-blue-400">{formatYen(Number(v.valuationAmount))}</span>
@@ -1144,10 +1144,10 @@ export default function LcjCoinDashboard() {
                 <PieChart className="w-5 h-5 text-pink-400" />
                 株主構成
               </h3>
-              {dashboard?.shareholders?.list?.length ? (
+              {shareholdersQuery.data?.length ? (
                 <ShareholderPieChart
-                  shareholders={dashboard.shareholders.list}
-                  totalShares={dashboard.shareholders.totalShares}
+                  shareholders={shareholdersQuery.data}
+                  totalShares={dashboard?.shareholders?.totalShares || 0}
                 />
               ) : shareholdersQuery.data?.length ? (
                 <ShareholderPieChart
