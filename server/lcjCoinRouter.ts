@@ -2538,8 +2538,8 @@ export const lcjCoinRouter = router({
       if (holding) {
         peerBonusesReceived = await db.select().from(lcjCoinPeerBonuses)
           .where(and(
-            eq(lcjCoinPeerBonuses.toHolderType, holderType),
-            eq(lcjCoinPeerBonuses.toHolderId, holderId),
+            eq(lcjCoinPeerBonuses.receiverHolderType, holderType),
+            eq(lcjCoinPeerBonuses.receiverHolderId, holderId),
           ))
           .orderBy(desc(lcjCoinPeerBonuses.createdAt))
           .limit(20);
