@@ -327,11 +327,6 @@ export default function LcjCoinDashboard() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  // Debounce holders search
-  useEffect(() => {
-    debouncedSearch(holdersSearch, setHoldersSearchDebounced);
-  }, [holdersSearch]);
-
   const [grantDialog, setGrantDialog] = useState(false);
   const [grantForm, setGrantForm] = useState({
     holderType: "staff" as "staff" | "liver",
@@ -366,14 +361,13 @@ export default function LcjCoinDashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [holdersSearch, setHoldersSearch] = useState("");
   const [holdersFilter, setHoldersFilter] = useState<"all" | "staff" | "liver">("all");
-  const [debouncedSearch] = useState(() => {
-    let timer: any;
-    return (val: string, cb: (v: string) => void) => {
-      clearTimeout(timer);
-      timer = setTimeout(() => cb(val), 300);
-    };
-  });
   const [holdersSearchDebounced, setHoldersSearchDebounced] = useState("");
+
+  // Debounce holders search
+  useEffect(() => {
+    const timer = setTimeout(() => setHoldersSearchDebounced(holdersSearch), 300);
+    return () => clearTimeout(timer);
+  }, [holdersSearch]);
 
   // Data queries
   const dashboardQuery = trpc.lcjCoin.getDashboard.useQuery();
