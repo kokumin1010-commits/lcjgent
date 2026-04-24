@@ -23,9 +23,15 @@ import {
   Settings, Plus, BarChart3, Medal, Shield, Gem, ChevronRight,
   Clock, Calendar, Rocket, Heart, ArrowLeft, ChevronDown,
   Building2, Percent, DollarSign, Landmark, Upload, FileText,
-  PieChart, Eye, Trash2, Download, ExternalLink, Activity
+  PieChart, Eye, Trash2, Download, ExternalLink, Activity,
+  Lock, RefreshCw, HelpCircle
 } from "lucide-react";
 import { Link, useLocation, useSearch } from "wouter";
+import LcjCoinHelpDialog from "@/components/LcjCoinHelpDialog";
+import LcjCoinVestingTab from "@/components/LcjCoinVestingTab";
+import LcjCoinPeerBonusTab from "@/components/LcjCoinPeerBonusTab";
+import LcjCoinBuybackTab from "@/components/LcjCoinBuybackTab";
+import LcjCoinTierTab from "@/components/LcjCoinTierTab";
 
 // ============================================================
 // Animated Counter Component (Neon style)
@@ -485,6 +491,10 @@ export default function LcjCoinDashboard() {
     { id: "documents", label: "財務資料", icon: FileText },
     { id: "badges", label: "バッジ", icon: Award },
     { id: "holders", label: "保有者", icon: Users },
+    { id: "vesting", label: "ベスティング", icon: Lock },
+    { id: "peer_bonus", label: "ピアボーナス", icon: Heart },
+    { id: "buyback", label: "換金・Exit", icon: RefreshCw },
+    { id: "tiers", label: "Tier設定", icon: Star },
     { id: "settings", label: "設定", icon: Settings },
   ];
 
@@ -515,6 +525,7 @@ export default function LcjCoinDashboard() {
                 <h1 className="text-lg font-bold">LCJコイン</h1>
                 <p className="text-xs text-white/40">ファントムストック報酬システム</p>
               </div>
+              <LcjCoinHelpDialog />
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1471,6 +1482,28 @@ export default function LcjCoinDashboard() {
         {/* ============================================================ */}
         {/* TAB: Settings */}
         {/* ============================================================ */}
+        {activeTab === "vesting" && (
+          <LcjCoinVestingTab
+            staffList={(targetsQuery.data?.staff || []).map((s: any) => ({ id: s.id, name: s.name, department: s.department }))}
+            liverList={(targetsQuery.data?.livers || []).map((l: any) => ({ id: l.id, name: l.name }))}
+          />
+        )}
+
+        {activeTab === "peer_bonus" && (
+          <LcjCoinPeerBonusTab
+            staffList={(targetsQuery.data?.staff || []).map((s: any) => ({ id: s.id, name: s.name, department: s.department }))}
+            liverList={(targetsQuery.data?.livers || []).map((l: any) => ({ id: l.id, name: l.name }))}
+          />
+        )}
+
+        {activeTab === "buyback" && (
+          <LcjCoinBuybackTab />
+        )}
+
+        {activeTab === "tiers" && (
+          <LcjCoinTierTab />
+        )}
+
         {activeTab === "settings" && (
           <div className="space-y-6">
             <NeonCard color="blue">

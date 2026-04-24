@@ -2043,6 +2043,12 @@ async function startServer() {
               console.error("[Migration] LCJ Coin tables error:", err);
             });
           });
+          // LCJ Coin V3: Tier Templates, Peer Bonus, Buyback
+          import("../migrations/lcjCoinV3Tables").then(({ createLcjCoinV3Tables }) => {
+            createLcjCoinV3Tables(db).catch((err: unknown) => {
+              console.error("[Migration] LCJ Coin V3 tables error:", err);
+            });
+          });
         }
       });
     });

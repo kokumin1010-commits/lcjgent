@@ -5339,3 +5339,88 @@ export const lcjCoinShareholders = mysqlTable("lcj_coin_shareholders", {
 });
 export type LcjCoinShareholder = typeof lcjCoinShareholders.$inferSelect;
 export type InsertLcjCoinShareholder = typeof lcjCoinShareholders.$inferInsert;
+
+// ============================================================
+// LCJ Coin V3: Tier Templates
+// ============================================================
+export const lcjCoinTierTemplates = mysqlTable("lcj_coin_tier_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  tierCode: varchar("tierCode", { length: 10 }).notNull().unique(),
+  tierName: varchar("tierName", { length: 100 }).notNull(),
+  description: text("description"),
+  salaryCoefficient: decimal("salaryCoefficient", { precision: 5, scale: 2 }).default("0.00").notNull(),
+  exampleRoles: text("exampleRoles"),
+  vestingPeriodMonths: int("vestingPeriodMonths").default(36).notNull(),
+  cliffMonths: int("cliffMonths").default(12).notNull(),
+  vestingType: varchar("vestingType", { length: 30 }).default("monthly_flat").notNull(),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type LcjCoinTierTemplate = typeof lcjCoinTierTemplates.$inferSelect;
+export type InsertLcjCoinTierTemplate = typeof lcjCoinTierTemplates.$inferInsert;
+
+// ============================================================
+// LCJ Coin V3: Peer Bonuses
+// ============================================================
+export const lcjCoinPeerBonuses = mysqlTable("lcj_coin_peer_bonuses", {
+  id: int("id").autoincrement().primaryKey(),
+  senderHolderType: mysqlEnum("senderHolderType", ["staff", "liver"]).notNull(),
+  senderHolderId: int("senderHolderId").notNull(),
+  receiverHolderType: mysqlEnum("receiverHolderType", ["staff", "liver"]).notNull(),
+  receiverHolderId: int("receiverHolderId").notNull(),
+  coinAmount: int("coinAmount").notNull(),
+  message: text("message").notNull(),
+  yearMonth: varchar("yearMonth", { length: 7 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type LcjCoinPeerBonus = typeof lcjCoinPeerBonuses.$inferSelect;
+export type InsertLcjCoinPeerBonus = typeof lcjCoinPeerBonuses.$inferInsert;
+
+// ============================================================
+// LCJ Coin V3: Buyback Periods
+// ============================================================
+export const lcjCoinBuybackPeriods = mysqlTable("lcj_coin_buyback_periods", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  startDate: timestamp("startDate").notNull(),
+  endDate: timestamp("endDate").notNull(),
+  maxPercentage: decimal("maxPercentage", { precision: 5, scale: 2 }).default("20.00").notNull(),
+  coinPriceAtOpen: decimal("coinPriceAtOpen", { precision: 12, scale: 4 }).notNull(),
+  totalBudget: decimal("totalBudget", { precision: 18, scale: 2 }),
+  totalRequested: decimal("totalRequested", { precision: 18, scale: 2 }).default("0"),
+  totalApproved: decimal("totalApproved", { precision: 18, scale: 2 }).default("0"),
+  status: mysqlEnum("status", ["upcoming", "open", "closed", "settled"]).default("upcoming").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type LcjCoinBuybackPeriod = typeof lcjCoinBuybackPeriods.$inferSelect;
+export type InsertLcjCoinBuybackPeriod = typeof lcjCoinBuybackPeriods.$inferInsert;
+
+// ============================================================
+// LCJ Coin V3: Buyback Requests
+// ============================================================
+export const lcjCoinBuybackRequests = mysqlTable("lcj_coin_buyback_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  periodId: int("periodId").notNull(),
+  holdingId: int("holdingId").notNull(),
+  holderType: mysqlEnum("holderType", ["staff", "liver"]).notNull(),
+  holderId: int("holderId").notNull(),
+  requestedCoins: bigint("requestedCoins", { mode: "number" }).notNull(),
+  coinPriceAtRequest: decimal("coinPriceAtRequest", { precision: 12, scale: 4 }).notNull(),
+  requestedAmount: decimal("requestedAmount", { precision: 18, scale: 2 }).notNull(),
+  approvedCoins: bigint("approvedCoins", { mode: "number" }).default(0),
+  approvedAmount: decimal("approvedAmount", { precision: 18, scale: 2 }).default("0"),
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "settled", "cancelled"]).default("pending").notNull(),
+  reason: text("reason"),
+  approvedBy: int("approvedBy"),
+  approvedAt: timestamp("approvedAt"),
+  settledAt: timestamp("settledAt"),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type LcjCoinBuybackRequest = typeof lcjCoinBuybackRequests.$inferSelect;
+export type InsertLcjCoinBuybackRequest = typeof lcjCoinBuybackRequests.$inferInsert;

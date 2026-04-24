@@ -14,7 +14,7 @@
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { getDb, getTiktokTapMonthlySummary } from "./db";
-import { sql, eq, and, desc, asc, count, sum, isNull } from "drizzle-orm";
+import { sql, eq, and, desc, asc, count, sum, isNull, gte, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { storagePut } from "./storage";
 import {
@@ -29,6 +29,10 @@ import {
   lcjCoinRankingHistory,
   lcjCoinDocuments,
   lcjCoinShareholders,
+  lcjCoinTierTemplates,
+  lcjCoinPeerBonuses,
+  lcjCoinBuybackPeriods,
+  lcjCoinBuybackRequests,
   staff,
   livers,
   brandContracts,
@@ -1528,5 +1532,619 @@ export const lcjCoinRouter = router({
       if (!db) throw new Error("DB not available");
       await db.update(lcjCoinShareholders).set({ isActive: false }).where(eq(lcjCoinShareholders.id, input.id));
       return { success: true };
+    }),
+
+  // ============================================================
+  // V3: Tier Templates - 取得
+  // ============================================================
+  getTierTemplates: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    return db.select().from(lcjCoinTierTemplates).where(eq(lcjCoinTierTemplates.isActive, true)).orderBy(asc(lcjCoinTierTemplates.sortOrder));
+  }),
+
+  // ============================================================
+  // V3: Tier Templates - 更新
+  // ============================================================
+  upsertTierTemplate: protectedProcedure
+    .input(z.object({
+      id: z.number().optional(),
+      tierCode: z.string(),
+      tierName: z.string(),
+      description: z.string().optional(),
+      salaryCoefficient: z.number(),
+      exampleRoles: z.string().optional(),
+      vestingPeriodMonths: z.number().default(36),
+      cliffMonths: z.number().default(12),
+      vestingType: z.string().default("monthly_flat"),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      if (input.id) {
+        await db.update(lcjCoinTierTemplates).set({
+          tierCode: input.tierCode,
+          tierName: input.tierName,
+          description: input.description,
+          salaryCoefficient: String(input.salaryCoefficient),
+          exampleRoles: input.exampleRoles,
+          vestingPeriodMonths: input.vestingPeriodMonths,
+          cliffMonths: input.cliffMonths,
+          vestingType: input.vestingType,
+        }).where(eq(lcjCoinTierTemplates.id, input.id));
+        return { success: true, id: input.id };
+      } else {
+        const [result] = await db.insert(lcjCoinTierTemplates).values({
+          tierCode: input.tierCode,
+          tierName: input.tierName,
+          description: input.description,
+          salaryCoefficient: String(input.salaryCoefficient),
+          exampleRoles: input.exampleRoles,
+          vestingPeriodMonths: input.vestingPeriodMonths,
+          cliffMonths: input.cliffMonths,
+          vestingType: input.vestingType,
+        });
+        return { success: true, id: result.insertId };
+      }
+    }),
+
+  // ============================================================
+  // V3: Calculate auto grant amount based on Tier + salary
+  // ============================================================
+  calculateAutoGrant: protectedProcedure
+    .input(z.object({
+      annualSalary: z.number(),
+      tierCode: z.string(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      const settings = await getSettingsMap(db);
+      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
+      const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
+      const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
+      const { valuation } = calculateValuationFromTotal(monthlyRevenue * 12 * psrMultiplier, 1);
+      const coinPrice = calculateCoinPrice(monthlyRevenue * 12 * psrMultiplier, totalCoinsPool);
+
+      const [tier] = await db.select().from(lcjCoinTierTemplates)
+        .where(eq(lcjCoinTierTemplates.tierCode, input.tierCode)).limit(1);
+      if (!tier) throw new Error("Tier not found");
+
+      const coefficient = Number(tier.salaryCoefficient) / 100;
+      const grantValueJpy = input.annualSalary * coefficient;
+      const coinAmount = coinPrice > 0 ? Math.round(grantValueJpy / coinPrice) : 0;
+
+      return {
+        tierCode: input.tierCode,
+        tierName: tier.tierName,
+        coefficient,
+        annualSalary: input.annualSalary,
+        grantValueJpy,
+        coinPrice,
+        coinAmount,
+        vestingPeriodMonths: tier.vestingPeriodMonths,
+        cliffMonths: tier.cliffMonths,
+      };
+    }),
+
+  // ============================================================
+  // V3: Peer Bonus - 送信
+  // ============================================================
+  sendPeerBonus: protectedProcedure
+    .input(z.object({
+      senderHolderType: z.enum(["staff", "liver"]),
+      senderHolderId: z.number(),
+      receiverHolderType: z.enum(["staff", "liver"]),
+      receiverHolderId: z.number(),
+      coinAmount: z.number().min(1),
+      message: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+
+      const settings = await getSettingsMap(db);
+      const monthlyPool = parseInt(settings.peer_bonus_monthly_pool || "100");
+      const maxPerSend = parseInt(settings.peer_bonus_max_per_send || "50");
+
+      if (input.coinAmount > maxPerSend) {
+        throw new Error(`1回の送信上限は${maxPerSend}コインです`);
+      }
+      if (input.senderHolderType === input.receiverHolderType && input.senderHolderId === input.receiverHolderId) {
+        throw new Error("自分自身には送れません");
+      }
+
+      const now = new Date();
+      const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+      // Check sender's remaining pool this month
+      const [sentResult] = await db.execute(
+        sql`SELECT COALESCE(SUM(coinAmount), 0) as totalSent FROM lcj_coin_peer_bonuses WHERE senderHolderType = ${input.senderHolderType} AND senderHolderId = ${input.senderHolderId} AND yearMonth = ${yearMonth}`
+      );
+      const totalSent = Number((sentResult as any[])[0]?.totalSent || 0);
+      const remaining = monthlyPool - totalSent;
+
+      if (input.coinAmount > remaining) {
+        throw new Error(`今月の残りプールは${remaining}コインです（${totalSent}/${monthlyPool}使用済み）`);
+      }
+
+      // Record peer bonus
+      await db.insert(lcjCoinPeerBonuses).values({
+        senderHolderType: input.senderHolderType,
+        senderHolderId: input.senderHolderId,
+        receiverHolderType: input.receiverHolderType,
+        receiverHolderId: input.receiverHolderId,
+        coinAmount: input.coinAmount,
+        message: input.message,
+        yearMonth,
+      });
+
+      // Add coins to receiver's holding (immediately vested)
+      let [receiverHolding] = await db.select().from(lcjCoinHoldings)
+        .where(and(
+          eq(lcjCoinHoldings.holderType, input.receiverHolderType),
+          eq(lcjCoinHoldings.holderId, input.receiverHolderId),
+        )).limit(1);
+
+      if (!receiverHolding) {
+        const [result] = await db.insert(lcjCoinHoldings).values({
+          holderType: input.receiverHolderType,
+          holderId: input.receiverHolderId,
+          totalCoins: input.coinAmount,
+          vestedCoins: input.coinAmount, // Immediately vested
+          exercisedCoins: 0,
+          level: 1,
+          xp: 50,
+          streak: 0,
+        });
+        receiverHolding = { id: Number(result.insertId) } as any;
+      } else {
+        await db.execute(
+          sql`UPDATE lcj_coin_holdings SET totalCoins = totalCoins + ${input.coinAmount}, vestedCoins = vestedCoins + ${input.coinAmount}, xp = xp + 50 WHERE id = ${receiverHolding.id}`
+        );
+      }
+
+      // Record transaction for receiver
+      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
+      const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
+      const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
+      const coinPrice = calculateCoinPrice(monthlyRevenue * 12 * psrMultiplier, totalCoinsPool);
+
+      await db.insert(lcjCoinTransactions).values({
+        holdingId: receiverHolding.id,
+        holderType: input.receiverHolderType,
+        holderId: input.receiverHolderId,
+        transactionType: "bonus",
+        coinAmount: input.coinAmount,
+        coinPriceAtTime: String(coinPrice),
+        reason: `ピアボーナス: ${input.message}`,
+        metadata: { type: "peer_bonus", senderId: input.senderHolderId, senderType: input.senderHolderType },
+      });
+
+      return { success: true, remaining: remaining - input.coinAmount };
+    }),
+
+  // ============================================================
+  // V3: Peer Bonus - タイムライン取得
+  // ============================================================
+  getPeerBonusTimeline: protectedProcedure
+    .input(z.object({ limit: z.number().default(50) }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+
+      const bonuses = await db.select().from(lcjCoinPeerBonuses)
+        .orderBy(desc(lcjCoinPeerBonuses.createdAt))
+        .limit(input.limit);
+
+      // Resolve names
+      const staffIds = new Set<number>();
+      const liverIds = new Set<number>();
+      for (const b of bonuses) {
+        if (b.senderHolderType === "staff") staffIds.add(b.senderHolderId);
+        else liverIds.add(b.senderHolderId);
+        if (b.receiverHolderType === "staff") staffIds.add(b.receiverHolderId);
+        else liverIds.add(b.receiverHolderId);
+      }
+
+      const nameMap: Record<string, string> = {};
+      if (staffIds.size > 0) {
+        const staffList = await db.select({ id: staff.id, name: staff.name }).from(staff);
+        for (const s of staffList) nameMap[`staff-${s.id}`] = s.name;
+      }
+      if (liverIds.size > 0) {
+        const liverList = await db.select({ id: livers.id, name: livers.name }).from(livers);
+        for (const l of liverList) nameMap[`liver-${l.id}`] = l.name;
+      }
+
+      return bonuses.map(b => ({
+        ...b,
+        senderName: nameMap[`${b.senderHolderType}-${b.senderHolderId}`] || "不明",
+        receiverName: nameMap[`${b.receiverHolderType}-${b.receiverHolderId}`] || "不明",
+      }));
+    }),
+
+  // ============================================================
+  // V3: Peer Bonus - 自分の月間残りプール
+  // ============================================================
+  getMyPeerBonusPool: protectedProcedure
+    .input(z.object({
+      holderType: z.enum(["staff", "liver"]),
+      holderId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { monthlyPool: 100, used: 0, remaining: 100 };
+
+      const settings = await getSettingsMap(db);
+      const monthlyPool = parseInt(settings.peer_bonus_monthly_pool || "100");
+      const now = new Date();
+      const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+      const [sentResult] = await db.execute(
+        sql`SELECT COALESCE(SUM(coinAmount), 0) as totalSent FROM lcj_coin_peer_bonuses WHERE senderHolderType = ${input.holderType} AND senderHolderId = ${input.holderId} AND yearMonth = ${yearMonth}`
+      );
+      const used = Number((sentResult as any[])[0]?.totalSent || 0);
+
+      return { monthlyPool, used, remaining: monthlyPool - used };
+    }),
+
+  // ============================================================
+  // V3: Buyback Periods - 取得
+  // ============================================================
+  getBuybackPeriods: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    return db.select().from(lcjCoinBuybackPeriods).orderBy(desc(lcjCoinBuybackPeriods.startDate));
+  }),
+
+  // ============================================================
+  // V3: Buyback Period - 作成
+  // ============================================================
+  createBuybackPeriod: protectedProcedure
+    .input(z.object({
+      name: z.string(),
+      startDate: z.string(),
+      endDate: z.string(),
+      maxPercentage: z.number().default(20),
+      coinPriceAtOpen: z.number(),
+      totalBudget: z.number().optional(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      const [result] = await db.insert(lcjCoinBuybackPeriods).values({
+        name: input.name,
+        startDate: new Date(input.startDate),
+        endDate: new Date(input.endDate),
+        maxPercentage: String(input.maxPercentage),
+        coinPriceAtOpen: String(input.coinPriceAtOpen),
+        totalBudget: input.totalBudget ? String(input.totalBudget) : null,
+        notes: input.notes,
+        status: "upcoming",
+      });
+      return { success: true, id: result.insertId };
+    }),
+
+  // ============================================================
+  // V3: Buyback - 申請
+  // ============================================================
+  requestBuyback: protectedProcedure
+    .input(z.object({
+      periodId: z.number(),
+      holderType: z.enum(["staff", "liver"]),
+      holderId: z.number(),
+      requestedCoins: z.number().min(1),
+      reason: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+
+      // Get period
+      const [period] = await db.select().from(lcjCoinBuybackPeriods)
+        .where(eq(lcjCoinBuybackPeriods.id, input.periodId)).limit(1);
+      if (!period) throw new Error("バイバック期間が見つかりません");
+      if (period.status !== "open") throw new Error("この期間はまだ受付中ではありません");
+
+      // Get holding
+      const [holding] = await db.select().from(lcjCoinHoldings)
+        .where(and(
+          eq(lcjCoinHoldings.holderType, input.holderType),
+          eq(lcjCoinHoldings.holderId, input.holderId),
+        )).limit(1);
+      if (!holding) throw new Error("コイン保有情報が見つかりません");
+
+      // Check max percentage
+      const maxPct = Number(period.maxPercentage) / 100;
+      const maxCoins = Math.floor(holding.vestedCoins * maxPct);
+      if (input.requestedCoins > maxCoins) {
+        throw new Error(`確定済みコインの${period.maxPercentage}%（${maxCoins}コイン）が上限です`);
+      }
+
+      const coinPrice = Number(period.coinPriceAtOpen);
+      const requestedAmount = input.requestedCoins * coinPrice;
+
+      const [result] = await db.insert(lcjCoinBuybackRequests).values({
+        periodId: input.periodId,
+        holdingId: holding.id,
+        holderType: input.holderType,
+        holderId: input.holderId,
+        requestedCoins: input.requestedCoins,
+        coinPriceAtRequest: String(coinPrice),
+        requestedAmount: String(requestedAmount),
+        reason: input.reason,
+        status: "pending",
+      });
+
+      // Update period totals
+      await db.execute(
+        sql`UPDATE lcj_coin_buyback_periods SET totalRequested = totalRequested + ${requestedAmount} WHERE id = ${input.periodId}`
+      );
+
+      return { success: true, id: result.insertId, requestedAmount };
+    }),
+
+  // ============================================================
+  // V3: Buyback - 承認/却下
+  // ============================================================
+  approveBuyback: protectedProcedure
+    .input(z.object({
+      requestId: z.number(),
+      action: z.enum(["approve", "reject"]),
+      approvedCoins: z.number().optional(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+
+      const [request] = await db.select().from(lcjCoinBuybackRequests)
+        .where(eq(lcjCoinBuybackRequests.id, input.requestId)).limit(1);
+      if (!request) throw new Error("申請が見つかりません");
+      if (request.status !== "pending") throw new Error("この申請は既に処理済みです");
+
+      if (input.action === "reject") {
+        await db.update(lcjCoinBuybackRequests).set({
+          status: "rejected",
+          notes: input.notes,
+        }).where(eq(lcjCoinBuybackRequests.id, input.requestId));
+        return { success: true };
+      }
+
+      // Approve
+      const approvedCoins = input.approvedCoins || request.requestedCoins;
+      const coinPrice = Number(request.coinPriceAtRequest);
+      const approvedAmount = approvedCoins * coinPrice;
+
+      await db.update(lcjCoinBuybackRequests).set({
+        status: "approved",
+        approvedCoins,
+        approvedAmount: String(approvedAmount),
+        approvedAt: new Date(),
+        notes: input.notes,
+      }).where(eq(lcjCoinBuybackRequests.id, input.requestId));
+
+      // Deduct from holding (exercised)
+      await db.execute(
+        sql`UPDATE lcj_coin_holdings SET exercisedCoins = exercisedCoins + ${approvedCoins}, vestedCoins = vestedCoins - ${approvedCoins} WHERE id = ${request.holdingId}`
+      );
+
+      // Record transaction
+      await db.insert(lcjCoinTransactions).values({
+        holdingId: request.holdingId,
+        holderType: request.holderType,
+        holderId: request.holderId,
+        transactionType: "exercise",
+        coinAmount: -approvedCoins,
+        coinPriceAtTime: String(coinPrice),
+        reason: `バイバック承認: ${approvedAmount.toLocaleString()}円`,
+        metadata: { buybackRequestId: input.requestId },
+      });
+
+      // Update period totals
+      await db.execute(
+        sql`UPDATE lcj_coin_buyback_periods SET totalApproved = totalApproved + ${approvedAmount} WHERE id = ${request.periodId}`
+      );
+
+      return { success: true, approvedCoins, approvedAmount };
+    }),
+
+  // ============================================================
+  // V3: Buyback Requests - 取得
+  // ============================================================
+  getBuybackRequests: protectedProcedure
+    .input(z.object({ periodId: z.number().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+
+      let query = db.select().from(lcjCoinBuybackRequests).orderBy(desc(lcjCoinBuybackRequests.createdAt));
+      if (input.periodId) {
+        return db.select().from(lcjCoinBuybackRequests)
+          .where(eq(lcjCoinBuybackRequests.periodId, input.periodId))
+          .orderBy(desc(lcjCoinBuybackRequests.createdAt));
+      }
+      return query;
+    }),
+
+  // ============================================================
+  // V3: Vesting Details - 個人のベスティング詳細
+  // ============================================================
+  getVestingDetails: protectedProcedure
+    .input(z.object({
+      holderType: z.enum(["staff", "liver"]),
+      holderId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { schedules: [], summary: null };
+
+      const schedules = await db.select().from(lcjCoinVestingSchedules)
+        .where(and(
+          eq(lcjCoinVestingSchedules.holderType, input.holderType),
+          eq(lcjCoinVestingSchedules.holderId, input.holderId),
+        ))
+        .orderBy(desc(lcjCoinVestingSchedules.grantDate));
+
+      const [holding] = await db.select().from(lcjCoinHoldings)
+        .where(and(
+          eq(lcjCoinHoldings.holderType, input.holderType),
+          eq(lcjCoinHoldings.holderId, input.holderId),
+        )).limit(1);
+
+      // Calculate vesting progress for each schedule
+      const now = new Date();
+      const settings = await getSettingsMap(db);
+      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
+      const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
+      const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
+      const coinPrice = calculateCoinPrice(monthlyRevenue * 12 * psrMultiplier, totalCoinsPool);
+
+      const enrichedSchedules = schedules.map(s => {
+        const grantDate = new Date(s.grantDate);
+        const monthsElapsed = Math.max(0, (now.getFullYear() - grantDate.getFullYear()) * 12 + (now.getMonth() - grantDate.getMonth()));
+        const cliffPassed = monthsElapsed >= s.cliffMonths;
+        let vestedPercent = 0;
+        let vestedCoins = 0;
+
+        if (cliffPassed) {
+          const monthsAfterCliff = monthsElapsed - s.cliffMonths;
+          const vestingMonthsRemaining = s.vestingPeriodMonths - s.cliffMonths;
+          if (vestingMonthsRemaining > 0) {
+            vestedPercent = Math.min(100, (monthsAfterCliff / vestingMonthsRemaining) * 100);
+          } else {
+            vestedPercent = 100;
+          }
+          vestedCoins = Math.floor(s.totalGrantCoins * vestedPercent / 100);
+        }
+
+        const unvestedCoins = s.totalGrantCoins - vestedCoins;
+        const unvestedValueJpy = unvestedCoins * coinPrice;
+
+        return {
+          ...s,
+          monthsElapsed,
+          cliffPassed,
+          vestedPercent: Math.round(vestedPercent * 100) / 100,
+          calculatedVestedCoins: vestedCoins,
+          unvestedCoins,
+          unvestedValueJpy,
+          coinPrice,
+        };
+      });
+
+      const totalVested = enrichedSchedules.reduce((sum, s) => sum + s.calculatedVestedCoins, 0);
+      const totalUnvested = enrichedSchedules.reduce((sum, s) => sum + s.unvestedCoins, 0);
+
+      return {
+        schedules: enrichedSchedules,
+        summary: holding ? {
+          totalCoins: holding.totalCoins,
+          vestedCoins: totalVested,
+          unvestedCoins: totalUnvested,
+          exercisedCoins: holding.exercisedCoins,
+          vestedValueJpy: totalVested * coinPrice,
+          unvestedValueJpy: totalUnvested * coinPrice,
+          totalValueJpy: holding.totalCoins * coinPrice,
+          coinPrice,
+          // IPO projections
+          ipoProjection1000: holding.totalCoins * (10000000000 / totalCoinsPool), // 1000億時
+          ipoProjection300: holding.totalCoins * (3000000000 / totalCoinsPool), // 300億時
+          ipoProjection100: holding.totalCoins * (1000000000 / totalCoinsPool), // 100億時
+          // What you'd lose by quitting
+          loseByQuitting: totalUnvested * coinPrice,
+        } : null,
+      };
+    }),
+
+  // ============================================================
+  // V3: Exit Rules - 換金ルール取得
+  // ============================================================
+  getExitRules: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    const settings = await getSettingsMap(db);
+    return [
+      { id: "ipo", title: "IPO / M&A時", description: settings.exit_rule_ipo || "IPO/M&A時に全額現金化。イグジット後90日以内に支払い。上限なし。", icon: "rocket" },
+      { id: "buyback", title: "年次バイバック", description: settings.exit_rule_buyback || "毎年12月、希望者のみ。確定済みコインの20%まで。翌年1月末支払い。", icon: "refresh" },
+      { id: "resign", title: "退職時精算", description: settings.exit_rule_resign || "退職日から90日以内に申請。確定済みコインの100%。申請後60日以内支払い。", icon: "logout" },
+      { id: "fired_company", title: "会社都合解雇", description: settings.exit_rule_fired_company || "会社都合解雇の場合、全額即時確定。", icon: "shield" },
+      { id: "fired_disciplinary", title: "懲戒解雇", description: settings.exit_rule_fired_disciplinary || "懲戒解雇の場合、全コイン没収。", icon: "alert" },
+    ];
+  }),
+
+  // ============================================================
+  // V3: Process Monthly Vesting (batch) - 月次ベスティング処理
+  // ============================================================
+  processMonthlyVesting: protectedProcedure
+    .mutation(async () => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+
+      const activeSchedules = await db.select().from(lcjCoinVestingSchedules)
+        .where(eq(lcjCoinVestingSchedules.status, "active"));
+
+      const settings = await getSettingsMap(db);
+      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
+      const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
+      const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
+      const coinPrice = calculateCoinPrice(monthlyRevenue * 12 * psrMultiplier, totalCoinsPool);
+
+      let processedCount = 0;
+      let vestedTotal = 0;
+      const now = new Date();
+
+      for (const schedule of activeSchedules) {
+        const grantDate = new Date(schedule.grantDate);
+        const monthsElapsed = (now.getFullYear() - grantDate.getFullYear()) * 12 + (now.getMonth() - grantDate.getMonth());
+
+        if (monthsElapsed < schedule.cliffMonths) continue; // Still in cliff
+
+        const vestingMonthsAfterCliff = schedule.vestingPeriodMonths - schedule.cliffMonths;
+        if (vestingMonthsAfterCliff <= 0) continue;
+
+        const monthsAfterCliff = monthsElapsed - schedule.cliffMonths;
+        const targetVestedPercent = Math.min(1, monthsAfterCliff / vestingMonthsAfterCliff);
+        const targetVestedCoins = Math.floor(schedule.totalGrantCoins * targetVestedPercent);
+        const newlyVested = targetVestedCoins - schedule.vestedSoFar;
+
+        if (newlyVested <= 0) {
+          if (targetVestedPercent >= 1 && schedule.status === "active") {
+            await db.update(lcjCoinVestingSchedules).set({ status: "completed" })
+              .where(eq(lcjCoinVestingSchedules.id, schedule.id));
+          }
+          continue;
+        }
+
+        // Update vesting schedule
+        await db.update(lcjCoinVestingSchedules).set({
+          vestedSoFar: targetVestedCoins,
+          status: targetVestedPercent >= 1 ? "completed" : "active",
+        }).where(eq(lcjCoinVestingSchedules.id, schedule.id));
+
+        // Update holding
+        await db.execute(
+          sql`UPDATE lcj_coin_holdings SET vestedCoins = vestedCoins + ${newlyVested} WHERE id = ${schedule.holdingId}`
+        );
+
+        // Record transaction
+        await db.insert(lcjCoinTransactions).values({
+          holdingId: schedule.holdingId,
+          holderType: schedule.holderType,
+          holderId: schedule.holderId,
+          transactionType: "vest",
+          coinAmount: newlyVested,
+          coinPriceAtTime: String(coinPrice),
+          vestingScheduleId: schedule.id,
+          reason: `月次ベスティング確定 (${monthsElapsed}/${schedule.vestingPeriodMonths}ヶ月)`,
+        });
+
+        processedCount++;
+        vestedTotal += newlyVested;
+      }
+
+      return { processedCount, vestedTotal, coinPrice };
     }),
 });
