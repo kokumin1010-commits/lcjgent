@@ -96,18 +96,18 @@ export default function LcjCoinVestingTab({ staffList, liverList }: {
             <SelectTrigger className="w-32 bg-white/5 border-white/10 text-white">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="bg-[#0a0a0f] border-white/10">
-              <SelectItem value="staff">スタッフ</SelectItem>
-              <SelectItem value="liver">ライバー</SelectItem>
+            <SelectContent className="bg-[#0a0a0f] border-white/10 text-white">
+              <SelectItem value="staff" className="text-white hover:text-white focus:text-white">スタッフ</SelectItem>
+              <SelectItem value="liver" className="text-white hover:text-white focus:text-white">ライバー</SelectItem>
             </SelectContent>
           </Select>
           <Select value={String(selectedId)} onValueChange={(v) => setSelectedId(Number(v))}>
             <SelectTrigger className="flex-1 bg-white/5 border-white/10 text-white">
               <SelectValue placeholder="対象者を選択..." />
             </SelectTrigger>
-            <SelectContent className="bg-[#0a0a0f] border-white/10 max-h-60">
+            <SelectContent className="bg-[#0a0a0f] border-white/10 text-white max-h-60">
               {(selectedType === "staff" ? staffList : liverList).map((t) => (
-                <SelectItem key={t.id} value={String(t.id)}>
+                <SelectItem key={t.id} value={String(t.id)} className="text-white hover:text-white focus:text-white">
                   {t.name}{"department" in t && t.department ? ` (${t.department})` : ""}
                 </SelectItem>
               ))}

@@ -77,18 +77,18 @@ export default function LcjCoinPeerBonusTab({ staffList, liverList }: {
                   <SelectTrigger className="w-28 bg-white/5 border-white/10 text-white text-sm">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#0a0a0f] border-white/10">
-                    <SelectItem value="staff">スタッフ</SelectItem>
-                    <SelectItem value="liver">ライバー</SelectItem>
+                  <SelectContent className="bg-[#0a0a0f] border-white/10 text-white">
+                    <SelectItem value="staff" className="text-white hover:text-white focus:text-white">スタッフ</SelectItem>
+                    <SelectItem value="liver" className="text-white hover:text-white focus:text-white">ライバー</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={String(senderId)} onValueChange={(v) => setSenderId(Number(v))}>
                   <SelectTrigger className="flex-1 bg-white/5 border-white/10 text-white text-sm">
                     <SelectValue placeholder="自分を選択..." />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#0a0a0f] border-white/10 max-h-60">
+                  <SelectContent className="bg-[#0a0a0f] border-white/10 text-white max-h-60">
                     {(senderType === "staff" ? staffList : liverList).map((t) => (
-                      <SelectItem key={t.id} value={String(t.id)}>
+                      <SelectItem key={t.id} value={String(t.id)} className="text-white hover:text-white focus:text-white">
                         {t.name}{"department" in t && t.department ? ` (${t.department})` : ""}
                       </SelectItem>
                     ))}
@@ -104,18 +104,18 @@ export default function LcjCoinPeerBonusTab({ staffList, liverList }: {
                   <SelectTrigger className="w-28 bg-white/5 border-white/10 text-white text-sm">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#0a0a0f] border-white/10">
-                    <SelectItem value="staff">スタッフ</SelectItem>
-                    <SelectItem value="liver">ライバー</SelectItem>
+                  <SelectContent className="bg-[#0a0a0f] border-white/10 text-white">
+                    <SelectItem value="staff" className="text-white hover:text-white focus:text-white">スタッフ</SelectItem>
+                    <SelectItem value="liver" className="text-white hover:text-white focus:text-white">ライバー</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={String(receiverId)} onValueChange={(v) => setReceiverId(Number(v))}>
                   <SelectTrigger className="flex-1 bg-white/5 border-white/10 text-white text-sm">
                     <SelectValue placeholder="送り先を選択..." />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#0a0a0f] border-white/10 max-h-60">
+                  <SelectContent className="bg-[#0a0a0f] border-white/10 text-white max-h-60">
                     {(receiverType === "staff" ? staffList : liverList).map((t) => (
-                      <SelectItem key={t.id} value={String(t.id)}>
+                      <SelectItem key={t.id} value={String(t.id)} className="text-white hover:text-white focus:text-white">
                         {t.name}{"department" in t && t.department ? ` (${t.department})` : ""}
                       </SelectItem>
                     ))}

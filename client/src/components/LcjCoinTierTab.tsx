@@ -170,9 +170,9 @@ export default function LcjCoinTierTab() {
                 <SelectTrigger className="bg-white/5 border-white/10 text-white">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0a0a0f] border-white/10">
+                <SelectContent className="bg-[#0a0a0f] border-white/10 text-white">
                   {tiers.map((t: any) => (
-                    <SelectItem key={t.tierCode} value={t.tierCode}>
+                    <SelectItem key={t.tierCode} value={t.tierCode} className="text-white hover:text-white focus:text-white">
                       Tier {t.tierCode} — {t.tierName} ({Number(t.salaryCoefficient)}%)
                     </SelectItem>
                   ))}

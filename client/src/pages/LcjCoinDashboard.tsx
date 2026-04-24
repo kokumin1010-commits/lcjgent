@@ -634,12 +634,15 @@ export default function LcjCoinDashboard() {
             </div>
             <div className="text-[10px] text-white/20 mt-1">/ {(dashboard?.valuation?.totalCoinsPool || 10000000).toLocaleString()}</div>
           </NeonCard>
-          <NeonCard color="cyan" className="!p-4">
-            <div className="text-xs text-white/40 mb-1">コイン保有者</div>
-            <div className="text-xl font-bold font-mono text-cyan-400">
-              {dashboard?.stats?.totalHolders || 0}人
+          <NeonCard color="cyan" className="!p-4 cursor-pointer hover:scale-[1.02] transition-transform">
+            <div onClick={() => handleTabChange("holders")} className="cursor-pointer">
+              <div className="text-xs text-white/40 mb-1">コイン保有者</div>
+              <div className="text-xl font-bold font-mono text-cyan-400">
+                {dashboard?.stats?.totalHolders || 0}人
+              </div>
+              <div className="text-[10px] text-white/20 mt-1">対象: {totalStaffAndLivers}名</div>
+              <div className="text-[10px] text-cyan-400/50 mt-1 flex items-center gap-1">クリックして一覧を見る →</div>
             </div>
-            <div className="text-[10px] text-white/20 mt-1">対象: {totalStaffAndLivers}名</div>
           </NeonCard>
           <NeonCard color="pink" className="!p-4">
             <div className="text-xs text-white/40 mb-1">1株あたり価値</div>
@@ -1614,9 +1617,9 @@ export default function LcjCoinDashboard() {
                 <SelectTrigger className="bg-white/5 border-white/10 text-white">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0a0a0f] border-white/10">
-                  <SelectItem value="staff">スタッフ</SelectItem>
-                  <SelectItem value="liver">ライバー</SelectItem>
+                <SelectContent className="bg-[#0a0a0f] border-white/10 text-white">
+                  <SelectItem value="staff" className="text-white hover:text-white focus:text-white">スタッフ</SelectItem>
+                  <SelectItem value="liver" className="text-white hover:text-white focus:text-white">ライバー</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1626,9 +1629,9 @@ export default function LcjCoinDashboard() {
                 <SelectTrigger className="bg-white/5 border-white/10 text-white">
                   <SelectValue placeholder="選択してください" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0a0a0f] border-white/10 max-h-60">
+                <SelectContent className="bg-[#0a0a0f] border-white/10 text-white max-h-60">
                   {(grantForm.holderType === "staff" ? targetsQuery.data?.staff : targetsQuery.data?.livers)?.map((t: any) => (
-                    <SelectItem key={t.id} value={String(t.id)}>{t.name}{t.department ? ` (${t.department})` : ""}</SelectItem>
+                    <SelectItem key={t.id} value={String(t.id)} className="text-white hover:text-white focus:text-white">{t.name}{t.department ? ` (${t.department})` : ""}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1648,11 +1651,11 @@ export default function LcjCoinDashboard() {
                 <SelectTrigger className="bg-white/5 border-white/10 text-white">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0a0a0f] border-white/10">
-                  <SelectItem value="backloaded">バックローデッド（Amazon型: 3-4年目80%）</SelectItem>
-                  <SelectItem value="frontloaded">フロントローデッド（Google型: 1-2年目66%）</SelectItem>
-                  <SelectItem value="flat">フラット（均等配分）</SelectItem>
-                  <SelectItem value="custom">カスタム</SelectItem>
+                <SelectContent className="bg-[#0a0a0f] border-white/10 text-white">
+                  <SelectItem value="backloaded" className="text-white hover:text-white focus:text-white">バックローデッド（Amazon型: 3-4年目80%）</SelectItem>
+                  <SelectItem value="frontloaded" className="text-white hover:text-white focus:text-white">フロントローデッド（Google型: 1-2年目66%）</SelectItem>
+                  <SelectItem value="flat" className="text-white hover:text-white focus:text-white">フラット（均等配分）</SelectItem>
+                  <SelectItem value="custom" className="text-white hover:text-white focus:text-white">カスタム</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1797,10 +1800,10 @@ export default function LcjCoinDashboard() {
                 <SelectTrigger className="bg-white/5 border-white/10 text-white">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0a0a0f] border-white/10">
-                  <SelectItem value="financial_statement">財務諸表（試算表・決算書）</SelectItem>
-                  <SelectItem value="shareholder_registry">株主名簿</SelectItem>
-                  <SelectItem value="other">その他</SelectItem>
+                <SelectContent className="bg-[#0a0a0f] border-white/10 text-white">
+                  <SelectItem value="financial_statement" className="text-white hover:text-white focus:text-white">財務諸表（試算表・決算書）</SelectItem>
+                  <SelectItem value="shareholder_registry" className="text-white hover:text-white focus:text-white">株主名簿</SelectItem>
+                  <SelectItem value="other" className="text-white hover:text-white focus:text-white">その他</SelectItem>
                 </SelectContent>
               </Select>
             </div>
