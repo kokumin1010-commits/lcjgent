@@ -14,7 +14,7 @@
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { getDb, getTiktokTapMonthlySummary } from "./db";
-import { sql, eq, and, desc, asc, count, sum } from "drizzle-orm";
+import { sql, eq, and, desc, asc, count, sum, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { storagePut } from "./storage";
 import {
@@ -31,6 +31,8 @@ import {
   lcjCoinShareholders,
   staff,
   livers,
+  brandContracts,
+  tspContracts,
 } from "../drizzle/schema";
 
 // ============================================================
@@ -136,9 +138,50 @@ export const lcjCoinRouter = router({
       console.error("[LCJ Coin] Failed to fetch financial data:", e);
     }
 
+    // ---- Fetch brand contract & TSP monthly totals (reference values) ----
+    let brandContractMonthlyTotal = 0;
+    let tspMonthlyTotal = 0;
+    let activeBrandContractCount = 0;
+    let activeTspContractCount = 0;
+    try {
+      // Brand contracts: sum fixedFee of active contracts, divided by contract period months
+      const allContracts = await db.select().from(brandContracts).where(and(
+        eq(brandContracts.status, "契約中"),
+        isNull(brandContracts.deletedAt)
+      ));
+      activeBrandContractCount = allContracts.length;
+      for (const c of allContracts) {
+        if (c.fixedFee) {
+          // Calculate monthly amount from contract period
+          if (c.startDate && c.endDate) {
+            const start = new Date(c.startDate);
+            const end = new Date(c.endDate);
+            const months = Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
+            brandContractMonthlyTotal += Number(c.fixedFee) / months;
+          } else {
+            // If no period, treat as monthly
+            brandContractMonthlyTotal += Number(c.fixedFee);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[LCJ Coin] Failed to fetch brand contracts:", e);
+    }
+    try {
+      // TSP contracts: sum monthlyAmount of active contracts
+      const activeTsp = await db.select().from(tspContracts).where(eq(tspContracts.status, "active"));
+      activeTspContractCount = activeTsp.length;
+      tspMonthlyTotal = activeTsp.reduce((s: number, c: any) => s + Number(c.monthlyAmount || 0), 0);
+    } catch (e) {
+      console.error("[LCJ Coin] Failed to fetch TSP contracts:", e);
+    }
+
     // ---- Calculate valuation ----
-    // Valuation based on LCJ commission only (financial statement revenue is reference only, same source as commission)
-    const monthlyRevenue = avgMonthlyCommission + manualMonthlyRevenue;
+    // Valuation based on financial statement (trial balance) as primary source
+    // Financial statement includes all revenue: LCJ commission + ad agency + brand contracts + TSP etc.
+    const monthlyRevenue = latestFinancialMonthlyRevenue > 0 
+      ? latestFinancialMonthlyRevenue + manualMonthlyRevenue
+      : avgMonthlyCommission + manualMonthlyRevenue; // fallback to LCJ commission if no financial data
     const { annualRevenue, valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
     const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
 
@@ -207,6 +250,19 @@ export const lcjCoinRouter = router({
         latestRevenue: latestFinancialRevenue,
         monthlyRevenue: latestFinancialMonthlyRevenue,
         manualMonthlyRevenue,
+      },
+      referenceSources: {
+        brandContract: {
+          monthlyTotal: Math.round(brandContractMonthlyTotal),
+          activeCount: activeBrandContractCount,
+        },
+        tsp: {
+          monthlyTotal: tspMonthlyTotal,
+          activeCount: activeTspContractCount,
+        },
+        lcjCommission: {
+          monthlyAvg: Math.round(avgMonthlyCommission),
+        },
       },
       shareholders: {
         list: shareholders,
