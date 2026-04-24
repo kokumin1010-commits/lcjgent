@@ -17,6 +17,9 @@ import { getDb, getTiktokTapMonthlySummary } from "./db";
 import { sql, eq, and, desc, asc, count, sum, isNull, gte, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { storagePut } from "./storage";
+import { jwtVerify } from "jose";
+import { ENV } from "./_core/env";
+import { COOKIE_NAME } from "@shared/const";
 import {
   lcjCoinSettings,
   lcjCoinValuationLog,
@@ -33,6 +36,7 @@ import {
   lcjCoinPeerBonuses,
   lcjCoinBuybackPeriods,
   lcjCoinBuybackRequests,
+  users,
   staff,
   livers,
   brandContracts,
@@ -2359,5 +2363,217 @@ export const lcjCoinRouter = router({
       }
 
       return { success: true, updatedCount, createdCount };
+    }),
+
+  // ============================================================
+  // My Page: 自分のLCJコイン情報を取得（スタッフ/ライバー共通）
+  // ============================================================
+  getMyPage: publicProcedure
+    .input(z.object({
+      authType: z.enum(["staff", "liver"]),
+    }))
+    .query(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+
+      let holderType: "staff" | "liver";
+      let holderId: number;
+      let holderName: string = "";
+      let holderEmail: string = "";
+      let holderAvatar: string | null = null;
+      let holderPosition: string | null = null;
+      let joinDate: Date | null = null;
+
+      if (input.authType === "staff") {
+        // Staff: verify JWT from cookie (app_session_id)
+        const cookieHeader = ctx.req.headers.cookie || "";
+        const cookies = new Map<string, string>();
+        cookieHeader.split(";").forEach((c: string) => {
+          const [key, ...vals] = c.trim().split("=");
+          if (key) cookies.set(key, vals.join("="));
+        });
+        const token = cookies.get(COOKIE_NAME);
+        if (!token) throw new Error("認証が必要です。ログインしてください。");
+
+        try {
+          const secret = new TextEncoder().encode(ENV.cookieSecret);
+          const { payload } = await jwtVerify(token, secret);
+          if (typeof payload.userId !== "number") throw new Error("Invalid token");
+
+          const [user] = await db.select().from(users).where(eq(users.id, payload.userId)).limit(1);
+          if (!user) throw new Error("ユーザーが見つかりません");
+
+          const [staffMember] = await db.select().from(staff)
+            .where(eq(staff.email, user.email)).limit(1);
+          if (!staffMember) throw new Error("スタッフ情報が見つかりません。管理者にお問い合わせください。");
+
+          holderType = "staff";
+          holderId = staffMember.id;
+          holderName = staffMember.name;
+          holderEmail = staffMember.email;
+          holderAvatar = staffMember.avatarUrl || null;
+          holderPosition = staffMember.position || null;
+          joinDate = staffMember.joinDate || staffMember.createdAt;
+        } catch (e: any) {
+          throw new Error(e.message || "認証に失敗しました。再度ログインしてください。");
+        }
+      } else {
+        // Liver: verify JWT from Authorization header or cookie
+        const authHeader = ctx.req.headers.authorization;
+        let token: string | null = null;
+        if (authHeader?.startsWith("Bearer ")) {
+          token = authHeader.slice(7);
+        } else {
+          const cookieHeader = ctx.req.headers.cookie || "";
+          const cookies = new Map<string, string>();
+          cookieHeader.split(";").forEach((c: string) => {
+            const [key, ...vals] = c.trim().split("=");
+            if (key) cookies.set(key, vals.join("="));
+          });
+          token = cookies.get("liver_session") || null;
+        }
+        if (!token) throw new Error("認証が必要です。ログインしてください。");
+
+        try {
+          const secret = new TextEncoder().encode(ENV.cookieSecret);
+          const { payload } = await jwtVerify(token, secret);
+          if (payload.type !== "liver" || typeof payload.liverId !== "number") throw new Error("Invalid token");
+
+          const [liver] = await db.select().from(livers)
+            .where(eq(livers.id, payload.liverId)).limit(1);
+          if (!liver) throw new Error("ライバー情報が見つかりません");
+          if (!liver.isActive) throw new Error("このアカウントは無効化されています");
+
+          holderType = "liver";
+          holderId = liver.id;
+          holderName = liver.name;
+          holderEmail = liver.email;
+          holderAvatar = liver.avatarUrl || null;
+          holderPosition = liver.role === "admin" ? "管理者ライバー" : "ライバー";
+          joinDate = liver.createdAt;
+        } catch (e: any) {
+          throw new Error(e.message || "認証に失敗しました。再度ログインしてください。");
+        }
+      }
+
+      // Get settings
+      const settings = await getSettingsMap(db);
+      const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
+      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
+      const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
+      const xpPerLevel = parseInt(settings.xp_per_level || "1000");
+      const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
+      const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
+
+      // Get holding
+      const [holding] = await db.select().from(lcjCoinHoldings)
+        .where(and(
+          eq(lcjCoinHoldings.holderType, holderType),
+          eq(lcjCoinHoldings.holderId, holderId),
+        )).limit(1);
+
+      const totalCoins = holding?.totalCoins || 0;
+      const vestedCoins = holding?.vestedCoins || 0;
+      const exercisedCoins = holding?.exercisedCoins || 0;
+      const xp = holding?.xp || 0;
+      const level = calculateLevel(xp, xpPerLevel);
+      const xpInCurrentLevel = xp % xpPerLevel;
+
+      // Get vesting schedules
+      let vestingSchedules: any[] = [];
+      if (holding) {
+        const schedules = await db.select().from(lcjCoinVestingSchedules)
+          .where(eq(lcjCoinVestingSchedules.holdingId, holding.id))
+          .orderBy(desc(lcjCoinVestingSchedules.grantDate));
+        const now = new Date();
+        vestingSchedules = schedules.map((s: any) => {
+          const grantDate = new Date(s.grantDate);
+          const monthsElapsed = Math.max(0, (now.getFullYear() - grantDate.getFullYear()) * 12 + (now.getMonth() - grantDate.getMonth()));
+          const cliffPassed = monthsElapsed >= s.cliffMonths;
+          let vestedPercent = 0;
+          if (cliffPassed) {
+            const monthsAfterCliff = monthsElapsed - s.cliffMonths;
+            const vestingMonthsRemaining = s.vestingPeriodMonths - s.cliffMonths;
+            vestedPercent = vestingMonthsRemaining > 0 ? Math.min(100, (monthsAfterCliff / vestingMonthsRemaining) * 100) : 100;
+          }
+          return { ...s, monthsElapsed, cliffPassed, vestedPercent: Math.round(vestedPercent * 100) / 100 };
+        });
+      }
+
+      // Get recent transactions
+      let recentTransactions: any[] = [];
+      if (holding) {
+        recentTransactions = await db.select().from(lcjCoinTransactions)
+          .where(eq(lcjCoinTransactions.holdingId, holding.id))
+          .orderBy(desc(lcjCoinTransactions.createdAt))
+          .limit(50);
+      }
+
+      // Get badges
+      const badgeAwards = await db.select({ award: lcjCoinBadgeAwards, badge: lcjCoinBadges })
+        .from(lcjCoinBadgeAwards)
+        .innerJoin(lcjCoinBadges, eq(lcjCoinBadgeAwards.badgeId, lcjCoinBadges.id))
+        .where(and(
+          eq(lcjCoinBadgeAwards.holderType, holderType),
+          eq(lcjCoinBadgeAwards.holderId, holderId),
+        ));
+      const badges = badgeAwards.map((ba: any) => ({ ...ba.badge, awardedAt: ba.award.awardedAt }));
+
+      // Get valuation history (for chart)
+      const valuationHistory = await db.select().from(lcjCoinValuationLog)
+        .orderBy(asc(lcjCoinValuationLog.yearMonth))
+        .limit(24);
+
+      // Get peer bonuses received
+      let peerBonusesReceived: any[] = [];
+      if (holding) {
+        peerBonusesReceived = await db.select().from(lcjCoinPeerBonuses)
+          .where(and(
+            eq(lcjCoinPeerBonuses.toHolderType, holderType),
+            eq(lcjCoinPeerBonuses.toHolderId, holderId),
+          ))
+          .orderBy(desc(lcjCoinPeerBonuses.createdAt))
+          .limit(20);
+      }
+
+      // Calculate tenure
+      const now = new Date();
+      let tenureMonths = 0;
+      if (joinDate) {
+        tenureMonths = Math.max(0, (now.getFullYear() - joinDate.getFullYear()) * 12 + (now.getMonth() - joinDate.getMonth()));
+      }
+
+      return {
+        holderType,
+        holderId,
+        holderName,
+        holderEmail,
+        holderAvatar,
+        holderPosition,
+        joinDate: joinDate?.toISOString() || null,
+        tenureMonths,
+        totalCoins,
+        vestedCoins,
+        unvestedCoins: totalCoins - vestedCoins,
+        exercisedCoins,
+        coinPrice,
+        totalValue: totalCoins * coinPrice,
+        vestedValue: vestedCoins * coinPrice,
+        unvestedValue: (totalCoins - vestedCoins) * coinPrice,
+        valuation,
+        level,
+        xp,
+        xpToNextLevel: xpPerLevel - xpInCurrentLevel,
+        xpProgress: (xpInCurrentLevel / xpPerLevel) * 100,
+        vestingSchedules,
+        recentTransactions,
+        badges,
+        valuationHistory,
+        peerBonusesReceived,
+        ipoProjection1000: totalCoins * (10000000000 / totalCoinsPool),
+        ipoProjection300: totalCoins * (3000000000 / totalCoinsPool),
+        ipoProjection100: totalCoins * (1000000000 / totalCoinsPool),
+        loseByQuitting: (totalCoins - vestedCoins) * coinPrice,
+      };
     }),
 });

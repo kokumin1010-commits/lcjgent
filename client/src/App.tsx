@@ -137,6 +137,8 @@ const AdDashboard = lazy(() => import("./pages/AdDashboard"));
 const Recruit = lazy(() => import("./pages/Recruit"));
 const ShortVideoMatrix = lazy(() => import("./pages/ShortVideoMatrix"));
 const LcjCoinDashboard = lazy(() => import("./pages/LcjCoinDashboard"));
+const LcjCoinMyLogin = lazy(() => import("./pages/LcjCoinMyLogin"));
+const LcjCoinMyPage = lazy(() => import("./pages/LcjCoinMyPage"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -482,6 +484,10 @@ function Router() {
         <Route path="/master/lcj-coin">
           <LcjCoinDashboard />
         </Route>
+
+        {/* LCJ Coin My Page */}
+        <Route path="/my/lcj-coin/login" component={LcjCoinMyLogin} />
+        <Route path="/my/lcj-coin" component={LcjCoinMyPage} />
         
         {/* 404 */}
         <Route path={"/404"} component={NotFound} />

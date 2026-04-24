@@ -96,9 +96,13 @@ const customFetch: typeof globalThis.fetch = (input, init) => {
                      currentPath.startsWith('/livers') || 
                      currentPath.startsWith('/livestreams') || 
                      currentPath === '/s';
+  const isMyLcjCoinPage = currentPath.startsWith('/my/lcj-coin');
   
   if (agencyToken && isAgencyPage) {
     headers.set("Authorization", `Bearer ${agencyToken}`);
+  } else if (isMyLcjCoinPage && liverToken) {
+    // My LCJ Coin page: use liver token if available (liver login)
+    headers.set("Authorization", `Bearer ${liverToken}`);
   } else if (liverToken && (isLiverPage || !isLcjMallPage)) {
     headers.set("Authorization", `Bearer ${liverToken}`);
   } else if (lcjSessionToken && isLcjMallPage) {
