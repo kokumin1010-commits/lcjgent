@@ -342,8 +342,81 @@ export default function LivestreamDetail() {
         const workbook = XLSX.read(arrayBuffer, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const csvText = XLSX.utils.sheet_to_csv(worksheet);
-        const products = parseProductCsv(csvText);
+        
+        // Excelの行データを直接読み取り（ヘッダー行で日本語カラム名を検出）
+        const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        if (rows.length < 2) {
+          toast.error('商品データが見つかりませんでした');
+          return;
+        }
+        
+        const headerRow = rows[0] as string[];
+        // 日本語ヘッダーの場合（TikTok商品別Excelファイル形式）
+        const hasJapaneseHeaders = headerRow.some(h => typeof h === 'string' && (h === '商品ID' || h === '商品名'));
+        
+        let products: Array<{
+          productName: string;
+          grossRevenue: number | null;
+          directGmv: number | null;
+          itemsSold: number | null;
+          customers: number | null;
+          orders: number | null;
+          ctr: string | null;
+          ctor: string | null;
+          productImpressions: number | null;
+          productClicks: number | null;
+        }> = [];
+        
+        if (hasJapaneseHeaders) {
+          // 日本語ヘッダーのカラムインデックスを特定
+          const colIndex: Record<string, number> = {};
+          headerRow.forEach((h, i) => { if (typeof h === 'string') colIndex[h] = i; });
+          
+          for (let r = 1; r < rows.length; r++) {
+            const row = rows[r] as any[];
+            if (!row || row.length < 2) continue;
+            
+            // 商品名を優先、なければ商品IDを使用
+            const productName = (colIndex['商品名'] !== undefined ? String(row[colIndex['商品名']] || '') : '') 
+              || (colIndex['商品ID'] !== undefined ? String(row[colIndex['商品ID']] || '') : '');
+            if (!productName) continue;
+            
+            const parseExcelNum = (val: any): number | null => {
+              if (val === null || val === undefined || val === '' || val === '-') return null;
+              const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/[,円\s]/g, ''));
+              return isNaN(num) ? null : num;
+            };
+            
+            const gmvVal = parseExcelNum(row[colIndex['GMV']]);
+            const salesCount = parseExcelNum(row[colIndex['商品の販売数']]);
+            const liveSalesCount = parseExcelNum(row[colIndex['LIVEに起因する商品販売数']]);
+            const customerCount = parseExcelNum(row[colIndex['カスタマー数']]);
+            const skuOrders = parseExcelNum(row[colIndex['SKU注文数']]);
+            const orders = parseExcelNum(row[colIndex['注文']]);
+            const ctr = colIndex['CTR'] !== undefined ? String(row[colIndex['CTR']] || '') : null;
+            const ctor = colIndex['CTOR'] !== undefined ? String(row[colIndex['CTOR']] || '') : null;
+            const impressions = parseExcelNum(row[colIndex['商品インプレッション数']]);
+            const clicks = parseExcelNum(row[colIndex['商品クリック数']]);
+            const derivedGmv = parseExcelNum(row[colIndex['派生GMV']]);
+            
+            products.push({
+              productName,
+              grossRevenue: derivedGmv || gmvVal,  // 派生GMVをgrossRevenueとして使用
+              directGmv: gmvVal,                     // GMVをdirectGmvとして使用
+              itemsSold: salesCount,
+              customers: customerCount,
+              orders: orders || skuOrders,
+              ctr,
+              ctor,
+              productImpressions: impressions,
+              productClicks: clicks,
+            });
+          }
+        } else {
+          // 英語ヘッダーの場合は従来のCSVパースにフォールバック
+          const csvText = XLSX.utils.sheet_to_csv(worksheet);
+          products = parseProductCsv(csvText);
+        }
         
         if (products.length === 0) {
           toast.error('商品データが見つかりませんでした');
