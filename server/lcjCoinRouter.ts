@@ -1114,19 +1114,24 @@ export const lcjCoinRouter = router({
 
   // ============================================================
   // Admin: Get all holders with details
+  // HRスタッフ全員 + ライバー全員を表示（コイン未付与でも一覧表示）
   // ============================================================
   getAllHolders: protectedProcedure
     .input(z.object({
       page: z.number().default(1),
-      limit: z.number().default(50),
+      limit: z.number().default(100),
+      search: z.string().optional(),
+      filterType: z.enum(["all", "staff", "liver"]).default("all"),
     }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("DB not available");
 
       const page = input?.page || 1;
-      const limit = input?.limit || 50;
+      const limit = input?.limit || 100;
       const offset = (page - 1) * limit;
+      const search = input?.search?.toLowerCase() || "";
+      const filterType = input?.filterType || "all";
 
       const settings = await getSettingsMap(db);
       const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
@@ -1135,39 +1140,124 @@ export const lcjCoinRouter = router({
       const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
       const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
 
-      const holdings = await db
-        .select()
-        .from(lcjCoinHoldings)
-        .orderBy(desc(lcjCoinHoldings.totalCoins))
-        .limit(limit)
-        .offset(offset);
+      // 1. 全アクティブスタッフを取得
+      const allStaff = filterType === "liver" ? [] : await db
+        .select({
+          id: staff.id,
+          name: staff.name,
+          department: staff.department,
+          avatarUrl: staff.avatarUrl,
+          position: staff.position,
+        })
+        .from(staff)
+        .where(eq(staff.isActive, "active"));
 
-      const [totalResult] = await db.select({ count: count() }).from(lcjCoinHoldings);
+      // 2. 全アクティブライバーを取得
+      const allLivers = filterType === "staff" ? [] : await db
+        .select({
+          id: livers.id,
+          name: livers.name,
+          avatarUrl: livers.avatarUrl,
+        })
+        .from(livers)
+        .where(eq(livers.isActive, true));
 
-      const enriched = await Promise.all(holdings.map(async (h) => {
-        let name = "Unknown";
-        let avatarUrl = null;
-        let department = null;
-        if (h.holderType === "staff") {
-          const [s] = await db.select({ name: staff.name, avatarUrl: staff.avatarUrl, department: staff.department }).from(staff).where(eq(staff.id, h.holderId)).limit(1);
-          if (s) { name = s.name; avatarUrl = s.avatarUrl; department = s.department; }
-        } else {
-          const [l] = await db.select({ name: livers.name, avatarUrl: livers.avatarUrl }).from(livers).where(eq(livers.id, h.holderId)).limit(1);
-          if (l) { name = l.name; avatarUrl = l.avatarUrl; }
-        }
-        return {
-          ...h,
-          name,
-          avatarUrl,
-          department,
-          totalValue: h.totalCoins * coinPrice,
-          vestedValue: h.vestedCoins * coinPrice,
-        };
-      }));
+      // 3. 全holdingsデータを取得
+      const allHoldings = await db.select().from(lcjCoinHoldings);
+      const holdingsMap = new Map<string, typeof allHoldings[0]>();
+      for (const h of allHoldings) {
+        holdingsMap.set(`${h.holderType}_${h.holderId}`, h);
+      }
+
+      // 4. スタッフとライバーをマージ
+      type MergedHolder = {
+        id: number | null;
+        holderType: "staff" | "liver";
+        holderId: number;
+        name: string;
+        avatarUrl: string | null;
+        department: string | null;
+        position: string | null;
+        totalCoins: number;
+        vestedCoins: number;
+        exercisedCoins: number;
+        level: number;
+        xp: number;
+        streak: number;
+        totalValue: number;
+        vestedValue: number;
+        hasHolding: boolean;
+      };
+
+      const merged: MergedHolder[] = [];
+
+      for (const s of allStaff) {
+        const holding = holdingsMap.get(`staff_${s.id}`);
+        merged.push({
+          id: holding?.id || null,
+          holderType: "staff",
+          holderId: s.id,
+          name: s.name,
+          avatarUrl: s.avatarUrl,
+          department: s.department,
+          position: s.position,
+          totalCoins: holding?.totalCoins || 0,
+          vestedCoins: holding?.vestedCoins || 0,
+          exercisedCoins: holding?.exercisedCoins || 0,
+          level: holding?.level || 0,
+          xp: holding?.xp || 0,
+          streak: holding?.streak || 0,
+          totalValue: (holding?.totalCoins || 0) * coinPrice,
+          vestedValue: (holding?.vestedCoins || 0) * coinPrice,
+          hasHolding: !!holding,
+        });
+      }
+
+      for (const l of allLivers) {
+        const holding = holdingsMap.get(`liver_${l.id}`);
+        merged.push({
+          id: holding?.id || null,
+          holderType: "liver",
+          holderId: l.id,
+          name: l.name,
+          avatarUrl: l.avatarUrl,
+          department: "ライバー",
+          position: null,
+          totalCoins: holding?.totalCoins || 0,
+          vestedCoins: holding?.vestedCoins || 0,
+          exercisedCoins: holding?.exercisedCoins || 0,
+          level: holding?.level || 0,
+          xp: holding?.xp || 0,
+          streak: holding?.streak || 0,
+          totalValue: (holding?.totalCoins || 0) * coinPrice,
+          vestedValue: (holding?.vestedCoins || 0) * coinPrice,
+          hasHolding: !!holding,
+        });
+      }
+
+      // 5. 検索フィルタ
+      let filtered = merged;
+      if (search) {
+        filtered = merged.filter(h =>
+          h.name.toLowerCase().includes(search) ||
+          (h.department || "").toLowerCase().includes(search)
+        );
+      }
+
+      // 6. ソート: コイン保有者を先に（totalCoins降順）、未付与は最後
+      filtered.sort((a, b) => {
+        if (a.hasHolding && !b.hasHolding) return -1;
+        if (!a.hasHolding && b.hasHolding) return 1;
+        if (a.totalCoins !== b.totalCoins) return b.totalCoins - a.totalCoins;
+        return a.name.localeCompare(b.name);
+      });
+
+      const total = filtered.length;
+      const paged = filtered.slice(offset, offset + limit);
 
       return {
-        holders: enriched,
-        total: totalResult?.count || 0,
+        holders: paged,
+        total,
         coinPrice,
       };
     }),

@@ -326,6 +326,12 @@ export default function LcjCoinDashboard() {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  // Debounce holders search
+  useEffect(() => {
+    debouncedSearch(holdersSearch, setHoldersSearchDebounced);
+  }, [holdersSearch]);
+
   const [grantDialog, setGrantDialog] = useState(false);
   const [grantForm, setGrantForm] = useState({
     holderType: "staff" as "staff" | "liver",
@@ -358,12 +364,22 @@ export default function LcjCoinDashboard() {
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [holdersSearch, setHoldersSearch] = useState("");
+  const [holdersFilter, setHoldersFilter] = useState<"all" | "staff" | "liver">("all");
+  const [debouncedSearch] = useState(() => {
+    let timer: any;
+    return (val: string, cb: (v: string) => void) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => cb(val), 300);
+    };
+  });
+  const [holdersSearchDebounced, setHoldersSearchDebounced] = useState("");
 
   // Data queries
   const dashboardQuery = trpc.lcjCoin.getDashboard.useQuery();
   const leaderboardQuery = trpc.lcjCoin.getLeaderboard.useQuery({ limit: 50 });
   const badgesQuery = trpc.lcjCoin.getAllBadges.useQuery();
-  const holdersQuery = trpc.lcjCoin.getAllHolders.useQuery();
+  const holdersQuery = trpc.lcjCoin.getAllHolders.useQuery({ search: holdersSearchDebounced, filterType: holdersFilter, limit: 200 });
   const settingsQuery = trpc.lcjCoin.getSettings.useQuery();
   const seasonsQuery = trpc.lcjCoin.getSeasons.useQuery();
   const targetsQuery = trpc.lcjCoin.getGrantTargets.useQuery();
@@ -1425,15 +1441,44 @@ export default function LcjCoinDashboard() {
         )}
 
         {/* ============================================================ */}
-        {/* TAB: Holders */}
+        {/* TAB: Holders - 全スタッフ・ライバー一覧（コイン未付与も含む） */}
         {/* ============================================================ */}
         {activeTab === "holders" && (
           <NeonCard color="blue">
-            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <Users className="w-5 h-5 text-blue-400" />
-              コイン保有者一覧
-            </h3>
-            {holdersQuery.data?.holders?.length ? (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <Users className="w-5 h-5 text-blue-400" />
+                コイン保有者一覧
+                <span className="text-sm font-normal text-white/40 ml-2">
+                  {holdersQuery.data?.total || 0}名
+                </span>
+              </h3>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Input
+                  placeholder="名前・部署で検索..."
+                  className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-9 text-sm w-full sm:w-48"
+                  value={holdersSearch}
+                  onChange={(e) => setHoldersSearch(e.target.value)}
+                />
+                <Select value={holdersFilter} onValueChange={(v: any) => setHoldersFilter(v)}>
+                  <SelectTrigger className="bg-white/5 border-white/10 text-white h-9 text-sm w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-900 border-white/10">
+                    <SelectItem value="all" className="text-white">全員</SelectItem>
+                    <SelectItem value="staff" className="text-white">スタッフ</SelectItem>
+                    <SelectItem value="liver" className="text-white">ライバー</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {holdersQuery.isLoading ? (
+              <div className="text-center py-16 text-white/30">
+                <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin opacity-40" />
+                <p>読み込み中...</p>
+              </div>
+            ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -1448,35 +1493,71 @@ export default function LcjCoinDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {holdersQuery.data.holders.map((h: any) => (
-                      <tr key={h.id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
-                        <td className="py-3 px-4 font-medium text-white">{h.name}</td>
+                    {(holdersQuery.data?.holders || []).map((h: any) => (
+                      <tr
+                        key={`${h.holderType}-${h.holderId}`}
+                        className={`border-b border-white/5 hover:bg-white/[0.03] transition-colors ${!h.hasHolding ? "opacity-60" : ""}`}
+                      >
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            {h.avatarUrl ? (
+                              <img src={h.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
+                            ) : (
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                                h.holderType === "liver"
+                                  ? "bg-gradient-to-br from-pink-500 to-rose-600 text-white"
+                                  : "bg-gradient-to-br from-blue-500 to-indigo-600 text-white"
+                              }`}>
+                                {h.name?.charAt(0) || "?"}
+                              </div>
+                            )}
+                            <span className="font-medium text-white">{h.name}</span>
+                          </div>
+                        </td>
                         <td className="py-3 px-4">
                           <Badge variant="outline" className={`text-xs border-white/10 ${h.holderType === "liver" ? "text-pink-400" : "text-blue-400"}`}>
                             {h.holderType === "liver" ? "ライバー" : "スタッフ"}
                           </Badge>
                         </td>
                         <td className="py-3 px-4 text-white/40">{h.department || "-"}</td>
-                        <td className="py-3 px-4 text-right font-mono text-white">{Number(h.totalCoins).toLocaleString()}</td>
-                        <td className="py-3 px-4 text-right font-mono text-white/60">{Number(h.vestedCoins).toLocaleString()}</td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-orange-400">
-                          {formatYenFull(Number(h.totalCoins) * coinPrice)}
+                        <td className="py-3 px-4 text-right font-mono">
+                          {h.hasHolding ? (
+                            <span className="text-white">{Number(h.totalCoins).toLocaleString()}</span>
+                          ) : (
+                            <Badge variant="outline" className="text-xs border-white/10 text-white/30">未付与</Badge>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono text-white/60">
+                          {h.hasHolding ? Number(h.vestedCoins).toLocaleString() : "-"}
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-bold">
+                          {h.hasHolding ? (
+                            <span className="text-orange-400">{formatYenFull(Number(h.totalValue))}</span>
+                          ) : (
+                            <span className="text-white/20">-</span>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-600 text-white text-xs font-bold shadow-lg shadow-orange-500/20">
-                            {h.level}
-                          </span>
+                          {h.hasHolding ? (
+                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-600 text-white text-xs font-bold shadow-lg shadow-orange-500/20">
+                              {h.level}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/5 text-white/20 text-xs">
+                              -
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            ) : (
-              <div className="text-center py-16 text-white/30">
-                <Users className="w-16 h-16 mx-auto mb-4 opacity-20" />
-                <p className="text-lg">まだコイン保有者がいません</p>
-                <p className="text-sm mt-2">「全員にコイン付与」ボタンからスタッフ全員にコインを付与しましょう</p>
+                {(holdersQuery.data?.holders || []).length === 0 && (
+                  <div className="text-center py-12 text-white/30">
+                    <Users className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                    <p>該当するメンバーがいません</p>
+                  </div>
+                )}
               </div>
             )}
           </NeonCard>
