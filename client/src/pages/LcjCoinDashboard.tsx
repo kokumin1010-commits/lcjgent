@@ -557,7 +557,7 @@ export default function LcjCoinDashboard() {
             </span>
           </div>
           <div className="mt-6 flex items-center justify-center gap-8 text-sm text-white/30">
-            <span>計算式: (LCJ手数料 + 自社売上) × 12ヶ月 × PSR {dashboard?.valuation?.psrMultiplier || 15}倍</span>
+            <span>計算式: LCJ手数料（月間平均） × 12ヶ月 × PSR {dashboard?.valuation?.psrMultiplier || 15}倍</span>
           </div>
           {/* Sparkline */}
           {gmvSparklineData.length > 1 && (
@@ -589,6 +589,7 @@ export default function LcjCoinDashboard() {
             <div className="text-xl font-bold font-mono text-purple-400">
               {formatYen(dashboard?.financial?.monthlyRevenue || 0)}
             </div>
+            <div className="text-[10px] text-white/20 mt-1">参考値（試算表）</div>
           </NeonCard>
           <NeonCard color="blue" className="!p-4">
             <div className="text-xs text-white/40 mb-1">発行済みコイン</div>
@@ -652,13 +653,6 @@ export default function LcjCoinDashboard() {
                   </div>
                 </div>
                 <div className="p-5 rounded-xl bg-white/[0.03] border border-white/5 relative">
-                  <div className="absolute -left-3 top-1/2 -translate-y-1/2 text-white/20 font-bold text-lg">+</div>
-                  <div className="text-xs text-white/40 mb-2">自社売上（月間）</div>
-                  <div className="text-xl font-bold font-mono text-purple-400">
-                    {formatYenFull(dashboard?.financial?.monthlyRevenue || 0)}
-                  </div>
-                </div>
-                <div className="p-5 rounded-xl bg-white/[0.03] border border-white/5 relative">
                   <div className="absolute -left-3 top-1/2 -translate-y-1/2 text-white/20 font-bold text-lg">×</div>
                   <div className="text-xs text-white/40 mb-2">年間化 × PSR倍率</div>
                   <div className="text-xl font-bold font-mono text-blue-400">
@@ -674,7 +668,8 @@ export default function LcjCoinDashboard() {
                 </div>
               </div>
               <div className="mt-4 p-3 rounded-lg bg-white/[0.02] text-xs text-white/30 space-y-1">
-                <p>計算式: 擬似時価総額 = (LCJ手数料月間平均 + 自社売上月間) × 12 × PSR倍率({dashboard?.valuation?.psrMultiplier || 15}倍)</p>
+                <p>計算式: 擬似時価総額 = LCJ手数料月間平均 × 12 × PSR倍率({dashboard?.valuation?.psrMultiplier || 15}倍)</p>
+                <p>※ 自社売上（試算表）はLCJ手数料と同一ソースのため、参考値として表示</p>
                 <p>1コイン価格: 擬似時価総額 ÷ 総発行コイン数 = {formatYenFull(coinPrice)}</p>
               </div>
             </NeonCard>

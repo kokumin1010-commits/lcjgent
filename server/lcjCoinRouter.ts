@@ -137,8 +137,8 @@ export const lcjCoinRouter = router({
     }
 
     // ---- Calculate valuation ----
-    // Total monthly revenue = LCJ commission (from GMV) + own revenue (from financial statement)
-    const monthlyRevenue = avgMonthlyCommission + latestFinancialMonthlyRevenue + manualMonthlyRevenue;
+    // Valuation based on LCJ commission only (financial statement revenue is reference only, same source as commission)
+    const monthlyRevenue = avgMonthlyCommission + manualMonthlyRevenue;
     const { annualRevenue, valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
     const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
 
