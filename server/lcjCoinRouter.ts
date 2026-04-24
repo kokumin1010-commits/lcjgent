@@ -82,6 +82,15 @@ function calculateValuationFromTotal(totalRevenue: number, psrMultiplier: number
 }
 
 // ============================================================
+// Helper: Calculate valuation from monthly revenue
+// ============================================================
+function calculateValuation(monthlyRevenue: number, psrMultiplier: number) {
+  const annualRevenue = monthlyRevenue * 12;
+  const valuation = annualRevenue * psrMultiplier;
+  return { annualRevenue, valuation };
+}
+
+// ============================================================
 // Helper: Calculate coin price
 // ============================================================
 function calculateCoinPrice(valuation: number, totalCoinsPool: number) {
