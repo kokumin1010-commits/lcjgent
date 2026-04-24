@@ -363,6 +363,9 @@ export default function LcjCoinDashboard() {
   const targetsQuery = trpc.lcjCoin.getGrantTargets.useQuery();
   const documentsQuery = trpc.lcjCoin.getDocuments.useQuery();
   const shareholdersQuery = trpc.lcjCoin.getShareholders.useQuery();
+  // Separate queries for contract details (loaded on GMV tab)
+  const brandContractDetailsQuery = trpc.lcjCoin.getBrandContractDetails.useQuery(undefined, { enabled: activeTab === "gmv" });
+  const tspContractDetailsQuery = trpc.lcjCoin.getTspContractDetails.useQuery(undefined, { enabled: activeTab === "gmv" });
 
   // Mutations
   const grantMutation = trpc.lcjCoin.grantCoins.useMutation({
@@ -995,7 +998,7 @@ export default function LcjCoinDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {dashboard?.referenceSources?.brandContract?.details?.map((c: any) => (
+                    {brandContractDetailsQuery.data?.details?.map((c: any) => (
                       <tr key={c.id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
                         <td className="py-3 px-3 font-medium text-white">{c.brandName}</td>
                         <td className="py-3 px-3 text-white/40 text-xs">{c.serviceType || c.contractPeriodLabel || "-"}</td>
@@ -1042,7 +1045,7 @@ export default function LcjCoinDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {dashboard?.referenceSources?.tsp?.details?.map((c: any) => (
+                    {tspContractDetailsQuery.data?.details?.map((c: any) => (
                       <tr key={c.id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
                         <td className="py-3 px-3 font-medium text-white">{c.shopName}</td>
                         <td className="py-3 px-3 text-white/40">{c.companyName || "-"}</td>

@@ -305,12 +305,10 @@ export const lcjCoinRouter = router({
         brandContract: {
           monthlyTotal: Math.round(brandContractMonthlyTotal),
           activeCount: activeBrandContractCount,
-          details: brandContractDetails,
         },
         tsp: {
           monthlyTotal: tspMonthlyTotal,
           activeCount: activeTspContractCount,
-          details: tspContractDetails,
         },
         lcjCommission: {
           monthlyAvg: Math.round(avgMonthlyCommission),
@@ -329,6 +327,90 @@ export const lcjCoinRouter = router({
       valuationHistory,
       activeSeason: activeSeason || null,
     };
+  }),
+
+  // ============================================================
+  // Brand Contract Details (separate endpoint to avoid large response)
+  // ============================================================
+  getBrandContractDetails: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return { details: [] };
+    try {
+      const allContracts = await db.select({
+        id: brandContracts.id,
+        brandId: brandContracts.brandId,
+        fixedFee: brandContracts.fixedFee,
+        commissionRate: brandContracts.commissionRate,
+        startDate: brandContracts.startDate,
+        endDate: brandContracts.endDate,
+        serviceType: brandContracts.serviceType,
+        contractPeriodLabel: brandContracts.contractPeriodLabel,
+        currency: brandContracts.currency,
+        brandName: brands.name,
+      }).from(brandContracts)
+        .leftJoin(brands, eq(brandContracts.brandId, brands.id))
+        .where(and(
+          eq(brandContracts.status, "契約中"),
+          isNull(brandContracts.deletedAt)
+        ));
+      return {
+        details: allContracts.map((c) => {
+          let monthlyAmount = 0;
+          let contractMonths = 0;
+          if (c.fixedFee) {
+            if (c.startDate && c.endDate) {
+              const start = new Date(c.startDate);
+              const end = new Date(c.endDate);
+              contractMonths = Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
+              monthlyAmount = Number(c.fixedFee) / contractMonths;
+            } else {
+              contractMonths = 1;
+              monthlyAmount = Number(c.fixedFee);
+            }
+          }
+          return {
+            id: c.id,
+            brandName: c.brandName || `Brand #${c.brandId}`,
+            fixedFee: Number(c.fixedFee || 0),
+            currency: c.currency || "JPY",
+            commissionRate: c.commissionRate,
+            startDate: c.startDate,
+            endDate: c.endDate,
+            contractMonths,
+            monthlyAmount: Math.round(monthlyAmount),
+            serviceType: c.serviceType,
+            contractPeriodLabel: c.contractPeriodLabel,
+          };
+        }),
+      };
+    } catch (e) {
+      console.error("[LCJ Coin] getBrandContractDetails error:", e);
+      return { details: [] };
+    }
+  }),
+
+  // ============================================================
+  // TSP Contract Details (separate endpoint to avoid large response)
+  // ============================================================
+  getTspContractDetails: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return { details: [] };
+    try {
+      const activeTsp = await db.select().from(tspContracts).where(eq(tspContracts.status, "active"));
+      return {
+        details: activeTsp.map((c) => ({
+          id: c.id,
+          shopName: c.shopName,
+          companyName: c.companyName,
+          monthlyAmount: Number(c.monthlyAmount || 0),
+          contractStartDate: c.contractStartDate,
+          contractEndDate: c.contractEndDate,
+        })),
+      };
+    } catch (e) {
+      console.error("[LCJ Coin] getTspContractDetails error:", e);
+      return { details: [] };
+    }
   }),
 
   // ============================================================
