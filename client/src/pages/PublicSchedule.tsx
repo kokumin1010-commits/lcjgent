@@ -815,8 +815,8 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
         ? new Date(Date.UTC(actualEndYear, actualEndMonth - 1, actualEndDay, 23 - 9, 59))
         : new Date(Date.UTC(actualEndYear, actualEndMonth - 1, actualEndDay, endHour - 9, endMinute));
       
-      // 選択中のグループの最初のメンバー名を使用、またはユーザー名、または未指定
-      const defaultLiverName = selectedGroupLiverNames?.[0] || user?.name || "未指定";
+      // ライバー選択で選ばれた名前を優先、次にグループの最初のメンバー名、ユーザー名、未指定
+      const defaultLiverName = newSchedule.liverName || selectedGroupLiverNames?.[0] || user?.name || "未指定";
       
       await createScheduleMutation.mutateAsync({
         title: newSchedule.title,
@@ -2386,20 +2386,40 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
             </div>
           )}
 
-          {/* User Info - Show logged in user */}
-          {user && (
-            <div className="px-4 py-3 border-b">
-              <div className="flex items-center gap-3">
-                <div 
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm bg-gradient-to-br from-pink-400 to-pink-500"
-                >
-                  {user.name?.charAt(0) || "U"}
-                </div>
-                <span className="text-gray-700 font-medium">{user.name}</span>
-                <span className="text-xs text-gray-400 ml-auto">ログイン中</span>
+          {/* Liver Name Selection */}
+          <div className="px-4 py-3 border-b">
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 text-pink-500">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               </div>
+              {liverNamesWithColors && liverNamesWithColors.length > 0 ? (
+                <Select
+                  value={newSchedule.liverName || "_select_"}
+                  onValueChange={(value) => setNewSchedule(prev => ({ ...prev, liverName: value === "_select_" ? "" : value }))}
+                >
+                  <SelectTrigger className="border-0 p-0 h-auto focus:ring-0 flex-1">
+                    <SelectValue placeholder="ライバーを選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_select_">ライバーを選択</SelectItem>
+                    {liverNamesWithColors.map((liver: { name: string; color: string }) => (
+                      <SelectItem key={liver.name} value={liver.name}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: liver.color || '#FF69B4' }} />
+                          {liver.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex items-center gap-2 flex-1">
+                  <span className="text-gray-700 font-medium">{user?.name || "未ログイン"}</span>
+                  <span className="text-xs text-gray-400 ml-auto">ログイン中</span>
+                </div>
+              )}
             </div>
-          )}
+          </div>
           
           {/* Description */}
           <div className="px-4 py-3">
