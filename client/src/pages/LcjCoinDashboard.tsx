@@ -25,7 +25,7 @@ import {
   Building2, Percent, DollarSign, Landmark, Upload, FileText,
   PieChart, Eye, Trash2, Download, ExternalLink, Activity
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 
 // ============================================================
 // Animated Counter Component (Neon style)
@@ -298,7 +298,28 @@ function GmvBarChart({ data }: { data: any[] }) {
 // Main Dashboard Component
 // ============================================================
 export default function LcjCoinDashboard() {
-  const [activeTab, setActiveTab] = useState("overview");
+  const [, navigate] = useLocation();
+  const searchString = useSearch();
+  const urlParams = new URLSearchParams(searchString);
+  const initialTab = urlParams.get("tab") || "overview";
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Sync tab state with URL parameter
+  const handleTabChange = useCallback((tabId: string) => {
+    setActiveTab(tabId);
+    const newUrl = tabId === "overview" ? "/master/lcj-coin" : `/master/lcj-coin?tab=${tabId}`;
+    window.history.replaceState(null, "", newUrl);
+  }, []);
+
+  // Sync from URL on popstate (browser back/forward)
+  useEffect(() => {
+    const onPopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      setActiveTab(params.get("tab") || "overview");
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
   const [grantDialog, setGrantDialog] = useState(false);
   const [grantForm, setGrantForm] = useState({
     holderType: "staff" as "staff" | "liver",
@@ -585,11 +606,11 @@ export default function LcjCoinDashboard() {
             </div>
           </NeonCard>
           <NeonCard color="purple" className="!p-4">
-            <div className="text-xs text-white/40 mb-1">自社売上（月間）</div>
+            <div className="text-xs text-white/40 mb-1">全収益合算（月間）</div>
             <div className="text-xl font-bold font-mono text-purple-400">
-              {formatYen(dashboard?.financial?.monthlyRevenue || 0)}
+              {formatYen(dashboard?.valuation?.monthlyRevenue || 0)}
             </div>
-            <div className="text-[10px] text-white/20 mt-1">試算表ベース</div>
+            <div className="text-[10px] text-white/20 mt-1">手数料+ブランド+TSP</div>
           </NeonCard>
           <NeonCard color="blue" className="!p-4">
             <div className="text-xs text-white/40 mb-1">発行済みコイン</div>
@@ -621,7 +642,7 @@ export default function LcjCoinDashboard() {
           {tabs.map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition-all whitespace-nowrap border-b-2 ${
                 activeTab === tab.id
                   ? "border-orange-500 text-orange-400"
@@ -647,9 +668,9 @@ export default function LcjCoinDashboard() {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
                 <div className="p-5 rounded-xl bg-purple-500/5 border border-purple-500/20">
-                  <div className="text-xs text-white/40 mb-2">自社売上（月間・試算表）</div>
+                  <div className="text-xs text-white/40 mb-2">全収益合算（月間）</div>
                   <div className="text-xl font-bold font-mono text-purple-400">
-                    {formatYenFull(dashboard?.financial?.monthlyRevenue || 0)}
+                    {formatYenFull(dashboard?.valuation?.monthlyRevenue || 0)}
                   </div>
                 </div>
                 <div className="p-5 rounded-xl bg-white/[0.03] border border-white/5 relative">
@@ -667,33 +688,40 @@ export default function LcjCoinDashboard() {
                   </div>
                 </div>
               </div>
-              {/* Reference Sources */}
+              {/* Revenue Breakdown */}
               <div className="mt-4 p-4 rounded-xl bg-white/[0.02] border border-white/5">
-                <div className="text-xs text-white/40 mb-3 font-semibold">📊 収益内訳（参考値）</div>
+                <div className="text-xs text-white/40 mb-3 font-semibold">収益内訳（月間合算の構成）</div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="p-3 rounded-lg bg-green-500/5 border border-green-500/10">
                     <div className="text-[10px] text-white/30 mb-1">LCJ手数料（月間平均）</div>
                     <div className="text-sm font-bold font-mono text-green-400">
-                      {formatYenFull(dashboard?.referenceSources?.lcjCommission?.monthlyAvg || dashboard?.gmv?.avgMonthlyCommission || 0)}
+                      {formatYenFull(dashboard?.referenceSources?.lcjCommission?.monthlyAvg || 0)}
                     </div>
                   </div>
-                  <div className="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/10">
-                    <div className="text-[10px] text-white/30 mb-1">ブランド契約（月額換算）<span className="text-cyan-400/60 ml-1">{dashboard?.referenceSources?.brandContract?.activeCount || 0}件</span></div>
-                    <div className="text-sm font-bold font-mono text-cyan-400">
+                  <div className="p-3 rounded-lg bg-purple-500/5 border border-purple-500/10">
+                    <div className="text-[10px] text-white/30 mb-1">ブランド契約（月額換算）<span className="text-purple-400/60 ml-1">{dashboard?.referenceSources?.brandContract?.activeCount || 0}件</span></div>
+                    <div className="text-sm font-bold font-mono text-purple-400">
                       {formatYenFull(dashboard?.referenceSources?.brandContract?.monthlyTotal || 0)}
                     </div>
                   </div>
-                  <div className="p-3 rounded-lg bg-yellow-500/5 border border-yellow-500/10">
-                    <div className="text-[10px] text-white/30 mb-1">TSP契約（月額合計）<span className="text-yellow-400/60 ml-1">{dashboard?.referenceSources?.tsp?.activeCount || 0}件</span></div>
-                    <div className="text-sm font-bold font-mono text-yellow-400">
+                  <div className="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/10">
+                    <div className="text-[10px] text-white/30 mb-1">TSP契約（月額合計）<span className="text-cyan-400/60 ml-1">{dashboard?.referenceSources?.tsp?.activeCount || 0}件</span></div>
+                    <div className="text-sm font-bold font-mono text-cyan-400">
                       {formatYenFull(dashboard?.referenceSources?.tsp?.monthlyTotal || 0)}
                     </div>
                   </div>
                 </div>
+                <button
+                  onClick={() => handleTabChange("gmv")}
+                  className="mt-3 text-xs text-orange-400/60 hover:text-orange-400 transition-colors flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  GMV・収益タブで詳細を確認
+                </button>
               </div>
               <div className="mt-3 p-3 rounded-lg bg-white/[0.02] text-xs text-white/30 space-y-1">
-                <p>計算式: 擬似時価総額 = 自社売上（月間・試算表） × 12 × PSR倍率({dashboard?.valuation?.psrMultiplier || 15}倍)</p>
-                <p>※ 試算表の売上にはLCJ手数料・広告収入・ブランド契約・TSP等すべて含まれます</p>
+                <p>計算式: 擬似時価総額 = 全収益合算（月間） × 12 × PSR倍率({dashboard?.valuation?.psrMultiplier || 15}倍)</p>
+                <p>※ 全収益 = LCJ手数料 + ブランド契約（期間考慮月額換算） + TSP契約</p>
                 <p>1コイン価格: 擬似時価総額 ÷ 総発行コイン数 = {formatYenFull(coinPrice)}</p>
               </div>
             </NeonCard>
@@ -898,9 +926,46 @@ export default function LcjCoinDashboard() {
                 <div className="text-3xl font-bold font-mono text-orange-400">
                   {formatYen(dashboard?.gmv?.avgMonthlyCommission || 0)}
                 </div>
-                <div className="text-xs text-white/20 mt-2">→ 時価総額計算に使用</div>
+                <div className="text-xs text-white/20 mt-2">LCJ手数料のみ</div>
               </NeonCard>
             </div>
+
+            {/* ---- Revenue Breakdown Summary ---- */}
+            <NeonCard color="red" className="!p-5">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-red-400" />
+                全収益合算（月間）→ 擬似時価総額の計算ベース
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div className="bg-white/5 rounded-xl p-4">
+                  <div className="text-xs text-white/40 mb-1">LCJ手数料（月間平均）</div>
+                  <div className="text-xl font-bold font-mono text-orange-400">
+                    {formatYenFull(dashboard?.referenceSources?.lcjCommission?.monthlyAvg || 0)}
+                  </div>
+                </div>
+                <div className="bg-white/5 rounded-xl p-4">
+                  <div className="text-xs text-white/40 mb-1">ブランド契約（月額換算）</div>
+                  <div className="text-xl font-bold font-mono text-purple-400">
+                    {formatYenFull(dashboard?.referenceSources?.brandContract?.monthlyTotal || 0)}
+                  </div>
+                  <div className="text-[10px] text-white/20 mt-1">{dashboard?.referenceSources?.brandContract?.activeCount || 0}件</div>
+                </div>
+                <div className="bg-white/5 rounded-xl p-4">
+                  <div className="text-xs text-white/40 mb-1">TSP契約（月額）</div>
+                  <div className="text-xl font-bold font-mono text-cyan-400">
+                    {formatYenFull(dashboard?.referenceSources?.tsp?.monthlyTotal || 0)}
+                  </div>
+                  <div className="text-[10px] text-white/20 mt-1">{dashboard?.referenceSources?.tsp?.activeCount || 0}件</div>
+                </div>
+                <div className="bg-gradient-to-br from-red-500/20 to-orange-500/20 rounded-xl p-4 border border-red-500/30">
+                  <div className="text-xs text-white/60 mb-1 font-semibold">合算月間売上</div>
+                  <div className="text-xl font-bold font-mono text-red-400">
+                    {formatYenFull(dashboard?.valuation?.monthlyRevenue || 0)}
+                  </div>
+                  <div className="text-[10px] text-white/30 mt-1">× 12ヶ月 × PSR {dashboard?.valuation?.psrMultiplier || 15}倍 = {formatYen(dashboard?.valuation?.valuationAmount || 0)}</div>
+                </div>
+              </div>
+            </NeonCard>
 
             {/* GMV Chart */}
             <NeonCard color="blue">
@@ -909,6 +974,98 @@ export default function LcjCoinDashboard() {
                 月別GMV・LCJ手数料推移
               </h3>
               <GmvBarChart data={dashboard?.gmv?.monthlyData || []} />
+            </NeonCard>
+
+            {/* ---- Brand Contract Details ---- */}
+            <NeonCard color="purple">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-purple-400" />
+                ブランド契約一覧（契約中 {dashboard?.referenceSources?.brandContract?.activeCount || 0}件）
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 text-white/40">
+                      <th className="text-left py-3 px-3">ブランド</th>
+                      <th className="text-left py-3 px-3">タイプ</th>
+                      <th className="text-right py-3 px-3">契約費用</th>
+                      <th className="text-left py-3 px-3">契約期間</th>
+                      <th className="text-right py-3 px-3">月数</th>
+                      <th className="text-right py-3 px-3">月額換算</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboard?.referenceSources?.brandContract?.details?.map((c: any) => (
+                      <tr key={c.id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+                        <td className="py-3 px-3 font-medium text-white">{c.brandName}</td>
+                        <td className="py-3 px-3 text-white/40 text-xs">{c.serviceType || c.contractPeriodLabel || "-"}</td>
+                        <td className="py-3 px-3 text-right font-mono text-white/60">
+                          {c.currency !== "JPY" ? `${c.currency} ` : "¥"}{c.fixedFee.toLocaleString()}
+                        </td>
+                        <td className="py-3 px-3 text-white/40 text-xs">
+                          {c.startDate ? new Date(c.startDate).toLocaleDateString("ja-JP") : "-"}
+                          {" ~ "}
+                          {c.endDate ? new Date(c.endDate).toLocaleDateString("ja-JP") : "-"}
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono text-white/40">{c.contractMonths || "-"}ヶ月</td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-purple-400">{formatYenFull(c.monthlyAmount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-purple-500/30">
+                      <td colSpan={5} className="py-3 px-3 text-right font-semibold text-white/60">月額換算 合計</td>
+                      <td className="py-3 px-3 text-right font-mono font-bold text-purple-400 text-lg">
+                        {formatYenFull(dashboard?.referenceSources?.brandContract?.monthlyTotal || 0)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </NeonCard>
+
+            {/* ---- TSP Contract Details ---- */}
+            <NeonCard color="cyan">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <Landmark className="w-5 h-5 text-cyan-400" />
+                TSP契約一覧（アクティブ {dashboard?.referenceSources?.tsp?.activeCount || 0}件）
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 text-white/40">
+                      <th className="text-left py-3 px-3">ショップ名</th>
+                      <th className="text-left py-3 px-3">会社名</th>
+                      <th className="text-right py-3 px-3">月額（税抜）</th>
+                      <th className="text-left py-3 px-3">契約開始</th>
+                      <th className="text-left py-3 px-3">契約終了</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboard?.referenceSources?.tsp?.details?.map((c: any) => (
+                      <tr key={c.id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+                        <td className="py-3 px-3 font-medium text-white">{c.shopName}</td>
+                        <td className="py-3 px-3 text-white/40">{c.companyName || "-"}</td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-cyan-400">{formatYenFull(c.monthlyAmount)}</td>
+                        <td className="py-3 px-3 text-white/40 text-xs">
+                          {c.contractStartDate ? new Date(c.contractStartDate).toLocaleDateString("ja-JP") : "-"}
+                        </td>
+                        <td className="py-3 px-3 text-white/40 text-xs">
+                          {c.contractEndDate ? new Date(c.contractEndDate).toLocaleDateString("ja-JP") : "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-cyan-500/30">
+                      <td colSpan={4} className="py-3 px-3 text-right font-semibold text-white/60">月額 合計</td>
+                      <td className="py-3 px-3 text-right font-mono font-bold text-cyan-400 text-lg">
+                        {formatYenFull(dashboard?.referenceSources?.tsp?.monthlyTotal || 0)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </NeonCard>
 
             {/* Monthly Data Table */}
