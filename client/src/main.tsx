@@ -16,8 +16,9 @@ const queryClient = new QueryClient({
     queries: {
       // Prevent automatic refetching on window focus
       refetchOnWindowFocus: false,
-      // Retry only once on failure
-      retry: 1,
+      // Retry up to 3 times on failure (handles ERR_HTTP2_PROTOCOL_ERROR on Railway cold starts)
+      retry: 3,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
       // Keep data fresh for 5 minutes
       staleTime: 5 * 60 * 1000,
     },
