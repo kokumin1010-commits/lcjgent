@@ -169,6 +169,7 @@ export const lcjCoinRouter = router({
       for (const c of allContracts) {
         let monthlyAmount = 0;
         let contractMonths = 0;
+        const isSingleEvent = (c.serviceType || "").includes("単発");
         if (c.fixedFee) {
           if (c.startDate && c.endDate) {
             const start = new Date(c.startDate);
@@ -179,7 +180,10 @@ export const lcjCoinRouter = router({
             contractMonths = 1;
             monthlyAmount = Number(c.fixedFee);
           }
-          brandContractMonthlyTotal += monthlyAmount;
+          // Only include recurring/period contracts in monthly total (exclude 単発)
+          if (!isSingleEvent) {
+            brandContractMonthlyTotal += monthlyAmount;
+          }
         }
         brandContractDetails.push({
           id: c.id,
@@ -193,6 +197,7 @@ export const lcjCoinRouter = router({
           monthlyAmount: Math.round(monthlyAmount),
           serviceType: c.serviceType,
           contractPeriodLabel: c.contractPeriodLabel,
+          isSingleEvent,
         });
       }
     } catch (e) {
@@ -369,6 +374,7 @@ export const lcjCoinRouter = router({
               monthlyAmount = Number(c.fixedFee);
             }
           }
+          const isSingleEvent = (c.serviceType || "").includes("単発");
           return {
             id: c.id,
             brandName: c.brandName || `Brand #${c.brandId}`,
@@ -381,6 +387,7 @@ export const lcjCoinRouter = router({
             monthlyAmount: Math.round(monthlyAmount),
             serviceType: c.serviceType,
             contractPeriodLabel: c.contractPeriodLabel,
+            isSingleEvent,
           };
         }),
       };
@@ -411,6 +418,130 @@ export const lcjCoinRouter = router({
     } catch (e) {
       console.error("[LCJ Coin] getTspContractDetails error:", e);
       return { details: [] };
+    }
+  }),
+
+  // ============================================================
+  // Monthly Revenue Breakdown (月別収益推移)
+  // ============================================================
+  getMonthlyRevenueBreakdown: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return { months: [] };
+    try {
+      // 1. Get LCJ commission by month from TikTok TAP
+      const gmvMonthlyData = await getTiktokTapMonthlySummary(0);
+      const commissionByMonth: Record<string, number> = {};
+      for (const m of gmvMonthlyData) {
+        commissionByMonth[m.reportMonth] = Number(m.totalActualPartnerCommission || 0);
+      }
+
+      // 2. Get all active brand contracts
+      const allContracts = await db.select({
+        id: brandContracts.id,
+        fixedFee: brandContracts.fixedFee,
+        startDate: brandContracts.startDate,
+        endDate: brandContracts.endDate,
+        serviceType: brandContracts.serviceType,
+        currency: brandContracts.currency,
+      }).from(brandContracts)
+        .where(and(
+          eq(brandContracts.status, "\u5951\u7d04\u4e2d"),
+          isNull(brandContracts.deletedAt)
+        ));
+
+      // 3. Get active TSP contracts
+      const activeTsp = await db.select().from(tspContracts).where(eq(tspContracts.status, "active"));
+      const tspMonthly = activeTsp.reduce((s, c) => s + Number(c.monthlyAmount || 0), 0);
+
+      // Build month list (last 12 months)
+      const months: string[] = [];
+      const now = new Date();
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+      }
+
+      // Calculate brand contract revenue per month
+      const brandByMonth: Record<string, { recurring: number; single: number }> = {};
+      for (const month of months) {
+        brandByMonth[month] = { recurring: 0, single: 0 };
+      }
+      for (const c of allContracts) {
+        if (!c.fixedFee) continue;
+        const isSingle = (c.serviceType || "").includes("\u5358\u767a");
+        const fee = Number(c.fixedFee);
+        if (c.startDate && c.endDate) {
+          const start = new Date(c.startDate);
+          const end = new Date(c.endDate);
+          const contractMonths = Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
+          const monthlyAmt = fee / contractMonths;
+          // Distribute to each month the contract is active
+          for (const month of months) {
+            const [y, m] = month.split("-").map(Number);
+            const monthStart = new Date(y, m - 1, 1);
+            const monthEnd = new Date(y, m, 0); // last day of month
+            if (start <= monthEnd && end >= monthStart) {
+              if (isSingle) {
+                brandByMonth[month].single += monthlyAmt;
+              } else {
+                brandByMonth[month].recurring += monthlyAmt;
+              }
+            }
+          }
+        } else {
+          // No dates - assume current month only
+          const currentMonth = months[0];
+          if (isSingle) {
+            brandByMonth[currentMonth].single += fee;
+          } else {
+            brandByMonth[currentMonth].recurring += fee;
+          }
+        }
+      }
+
+      // TSP: assume same monthly amount for all months where contracts are active
+      // (simplified - TSP contracts have start/end dates too)
+      const tspByMonth: Record<string, number> = {};
+      for (const month of months) {
+        tspByMonth[month] = 0;
+      }
+      for (const c of activeTsp) {
+        const monthly = Number(c.monthlyAmount || 0);
+        for (const month of months) {
+          const [y, m] = month.split("-").map(Number);
+          const monthStart = new Date(y, m - 1, 1);
+          const monthEnd = new Date(y, m, 0);
+          const cStart = c.contractStartDate ? new Date(c.contractStartDate) : new Date(0);
+          const cEnd = c.contractEndDate ? new Date(c.contractEndDate) : new Date(2099, 11, 31);
+          if (cStart <= monthEnd && cEnd >= monthStart) {
+            tspByMonth[month] += monthly;
+          }
+        }
+      }
+
+      return {
+        months: months.map((month) => ({
+          month,
+          lcjCommission: Math.round(commissionByMonth[month] || 0),
+          brandRecurring: Math.round(brandByMonth[month]?.recurring || 0),
+          brandSingle: Math.round(brandByMonth[month]?.single || 0),
+          tsp: Math.round(tspByMonth[month] || 0),
+          total: Math.round(
+            (commissionByMonth[month] || 0) +
+            (brandByMonth[month]?.recurring || 0) +
+            (brandByMonth[month]?.single || 0) +
+            (tspByMonth[month] || 0)
+          ),
+          totalRecurring: Math.round(
+            (commissionByMonth[month] || 0) +
+            (brandByMonth[month]?.recurring || 0) +
+            (tspByMonth[month] || 0)
+          ),
+        })),
+      };
+    } catch (e) {
+      console.error("[LCJ Coin] getMonthlyRevenueBreakdown error:", e);
+      return { months: [] };
     }
   }),
 

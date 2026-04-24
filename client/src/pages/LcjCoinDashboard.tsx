@@ -366,6 +366,7 @@ export default function LcjCoinDashboard() {
   // Separate queries for contract details (loaded on GMV tab)
   const brandContractDetailsQuery = trpc.lcjCoin.getBrandContractDetails.useQuery(undefined, { enabled: activeTab === "gmv" });
   const tspContractDetailsQuery = trpc.lcjCoin.getTspContractDetails.useQuery(undefined, { enabled: activeTab === "gmv" });
+  const monthlyRevenueQuery = trpc.lcjCoin.getMonthlyRevenueBreakdown.useQuery(undefined, { enabled: activeTab === "gmv" });
 
   // Mutations
   const grantMutation = trpc.lcjCoin.grantCoins.useMutation({
@@ -702,7 +703,7 @@ export default function LcjCoinDashboard() {
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-purple-500/5 border border-purple-500/10">
-                    <div className="text-[10px] text-white/30 mb-1">ブランド契約（月額換算）<span className="text-purple-400/60 ml-1">{dashboard?.referenceSources?.brandContract?.activeCount || 0}件</span></div>
+                    <div className="text-[10px] text-white/30 mb-1">ブランド契約（単発除く）<span className="text-purple-400/60 ml-1">{dashboard?.referenceSources?.brandContract?.activeCount || 0}件</span></div>
                     <div className="text-sm font-bold font-mono text-purple-400">
                       {formatYenFull(dashboard?.referenceSources?.brandContract?.monthlyTotal || 0)}
                     </div>
@@ -947,7 +948,7 @@ export default function LcjCoinDashboard() {
                   </div>
                 </div>
                 <div className="bg-white/5 rounded-xl p-4">
-                  <div className="text-xs text-white/40 mb-1">ブランド契約（月額換算）</div>
+                  <div className="text-xs text-white/40 mb-1">ブランド契約（月額換算・単発除く）</div>
                   <div className="text-xl font-bold font-mono text-purple-400">
                     {formatYenFull(dashboard?.referenceSources?.brandContract?.monthlyTotal || 0)}
                   </div>
@@ -968,6 +969,51 @@ export default function LcjCoinDashboard() {
                   <div className="text-[10px] text-white/30 mt-1">× 12ヶ月 × PSR {dashboard?.valuation?.psrMultiplier || 15}倍 = {formatYen(dashboard?.valuation?.valuationAmount || 0)}</div>
                 </div>
               </div>
+            </NeonCard>
+
+            {/* Monthly Revenue Breakdown Table */}
+            <NeonCard color="yellow">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-yellow-400" />
+                月別収益推移（全収益内訳）
+              </h3>
+              {monthlyRevenueQuery.isLoading ? (
+                <div className="text-center py-8 text-white/30">読み込み中...</div>
+              ) : monthlyRevenueQuery.data?.months?.length ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-white/10 text-white/40">
+                        <th className="text-left py-3 px-3">月</th>
+                        <th className="text-right py-3 px-3">LCJ手数料</th>
+                        <th className="text-right py-3 px-3">ブランド契約</th>
+                        <th className="text-right py-3 px-3">単発</th>
+                        <th className="text-right py-3 px-3">TSP</th>
+                        <th className="text-right py-3 px-3">継続収益合計</th>
+                        <th className="text-right py-3 px-3">全収益合計</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthlyRevenueQuery.data.months.map((m: any) => (
+                        <tr key={m.month} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+                          <td className="py-3 px-3 font-mono text-white/60">{m.month}</td>
+                          <td className="py-3 px-3 text-right font-mono text-orange-400">{formatYenFull(m.lcjCommission)}</td>
+                          <td className="py-3 px-3 text-right font-mono text-purple-400">{formatYenFull(m.brandRecurring)}</td>
+                          <td className="py-3 px-3 text-right font-mono text-white/30">{m.brandSingle > 0 ? formatYenFull(m.brandSingle) : "-"}</td>
+                          <td className="py-3 px-3 text-right font-mono text-cyan-400">{formatYenFull(m.tsp)}</td>
+                          <td className="py-3 px-3 text-right font-mono font-bold text-green-400">{formatYenFull(m.totalRecurring)}</td>
+                          <td className="py-3 px-3 text-right font-mono font-bold text-red-400">{formatYenFull(m.total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="mt-3 text-[10px] text-white/20 px-3">
+                    ※ 継続収益合計 = LCJ手数料 + ブランド契約（期間契約のみ） + TSP。単発ライブ契約は擬似時価総額の計算には含まれません。
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-white/30">データがありません</div>
+              )}
             </NeonCard>
 
             {/* GMV Chart */}
@@ -999,8 +1045,11 @@ export default function LcjCoinDashboard() {
                   </thead>
                   <tbody>
                     {brandContractDetailsQuery.data?.details?.map((c: any) => (
-                      <tr key={c.id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
-                        <td className="py-3 px-3 font-medium text-white">{c.brandName}</td>
+                      <tr key={c.id} className={`border-b border-white/5 hover:bg-white/[0.03] transition-colors ${c.isSingleEvent ? "opacity-50" : ""}`}>
+                        <td className="py-3 px-3 font-medium text-white">
+                          {c.brandName}
+                          {c.isSingleEvent && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white/40">単発</span>}
+                        </td>
                         <td className="py-3 px-3 text-white/40 text-xs">{c.serviceType || c.contractPeriodLabel || "-"}</td>
                         <td className="py-3 px-3 text-right font-mono text-white/60">
                           {c.currency !== "JPY" ? `${c.currency} ` : "¥"}{c.fixedFee.toLocaleString()}
@@ -1017,7 +1066,7 @@ export default function LcjCoinDashboard() {
                   </tbody>
                   <tfoot>
                     <tr className="border-t border-purple-500/30">
-                      <td colSpan={5} className="py-3 px-3 text-right font-semibold text-white/60">月額換算 合計</td>
+                      <td colSpan={5} className="py-3 px-3 text-right font-semibold text-white/60">月額換算 合計（単発除く）</td>
                       <td className="py-3 px-3 text-right font-mono font-bold text-purple-400 text-lg">
                         {formatYenFull(dashboard?.referenceSources?.brandContract?.monthlyTotal || 0)}
                       </td>
