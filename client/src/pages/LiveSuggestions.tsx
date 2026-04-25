@@ -70,22 +70,7 @@ export default function LiveSuggestions() {
   });
 
   // Generate single suggestion mutation
-  const generateSingleMutation = trpc.liveSuggestion.generateSuggestion.useMutation({
-    onSuccess: (data) => {
-      setGeneratedSuggestions(prev => {
-        const existing = prev.findIndex(s => s.liverName === data.liverName);
-        if (existing >= 0) {
-          const updated = [...prev];
-          updated[existing] = { liverName: data.liverName, suggestion: data.suggestionText, expanded: true };
-          return updated;
-        }
-        return [...prev, { liverName: data.liverName, suggestion: data.suggestionText, expanded: true }];
-      });
-    },
-    onError: (error) => {
-      toast.error(`提案生成エラー: ${error.message}`);
-    },
-  });
+  const generateSingleMutation = trpc.liveSuggestion.generateSuggestion.useMutation();
 
   // Set default group to "LCJ所属ライバー連絡網" if available
   useEffect(() => {
@@ -101,23 +86,41 @@ export default function LiveSuggestions() {
     }
   }, [lineGroups, selectedGroupId]);
 
-  const handleGenerateAll = () => {
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleGenerateAll = async () => {
     if (!todayData?.liverNames?.length) {
       toast.error("今日の配信予定がありません");
       return;
     }
 
-    // Generate suggestions for each liver
+    // Generate suggestions for each liver sequentially
     setGeneratedSuggestions([]);
+    setIsGenerating(true);
     for (const liverName of todayData.liverNames) {
       const schedule = todayData.schedules.find(s => s.liverName === liverName || s.title === liverName);
-      generateSingleMutation.mutate({
-        liverName,
-        scheduleId: schedule?.id,
-        scheduledStartTime: schedule?.startTime ? new Date(schedule.startTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : undefined,
-        scheduledEndTime: schedule?.endTime ? new Date(schedule.endTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : undefined,
-      });
+      try {
+        const data = await generateSingleMutation.mutateAsync({
+          liverName,
+          scheduleId: schedule?.id,
+          scheduledStartTime: schedule?.startTime ? new Date(schedule.startTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : undefined,
+          scheduledEndTime: schedule?.endTime ? new Date(schedule.endTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : undefined,
+        });
+        if (data) {
+          setGeneratedSuggestions(prev => [
+            ...prev,
+            { liverName: data.liverName, suggestion: data.suggestionText, expanded: true }
+          ]);
+        }
+      } catch (error: any) {
+        toast.error(`${liverName}の提案生成エラー: ${error.message}`);
+        setGeneratedSuggestions(prev => [
+          ...prev,
+          { liverName, suggestion: "提案を生成できませんでした。", expanded: true }
+        ]);
+      }
     }
+    setIsGenerating(false);
   };
 
   const handleSendToLine = () => {
@@ -312,10 +315,10 @@ export default function LiveSuggestions() {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     onClick={handleGenerateAll}
-                    disabled={!todayData?.liverNames?.length || generateSingleMutation.isPending}
+                    disabled={!todayData?.liverNames?.length || isGenerating}
                     className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white"
                   >
-                    {generateSingleMutation.isPending ? (
+                    {isGenerating ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     ) : (
                       <Sparkles className="h-4 w-4 mr-2" />

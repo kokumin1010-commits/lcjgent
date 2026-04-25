@@ -3038,9 +3038,37 @@ export async function getSchedulesByDateRange(startDate: Date, endDate: Date) {
   const db = await getDb();
   if (!db) return [];
   
-  return await db
-    .select()
+  const results = await db
+    .select({
+      id: schedules.id,
+      title: schedules.title,
+      description: schedules.description,
+      startTime: schedules.startTime,
+      endTime: schedules.endTime,
+      isAllDay: schedules.isAllDay,
+      category: schedules.category,
+      liverId: schedules.liverId,
+      liverName: schedules.liverName,
+      brandId: schedules.brandId,
+      lineGroupId: schedules.lineGroupId,
+      isRecurring: schedules.isRecurring,
+      recurringPattern: schedules.recurringPattern,
+      recurringEndDate: schedules.recurringEndDate,
+      parentScheduleId: schedules.parentScheduleId,
+      status: schedules.status,
+      notes: schedules.notes,
+      createdBy: schedules.createdBy,
+      createdByLineUserId: schedules.createdByLineUserId,
+      reminderEnabled: schedules.reminderEnabled,
+      reminderMinutesBefore: schedules.reminderMinutesBefore,
+      locationId: schedules.locationId,
+      createdAt: schedules.createdAt,
+      updatedAt: schedules.updatedAt,
+      createdByEmail: users.email,
+      createdByName: users.name,
+    })
     .from(schedules)
+    .leftJoin(users, eq(schedules.createdBy, users.id))
     .where(
       and(
         sql`${schedules.startTime} >= ${startDate}`,
@@ -3049,6 +3077,8 @@ export async function getSchedulesByDateRange(startDate: Date, endDate: Date) {
       )
     )
     .orderBy(asc(schedules.startTime));
+  
+  return results;
 }
 
 // Get schedules by agency ID (filter by livers belonging to the agency)

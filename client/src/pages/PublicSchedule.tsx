@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Calendar, Clock, User, Plus, ChevronDown, ChevronLeft, ChevronRight, X, LogIn, LogOut, UserPlus, Settings, Check, List, LayoutGrid, CalendarDays, MapPin } from "lucide-react";
+import { Calendar, Clock, User, Plus, ChevronDown, ChevronLeft, ChevronRight, X, LogIn, LogOut, UserPlus, Settings, Check, List, LayoutGrid, CalendarDays, MapPin, Mail } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "wouter";
@@ -129,6 +129,8 @@ type Schedule = {
   brandId?: number | null;
   locationId?: number | null;
   parentScheduleId?: number | null; // 繰り返し予定の親 ID
+  createdByEmail?: string | null;
+  createdByName?: string | null;
 };
 
 type PublicScheduleProps = {
@@ -1810,6 +1812,21 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                   </div>
                 )}
                 
+                {/* Created By Email */}
+                {selectedSchedule.createdByEmail && (
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-5 w-5 text-gray-400" />
+                    <div>
+                      <p className="text-sm">
+                        {selectedSchedule.createdByName && (
+                          <span className="font-medium mr-2">{selectedSchedule.createdByName}</span>
+                        )}
+                        <span className="text-gray-500">{selectedSchedule.createdByEmail}</span>
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Location */}
                 {selectedSchedule.locationId && locationMap.get(selectedSchedule.locationId) && (
                   <div className="flex items-center gap-3">
