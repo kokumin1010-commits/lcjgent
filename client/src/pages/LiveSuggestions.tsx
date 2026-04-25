@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Sparkles, Send, History, Calendar, Clock, User, RefreshCw, CheckCircle, XCircle, Loader2, MessageSquare, ChevronDown, ChevronUp, Eye } from "lucide-react";
+import { Sparkles, Send, History, Calendar, Clock, User, RefreshCw, CheckCircle, XCircle, Loader2, MessageSquare, ChevronDown, ChevronUp, Eye, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
@@ -54,6 +54,18 @@ export default function LiveSuggestions() {
     onError: (error) => {
       toast.error(`エラー: ${error.message}`);
       setIsSending(false);
+    },
+  });
+
+  // Auto send trigger mutation (same as cron job)
+  const triggerAutoSendMutation = trpc.liveSuggestion.triggerAutoSend.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      refetchHistory();
+      refetchSchedules();
+    },
+    onError: (error) => {
+      toast.error(`自動送信エラー: ${error.message}`);
     },
   });
 
@@ -162,18 +174,34 @@ export default function LiveSuggestions() {
               AI配信提案
             </h1>
             <p className="text-muted-foreground mt-1">
-              今日のスケジュールに基づいてAIが配信提案を生成し、LINEグループに送信します
+              毎朝7:00に自動送信されます。「今すぐ自動送信」で手動実行も可能です。
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetchSchedules()}
-            disabled={loadingSchedules}
-          >
-            <RefreshCw className={`h-4 w-4 mr-1 ${loadingSchedules ? 'animate-spin' : ''}`} />
-            更新
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => triggerAutoSendMutation.mutate()}
+              disabled={triggerAutoSendMutation.isPending}
+              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+            >
+              {triggerAutoSendMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Zap className="h-4 w-4 mr-1" />
+              )}
+              今すぐ自動送信
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetchSchedules()}
+              disabled={loadingSchedules}
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${loadingSchedules ? 'animate-spin' : ''}`} />
+              更新
+            </Button>
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>

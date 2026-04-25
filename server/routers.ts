@@ -10194,6 +10194,14 @@ ${conversationText}
         const groups = await getAllLineGroups();
         return groups.filter(g => g.isActive);
       }),
+
+    // 手動トリガー: 自動送信と同じ処理を即座に実行
+    triggerAutoSend: protectedProcedure
+      .mutation(async () => {
+        const { runDailyLiveSuggestion } = await import("./liveSuggestionScheduler");
+        await runDailyLiveSuggestion();
+        return { success: true, message: "AI配信提案の自動送信を実行しました" };
+      }),
   }),
 
   // Liver (Streamer) Authentication Router

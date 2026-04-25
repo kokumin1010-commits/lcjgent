@@ -22,6 +22,7 @@ import { startSeoMonitor } from "../seoMonitor";
 import { startArticleRewriter } from "../articleRewriter";
 import { initPointExpiryScheduler } from "../pointExpiryScheduler";
 import { startStepEmailScheduler } from "../stepEmailScheduler";
+import { startLiveSuggestionScheduler } from "../liveSuggestionScheduler";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
 
@@ -2004,6 +2005,9 @@ async function startServer() {
     
     // Start step email scheduler (sends step emails every 1 hour)
     startStepEmailScheduler();
+    
+    // Start AI live suggestion scheduler (sends daily suggestions at JST 07:00)
+    startLiveSuggestionScheduler();
     
     // Ensure lineReceipts.orderNumber column exists and backfill from ocrRawText
     import("../db").then(({ ensureLineReceiptsOrderNumberColumn, backfillOrderNumbers }) => {
