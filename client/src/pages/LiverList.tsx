@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Megaphone, Gift, Package } from "lucide-react";
+import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Megaphone, Gift, Package, Gauge } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface LiverListProps {
@@ -79,6 +79,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
       totalDuration: "総配信時間",
       totalLivestreams: "総配信数",
       activeLivers: "アクティブライバー",
+      hourlyRate: "時間単価",
       vsLastMonth: "前月比",
       lcjLiverSummary: `${displayName}ライバー全体実績`,
       salesRanking: "月間売上ランキング",
@@ -98,6 +99,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
       totalDuration: "总直播时长",
       totalLivestreams: "总直播数",
       activeLivers: "活跃主播",
+      hourlyRate: "时均销售额",
       vsLastMonth: "环比",
       lcjLiverSummary: `${displayName}主播整体业绩`,
       salesRanking: "月间销售排行榜",
@@ -116,6 +118,13 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
   
   const formatCurrency = (amount: number | string) => {
     return `¥${Number(amount).toLocaleString()}`;
+  };
+  
+  const formatHourlyRate = (sales: number, durationMinutes: number) => {
+    if (!durationMinutes || durationMinutes === 0) return "--";
+    const hours = durationMinutes / 60;
+    const rate = Math.round(sales / hours);
+    return `¥${rate.toLocaleString()}`;
   };
   
   const formatDuration = (minutes: number) => {
@@ -192,7 +201,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                 {tr.lcjLiverSummary}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
               </h2>
               
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {/* Total Sales */}
                 <div className="bg-black/30 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
@@ -250,6 +259,22 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                     )}
                     <span>{totalSummary.livestreamGrowth >= 0 ? '+' : ''}{totalSummary.livestreamGrowth}%</span>
                     <span className="text-white/80">{tr.vsLastMonth}</span>
+                  </div>
+                </div>
+                
+                {/* Hourly Rate */}
+                <div className="bg-black/30 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Gauge className="w-5 h-5 text-orange-400" />
+                    <span className="text-white/90 text-sm">{tr.hourlyRate}</span>
+                  </div>
+                  <p className="text-2xl font-bold text-orange-400">
+                    {totalSummary.totalDuration > 0 
+                      ? `¥${Math.round(Number(totalSummary.totalSales) / (totalSummary.totalDuration / 60)).toLocaleString()}`
+                      : '--'}
+                  </p>
+                  <div className="flex items-center gap-1 mt-1 text-sm text-white/60">
+                    <span>/1h</span>
                   </div>
                 </div>
                 
@@ -347,6 +372,27 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                             </div>
                             <span className="text-xs text-white">{tr.duration}</span>
                           </div>
+                          <div>
+                            <span className="text-orange-400 font-bold">
+                              {formatHourlyRate(item.totalSales, item.totalDuration)}
+                            </span>
+                            <div className="h-1 bg-orange-500/30 rounded mt-1">
+                              <div 
+                                className="h-full bg-orange-500 rounded" 
+                                style={{ 
+                                  width: `${(() => {
+                                    const maxRate = rankings?.salesRanking?.reduce((max, r) => {
+                                      const rate = r.totalDuration > 0 ? r.totalSales / r.totalDuration : 0;
+                                      return Math.max(max, rate);
+                                    }, 0) || 1;
+                                    const currentRate = item.totalDuration > 0 ? item.totalSales / item.totalDuration : 0;
+                                    return Math.min(100, (currentRate / maxRate) * 100);
+                                  })()}%` 
+                                }}
+                              />
+                            </div>
+                            <span className="text-xs text-white">{tr.hourlyRate}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -432,6 +478,27 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                               />
                             </div>
                             <span className="text-xs text-white">{tr.duration}</span>
+                          </div>
+                          <div>
+                            <span className="text-orange-400 font-bold">
+                              {formatHourlyRate(item.totalSales, item.totalDuration)}
+                            </span>
+                            <div className="h-1 bg-orange-500/30 rounded mt-1">
+                              <div 
+                                className="h-full bg-orange-500 rounded" 
+                                style={{ 
+                                  width: `${(() => {
+                                    const maxRate = rankings?.durationRanking?.reduce((max, r) => {
+                                      const rate = r.totalDuration > 0 ? r.totalSales / r.totalDuration : 0;
+                                      return Math.max(max, rate);
+                                    }, 0) || 1;
+                                    const currentRate = item.totalDuration > 0 ? item.totalSales / item.totalDuration : 0;
+                                    return Math.min(100, (currentRate / maxRate) * 100);
+                                  })()}%` 
+                                }}
+                              />
+                            </div>
+                            <span className="text-xs text-white">{tr.hourlyRate}</span>
                           </div>
                         </div>
                       </div>
