@@ -1,6 +1,7 @@
 import { useState, lazy, Suspense, useEffect } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSearch } from "wouter";
+import { useLocation } from "wouter";
 
 const LineFollowUpsContent = lazy(() => import("./LineFollowUps"));
 const PendingResponsesContent = lazy(() => import("./PendingResponses"));
@@ -34,6 +35,7 @@ type LineUser = {
 
 export default function LineManagement() {
   const { language } = useLanguage();
+  const [, navigate] = useLocation();
   const searchString = useSearch();
   const urlParams = new URLSearchParams(searchString);
   const tabFromUrl = urlParams.get("tab");
@@ -217,17 +219,27 @@ export default function LineManagement() {
               : "LINE用户、群组管理和消息记录"}
           </p>
         </div>
-        <Button 
-          variant="outline" 
-          onClick={() => {
-            refetchUsers();
-            refetchGroups();
-            refetchMessages();
-          }}
-        >
-          <RefreshCw className="h-4 w-4 mr-2" />
-          {language === "ja" ? "更新" : "刷新"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="default"
+            onClick={() => navigate("/master/live-suggestions")}
+            className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            {language === "ja" ? "AI配信提案" : "AI配信提案"}
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              refetchUsers();
+              refetchGroups();
+              refetchMessages();
+            }}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            {language === "ja" ? "更新" : "刷新"}
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
