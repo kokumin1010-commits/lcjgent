@@ -1,5 +1,9 @@
-import { useState } from "react";
+import { useState, lazy, Suspense, useEffect } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useSearch } from "wouter";
+
+const LineFollowUpsContent = lazy(() => import("./LineFollowUps"));
+const PendingResponsesContent = lazy(() => import("./PendingResponses"));
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,7 +34,10 @@ type LineUser = {
 
 export default function LineManagement() {
   const { language } = useLanguage();
-  const [activeTab, setActiveTab] = useState("users");
+  const searchString = useSearch();
+  const urlParams = new URLSearchParams(searchString);
+  const tabFromUrl = urlParams.get("tab");
+  const [activeTab, setActiveTab] = useState(tabFromUrl || "users");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [showMessageDialog, setShowMessageDialog] = useState(false);
@@ -309,6 +316,14 @@ export default function LineManagement() {
           <TabsTrigger value="messages" className="flex items-center gap-2">
             <History className="h-4 w-4" />
             {language === "ja" ? "メッセージ履歴" : "消息记录"}
+          </TabsTrigger>
+          <TabsTrigger value="follow-ups" className="flex items-center gap-2">
+            <Bell className="h-4 w-4" />
+            {language === "ja" ? "フォローアップ" : "跟进"}
+          </TabsTrigger>
+          <TabsTrigger value="pending" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            {language === "ja" ? "未応答" : "待回复"}
           </TabsTrigger>
         </TabsList>
 
@@ -734,6 +749,19 @@ export default function LineManagement() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+        {/* Follow-ups Tab */}
+        <TabsContent value="follow-ups">
+          <Suspense fallback={<div className="flex items-center justify-center py-8"><RefreshCw className="h-6 w-6 animate-spin" /></div>}>
+            <LineFollowUpsContent />
+          </Suspense>
+        </TabsContent>
+
+        {/* Pending Responses Tab */}
+        <TabsContent value="pending">
+          <Suspense fallback={<div className="flex items-center justify-center py-8"><RefreshCw className="h-6 w-6 animate-spin" /></div>}>
+            <PendingResponsesContent />
+          </Suspense>
         </TabsContent>
       </Tabs>
 

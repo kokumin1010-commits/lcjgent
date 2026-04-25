@@ -1,6 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Route, Switch } from "wouter";
+import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useReferralCapture } from "./hooks/useReferralCapture";
 import RandomSpinProvider from "./components/RandomSpinProvider";
@@ -325,14 +325,10 @@ function Router() {
           </DashboardLayout>
         </Route>
         <Route path={"/master/line/follow-ups"}>
-          <DashboardLayout>
-            <LineFollowUps />
-          </DashboardLayout>
+          <Redirect to="/master/line?tab=follow-ups" />
         </Route>
         <Route path={"/master/line/pending"}>
-          <DashboardLayout>
-            <PendingResponses />
-          </DashboardLayout>
+          <Redirect to="/master/line?tab=pending" />
         </Route>
         <Route path={"/master/calendar"}>
           <DashboardLayout>
