@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake, Trash2 } from "lucide-react";
+import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake, Trash2, Target } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -600,6 +600,31 @@ export default function BrandList() {
                       </div>
                     </div>
                   </div>
+
+                  {/* ノルマバッジ */}
+                  {(brand as any).hasQuota && (
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      <Badge variant="outline" className="text-cyan-400 border-cyan-500/30 text-[10px] px-1.5 py-0">
+                        <Target className="h-3 w-3 mr-0.5" />
+                        ノルマ設定あり
+                      </Badge>
+                      {(brand as any).quotaSummary?.kgLiveHours > 0 && (
+                        <Badge variant="outline" className="text-red-400 border-red-500/30 text-[10px] px-1.5 py-0">
+                          KG {(brand as any).quotaSummary.kgLiveHours}h
+                        </Badge>
+                      )}
+                      {(brand as any).quotaSummary?.liverLiveHours > 0 && (
+                        <Badge variant="outline" className="text-blue-400 border-blue-500/30 text-[10px] px-1.5 py-0">
+                          達人 {(brand as any).quotaSummary.liverLiveHours}h
+                        </Badge>
+                      )}
+                      {(brand as any).quotaSummary?.shortVideoCount > 0 && (
+                        <Badge variant="outline" className="text-orange-400 border-orange-500/30 text-[10px] px-1.5 py-0">
+                          動画 {(brand as any).quotaSummary.shortVideoCount}本
+                        </Badge>
+                      )}
+                    </div>
+                  )}
 
                   {/* 削除ボタン */}
                   <div className="flex justify-end">

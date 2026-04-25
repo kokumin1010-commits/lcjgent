@@ -607,8 +607,8 @@ import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms } from "../drizzle/schema";
-import { eq, and, not, isNotNull, isNull, desc, gt, inArray } from "drizzle-orm";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts } from "../drizzle/schema";
+import { eq, and, not, isNotNull, isNull, desc, gt, gte, lte, inArray, sql as sqlTag, sum } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
@@ -7896,6 +7896,9 @@ Return ONLY valid JSON, no markdown or explanation.`,
           liverLiveCondition: z.string().optional(),
           shortVideoCondition: z.string().optional(),
           contractPeriodLabel: z.string().optional(),
+          kgLiveHoursQuota: z.number().nullable().optional(),
+          liverLiveHoursQuota: z.number().nullable().optional(),
+          shortVideoCountQuota: z.number().nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -7970,6 +7973,9 @@ Return ONLY valid JSON, no markdown or explanation.`,
           liverLiveCondition: z.string().nullable().optional(),
           shortVideoCondition: z.string().nullable().optional(),
           contractPeriodLabel: z.string().nullable().optional(),
+          kgLiveHoursQuota: z.number().nullable().optional(),
+          liverLiveHoursQuota: z.number().nullable().optional(),
+          shortVideoCountQuota: z.number().nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -8183,6 +8189,140 @@ Return ONLY valid JSON, no markdown or explanation.`,
           console.error("[bulkLinkLivestreams] Error:", error);
           throw error;
         }
+      }),
+
+    // ノルマ進捗集計API
+    getQuotaProgress: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        year: z.number(),
+        month: z.number(), // 1-12
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const { brandId, year, month } = input;
+
+        // JST月の範囲を計算（UTC）
+        // JST月初 00:00 = UTC 前日 15:00
+        const jstStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0) - 9 * 60 * 60 * 1000);
+        const lastDay = new Date(year, month, 0).getDate();
+        const jstEnd = new Date(Date.UTC(year, month - 1, lastDay, 23, 59, 59) - 9 * 60 * 60 * 1000);
+
+        // 当月のアクティブ契約を取得（ノルマ設定あり）
+        const contracts = await db
+          .select()
+          .from(brandContracts)
+          .where(and(
+            eq(brandContracts.brandId, brandId),
+            isNull(brandContracts.deletedAt),
+            eq(brandContracts.status, "契約中")
+          ));
+
+        // ノルマ設定がある契約を集約
+        let totalKgQuota = 0;
+        let totalLiverQuota = 0;
+        let totalVideoQuota = 0;
+        for (const c of contracts) {
+          if (c.kgLiveHoursQuota) totalKgQuota += c.kgLiveHoursQuota;
+          if (c.liverLiveHoursQuota) totalLiverQuota += c.liverLiveHoursQuota;
+          if (c.shortVideoCountQuota) totalVideoQuota += c.shortVideoCountQuota;
+        }
+
+        // 当月の配信データをライバー別に集計
+        const livestreams = await db
+          .select({
+            liverId: brandLivestreams.liverId,
+            streamerName: brandLivestreams.streamerName,
+            duration: brandLivestreams.duration,
+            gmv: brandLivestreams.gmv,
+            salesAmount: brandLivestreams.salesAmount,
+            livestreamDate: brandLivestreams.livestreamDate,
+          })
+          .from(brandLivestreams)
+          .where(and(
+            eq(brandLivestreams.brandId, brandId),
+            isNull(brandLivestreams.deletedAt),
+            gte(brandLivestreams.livestreamDate, jstStart),
+            lte(brandLivestreams.livestreamDate, jstEnd)
+          ));
+
+        // ライバー別集計
+        const liverMap: Record<string, {
+          liverId: number | null;
+          streamerName: string;
+          totalDurationMin: number;
+          totalGmv: number;
+          streamCount: number;
+        }> = {};
+
+        let totalDurationMin = 0;
+
+        for (const ls of livestreams) {
+          const key = ls.liverId ? `liver_${ls.liverId}` : `name_${ls.streamerName}`;
+          if (!liverMap[key]) {
+            liverMap[key] = {
+              liverId: ls.liverId,
+              streamerName: ls.streamerName,
+              totalDurationMin: 0,
+              totalGmv: 0,
+              streamCount: 0,
+            };
+          }
+          const dur = ls.duration || 0;
+          liverMap[key].totalDurationMin += dur;
+          liverMap[key].totalGmv += (ls.gmv || ls.salesAmount || 0);
+          liverMap[key].streamCount += 1;
+          totalDurationMin += dur;
+        }
+
+        // KG老师（liverId=null or 特定のstreamerName）の判定
+        // KG老师は通常streamerNameに「KG」「老师」を含む、またはliverId=nullの場合が多い
+        let kgDurationMin = 0;
+        let liverDurationMin = 0;
+        const liverBreakdown = Object.values(liverMap).map(v => {
+          const isKg = v.streamerName.includes('KG') || v.streamerName.includes('老师') || v.streamerName.includes('kg');
+          if (isKg) {
+            kgDurationMin += v.totalDurationMin;
+          } else {
+            liverDurationMin += v.totalDurationMin;
+          }
+          return {
+            ...v,
+            isKg,
+            totalDurationHours: Math.round(v.totalDurationMin / 60 * 10) / 10,
+          };
+        });
+
+        // 時間に変換（分→時間）
+        const kgDurationHours = Math.round(kgDurationMin / 60 * 10) / 10;
+        const liverDurationHours = Math.round(liverDurationMin / 60 * 10) / 10;
+
+        return {
+          brandId,
+          year,
+          month,
+          quotas: {
+            kgLiveHours: totalKgQuota,
+            liverLiveHours: totalLiverQuota,
+            shortVideoCount: totalVideoQuota,
+          },
+          actuals: {
+            kgLiveHours: kgDurationHours,
+            liverLiveHours: liverDurationHours,
+            totalLiveHours: Math.round(totalDurationMin / 60 * 10) / 10,
+            shortVideoCount: 0, // TODO: 短視頻データソースが確定したら実装
+          },
+          liverBreakdown: liverBreakdown.sort((a, b) => b.totalDurationMin - a.totalDurationMin),
+          contracts: contracts.map(c => ({
+            id: c.id,
+            serviceType: c.serviceType,
+            kgLiveHoursQuota: c.kgLiveHoursQuota,
+            liverLiveHoursQuota: c.liverLiveHoursQuota,
+            shortVideoCountQuota: c.shortVideoCountQuota,
+          })),
+        };
       }),
   }),
 

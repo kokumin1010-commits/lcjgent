@@ -452,6 +452,10 @@ export const brandContracts = mysqlTable("brand_contracts", {
   kgLiveCondition: text("kgLiveCondition"), // KG老师直播条件
   liverLiveCondition: text("liverLiveCondition"), // 达人直播条件
   shortVideoCondition: text("shortVideoCondition"), // 短视频条件
+  // ノルマ数値フィールド（自動集計用）
+  kgLiveHoursQuota: int("kgLiveHoursQuota"), // KG老师の月間配信ノルマ（分単位）
+  liverLiveHoursQuota: int("liverLiveHoursQuota"), // 达人の月間配信ノルマ（分単位）
+  shortVideoCountQuota: int("shortVideoCountQuota"), // 短視頻の月間本数ノルマ
   contractPeriodLabel: varchar("contractPeriodLabel", { length: 100 }), // 契約期間ラベル（例：半年矩阵、3个月）
   createdBy: int("createdBy").notNull(), // 作成者（user ID）
   createdAt: timestamp("createdAt").defaultNow().notNull(),

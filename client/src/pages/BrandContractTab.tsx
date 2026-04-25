@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import {
   Building2, Plus, Pencil, Trash2, FileText, DollarSign,
   Loader2, CheckCircle, Clock, AlertTriangle, ChevronsUpDown, Check, Search,
-  Video, Users, Clapperboard, Calendar, Filter
+  Video, Users, Clapperboard, Calendar, Filter, Target
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +63,9 @@ interface ContractFormData {
   kgLiveCondition: string;
   liverLiveCondition: string;
   shortVideoCondition: string;
+  kgLiveHoursQuota: string;
+  liverLiveHoursQuota: string;
+  shortVideoCountQuota: string;
   status: string;
   memo: string;
 }
@@ -79,6 +82,9 @@ const emptyForm: ContractFormData = {
   kgLiveCondition: "",
   liverLiveCondition: "",
   shortVideoCondition: "",
+  kgLiveHoursQuota: "",
+  liverLiveHoursQuota: "",
+  shortVideoCountQuota: "",
   status: "契約中",
   memo: "",
 };
@@ -179,6 +185,9 @@ export default function BrandContractTab() {
       kgLiveCondition: contract.kgLiveCondition || "",
       liverLiveCondition: contract.liverLiveCondition || "",
       shortVideoCondition: contract.shortVideoCondition || "",
+      kgLiveHoursQuota: contract.kgLiveHoursQuota ? String(contract.kgLiveHoursQuota) : "",
+      liverLiveHoursQuota: contract.liverLiveHoursQuota ? String(contract.liverLiveHoursQuota) : "",
+      shortVideoCountQuota: contract.shortVideoCountQuota ? String(contract.shortVideoCountQuota) : "",
       status: contract.status || "契約中",
       memo: contract.memo || "",
     });
@@ -202,6 +211,9 @@ export default function BrandContractTab() {
       kgLiveCondition: form.kgLiveCondition || undefined,
       liverLiveCondition: form.liverLiveCondition || undefined,
       shortVideoCondition: form.shortVideoCondition || undefined,
+      kgLiveHoursQuota: form.kgLiveHoursQuota ? Number(form.kgLiveHoursQuota) : undefined,
+      liverLiveHoursQuota: form.liverLiveHoursQuota ? Number(form.liverLiveHoursQuota) : undefined,
+      shortVideoCountQuota: form.shortVideoCountQuota ? Number(form.shortVideoCountQuota) : undefined,
       status: form.status as any,
       memo: form.memo || undefined,
     };
@@ -351,12 +363,15 @@ export default function BrandContractTab() {
                     </td>
                     <td className="p-3 text-xs max-w-[180px]">
                       <div className="whitespace-pre-line">{c.kgLiveCondition || "/"}</div>
+                      {c.kgLiveHoursQuota && <Badge variant="outline" className="mt-1 text-red-500 border-red-500/30">{c.kgLiveHoursQuota}h/月</Badge>}
                     </td>
                     <td className="p-3 text-xs max-w-[200px]">
                       <div className="whitespace-pre-line">{c.liverLiveCondition || "/"}</div>
+                      {c.liverLiveHoursQuota && <Badge variant="outline" className="mt-1 text-blue-500 border-blue-500/30">{c.liverLiveHoursQuota}h/月</Badge>}
                     </td>
                     <td className="p-3 text-xs max-w-[200px]">
                       <div className="whitespace-pre-line">{c.shortVideoCondition || "/"}</div>
+                      {c.shortVideoCountQuota && <Badge variant="outline" className="mt-1 text-orange-500 border-orange-500/30">{c.shortVideoCountQuota}本/月</Badge>}
                     </td>
                     <td className="p-3">{getStatusBadge(c.status)}</td>
                     <td className="p-3 text-right">
@@ -523,44 +538,87 @@ export default function BrandContractTab() {
               </div>
             </div>
 
-            {/* Conditions */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Video className="h-4 w-4 text-red-500" />
-                KG老师直播条件
-              </Label>
-              <Textarea
-                placeholder="例：每月1小时专场直播"
-                value={form.kgLiveCondition}
-                onChange={e => setForm(prev => ({ ...prev, kgLiveCondition: e.target.value }))}
-                rows={2}
-              />
-            </div>
+            {/* Conditions with Quota */}
+            <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+              <h4 className="font-semibold text-sm flex items-center gap-2"><Target className="h-4 w-4 text-green-500" />ノルマ設定（月間）</h4>
+              
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Video className="h-4 w-4 text-red-500" />
+                  KG老师直播条件
+                </Label>
+                <div className="flex gap-2 items-center">
+                  <div className="flex-1">
+                    <Textarea
+                      placeholder="例：每月1小时専場直播"
+                      value={form.kgLiveCondition}
+                      onChange={e => setForm(prev => ({ ...prev, kgLiveCondition: e.target.value }))}
+                      rows={1}
+                    />
+                  </div>
+                  <div className="w-32">
+                    <Input
+                      type="number"
+                      placeholder="時間(h)"
+                      value={form.kgLiveHoursQuota}
+                      onChange={e => setForm(prev => ({ ...prev, kgLiveHoursQuota: e.target.value }))}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">h/月</span>
+                </div>
+              </div>
 
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-blue-500" />
-                达人直播条件
-              </Label>
-              <Textarea
-                placeholder="例：旗下KOL：每月合计20小时"
-                value={form.liverLiveCondition}
-                onChange={e => setForm(prev => ({ ...prev, liverLiveCondition: e.target.value }))}
-                rows={2}
-              />
-            </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-blue-500" />
+                  达人直播条件
+                </Label>
+                <div className="flex gap-2 items-center">
+                  <div className="flex-1">
+                    <Textarea
+                      placeholder="例：旗下KOL：每月合計20時間"
+                      value={form.liverLiveCondition}
+                      onChange={e => setForm(prev => ({ ...prev, liverLiveCondition: e.target.value }))}
+                      rows={1}
+                    />
+                  </div>
+                  <div className="w-32">
+                    <Input
+                      type="number"
+                      placeholder="時間(h)"
+                      value={form.liverLiveHoursQuota}
+                      onChange={e => setForm(prev => ({ ...prev, liverLiveHoursQuota: e.target.value }))}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">h/月</span>
+                </div>
+              </div>
 
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Clapperboard className="h-4 w-4 text-orange-500" />
-                短视频条件
-              </Label>
-              <Textarea
-                placeholder="例：30条视频/月（要求不高，可切片，报白账号，达人自己账号）"
-                value={form.shortVideoCondition}
-                onChange={e => setForm(prev => ({ ...prev, shortVideoCondition: e.target.value }))}
-                rows={2}
-              />
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Clapperboard className="h-4 w-4 text-orange-500" />
+                  短视频条件
+                </Label>
+                <div className="flex gap-2 items-center">
+                  <div className="flex-1">
+                    <Textarea
+                      placeholder="例：30本/月（切り抜き可、アカウント指定）"
+                      value={form.shortVideoCondition}
+                      onChange={e => setForm(prev => ({ ...prev, shortVideoCondition: e.target.value }))}
+                      rows={1}
+                    />
+                  </div>
+                  <div className="w-32">
+                    <Input
+                      type="number"
+                      placeholder="本数"
+                      value={form.shortVideoCountQuota}
+                      onChange={e => setForm(prev => ({ ...prev, shortVideoCountQuota: e.target.value }))}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">本/月</span>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">

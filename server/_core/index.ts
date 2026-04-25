@@ -2076,6 +2076,11 @@ async function startServer() {
               console.error("[Migration] Liver Tier 4-level error:", err);
             });
           });
+          import("../migrations/addContractQuotaFields").then(({ addContractQuotaFields }) => {
+            addContractQuotaFields(db).catch((err: unknown) => {
+              console.error("[Migration] Contract quota fields error:", err);
+            });
+          });
         }
       });
     });

@@ -863,16 +863,33 @@ export async function getAllBrands(filters?: { status?: string; search?: string 
       
       // Get total contract amount (fixedFee) from contracts (exclude soft-deleted)
       const contracts = await db
-        .select({ fixedFee: brandContracts.fixedFee })
+        .select({
+          fixedFee: brandContracts.fixedFee,
+          status: brandContracts.status,
+          kgLiveHoursQuota: brandContracts.kgLiveHoursQuota,
+          liverLiveHoursQuota: brandContracts.liverLiveHoursQuota,
+          shortVideoCountQuota: brandContracts.shortVideoCountQuota,
+        })
         .from(brandContracts)
         .where(and(eq(brandContracts.brandId, brand.id), isNull(brandContracts.deletedAt)));
       
       const totalAdBudget = contracts.reduce((sum, c) => sum + (c.fixedFee || 0), 0);
+
+      // ノルマサマリー（契約中の契約のノルマ合計）
+      const activeContracts = contracts.filter(c => c.status === '契約中');
+      const quotaSummary = {
+        kgLiveHours: activeContracts.reduce((s, c) => s + (c.kgLiveHoursQuota || 0), 0),
+        liverLiveHours: activeContracts.reduce((s, c) => s + (c.liverLiveHoursQuota || 0), 0),
+        shortVideoCount: activeContracts.reduce((s, c) => s + (c.shortVideoCountQuota || 0), 0),
+      };
+      const hasQuota = quotaSummary.kgLiveHours > 0 || quotaSummary.liverLiveHours > 0 || quotaSummary.shortVideoCount > 0;
       
       return {
         ...brand,
         totalGmv,
         totalAdBudget,
+        hasQuota,
+        quotaSummary,
       };
     })
   );
