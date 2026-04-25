@@ -140,6 +140,7 @@ const ShortVideoMatrix = lazy(() => import("./pages/ShortVideoMatrix"));
 const LcjCoinDashboard = lazy(() => import("./pages/LcjCoinDashboard"));
 const LcjCoinMyLogin = lazy(() => import("./pages/LcjCoinMyLogin"));
 const LcjCoinMyPage = lazy(() => import("./pages/LcjCoinMyPage"));
+const LiveSuggestions = lazy(() => import("./pages/LiveSuggestions"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -408,6 +409,7 @@ function Router() {
         
         {/* Schedule Group Management */}
         <Route path={"/master/schedule-groups"} component={ScheduleGroupManagement} />
+        <Route path={"/master/live-suggestions"} component={LiveSuggestions} />
         
         {/* Public Pages - Liver */}
         <Route path={"/livers"} component={LcjLiverList} />

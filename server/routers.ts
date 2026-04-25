@@ -602,6 +602,14 @@ import {
   recordAbTestEvent,
   getAbTestStats,
   getAbTestRecentEvents,
+  ensureLiveSuggestionsTable,
+  saveLiveSuggestion,
+  getLiveSuggestionsByDate,
+  getLiveSuggestionHistory,
+  getTodaySchedulesForSuggestion,
+  getRecentLivestreamDataForSuggestion,
+  getTopProductsForSuggestion,
+  getRecentSetsForSuggestion,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -9852,6 +9860,339 @@ ${conversationText}
       .mutation(async ({ input }) => {
         await setScheduleGroupMembers(input.groupId, input.liverIds);
         return { success: true };
+      }),
+  }),
+
+  // Live Suggestion Router (AI配信提案)
+  liveSuggestion: router({
+    // Get today's schedules with liver info
+    getTodaySchedules: protectedProcedure
+      .query(async () => {
+        const todaySchedules = await getTodaySchedulesForSuggestion();
+        // Group by liverName
+        const liverSchedules = new Map<string, typeof todaySchedules>();
+        for (const s of todaySchedules) {
+          const name = s.liverName || s.title;
+          if (!liverSchedules.has(name)) liverSchedules.set(name, []);
+          liverSchedules.get(name)!.push(s);
+        }
+        return {
+          schedules: todaySchedules,
+          liverCount: liverSchedules.size,
+          liverNames: Array.from(liverSchedules.keys()),
+        };
+      }),
+
+    // Generate AI suggestion for a specific liver
+    generateSuggestion: protectedProcedure
+      .input(z.object({
+        liverName: z.string(),
+        scheduleId: z.number().optional(),
+        scheduledStartTime: z.string().optional(),
+        scheduledEndTime: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        // Gather context data for AI
+        const [recentStreams, topProducts, recentSets] = await Promise.all([
+          getRecentLivestreamDataForSuggestion(input.liverName),
+          getTopProductsForSuggestion(input.liverName),
+          getRecentSetsForSuggestion(input.liverName),
+        ]);
+
+        // Build AI prompt
+        const now = new Date();
+        const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+        const todayStr = jstNow.toISOString().split('T')[0];
+
+        let contextInfo = `## ${input.liverName}さんの配信データ\n\n`;
+        contextInfo += `### 今日の予定: ${todayStr}\n`;
+        if (input.scheduledStartTime) {
+          contextInfo += `配信予定時間: ${input.scheduledStartTime}${input.scheduledEndTime ? ` 〜 ${input.scheduledEndTime}` : ''}\n`;
+        }
+
+        if (recentStreams.length > 0) {
+          contextInfo += `\n### 直近の配信実績（最新10件）\n`;
+          for (const s of recentStreams) {
+            const date = s.livestreamDate ? new Date(s.livestreamDate).toLocaleDateString('ja-JP') : '不明';
+            const sales = s.salesAmount ? `¥${Number(s.salesAmount).toLocaleString()}` : '¥0';
+            const dur = s.duration ? `${s.duration}分` : '不明';
+            const brand = s.brandName || '不明';
+            contextInfo += `- ${date}: ${brand} / 売上${sales} / ${dur}\n`;
+          }
+        } else {
+          contextInfo += `\n### 直近の配信実績: データなし\n`;
+        }
+
+        if (topProducts.length > 0) {
+          contextInfo += `\n### 売れ筋商品TOP${topProducts.length}\n`;
+          for (const p of topProducts) {
+            contextInfo += `- ${p.productName}: GMV ¥${Number(p.totalGmv).toLocaleString()} / ${p.totalItemsSold}個 / ${p.count}回登場\n`;
+          }
+        }
+
+        if (recentSets.length > 0) {
+          contextInfo += `\n### よく使うセット\n`;
+          for (const s of recentSets) {
+            contextInfo += `- ${s.name}: GMV ¥${Number(s.totalGmv || 0).toLocaleString()} / ${s.totalItemsSold || 0}個\n`;
+          }
+        }
+
+        const systemPrompt = `あなたはTikTokライブコマースの配信コーチです。
+ライバーの過去の配信データを分析し、今日の配信の進め方を具体的に提案してください。
+
+提案は以下の形式で、簡潔かつ実用的に書いてください：
+
+1. 🎯 今日の目標（売上目標・視聴者目標）
+2. 📦 おすすめ商品・セット（過去の売れ筋から）
+3. ⏰ タイムライン提案（配信の流れ）
+4. 💡 ワンポイントアドバイス
+
+注意:
+- 過去データがない場合は一般的なアドバイスを提供
+- 具体的な数字を使って目標設定
+- ライバーが読みやすいように絵文字を適度に使用
+- 全体で300文字以内に収める`;
+
+        const userPrompt = `以下のデータに基づいて、${input.liverName}さんの今日の配信提案を作成してください。\n\n${contextInfo}`;
+
+        try {
+          const result = await invokeLLM({
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            maxTokens: 1000,
+          });
+
+          const suggestionText = result.content || "提案を生成できませんでした。";
+          return {
+            liverName: input.liverName,
+            suggestionText,
+            promptUsed: userPrompt,
+            contextData: {
+              recentStreamsCount: recentStreams.length,
+              topProductsCount: topProducts.length,
+              recentSetsCount: recentSets.length,
+            },
+          };
+        } catch (error) {
+          console.error("[LiveSuggestion] AI generation error:", error);
+          return {
+            liverName: input.liverName,
+            suggestionText: `${input.liverName}さん、今日も配信頑張りましょう！過去のデータを分析中です。`,
+            promptUsed: userPrompt,
+            contextData: {
+              recentStreamsCount: recentStreams.length,
+              topProductsCount: topProducts.length,
+              recentSetsCount: recentSets.length,
+            },
+          };
+        }
+      }),
+
+    // Generate suggestions for all today's livers and send to LINE group
+    generateAndSendAll: protectedProcedure
+      .input(z.object({
+        lineGroupId: z.string(),
+        lineGroupName: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const todaySchedules = await getTodaySchedulesForSuggestion();
+        
+        if (todaySchedules.length === 0) {
+          return { success: false, message: "今日の配信予定はありません", suggestions: [] };
+        }
+
+        // Group schedules by liverName
+        const liverScheduleMap = new Map<string, typeof todaySchedules>();
+        for (const s of todaySchedules) {
+          const name = s.liverName || s.title;
+          if (!liverScheduleMap.has(name)) liverScheduleMap.set(name, []);
+          liverScheduleMap.get(name)!.push(s);
+        }
+
+        const results: Array<{ liverName: string; success: boolean; suggestion: string }> = [];
+        const allSuggestionTexts: string[] = [];
+
+        const now = new Date();
+        const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+        const todayStr = jstNow.toISOString().split('T')[0];
+
+        // Generate suggestion for each liver
+        for (const [liverName, liverSchedules] of liverScheduleMap) {
+          try {
+            const [recentStreams, topProducts, recentSets] = await Promise.all([
+              getRecentLivestreamDataForSuggestion(liverName),
+              getTopProductsForSuggestion(liverName),
+              getRecentSetsForSuggestion(liverName),
+            ]);
+
+            let contextInfo = `## ${liverName}さんの配信データ\n\n`;
+            contextInfo += `### 今日の予定\n`;
+            for (const s of liverSchedules) {
+              const startTime = s.startTime ? new Date(s.startTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : '不明';
+              const endTime = s.endTime ? new Date(s.endTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : '';
+              contextInfo += `- ${startTime}${endTime ? `〜${endTime}` : ''} ${s.title}\n`;
+            }
+
+            if (recentStreams.length > 0) {
+              contextInfo += `\n### 直近の配信実績\n`;
+              for (const s of recentStreams.slice(0, 5)) {
+                const date = s.livestreamDate ? new Date(s.livestreamDate).toLocaleDateString('ja-JP') : '不明';
+                const sales = s.salesAmount ? `¥${Number(s.salesAmount).toLocaleString()}` : '¥0';
+                contextInfo += `- ${date}: ${s.brandName || '不明'} / 売上${sales}\n`;
+              }
+            }
+
+            if (topProducts.length > 0) {
+              contextInfo += `\n### 売れ筋商品TOP5\n`;
+              for (const p of topProducts.slice(0, 5)) {
+                contextInfo += `- ${p.productName}: ¥${Number(p.totalGmv).toLocaleString()}\n`;
+              }
+            }
+
+            if (recentSets.length > 0) {
+              contextInfo += `\n### よく使うセット\n`;
+              for (const s of recentSets.slice(0, 3)) {
+                contextInfo += `- ${s.name}\n`;
+              }
+            }
+
+            const systemPrompt = `あなたはTikTokライブコマースの配信コーチです。
+ライバーの過去データを分析し、今日の配信の進め方を提案してください。
+
+提案形式:
+🎯 目標
+📦 おすすめ商品
+⏰ 配信の流れ
+💡 アドバイス
+
+注意: 簡潔に200文字以内。具体的な数字を使う。`;
+
+            const userPrompt = `${liverName}さんの今日の配信提案:\n\n${contextInfo}`;
+
+            const result = await invokeLLM({
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt },
+              ],
+              maxTokens: 800,
+            });
+
+            const suggestionText = result.content || `${liverName}さん、今日も配信頑張りましょう！`;
+
+            // Build schedule time info
+            const firstSchedule = liverSchedules[0];
+            const startTimeStr = firstSchedule.startTime ? new Date(firstSchedule.startTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : '';
+
+            allSuggestionTexts.push(`━━━━━━━━━━━━━━━\n👤 ${liverName}（${startTimeStr}〜）\n━━━━━━━━━━━━━━━\n${suggestionText}`);
+
+            // Save to DB
+            await saveLiveSuggestion({
+              targetDate: new Date(),
+              liverName,
+              liverId: firstSchedule.liverId ?? undefined,
+              scheduleId: firstSchedule.id,
+              scheduledStartTime: firstSchedule.startTime ?? undefined,
+              scheduledEndTime: firstSchedule.endTime ?? undefined,
+              suggestionText,
+              promptUsed: userPrompt,
+              sentToLineGroupId: input.lineGroupId,
+              sentToLineGroupName: input.lineGroupName,
+              lineSendSuccess: false, // Will update after LINE send
+              generatedBy: ctx.user?.email || 'system',
+            });
+
+            results.push({ liverName, success: true, suggestion: suggestionText });
+          } catch (error) {
+            console.error(`[LiveSuggestion] Error for ${liverName}:`, error);
+            results.push({ liverName, success: false, suggestion: 'エラー' });
+          }
+        }
+
+        // Send combined message to LINE group
+        if (allSuggestionTexts.length > 0) {
+          const header = `📢 【${todayStr} 配信提案】\n\n今日配信予定の${allSuggestionTexts.length}名のライバーへの提案です：\n`;
+          const fullMessage = header + "\n" + allSuggestionTexts.join("\n\n");
+
+          // LINE message limit is 5000 chars, split if needed
+          const messages: Array<{ type: "text"; text: string }> = [];
+          if (fullMessage.length <= 4900) {
+            messages.push({ type: "text", text: fullMessage });
+          } else {
+            // Split into header + individual messages
+            messages.push({ type: "text", text: header });
+            let currentBatch = "";
+            for (const suggestion of allSuggestionTexts) {
+              if ((currentBatch + "\n\n" + suggestion).length > 4800) {
+                if (currentBatch) messages.push({ type: "text", text: currentBatch });
+                currentBatch = suggestion;
+              } else {
+                currentBatch = currentBatch ? currentBatch + "\n\n" + suggestion : suggestion;
+              }
+            }
+            if (currentBatch) messages.push({ type: "text", text: currentBatch });
+          }
+
+          // Send to LINE group (max 5 messages per push)
+          const lineSuccess = await pushMessage(input.lineGroupId, messages.slice(0, 5));
+
+          // Update DB records with LINE send status
+          const db = await getDb();
+          if (db) {
+            const { liveSuggestions } = await import("../drizzle/schema");
+            // Update all today's suggestions for this group
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            await db.update(liveSuggestions)
+              .set({
+                lineSendSuccess: lineSuccess,
+                lineSendError: lineSuccess ? null : 'LINE push failed',
+              })
+              .where(
+                and(
+                  eq(liveSuggestions.sentToLineGroupId, input.lineGroupId),
+                  gte(liveSuggestions.createdAt, todayStart)
+                )
+              );
+          }
+
+          return {
+            success: lineSuccess,
+            message: lineSuccess
+              ? `${results.length}名のライバーへの配信提案をLINEグループに送信しました`
+              : 'LINE送信に失敗しました',
+            suggestions: results,
+            lineMessageCount: messages.length,
+          };
+        }
+
+        return {
+          success: false,
+          message: '提案を生成できませんでした',
+          suggestions: results,
+        };
+      }),
+
+    // Get suggestion history
+    getHistory: protectedProcedure
+      .input(z.object({
+        limit: z.number().optional().default(50),
+        offset: z.number().optional().default(0),
+        date: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        if (input.date) {
+          return await getLiveSuggestionsByDate(new Date(input.date));
+        }
+        return await getLiveSuggestionHistory(input.limit, input.offset);
+      }),
+
+    // Get LINE groups for selection
+    getLineGroups: protectedProcedure
+      .query(async () => {
+        const groups = await getAllLineGroups();
+        return groups.filter(g => g.isActive);
       }),
   }),
 

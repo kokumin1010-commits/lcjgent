@@ -5466,3 +5466,35 @@ export const aiCoachRooms = mysqlTable("ai_coach_rooms", {
 });
 export type AiCoachRoom = typeof aiCoachRooms.$inferSelect;
 export type InsertAiCoachRoom = typeof aiCoachRooms.$inferInsert;
+
+
+/**
+ * Live Suggestions - AI配信提案の履歴管理
+ * 今日のスケジュールに基づいてAIが配信提案を生成し、LINEグループに送信した履歴
+ */
+export const liveSuggestions = mysqlTable("live_suggestions", {
+  id: int("id").autoincrement().primaryKey(),
+  // 対象日
+  targetDate: timestamp("targetDate").notNull(), // 提案対象の日付
+  // 対象ライバー情報
+  liverName: varchar("liverName", { length: 255 }).notNull(),
+  liverId: int("liverId"),
+  scheduleId: int("scheduleId"), // 紐づくスケジュールID
+  // スケジュール情報
+  scheduledStartTime: timestamp("scheduledStartTime"), // 配信予定開始時刻
+  scheduledEndTime: timestamp("scheduledEndTime"), // 配信予定終了時刻
+  // AI提案内容
+  suggestionText: text("suggestionText").notNull(), // AI生成の提案テキスト
+  promptUsed: text("promptUsed"), // AIに渡したプロンプト（デバッグ用）
+  // 送信情報
+  sentToLineGroupId: varchar("sentToLineGroupId", { length: 64 }), // 送信先LINEグループID
+  sentToLineGroupName: varchar("sentToLineGroupName", { length: 255 }), // 送信先LINEグループ名
+  lineSendSuccess: boolean("lineSendSuccess").default(false).notNull(), // LINE送信成功したか
+  lineSendError: text("lineSendError"), // LINE送信エラーメッセージ
+  // メタ情報
+  generatedBy: varchar("generatedBy", { length: 255 }), // 生成者（admin email等）
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type LiveSuggestion = typeof liveSuggestions.$inferSelect;
+export type InsertLiveSuggestion = typeof liveSuggestions.$inferInsert;

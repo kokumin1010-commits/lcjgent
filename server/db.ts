@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -20908,4 +20908,251 @@ export async function getLiverMonthlyProducts(liverId: number, year: number, mon
   }
   
   return Object.values(productMap).sort((a, b) => b.totalGmv - a.totalGmv);
+}
+
+
+// ===== Live Suggestions (AI配信提案) =====
+
+/**
+ * Ensure live_suggestions table exists (auto-create on first use)
+ */
+export async function ensureLiveSuggestionsTable() {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS live_suggestions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        targetDate TIMESTAMP NOT NULL,
+        liverName VARCHAR(255) NOT NULL,
+        liverId INT,
+        scheduleId INT,
+        scheduledStartTime TIMESTAMP NULL,
+        scheduledEndTime TIMESTAMP NULL,
+        suggestionText TEXT NOT NULL,
+        promptUsed TEXT,
+        sentToLineGroupId VARCHAR(64),
+        sentToLineGroupName VARCHAR(255),
+        lineSendSuccess BOOLEAN NOT NULL DEFAULT FALSE,
+        lineSendError TEXT,
+        generatedBy VARCHAR(255),
+        createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (e) {
+    // Table already exists or other non-critical error
+    console.log("[LiveSuggestions] Table check:", (e as Error).message);
+  }
+}
+
+/**
+ * Save a live suggestion record
+ */
+export async function saveLiveSuggestion(data: {
+  targetDate: Date;
+  liverName: string;
+  liverId?: number;
+  scheduleId?: number;
+  scheduledStartTime?: Date;
+  scheduledEndTime?: Date;
+  suggestionText: string;
+  promptUsed?: string;
+  sentToLineGroupId?: string;
+  sentToLineGroupName?: string;
+  lineSendSuccess: boolean;
+  lineSendError?: string;
+  generatedBy?: string;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  await ensureLiveSuggestionsTable();
+  
+  const result = await db.insert(liveSuggestions).values({
+    targetDate: data.targetDate,
+    liverName: data.liverName,
+    liverId: data.liverId ?? null,
+    scheduleId: data.scheduleId ?? null,
+    scheduledStartTime: data.scheduledStartTime ?? null,
+    scheduledEndTime: data.scheduledEndTime ?? null,
+    suggestionText: data.suggestionText,
+    promptUsed: data.promptUsed ?? null,
+    sentToLineGroupId: data.sentToLineGroupId ?? null,
+    sentToLineGroupName: data.sentToLineGroupName ?? null,
+    lineSendSuccess: data.lineSendSuccess,
+    lineSendError: data.lineSendError ?? null,
+    generatedBy: data.generatedBy ?? null,
+  });
+  
+  return result;
+}
+
+/**
+ * Get live suggestions by date
+ */
+export async function getLiveSuggestionsByDate(targetDate: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  await ensureLiveSuggestionsTable();
+  
+  const startOfDay = new Date(targetDate);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(targetDate);
+  endOfDay.setHours(23, 59, 59, 999);
+  
+  return await db
+    .select()
+    .from(liveSuggestions)
+    .where(
+      and(
+        sql`${liveSuggestions.targetDate} >= ${startOfDay}`,
+        sql`${liveSuggestions.targetDate} <= ${endOfDay}`
+      )
+    )
+    .orderBy(desc(liveSuggestions.createdAt));
+}
+
+/**
+ * Get live suggestion history (paginated)
+ */
+export async function getLiveSuggestionHistory(limit: number = 50, offset: number = 0) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  await ensureLiveSuggestionsTable();
+  
+  return await db
+    .select()
+    .from(liveSuggestions)
+    .orderBy(desc(liveSuggestions.createdAt))
+    .limit(limit)
+    .offset(offset);
+}
+
+/**
+ * Get today's schedules with liver info for suggestion generation
+ * Returns schedules for today (JST) that are not cancelled
+ */
+export async function getTodaySchedulesForSuggestion() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get today in JST
+  const now = new Date();
+  const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const todayJST = new Date(jstNow.getFullYear(), jstNow.getMonth(), jstNow.getDate());
+  
+  // Convert JST boundaries to UTC for DB query
+  const startOfDayUTC = new Date(todayJST.getTime() - 9 * 60 * 60 * 1000);
+  const endOfDayUTC = new Date(startOfDayUTC.getTime() + 24 * 60 * 60 * 1000 - 1);
+  
+  return await db
+    .select()
+    .from(schedules)
+    .where(
+      and(
+        sql`${schedules.startTime} >= ${startOfDayUTC}`,
+        sql`${schedules.startTime} <= ${endOfDayUTC}`,
+        not(eq(schedules.status, "cancelled"))
+      )
+    )
+    .orderBy(asc(schedules.startTime));
+}
+
+/**
+ * Get recent livestream data for a liver (for AI suggestion context)
+ * Returns last 10 livestreams with sales data
+ */
+export async function getRecentLivestreamDataForSuggestion(liverName: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select({
+      id: brandLivestreams.id,
+      livestreamDate: brandLivestreams.livestreamDate,
+      salesAmount: brandLivestreams.salesAmount,
+      duration: brandLivestreams.duration,
+      streamerName: brandLivestreams.streamerName,
+      brandName: brands.name,
+    })
+    .from(brandLivestreams)
+    .leftJoin(brands, eq(brandLivestreams.brandId, brands.id))
+    .where(
+      and(
+        eq(brandLivestreams.streamerName, liverName),
+        isNull(brandLivestreams.deletedAt)
+      )
+    )
+    .orderBy(desc(brandLivestreams.livestreamDate))
+    .limit(10);
+}
+
+/**
+ * Get top selling products for a liver (for AI suggestion context)
+ */
+export async function getTopProductsForSuggestion(liverName: string, limit: number = 10) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get liver's recent livestream IDs
+  const recentStreams = await db
+    .select({ id: brandLivestreams.id })
+    .from(brandLivestreams)
+    .where(
+      and(
+        eq(brandLivestreams.streamerName, liverName),
+        isNull(brandLivestreams.deletedAt)
+      )
+    )
+    .orderBy(desc(brandLivestreams.livestreamDate))
+    .limit(30);
+  
+  if (recentStreams.length === 0) return [];
+  
+  const streamIds = recentStreams.map(s => s.id);
+  
+  return await db
+    .select({
+      productName: livestreamProducts.productName,
+      totalGmv: sql<number>`SUM(COALESCE(${livestreamProducts.directGmv}, 0))`,
+      totalItemsSold: sql<number>`SUM(COALESCE(${livestreamProducts.itemsSold}, ${livestreamProducts.quantity}, 0))`,
+      count: sql<number>`COUNT(*)`,
+    })
+    .from(livestreamProducts)
+    .where(inArray(livestreamProducts.livestreamId, streamIds))
+    .groupBy(livestreamProducts.productName)
+    .orderBy(sql`SUM(COALESCE(${livestreamProducts.directGmv}, 0)) DESC`)
+    .limit(limit);
+}
+
+/**
+ * Get recent sets used by a liver (for AI suggestion context)
+ */
+export async function getRecentSetsForSuggestion(liverName: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get liver ID from name
+  const liver = await db
+    .select({ id: livers.id })
+    .from(livers)
+    .where(eq(livers.name, liverName))
+    .limit(1);
+  
+  if (liver.length === 0) return [];
+  
+  return await db
+    .select({
+      id: livestreamSets.id,
+      name: livestreamSets.name,
+      totalGmv: livestreamSets.totalGmv,
+      totalItemsSold: livestreamSets.totalItemsSold,
+    })
+    .from(livestreamSets)
+    .where(eq(livestreamSets.liverId, liver[0].id))
+    .orderBy(desc(livestreamSets.totalGmv))
+    .limit(5);
 }
