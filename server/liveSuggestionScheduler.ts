@@ -162,7 +162,7 @@ export async function runDailyLiveSuggestion(): Promise<void> {
           maxTokens: 800,
         });
 
-        const suggestionText = result.content || `${liverName}さん、今日も配信頑張りましょう！`;
+        const suggestionText = (typeof result.choices?.[0]?.message?.content === 'string' ? result.choices[0].message.content : '') || `${liverName}さん、今日も配信頑張りましょう！`;
 
         // Build schedule time info
         const firstSchedule = liverSchedules[0];

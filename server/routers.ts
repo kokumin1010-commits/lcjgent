@@ -9964,7 +9964,7 @@ ${conversationText}
             maxTokens: 1000,
           });
 
-          const suggestionText = result.content || "提案を生成できませんでした。";
+          const suggestionText = (typeof result.choices?.[0]?.message?.content === 'string' ? result.choices[0].message.content : '') || "提案を生成できませんでした。";
           return {
             liverName: input.liverName,
             suggestionText,
@@ -10079,7 +10079,7 @@ ${conversationText}
               maxTokens: 800,
             });
 
-            const suggestionText = result.content || `${liverName}さん、今日も配信頑張りましょう！`;
+            const suggestionText = (typeof result.choices?.[0]?.message?.content === 'string' ? result.choices[0].message.content : '') || `${liverName}さん、今日も配信頑張りましょう！`;
 
             // Build schedule time info
             const firstSchedule = liverSchedules[0];
