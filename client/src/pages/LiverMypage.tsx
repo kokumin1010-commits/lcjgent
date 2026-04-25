@@ -35,7 +35,11 @@ import {
   HelpCircle,
   ArrowLeft,
   Info,
-  Package
+  Package,
+  Layers,
+  ChevronDown,
+  ChevronUp,
+  Tag
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -76,6 +80,7 @@ export default function LiverMypage() {
   const [showImportHistoryDialog, setShowImportHistoryDialog] = useState(false);
   const [showGoalDialog, setShowGoalDialog] = useState(false);
   const [showGoalNudgePopup, setShowGoalNudgePopup] = useState(false);
+  const [showSetsSection, setShowSetsSection] = useState(false);
   const [goalSalesInput, setGoalSalesInput] = useState('');
   const [goalStreamCountInput, setGoalStreamCountInput] = useState('');
   
@@ -177,6 +182,12 @@ export default function LiverMypage() {
 
   // Get import history
   const { data: importHistory, refetch: refetchImportHistory } = trpc.csvImport.getImportHistory.useQuery(
+    { liverId: liverInfo?.id || 0 },
+    { enabled: !!liverInfo?.id }
+  );
+
+  // セット一覧取得
+  const { data: setAnalysis } = trpc.livestreamSets.liverSetAnalysis.useQuery(
     { liverId: liverInfo?.id || 0 },
     { enabled: !!liverInfo?.id }
   );
@@ -963,6 +974,117 @@ export default function LiverMypage() {
             </CardContent>
           </Card>
         </Link>
+
+        {/* セット一覧 */}
+        {setAnalysis && setAnalysis.sets && setAnalysis.sets.length > 0 && (
+          <Card className="bg-gray-800/50 border-gray-700">
+            <CardContent className="p-3">
+              <button
+                onClick={() => setShowSetsSection(!showSetsSection)}
+                className="w-full flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-amber-400" />
+                  <h3 className="text-sm font-bold text-white">
+                    {language === 'ja' ? '作成したセット一覧' : language === 'zh-TW' ? '已建立的套裝列表' : language === 'en' ? 'My Sets' : '已创建的套装列表'}
+                  </h3>
+                  <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">
+                    {setAnalysis.summary?.totalSets || 0}{language === 'ja' ? '件' : ''}
+                  </span>
+                </div>
+                {showSetsSection ? <ChevronUp className="h-4 w-4 text-white/50" /> : <ChevronDown className="h-4 w-4 text-white/50" />}
+              </button>
+              
+              {showSetsSection && (
+                <div className="mt-3 space-y-3">
+                  {/* サマリー */}
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-gray-700/30 rounded-lg p-2">
+                      <p className="text-sm font-bold text-amber-400">{setAnalysis.summary?.totalSets || 0}</p>
+                      <p className="text-[10px] text-white/60">{language === 'ja' ? 'セット数' : language === 'zh-TW' ? '套裝數' : language === 'en' ? 'Total Sets' : '套装数'}</p>
+                    </div>
+                    <div className="bg-gray-700/30 rounded-lg p-2">
+                      <p className="text-sm font-bold text-green-400">¥{Number(setAnalysis.summary?.totalSetRevenue || 0).toLocaleString()}</p>
+                      <p className="text-[10px] text-white/60">{language === 'ja' ? 'セット売上' : language === 'zh-TW' ? '套裝營收' : language === 'en' ? 'Set Revenue' : '套装营收'}</p>
+                    </div>
+                    <div className="bg-gray-700/30 rounded-lg p-2">
+                      <p className="text-sm font-bold text-blue-400">{setAnalysis.summary?.avgDiscountRate || 0}%</p>
+                      <p className="text-[10px] text-white/60">{language === 'ja' ? '平均お得率' : language === 'zh-TW' ? '平均折扣率' : language === 'en' ? 'Avg Discount' : '平均折扣率'}</p>
+                    </div>
+                  </div>
+                  
+                  {/* セット一覧 */}
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {setAnalysis.sets.map((set: any) => (
+                      <div key={set.id} className="bg-gray-700/20 border border-gray-600/30 rounded-lg p-3">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <Tag className="h-3 w-3 text-amber-400 flex-shrink-0" />
+                              <p className="text-sm font-semibold text-white truncate">{set.setName}</p>
+                            </div>
+                            <p className="text-[10px] text-white/40 mt-0.5 ml-5">
+                              {set.livestreamDate ? new Date(set.livestreamDate).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }) : ''}
+                            </p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-sm font-bold text-green-400">¥{Number(set.setPrice || 0).toLocaleString()}</p>
+                            {set.discountRate > 0 && (
+                              <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">
+                                {set.discountRate}% OFF
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {/* セット内商品 */}
+                        {set.items && set.items.length > 0 && (
+                          <div className="ml-5 space-y-0.5">
+                            {set.items.map((item: any, idx: number) => (
+                              <div key={idx} className="flex items-center justify-between text-[11px]">
+                                <span className="text-white/60 truncate flex-1">
+                                  {item.quantity > 1 ? `${item.productName} ×${item.quantity}` : item.productName}
+                                </span>
+                                <span className="text-white/40 ml-2 flex-shrink-0">¥{Number(item.originalPrice || 0).toLocaleString()}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-600/20">
+                          <span className="text-[10px] text-white/40">
+                            {language === 'ja' ? '販売数' : 'Qty'}: {set.quantitySold || 0}
+                          </span>
+                          <span className="text-xs font-semibold text-amber-400">
+                            {language === 'ja' ? '売上合計' : 'Total'}: ¥{Number(set.totalRevenue || 0).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* よく使う商品 TOP5 */}
+                  {setAnalysis.topProducts && setAnalysis.topProducts.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs font-semibold text-white/70 mb-1">
+                        {language === 'ja' ? 'よく使う商品 TOP5' : language === 'zh-TW' ? '常用商品 TOP5' : language === 'en' ? 'Top 5 Products' : '常用商品 TOP5'}
+                      </p>
+                      <div className="space-y-1">
+                        {setAnalysis.topProducts.slice(0, 5).map((product: any, idx: number) => (
+                          <div key={idx} className="flex items-center justify-between text-xs bg-gray-700/20 rounded px-2 py-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-amber-400 font-bold w-4">{idx + 1}</span>
+                              <span className="text-white/80 truncate">{product.productName}</span>
+                            </div>
+                            <span className="text-white/50 flex-shrink-0">{product.count}{language === 'ja' ? '回使用' : '×'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* All-time Stats */}
         <Card className="bg-gray-800/30 border-gray-700">
