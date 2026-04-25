@@ -11579,71 +11579,126 @@ ${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProduc
             streamsContext += `${date}: ${s.brandName || '不明'} / 売上${sales} / ${dur}\n`;
           });
           
-          // Get set data for recent livestreams (セット組みデータ)
-          const recentStreamIds = recentStreams.slice(0, 10).map(s => s.id).filter(Boolean);
+          // Get ALL set data for this liver (全配信の全セットデータ)
+          // First, get all livestream IDs for this liver
+          const allLiverStreams = await db
+            .select({ id: brandLivestreams.id, livestreamDate: brandLivestreams.livestreamDate, brandName: brands.name })
+            .from(brandLivestreams)
+            .leftJoin(brands, eq(brandLivestreams.brandId, brands.id))
+            .where(and(eq(brandLivestreams.liverId, input.liverId), isNull(brandLivestreams.deletedAt)))
+            .orderBy(desc(brandLivestreams.livestreamDate));
+          
+          const allStreamIds = allLiverStreams.map(s => s.id).filter(Boolean);
           let setsContext = '';
-          if (recentStreamIds.length > 0) {
-            const allSets = await db
-              .select()
-              .from(livestreamSets)
-              .where(sqlTag`${livestreamSets.livestreamId} IN (${sqlTag.join(recentStreamIds.map(id => sqlTag`${id}`), sqlTag`, `)})`);
+          if (allStreamIds.length > 0) {
+            // Fetch in batches of 500 to avoid SQL limits
+            let allSets: any[] = [];
+            for (let i = 0; i < allStreamIds.length; i += 500) {
+              const batchIds = allStreamIds.slice(i, i + 500);
+              const batchSets = await db
+                .select()
+                .from(livestreamSets)
+                .where(sqlTag`${livestreamSets.livestreamId} IN (${sqlTag.join(batchIds.map(id => sqlTag`${id}`), sqlTag`, `)})`);
+              allSets = allSets.concat(batchSets);
+            }
             
             if (allSets.length > 0) {
               // Get all set items
-              const setIds = allSets.map(s => s.id);
-              const allSetItems = await db
-                .select()
-                .from(livestreamSetItems)
-                .where(sqlTag`${livestreamSetItems.setId} IN (${sqlTag.join(setIds.map(id => sqlTag`${id}`), sqlTag`, `)})`);
+              const setIds = allSets.map((s: any) => s.id);
+              let allSetItems: any[] = [];
+              for (let i = 0; i < setIds.length; i += 500) {
+                const batchSetIds = setIds.slice(i, i + 500);
+                const batchItems = await db
+                  .select()
+                  .from(livestreamSetItems)
+                  .where(sqlTag`${livestreamSetItems.setId} IN (${sqlTag.join(batchSetIds.map((id: any) => sqlTag`${id}`), sqlTag`, `)})`);
+                allSetItems = allSetItems.concat(batchItems);
+              }
               
               // Group items by setId
-              const itemsBySetId: Record<number, typeof allSetItems> = {};
-              allSetItems.forEach(item => {
+              const itemsBySetId: Record<number, any[]> = {};
+              allSetItems.forEach((item: any) => {
                 if (!itemsBySetId[item.setId]) itemsBySetId[item.setId] = [];
                 itemsBySetId[item.setId].push(item);
               });
               
-              // Group sets by livestreamId
-              const setsByLivestream: Record<number, typeof allSets> = {};
-              allSets.forEach(s => {
-                if (!setsByLivestream[s.livestreamId]) setsByLivestream[s.livestreamId] = [];
-                setsByLivestream[s.livestreamId].push(s);
+              // Build stream lookup
+              const streamLookup: Record<number, { livestreamDate: any; brandName: string | null }> = {};
+              allLiverStreams.forEach(s => {
+                streamLookup[s.id] = { livestreamDate: s.livestreamDate, brandName: s.brandName };
               });
               
-              setsContext = '\n\n【直近のセット組みデータ】\n';
-              // Build set analysis: top performing sets
-              const sortedSets = [...allSets].sort((a, b) => (b.totalRevenue || 0) - (a.totalRevenue || 0));
-              const topSets = sortedSets.slice(0, 10);
+              setsContext = `\n\n【${liverName}さんの全セット組みデータ（${allSets.length}件）】\n`;
+              // Sort by totalRevenue descending, show top 30 sets
+              const sortedSets = [...allSets].sort((a: any, b: any) => (b.totalRevenue || 0) - (a.totalRevenue || 0));
+              const topSets = sortedSets.slice(0, 30);
               
-              topSets.forEach(s => {
-                const stream = recentStreams.find(st => st.id === s.livestreamId);
+              setsContext += '\n--- 売上TOP30セット ---\n';
+              topSets.forEach((s: any, idx: number) => {
+                const stream = streamLookup[s.livestreamId];
                 const date = stream?.livestreamDate ? new Date(stream.livestreamDate).toLocaleDateString('ja-JP') : '';
                 const discount = s.discountRate ? `${s.discountRate}%OFF` : '';
-                setsContext += `\n● ${s.setName} ${discount ? `(${discount})` : ''}\n`;
+                setsContext += `\n${idx + 1}. ${s.setName} ${discount ? `(${discount})` : ''}\n`;
                 setsContext += `  売値: ¥${Number(s.setPrice).toLocaleString()} / 販売数: ${s.quantitySold}セット / セット売上: ¥${Number(s.totalRevenue || 0).toLocaleString()}`;
                 if (s.totalOriginalPrice) setsContext += ` / 元値合計: ¥${Number(s.totalOriginalPrice).toLocaleString()}`;
                 if (date) setsContext += ` / 配信日: ${date}`;
+                if (stream?.brandName) setsContext += ` / ブランド: ${stream.brandName}`;
                 setsContext += '\n';
                 
                 // Add items
                 const items = itemsBySetId[s.id] || [];
                 if (items.length > 0) {
                   setsContext += '  商品構成: ';
-                  setsContext += items.map(item => `${item.productName}(¥${Number(item.originalPrice).toLocaleString()})`).join('、');
+                  setsContext += items.map((item: any) => `${item.productName}(¥${Number(item.originalPrice).toLocaleString()})`).join('、');
                   setsContext += '\n';
                 }
               });
               
+              // If there are more sets beyond top 30, add remaining as summary
+              if (sortedSets.length > 30) {
+                setsContext += `\n--- その他のセット（${sortedSets.length - 30}件）---\n`;
+                sortedSets.slice(30).forEach((s: any) => {
+                  const stream = streamLookup[s.livestreamId];
+                  const date = stream?.livestreamDate ? new Date(stream.livestreamDate).toLocaleDateString('ja-JP') : '';
+                  setsContext += `${s.setName}: ¥${Number(s.setPrice).toLocaleString()} × ${s.quantitySold} = ¥${Number(s.totalRevenue || 0).toLocaleString()} ${date ? `(${date})` : ''}\n`;
+                });
+              }
+              
               // Summary stats
-              const totalSetRevenue = allSets.reduce((sum, s) => sum + (s.totalRevenue || 0), 0);
-              const totalSetsSold = allSets.reduce((sum, s) => sum + (s.quantitySold || 0), 0);
-              const avgSetPrice = allSets.length > 0 ? Math.round(allSets.reduce((sum, s) => sum + s.setPrice, 0) / allSets.length) : 0;
-              const avgDiscount = allSets.filter(s => s.discountRate).length > 0 
-                ? Math.round(allSets.filter(s => s.discountRate).reduce((sum, s) => sum + (s.discountRate || 0), 0) / allSets.filter(s => s.discountRate).length)
+              const totalSetRevenue = allSets.reduce((sum: number, s: any) => sum + (s.totalRevenue || 0), 0);
+              const totalSetsSold = allSets.reduce((sum: number, s: any) => sum + (s.quantitySold || 0), 0);
+              const avgSetPrice = allSets.length > 0 ? Math.round(allSets.reduce((sum: number, s: any) => sum + s.setPrice, 0) / allSets.length) : 0;
+              const setsWithDiscount = allSets.filter((s: any) => s.discountRate);
+              const avgDiscount = setsWithDiscount.length > 0 
+                ? Math.round(setsWithDiscount.reduce((sum: number, s: any) => sum + (s.discountRate || 0), 0) / setsWithDiscount.length)
                 : 0;
-              setsContext += `\n【セット組み集計】\n`;
+              
+              // Price range analysis
+              const prices = allSets.map((s: any) => s.setPrice).sort((a: number, b: number) => a - b);
+              const minPrice = prices[0];
+              const maxPrice = prices[prices.length - 1];
+              
+              setsContext += `\n【セット組み全体集計】\n`;
               setsContext += `セット総数: ${allSets.length}種類 / 総販売数: ${totalSetsSold}セット / セット売上合計: ¥${totalSetRevenue.toLocaleString()}\n`;
-              setsContext += `平均セット価格: ¥${avgSetPrice.toLocaleString()} / 平均割引率: ${avgDiscount}%\n`;
+              setsContext += `平均セット価格: ¥${avgSetPrice.toLocaleString()} / 価格帯: ¥${minPrice.toLocaleString()}〜¥${maxPrice.toLocaleString()} / 平均割引率: ${avgDiscount}%\n`;
+              
+              // Best selling price range
+              const priceRanges = [
+                { label: '〜¥5,000', min: 0, max: 5000 },
+                { label: '¥5,001〜¥10,000', min: 5001, max: 10000 },
+                { label: '¥10,001〜¥20,000', min: 10001, max: 20000 },
+                { label: '¥20,001〜¥50,000', min: 20001, max: 50000 },
+                { label: '¥50,001〜', min: 50001, max: Infinity },
+              ];
+              setsContext += '\n【価格帯別分析】\n';
+              priceRanges.forEach(range => {
+                const rangeSets = allSets.filter((s: any) => s.setPrice >= range.min && s.setPrice <= range.max);
+                if (rangeSets.length > 0) {
+                  const rangeRevenue = rangeSets.reduce((sum: number, s: any) => sum + (s.totalRevenue || 0), 0);
+                  const rangeSold = rangeSets.reduce((sum: number, s: any) => sum + (s.quantitySold || 0), 0);
+                  setsContext += `${range.label}: ${rangeSets.length}種類 / ${rangeSold}セット販売 / 売上¥${rangeRevenue.toLocaleString()}\n`;
+                }
+              });
             }
           }
           
