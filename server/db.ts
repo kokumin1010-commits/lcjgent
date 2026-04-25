@@ -8320,8 +8320,28 @@ export async function getLivestreamsByStreamerName(streamerName: string, month?:
   const db = await getDb();
   if (!db) return { livestreams: [], totalSales: 0, totalDuration: 0 };
   
-  let whereConditions = eq(brandLivestreams.streamerName, streamerName);
+  // まずlivers.nameからliverIdを取得し、liverId OR streamerNameで検索
+  // （streamerNameが表記揺れしている場合でもliverIdで確実にヒットさせる）
+  const liverResult = await db
+    .select({ id: livers.id })
+    .from(livers)
+    .where(eq(livers.name, streamerName))
+    .limit(1);
+  const liverId = liverResult.length > 0 ? liverResult[0].id : null;
   
+  let nameCondition;
+  if (liverId) {
+    // liverIdが見つかった場合、liverId OR streamerNameで検索（両方カバー）
+    nameCondition = or(
+      eq(brandLivestreams.liverId, liverId),
+      eq(brandLivestreams.streamerName, streamerName)
+    );
+  } else {
+    // liverIdが見つからない場合、streamerNameのみで検索
+    nameCondition = eq(brandLivestreams.streamerName, streamerName);
+  }
+  
+  let whereConditions: any = nameCondition;
   if (month) {
     const { startDate, endDate } = getJSTMonthRange(month);
     whereConditions = and(
@@ -19826,6 +19846,24 @@ export async function getLiverMonthlyGrowth(streamerName: string) {
   const db = await getDb();
   if (!db) return [];
   
+  // livers.nameからliverIdを取得し、liverId OR streamerNameで検索
+  const liverResult = await db
+    .select({ id: livers.id })
+    .from(livers)
+    .where(eq(livers.name, streamerName))
+    .limit(1);
+  const liverId = liverResult.length > 0 ? liverResult[0].id : null;
+  
+  let nameCondition: any;
+  if (liverId) {
+    nameCondition = or(
+      eq(brandLivestreams.liverId, liverId),
+      eq(brandLivestreams.streamerName, streamerName)
+    );
+  } else {
+    nameCondition = eq(brandLivestreams.streamerName, streamerName);
+  }
+  
   const now = new Date();
   const months: { yearMonth: string; label: string; sales: number; duration: number; viewers: number; streamCount: number }[] = [];
   
@@ -19849,7 +19887,7 @@ export async function getLiverMonthlyGrowth(streamerName: string) {
       .where(
         and(
           isNull(brandLivestreams.deletedAt),
-          eq(brandLivestreams.streamerName, streamerName),
+          nameCondition,
           sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
           sql`${brandLivestreams.livestreamDate} <= ${endDate}`
         )
