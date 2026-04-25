@@ -8383,7 +8383,7 @@ export async function getLivestreamsByStreamerName(streamerName: string, month?:
     productCount: productCountMap[l.id] || 0,
   }));
   
-  return { livestreams: livestreamsWithProductCount, totalSales, totalDuration };
+  return { livestreams: livestreamsWithProductCount, totalSales, totalDuration, liverId };
 }
 
 

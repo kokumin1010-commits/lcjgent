@@ -1163,7 +1163,7 @@ export default function LiverMypage() {
                             <tr key={idx} className="border-b border-gray-700/50 hover:bg-gray-700/20">
                               <td className="py-1.5 px-1 text-gray-500">{idx + 1}</td>
                               <td className="py-1.5 px-1">
-                                <div className="text-white truncate max-w-[140px]" title={product.productName}>
+                                <div className="text-white break-words">
                                   {product.productName}
                                 </div>
                                 <div className="mt-0.5 h-1 bg-gray-700 rounded-full overflow-hidden">

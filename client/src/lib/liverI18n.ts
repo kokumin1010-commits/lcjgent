@@ -351,6 +351,15 @@ export const liverTranslations: Record<string, Record<LiverLanguage, string>> = 
   "schedule.upcoming": { ja: "配信予定", "zh-TW": "直播排程", en: "Upcoming Streams", zh: "直播排程" },
   "schedule.record": { ja: "記録", "zh-TW": "記錄", en: "Record", zh: "记录" },
 
+  // 売上商品一覧
+  "mypage.monthlyProducts": { ja: "売上商品一覧", "zh-TW": "銷售商品一覽", en: "Monthly Product Sales", zh: "销售商品一览" },
+  "mypage.productsCount": { ja: "商品", "zh-TW": "商品", en: " products", zh: "商品" },
+  "mypage.total": { ja: "合計", "zh-TW": "合計", en: " Total", zh: "合计" },
+  "mypage.totalItemsSold": { ja: "販売数合計", "zh-TW": "銷售數合計", en: "Total Sold", zh: "销售数合计" },
+  "mypage.productTypes": { ja: "商品種類", "zh-TW": "商品種類", en: "Product Types", zh: "商品种类" },
+  "mypage.productName": { ja: "商品名", "zh-TW": "商品名", en: "Product", zh: "商品名" },
+  "mypage.soldCount": { ja: "販売数", "zh-TW": "銷售數", en: "Sold", zh: "销售数" },
+  "mypage.streamCount": { ja: "配信回数", "zh-TW": "直播次數", en: "Streams", zh: "直播次数" },
 
 };
 

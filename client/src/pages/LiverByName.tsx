@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ChevronDown, ChevronUp, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2, UserCheck, Upload, Package, FileSpreadsheet, Trophy, Crown } from "lucide-react";
+import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ChevronDown, ChevronUp, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2, UserCheck, Upload, Package, FileSpreadsheet, Trophy, Crown, ShoppingBag } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
@@ -356,23 +356,27 @@ export default function LiverByName() {
     streamerName: decodedName,
   });
 
-  // ライバー一覧からliverIdを取得
-  const { data: allLivers } = trpc.liverManagement.listAll.useQuery();
+  // liverIdをバックエンドAPI（getLivestreamsByStreamerName）の返り値から取得
+  // allLiversの名前完全一致に依存しないため、表記揺れがあっても確実に取得できる
   const liverId = useMemo(() => {
-    if (!allLivers) return null;
-    const liver = allLivers.find((l: any) => l.name === decodedName);
-    return liver?.id || null;
-  }, [allLivers, decodedName]);
+    return data?.liverId || null;
+  }, [data]);
 
   // 商品ランキング（ライバー別）
   const { data: topProducts } = trpc.liverManagement.getTopProducts.useQuery(
-    { liverId: liverId!, limit: 20, month: selectedMonth },
+    { liverId: liverId!, limit: 50, month: selectedMonth },
     { enabled: !!liverId }
   );
 
   // セット活用分析（ライバー別）
   const { data: setAnalysis } = trpc.livestreamSets.liverSetAnalysis.useQuery(
     { liverId: liverId! },
+    { enabled: !!liverId }
+  );
+
+  // 月別売上商品一覧（ライバー別）
+  const { data: monthlyProducts } = trpc.liver.getMonthlyProducts.useQuery(
+    { liverId: liverId!, year: parseInt(selectedMonth.split('-')[0]), month: parseInt(selectedMonth.split('-')[1]) },
     { enabled: !!liverId }
   );
 
@@ -1155,7 +1159,7 @@ export default function LiverByName() {
                             <span className="text-gray-400 font-medium pl-2">{index + 1}</span>
                           )}
                         </td>
-                        <td className="py-3 px-2 text-white font-medium max-w-[250px] truncate">
+                        <td className="py-3 px-2 text-white font-medium break-words">
                           {product.productName}
                         </td>
                         <td className="py-3 px-2 text-right">
@@ -1335,6 +1339,99 @@ export default function LiverByName() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 月別売上商品一覧 */}
+        {monthlyProducts && monthlyProducts.length > 0 && (
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardContent className="p-6">
+              <h2 className="text-lg font-bold mb-6 flex items-center gap-3">
+                <ShoppingBag className="w-6 h-6 text-orange-400" />
+                <span className="text-white">売上商品一覧</span>
+                <span className="text-gray-400 text-sm">
+                  {monthlyProducts.length}商品（{monthOptions.find(m => m.value === selectedMonth)?.label}）
+                </span>
+              </h2>
+
+              {/* サマリー */}
+              <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                  <div className="text-orange-400 font-mono font-bold text-lg">
+                    ¥{monthlyProducts.reduce((s: number, p: any) => s + p.totalGmv, 0).toLocaleString()}
+                  </div>
+                  <div className="text-gray-400 text-xs mt-1">GMV合計</div>
+                </div>
+                <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                  <div className="text-blue-400 font-mono font-bold text-lg">
+                    {monthlyProducts.reduce((s: number, p: any) => s + p.totalItemsSold, 0).toLocaleString()}
+                  </div>
+                  <div className="text-gray-400 text-xs mt-1">販売数合計</div>
+                </div>
+                <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                  <div className="text-green-400 font-mono font-bold text-lg">
+                    {monthlyProducts.length}
+                  </div>
+                  <div className="text-gray-400 text-xs mt-1">商品種類</div>
+                </div>
+              </div>
+
+              {/* 商品テーブル */}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-700">
+                      <th className="text-left py-3 px-2 text-cyan-400 text-sm font-medium">#</th>
+                      <th className="text-left py-3 px-2 text-cyan-400 text-sm font-medium">商品名</th>
+                      <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">GMV</th>
+                      <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">販売数</th>
+                      <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">配信回数</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthlyProducts.map((product: any, idx: number) => {
+                      const maxGmv = monthlyProducts[0]?.totalGmv || 1;
+                      const barWidth = (product.totalGmv / maxGmv) * 100;
+                      return (
+                        <tr key={idx} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
+                          <td className="py-3 px-2">
+                            {idx < 3 ? (
+                              <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full font-bold text-sm ${
+                                idx === 0 ? 'bg-yellow-500 text-black' : 
+                                idx === 1 ? 'bg-gray-400 text-black' : 
+                                'bg-amber-600 text-white'
+                              }`}>
+                                {idx + 1}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 font-medium pl-2">{idx + 1}</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-2">
+                            <div className="text-white font-medium break-words">{product.productName}</div>
+                            <div className="mt-1 h-1.5 bg-gray-700 rounded-full overflow-hidden max-w-[200px]">
+                              <div
+                                className="h-full bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full"
+                                style={{ width: `${barWidth}%` }}
+                              />
+                            </div>
+                          </td>
+                          <td className="py-3 px-2 text-right">
+                            <span className="text-orange-400 font-mono font-bold">¥{product.totalGmv.toLocaleString()}</span>
+                          </td>
+                          <td className="py-3 px-2 text-right text-cyan-300">
+                            {product.totalItemsSold.toLocaleString()}
+                          </td>
+                          <td className="py-3 px-2 text-right text-gray-300">
+                            {product.count}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </CardContent>
           </Card>
         )}
