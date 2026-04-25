@@ -5,6 +5,7 @@
  * ブランドとの契約一覧（費用・佣金率・契約期間・KG直播条件・达人直播条件・短视频条件）を管理。
  */
 import { useState, useMemo } from "react";
+import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -348,7 +349,7 @@ export default function BrandContractTab() {
                 return (
                   <tr key={c.id} className="border-b hover:bg-muted/30 transition-colors">
                     <td className="p-3">
-                      <div className="font-medium">{brandName}</div>
+                      <Link href={`/brands/${c.brandId}`} className="font-medium text-blue-500 hover:text-blue-400 hover:underline cursor-pointer">{brandName}</Link>
                       <div className="text-xs text-muted-foreground mt-0.5">{getServiceTypeBadge(c.serviceType)}</div>
                     </td>
                     <td className="p-3 font-medium">{formatCurrency(c.fixedFee, c.currency)}</td>
