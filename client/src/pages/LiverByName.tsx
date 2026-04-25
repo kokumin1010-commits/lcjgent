@@ -62,7 +62,8 @@ export default function LiverByName() {
     if (monthParam && monthOptions.some(o => o.value === monthParam)) {
       return monthParam;
     }
-    return monthOptions[0].value;
+    // Default to previous month since current month often has no data yet (consistent with LiverList)
+    return monthOptions[1]?.value || monthOptions[0].value;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   
   const [selectedMonth, setSelectedMonth] = useState(initialMonth);
