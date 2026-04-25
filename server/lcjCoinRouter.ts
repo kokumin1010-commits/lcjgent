@@ -446,6 +446,13 @@ export const lcjCoinRouter = router({
         pricePerShare: totalShares > 0 ? valuation / totalShares : 0,
         count: shareholders.length,
       },
+      optionPool: {
+        size: parseInt(settings.option_pool_size || "800000"),
+        granted: totalIssuedCoins,
+        remaining: parseInt(settings.option_pool_size || "800000") - totalIssuedCoins,
+        percentOfTotal: ((parseInt(settings.option_pool_size || "800000") / totalCoinsPool) * 100),
+        grantedPercent: totalIssuedCoins > 0 ? ((totalIssuedCoins / parseInt(settings.option_pool_size || "800000")) * 100) : 0,
+      },
       stats: {
         totalHolders,
         xpPerLevel,
@@ -936,6 +943,17 @@ export const lcjCoinRouter = router({
       const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
       const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
 
+      // Option Pool check
+      const optionPoolSize = parseInt(settings.option_pool_size || "800000");
+      const [issuedResult] = await db
+        .select({ total: sum(lcjCoinHoldings.totalCoins) })
+        .from(lcjCoinHoldings);
+      const totalIssuedCoins = Number(issuedResult?.total || 0);
+      const poolRemaining = optionPoolSize - totalIssuedCoins;
+      if (input.coinAmount > poolRemaining) {
+        throw new Error(`プール残高不足: 残り ${poolRemaining.toLocaleString()} コイン（申請: ${input.coinAmount.toLocaleString()} コイン）`);
+      }
+
       // Get or create holding - use atomic update
       let [holding] = await db
         .select()
@@ -1028,6 +1046,13 @@ export const lcjCoinRouter = router({
       const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
       const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
 
+      // Option Pool check (pre-flight)
+      const optionPoolSize = parseInt(settings.option_pool_size || "800000");
+      const [issuedResult] = await db
+        .select({ total: sum(lcjCoinHoldings.totalCoins) })
+        .from(lcjCoinHoldings);
+      const totalIssuedCoins = Number(issuedResult?.total || 0);
+
       let grantedCount = 0;
       const targets: { holderType: "staff" | "liver"; holderId: number }[] = [];
 
@@ -1051,6 +1076,13 @@ export const lcjCoinRouter = router({
         for (const l of liverList) {
           targets.push({ holderType: "liver", holderId: l.id });
         }
+      }
+
+      // Option Pool check: total needed vs remaining
+      const totalNeeded = targets.length * input.coinAmountPerPerson;
+      const poolRemaining = optionPoolSize - totalIssuedCoins;
+      if (totalNeeded > poolRemaining) {
+        throw new Error(`プール残高不足: ${targets.length}人 × ${input.coinAmountPerPerson.toLocaleString()} = ${totalNeeded.toLocaleString()} コイン必要（残り: ${poolRemaining.toLocaleString()} コイン）`);
       }
 
       // Grant to each target
