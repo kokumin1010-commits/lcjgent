@@ -1503,7 +1503,7 @@ export default function LcjCoinDashboard() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-white/10 text-white/40">
+                    <tr className="border-b border-white/10 text-white">
                       <th className="text-left py-3 px-3">名前</th>
                       <th className="text-left py-3 px-3">タイプ</th>
                       <th className="text-center py-3 px-3">Tier</th>
@@ -1519,7 +1519,7 @@ export default function LcjCoinDashboard() {
                     {(holdersQuery.data?.holders || []).map((h: any) => (
                       <tr
                         key={`${h.holderType}-${h.holderId}`}
-                        className={`border-b border-white/5 hover:bg-white/[0.03] transition-colors ${!h.hasHolding ? "opacity-60" : ""}`}
+                        className="border-b border-white/5 hover:bg-white/[0.03] transition-colors"
                       >
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
@@ -1551,7 +1551,7 @@ export default function LcjCoinDashboard() {
                               updateTierMutation.mutate({ holderType: h.holderType, holderId: h.holderId, tierCode: val });
                             }}
                           >
-                            <option value="" className="bg-gray-900 text-white/40">-</option>
+                            <option value="" className="bg-gray-900 text-white">-</option>
                             {TIER_OPTIONS.map(t => (
                               <option key={t} value={t} className="bg-gray-900 text-white">{t}</option>
                             ))}
@@ -1562,26 +1562,26 @@ export default function LcjCoinDashboard() {
                             </Badge>
                           )}
                         </td>
-                        <td className="py-3 px-3 text-white/40">{h.department || "-"}</td>
+                        <td className="py-3 px-3 text-white">{h.department || "-"}</td>
                         <td className="py-3 px-3 text-center">
-                          <div className="text-white/60 text-xs">{formatTenure(h.tenureMonths)}</div>
-                          {h.joinDate && <div className="text-[10px] text-white/20">{h.joinDate}</div>}
+                          <div className="text-white text-xs">{formatTenure(h.tenureMonths)}</div>
+                          {h.joinDate && <div className="text-[10px] text-white/60">{h.joinDate}</div>}
                         </td>
                         <td className="py-3 px-3 text-right font-mono">
                           {h.hasHolding ? (
                             <span className="text-white">{Number(h.totalCoins).toLocaleString()}</span>
                           ) : (
-                            <Badge variant="outline" className="text-xs border-white/10 text-white/30">未付与</Badge>
+                            <Badge variant="outline" className="text-xs border-white/20 text-white">未付与</Badge>
                           )}
                         </td>
-                        <td className="py-3 px-3 text-right font-mono text-white/60">
+                        <td className="py-3 px-3 text-right font-mono text-white">
                           {h.hasHolding ? Number(h.vestedCoins).toLocaleString() : "-"}
                         </td>
                         <td className="py-3 px-3 text-right font-mono font-bold">
                           {h.hasHolding ? (
                             <span className="text-orange-400">{formatYenFull(Number(h.totalValue))}</span>
                           ) : (
-                            <span className="text-white/20">-</span>
+                            <span className="text-white">-</span>
                           )}
                         </td>
                         <td className="py-3 px-3 text-center">
@@ -1590,7 +1590,7 @@ export default function LcjCoinDashboard() {
                               {h.level}
                             </span>
                           ) : (
-                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/5 text-white/20 text-xs">
+                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/5 text-white text-xs">
                               -
                             </span>
                           )}
