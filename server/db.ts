@@ -20832,3 +20832,80 @@ export async function getAllLiversMonthlyTrend(agencyId?: number | null) {
   
   return results;
 }
+
+
+/**
+ * ライバーの月別売上商品一覧を取得
+ * livestreamProducts + brandLivestreams を結合して、指定月のライバーの商品別売上を集計
+ */
+export async function getLiverMonthlyProducts(liverId: number, year: number, month: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 1);
+  
+  // livestreamProducts を brandLivestreams と結合し、liverId でフィルタ
+  const products = await db
+    .select({
+      productName: livestreamProducts.productName,
+      grossRevenue: livestreamProducts.grossRevenue,
+      directGmv: livestreamProducts.directGmv,
+      gmv: livestreamProducts.gmv,
+      itemsSold: livestreamProducts.itemsSold,
+      customers: livestreamProducts.customers,
+      orders: livestreamProducts.orders,
+      quantity: livestreamProducts.quantity,
+      unitPrice: livestreamProducts.unitPrice,
+      livestreamDate: brandLivestreams.livestreamDate,
+    })
+    .from(livestreamProducts)
+    .innerJoin(brandLivestreams, eq(livestreamProducts.livestreamId, brandLivestreams.id))
+    .where(
+      and(
+        eq(brandLivestreams.liverId, liverId),
+        gte(brandLivestreams.livestreamDate, startDate),
+        lt(brandLivestreams.livestreamDate, endDate)
+      )
+    )
+    .orderBy(desc(livestreamProducts.gmv));
+  
+  // 商品名で集約
+  const productMap: Record<string, {
+    productName: string;
+    totalGmv: number;
+    totalGrossRevenue: number;
+    totalItemsSold: number;
+    totalOrders: number;
+    totalCustomers: number;
+    avgUnitPrice: number;
+    count: number; // 何回の配信で売れたか
+  }> = {};
+  
+  for (const p of products) {
+    const name = p.productName;
+    if (!productMap[name]) {
+      productMap[name] = {
+        productName: name,
+        totalGmv: 0,
+        totalGrossRevenue: 0,
+        totalItemsSold: 0,
+        totalOrders: 0,
+        totalCustomers: 0,
+        avgUnitPrice: 0,
+        count: 0,
+      };
+    }
+    productMap[name].totalGmv += (p.gmv || p.directGmv || 0);
+    productMap[name].totalGrossRevenue += (p.grossRevenue || 0);
+    productMap[name].totalItemsSold += (p.itemsSold || p.quantity || 0);
+    productMap[name].totalOrders += (p.orders || 0);
+    productMap[name].totalCustomers += (p.customers || 0);
+    if (p.unitPrice) {
+      productMap[name].avgUnitPrice = p.unitPrice;
+    }
+    productMap[name].count += 1;
+  }
+  
+  return Object.values(productMap).sort((a, b) => b.totalGmv - a.totalGmv);
+}

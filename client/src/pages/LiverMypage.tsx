@@ -39,7 +39,9 @@ import {
   Layers,
   ChevronDown,
   ChevronUp,
-  Tag
+  Tag,
+  ShoppingBag,
+  TrendingUp
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -81,6 +83,7 @@ export default function LiverMypage() {
   const [showGoalDialog, setShowGoalDialog] = useState(false);
   const [showGoalNudgePopup, setShowGoalNudgePopup] = useState(false);
   const [showSetsSection, setShowSetsSection] = useState(false);
+  const [showProductsSection, setShowProductsSection] = useState(true);
   const [goalSalesInput, setGoalSalesInput] = useState('');
   const [goalStreamCountInput, setGoalStreamCountInput] = useState('');
   
@@ -190,6 +193,16 @@ export default function LiverMypage() {
   const { data: setAnalysis } = trpc.livestreamSets.liverSetAnalysis.useQuery(
     { liverId: liverInfo?.id || 0 },
     { enabled: !!liverInfo?.id }
+  );
+
+  // 月別売上商品一覧取得
+  const [productYear, productMonth] = useMemo(() => {
+    const [y, m] = selectedMonth.split("-").map(Number);
+    return [y, m];
+  }, [selectedMonth]);
+  const { data: monthlyProducts } = trpc.liver.getMonthlyProducts.useQuery(
+    { year: productYear, month: productMonth },
+    { enabled: !!liverInfo?.id && !!productYear && !!productMonth }
   );
 
   // Delete import history mutation
@@ -1014,7 +1027,7 @@ export default function LiverMypage() {
                   </div>
                   
                   {/* セット一覧 */}
-                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  <div className="space-y-2">
                     {setAnalysis.sets.map((set: any) => (
                       <div key={set.id} className="bg-gray-700/20 border border-gray-600/30 rounded-lg p-3">
                         <div className="flex items-start justify-between mb-2">
@@ -1080,6 +1093,101 @@ export default function LiverMypage() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 月別売上商品一覧 */}
+        {monthlyProducts && monthlyProducts.length > 0 && (
+          <Card className="bg-gray-800/30 border-gray-700">
+            <CardContent className="p-3">
+              <div
+                className="flex items-center justify-between cursor-pointer"
+                onClick={() => setShowProductsSection(!showProductsSection)}
+              >
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="h-4 w-4 text-orange-400" />
+                  <p className="text-sm font-bold text-white">
+                    {lt("mypage.monthlyProducts") || "売上商品一覧"}
+                  </p>
+                  <span className="text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full">
+                    {monthlyProducts.length}{lt("mypage.productsCount") || "商品"}
+                  </span>
+                </div>
+                {showProductsSection ? <ChevronUp className="h-4 w-4 text-white/50" /> : <ChevronDown className="h-4 w-4 text-white/50" />}
+              </div>
+
+              {showProductsSection && (
+                <div className="mt-3 space-y-1">
+                  {/* サマリー */}
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <div className="bg-gray-700/30 rounded-lg p-2 text-center">
+                      <p className="text-sm font-bold text-orange-400">
+                        ¥{monthlyProducts.reduce((s, p) => s + p.totalGmv, 0).toLocaleString()}
+                      </p>
+                      <p className="text-[10px] text-gray-400">GMV{lt("mypage.total") || "合計"}</p>
+                    </div>
+                    <div className="bg-gray-700/30 rounded-lg p-2 text-center">
+                      <p className="text-sm font-bold text-blue-400">
+                        {monthlyProducts.reduce((s, p) => s + p.totalItemsSold, 0).toLocaleString()}
+                      </p>
+                      <p className="text-[10px] text-gray-400">{lt("mypage.totalItemsSold") || "販売数合計"}</p>
+                    </div>
+                    <div className="bg-gray-700/30 rounded-lg p-2 text-center">
+                      <p className="text-sm font-bold text-green-400">
+                        {monthlyProducts.length}
+                      </p>
+                      <p className="text-[10px] text-gray-400">{lt("mypage.productTypes") || "商品種類"}</p>
+                    </div>
+                  </div>
+
+                  {/* 商品テーブル */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-700">
+                          <th className="text-left py-1.5 px-1 text-gray-400 font-medium">#</th>
+                          <th className="text-left py-1.5 px-1 text-gray-400 font-medium">{lt("mypage.productName") || "商品名"}</th>
+                          <th className="text-right py-1.5 px-1 text-gray-400 font-medium">GMV</th>
+                          <th className="text-right py-1.5 px-1 text-gray-400 font-medium">{lt("mypage.soldCount") || "販売数"}</th>
+                          <th className="text-right py-1.5 px-1 text-gray-400 font-medium">{lt("mypage.streamCount") || "配信回数"}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {monthlyProducts.map((product, idx) => {
+                          const maxGmv = monthlyProducts[0]?.totalGmv || 1;
+                          const barWidth = (product.totalGmv / maxGmv) * 100;
+                          return (
+                            <tr key={idx} className="border-b border-gray-700/50 hover:bg-gray-700/20">
+                              <td className="py-1.5 px-1 text-gray-500">{idx + 1}</td>
+                              <td className="py-1.5 px-1">
+                                <div className="text-white truncate max-w-[140px]" title={product.productName}>
+                                  {product.productName}
+                                </div>
+                                <div className="mt-0.5 h-1 bg-gray-700 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full"
+                                    style={{ width: `${barWidth}%` }}
+                                  />
+                                </div>
+                              </td>
+                              <td className="py-1.5 px-1 text-right text-orange-400 font-medium">
+                                ¥{product.totalGmv.toLocaleString()}
+                              </td>
+                              <td className="py-1.5 px-1 text-right text-blue-400">
+                                {product.totalItemsSold.toLocaleString()}
+                              </td>
+                              <td className="py-1.5 px-1 text-right text-gray-400">
+                                {product.count}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -1436,7 +1544,7 @@ export default function LiverMypage() {
                   <History className="h-4 w-4 text-white" />
                   <p className="text-sm font-medium text-white">{lt("csv.history")}</p>
                 </div>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
+           <div className="space-y-2">
                   {importHistory.map((history) => {
                     const startDate = history.dateRangeStart ? new Date(history.dateRangeStart) : null;
                     const endDate = history.dateRangeEnd ? new Date(history.dateRangeEnd) : null;

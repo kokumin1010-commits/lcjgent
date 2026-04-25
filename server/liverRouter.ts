@@ -27,6 +27,7 @@ import {
   getOrCreateReferralCode,
   getReferralStats,
   isLiverAitherhubLinked,
+  getLiverMonthlyProducts,
 } from "./db";
 import { nanoid } from "nanoid";
 import nodemailer from "nodemailer";
@@ -702,6 +703,20 @@ export const liverRouter = router({
     const stats = await getReferralStats(payload.liverId);
     return stats;
   }),
+
+  // ライバーの月別売上商品一覧
+  getMonthlyProducts: publicProcedure
+    .input(z.object({
+      year: z.number(),
+      month: z.number().min(1).max(12),
+    }))
+    .query(async ({ input, ctx }) => {
+      const token = getLiverToken(ctx as any);
+      if (!token) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const payload = await verifyLiverToken(token);
+      if (!payload) throw new TRPCError({ code: "UNAUTHORIZED" });
+      return await getLiverMonthlyProducts(payload.liverId, input.year, input.month);
+    }),
 
   // Admin: Bulk deactivate livers by IDs
   bulkDeactivate: protectedProcedure
