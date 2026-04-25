@@ -81,6 +81,8 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
       activeLivers: "アクティブライバー",
       hourlyRate: "時間単価",
       vsLastMonth: "前月比",
+      prevMonth: "前月",
+      cumulative: "累計",
       lcjLiverSummary: `${displayName}ライバー全体実績`,
       salesRanking: "月間売上ランキング",
       durationRanking: "累計配信時間ランキング",
@@ -101,6 +103,8 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
       activeLivers: "活跃主播",
       hourlyRate: "时均销售额",
       vsLastMonth: "环比",
+      prevMonth: "前月",
+      cumulative: "累计",
       lcjLiverSummary: `${displayName}主播整体业绩`,
       salesRanking: "月间销售排行榜",
       durationRanking: "累计直播时长排行榜",
@@ -273,9 +277,18 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                       ? `¥${Math.round(Number(totalSummary.totalSales) / (totalSummary.totalDuration / 60)).toLocaleString()}`
                       : '--'}
                   </p>
-                  <div className="flex items-center gap-1 mt-1 text-sm text-white/60">
-                    <span>/1h</span>
-                  </div>
+                  {(() => {
+                    const currentRate = totalSummary.totalDuration > 0 ? Number(totalSummary.totalSales) / (totalSummary.totalDuration / 60) : 0;
+                    const prevRate = totalSummary.prevTotalDuration > 0 ? Number(totalSummary.prevTotalSales) / (totalSummary.prevTotalDuration / 60) : 0;
+                    const growth = prevRate > 0 ? Math.round(((currentRate - prevRate) / prevRate) * 100) : (currentRate > 0 ? 100 : 0);
+                    return (
+                      <div className={`flex items-center gap-1 mt-1 text-sm ${growth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {growth >= 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+                        <span>{growth >= 0 ? '+' : ''}{growth}%</span>
+                        <span className="text-white/60 text-xs ml-1">(前月 ¥{Math.round(prevRate).toLocaleString()})</span>
+                      </div>
+                    );
+                  })()}
                 </div>
                 
                 {/* Active Livers */}
@@ -343,7 +356,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                       </Avatar>
                       <div className="flex-1">
                         <p className="font-medium text-white">{(item as any).liverName || item.streamerName || "不明"}</p>
-                        <div className="flex items-center gap-4 text-sm">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
                           <div>
                             <span className="text-yellow-500 font-bold">
                               {formatCurrency(item.totalSales)}
@@ -356,7 +369,13 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                                 }}
                               />
                             </div>
-                            <span className="text-xs text-white">{tr.sales}</span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-xs text-white">{tr.sales}</span>
+                              <span className={`text-xs ${(item as any).salesGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {(item as any).salesGrowth >= 0 ? '+' : ''}{(item as any).salesGrowth}%
+                              </span>
+                            </div>
+                            <span className="text-xs text-white/40">{tr.prevMonth}: {formatCurrency((item as any).prevSales || 0)}</span>
                           </div>
                           <div>
                             <span className="text-blue-400">
@@ -370,7 +389,13 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                                 }}
                               />
                             </div>
-                            <span className="text-xs text-white">{tr.duration}</span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-xs text-white">{tr.duration}</span>
+                              <span className={`text-xs ${(item as any).durationGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {(item as any).durationGrowth >= 0 ? '+' : ''}{(item as any).durationGrowth}%
+                              </span>
+                            </div>
+                            <span className="text-xs text-white/40">{tr.prevMonth}: {formatDuration((item as any).prevDuration || 0)}</span>
                           </div>
                           <div>
                             <span className="text-orange-400 font-bold">
@@ -391,9 +416,30 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                                 }}
                               />
                             </div>
-                            <span className="text-xs text-white">{tr.hourlyRate}</span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-xs text-white">{tr.hourlyRate}</span>
+                              {(() => {
+                                const prevRate = (item as any).prevDuration > 0 ? (item as any).prevSales / ((item as any).prevDuration / 60) : 0;
+                                const curRate = item.totalDuration > 0 ? item.totalSales / (item.totalDuration / 60) : 0;
+                                const growth = prevRate > 0 ? Math.round(((curRate - prevRate) / prevRate) * 100) : (curRate > 0 ? 100 : 0);
+                                return (
+                                  <span className={`text-xs ${growth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    {growth >= 0 ? '+' : ''}{growth}%
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                            <span className="text-xs text-white/40">{tr.prevMonth}: {formatHourlyRate((item as any).prevSales || 0, (item as any).prevDuration || 0)}</span>
                           </div>
                         </div>
+                        {/* Cumulative Sales */}
+                        {(item as any).cumulativeSales > 0 && (
+                          <div className="mt-1.5 pt-1.5 border-t border-white/5">
+                            <span className="text-xs text-white/50">{tr.cumulative}: </span>
+                            <span className="text-xs text-yellow-300/70 font-medium">{formatCurrency((item as any).cumulativeSales)}</span>
+                            <span className="text-xs text-white/30 ml-2">{formatDuration((item as any).cumulativeDuration || 0)}h</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </Link>
@@ -450,7 +496,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                       </Avatar>
                       <div className="flex-1">
                         <p className="font-medium text-white">{(item as any).liverName || item.streamerName || "不明"}</p>
-                        <div className="flex items-center gap-4 text-sm">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
                           <div>
                             <span className="text-yellow-500">
                               {formatCurrency(item.totalSales)}
@@ -463,7 +509,13 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                                 }}
                               />
                             </div>
-                            <span className="text-xs text-white">{tr.sales}</span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-xs text-white">{tr.sales}</span>
+                              <span className={`text-xs ${(item as any).salesGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {(item as any).salesGrowth >= 0 ? '+' : ''}{(item as any).salesGrowth}%
+                              </span>
+                            </div>
+                            <span className="text-xs text-white/40">{tr.prevMonth}: {formatCurrency((item as any).prevSales || 0)}</span>
                           </div>
                           <div>
                             <span className="text-blue-400 font-bold">
@@ -477,7 +529,13 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                                 }}
                               />
                             </div>
-                            <span className="text-xs text-white">{tr.duration}</span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-xs text-white">{tr.duration}</span>
+                              <span className={`text-xs ${(item as any).durationGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {(item as any).durationGrowth >= 0 ? '+' : ''}{(item as any).durationGrowth}%
+                              </span>
+                            </div>
+                            <span className="text-xs text-white/40">{tr.prevMonth}: {formatDuration((item as any).prevDuration || 0)}</span>
                           </div>
                           <div>
                             <span className="text-orange-400 font-bold">
@@ -498,9 +556,30 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                                 }}
                               />
                             </div>
-                            <span className="text-xs text-white">{tr.hourlyRate}</span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-xs text-white">{tr.hourlyRate}</span>
+                              {(() => {
+                                const prevRate = (item as any).prevDuration > 0 ? (item as any).prevSales / ((item as any).prevDuration / 60) : 0;
+                                const curRate = item.totalDuration > 0 ? item.totalSales / (item.totalDuration / 60) : 0;
+                                const growth = prevRate > 0 ? Math.round(((curRate - prevRate) / prevRate) * 100) : (curRate > 0 ? 100 : 0);
+                                return (
+                                  <span className={`text-xs ${growth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    {growth >= 0 ? '+' : ''}{growth}%
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                            <span className="text-xs text-white/40">{tr.prevMonth}: {formatHourlyRate((item as any).prevSales || 0, (item as any).prevDuration || 0)}</span>
                           </div>
                         </div>
+                        {/* Cumulative Sales */}
+                        {(item as any).cumulativeSales > 0 && (
+                          <div className="mt-1.5 pt-1.5 border-t border-white/5">
+                            <span className="text-xs text-white/50">{tr.cumulative}: </span>
+                            <span className="text-xs text-yellow-300/70 font-medium">{formatCurrency((item as any).cumulativeSales)}</span>
+                            <span className="text-xs text-white/30 ml-2">{formatDuration((item as any).cumulativeDuration || 0)}h</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </Link>

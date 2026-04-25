@@ -3907,6 +3907,32 @@ export async function getLiverRankings(month: string, agencyId?: number | null) 
     });
   }
   
+  // Cumulative (all-time) sales per liver
+  const cumulativeData = await db
+    .select({
+      liverId: brandLivestreams.liverId,
+      cumulativeSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+      cumulativeDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+    })
+    .from(brandLivestreams)
+    .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
+    .where(
+      and(
+        isNull(brandLivestreams.deletedAt),
+        isNotNull(brandLivestreams.liverId),
+        agencyFilter
+      )
+    )
+    .groupBy(brandLivestreams.liverId);
+  
+  const cumulativeMap = new Map<number | null, { cumulativeSales: number; cumulativeDuration: number }>();
+  for (const row of cumulativeData) {
+    cumulativeMap.set(row.liverId, {
+      cumulativeSales: Number(row.cumulativeSales),
+      cumulativeDuration: Number(row.cumulativeDuration),
+    });
+  }
+  
   // Enrich sales ranking with growth data
   const salesRankingWithGrowth = salesRanking.map(item => {
     const prev = prevSalesMap.get(item.liverId);
@@ -3918,12 +3944,15 @@ export async function getLiverRankings(month: string, agencyId?: number | null) 
     const durationGrowth = prevDuration > 0 
       ? Math.round(((Number(item.totalDuration) - prevDuration) / prevDuration) * 100) 
       : Number(item.totalDuration) > 0 ? 100 : 0;
+    const cumulative = cumulativeMap.get(item.liverId);
     return {
       ...item,
       prevSales,
       prevDuration,
       salesGrowth,
       durationGrowth,
+      cumulativeSales: cumulative?.cumulativeSales || 0,
+      cumulativeDuration: cumulative?.cumulativeDuration || 0,
     };
   });
   
@@ -3962,12 +3991,15 @@ export async function getLiverRankings(month: string, agencyId?: number | null) 
     const durationGrowth = prevDuration > 0 
       ? Math.round(((Number(item.totalDuration) - prevDuration) / prevDuration) * 100) 
       : Number(item.totalDuration) > 0 ? 100 : 0;
+    const cumulative = cumulativeMap.get(item.liverId);
     return {
       ...item,
       prevSales,
       prevDuration,
       salesGrowth,
       durationGrowth,
+      cumulativeSales: cumulative?.cumulativeSales || 0,
+      cumulativeDuration: cumulative?.cumulativeDuration || 0,
     };
   });
   
