@@ -354,11 +354,25 @@ export const lcjCoinRouter = router({
     const totalIndividualMonthly = Math.round(avgMonthlyCommission) + Math.round(brandContractMonthlyTotal) + tspMonthlyTotal;
     const monthlyRevenue = totalIndividualMonthly;
 
-    // Get total issued coins
+    // Get total issued coins (overall + by holderType)
     const [issuedResult] = await db
       .select({ total: sum(lcjCoinHoldings.totalCoins) })
       .from(lcjCoinHoldings);
     const totalIssuedCoins = Number(issuedResult?.total || 0);
+
+    // Staff-only issued coins (for option pool)
+    const [staffIssuedResult] = await db
+      .select({ total: sum(lcjCoinHoldings.totalCoins) })
+      .from(lcjCoinHoldings)
+      .where(eq(lcjCoinHoldings.holderType, "staff"));
+    const staffIssuedCoins = Number(staffIssuedResult?.total || 0);
+
+    // Liver/creator-only issued coins (for creator pool)
+    const [liverIssuedResult] = await db
+      .select({ total: sum(lcjCoinHoldings.totalCoins) })
+      .from(lcjCoinHoldings)
+      .where(eq(lcjCoinHoldings.holderType, "liver"));
+    const liverIssuedCoins = Number(liverIssuedResult?.total || 0);
 
     // Get total holders count
     const [holdersResult] = await db
@@ -448,10 +462,17 @@ export const lcjCoinRouter = router({
       },
       optionPool: {
         size: parseInt(settings.option_pool_size || "800000"),
-        granted: totalIssuedCoins,
-        remaining: parseInt(settings.option_pool_size || "800000") - totalIssuedCoins,
+        granted: staffIssuedCoins,
+        remaining: parseInt(settings.option_pool_size || "800000") - staffIssuedCoins,
         percentOfTotal: ((parseInt(settings.option_pool_size || "800000") / totalCoinsPool) * 100),
-        grantedPercent: totalIssuedCoins > 0 ? ((totalIssuedCoins / parseInt(settings.option_pool_size || "800000")) * 100) : 0,
+        grantedPercent: staffIssuedCoins > 0 ? ((staffIssuedCoins / parseInt(settings.option_pool_size || "800000")) * 100) : 0,
+      },
+      creatorPool: {
+        size: parseInt(settings.creator_pool_size || "200000"),
+        granted: liverIssuedCoins,
+        remaining: parseInt(settings.creator_pool_size || "200000") - liverIssuedCoins,
+        percentOfTotal: ((parseInt(settings.creator_pool_size || "200000") / totalCoinsPool) * 100),
+        grantedPercent: liverIssuedCoins > 0 ? ((liverIssuedCoins / parseInt(settings.creator_pool_size || "200000")) * 100) : 0,
       },
       stats: {
         totalHolders,
@@ -943,15 +964,20 @@ export const lcjCoinRouter = router({
       const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
       const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
 
-      // Option Pool check
-      const optionPoolSize = parseInt(settings.option_pool_size || "800000");
+      // Pool check: staff → option_pool, liver → creator_pool
+      const isCreator = input.holderType === "liver";
+      const poolSize = isCreator
+        ? parseInt(settings.creator_pool_size || "200000")
+        : parseInt(settings.option_pool_size || "800000");
+      const poolLabel = isCreator ? "クリエイタープール" : "Option Pool";
       const [issuedResult] = await db
         .select({ total: sum(lcjCoinHoldings.totalCoins) })
-        .from(lcjCoinHoldings);
+        .from(lcjCoinHoldings)
+        .where(eq(lcjCoinHoldings.holderType, input.holderType));
       const totalIssuedCoins = Number(issuedResult?.total || 0);
-      const poolRemaining = optionPoolSize - totalIssuedCoins;
+      const poolRemaining = poolSize - totalIssuedCoins;
       if (input.coinAmount > poolRemaining) {
-        throw new Error(`プール残高不足: 残り ${poolRemaining.toLocaleString()} コイン（申請: ${input.coinAmount.toLocaleString()} コイン）`);
+        throw new Error(`${poolLabel}残高不足: 残り ${poolRemaining.toLocaleString()} コイン（申請: ${input.coinAmount.toLocaleString()} コイン）`);
       }
 
       // Get or create holding - use atomic update
@@ -1046,16 +1072,10 @@ export const lcjCoinRouter = router({
       const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
       const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
 
-      // Option Pool check (pre-flight)
-      const optionPoolSize = parseInt(settings.option_pool_size || "800000");
-      const [issuedResult] = await db
-        .select({ total: sum(lcjCoinHoldings.totalCoins) })
-        .from(lcjCoinHoldings);
-      const totalIssuedCoins = Number(issuedResult?.total || 0);
-
+          // Collect targets
       let grantedCount = 0;
-      const targets: { holderType: "staff" | "liver"; holderId: number }[] = [];
-
+      const staffTargets: { holderType: "staff" | "liver"; holderId: number }[] = [];
+      const liverTargets: { holderType: "staff" | "liver"; holderId: number }[] = [];
       // Get all active staff
       if (input.targetType === "all" || input.targetType === "staff_only") {
         const staffList = await db
@@ -1063,10 +1083,9 @@ export const lcjCoinRouter = router({
           .from(staff)
           .where(eq(staff.isActive, "active"));
         for (const s of staffList) {
-          targets.push({ holderType: "staff", holderId: s.id });
+          staffTargets.push({ holderType: "staff", holderId: s.id });
         }
       }
-
       // Get all active livers
       if (input.targetType === "all" || input.targetType === "liver_only") {
         const liverList = await db
@@ -1074,15 +1093,33 @@ export const lcjCoinRouter = router({
           .from(livers)
           .where(eq(livers.isActive, true));
         for (const l of liverList) {
-          targets.push({ holderType: "liver", holderId: l.id });
+          liverTargets.push({ holderType: "liver", holderId: l.id });
         }
       }
+      const targets = [...staffTargets, ...liverTargets];
 
-      // Option Pool check: total needed vs remaining
-      const totalNeeded = targets.length * input.coinAmountPerPerson;
-      const poolRemaining = optionPoolSize - totalIssuedCoins;
-      if (totalNeeded > poolRemaining) {
-        throw new Error(`プール残高不足: ${targets.length}人 × ${input.coinAmountPerPerson.toLocaleString()} = ${totalNeeded.toLocaleString()} コイン必要（残り: ${poolRemaining.toLocaleString()} コイン）`);
+      // Pool check: staff → option_pool, liver → creator_pool (separate checks)
+      if (staffTargets.length > 0) {
+        const optionPoolSize = parseInt(settings.option_pool_size || "800000");
+        const [staffIssued] = await db.select({ total: sum(lcjCoinHoldings.totalCoins) })
+          .from(lcjCoinHoldings).where(eq(lcjCoinHoldings.holderType, "staff"));
+        const staffIssuedCoins = Number(staffIssued?.total || 0);
+        const staffNeeded = staffTargets.length * input.coinAmountPerPerson;
+        const staffPoolRemaining = optionPoolSize - staffIssuedCoins;
+        if (staffNeeded > staffPoolRemaining) {
+          throw new Error(`Option Pool残高不足: スタッフ${staffTargets.length}人 × ${input.coinAmountPerPerson.toLocaleString()} = ${staffNeeded.toLocaleString()} コイン必要（残り: ${staffPoolRemaining.toLocaleString()} コイン）`);
+        }
+      }
+      if (liverTargets.length > 0) {
+        const creatorPoolSize = parseInt(settings.creator_pool_size || "200000");
+        const [liverIssued] = await db.select({ total: sum(lcjCoinHoldings.totalCoins) })
+          .from(lcjCoinHoldings).where(eq(lcjCoinHoldings.holderType, "liver"));
+        const liverIssuedCoins = Number(liverIssued?.total || 0);
+        const liverNeeded = liverTargets.length * input.coinAmountPerPerson;
+        const liverPoolRemaining = creatorPoolSize - liverIssuedCoins;
+        if (liverNeeded > liverPoolRemaining) {
+          throw new Error(`クリエイタープール残高不足: ライバー${liverTargets.length}人 × ${input.coinAmountPerPerson.toLocaleString()} = ${liverNeeded.toLocaleString()} コイン必要（残り: ${liverPoolRemaining.toLocaleString()} コイン）`);
+        }
       }
 
       // Grant to each target
@@ -1713,6 +1750,7 @@ export const lcjCoinRouter = router({
     .input(z.object({
       id: z.number().optional(),
       tierCode: z.string(),
+      tierType: z.enum(["staff", "creator"]).default("staff"),
       tierName: z.string(),
       description: z.string().optional(),
       salaryCoefficient: z.number(),
@@ -1727,6 +1765,7 @@ export const lcjCoinRouter = router({
       if (input.id) {
         await db.update(lcjCoinTierTemplates).set({
           tierCode: input.tierCode,
+          tierType: input.tierType,
           tierName: input.tierName,
           description: input.description,
           salaryCoefficient: String(input.salaryCoefficient),
@@ -1739,6 +1778,7 @@ export const lcjCoinRouter = router({
       } else {
         const [result] = await db.insert(lcjCoinTierTemplates).values({
           tierCode: input.tierCode,
+          tierType: input.tierType,
           tierName: input.tierName,
           description: input.description,
           salaryCoefficient: String(input.salaryCoefficient),
@@ -2584,6 +2624,37 @@ export const lcjCoinRouter = router({
         tenureMonths = Math.max(0, (now.getFullYear() - joinDate.getFullYear()) * 12 + (now.getMonth() - joinDate.getMonth()));
       }
 
+      // Get ranking info (position + percentile among same holderType)
+      let rank = 0;
+      let totalSameType = 0;
+      let percentile = 0;
+      const allSameType = await db.select({ id: lcjCoinHoldings.id, totalCoins: lcjCoinHoldings.totalCoins })
+        .from(lcjCoinHoldings)
+        .where(eq(lcjCoinHoldings.holderType, holderType))
+        .orderBy(desc(lcjCoinHoldings.totalCoins));
+      totalSameType = allSameType.length;
+      if (holding && totalSameType > 0) {
+        const myIndex = allSameType.findIndex((h: any) => h.id === holding.id);
+        rank = myIndex >= 0 ? myIndex + 1 : totalSameType;
+        percentile = totalSameType > 1 ? Math.round(((totalSameType - rank) / (totalSameType - 1)) * 100) : 100;
+      }
+
+      // Get tier info for this holder
+      const tierCode = holding?.tierCode || null;
+      let tierInfo: any = null;
+      if (tierCode) {
+        const [tier] = await db.select().from(lcjCoinTierTemplates)
+          .where(eq(lcjCoinTierTemplates.tierCode, tierCode)).limit(1);
+        if (tier) {
+          tierInfo = {
+            tierCode: tier.tierCode,
+            tierType: (tier as any).tierType || "staff",
+            tierName: tier.tierName,
+            description: tier.description,
+          };
+        }
+      }
+
       return {
         holderType,
         holderId,
@@ -2615,6 +2686,11 @@ export const lcjCoinRouter = router({
         ipoProjection300: totalCoins * (3000000000 / totalCoinsPool),
         ipoProjection100: totalCoins * (1000000000 / totalCoinsPool),
         loseByQuitting: (totalCoins - vestedCoins) * coinPrice,
+        // V4: Ranking & Tier
+        rank,
+        totalSameType,
+        percentile,
+        tierInfo,
       };
     }),
 });

@@ -749,6 +749,64 @@ export default function LcjCoinDashboard() {
         })()}
 
         {/* ============================================================ */}
+        {/* Creator Pool Banner (ライバー用プール) */}
+        {/* ============================================================ */}
+        {(() => {
+          const pool = (dashboard as any)?.creatorPool;
+          if (!pool) return null;
+          const usedPercent = pool.grantedPercent || 0;
+          const barColor = usedPercent >= 100 ? "bg-red-500" : usedPercent >= 80 ? "bg-amber-500" : "bg-violet-500";
+          const glowColor = usedPercent >= 100 ? "shadow-red-500/30" : usedPercent >= 80 ? "shadow-amber-500/30" : "shadow-violet-500/30";
+          const textColor = usedPercent >= 100 ? "text-red-400" : usedPercent >= 80 ? "text-amber-400" : "text-violet-400";
+          const borderColor = usedPercent >= 100 ? "border-red-500/30" : usedPercent >= 80 ? "border-amber-500/30" : "border-violet-500/30";
+          return (
+            <div className={`relative rounded-2xl border ${borderColor} bg-[#0a0a0f]/80 backdrop-blur-sm p-5 shadow-lg ${glowColor}`}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-lg ${usedPercent >= 100 ? 'bg-red-500/20' : usedPercent >= 80 ? 'bg-amber-500/20' : 'bg-violet-500/20'} flex items-center justify-center`}>
+                    <Sparkles className={`w-4 h-4 ${textColor}`} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-white">Creator Pool（ライバー用プール）</div>
+                    <div className="text-xs text-white/30">発行総額の{pool.percentOfTotal.toFixed(1)}%をライバー・インフルエンサーに配分</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className={`text-lg font-bold font-mono ${textColor}`}>
+                    {Number(pool.remaining).toLocaleString()} <span className="text-xs text-white/40">残り</span>
+                  </div>
+                  <div className="text-xs text-white/30 font-mono">
+                    {Number(pool.granted).toLocaleString()} / {Number(pool.size).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+              <div className="relative h-3 rounded-full bg-white/5 overflow-hidden">
+                <div
+                  className={`absolute inset-y-0 left-0 rounded-full ${barColor} transition-all duration-1000`}
+                  style={{ width: `${Math.min(100, usedPercent)}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between mt-2 text-xs">
+                <span className="text-white/30">消費率</span>
+                <span className={`font-bold font-mono ${textColor}`}>{usedPercent.toFixed(1)}%</span>
+              </div>
+              {usedPercent >= 80 && usedPercent < 100 && (
+                <div className="mt-3 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400 flex items-center gap-2">
+                  <Zap className="w-3.5 h-3.5 shrink-0" />
+                  クリエイタープール残高が残り{(100 - usedPercent).toFixed(1)}%です。プールサイズの拡大を検討してください。
+                </div>
+              )}
+              {usedPercent >= 100 && (
+                <div className="mt-3 p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-center gap-2">
+                  <Shield className="w-3.5 h-3.5 shrink-0" />
+                  クリエイタープールが枯渇しています。新規付与にはプールサイズの拡大が必要です。
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* ============================================================ */}
         {/* Tabs */}
         {/* ============================================================ */}
         <div className="flex gap-1 border-b border-white/5 overflow-x-auto">
@@ -1801,6 +1859,59 @@ export default function LcjCoinDashboard() {
               })()}
             </NeonCard>
 
+            {/* Creator Pool Settings */}
+            <NeonCard color="purple">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-violet-400" />
+                Creator Pool（ライバー用プール）
+              </h3>
+              {(() => {
+                const pool = (dashboard as any)?.creatorPool;
+                if (!pool) return <div className="text-center py-8 text-white/30"><p>読み込み中...</p></div>;
+                const usedPercent = pool.grantedPercent || 0;
+                const barColor = usedPercent >= 100 ? "bg-red-500" : usedPercent >= 80 ? "bg-amber-500" : "bg-violet-500";
+                const textColor = usedPercent >= 100 ? "text-red-400" : usedPercent >= 80 ? "text-amber-400" : "text-violet-400";
+                return (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="p-4 rounded-xl bg-violet-500/5 border border-violet-500/20 text-center">
+                        <div className="text-xs text-white/40 mb-1">プールサイズ</div>
+                        <div className="text-2xl font-bold font-mono text-violet-400">{Number(pool.size).toLocaleString()}</div>
+                        <div className="text-[10px] text-white/20 mt-1">発行総額の{pool.percentOfTotal.toFixed(1)}%</div>
+                      </div>
+                      <div className="p-4 rounded-xl bg-pink-500/5 border border-pink-500/20 text-center">
+                        <div className="text-xs text-white/40 mb-1">付与済み</div>
+                        <div className="text-2xl font-bold font-mono text-pink-400">{Number(pool.granted).toLocaleString()}</div>
+                        <div className="text-[10px] text-white/20 mt-1">{usedPercent.toFixed(1)}% 消費</div>
+                      </div>
+                      <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10 text-center">
+                        <div className="text-xs text-white/40 mb-1">残り</div>
+                        <div className={`text-2xl font-bold font-mono ${textColor}`}>{Number(pool.remaining).toLocaleString()}</div>
+                        <div className="text-[10px] text-white/20 mt-1">{(100 - usedPercent).toFixed(1)}% 残</div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1 text-xs">
+                        <span className="text-white/30">プール消費率</span>
+                        <span className={`font-bold font-mono ${textColor}`}>{usedPercent.toFixed(1)}%</span>
+                      </div>
+                      <div className="relative h-4 rounded-full bg-white/5 overflow-hidden">
+                        <div
+                          className={`absolute inset-y-0 left-0 rounded-full ${barColor} transition-all duration-1000`}
+                          style={{ width: `${Math.min(100, usedPercent)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5 text-xs text-white/30 space-y-1">
+                      <p>• ライバーへのコイン付与はこのプールから差し引かれます（スタッフ用とは完全別枚）</p>
+                      <p>• プールサイズは「設定」の <code className="text-violet-400/60">creator_pool_size</code> で変更可能</p>
+                      <p>• ライバーには「Tier L-S / L-A」のトリガーベース付与を推奨</p>
+                    </div>
+                  </div>
+                );
+              })()}
+            </NeonCard>
+
             {/* Seasons */}
             <NeonCard color="orange">
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -1885,18 +1996,22 @@ export default function LcjCoinDashboard() {
               />
               {/* Option Pool remaining warning */}
               {(() => {
-                const pool = dashboard?.optionPool;
+                const isLiver = grantForm.holderType === "liver";
+                const pool = isLiver ? (dashboard as any)?.creatorPool : dashboard?.optionPool;
                 if (!pool) return null;
                 const remaining = Number(pool.remaining);
                 const exceeds = grantForm.coinAmount > remaining;
+                const poolLabel = isLiver ? "Creator Pool" : "Option Pool";
+                const Icon = isLiver ? Sparkles : Target;
+                const accentColor = isLiver ? "violet" : "emerald";
                 return (
                   <div className={`mt-2 p-2 rounded-lg text-xs flex items-center gap-2 ${
                     exceeds
                       ? 'bg-red-500/10 border border-red-500/20 text-red-400'
-                      : 'bg-white/[0.03] border border-white/5 text-white/40'
+                      : `bg-white/[0.03] border border-white/5 text-white/40`
                   }`}>
-                    <Target className="w-3.5 h-3.5 shrink-0" />
-                    <span>プール残: <span className="font-mono font-bold">{remaining.toLocaleString()}</span> コイン</span>
+                    <Icon className="w-3.5 h-3.5 shrink-0" />
+                    <span>{poolLabel}残: <span className="font-mono font-bold">{remaining.toLocaleString()}</span> コイン</span>
                     {exceeds && <span className="ml-auto font-bold text-red-400">✖ 超過</span>}
                   </div>
                 );
@@ -2025,28 +2140,46 @@ export default function LcjCoinDashboard() {
                 {(syncCoinAmount * totalStaffAndLivers).toLocaleString()} coins
               </div>
             </div>
-            {/* Option Pool remaining warning for bulk grant */}
+            {/* Pool remaining warnings for bulk grant (separate staff/liver) */}
             {(() => {
-              const pool = dashboard?.optionPool;
-              if (!pool) return null;
-              const remaining = Number(pool.remaining);
-              const totalNeeded = syncCoinAmount * totalStaffAndLivers;
-              const exceeds = totalNeeded > remaining;
+              const staffPool = dashboard?.optionPool;
+              const creatorPool = (dashboard as any)?.creatorPool;
+              const staffCount = targetsQuery.data?.staff?.length || 0;
+              const liverCount = targetsQuery.data?.livers?.length || 0;
               return (
-                <div className={`p-3 rounded-xl text-sm flex items-center gap-3 ${
-                  exceeds
-                    ? 'bg-red-500/10 border border-red-500/20 text-red-400'
-                    : 'bg-emerald-500/5 border border-emerald-500/20 text-white/50'
-                }`}>
-                  <Target className="w-4 h-4 shrink-0" />
-                  <div>
-                    <div className="font-medium">プール残: <span className="font-mono font-bold">{remaining.toLocaleString()}</span> コイン</div>
-                    {exceeds && (
-                      <div className="text-xs mt-1 text-red-400">
-                        ✖ 合計 {totalNeeded.toLocaleString()} コインが必要ですが、プール残高を {(totalNeeded - remaining).toLocaleString()} コイン超過しています
+                <div className="space-y-2">
+                  {staffPool && staffCount > 0 && (() => {
+                    const remaining = Number(staffPool.remaining);
+                    const needed = syncCoinAmount * staffCount;
+                    const exceeds = needed > remaining;
+                    return (
+                      <div className={`p-3 rounded-xl text-sm flex items-center gap-3 ${
+                        exceeds ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-emerald-500/5 border border-emerald-500/20 text-white/50'
+                      }`}>
+                        <Target className="w-4 h-4 shrink-0" />
+                        <div>
+                          <div className="font-medium">Option Pool残: <span className="font-mono font-bold">{remaining.toLocaleString()}</span> コイン（スタッフ{staffCount}名 × {syncCoinAmount.toLocaleString()} = {needed.toLocaleString()}）</div>
+                          {exceeds && <div className="text-xs mt-1 text-red-400">✖ {(needed - remaining).toLocaleString()} コイン超過</div>}
+                        </div>
                       </div>
-                    )}
-                  </div>
+                    );
+                  })()}
+                  {creatorPool && liverCount > 0 && (() => {
+                    const remaining = Number(creatorPool.remaining);
+                    const needed = syncCoinAmount * liverCount;
+                    const exceeds = needed > remaining;
+                    return (
+                      <div className={`p-3 rounded-xl text-sm flex items-center gap-3 ${
+                        exceeds ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-violet-500/5 border border-violet-500/20 text-white/50'
+                      }`}>
+                        <Sparkles className="w-4 h-4 shrink-0" />
+                        <div>
+                          <div className="font-medium">Creator Pool残: <span className="font-mono font-bold">{remaining.toLocaleString()}</span> コイン（ライバー{liverCount}名 × {syncCoinAmount.toLocaleString()} = {needed.toLocaleString()}）</div>
+                          {exceeds && <div className="text-xs mt-1 text-red-400">✖ {(needed - remaining).toLocaleString()} コイン超過</div>}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })()}

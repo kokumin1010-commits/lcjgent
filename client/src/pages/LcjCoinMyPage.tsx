@@ -5,7 +5,7 @@ import { getLiverToken, clearLiverToken } from "@/lib/liverAuth";
 import {
   Coins, TrendingUp, Lock, Unlock, Award, Clock, LogOut, ChevronDown, ChevronUp,
   Rocket, Target, ShieldCheck, Gift, ArrowUpRight, BarChart3, History, Trophy,
-  Star, Zap, Calendar, User,
+  Star, Zap, Calendar, User, Crown, Sparkles, Flame, Shield,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -124,6 +124,90 @@ export default function LcjCoinMyPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+        {/* VIP Ranking Banner (Screenshot-worthy) */}
+        {(data as any).rank > 0 && (() => {
+          const rank = (data as any).rank;
+          const percentile = (data as any).percentile;
+          const totalSameType = (data as any).totalSameType;
+          const tierInfo = (data as any).tierInfo;
+          const isTopTier = percentile >= 90;
+          const isCreator = data.holderType === "liver";
+          const tierBadgeColor = tierInfo?.tierCode === "L-S" || tierInfo?.tierCode === "S"
+            ? "from-violet-500 to-purple-600"
+            : tierInfo?.tierCode === "L-A" || tierInfo?.tierCode === "A"
+              ? "from-pink-500 to-rose-600"
+              : tierInfo?.tierCode === "B"
+                ? "from-amber-500 to-orange-600"
+                : "from-slate-500 to-slate-600";
+          return (
+            <div className={`relative overflow-hidden rounded-2xl p-[1px] ${
+              isTopTier
+                ? 'bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 animate-pulse'
+                : 'bg-gradient-to-r from-slate-600 to-slate-700'
+            }`}>
+              <div className="relative rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 p-5 overflow-hidden">
+                {/* Background glow */}
+                {isTopTier && (
+                  <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-purple-500/5" />
+                )}
+                <div className="relative flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    {/* Rank circle */}
+                    <div className={`w-16 h-16 rounded-2xl flex flex-col items-center justify-center ${
+                      rank === 1 ? 'bg-gradient-to-br from-amber-400 to-amber-600 shadow-lg shadow-amber-500/30'
+                        : rank <= 3 ? 'bg-gradient-to-br from-slate-300 to-slate-400 shadow-lg shadow-slate-400/20'
+                          : 'bg-gradient-to-br from-slate-700 to-slate-800'
+                    }`}>
+                      {rank <= 3 && <Crown className={`w-4 h-4 ${rank === 1 ? 'text-white' : 'text-slate-700'} -mb-0.5`} />}
+                      <span className={`text-2xl font-black ${rank <= 3 ? (rank === 1 ? 'text-white' : 'text-slate-700') : 'text-white'}`}>
+                        {rank}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="text-white font-bold text-lg">
+                        {isCreator ? 'ライバー' : 'スタッフ'}ランキング
+                      </div>
+                      <div className="text-slate-400 text-sm">
+                        全{totalSameType}名中 <span className="text-white font-bold">{rank}位</span>
+                        {percentile >= 90 && <span className="text-amber-400 ml-2 font-bold">トップ{100 - percentile > 0 ? (100 - percentile) : 1}%</span>}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Tier Badge */}
+                  {tierInfo && (
+                    <div className="text-right">
+                      <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r ${tierBadgeColor} shadow-lg`}>
+                        {isCreator ? <Sparkles className="w-4 h-4 text-white" /> : <Shield className="w-4 h-4 text-white" />}
+                        <span className="text-white font-bold text-sm">Tier {tierInfo.tierCode}</span>
+                      </div>
+                      <div className="text-slate-400 text-xs mt-1">{tierInfo.tierName}</div>
+                    </div>
+                  )}
+                </div>
+                {/* Percentile bar */}
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-slate-500 text-xs">パーセンタイル</span>
+                    <span className={`text-xs font-bold ${percentile >= 90 ? 'text-amber-400' : percentile >= 70 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                      上位 {Math.max(1, 100 - percentile)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all duration-1000 ${
+                        percentile >= 90 ? 'bg-gradient-to-r from-amber-400 to-amber-500'
+                          : percentile >= 70 ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                            : 'bg-gradient-to-r from-blue-400 to-blue-500'
+                      }`}
+                      style={{ width: `${percentile}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Profile Card */}
         <Card className="bg-gradient-to-br from-slate-800/80 to-slate-800/40 border-slate-700/50 overflow-hidden">
           <CardContent className="p-5">
@@ -137,7 +221,18 @@ export default function LcjCoinMyPage() {
               )}
               <div className="flex-1 min-w-0">
                 <h2 className="text-white font-bold text-lg truncate">{data.holderName}</h2>
-                <p className="text-slate-400 text-sm">{data.holderPosition || (data.holderType === "staff" ? "スタッフ" : "ライバー")}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-slate-400 text-sm">{data.holderPosition || (data.holderType === "staff" ? "スタッフ" : "ライバー")}</p>
+                  {(data as any).tierInfo && (
+                    <Badge className={`text-[10px] px-1.5 py-0 ${
+                      (data as any).tierInfo.tierCode?.startsWith('L-') 
+                        ? 'bg-violet-500/20 text-violet-400 border-violet-500/30'
+                        : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                    }`}>
+                      {(data as any).tierInfo.tierCode}
+                    </Badge>
+                  )}
+                </div>
                 <div className="flex items-center gap-3 mt-1">
                   <span className="text-slate-500 text-xs flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
@@ -152,44 +247,50 @@ export default function LcjCoinMyPage() {
           </CardContent>
         </Card>
 
-        {/* Main Stats */}
-        <div className="grid grid-cols-2 gap-3">
-          <Card className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border-amber-500/20">
-            <CardContent className="p-4">
-              <p className="text-amber-400/70 text-xs font-medium mb-1">総資産価値</p>
-              <p className="text-white font-bold text-xl">{formatYen(data.totalValue)}</p>
-              <p className="text-slate-400 text-xs mt-1">{formatCoins(data.totalCoins)} コイン</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20">
-            <CardContent className="p-4">
-              <p className="text-emerald-400/70 text-xs font-medium mb-1">確定済み</p>
-              <p className="text-white font-bold text-xl">{formatYen(data.vestedValue)}</p>
-              <p className="text-slate-400 text-xs mt-1">{formatCoins(data.vestedCoins)} コイン</p>
-            </CardContent>
-          </Card>
+        {/* Total Asset Value - Hero Display (Screenshot-worthy) */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800/80 via-slate-800/60 to-slate-900/80 border border-slate-700/50 p-6">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-3xl" />
+          <div className="relative text-center">
+            <p className="text-slate-400 text-xs font-medium mb-2 tracking-wider uppercase">保有資産総額</p>
+            <p className="text-white font-black text-4xl tracking-tight">
+              {formatYen(data.totalValue)}
+            </p>
+            <p className="text-slate-500 text-sm mt-1 font-mono">{formatCoins(data.totalCoins)} LCJ Coins</p>
+            <div className="flex items-center justify-center gap-4 mt-4">
+              <div className="text-center">
+                <p className="text-emerald-400 font-bold text-lg">{formatYen(data.vestedValue)}</p>
+                <p className="text-slate-500 text-[10px]">確定済み</p>
+              </div>
+              <div className="w-px h-8 bg-slate-700" />
+              <div className="text-center">
+                <p className="text-orange-400 font-bold text-lg">{formatYen(data.unvestedValue)}</p>
+                <p className="text-slate-500 text-[10px]">未確定</p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Unvested & Coin Price */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Coin Price & Key Stats */}
+        <div className="grid grid-cols-3 gap-3">
           <Card className="bg-slate-800/40 border-slate-700/50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-1.5 mb-1">
-                <Lock className="w-3.5 h-3.5 text-orange-400" />
-                <p className="text-slate-400 text-xs font-medium">未確定</p>
-              </div>
-              <p className="text-white font-semibold">{formatYen(data.unvestedValue)}</p>
-              <p className="text-slate-500 text-xs">{formatCoins(data.unvestedCoins)} コイン</p>
+            <CardContent className="p-3 text-center">
+              <TrendingUp className="w-4 h-4 text-blue-400 mx-auto mb-1" />
+              <p className="text-white font-bold text-sm">{data.coinPrice.toFixed(2)}円</p>
+              <p className="text-slate-500 text-[10px]">コイン単価</p>
             </CardContent>
           </Card>
           <Card className="bg-slate-800/40 border-slate-700/50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-1.5 mb-1">
-                <TrendingUp className="w-3.5 h-3.5 text-blue-400" />
-                <p className="text-slate-400 text-xs font-medium">コイン単価</p>
-              </div>
-              <p className="text-white font-semibold">{data.coinPrice.toFixed(2)}円</p>
-              <p className="text-slate-500 text-xs">時価総額 {formatYen(data.valuation)}</p>
+            <CardContent className="p-3 text-center">
+              <Lock className="w-4 h-4 text-orange-400 mx-auto mb-1" />
+              <p className="text-white font-bold text-sm">{formatCoins(data.unvestedCoins)}</p>
+              <p className="text-slate-500 text-[10px]">未確定コイン</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-slate-800/40 border-slate-700/50">
+            <CardContent className="p-3 text-center">
+              <Coins className="w-4 h-4 text-amber-400 mx-auto mb-1" />
+              <p className="text-white font-bold text-sm">{formatYen(data.valuation)}</p>
+              <p className="text-slate-500 text-[10px]">時価総額</p>
             </CardContent>
           </Card>
         </div>

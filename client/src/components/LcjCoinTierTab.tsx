@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Star, Calculator, Edit, Coins } from "lucide-react";
+import { Star, Calculator, Edit, Coins, Sparkles, Crown } from "lucide-react";
 
 function NeonCard({ children, color = "orange", className = "" }: { children: React.ReactNode; color?: string; className?: string }) {
   const glowColors: Record<string, string> = {
@@ -31,6 +31,8 @@ const tierColors: Record<string, string> = {
   B: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
   C: "bg-green-500/20 text-green-400 border-green-500/30",
   D: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  "L-S": "bg-violet-500/20 text-violet-400 border-violet-500/30",
+  "L-A": "bg-pink-500/20 text-pink-400 border-pink-500/30",
 };
 
 export default function LcjCoinTierTab() {
@@ -60,7 +62,9 @@ export default function LcjCoinTierTab() {
     onError: (e) => toast.error(`エラー: ${e.message}`),
   });
 
-  const tiers = tiersQuery.data || [];
+  const allTiers = tiersQuery.data || [];
+  const tiers = allTiers.filter((t: any) => (t as any).tierType !== 'creator');
+  const creatorTiers = allTiers.filter((t: any) => (t as any).tierType === 'creator');
   const calcResult = calcQuery.data;
 
   const formatYen = (v: number) => `¥${Math.round(v).toLocaleString()}`;
@@ -224,6 +228,122 @@ export default function LcjCoinTierTab() {
             <p>Tierテンプレートを読み込み中...</p>
           </div>
         )}
+      </NeonCard>
+
+      {/* Creator Tier Templates (ライバー用) */}
+      <NeonCard color="blue">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-violet-400" />
+            ライバー用Tier（Creator Tier）
+          </h3>
+          <Badge className="bg-violet-500/20 text-violet-400 border-violet-500/30">
+            Creator Pool
+          </Badge>
+        </div>
+
+        {creatorTiers.length > 0 ? (
+          <div className="space-y-3">
+            {creatorTiers.map((tier: any) => (
+              <div key={tier.id} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors">
+                {editingTier === tier.tierCode && editForm ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Badge className={`text-lg px-3 py-1 ${tierColors[tier.tierCode] || tierColors.D}`}>
+                        {tier.tierCode}
+                      </Badge>
+                      <Input
+                        className="bg-white/5 border-white/10 text-white h-8 text-sm flex-1"
+                        value={editForm.tierName}
+                        onChange={(e) => setEditForm(f => f ? { ...f, tierName: e.target.value } : f)}
+                        placeholder="Tier名"
+                      />
+                    </div>
+                    <Input
+                      className="bg-white/5 border-white/10 text-white h-8 text-sm"
+                      value={editForm.description}
+                      onChange={(e) => setEditForm(f => f ? { ...f, description: e.target.value } : f)}
+                      placeholder="説明"
+                    />
+                    <Input
+                      className="bg-white/5 border-white/10 text-white h-8 text-sm"
+                      value={editForm.exampleRoles}
+                      onChange={(e) => setEditForm(f => f ? { ...f, exampleRoles: e.target.value } : f)}
+                      placeholder="対象例"
+                    />
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-[10px] text-white/40">ベスティング(月)</Label>
+                        <Input
+                          type="number"
+                          className="bg-white/5 border-white/10 text-white h-8 text-sm"
+                          value={editForm.vestingPeriodMonths}
+                          onChange={(e) => setEditForm(f => f ? { ...f, vestingPeriodMonths: Number(e.target.value) } : f)}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-white/40">クリフ(月)</Label>
+                        <Input
+                          type="number"
+                          className="bg-white/5 border-white/10 text-white h-8 text-sm"
+                          value={editForm.cliffMonths}
+                          onChange={(e) => setEditForm(f => f ? { ...f, cliffMonths: Number(e.target.value) } : f)}
+                        />
+                      </div>
+                      <div className="flex items-end gap-1">
+                        <Button size="sm" className="h-8 bg-violet-500 hover:bg-violet-600 text-white" onClick={saveEdit} disabled={upsertMutation.isPending}>
+                          {upsertMutation.isPending ? "保存中..." : "保存"}
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-8 border-white/10 text-white/60" onClick={() => { setEditingTier(null); setEditForm(null); }}>
+                          取消
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-4">
+                    <Badge className={`text-lg px-3 py-1 ${tierColors[tier.tierCode] || tierColors.D}`}>
+                      {tier.tierCode}
+                    </Badge>
+                    <div className="flex-1">
+                      <div className="font-medium text-white">{tier.tierName}</div>
+                      <div className="text-xs text-white/40 mt-0.5">{tier.description}</div>
+                      <div className="text-xs text-white/30 mt-1">
+                        対象例: {tier.exampleRoles}
+                      </div>
+                    </div>
+                    <div className="text-right text-xs text-white/40">
+                      <div>ベスティング: {tier.vestingPeriodMonths}ヶ月</div>
+                      <div>クリフ: {tier.cliffMonths}ヶ月</div>
+                      <div className="text-violet-400 mt-1">トリガーベース付与</div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-white/30 hover:text-white hover:bg-white/5"
+                      onClick={() => startEdit(tier)}
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-white/30">
+            <Sparkles className="w-10 h-10 mx-auto mb-3 opacity-20" />
+            <p>ライバー用Tierを読み込み中...</p>
+          </div>
+        )}
+
+        <div className="mt-4 p-3 rounded-lg bg-violet-500/5 border border-violet-500/20 text-xs text-white/40 space-y-1">
+          <p className="text-violet-400 font-medium">ライバーTierの運用方針</p>
+          <p>• L-S: メガブランド獲得・月間GMVトップ達成時に固定コインをスポット付与</p>
+          <p>• L-A: 配信回数・GMV基準達成時に少額コインを付与</p>
+          <p>• ベスティングは短期（6ヶ月以内）またはなし。「トリガー（条件達成）」で即時付与が基本</p>
+          <p>• Creator Pool（20万枚）から差し引かれます（スタッフ用Option Poolとは完全別枠）</p>
+        </div>
       </NeonCard>
 
       {/* Calculation Formula */}

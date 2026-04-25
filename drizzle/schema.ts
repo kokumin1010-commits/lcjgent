@@ -5347,6 +5347,7 @@ export type InsertLcjCoinShareholder = typeof lcjCoinShareholders.$inferInsert;
 export const lcjCoinTierTemplates = mysqlTable("lcj_coin_tier_templates", {
   id: int("id").autoincrement().primaryKey(),
   tierCode: varchar("tierCode", { length: 10 }).notNull().unique(),
+  tierType: varchar("tierType", { length: 20 }).default("staff").notNull(), // 'staff' or 'creator'
   tierName: varchar("tierName", { length: 100 }).notNull(),
   description: text("description"),
   salaryCoefficient: decimal("salaryCoefficient", { precision: 5, scale: 2 }).default("0.00").notNull(),

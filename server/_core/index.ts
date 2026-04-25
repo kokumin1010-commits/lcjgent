@@ -2055,6 +2055,12 @@ async function startServer() {
               console.error("[Migration] tierCode column error:", err);
             });
           });
+          // Creator Pool + Liver Tiers
+          import("../migrations/addCreatorPoolAndLiverTiers").then(({ addCreatorPoolAndLiverTiers }) => {
+            addCreatorPoolAndLiverTiers(db).catch((err: unknown) => {
+              console.error("[Migration] Creator Pool & Liver Tiers error:", err);
+            });
+          });
         }
       });
     });
