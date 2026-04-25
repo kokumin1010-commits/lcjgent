@@ -5436,6 +5436,7 @@ export type InsertLcjCoinBuybackRequest = typeof lcjCoinBuybackRequests.$inferIn
 export const aiCoachMessages = mysqlTable("ai_coach_messages", {
   id: int("id").autoincrement().primaryKey(),
   liverId: int("liverId").notNull(), // References livers.id
+  roomId: int("roomId"), // References ai_coach_rooms.id (null = default/legacy room)
   role: mysqlEnum("role", ["ai", "user"]).notNull(), // ai = 神コーチ, user = ライバー
   content: text("content").notNull(), // メッセージ内容
   messageType: varchar("messageType", { length: 100 }), // auto_question（配信記録後の自動質問）, advice（アドバイス）, chat（通常チャット）, welcome（初回挨拶）
@@ -5446,3 +5447,18 @@ export const aiCoachMessages = mysqlTable("ai_coach_messages", {
 });
 export type AiCoachMessage = typeof aiCoachMessages.$inferSelect;
 export type InsertAiCoachMessage = typeof aiCoachMessages.$inferInsert;
+
+/**
+ * AI Coach Rooms - ChatGPT風のトークルーム管理
+ */
+export const aiCoachRooms = mysqlTable("ai_coach_rooms", {
+  id: int("id").autoincrement().primaryKey(),
+  liverId: int("liverId").notNull(),
+  title: varchar("title", { length: 255 }).notNull().default("新しい会話"),
+  lastMessageAt: timestamp("lastMessageAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  deletedAt: timestamp("deletedAt"),
+});
+export type AiCoachRoom = typeof aiCoachRooms.$inferSelect;
+export type InsertAiCoachRoom = typeof aiCoachRooms.$inferInsert;

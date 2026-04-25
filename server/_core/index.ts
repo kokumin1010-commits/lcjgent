@@ -2066,6 +2066,11 @@ async function startServer() {
               console.error("[Migration] AI Coach Messages table error:", err);
             });
           });
+          import("../migrations/addAiCoachRooms").then(({ addAiCoachRoomsTable }) => {
+            addAiCoachRoomsTable(db).catch((err: unknown) => {
+              console.error("[Migration] AI Coach Rooms table error:", err);
+            });
+          });
         }
       });
     });
