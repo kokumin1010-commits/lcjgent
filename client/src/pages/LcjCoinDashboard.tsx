@@ -1565,7 +1565,7 @@ export default function LcjCoinDashboard() {
                         <td className="py-3 px-3 text-white">{h.department || "-"}</td>
                         <td className="py-3 px-3 text-center">
                           <div className="text-white text-xs">{formatTenure(h.tenureMonths)}</div>
-                          {h.joinDate && <div className="text-[10px] text-white/60">{h.joinDate}</div>}
+                          {h.joinDate && <div className="text-[10px] text-white">{h.joinDate}</div>}
                         </td>
                         <td className="py-3 px-3 text-right font-mono">
                           {h.hasHolding ? (
