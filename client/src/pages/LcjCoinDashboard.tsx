@@ -1808,9 +1808,15 @@ export default function LcjCoinDashboard() {
                           </div>
                         </td>
                         <td className="py-3 px-4">
-                          <Badge variant="outline" className={`text-xs border-white/10 ${h.holderType === "liver" ? "text-pink-400" : "text-blue-400"}`}>
-                            {h.holderType === "liver" ? "ライバー" : "スタッフ"}
-                          </Badge>
+                          <a
+                            href={h.holderType === "liver" ? "/master/livers" : "/master/hr"}
+                            className="inline-block"
+                            title={h.holderType === "liver" ? "ライバー管理ページへ" : "人事管理ページへ"}
+                          >
+                            <Badge variant="outline" className={`text-xs border-white/10 cursor-pointer hover:opacity-80 transition-opacity ${h.holderType === "liver" ? "text-pink-400 hover:border-pink-400/40" : "text-blue-400 hover:border-blue-400/40"}`}>
+                              {h.holderType === "liver" ? "ライバー" : "スタッフ"}
+                            </Badge>
+                          </a>
                         </td>
                         <td className="py-3 px-3">
                           <select
