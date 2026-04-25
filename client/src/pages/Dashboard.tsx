@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClipboardList, Clock, CheckCircle2, Users, Plus, AlertTriangle, FileText, ShoppingBag, Store } from "lucide-react";
+import { ClipboardList, Clock, CheckCircle2, Plus, AlertTriangle, FileText, ShoppingBag, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -11,9 +11,7 @@ export default function Dashboard() {
   const { data: stats, isLoading } = trpc.dashboard.statistics.useQuery(undefined, {
     staleTime: 2 * 60 * 1000, // 2分間キャッシュ
   });
-  const { data: staffWithCounts } = trpc.dashboard.staffWithTaskCounts.useQuery(undefined, {
-    staleTime: 2 * 60 * 1000,
-  });
+
   const { t } = useLanguage();
 
   // isLoadingでブロックせず、データがない場合はスケルトンを表示
@@ -114,44 +112,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-base font-medium">{t("dashboard.staffList")}</CardTitle>
-            <Users className="h-5 w-5 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {staffWithCounts && staffWithCounts.length > 0 ? (
-              <div className="space-y-2">
-                {staffWithCounts.map((staff) => (
-                  <div
-                    key={staff.id}
-                    className="flex items-center justify-between p-2 rounded-md hover:bg-accent cursor-pointer transition-colors"
-                    onClick={() => setLocation(`/tasks/staff/${staff.id}`)}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{staff.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{staff.department || "-"}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {staff.overdueCount > 0 && (
-                        <div className="flex items-center justify-center h-6 w-6 rounded-full bg-red-500 text-white text-xs font-bold">
-                          {staff.overdueCount}
-                        </div>
-                      )}
-                      {staff.inProgressCount > 0 && (
-                        <div className="flex items-center justify-center h-6 w-6 rounded-full bg-blue-500 text-white text-xs font-bold">
-                          {staff.inProgressCount}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">{t("staffMgmt.noStaff")}</p>
-            )}
-          </CardContent>
-        </Card>
+
       </div>
 
       <div className="grid gap-4 md:grid-cols-1">

@@ -43,6 +43,7 @@ import {
   tspContracts,
   brands,
   brandLivestreams,
+  reportStaff,
 } from "../drizzle/schema";
 
 // ============================================================
@@ -1223,19 +1224,36 @@ export const lcjCoinRouter = router({
       const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
       const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
 
-      // 1. 全アクティブスタッフを取得（joinDate含む）
-      const allStaff = filterType === "liver" ? [] : await db
+      // 1. HRに登録済みのスタッフのみ取得（reportStaff起点でstaffをLEFT JOIN）
+      const hrStaffRaw = filterType === "liver" ? [] : await db
         .select({
-          id: staff.id,
-          name: staff.name,
+          rsId: reportStaff.id,
+          rsName: reportStaff.name,
+          rsIsActive: reportStaff.isActive,
+          staffId: staff.id,
+          staffName: staff.name,
           department: staff.department,
           avatarUrl: staff.avatarUrl,
           position: staff.position,
           joinDate: staff.joinDate,
-          createdAt: staff.createdAt,
+          staffCreatedAt: staff.createdAt,
+          rsCreatedAt: reportStaff.createdAt,
         })
-        .from(staff)
-        .where(eq(staff.isActive, "active"));
+        .from(reportStaff)
+        .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
+        .where(eq(reportStaff.isActive, "active"));
+
+      // reportStaff → staff統合（staffがリンクされていればstaffのID・情報を使う）
+      const allStaff = hrStaffRaw.map(r => ({
+        id: r.staffId || r.rsId, // staffがリンクされていればstaffId、なければreportStaffId
+        name: r.staffName || r.rsName,
+        department: r.department || null,
+        avatarUrl: r.avatarUrl || null,
+        position: r.position || null,
+        joinDate: r.joinDate || null,
+        createdAt: r.staffCreatedAt || r.rsCreatedAt,
+        holderIdSource: r.staffId ? "staff" as const : "reportStaff" as const,
+      }));
 
       // 2. 全アクティブライバーを取得（createdAt含む）
       const allLivers = filterType === "staff" ? [] : await db
