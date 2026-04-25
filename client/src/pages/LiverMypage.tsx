@@ -79,6 +79,16 @@ export default function LiverMypage() {
   const [goalSalesInput, setGoalSalesInput] = useState('');
   const [goalStreamCountInput, setGoalStreamCountInput] = useState('');
   
+  // Get current liver info with caching to prevent unnecessary refetches
+  const { data: liverInfo, isLoading: isLoadingLiver, isError: isLiverError, isFetching: isLiverFetching } = trpc.liver.me.useQuery(undefined, {
+    staleTime: 30 * 60 * 1000, // 30 minutes - longer cache to prevent refetch during operations
+    gcTime: 60 * 60 * 1000, // 1 hour - keep in cache longer
+    refetchOnWindowFocus: false,
+    refetchOnMount: false, // Don't refetch when component mounts if data exists
+    refetchOnReconnect: false, // Don't refetch on reconnect
+    retry: 1,
+  });
+
   // 目標未設定時のポップアップ表示（当月の目標が未設定の場合、毎回表示）
   const currentMonth = useMemo(() => {
     const now = new Date();
@@ -104,16 +114,6 @@ export default function LiverMypage() {
   const [showStreamCountConfetti, setShowStreamCountConfetti] = useState(false);
   const [celebratedSalesGoal, setCelebratedSalesGoal] = useState<string | null>(null);
   const [celebratedStreamCountGoal, setCelebratedStreamCountGoal] = useState<string | null>(null);
-
-  // Get current liver info with caching to prevent unnecessary refetches
-  const { data: liverInfo, isLoading: isLoadingLiver, isError: isLiverError, isFetching: isLiverFetching } = trpc.liver.me.useQuery(undefined, {
-    staleTime: 30 * 60 * 1000, // 30 minutes - longer cache to prevent refetch during operations
-    gcTime: 60 * 60 * 1000, // 1 hour - keep in cache longer
-    refetchOnWindowFocus: false,
-    refetchOnMount: false, // Don't refetch when component mounts if data exists
-    refetchOnReconnect: false, // Don't refetch on reconnect
-    retry: 1,
-  });
   
   // Track if we've successfully loaded liver info at least once
   const [hasLoadedLiver, setHasLoadedLiver] = useState(false);
