@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, CheckCircle, Eye, Package, Plus, Trash2, Tag } from "lucide-react";
+import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, CheckCircle, Eye, Package, Plus, Trash2, Tag, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { liverTranslations, type LiverLanguage } from "@/lib/liverI18n";
@@ -182,10 +182,11 @@ export default function LiverSelfRecord() {
     }
   }, [scheduleInfo]);
 
+  const [showCoachPrompt, setShowCoachPrompt] = useState(false);
   const createLivestreamMutation = trpc.liverManagement.createLivestream.useMutation({
     onSuccess: () => {
       toast.success(tr.save);
-      navigate("/liver/mypage");
+      setShowCoachPrompt(true);
     },
     onError: (error) => {
       toast.error(error.message);
@@ -1739,6 +1740,43 @@ export default function LiverSelfRecord() {
                     {tr.confirmSave}
                   </>
                 )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* 神コーチ誘導ダイアログ（保存成功後） */}
+        <Dialog open={showCoachPrompt} onOpenChange={setShowCoachPrompt}>
+          <DialogContent className="bg-gray-900 border-yellow-500/50 text-white max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-yellow-500 flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                配信お疲れさまでした！
+              </DialogTitle>
+              <DialogDescription className="text-gray-300">
+                神コーチがあなたの配信データを分析中です。数秒後にフィードバックと質問が届きます！
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex flex-col gap-2 sm:flex-col">
+              <Button
+                onClick={() => {
+                  setShowCoachPrompt(false);
+                  navigate("/liver/coach");
+                }}
+                className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold"
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                神コーチに相談する
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowCoachPrompt(false);
+                  navigate("/liver/mypage");
+                }}
+                className="w-full text-gray-400 hover:text-white"
+              >
+                マイページに戻る
               </Button>
             </DialogFooter>
           </DialogContent>

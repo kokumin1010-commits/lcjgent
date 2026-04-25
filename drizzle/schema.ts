@@ -5426,3 +5426,23 @@ export const lcjCoinBuybackRequests = mysqlTable("lcj_coin_buyback_requests", {
 });
 export type LcjCoinBuybackRequest = typeof lcjCoinBuybackRequests.$inferSelect;
 export type InsertLcjCoinBuybackRequest = typeof lcjCoinBuybackRequests.$inferInsert;
+
+
+/**
+ * AI Coach Messages table - LCJ 神コーチ
+ * ライバーごとに1つのチャットルーム（永続）
+ * 配信記録保存時にAIが自動で質問を生成し、ライバーが回答していく
+ */
+export const aiCoachMessages = mysqlTable("ai_coach_messages", {
+  id: int("id").autoincrement().primaryKey(),
+  liverId: int("liverId").notNull(), // References livers.id
+  role: mysqlEnum("role", ["ai", "user"]).notNull(), // ai = 神コーチ, user = ライバー
+  content: text("content").notNull(), // メッセージ内容
+  messageType: varchar("messageType", { length: 100 }), // auto_question（配信記録後の自動質問）, advice（アドバイス）, chat（通常チャット）, welcome（初回挨拶）
+  contextType: varchar("contextType", { length: 100 }), // livestream（配信記録）, set_analysis（セット分析）, goal（目標相談）, general（一般）
+  contextId: int("contextId"), // 関連する配信記録ID等
+  metadata: json("metadata").$type<Record<string, unknown>>(), // 追加情報（売上データ等のスナップショット）
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AiCoachMessage = typeof aiCoachMessages.$inferSelect;
+export type InsertAiCoachMessage = typeof aiCoachMessages.$inferInsert;

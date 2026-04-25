@@ -607,7 +607,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages } from "../drizzle/schema";
 import { eq, and, not, isNotNull, isNull, desc, gt, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -10190,10 +10190,100 @@ ${conversationText}
           }
         }
         
+        // AIコーチ自動質問生成（非同期、レスポンスをブロックしない）
+        if (input.liverId) {
+          (async () => {
+            try {
+              const db2 = await getDb();
+              if (!db2) return;
+              // Collect livestream data for AI context
+              const salesAmount = input.salesAmount || 0;
+              const duration = input.duration || 0;
+              const hourlyRate = duration > 0 ? Math.round(salesAmount / (duration / 60)) : 0;
+              const viewerCount = input.viewerCount || 0;
+              const orderCount = input.orderCount || 0;
+              
+              // Get sets info
+              const setsInfo = (input.sets || []).map((s: any) => 
+                `${s.setName}: ¥${s.setPrice.toLocaleString()} × ${s.quantitySold}個 = ¥${(s.setPrice * s.quantitySold).toLocaleString()}`
+              ).join('\n');
+              
+              // Get recent monthly stats for context
+              const recentStats = await getLiverMonthlySalesTrendById(input.liverId, 3);
+              const statsContext = recentStats.map((s: any) => 
+                `${s.month}: 売上¥${Number(s.totalSales || 0).toLocaleString()}, ${Number(s.totalDuration || 0).toFixed(1)}h, 時間単価¥${Number(s.totalDuration || 0) > 0 ? Math.round(Number(s.totalSales || 0) / Number(s.totalDuration || 0) * 60).toLocaleString() : '0'}`
+              ).join('\n');
+              
+              const liverName = liver?.name || 'ライバー';
+              const dateStr = new Date(input.livestreamDate).toLocaleDateString('ja-JP');
+              
+              const systemPrompt = `あなたは「LCJ 神コーチ」です。ライブコマースの専門AIコーチとして、ライバーの成長を全力でサポートします。
+
+性格:
+- 熱血だが的確。褒めるところは全力で褒め、改善点は具体的に指摘する
+- フレンドリーで親しみやすい口調（「〜だね！」「すごい！」など）
+- データに基づいた具体的なアドバイスをする
+- ライバーのモチベーションを上げることを最優先にする
+
+ルール:
+- 必ず日本語で回答する
+- 最初に配信結果を簡潔に評価する（良かった点）
+- 次に1つだけ具体的な質問をする（ライバーの振り返りを促す）
+- 質問は配信の具体的な内容に関するものにする
+- 200文字以内で簡潔に`;
+              
+              const userPrompt = `${liverName}さんが${dateStr}の配信データを記録しました。フィードバックと質問をしてください。
+
+【配信データ】
+売上: ¥${salesAmount.toLocaleString()}
+配信時間: ${duration}分
+時間単価: ¥${hourlyRate.toLocaleString()}/h
+視聴者数: ${viewerCount}
+注文数: ${orderCount}
+${setsInfo ? `\n【セット組み】\n${setsInfo}` : ''}
+${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
+              
+              const aiResult = await invokeLLM({
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: userPrompt },
+                ],
+                maxTokens: 300,
+              });
+              
+              const aiContent = typeof aiResult.choices?.[0]?.message?.content === 'string'
+                ? aiResult.choices[0].message.content
+                : null;
+              
+              if (aiContent) {
+                await db2.insert(aiCoachMessages).values({
+                  liverId: input.liverId,
+                  role: 'ai',
+                  content: aiContent,
+                  messageType: 'auto_question',
+                  contextType: 'livestream',
+                  contextId: id,
+                  metadata: {
+                    livestreamId: id,
+                    salesAmount,
+                    duration,
+                    hourlyRate,
+                    viewerCount,
+                    orderCount,
+                    date: dateStr,
+                  },
+                });
+                console.log(`[AI Coach] Auto question generated for liver ${input.liverId}`);
+              }
+            } catch (err) {
+              console.error('[AI Coach] Failed to generate auto question:', err);
+            }
+          })();
+        }
+        
         return { id, lineNotificationSent };
       }),
-
-    // Update livestream (配信履歴の編集) - public for liver self-service
+    // Update livestream (配信履歴の編集) - public for liver self-servicee
     updateLivestream: publicProcedure
       .input(z.object({
         id: z.number(),
@@ -11287,11 +11377,27 @@ ${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProduc
         const year = parseInt(yearStr);
         const month = parseInt(monthStr);
         
-        // Get all active livers
+        // Get all active livers (filter out test livers and inactive)
         const allLivers = await getAllLivers();
+        const activeLivers = allLivers.filter(l => 
+          l.isActive && 
+          l.name && 
+          !l.name.toLowerCase().includes('test') &&
+          l.name !== '..' &&
+          l.name !== '。' &&
+          l.name.trim().length > 0
+        );
         
-        // Get all goals for this month
+        // Get livers who have at least 1 livestream ever (to filter out truly inactive ones)
         const db = await getDb();
+        const liverIdsWithStreams = await db
+          .selectDistinct({ liverId: brandLivestreams.liverId })
+          .from(brandLivestreams)
+          .where(isNotNull(brandLivestreams.liverId));
+        const activeStreamLiverIds = new Set(liverIdsWithStreams.map(l => l.liverId));
+        
+        // Only include livers who have streamed OR have set a goal
+        // Get all goals for this month
         const goals = await db
           .select()
           .from(liverGoals)
@@ -11304,7 +11410,11 @@ ${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProduc
         
         const goalMap = new Map(goals.map(g => [g.liverId, g]));
         
-        return allLivers.map(liver => {
+        const filteredLivers = activeLivers.filter(l => 
+          activeStreamLiverIds.has(l.id) || goalMap.has(l.id)
+        );
+        
+        return filteredLivers.map(liver => {
           const goal = goalMap.get(liver.id);
           return {
             liverId: liver.id,
@@ -11317,9 +11427,329 @@ ${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProduc
             streamCountGoalAchieved: goal?.streamCountGoalAchieved || false,
           };
         });
-      }),
-  }),
+       }),
 
+    // ===== LCJ 神コーチ (AI Coach) =====
+    aiCoach: router({
+      // Get chat messages for a liver
+      getMessages: publicProcedure
+        .input(z.object({
+          liverId: z.number(),
+          limit: z.number().optional().default(50),
+          beforeId: z.number().optional(), // for pagination
+        }))
+        .query(async ({ input }) => {
+          const db = await getDb();
+          if (!db) return { messages: [], hasMore: false };
+          const { sql: sqlTag } = await import('drizzle-orm');
+          
+          const conditions = [eq(aiCoachMessages.liverId, input.liverId)];
+          if (input.beforeId) {
+            conditions.push(sqlTag`${aiCoachMessages.id} < ${input.beforeId}`);
+          }
+          
+          const messages = await db
+            .select()
+            .from(aiCoachMessages)
+            .where(and(...conditions))
+            .orderBy(desc(aiCoachMessages.id))
+            .limit(input.limit + 1);
+          
+          const hasMore = messages.length > input.limit;
+          if (hasMore) messages.pop();
+          
+          return { messages: messages.reverse(), hasMore };
+        }),
+
+      // Send a message from the liver and get AI response
+      sendMessage: publicProcedure
+        .input(z.object({
+          liverId: z.number(),
+          message: z.string().min(1),
+          contextType: z.string().optional(),
+          contextId: z.number().optional(),
+        }))
+        .mutation(async ({ input }) => {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+          
+          // Save user message
+          await db.insert(aiCoachMessages).values({
+            liverId: input.liverId,
+            role: 'user',
+            content: input.message,
+            messageType: 'chat',
+            contextType: input.contextType || 'general',
+            contextId: input.contextId,
+          });
+          
+          // Build AI context
+          const liver = await getLiverById(input.liverId);
+          const liverName = liver?.name || 'ライバーさん';
+          
+          // Get recent sales data (last 6 months)
+          const salesTrend = await getLiverMonthlySalesTrendById(input.liverId);
+          const recentMonths = salesTrend.slice(-6);
+          const currentMonth = recentMonths[recentMonths.length - 1];
+          const prevMonth = recentMonths[recentMonths.length - 2];
+          
+          // Get recent livestreams
+          const recentStreams = await getLiverRecentLivestreams(input.liverId, 10);
+          
+          // Get recent chat history (last 20 messages)
+          const recentHistory = await db
+            .select()
+            .from(aiCoachMessages)
+            .where(eq(aiCoachMessages.liverId, input.liverId))
+            .orderBy(desc(aiCoachMessages.id))
+            .limit(20);
+          
+          // Build sales context string
+          let salesContext = `【${liverName}さんの売上データ】\n`;
+          recentMonths.forEach(m => {
+            const hourlyRate = m.totalDuration > 0 ? Math.round(m.totalSales / (m.totalDuration / 60)) : 0;
+            salesContext += `${m.label}: 売上¥${m.totalSales.toLocaleString()} / ${(m.totalDuration/60).toFixed(1)}h / 時間単価¥${hourlyRate.toLocaleString()} / ${m.totalLivestreams}回配信\n`;
+          });
+          
+          if (currentMonth && prevMonth && prevMonth.totalSales > 0) {
+            const growth = ((currentMonth.totalSales - prevMonth.totalSales) / prevMonth.totalSales * 100).toFixed(1);
+            salesContext += `\n前月比: ${Number(growth) >= 0 ? '+' : ''}${growth}%`;
+          }
+          
+          // Build recent streams context
+          let streamsContext = '\n\n【直近の配信】\n';
+          recentStreams.slice(0, 5).forEach(s => {
+            const date = s.livestreamDate ? new Date(s.livestreamDate).toLocaleDateString('ja-JP') : '不明';
+            const sales = s.gmv ? `¥${Number(s.gmv).toLocaleString()}` : '未記録';
+            const dur = s.duration ? `${(s.duration/60).toFixed(1)}h` : '不明';
+            streamsContext += `${date}: ${s.brandName || '不明'} / 売上${sales} / ${dur}\n`;
+          });
+          
+          // Build chat history for context
+          const chatHistory = recentHistory.reverse().map(m => ({
+            role: m.role === 'ai' ? 'assistant' as const : 'user' as const,
+            content: m.content,
+          }));
+          
+          // System prompt for LCJ 神コーチ
+          const systemPrompt = `あなたは「LCJ 神コーチ」です。ライブコマースのプロフェッショナルAIコーチとして、ライバーの成長を全力でサポートします。
+
+【あなたの性格】
+- 熱血だけど親しみやすい
+- 具体的なデータに基づいてアドバイスする
+- 良い点は大げさに褒める（ライバーのモチベーションを上げる）
+- 改善点は優しく、でも的確に指摘する
+- 絵文字を適度に使って親しみやすく
+
+【あなたが持っている情報】
+${salesContext}
+${streamsContext}
+
+【ルール】
+- 必ず日本語で回答する
+- データに基づいた具体的なアドバイスをする
+- 「〇〇してみましょう！」のような前向きな提案をする
+- 長すぎない回答（200-400文字程度）を心がける
+- ライバーの名前「${liverName}さん」を使って呼びかける`;
+          
+          // Call LLM
+          const aiResponse = await invokeLLM({
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...chatHistory,
+              { role: 'user', content: input.message },
+            ],
+          });
+          
+          const aiContent = typeof aiResponse.choices[0]?.message?.content === 'string'
+            ? aiResponse.choices[0].message.content
+            : '申し訳ありません、応答を生成できませんでした。もう一度お試しください。';
+          
+          // Save AI response
+          await db.insert(aiCoachMessages).values({
+            liverId: input.liverId,
+            role: 'ai',
+            content: aiContent,
+            messageType: 'chat',
+            contextType: input.contextType || 'general',
+            contextId: input.contextId,
+          });
+          
+          return { message: aiContent };
+        }),
+
+      // Generate auto-question after livestream record is saved
+      generateAutoQuestion: publicProcedure
+        .input(z.object({
+          liverId: z.number(),
+          livestreamId: z.number(),
+        }))
+        .mutation(async ({ input }) => {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+          
+          const liver = await getLiverById(input.liverId);
+          const liverName = liver?.name || 'ライバーさん';
+          
+          // Get the livestream that was just saved
+          const [livestream] = await db
+            .select({
+              id: brandLivestreams.id,
+              salesAmount: brandLivestreams.salesAmount,
+              duration: brandLivestreams.duration,
+              viewerCount: brandLivestreams.viewerCount,
+              gmv: brandLivestreams.gmv,
+              result: brandLivestreams.result,
+              remarks: brandLivestreams.remarks,
+              brandName: brands.name,
+              livestreamDate: brandLivestreams.livestreamDate,
+            })
+            .from(brandLivestreams)
+            .leftJoin(brands, eq(brandLivestreams.brandId, brands.id))
+            .where(eq(brandLivestreams.id, input.livestreamId))
+            .limit(1);
+          
+          if (!livestream) return { message: null };
+          
+          // Get sets for this livestream
+          const sets = await getLivestreamSetsByLivestreamId(input.livestreamId);
+          
+          // Get recent sales trend for context
+          const salesTrend = await getLiverMonthlySalesTrendById(input.liverId);
+          const recentMonths = salesTrend.slice(-3);
+          
+          // Build livestream context
+          const sales = livestream.salesAmount ? `¥${Number(livestream.salesAmount).toLocaleString()}` : (livestream.gmv ? `¥${Number(livestream.gmv).toLocaleString()}` : '未記録');
+          const dur = livestream.duration ? `${(livestream.duration/60).toFixed(1)}時間` : '不明';
+          const viewers = livestream.viewerCount ? `${livestream.viewerCount.toLocaleString()}人` : '不明';
+          const date = livestream.livestreamDate ? new Date(livestream.livestreamDate).toLocaleDateString('ja-JP') : '不明';
+          
+          let livestreamContext = `【今回の配信データ】\n`;
+          livestreamContext += `日付: ${date}\n`;
+          livestreamContext += `ブランド: ${livestream.brandName || '不明'}\n`;
+          livestreamContext += `売上: ${sales}\n`;
+          livestreamContext += `配信時間: ${dur}\n`;
+          livestreamContext += `視聴者数: ${viewers}\n`;
+          if (livestream.result) livestreamContext += `結果: ${livestream.result}\n`;
+          if (livestream.remarks) livestreamContext += `備考: ${livestream.remarks}\n`;
+          
+          if (sets.length > 0) {
+            livestreamContext += `\n【セット組み】\n`;
+            sets.forEach(s => {
+              const setRevenue = (s as any).totalRevenue || ((s as any).setPrice * (s as any).quantitySold) || 0;
+              livestreamContext += `・${(s as any).setName}: ¥${Number((s as any).setPrice || 0).toLocaleString()} × ${(s as any).quantitySold || 0}セット = ¥${Number(setRevenue).toLocaleString()}\n`;
+              if ((s as any).items) {
+                (s as any).items.forEach((item: any) => {
+                  livestreamContext += `  - ${item.productName} (¥${Number(item.originalPrice || 0).toLocaleString()})\n`;
+                });
+              }
+            });
+          }
+          
+          // Recent trend context
+          let trendContext = '\n【直近の売上推移】\n';
+          recentMonths.forEach(m => {
+            const hourlyRate = m.totalDuration > 0 ? Math.round(m.totalSales / (m.totalDuration / 60)) : 0;
+            trendContext += `${m.label}: 売上¥${m.totalSales.toLocaleString()} / 時間単価¥${hourlyRate.toLocaleString()}\n`;
+          });
+          
+          const systemPrompt = `あなたは「LCJ 神コーチ」です。ライバーが配信記録を保存した直後に、自動的に質問・フィードバックを送ります。
+
+【あなたの性格】
+- 熱血だけど親しみやすい
+- データを見て具体的に褒める・質問する
+- ライバーの成長を促す質問をする
+- 絵文字を適度に使う
+
+${livestreamContext}
+${trendContext}
+
+【タスク】
+${liverName}さんの今回の配信データを分析して、以下を含む短いメッセージ（150-250文字）を生成してください：
+1. 今回の配信の良かった点を1つ具体的に褒める
+2. 配信中に工夫したことや気づいたことを1つ質問する（ライバーが答えやすい質問）
+3. 次の配信に向けた小さな提案を1つ
+
+自然な会話調で、「${liverName}さん」と呼びかけてください。`;
+          
+          const aiResponse = await invokeLLM({
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: '配信記録が保存されました。フィードバックをお願いします。' },
+            ],
+          });
+          
+          const aiContent = typeof aiResponse.choices[0]?.message?.content === 'string'
+            ? aiResponse.choices[0].message.content
+            : null;
+          
+          if (aiContent) {
+            await db.insert(aiCoachMessages).values({
+              liverId: input.liverId,
+              role: 'ai',
+              content: aiContent,
+              messageType: 'auto_question',
+              contextType: 'livestream',
+              contextId: input.livestreamId,
+              metadata: {
+                livestreamDate: date,
+                brandName: livestream.brandName,
+                sales: livestream.salesAmount || livestream.gmv,
+                duration: livestream.duration,
+              },
+            });
+          }
+          
+          return { message: aiContent };
+        }),
+
+      // Generate welcome message for first-time users
+      getOrCreateWelcome: publicProcedure
+        .input(z.object({ liverId: z.number() }))
+        .mutation(async ({ input }) => {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+          
+          // Check if welcome message already exists
+          const existing = await db
+            .select()
+            .from(aiCoachMessages)
+            .where(and(
+              eq(aiCoachMessages.liverId, input.liverId),
+              eq(aiCoachMessages.messageType, 'welcome'),
+            ))
+            .limit(1);
+          
+          if (existing.length > 0) return { alreadyExists: true };
+          
+          const liver = await getLiverById(input.liverId);
+          const liverName = liver?.name || 'ライバーさん';
+          
+          // Get sales data for personalized welcome
+          const salesTrend = await getLiverMonthlySalesTrendById(input.liverId);
+          const recentMonths = salesTrend.filter(m => m.totalSales > 0).slice(-3);
+          
+          let welcomeMsg = '';
+          if (recentMonths.length > 0) {
+            const latestMonth = recentMonths[recentMonths.length - 1];
+            const hourlyRate = latestMonth.totalDuration > 0 ? Math.round(latestMonth.totalSales / (latestMonth.totalDuration / 60)) : 0;
+            welcomeMsg = `${liverName}さん、はじめまして！🔥 LCJ 神コーチです！\n\nあなたの配信データを見させてもらいました。${latestMonth.label}は売上¥${latestMonth.totalSales.toLocaleString()}、時間単価¥${hourlyRate.toLocaleString()}/hですね！\n\nこれから一緒に、もっと売上を伸ばしていきましょう！💪 配信のこと、セットの組み方、何でも相談してくださいね。\n\n配信記録を保存するたびに、私が自動でフィードバックします。まずは気軽に話しかけてみてください！`;
+          } else {
+            welcomeMsg = `${liverName}さん、はじめまして！🔥 LCJ 神コーチです！\n\nこれからあなたのライブコマースの成長を全力でサポートします！💪\n\n配信記録を保存すると、私が自動でデータを分析してフィードバックします。セットの組み方や売上アップのコツなど、何でも相談してくださいね！\n\nまずは気軽に「こんにちは」と話しかけてみてください！`;
+          }
+          
+          await db.insert(aiCoachMessages).values({
+            liverId: input.liverId,
+            role: 'ai',
+            content: welcomeMsg,
+            messageType: 'welcome',
+            contextType: 'general',
+          });
+          
+          return { alreadyExists: false, message: welcomeMsg };
+        }),
+    }),
+  }),
   // Brand Files Router
   brandFiles: router({
     // Get all files for a brand

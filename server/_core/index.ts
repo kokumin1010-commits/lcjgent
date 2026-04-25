@@ -2061,6 +2061,11 @@ async function startServer() {
               console.error("[Migration] Creator Pool & Liver Tiers error:", err);
             });
           });
+          import("../migrations/addAiCoachMessages").then(({ addAiCoachMessagesTable }) => {
+            addAiCoachMessagesTable(db).catch((err: unknown) => {
+              console.error("[Migration] AI Coach Messages table error:", err);
+            });
+          });
         }
       });
     });
