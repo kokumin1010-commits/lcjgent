@@ -75,9 +75,30 @@ export default function LiverMypage() {
   const [showHowTo, setShowHowTo] = useState(false);
   const [showImportHistoryDialog, setShowImportHistoryDialog] = useState(false);
   const [showGoalDialog, setShowGoalDialog] = useState(false);
+  const [showGoalNudgePopup, setShowGoalNudgePopup] = useState(false);
   const [goalSalesInput, setGoalSalesInput] = useState('');
   const [goalStreamCountInput, setGoalStreamCountInput] = useState('');
   
+  // 目標未設定時のポップアップ表示（当月の目標が未設定の場合、毎回表示）
+  const currentMonth = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+  const { data: currentMonthGoal } = trpc.liver.getGoal.useQuery(
+    { yearMonth: currentMonth },
+    { enabled: !!liverInfo?.id }
+  );
+  useEffect(() => {
+    if (liverInfo && currentMonthGoal !== undefined) {
+      const hasGoal = currentMonthGoal && currentMonthGoal.salesGoal && currentMonthGoal.salesGoal > 0;
+      if (!hasGoal) {
+        // 少し遅延させてから表示（ページ読み込み後0.8秒）
+        const timer = setTimeout(() => setShowGoalNudgePopup(true), 800);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [liverInfo, currentMonthGoal]);
+
   // 目標達成お祝いアニメーション用のstate
   const [showSalesConfetti, setShowSalesConfetti] = useState(false);
   const [showStreamCountConfetti, setShowStreamCountConfetti] = useState(false);
@@ -1591,6 +1612,62 @@ export default function LiverMypage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 目標未設定時のナッジポップアップ */}
+      <Dialog open={showGoalNudgePopup} onOpenChange={setShowGoalNudgePopup}>
+        <DialogContent className="bg-gradient-to-br from-purple-900 via-gray-900 to-pink-900 border-purple-500/50 text-white max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <Target className="h-6 w-6 text-yellow-400 animate-pulse" />
+              {language === 'ja' ? '今月の目標を設定しよう！' : language === 'zh-TW' ? '設定本月目標！' : language === 'en' ? 'Set This Month\'s Goal!' : '设定本月目标！'}
+            </DialogTitle>
+            <DialogDescription className="text-white/80 text-sm leading-relaxed">
+              {language === 'ja' ? (
+                <>
+                  目標を設定すると、進捗が見える化されてモチベーションがアップ！<br />
+                  <span className="text-yellow-400 font-bold">目標達成時にはお祝いアニメーションも表示されます🎉</span>
+                </>
+              ) : language === 'zh-TW' ? (
+                <>
+                  設定目標後，可以可視化進度，提升動力！<br />
+                  <span className="text-yellow-400 font-bold">達成目標時會有慶祝動畫🎉</span>
+                </>
+              ) : language === 'en' ? (
+                <>
+                  Setting goals helps you track progress and stay motivated!<br />
+                  <span className="text-yellow-400 font-bold">You'll get a celebration animation when you achieve your goal 🎉</span>
+                </>
+              ) : (
+                <>
+                  设定目标后，可以可视化进度，提升动力！<br />
+                  <span className="text-yellow-400 font-bold">达成目标时会有庆祝动画🎉</span>
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 mt-4">
+            <Button
+              onClick={() => {
+                setShowGoalNudgePopup(false);
+                setGoalSalesInput('');
+                setGoalStreamCountInput('');
+                setShowGoalDialog(true);
+              }}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3"
+            >
+              <Target className="h-4 w-4 mr-2" />
+              {language === 'ja' ? '今すぐ目標を設定する' : language === 'zh-TW' ? '立即設定目標' : language === 'en' ? 'Set Goal Now' : '立即设定目标'}
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => setShowGoalNudgePopup(false)}
+              className="text-white/50 hover:text-white/80 text-xs"
+            >
+              {language === 'ja' ? 'あとで設定する' : language === 'zh-TW' ? '稍後設定' : language === 'en' ? 'Later' : '稍后设定'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

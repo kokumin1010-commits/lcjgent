@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Megaphone, Gift, Package, Gauge } from "lucide-react";
+import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Megaphone, Gift, Package, Gauge, Target, CheckCircle, AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface LiverListProps {
@@ -682,6 +682,9 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
           </Card>
         )}
         
+        {/* 目標設定状況一覧 */}
+        <GoalStatusSection selectedMonth={selectedMonth} agencyId={agencyId} />
+
         {/* All Livers List */}
         <Card className="bg-gray-900/80 border-gray-700">
           <CardContent className="p-4">
@@ -728,5 +731,99 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
         {/* Duration Ranking removed from here - moved above after Sales Ranking */}
       </div>
     </div>
+  );
+}
+
+// 目標設定状況一覧コンポーネント
+function GoalStatusSection({ selectedMonth, agencyId }: { selectedMonth: string; agencyId?: number | null }) {
+  const { data: goalStatus, isLoading } = trpc.liverManagement.goalStatus.useQuery({
+    month: selectedMonth,
+  });
+
+  if (isLoading) return null;
+  if (!goalStatus || goalStatus.length === 0) return null;
+
+  // Filter by agencyId if needed (goalStatus returns all livers, filter client-side if agency filtering is needed)
+  const setCount = goalStatus.filter(l => l.hasGoal).length;
+  const notSetCount = goalStatus.filter(l => !l.hasGoal).length;
+  const achievedCount = goalStatus.filter(l => l.salesGoalAchieved).length;
+
+  return (
+    <Card className="bg-gray-900/80 border-gray-700">
+      <CardContent className="p-4">
+        <h2 className="text-xl font-bold mb-3 flex items-center gap-2 text-white">
+          <Target className="w-5 h-5 text-purple-400" />
+          目標設定状況（{selectedMonth.replace('-', '年')}月）
+        </h2>
+
+        {/* Summary */}
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-green-400">{setCount}</div>
+            <div className="text-xs text-green-400/70">設定済み</div>
+          </div>
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-red-400">{notSetCount}</div>
+            <div className="text-xs text-red-400/70">未設定</div>
+          </div>
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-yellow-400">{achievedCount}</div>
+            <div className="text-xs text-yellow-400/70">目標達成</div>
+          </div>
+        </div>
+
+        {/* Liver list */}
+        <div className="space-y-2">
+          {/* Not set first, then set */}
+          {[...goalStatus]
+            .sort((a, b) => {
+              // 未設定を先に表示
+              if (a.hasGoal !== b.hasGoal) return a.hasGoal ? 1 : -1;
+              // 同じステータス内では売上目標の降順
+              return (b.salesGoal || 0) - (a.salesGoal || 0);
+            })
+            .map((liver) => (
+              <div
+                key={liver.liverId}
+                className={`flex items-center gap-3 p-3 rounded-lg border ${
+                  !liver.hasGoal
+                    ? 'border-red-500/40 bg-red-500/5'
+                    : liver.salesGoalAchieved
+                    ? 'border-green-500/40 bg-green-500/5'
+                    : 'border-gray-700 bg-gray-800/30'
+                }`}
+              >
+                <Avatar className="w-8 h-8">
+                  <AvatarImage src={liver.avatarUrl || undefined} />
+                  <AvatarFallback className="bg-gray-700 text-white text-xs">
+                    {liver.liverName?.charAt(0) || '?'}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm text-white truncate">{liver.liverName}</p>
+                </div>
+                {liver.hasGoal ? (
+                  <div className="flex items-center gap-2 text-right">
+                    <div>
+                      <p className="text-xs text-white/60">売上目標</p>
+                      <p className="text-sm font-bold text-white">¥{Number(liver.salesGoal).toLocaleString()}</p>
+                    </div>
+                    {liver.salesGoalAchieved ? (
+                      <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                    ) : (
+                      <Target className="w-5 h-5 text-purple-400 flex-shrink-0" />
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4 text-red-400" />
+                    <span className="text-xs text-red-400 font-medium">未設定</span>
+                  </div>
+                )}
+              </div>
+            ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

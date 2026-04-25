@@ -607,7 +607,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals } from "../drizzle/schema";
 import { eq, and, not, isNotNull, isNull, desc, gt, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -11277,6 +11277,46 @@ ${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProduc
       }).optional())
       .query(async ({ input }) => {
         return await getAllBrandAdditionLogs(input?.limit || 100);
+      }),
+
+    // Get all livers' goal status for a given month (管理者向け目標設定状況一覧)
+    goalStatus: publicProcedure
+      .input(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }))
+      .query(async ({ input }) => {
+        const [yearStr, monthStr] = input.month.split('-');
+        const year = parseInt(yearStr);
+        const month = parseInt(monthStr);
+        
+        // Get all active livers
+        const allLivers = await getAllLivers();
+        
+        // Get all goals for this month
+        const db = await getDb();
+        const goals = await db
+          .select()
+          .from(liverGoals)
+          .where(
+            and(
+              eq(liverGoals.year, year),
+              eq(liverGoals.month, month)
+            )
+          );
+        
+        const goalMap = new Map(goals.map(g => [g.liverId, g]));
+        
+        return allLivers.map(liver => {
+          const goal = goalMap.get(liver.id);
+          return {
+            liverId: liver.id,
+            liverName: liver.name,
+            avatarUrl: liver.avatarUrl,
+            hasGoal: !!goal && (!!goal.salesGoal && goal.salesGoal > 0),
+            salesGoal: goal?.salesGoal || 0,
+            streamCountGoal: goal?.streamCountGoal || 0,
+            salesGoalAchieved: goal?.salesGoalAchieved || false,
+            streamCountGoalAchieved: goal?.streamCountGoalAchieved || false,
+          };
+        });
       }),
   }),
 
