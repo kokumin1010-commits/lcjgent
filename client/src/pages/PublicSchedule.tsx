@@ -15,6 +15,9 @@ import { cn } from "@/lib/utils";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { ChevronsUpDown } from "lucide-react";
 
 // toJST removed - use Intl API with timeZone: 'Asia/Tokyo' instead
 
@@ -214,6 +217,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
   const [addModalEndDate, setAddModalEndDate] = useState<string>("");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [brandPopoverOpen, setBrandPopoverOpen] = useState(false);
   const [endDatePickerMonth, setEndDatePickerMonth] = useState(new Date());
   const [datePickerMonth, setDatePickerMonth] = useState(new Date());
   const [newSchedule, setNewSchedule] = useState({
@@ -407,7 +411,15 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
     setShowDatePicker(false);
     setShowEndDatePicker(false);
     setAddModalEndDate("");
+    setBrandPopoverOpen(false);
   };
+
+  // ライバーとしてログインしている場合、ライバー名を自動設定
+  useEffect(() => {
+    if (isLiver && liverData?.name && !newSchedule.liverName) {
+      setNewSchedule(prev => ({ ...prev, liverName: liverData.name }));
+    }
+  }, [isLiver, liverData?.name, addModalOpen]);
 
   // Names to exclude from legend (test/dummy accounts)
   const excludeLiverNames = new Set(['Test Liver', 'テストライバー', '.', '..', '。', '未指定', 'sgkiki']);
@@ -2355,22 +2367,42 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                 <div className="w-5 h-5 text-blue-500">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
                 </div>
-                <Select
-                  value={newSchedule.brandId?.toString() || "none"}
-                  onValueChange={(value) => setNewSchedule(prev => ({ ...prev, brandId: value === "none" ? undefined : Number(value) }))}
-                >
-                  <SelectTrigger className="border-0 p-0 h-auto focus:ring-0 flex-1">
-                    <SelectValue placeholder="ブランドを選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">ブランドなし</SelectItem>
-                    {brandsData.map((brand: any) => (
-                      <SelectItem key={brand.id} value={brand.id.toString()}>
-                        {brand.name || brand.brandName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={brandPopoverOpen} onOpenChange={setBrandPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" className="border-0 p-0 h-auto focus:ring-0 flex-1 justify-between font-normal hover:bg-transparent">
+                      <span className={newSchedule.brandId ? "text-gray-900" : "text-gray-500"}>
+                        {newSchedule.brandId 
+                          ? (brandsData.find((b: any) => b.id === newSchedule.brandId)?.name || brandsData.find((b: any) => b.id === newSchedule.brandId)?.brandName || "ブランドを選択")
+                          : "ブランドを選択"}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="ブランド名で検索..." />
+                      <CommandList>
+                        <CommandEmpty>見つかりません</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem value="none" onSelect={() => { setNewSchedule(prev => ({ ...prev, brandId: undefined })); setBrandPopoverOpen(false); }}>
+                            <Check className={cn("mr-2 h-4 w-4", !newSchedule.brandId ? "opacity-100" : "opacity-0")} />
+                            ブランドなし
+                          </CommandItem>
+                          {brandsData.map((brand: any) => (
+                            <CommandItem
+                              key={brand.id}
+                              value={brand.name || brand.brandName}
+                              onSelect={() => { setNewSchedule(prev => ({ ...prev, brandId: brand.id })); setBrandPopoverOpen(false); }}
+                            >
+                              <Check className={cn("mr-2 h-4 w-4", newSchedule.brandId === brand.id ? "opacity-100" : "opacity-0")} />
+                              {brand.name || brand.brandName}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
           )}
