@@ -42,6 +42,7 @@ import {
   brandContracts,
   tspContracts,
   brands,
+  brandLivestreams,
 } from "../drizzle/schema";
 
 // ============================================================
@@ -1254,6 +1255,41 @@ export const lcjCoinRouter = router({
         holdingsMap.set(`${h.holderType}_${h.holderId}`, h);
       }
 
+      // 3.5. ライバーの直近1ヶ月の配信データを一括取得（自動Tier判定用）
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      const liverIds = allLivers.map(l => l.id);
+      let liverMonthlyStats: Map<number, { monthlyHours: number; monthlyGmv: number; streamCount: number }> = new Map();
+      if (liverIds.length > 0) {
+        const recentStreams = await db.select({
+          liverId: brandLivestreams.liverId,
+          duration: brandLivestreams.duration,
+          gmv: brandLivestreams.gmv,
+        }).from(brandLivestreams)
+          .where(and(
+            isNull(brandLivestreams.deletedAt),
+            gte(brandLivestreams.livestreamDate, oneMonthAgo),
+          ));
+        // ライバーID別に集計
+        for (const s of recentStreams) {
+          if (!s.liverId) continue;
+          const existing = liverMonthlyStats.get(s.liverId) || { monthlyHours: 0, monthlyGmv: 0, streamCount: 0 };
+          existing.monthlyHours += (s.duration || 0) / 60; // 分→時間
+          existing.monthlyGmv += (Number(s.gmv) || 0);
+          existing.streamCount += 1;
+          liverMonthlyStats.set(s.liverId, existing);
+        }
+      }
+
+      // 推奨Tier判定関数
+      const calcRecommendedTier = (monthlyHours: number, monthlyGmv: number, hasAnyStream: boolean): string | null => {
+        if (monthlyHours >= 60 && monthlyGmv >= 3000000) return "L-S"; // BLACK
+        if (monthlyHours >= 30 && monthlyGmv >= 1000000) return "L-A"; // GOLD
+        if (monthlyHours >= 10 && monthlyGmv >= 500000) return "L-B";  // SILVER
+        if (hasAnyStream) return "L-C"; // BRONZE
+        return null;
+      };
+
       // 4. スタッフとライバーをマージ
       type MergedHolder = {
         id: number | null;
@@ -1275,6 +1311,11 @@ export const lcjCoinRouter = router({
         tierCode: string | null;
         tenureMonths: number; // 在籍期間（月）
         joinDate: string | null; // 入社日/登録日
+        // ライバー用: 月間配信データ
+        monthlyHours: number | null;
+        monthlyGmv: number | null;
+        monthlyStreamCount: number | null;
+        recommendedTier: string | null;
       };
 
       const merged: MergedHolder[] = [];
@@ -1317,11 +1358,20 @@ export const lcjCoinRouter = router({
           tierCode: holding?.tierCode || null,
           tenureMonths: calcTenureMonths(startDate),
           joinDate: fmtDate(startDate),
+          monthlyHours: null,
+          monthlyGmv: null,
+          monthlyStreamCount: null,
+          recommendedTier: null,
         });
       }
 
       for (const l of allLivers) {
         const holding = holdingsMap.get(`liver_${l.id}`);
+        const stats = liverMonthlyStats.get(l.id);
+        const mHours = stats?.monthlyHours || 0;
+        const mGmv = stats?.monthlyGmv || 0;
+        const mCount = stats?.streamCount || 0;
+        const hasAnyStream = mCount > 0;
         merged.push({
           id: holding?.id || null,
           holderType: "liver",
@@ -1342,6 +1392,10 @@ export const lcjCoinRouter = router({
           tierCode: holding?.tierCode || null,
           tenureMonths: calcTenureMonths(l.createdAt),
           joinDate: fmtDate(l.createdAt),
+          monthlyHours: Math.round(mHours * 10) / 10,
+          monthlyGmv: Math.round(mGmv),
+          monthlyStreamCount: mCount,
+          recommendedTier: calcRecommendedTier(mHours, mGmv, hasAnyStream),
         });
       }
 

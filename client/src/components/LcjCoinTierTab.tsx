@@ -31,8 +31,17 @@ const tierColors: Record<string, string> = {
   B: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
   C: "bg-green-500/20 text-green-400 border-green-500/30",
   D: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  "L-S": "bg-violet-500/20 text-violet-400 border-violet-500/30",
-  "L-A": "bg-pink-500/20 text-pink-400 border-pink-500/30",
+  "L-S": "bg-gray-800/40 text-gray-100 border-gray-500/40",
+  "L-A": "bg-yellow-600/20 text-yellow-300 border-yellow-500/30",
+  "L-B": "bg-slate-400/20 text-slate-300 border-slate-400/30",
+  "L-C": "bg-amber-700/20 text-amber-500 border-amber-600/30",
+};
+
+const tierDisplayNames: Record<string, string> = {
+  "L-S": "BLACK",
+  "L-A": "GOLD",
+  "L-B": "SILVER",
+  "L-C": "BRONZE",
 };
 
 export default function LcjCoinTierTab() {
@@ -303,8 +312,9 @@ export default function LcjCoinTierTab() {
                 ) : (
                   <div className="flex items-center gap-4">
                     <Badge className={`text-lg px-3 py-1 ${tierColors[tier.tierCode] || tierColors.D}`}>
-                      {tier.tierCode}
+                      {tierDisplayNames[tier.tierCode] || tier.tierCode}
                     </Badge>
+                    <span className="text-xs text-white/40">({tier.tierCode})</span>
                     <div className="flex-1">
                       <div className="font-medium text-white">{tier.tierName}</div>
                       <div className="text-xs text-white/80 mt-0.5">{tier.description}</div>
@@ -315,7 +325,7 @@ export default function LcjCoinTierTab() {
                     <div className="text-right text-xs text-white/80">
                       <div>ベスティング: {tier.vestingPeriodMonths}ヶ月</div>
                       <div>クリフ: {tier.cliffMonths}ヶ月</div>
-                      <div className="text-violet-400 mt-1">トリガーベース付与</div>
+                      <div className="text-violet-400 mt-1">自動判定 + トリガー付与</div>
                     </div>
                     <Button
                       variant="ghost"
@@ -338,10 +348,12 @@ export default function LcjCoinTierTab() {
         )}
 
         <div className="mt-4 p-3 rounded-lg bg-violet-500/5 border border-violet-500/20 text-xs text-white/80 space-y-1">
-          <p className="text-violet-400 font-medium">ライバーTierの運用方針</p>
-          <p>• L-S: メガブランド獲得・月間GMVトップ達成時に固定コインをスポット付与</p>
-          <p>• L-A: 配信回数・GMV基準達成時に少額コインを付与</p>
-          <p>• ベスティングは短期（6ヶ月以内）またはなし。「トリガー（条件達成）」で即時付与が基本</p>
+          <p className="text-violet-400 font-medium">ライバーTierの運用方針（4段階）</p>
+          <p>• <span className="text-gray-100 font-bold">BLACK (L-S)</span>: 月間配信時間60h以上 & GMV 300万円以上 → 固定コインをスポット付与</p>
+          <p>• <span className="text-yellow-300 font-bold">GOLD (L-A)</span>: 月間配信時間30h以上 & GMV 100万円以上 → 少額コインを付与</p>
+          <p>• <span className="text-slate-300 font-bold">SILVER (L-B)</span>: 月間配信時間10h以上 & GMV 50万円以上 → 成長インセンティブ付与</p>
+          <p>• <span className="text-amber-500 font-bold">BRONZE (L-C)</span>: 配信実績あり → 新人ライバーのスタートライン</p>
+          <p className="mt-1">• 推奨Tierは直近1ヶ月の配信時間・GMVから自動算出。手動変更も可能</p>
           <p>• Creator Pool（20万枚）から差し引かれます（スタッフ用Option Poolとは完全別枠）</p>
         </div>
       </NeonCard>

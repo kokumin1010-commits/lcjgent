@@ -2071,6 +2071,11 @@ async function startServer() {
               console.error("[Migration] AI Coach Rooms table error:", err);
             });
           });
+          import("../migrations/addLiverTierBronzeSilver").then(({ addLiverTierBronzeSilver }) => {
+            addLiverTierBronzeSilver().catch((err: unknown) => {
+              console.error("[Migration] Liver Tier 4-level error:", err);
+            });
+          });
         }
       });
     });

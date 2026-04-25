@@ -150,9 +150,21 @@ const TIER_COLORS: Record<string, string> = {
   B: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
   C: "bg-green-500/20 text-green-400 border-green-500/30",
   D: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  "L-S": "bg-gray-800/40 text-gray-100 border-gray-500/40",
+  "L-A": "bg-yellow-600/20 text-yellow-300 border-yellow-500/30",
+  "L-B": "bg-slate-400/20 text-slate-300 border-slate-400/30",
+  "L-C": "bg-amber-700/20 text-amber-500 border-amber-600/30",
 };
 
-const TIER_OPTIONS = ["S", "A", "B", "C", "D"];
+const TIER_DISPLAY_NAMES: Record<string, string> = {
+  "L-S": "BLACK",
+  "L-A": "GOLD",
+  "L-B": "SILVER",
+  "L-C": "BRONZE",
+};
+
+const STAFF_TIER_OPTIONS = ["S", "A", "B", "C", "D"];
+const LIVER_TIER_OPTIONS = ["L-S", "L-A", "L-B", "L-C"];
 
 // ============================================================
 // Leaderboard Row
@@ -1700,12 +1712,12 @@ export default function LcjCoinDashboard() {
               </div>
             </div>
 
-            {/* Tier説明セクション */}
-            {tierTemplatesQuery.data && tierTemplatesQuery.data.length > 0 && (
-              <div className="mb-6 p-4 rounded-xl bg-white/[0.03] border border-white/10">
+            {/* スタッフ用Tier説明セクション */}
+            {tierTemplatesQuery.data && tierTemplatesQuery.data.filter((t: any) => t.tierType !== 'creator').length > 0 && (
+              <div className="mb-4 p-4 rounded-xl bg-white/[0.03] border border-white/10">
                 <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-                  <Star className="w-4 h-4 text-orange-400" />
-                  Tier説明
+                  <Star className="w-4 h-4 text-blue-400" />
+                  スタッフ用 Tier
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2">
                   {tierTemplatesQuery.data.filter((t: any) => t.tierType !== 'creator').map((tier: any) => (
@@ -1727,6 +1739,30 @@ export default function LcjCoinDashboard() {
               </div>
             )}
 
+            {/* ライバー用Tier説明セクション */}
+            {tierTemplatesQuery.data && tierTemplatesQuery.data.filter((t: any) => t.tierType === 'creator').length > 0 && (
+              <div className="mb-6 p-4 rounded-xl bg-white/[0.03] border border-violet-500/20">
+                <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                  <Star className="w-4 h-4 text-violet-400" />
+                  ライバー用 Tier
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                  {tierTemplatesQuery.data.filter((t: any) => t.tierType === 'creator').map((tier: any) => (
+                    <div key={tier.id} className="p-3 rounded-lg bg-white/[0.02] border border-white/5">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge className={`text-xs px-2 py-0.5 ${TIER_COLORS[tier.tierCode] || ''}`}>
+                          {TIER_DISPLAY_NAMES[tier.tierCode] || tier.tierCode}
+                        </Badge>
+                        <span className="text-[10px] text-white/50">({tier.tierCode})</span>
+                      </div>
+                      <p className="text-xs text-white/80 leading-relaxed font-medium">{tier.description}</p>
+                      <p className="text-xs text-white/70 mt-1">対象: {tier.exampleRoles}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {holdersQuery.isLoading ? (
               <div className="text-center py-16 text-white/80">
                 <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin opacity-40" />
@@ -1740,6 +1776,7 @@ export default function LcjCoinDashboard() {
                       <th className="text-left py-3 px-3">名前</th>
                       <th className="text-left py-3 px-3">タイプ</th>
                       <th className="text-center py-3 px-3">Tier</th>
+                      <th className="text-center py-3 px-3">月間実績</th>
                       <th className="text-left py-3 px-3">部署</th>
                       <th className="text-center py-3 px-3">在籍期間</th>
                       <th className="text-right py-3 px-3">総コイン</th>
@@ -1785,14 +1822,38 @@ export default function LcjCoinDashboard() {
                             }}
                           >
                             <option value="" className="bg-gray-900 text-white">-</option>
-                            {TIER_OPTIONS.map(t => (
-                              <option key={t} value={t} className="bg-gray-900 text-white">{t}</option>
+                            {(h.holderType === "liver" ? LIVER_TIER_OPTIONS : STAFF_TIER_OPTIONS).map(t => (
+                              <option key={t} value={t} className="bg-gray-900 text-white">{TIER_DISPLAY_NAMES[t] ? `${t} (${TIER_DISPLAY_NAMES[t]})` : t}</option>
                             ))}
                           </select>
                           {h.tierCode && (
                             <Badge className={`ml-1 text-[10px] px-1.5 py-0 ${TIER_COLORS[h.tierCode] || ""}`}>
-                              {h.tierCode}
+                              {TIER_DISPLAY_NAMES[h.tierCode] || h.tierCode}
                             </Badge>
+                          )}
+                          {h.holderType === "liver" && h.recommendedTier && h.recommendedTier !== h.tierCode && (
+                            <div className="mt-1">
+                              <span className="text-[9px] text-white/40">推奨:</span>
+                              <Badge className={`ml-0.5 text-[9px] px-1 py-0 opacity-70 ${TIER_COLORS[h.recommendedTier] || ""}`}>
+                                {TIER_DISPLAY_NAMES[h.recommendedTier] || h.recommendedTier}
+                              </Badge>
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          {h.holderType === "liver" ? (
+                            <div className="text-xs">
+                              {h.monthlyStreamCount != null && h.monthlyStreamCount > 0 ? (
+                                <>
+                                  <div className="text-white/90">{h.monthlyHours?.toFixed(1)}h / {h.monthlyStreamCount}回</div>
+                                  <div className="text-[10px] text-white/50">¥{(h.monthlyGmv || 0).toLocaleString()}</div>
+                                </>
+                              ) : (
+                                <span className="text-white/30">配信なし</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-white/20">-</span>
                           )}
                         </td>
                         <td className="py-3 px-3 text-white">{h.department || "-"}</td>
