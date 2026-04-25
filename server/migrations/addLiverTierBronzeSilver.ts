@@ -6,17 +6,9 @@
  * 
  * また、既存のL-S, L-Aの名前・説明・対象例も更新する
  */
-import { getDb } from "../_core/db";
-import { lcjCoinTierTemplates } from "../../drizzle/schema";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
-export async function addLiverTierBronzeSilver() {
-  const db = await getDb();
-  if (!db) {
-    console.error("[Migration] DB not available");
-    return;
-  }
-
+export async function addLiverTierBronzeSilver(db: any) {
   try {
     // 1. 既存のL-Sを更新（BLACK）
     await db.execute(sql`

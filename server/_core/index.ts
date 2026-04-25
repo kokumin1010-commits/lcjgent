@@ -2072,7 +2072,7 @@ async function startServer() {
             });
           });
           import("../migrations/addLiverTierBronzeSilver").then(({ addLiverTierBronzeSilver }) => {
-            addLiverTierBronzeSilver().catch((err: unknown) => {
+            addLiverTierBronzeSilver(db).catch((err: unknown) => {
               console.error("[Migration] Liver Tier 4-level error:", err);
             });
           });
