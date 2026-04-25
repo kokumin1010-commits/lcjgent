@@ -116,7 +116,7 @@ export default function LcjCoinVestingTab({ staffList, liverList }: {
         </div>
 
         {selectedId === 0 && (
-          <div className="text-center py-12 text-white/30">
+          <div className="text-center py-12 text-white/80">
             <Lock className="w-12 h-12 mx-auto mb-3 opacity-20" />
             <p>対象者を選択すると、ベスティング詳細が表示されます</p>
           </div>
@@ -130,7 +130,7 @@ export default function LcjCoinVestingTab({ staffList, liverList }: {
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <NeonCard color="green" className="!p-4">
-              <div className="text-xs text-white/40 mb-1">確定済みコイン</div>
+              <div className="text-xs text-white/80 mb-1">確定済みコイン</div>
               <div className="text-xl font-bold font-mono text-green-400">
                 {summary.vestedCoins.toLocaleString()}
               </div>
@@ -139,7 +139,7 @@ export default function LcjCoinVestingTab({ staffList, liverList }: {
               </div>
             </NeonCard>
             <NeonCard color="orange" className="!p-4">
-              <div className="text-xs text-white/40 mb-1">未確定コイン</div>
+              <div className="text-xs text-white/80 mb-1">未確定コイン</div>
               <div className="text-xl font-bold font-mono text-orange-400">
                 {summary.unvestedCoins.toLocaleString()}
               </div>
@@ -148,7 +148,7 @@ export default function LcjCoinVestingTab({ staffList, liverList }: {
               </div>
             </NeonCard>
             <NeonCard color="blue" className="!p-4">
-              <div className="text-xs text-white/40 mb-1">合計保有</div>
+              <div className="text-xs text-white/80 mb-1">合計保有</div>
               <div className="text-xl font-bold font-mono text-blue-400">
                 {summary.totalCoins.toLocaleString()}
               </div>
@@ -157,11 +157,11 @@ export default function LcjCoinVestingTab({ staffList, liverList }: {
               </div>
             </NeonCard>
             <NeonCard color="purple" className="!p-4">
-              <div className="text-xs text-white/40 mb-1">1コイン価格</div>
+              <div className="text-xs text-white/80 mb-1">1コイン価格</div>
               <div className="text-xl font-bold font-mono text-purple-400">
                 {formatYen(summary.coinPrice)}
               </div>
-              <div className="text-xs text-white/20 mt-1">現在の評価額</div>
+              <div className="text-xs text-white/70 mt-1">現在の評価額</div>
             </NeonCard>
           </div>
 
@@ -175,7 +175,7 @@ export default function LcjCoinVestingTab({ staffList, liverList }: {
                   <AlertTriangle className="w-6 h-6 text-red-400" />
                 </div>
                 <div className="flex-1">
-                  <div className="text-xs text-white/40 mb-1">今退職すると失う金額</div>
+                  <div className="text-xs text-white/80 mb-1">今退職すると失う金額</div>
                   <div className="text-2xl font-bold font-mono text-red-400">
                     {formatYen(summary.loseByQuitting)}
                   </div>
@@ -197,19 +197,19 @@ export default function LcjCoinVestingTab({ staffList, liverList }: {
             </h3>
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/5">
-                <div className="text-xs text-white/40 mb-2">時価総額 100億円</div>
+                <div className="text-xs text-white/80 mb-2">時価総額 100億円</div>
                 <div className="text-xl font-bold font-mono text-yellow-400">
                   {formatYen(summary.ipoProjection100)}
                 </div>
               </div>
               <div className="text-center p-4 rounded-xl bg-white/[0.03] border border-orange-500/20">
-                <div className="text-xs text-white/40 mb-2">時価総額 300億円</div>
+                <div className="text-xs text-white/80 mb-2">時価総額 300億円</div>
                 <div className="text-2xl font-bold font-mono text-orange-400">
                   {formatYen(summary.ipoProjection300)}
                 </div>
               </div>
               <div className="text-center p-4 rounded-xl bg-gradient-to-br from-orange-500/10 to-red-500/10 border border-orange-500/30">
-                <div className="text-xs text-white/40 mb-2">時価総額 1,000億円</div>
+                <div className="text-xs text-white/80 mb-2">時価総額 1,000億円</div>
                 <div className="text-2xl font-bold font-mono text-red-400">
                   {formatYen(summary.ipoProjection1000)}
                 </div>
@@ -244,20 +244,20 @@ export default function LcjCoinVestingTab({ staffList, liverList }: {
                     }>
                       {s.status === "completed" ? "完了" : s.cliffPassed ? "確定中" : "クリフ期間"}
                     </Badge>
-                    <span className="text-sm text-white/60">
+                    <span className="text-sm text-white/90">
                       {new Date(s.grantDate).toLocaleDateString("ja-JP")} 付与
                     </span>
                   </div>
                   <div className="text-right">
                     <div className="text-lg font-bold font-mono text-white">
-                      {s.totalGrantCoins.toLocaleString()} <span className="text-xs text-white/40">コイン</span>
+                      {s.totalGrantCoins.toLocaleString()} <span className="text-xs text-white/80">コイン</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Progress */}
                 <div>
-                  <div className="flex justify-between text-xs text-white/40 mb-1">
+                  <div className="flex justify-between text-xs text-white/80 mb-1">
                     <span>確定: {s.calculatedVestedCoins.toLocaleString()} / {s.totalGrantCoins.toLocaleString()}</span>
                     <span>{s.vestedPercent}%</span>
                   </div>
@@ -268,7 +268,7 @@ export default function LcjCoinVestingTab({ staffList, liverList }: {
                 </div>
 
                 {/* Details */}
-                <div className="flex gap-4 text-xs text-white/40">
+                <div className="flex gap-4 text-xs text-white/80">
                   <span>経過: {s.monthsElapsed}ヶ月</span>
                   <span>クリフ: {s.cliffMonths}ヶ月</span>
                   <span>期間: {s.vestingPeriodMonths}ヶ月</span>
@@ -280,7 +280,7 @@ export default function LcjCoinVestingTab({ staffList, liverList }: {
                 </div>
 
                 {s.reason && (
-                  <div className="text-xs text-white/30 italic">理由: {s.reason}</div>
+                  <div className="text-xs text-white/80 italic">理由: {s.reason}</div>
                 )}
               </div>
             ))}

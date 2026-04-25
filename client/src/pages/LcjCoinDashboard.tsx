@@ -168,7 +168,7 @@ function LeaderboardRow({ entry, index, coinPrice }: { entry: any; index: number
   return (
     <div className={`flex items-center gap-4 p-4 rounded-xl transition-all hover:bg-white/5 ${index < 3 ? "bg-white/[0.03]" : ""}`}>
       <div className="w-10 h-10 flex items-center justify-center font-bold text-lg">
-        {rankIcons[entry.rank] || <span className="text-white/40 font-mono">#{entry.rank}</span>}
+        {rankIcons[entry.rank] || <span className="text-white/80 font-mono">#{entry.rank}</span>}
       </div>
       <div className="w-11 h-11 rounded-full bg-gradient-to-br from-orange-500/30 to-red-500/20 flex items-center justify-center text-base font-bold text-white border border-white/10">
         {entry.avatarUrl ? (
@@ -181,12 +181,12 @@ function LeaderboardRow({ entry, index, coinPrice }: { entry: any; index: number
         <div className="font-semibold text-white truncate">{entry.name}</div>
         <div className="flex items-center gap-2 text-xs">
           <span className="text-orange-400">Lv.{entry.level}</span>
-          <span className="text-white/40">{entry.holderType === "liver" ? "ライバー" : entry.department || "スタッフ"}</span>
+          <span className="text-white/80">{entry.holderType === "liver" ? "ライバー" : entry.department || "スタッフ"}</span>
         </div>
       </div>
       <div className="text-right">
         <div className="font-bold text-white font-mono">{formatYenFull(totalValue)}</div>
-        <div className="text-xs text-white/40 font-mono">{Number(entry.totalCoins || 0).toLocaleString()} coins</div>
+        <div className="text-xs text-white/80 font-mono">{Number(entry.totalCoins || 0).toLocaleString()} coins</div>
       </div>
     </div>
   );
@@ -266,7 +266,7 @@ function ShareholderPieChart({ shareholders, totalShares }: { shareholders: any[
           <div key={i} className="flex items-center gap-3 text-sm">
             <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
             <span className="text-white truncate flex-1">{s.name}</span>
-            <span className="text-white/40 font-mono shrink-0">{s.shares.toLocaleString()}株</span>
+            <span className="text-white/80 font-mono shrink-0">{s.shares.toLocaleString()}株</span>
             <span className="text-orange-400 font-mono font-bold shrink-0">{(s.ratio * 100).toFixed(1)}%</span>
           </div>
         ))}
@@ -282,38 +282,61 @@ function GmvBarChart({ data }: { data: any[] }) {
   if (!data?.length) return null;
   const reversed = [...data].reverse();
   const maxGmv = Math.max(...reversed.map(d => d.affiliateGmv));
-  const barWidth = Math.max(20, Math.min(60, 600 / reversed.length - 8));
-  const chartWidth = reversed.length * (barWidth + 8);
-  const chartHeight = 180;
-
+  const barWidth = Math.max(30, Math.min(70, 800 / reversed.length - 10));
+  const chartWidth = Math.max(reversed.length * (barWidth + 10) + 80, 500);
+  const chartHeight = 280;
+  const padL = 70;
+  const padB = 50;
+  const plotH = chartHeight - padB;
+  // Y-axis ticks
+  const yTicks = Array.from({ length: 5 }, (_, i) => {
+    const val = (maxGmv * (i + 1)) / 5;
+    const y = plotH - (plotH * (i + 1)) / 5;
+    return { val, y };
+  });
   return (
     <div className="overflow-x-auto">
-      <svg width={Math.max(chartWidth, 400)} height={chartHeight + 40} className="overflow-visible">
+      <svg width={chartWidth} height={chartHeight + 20} className="overflow-visible">
+        {/* Y-axis grid + labels */}
+        {yTicks.map((t, i) => (
+          <g key={i}>
+            <line x1={padL} y1={t.y} x2={chartWidth} y2={t.y} stroke="rgba(255,255,255,0.06)" />
+            <text x={padL - 8} y={t.y + 4} textAnchor="end" fill="rgba(255,255,255,0.7)" fontSize="10" fontFamily="monospace">
+              {t.val >= 100000000 ? `${(t.val / 100000000).toFixed(1)}億` : t.val >= 10000 ? `${(t.val / 10000).toFixed(0)}万` : `${t.val.toFixed(0)}`}
+            </text>
+          </g>
+        ))}
+        <line x1={padL} y1={plotH} x2={chartWidth} y2={plotH} stroke="rgba(255,255,255,0.1)" />
         {reversed.map((d, i) => {
-          const barH = maxGmv > 0 ? (d.affiliateGmv / maxGmv) * chartHeight : 0;
-          const commH = maxGmv > 0 ? (d.lcjCommission / maxGmv) * chartHeight : 0;
-          const x = i * (barWidth + 8) + 4;
+          const barH = maxGmv > 0 ? (d.affiliateGmv / maxGmv) * plotH : 0;
+          const commH = maxGmv > 0 ? (d.lcjCommission / maxGmv) * plotH : 0;
+          const x = padL + i * (barWidth + 10) + 5;
+          const fmtVal = (v: number) => v >= 100000000 ? `${(v / 100000000).toFixed(1)}億` : v >= 10000 ? `${(v / 10000).toFixed(0)}万` : `${v}`;
           return (
             <g key={i}>
-              {/* GMV bar */}
-              <rect x={x} y={chartHeight - barH} width={barWidth} height={barH}
-                fill="#3b82f6" opacity="0.3" rx="4" />
-              {/* Commission bar */}
-              <rect x={x} y={chartHeight - commH} width={barWidth} height={commH}
-                fill="#f97316" opacity="0.8" rx="4" />
-              {/* Month label */}
-              <text x={x + barWidth / 2} y={chartHeight + 16} textAnchor="middle"
-                fill="rgba(255,255,255,0.3)" fontSize="9" fontFamily="monospace">
+              <rect x={x} y={plotH - barH} width={barWidth} height={barH}
+                fill="#3b82f6" opacity="0.35" rx="4" />
+              <rect x={x} y={plotH - commH} width={barWidth} height={commH}
+                fill="#f97316" opacity="0.85" rx="4" />
+              {/* Value label on top */}
+              {barH > 20 && (
+                <text x={x + barWidth / 2} y={plotH - barH - 6} textAnchor="middle"
+                  fill="rgba(255,255,255,0.7)" fontSize="8" fontFamily="monospace">
+                  {fmtVal(d.affiliateGmv)}
+                </text>
+              )}
+              <text x={x + barWidth / 2} y={plotH + 16} textAnchor="middle"
+                fill="rgba(255,255,255,0.8)" fontSize="10" fontFamily="monospace">
                 {d.month?.slice(5)}
               </text>
             </g>
           );
         })}
         {/* Legend */}
-        <rect x="0" y={chartHeight + 28} width="10" height="10" fill="#3b82f6" opacity="0.3" rx="2" />
-        <text x="14" y={chartHeight + 37} fill="rgba(255,255,255,0.4)" fontSize="9">流通GMV</text>
-        <rect x="70" y={chartHeight + 28} width="10" height="10" fill="#f97316" opacity="0.8" rx="2" />
-        <text x="84" y={chartHeight + 37} fill="rgba(255,255,255,0.4)" fontSize="9">LCJ手数料</text>
+        <rect x={padL} y={plotH + 32} width="12" height="12" fill="#3b82f6" opacity="0.35" rx="2" />
+        <text x={padL + 16} y={plotH + 42} fill="rgba(255,255,255,0.8)" fontSize="11">流通GMV</text>
+        <rect x={padL + 90} y={plotH + 32} width="12" height="12" fill="#f97316" opacity="0.85" rx="2" />
+        <text x={padL + 106} y={plotH + 42} fill="rgba(255,255,255,0.8)" fontSize="11">LCJ手数料</text>
       </svg>
     </div>
   );
@@ -398,6 +421,7 @@ export default function LcjCoinDashboard() {
   const targetsQuery = trpc.lcjCoin.getGrantTargets.useQuery();
   const documentsQuery = trpc.lcjCoin.getDocuments.useQuery();
   const shareholdersQuery = trpc.lcjCoin.getShareholders.useQuery();
+  const tierTemplatesQuery = trpc.lcjCoin.getTierTemplates.useQuery();
   // Separate queries for contract details (loaded on GMV tab)
   const brandContractDetailsQuery = trpc.lcjCoin.getBrandContractDetails.useQuery(undefined, { enabled: activeTab === "gmv" });
   const tspContractDetailsQuery = trpc.lcjCoin.getTspContractDetails.useQuery(undefined, { enabled: activeTab === "gmv" });
@@ -549,7 +573,7 @@ export default function LcjCoinDashboard() {
         <div className="max-w-[1600px] mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/master">
-              <button className="flex items-center gap-1 text-white/40 hover:text-white transition-colors text-sm">
+              <button className="flex items-center gap-1 text-white/80 hover:text-white transition-colors text-sm">
                 <ArrowLeft className="w-4 h-4" />
                 戻る
               </button>
@@ -560,7 +584,7 @@ export default function LcjCoinDashboard() {
               </div>
               <div>
                 <h1 className="text-lg font-bold">LCJコイン</h1>
-                <p className="text-xs text-white/40">ファントムストック報酬システム</p>
+                <p className="text-xs text-white/80">ファントムストック報酬システム</p>
               </div>
               <LcjCoinHelpDialog />
             </div>
@@ -569,7 +593,7 @@ export default function LcjCoinDashboard() {
             <Button
               variant="outline"
               size="sm"
-              className="border-white/10 text-white/60 hover:bg-white/5 hover:text-white"
+              className="border-white/10 text-white/90 hover:bg-white/5 hover:text-white"
               onClick={() => setUploadDialog(true)}
             >
               <Upload className="w-4 h-4 mr-1" />
@@ -611,7 +635,7 @@ export default function LcjCoinDashboard() {
         {/* Hero: Valuation Display */}
         {/* ============================================================ */}
         <NeonCard color="red" className="text-center py-12">
-          <div className="text-sm text-white/40 mb-2 flex items-center justify-center gap-2">
+          <div className="text-sm text-white/80 mb-2 flex items-center justify-center gap-2">
             <Flame className="w-4 h-4 text-orange-400" />
             LCJ 擬似時価総額
           </div>
@@ -624,18 +648,18 @@ export default function LcjCoinDashboard() {
             }}>
             <AnimatedCounter value={dashboard?.valuation?.valuationAmount || 0} prefix="¥" />
           </div>
-          <div className="mt-4 text-lg text-white/50">
+          <div className="mt-4 text-lg text-white/80">
             1コイン = <span className="text-purple-400 font-bold font-mono" style={{ textShadow: "0 0 20px rgba(168,85,247,0.5)" }}>
               <AnimatedCounter value={coinPrice} prefix="¥" decimals={2} />
             </span>
           </div>
-          <div className="mt-6 flex items-center justify-center gap-8 text-sm text-white/30">
+          <div className="mt-6 flex items-center justify-center gap-8 text-sm text-white/80">
             <span>計算式: 当期売上実績合計（{dashboard?.valuation?.fiscalYear?.start || '2025-08'}〜{dashboard?.valuation?.fiscalYear?.end || '2026-07'}） × PSR {dashboard?.valuation?.psrMultiplier || 15}倍</span>
           </div>
           {/* Sparkline */}
           {gmvSparklineData.length > 1 && (
             <div className="mt-6 flex justify-center">
-              <NeonSparkline data={gmvSparklineData} color="#ff4444" height={60} width={400} />
+              <NeonSparkline data={gmvSparklineData} color="#ff4444" height={100} width={600} />
             </div>
           )}
         </NeonCard>
@@ -645,48 +669,48 @@ export default function LcjCoinDashboard() {
         {/* ============================================================ */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <NeonCard color="orange" className="!p-4">
-            <div className="text-xs text-white/40 mb-1">流通GMV（累計）</div>
+            <div className="text-xs text-white/80 mb-1">流通GMV（累計）</div>
             <div className="text-xl font-bold font-mono text-orange-400">
               {formatYen(dashboard?.gmv?.totalAffiliateGmv || 0)}
             </div>
-            <div className="text-[10px] text-white/20 mt-1">参考指標</div>
+            <div className="text-[10px] text-white/70 mt-1">参考指標</div>
           </NeonCard>
           <NeonCard color="green" className="!p-4">
-            <div className="text-xs text-white/40 mb-1">LCJ手数料（累計）</div>
+            <div className="text-xs text-white/80 mb-1">LCJ手数料（累計）</div>
             <div className="text-xl font-bold font-mono text-green-400">
               {formatYen(dashboard?.gmv?.totalLcjCommission || 0)}
             </div>
           </NeonCard>
           <NeonCard color="purple" className="!p-4">
-            <div className="text-xs text-white/40 mb-1">当期売上実績</div>
+            <div className="text-xs text-white/80 mb-1">当期売上実績</div>
             <div className="text-xl font-bold font-mono text-purple-400">
               {formatYen(dashboard?.valuation?.fiscalYear?.totalRevenue || 0)}
             </div>
-            <div className="text-[10px] text-white/20 mt-1">{dashboard?.valuation?.fiscalYear?.monthsWithData || 0}ヶ月分実績</div>
+            <div className="text-[10px] text-white/70 mt-1">{dashboard?.valuation?.fiscalYear?.monthsWithData || 0}ヶ月分実績</div>
           </NeonCard>
           <NeonCard color="blue" className="!p-4">
-            <div className="text-xs text-white/40 mb-1">発行済みコイン</div>
+            <div className="text-xs text-white/80 mb-1">発行済みコイン</div>
             <div className="text-xl font-bold font-mono text-blue-400">
               {(dashboard?.valuation?.totalIssuedCoins || 0).toLocaleString()}
             </div>
-            <div className="text-[10px] text-white/20 mt-1">/ {(dashboard?.valuation?.totalCoinsPool || 10000000).toLocaleString()}</div>
+            <div className="text-[10px] text-white/70 mt-1">/ {(dashboard?.valuation?.totalCoinsPool || 10000000).toLocaleString()}</div>
           </NeonCard>
           <NeonCard color="cyan" className="!p-4 cursor-pointer hover:scale-[1.02] transition-transform">
             <div onClick={() => handleTabChange("holders")} className="cursor-pointer">
-              <div className="text-xs text-white/40 mb-1">コイン保有者</div>
+              <div className="text-xs text-white/80 mb-1">コイン保有者</div>
               <div className="text-xl font-bold font-mono text-cyan-400">
                 {dashboard?.stats?.totalHolders || 0}人
               </div>
-              <div className="text-[10px] text-white/20 mt-1">対象: {totalStaffAndLivers}名</div>
+              <div className="text-[10px] text-white/70 mt-1">対象: {totalStaffAndLivers}名</div>
               <div className="text-[10px] text-cyan-400/50 mt-1 flex items-center gap-1">クリックして一覧を見る →</div>
             </div>
           </NeonCard>
           <NeonCard color="pink" className="!p-4">
-            <div className="text-xs text-white/40 mb-1">1株あたり価値</div>
+            <div className="text-xs text-white/80 mb-1">1株あたり価値</div>
             <div className="text-xl font-bold font-mono text-pink-400">
               {formatYenFull(dashboard?.shareholders?.pricePerShare || 0)}
             </div>
-            <div className="text-[10px] text-white/20 mt-1">{(dashboard?.shareholders?.totalShares || 0).toLocaleString()}株</div>
+            <div className="text-[10px] text-white/70 mt-1">{(dashboard?.shareholders?.totalShares || 0).toLocaleString()}株</div>
           </NeonCard>
         </div>
 
@@ -710,14 +734,14 @@ export default function LcjCoinDashboard() {
                   </div>
                   <div>
                     <div className="text-sm font-bold text-white">Option Pool（スタッフ用プール）</div>
-                    <div className="text-xs text-white/30">発行総額の{pool.percentOfTotal}%をスタッフ・ライバーに配分</div>
+                    <div className="text-xs text-white/80">発行総額の{pool.percentOfTotal}%をスタッフ・ライバーに配分</div>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className={`text-lg font-bold font-mono ${textColor}`}>
-                    {Number(pool.remaining).toLocaleString()} <span className="text-xs text-white/40">残り</span>
+                    {Number(pool.remaining).toLocaleString()} <span className="text-xs text-white/80">残り</span>
                   </div>
-                  <div className="text-xs text-white/30 font-mono">
+                  <div className="text-xs text-white/80 font-mono">
                     {Number(pool.granted).toLocaleString()} / {Number(pool.size).toLocaleString()}
                   </div>
                 </div>
@@ -729,7 +753,7 @@ export default function LcjCoinDashboard() {
                 />
               </div>
               <div className="flex items-center justify-between mt-2 text-xs">
-                <span className="text-white/30">消費率</span>
+                <span className="text-white/80">消費率</span>
                 <span className={`font-bold font-mono ${textColor}`}>{usedPercent.toFixed(1)}%</span>
               </div>
               {usedPercent >= 80 && usedPercent < 100 && (
@@ -768,14 +792,14 @@ export default function LcjCoinDashboard() {
                   </div>
                   <div>
                     <div className="text-sm font-bold text-white">Creator Pool（ライバー用プール）</div>
-                    <div className="text-xs text-white/30">発行総額の{pool.percentOfTotal.toFixed(1)}%をライバー・インフルエンサーに配分</div>
+                    <div className="text-xs text-white/80">発行総額の{pool.percentOfTotal.toFixed(1)}%をライバー・インフルエンサーに配分</div>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className={`text-lg font-bold font-mono ${textColor}`}>
-                    {Number(pool.remaining).toLocaleString()} <span className="text-xs text-white/40">残り</span>
+                    {Number(pool.remaining).toLocaleString()} <span className="text-xs text-white/80">残り</span>
                   </div>
-                  <div className="text-xs text-white/30 font-mono">
+                  <div className="text-xs text-white/80 font-mono">
                     {Number(pool.granted).toLocaleString()} / {Number(pool.size).toLocaleString()}
                   </div>
                 </div>
@@ -787,7 +811,7 @@ export default function LcjCoinDashboard() {
                 />
               </div>
               <div className="flex items-center justify-between mt-2 text-xs">
-                <span className="text-white/30">消費率</span>
+                <span className="text-white/80">消費率</span>
                 <span className={`font-bold font-mono ${textColor}`}>{usedPercent.toFixed(1)}%</span>
               </div>
               {usedPercent >= 80 && usedPercent < 100 && (
@@ -817,7 +841,7 @@ export default function LcjCoinDashboard() {
               className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition-all whitespace-nowrap border-b-2 ${
                 activeTab === tab.id
                   ? "border-orange-500 text-orange-400"
-                  : "border-transparent text-white/40 hover:text-white/60"
+                  : "border-transparent text-white/80 hover:text-white/90"
               }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -839,21 +863,21 @@ export default function LcjCoinDashboard() {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
                 <div className="p-5 rounded-xl bg-purple-500/5 border border-purple-500/20">
-                  <div className="text-xs text-white/40 mb-2">当期売上実績合計</div>
+                  <div className="text-xs text-white/80 mb-2">当期売上実績合計</div>
                   <div className="text-xl font-bold font-mono text-purple-400">
                     {formatYenFull(dashboard?.valuation?.fiscalYear?.totalRevenue || 0)}
                   </div>
-                  <div className="text-[10px] text-white/20 mt-1">{dashboard?.valuation?.fiscalYear?.start}〜{dashboard?.valuation?.fiscalYear?.end}（{dashboard?.valuation?.fiscalYear?.monthsWithData || 0}ヶ月実績）</div>
+                  <div className="text-[10px] text-white/70 mt-1">{dashboard?.valuation?.fiscalYear?.start}〜{dashboard?.valuation?.fiscalYear?.end}（{dashboard?.valuation?.fiscalYear?.monthsWithData || 0}ヶ月実績）</div>
                 </div>
                 <div className="p-5 rounded-xl bg-white/[0.03] border border-white/5 relative">
-                  <div className="absolute -left-3 top-1/2 -translate-y-1/2 text-white/20 font-bold text-lg">×</div>
-                  <div className="text-xs text-white/40 mb-2">PSR倍率</div>
+                  <div className="absolute -left-3 top-1/2 -translate-y-1/2 text-white/70 font-bold text-lg">×</div>
+                  <div className="text-xs text-white/80 mb-2">PSR倍率</div>
                   <div className="text-xl font-bold font-mono text-blue-400">
                     {dashboard?.valuation?.psrMultiplier || 15}
                   </div>
                 </div>
                 <div className="p-5 rounded-xl bg-orange-500/5 border border-orange-500/20 relative">
-                  <div className="absolute -left-3 top-1/2 -translate-y-1/2 text-white/20 font-bold text-lg">=</div>
+                  <div className="absolute -left-3 top-1/2 -translate-y-1/2 text-white/70 font-bold text-lg">=</div>
                   <div className="text-xs text-orange-400/60 mb-2">擬似時価総額</div>
                   <div className="text-xl font-bold font-mono text-orange-400">
                     {formatYen(dashboard?.valuation?.valuationAmount || 0)}
@@ -862,22 +886,22 @@ export default function LcjCoinDashboard() {
               </div>
               {/* Revenue Breakdown */}
               <div className="mt-4 p-4 rounded-xl bg-white/[0.02] border border-white/5">
-                <div className="text-xs text-white/40 mb-3 font-semibold">収益内訳（月間合算の構成）</div>
+                <div className="text-xs text-white/80 mb-3 font-semibold">収益内訳（月間合算の構成）</div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="p-3 rounded-lg bg-green-500/5 border border-green-500/10">
-                    <div className="text-[10px] text-white/30 mb-1">LCJ手数料（月間平均）</div>
+                    <div className="text-[10px] text-white/80 mb-1">LCJ手数料（月間平均）</div>
                     <div className="text-sm font-bold font-mono text-green-400">
                       {formatYenFull(dashboard?.referenceSources?.lcjCommission?.monthlyAvg || 0)}
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-purple-500/5 border border-purple-500/10">
-                    <div className="text-[10px] text-white/30 mb-1">ブランド契約（単発除く）<span className="text-purple-400/60 ml-1">{dashboard?.referenceSources?.brandContract?.activeCount || 0}件</span></div>
+                    <div className="text-[10px] text-white/80 mb-1">ブランド契約（単発除く）<span className="text-purple-400/60 ml-1">{dashboard?.referenceSources?.brandContract?.activeCount || 0}件</span></div>
                     <div className="text-sm font-bold font-mono text-purple-400">
                       {formatYenFull(dashboard?.referenceSources?.brandContract?.monthlyTotal || 0)}
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/10">
-                    <div className="text-[10px] text-white/30 mb-1">TSP契約（月額合計）<span className="text-cyan-400/60 ml-1">{dashboard?.referenceSources?.tsp?.activeCount || 0}件</span></div>
+                    <div className="text-[10px] text-white/80 mb-1">TSP契約（月額合計）<span className="text-cyan-400/60 ml-1">{dashboard?.referenceSources?.tsp?.activeCount || 0}件</span></div>
                     <div className="text-sm font-bold font-mono text-cyan-400">
                       {formatYenFull(dashboard?.referenceSources?.tsp?.monthlyTotal || 0)}
                     </div>
@@ -891,7 +915,7 @@ export default function LcjCoinDashboard() {
                   GMV・収益タブで詳細を確認
                 </button>
               </div>
-              <div className="mt-3 p-3 rounded-lg bg-white/[0.02] text-xs text-white/30 space-y-1">
+              <div className="mt-3 p-3 rounded-lg bg-white/[0.02] text-xs text-white/80 space-y-1">
                 <p>計算式: 擬似時価総額 = 当期売上実績合計（{dashboard?.valuation?.fiscalYear?.start}〜{dashboard?.valuation?.fiscalYear?.end}） × PSR倍率({dashboard?.valuation?.psrMultiplier || 15}倍)</p>
                 <p>※ 全収益 = LCJ手数料 + ブランド契約（期間考慮） + 単発ライブ + TSP契約（決算期: 7月、会計年度: 8月〜翌7月）</p>
                 <p>1コイン価格: 擬似時価総額 ÷ 総発行コイン数 = {formatYenFull(coinPrice)}</p>
@@ -908,13 +932,13 @@ export default function LcjCoinDashboard() {
                 {dashboard?.activeSeason ? (
                   <div className="space-y-3">
                     <div className="text-xl font-bold text-orange-400">{dashboard.activeSeason.name}</div>
-                    <p className="text-sm text-white/50">{dashboard.activeSeason.description}</p>
+                    <p className="text-sm text-white/80">{dashboard.activeSeason.description}</p>
                     <Badge className="bg-gradient-to-r from-orange-500 to-red-600 text-white border-0">
                       ボーナス倍率: ×{dashboard.activeSeason.bonusMultiplier}
                     </Badge>
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-white/30">
+                  <div className="text-center py-8 text-white/80">
                     <Clock className="w-10 h-10 mx-auto mb-3 opacity-30" />
                     <p>現在アクティブなシーズンはありません</p>
                   </div>
@@ -926,17 +950,83 @@ export default function LcjCoinDashboard() {
                   <TrendingUp className="w-5 h-5 text-blue-400" />
                   時価総額推移
                 </h3>
-                {(dashboard?.latestValuationHistory?.length) ? (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {dashboard.latestValuationHistory.map((v: any) => (
-                      <div key={v.id} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
-                        <span className="text-sm font-mono text-white/60">{v.yearMonth}</span>
-                        <span className="font-bold font-mono text-blue-400">{formatYen(Number(v.valuationAmount))}</span>
+                {(dashboard?.latestValuationHistory?.length) ? (() => {
+                  const histData = [...dashboard.latestValuationHistory].reverse();
+                  const maxVal = Math.max(...histData.map((v: any) => Number(v.valuationAmount)));
+                  const minVal = Math.min(...histData.map((v: any) => Number(v.valuationAmount)));
+                  const range = maxVal - minVal || 1;
+                  const chartW = Math.max(histData.length * 80, 400);
+                  const chartH = 200;
+                  const padL = 80;
+                  const padR = 20;
+                  const padT = 20;
+                  const padB = 40;
+                  const plotW = chartW - padL - padR;
+                  const plotH = chartH - padT - padB;
+                  const points = histData.map((v: any, i: number) => {
+                    const x = padL + (i / Math.max(histData.length - 1, 1)) * plotW;
+                    const y = padT + plotH - ((Number(v.valuationAmount) - minVal) / range) * plotH;
+                    return { x, y, val: Number(v.valuationAmount), month: v.yearMonth };
+                  });
+                  const polyline = points.map(p => `${p.x},${p.y}`).join(' ');
+                  const areaPoints = `${padL},${padT + plotH} ${polyline} ${points[points.length - 1].x},${padT + plotH}`;
+                  // Y-axis labels (5 ticks)
+                  const yTicks = Array.from({ length: 5 }, (_, i) => {
+                    const val = minVal + (range * i) / 4;
+                    const y = padT + plotH - (plotH * i) / 4;
+                    return { val, y };
+                  });
+                  return (
+                    <div>
+                      <div className="overflow-x-auto">
+                        <svg width={chartW} height={chartH} className="overflow-visible">
+                          <defs>
+                            <linearGradient id="valGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+                              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                            </linearGradient>
+                            <filter id="valGlow">
+                              <feGaussianBlur stdDeviation="3" result="blur" />
+                              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                            </filter>
+                          </defs>
+                          {/* Grid lines */}
+                          {yTicks.map((t, i) => (
+                            <g key={i}>
+                              <line x1={padL} y1={t.y} x2={chartW - padR} y2={t.y} stroke="rgba(255,255,255,0.08)" />
+                              <text x={padL - 8} y={t.y + 4} textAnchor="end" fill="rgba(255,255,255,0.7)" fontSize="10" fontFamily="monospace">
+                                {t.val >= 100000000 ? `${(t.val / 100000000).toFixed(1)}億` : `${(t.val / 10000).toFixed(0)}万`}
+                              </text>
+                            </g>
+                          ))}
+                          {/* Area */}
+                          <polygon fill="url(#valGrad)" points={areaPoints} />
+                          {/* Line */}
+                          <polyline fill="none" stroke="#3b82f6" strokeWidth="2.5" points={polyline} filter="url(#valGlow)" />
+                          {/* Data points */}
+                          {points.map((p, i) => (
+                            <g key={i}>
+                              <circle cx={p.x} cy={p.y} r="4" fill="#3b82f6" stroke="#1e3a5f" strokeWidth="2" />
+                              <text x={p.x} y={padT + plotH + 16} textAnchor="middle" fill="rgba(255,255,255,0.8)" fontSize="9" fontFamily="monospace">
+                                {p.month?.slice(5) || p.month}
+                              </text>
+                            </g>
+                          ))}
+                        </svg>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-white/30">
+                      {/* Data table below chart */}
+                      <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                        {histData.map((v: any) => (
+                          <div key={v.id} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
+                            <span className="text-xs font-mono text-white/90">{v.yearMonth}</span>
+                            <span className="text-xs font-bold font-mono text-blue-400">{formatYen(Number(v.valuationAmount))}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })() : (
+                  <div className="text-center py-8 text-white/80">
                     <TrendingUp className="w-10 h-10 mx-auto mb-3 opacity-30" />
                     <p>まだ記録がありません</p>
                   </div>
@@ -993,9 +1083,9 @@ export default function LcjCoinDashboard() {
                           <div className={`p-4 rounded-xl border ${step.borderColor} bg-white/[0.02] text-center min-w-[120px] transition-all duration-300 ${
                             isActive ? `ring-2 ${step.ringColor} shadow-lg ${step.bgGlow}` : ""
                           } ${isCompleted ? "opacity-50" : ""}`}>
-                            <div className="text-xs text-white/40">{step.year}</div>
+                            <div className="text-xs text-white/80">{step.year}</div>
                             <div className={`font-bold text-lg font-mono ${step.textColor}`}>{step.displayValue}</div>
-                            <div className="text-xs text-white/30 mt-1">{step.label}</div>
+                            <div className="text-xs text-white/80 mt-1">{step.label}</div>
                             {isActive && (
                               <div className={`text-[10px] mt-2 px-2 py-0.5 rounded-full ${step.barColor}/20 ${step.textColor} font-bold`}>
                                 ◀ 現在地
@@ -1016,22 +1106,22 @@ export default function LcjCoinDashboard() {
                     {/* Current Status */}
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="text-sm text-white/40">現在のフェーズ: </span>
+                        <span className="text-sm text-white/80">現在のフェーズ: </span>
                         <span className={`text-sm font-bold ${currentPhase.textColor}`}>
                           {currentPhase.label}（{currentPhase.year}）
                         </span>
                       </div>
                       <div>
-                        <span className="text-sm text-white/40">目標: </span>
+                        <span className="text-sm text-white/80">目標: </span>
                         <span className={`text-sm font-bold ${currentPhase.textColor}`}>{currentPhase.displayValue}</span>
                       </div>
                     </div>
 
                     {/* Progress Bar */}
                     <div>
-                      <div className="flex justify-between text-xs text-white/30 mb-1">
+                      <div className="flex justify-between text-xs text-white/80 mb-1">
                         <span>{formatYen(currentValuation)}</span>
-                        <span className="font-bold text-white/50">{progressInPhase.toFixed(1)}%</span>
+                        <span className="font-bold text-white/80">{progressInPhase.toFixed(1)}%</span>
                         <span>{currentPhase.displayValue}</span>
                       </div>
                       <div className="h-3 bg-white/5 rounded-full overflow-hidden">
@@ -1047,19 +1137,19 @@ export default function LcjCoinDashboard() {
                     {/* Key Metrics */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5 text-center">
-                        <div className="text-xs text-white/40 mb-1">あと必要な時価総額</div>
+                        <div className="text-xs text-white/80 mb-1">あと必要な時価総額</div>
                         <div className={`text-lg font-bold font-mono ${currentPhase.textColor}`}>
                           {formatYen(remainingToNext)}
                         </div>
                       </div>
                       <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5 text-center">
-                        <div className="text-xs text-white/40 mb-1">残り{fyMonthsRemaining}ヶ月の目標月間売上</div>
+                        <div className="text-xs text-white/80 mb-1">残り{fyMonthsRemaining}ヶ月の目標月間売上</div>
                         <div className={`text-lg font-bold font-mono ${currentPhase.textColor}`}>
                           {formatYen(requiredMonthlyRevenue)}
                         </div>
                       </div>
                       <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5 text-center">
-                        <div className="text-xs text-white/40 mb-1">当期残り必要額（合計）</div>
+                        <div className="text-xs text-white/80 mb-1">当期残り必要額（合計）</div>
                         <div className="text-lg font-bold font-mono text-yellow-400">
                           +{formatYen(additionalRevenueNeeded)}
                         </div>
@@ -1067,7 +1157,7 @@ export default function LcjCoinDashboard() {
                     </div>
 
                     {/* Explanation */}
-                    <div className="text-[11px] text-white/20 text-center">
+                    <div className="text-[11px] text-white/70 text-center">
                       残り{fyMonthsRemaining}ヶ月で必要な月間売上 = (目標時価総額÷PSR{psrMultiplier} − 当期実績) ÷ 残り月数
                     </div>
                   </div>
@@ -1085,25 +1175,25 @@ export default function LcjCoinDashboard() {
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <NeonCard color="blue" className="!p-5">
-                <div className="text-xs text-white/40 mb-1">流通GMV（累計）</div>
+                <div className="text-xs text-white/80 mb-1">流通GMV（累計）</div>
                 <div className="text-3xl font-bold font-mono text-blue-400">
                   {formatYen(dashboard?.gmv?.totalAffiliateGmv || 0)}
                 </div>
-                <div className="text-xs text-white/20 mt-2">直近月: {formatYen(dashboard?.gmv?.latestMonthGmv || 0)}</div>
+                <div className="text-xs text-white/70 mt-2">直近月: {formatYen(dashboard?.gmv?.latestMonthGmv || 0)}</div>
               </NeonCard>
               <NeonCard color="green" className="!p-5">
-                <div className="text-xs text-white/40 mb-1">LCJ手数料（累計）</div>
+                <div className="text-xs text-white/80 mb-1">LCJ手数料（累計）</div>
                 <div className="text-3xl font-bold font-mono text-green-400">
                   {formatYen(dashboard?.gmv?.totalLcjCommission || 0)}
                 </div>
-                <div className="text-xs text-white/20 mt-2">直近月: {formatYen(dashboard?.gmv?.latestMonthLcjCommission || 0)}</div>
+                <div className="text-xs text-white/70 mt-2">直近月: {formatYen(dashboard?.gmv?.latestMonthLcjCommission || 0)}</div>
               </NeonCard>
               <NeonCard color="orange" className="!p-5">
-                <div className="text-xs text-white/40 mb-1">手数料月間平均（直近3ヶ月）</div>
+                <div className="text-xs text-white/80 mb-1">手数料月間平均（直近3ヶ月）</div>
                 <div className="text-3xl font-bold font-mono text-orange-400">
                   {formatYen(dashboard?.gmv?.avgMonthlyCommission || 0)}
                 </div>
-                <div className="text-xs text-white/20 mt-2">LCJ手数料のみ</div>
+                <div className="text-xs text-white/70 mt-2">LCJ手数料のみ</div>
               </NeonCard>
             </div>
 
@@ -1115,32 +1205,32 @@ export default function LcjCoinDashboard() {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                 <div className="bg-white/5 rounded-xl p-4">
-                  <div className="text-xs text-white/40 mb-1">LCJ手数料（月間平均）</div>
+                  <div className="text-xs text-white/80 mb-1">LCJ手数料（月間平均）</div>
                   <div className="text-xl font-bold font-mono text-orange-400">
                     {formatYenFull(dashboard?.referenceSources?.lcjCommission?.monthlyAvg || 0)}
                   </div>
                 </div>
                 <div className="bg-white/5 rounded-xl p-4">
-                  <div className="text-xs text-white/40 mb-1">ブランド契約（月額換算・単発除く）</div>
+                  <div className="text-xs text-white/80 mb-1">ブランド契約（月額換算・単発除く）</div>
                   <div className="text-xl font-bold font-mono text-purple-400">
                     {formatYenFull(dashboard?.referenceSources?.brandContract?.monthlyTotal || 0)}
                   </div>
-                  <div className="text-[10px] text-white/20 mt-1">{dashboard?.referenceSources?.brandContract?.activeCount || 0}件</div>
+                  <div className="text-[10px] text-white/70 mt-1">{dashboard?.referenceSources?.brandContract?.activeCount || 0}件</div>
                 </div>
                 <div className="bg-white/5 rounded-xl p-4">
-                  <div className="text-xs text-white/40 mb-1">TSP契約（月額）</div>
+                  <div className="text-xs text-white/80 mb-1">TSP契約（月額）</div>
                   <div className="text-xl font-bold font-mono text-cyan-400">
                     {formatYenFull(dashboard?.referenceSources?.tsp?.monthlyTotal || 0)}
                   </div>
-                  <div className="text-[10px] text-white/20 mt-1">{dashboard?.referenceSources?.tsp?.activeCount || 0}件</div>
+                  <div className="text-[10px] text-white/70 mt-1">{dashboard?.referenceSources?.tsp?.activeCount || 0}件</div>
                 </div>
                 <div className="bg-gradient-to-br from-red-500/20 to-orange-500/20 rounded-xl p-4 border border-red-500/30">
-                  <div className="text-xs text-white/60 mb-1 font-semibold">当期売上実績合計</div>
+                  <div className="text-xs text-white/90 mb-1 font-semibold">当期売上実績合計</div>
                   <div className="text-xl font-bold font-mono text-red-400">
                     {formatYenFull(dashboard?.valuation?.fiscalYear?.totalRevenue || 0)}
                   </div>
-                  <div className="text-[10px] text-white/30 mt-1">{dashboard?.valuation?.fiscalYear?.start}〜{dashboard?.valuation?.fiscalYear?.end}（{dashboard?.valuation?.fiscalYear?.monthsWithData || 0}ヶ月実績）</div>
-                  <div className="text-[10px] text-white/30 mt-0.5">× PSR {dashboard?.valuation?.psrMultiplier || 15}倍 = {formatYen(dashboard?.valuation?.valuationAmount || 0)}</div>
+                  <div className="text-[10px] text-white/80 mt-1">{dashboard?.valuation?.fiscalYear?.start}〜{dashboard?.valuation?.fiscalYear?.end}（{dashboard?.valuation?.fiscalYear?.monthsWithData || 0}ヶ月実績）</div>
+                  <div className="text-[10px] text-white/80 mt-0.5">× PSR {dashboard?.valuation?.psrMultiplier || 15}倍 = {formatYen(dashboard?.valuation?.valuationAmount || 0)}</div>
                 </div>
               </div>
             </NeonCard>
@@ -1152,12 +1242,12 @@ export default function LcjCoinDashboard() {
                 月別収益推移（全収益内訳）
               </h3>
               {monthlyRevenueQuery.isLoading ? (
-                <div className="text-center py-8 text-white/30">読み込み中...</div>
+                <div className="text-center py-8 text-white/80">読み込み中...</div>
               ) : monthlyRevenueQuery.data?.months?.length ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-white/10 text-white/40">
+                      <tr className="border-b border-white/10 text-white/80">
                         <th className="text-left py-3 px-3">月</th>
                         <th className="text-right py-3 px-3">LCJ手数料</th>
                         <th className="text-right py-3 px-3">ブランド契約</th>
@@ -1170,10 +1260,10 @@ export default function LcjCoinDashboard() {
                     <tbody>
                       {monthlyRevenueQuery.data.months.map((m: any) => (
                         <tr key={m.month} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
-                          <td className="py-3 px-3 font-mono text-white/60">{m.month}</td>
+                          <td className="py-3 px-3 font-mono text-white/90">{m.month}</td>
                           <td className="py-3 px-3 text-right font-mono text-orange-400">{formatYenFull(m.lcjCommission)}</td>
                           <td className="py-3 px-3 text-right font-mono text-purple-400">{formatYenFull(m.brandRecurring)}</td>
-                          <td className="py-3 px-3 text-right font-mono text-white/30">{m.brandSingle > 0 ? formatYenFull(m.brandSingle) : "-"}</td>
+                          <td className="py-3 px-3 text-right font-mono text-white/80">{m.brandSingle > 0 ? formatYenFull(m.brandSingle) : "-"}</td>
                           <td className="py-3 px-3 text-right font-mono text-cyan-400">{formatYenFull(m.tsp)}</td>
                           <td className="py-3 px-3 text-right font-mono font-bold text-green-400">{formatYenFull(m.totalRecurring)}</td>
                           <td className="py-3 px-3 text-right font-mono font-bold text-red-400">{formatYenFull(m.total)}</td>
@@ -1181,12 +1271,12 @@ export default function LcjCoinDashboard() {
                       ))}
                     </tbody>
                   </table>
-                  <div className="mt-3 text-[10px] text-white/20 px-3">
+                  <div className="mt-3 text-[10px] text-white/70 px-3">
                     ※ 継続収益合計 = LCJ手数料 + ブランド契約（期間契約のみ） + TSP。単発ライブ契約は擬似時価総額の計算には含まれません。
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-8 text-white/30">データがありません</div>
+                <div className="text-center py-8 text-white/80">データがありません</div>
               )}
             </NeonCard>
 
@@ -1208,7 +1298,7 @@ export default function LcjCoinDashboard() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-white/10 text-white/40">
+                    <tr className="border-b border-white/10 text-white/80">
                       <th className="text-left py-3 px-3">ブランド</th>
                       <th className="text-left py-3 px-3">タイプ</th>
                       <th className="text-right py-3 px-3">契約費用</th>
@@ -1222,25 +1312,25 @@ export default function LcjCoinDashboard() {
                       <tr key={c.id} className={`border-b border-white/5 hover:bg-white/[0.03] transition-colors ${c.isSingleEvent ? "opacity-50" : ""}`}>
                         <td className="py-3 px-3 font-medium text-white">
                           {c.brandName}
-                          {c.isSingleEvent && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white/40">単発</span>}
+                          {c.isSingleEvent && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white/80">単発</span>}
                         </td>
-                        <td className="py-3 px-3 text-white/40 text-xs">{c.serviceType || c.contractPeriodLabel || "-"}</td>
-                        <td className="py-3 px-3 text-right font-mono text-white/60">
+                        <td className="py-3 px-3 text-white/80 text-xs">{c.serviceType || c.contractPeriodLabel || "-"}</td>
+                        <td className="py-3 px-3 text-right font-mono text-white/90">
                           {c.currency !== "JPY" ? `${c.currency} ` : "¥"}{c.fixedFee.toLocaleString()}
                         </td>
-                        <td className="py-3 px-3 text-white/40 text-xs">
+                        <td className="py-3 px-3 text-white/80 text-xs">
                           {c.startDate ? new Date(c.startDate).toLocaleDateString("ja-JP") : "-"}
                           {" ~ "}
                           {c.endDate ? new Date(c.endDate).toLocaleDateString("ja-JP") : "-"}
                         </td>
-                        <td className="py-3 px-3 text-right font-mono text-white/40">{c.contractMonths || "-"}ヶ月</td>
+                        <td className="py-3 px-3 text-right font-mono text-white/80">{c.contractMonths || "-"}ヶ月</td>
                         <td className="py-3 px-3 text-right font-mono font-bold text-purple-400">{formatYenFull(c.monthlyAmount)}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr className="border-t border-purple-500/30">
-                      <td colSpan={5} className="py-3 px-3 text-right font-semibold text-white/60">月額換算 合計（単発除く）</td>
+                      <td colSpan={5} className="py-3 px-3 text-right font-semibold text-white/90">月額換算 合計（単発除く）</td>
                       <td className="py-3 px-3 text-right font-mono font-bold text-purple-400 text-lg">
                         {formatYenFull(dashboard?.referenceSources?.brandContract?.monthlyTotal || 0)}
                       </td>
@@ -1259,7 +1349,7 @@ export default function LcjCoinDashboard() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-white/10 text-white/40">
+                    <tr className="border-b border-white/10 text-white/80">
                       <th className="text-left py-3 px-3">ショップ名</th>
                       <th className="text-left py-3 px-3">会社名</th>
                       <th className="text-right py-3 px-3">月額（税抜）</th>
@@ -1271,12 +1361,12 @@ export default function LcjCoinDashboard() {
                     {tspContractDetailsQuery.data?.details?.map((c: any) => (
                       <tr key={c.id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
                         <td className="py-3 px-3 font-medium text-white">{c.shopName}</td>
-                        <td className="py-3 px-3 text-white/40">{c.companyName || "-"}</td>
+                        <td className="py-3 px-3 text-white/80">{c.companyName || "-"}</td>
                         <td className="py-3 px-3 text-right font-mono font-bold text-cyan-400">{formatYenFull(c.monthlyAmount)}</td>
-                        <td className="py-3 px-3 text-white/40 text-xs">
+                        <td className="py-3 px-3 text-white/80 text-xs">
                           {c.contractStartDate ? new Date(c.contractStartDate).toLocaleDateString("ja-JP") : "-"}
                         </td>
-                        <td className="py-3 px-3 text-white/40 text-xs">
+                        <td className="py-3 px-3 text-white/80 text-xs">
                           {c.contractEndDate ? new Date(c.contractEndDate).toLocaleDateString("ja-JP") : "-"}
                         </td>
                       </tr>
@@ -1284,7 +1374,7 @@ export default function LcjCoinDashboard() {
                   </tbody>
                   <tfoot>
                     <tr className="border-t border-cyan-500/30">
-                      <td colSpan={4} className="py-3 px-3 text-right font-semibold text-white/60">月額 合計</td>
+                      <td colSpan={4} className="py-3 px-3 text-right font-semibold text-white/90">月額 合計</td>
                       <td className="py-3 px-3 text-right font-mono font-bold text-cyan-400 text-lg">
                         {formatYenFull(dashboard?.referenceSources?.tsp?.monthlyTotal || 0)}
                       </td>
@@ -1303,7 +1393,7 @@ export default function LcjCoinDashboard() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-white/10 text-white/40">
+                    <tr className="border-b border-white/10 text-white/80">
                       <th className="text-left py-3 px-3">月</th>
                       <th className="text-right py-3 px-3">アフィリGMV</th>
                       <th className="text-right py-3 px-3">LIVE GMV</th>
@@ -1316,13 +1406,13 @@ export default function LcjCoinDashboard() {
                   <tbody>
                     {dashboard?.gmv?.monthlyData?.map((m: any) => (
                       <tr key={m.month} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
-                        <td className="py-3 px-3 font-mono text-white/60">{m.month}</td>
+                        <td className="py-3 px-3 font-mono text-white/90">{m.month}</td>
                         <td className="py-3 px-3 text-right font-mono text-green-400">{formatYenFull(m.affiliateGmv)}</td>
-                        <td className="py-3 px-3 text-right font-mono text-white/60">{formatYenFull(m.liveGmv)}</td>
-                        <td className="py-3 px-3 text-right font-mono text-white/60">{formatYenFull(m.videoGmv)}</td>
+                        <td className="py-3 px-3 text-right font-mono text-white/90">{formatYenFull(m.liveGmv)}</td>
+                        <td className="py-3 px-3 text-right font-mono text-white/90">{formatYenFull(m.videoGmv)}</td>
                         <td className="py-3 px-3 text-right font-mono font-bold text-orange-400">{formatYenFull(m.lcjCommission)}</td>
-                        <td className="py-3 px-3 text-right font-mono text-white/40">{m.orders.toLocaleString()}</td>
-                        <td className="py-3 px-3 text-right font-mono text-white/40">{m.liveViews.toLocaleString()}</td>
+                        <td className="py-3 px-3 text-right font-mono text-white/80">{m.orders.toLocaleString()}</td>
+                        <td className="py-3 px-3 text-right font-mono text-white/80">{m.liveViews.toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1348,7 +1438,7 @@ export default function LcjCoinDashboard() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-16 text-white/30">
+              <div className="text-center py-16 text-white/80">
                 <Trophy className="w-16 h-16 mx-auto mb-4 opacity-20" />
                 <p className="text-lg">まだランキングデータがありません</p>
                 <p className="text-sm mt-2">「全員にコイン付与」ボタンからスタッフ全員にコインを付与しましょう</p>
@@ -1378,7 +1468,7 @@ export default function LcjCoinDashboard() {
                   totalShares={shareholdersQuery.data.reduce((s: number, sh: any) => s + sh.shares, 0)}
                 />
               ) : (
-                <div className="text-center py-12 text-white/30">
+                <div className="text-center py-12 text-white/80">
                   <PieChart className="w-12 h-12 mx-auto mb-3 opacity-20" />
                   <p>株主名簿がまだアップロードされていません</p>
                   <Button
@@ -1401,19 +1491,19 @@ export default function LcjCoinDashboard() {
             {dashboard?.shareholders?.totalShares ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <NeonCard color="orange" className="!p-5">
-                  <div className="text-xs text-white/40 mb-1">1株あたり価値</div>
+                  <div className="text-xs text-white/80 mb-1">1株あたり価値</div>
                   <div className="text-3xl font-bold font-mono text-orange-400">
                     {formatYenFull(dashboard.shareholders.pricePerShare)}
                   </div>
                 </NeonCard>
                 <NeonCard color="blue" className="!p-5">
-                  <div className="text-xs text-white/40 mb-1">発行済株式数</div>
+                  <div className="text-xs text-white/80 mb-1">発行済株式数</div>
                   <div className="text-3xl font-bold font-mono text-blue-400">
                     {dashboard.shareholders.totalShares.toLocaleString()}株
                   </div>
                 </NeonCard>
                 <NeonCard color="purple" className="!p-5">
-                  <div className="text-xs text-white/40 mb-1">擬似時価総額</div>
+                  <div className="text-xs text-white/80 mb-1">擬似時価総額</div>
                   <div className="text-3xl font-bold font-mono text-purple-400">
                     {formatYen(dashboard.valuation?.valuationAmount || 0)}
                   </div>
@@ -1431,7 +1521,7 @@ export default function LcjCoinDashboard() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-white/10 text-white/40">
+                      <tr className="border-b border-white/10 text-white/80">
                         <th className="text-left py-3 px-3">株主名</th>
                         <th className="text-left py-3 px-3">株式種類</th>
                         <th className="text-right py-3 px-3">株数</th>
@@ -1443,7 +1533,7 @@ export default function LcjCoinDashboard() {
                       {(dashboard?.shareholders?.list || shareholdersQuery.data || []).map((sh: any) => (
                         <tr key={sh.id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
                           <td className="py-3 px-3 font-medium text-white">{sh.name}</td>
-                          <td className="py-3 px-3 text-white/40">{sh.shareType || "普通株式"}</td>
+                          <td className="py-3 px-3 text-white/80">{sh.shareType || "普通株式"}</td>
                           <td className="py-3 px-3 text-right font-mono text-white">{sh.shares.toLocaleString()}</td>
                           <td className="py-3 px-3 text-right font-mono text-orange-400">{sh.ratio || "-"}</td>
                           <td className="py-3 px-3 text-right font-mono font-bold text-green-400">
@@ -1489,7 +1579,7 @@ export default function LcjCoinDashboard() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-white truncate">{doc.title || doc.fileName}</div>
-                        <div className="flex items-center gap-3 text-xs text-white/30 mt-1">
+                        <div className="flex items-center gap-3 text-xs text-white/80 mt-1">
                           <Badge variant="outline" className={`text-[10px] ${doc.documentType === "financial_statement" ? "text-blue-400 border-blue-500/30" : "text-pink-400 border-pink-500/30"}`}>
                             {doc.documentType === "financial_statement" ? "財務諸表" : doc.documentType === "shareholder_registry" ? "株主名簿" : "その他"}
                           </Badge>
@@ -1509,7 +1599,7 @@ export default function LcjCoinDashboard() {
                       <div className="flex items-center gap-2 shrink-0">
                         {doc.fileUrl && (
                           <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">
-                            <Button variant="outline" size="sm" className="border-white/10 text-white/40 hover:text-white">
+                            <Button variant="outline" size="sm" className="border-white/10 text-white/80 hover:text-white">
                               <Eye className="w-4 h-4" />
                             </Button>
                           </a>
@@ -1533,7 +1623,7 @@ export default function LcjCoinDashboard() {
               </div>
             ) : (
               <NeonCard color="blue">
-                <div className="text-center py-16 text-white/30">
+                <div className="text-center py-16 text-white/80">
                   <FileText className="w-16 h-16 mx-auto mb-4 opacity-20" />
                   <p className="text-lg">まだ資料がアップロードされていません</p>
                   <p className="text-sm mt-2">試算表や株主名簿をアップロードして管理しましょう</p>
@@ -1568,7 +1658,7 @@ export default function LcjCoinDashboard() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-16 text-white/30">
+              <div className="text-center py-16 text-white/80">
                 <Award className="w-16 h-16 mx-auto mb-4 opacity-20" />
                 <p className="text-lg">バッジがまだ定義されていません</p>
                 <p className="text-sm mt-2">設定タブからバッジを作成できます</p>
@@ -1586,14 +1676,14 @@ export default function LcjCoinDashboard() {
               <h3 className="text-lg font-bold flex items-center gap-2">
                 <Users className="w-5 h-5 text-blue-400" />
                 コイン保有者一覧
-                <span className="text-sm font-normal text-white/40 ml-2">
+                <span className="text-sm font-normal text-white/80 ml-2">
                   {holdersQuery.data?.total || 0}名
                 </span>
               </h3>
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <Input
                   placeholder="名前・部署で検索..."
-                  className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-9 text-sm w-full sm:w-48"
+                  className="bg-white/5 border-white/10 text-white placeholder:text-white/80 h-9 text-sm w-full sm:w-48"
                   value={holdersSearch}
                   onChange={(e) => setHoldersSearch(e.target.value)}
                 />
@@ -1610,8 +1700,35 @@ export default function LcjCoinDashboard() {
               </div>
             </div>
 
+            {/* Tier説明セクション */}
+            {tierTemplatesQuery.data && tierTemplatesQuery.data.length > 0 && (
+              <div className="mb-6 p-4 rounded-xl bg-white/[0.03] border border-white/10">
+                <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                  <Star className="w-4 h-4 text-orange-400" />
+                  Tier説明
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2">
+                  {tierTemplatesQuery.data.filter((t: any) => t.tierType !== 'creator').map((tier: any) => (
+                    <div key={tier.id} className="p-3 rounded-lg bg-white/[0.02] border border-white/5">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge className={`text-xs px-2 py-0.5 ${TIER_COLORS[tier.tierCode] || ''}`}>
+                          {tier.tierCode}
+                        </Badge>
+                        <span className="text-sm font-medium text-white">{tier.tierName}</span>
+                      </div>
+                      <p className="text-xs text-white/80 leading-relaxed">{tier.description}</p>
+                      <p className="text-xs text-white/70 mt-1">対象: {tier.exampleRoles}</p>
+                      <div className="text-xs text-white/70 mt-1">
+                        ベスティング: {tier.vestingPeriodMonths}ヶ月 / クリフ: {tier.cliffMonths}ヶ月
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {holdersQuery.isLoading ? (
-              <div className="text-center py-16 text-white/30">
+              <div className="text-center py-16 text-white/80">
                 <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin opacity-40" />
                 <p>読み込み中...</p>
               </div>
@@ -1716,7 +1833,7 @@ export default function LcjCoinDashboard() {
                   </tbody>
                 </table>
                 {(holdersQuery.data?.holders || []).length === 0 && (
-                  <div className="text-center py-12 text-white/30">
+                  <div className="text-center py-12 text-white/80">
                     <Users className="w-12 h-12 mx-auto mb-3 opacity-20" />
                     <p>該当するメンバーがいません</p>
                   </div>
@@ -1755,7 +1872,7 @@ export default function LcjCoinDashboard() {
           <div className="space-y-6">
             <NeonCard color="blue">
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <Settings className="w-5 h-5 text-white/60" />
+                <Settings className="w-5 h-5 text-white/90" />
                 システム設定
               </h3>
               {settingsQuery.data?.length ? (
@@ -1771,13 +1888,13 @@ export default function LcjCoinDashboard() {
                     };
                     return (
                       <div key={category}>
-                        <h4 className="font-semibold text-sm mb-3 text-white/50 uppercase tracking-wider">{categoryLabels[category] || category}</h4>
+                        <h4 className="font-semibold text-sm mb-3 text-white/80 uppercase tracking-wider">{categoryLabels[category] || category}</h4>
                         <div className="space-y-2">
                           {items.map((setting: any) => (
                             <div key={setting.id} className="flex items-center gap-4 p-3 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
                               <div className="flex-1 min-w-0">
                                 <div className="font-medium text-sm text-white">{setting.settingKey}</div>
-                                <div className="text-xs text-white/30">{setting.description}</div>
+                                <div className="text-xs text-white/80">{setting.description}</div>
                               </div>
                               <Input
                                 className="w-48 h-8 text-sm bg-white/5 border-white/10 text-white"
@@ -1799,7 +1916,7 @@ export default function LcjCoinDashboard() {
                   })}
                 </div>
               ) : (
-                <div className="text-center py-12 text-white/30">
+                <div className="text-center py-12 text-white/80">
                   <Settings className="w-12 h-12 mx-auto mb-3 opacity-20" />
                   <p>設定データを読み込み中...</p>
                 </div>
@@ -1814,7 +1931,7 @@ export default function LcjCoinDashboard() {
               </h3>
               {(() => {
                 const pool = dashboard?.optionPool;
-                if (!pool) return <div className="text-center py-8 text-white/30"><p>読み込み中...</p></div>;
+                if (!pool) return <div className="text-center py-8 text-white/80"><p>読み込み中...</p></div>;
                 const usedPercent = pool.grantedPercent || 0;
                 const barColor = usedPercent >= 100 ? "bg-red-500" : usedPercent >= 80 ? "bg-orange-500" : "bg-emerald-500";
                 const textColor = usedPercent >= 100 ? "text-red-400" : usedPercent >= 80 ? "text-orange-400" : "text-emerald-400";
@@ -1822,24 +1939,24 @@ export default function LcjCoinDashboard() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-center">
-                        <div className="text-xs text-white/40 mb-1">プールサイズ</div>
+                        <div className="text-xs text-white/80 mb-1">プールサイズ</div>
                         <div className="text-2xl font-bold font-mono text-emerald-400">{Number(pool.size).toLocaleString()}</div>
-                        <div className="text-[10px] text-white/20 mt-1">発行総額の{pool.percentOfTotal}%</div>
+                        <div className="text-[10px] text-white/70 mt-1">発行総額の{pool.percentOfTotal}%</div>
                       </div>
                       <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/20 text-center">
-                        <div className="text-xs text-white/40 mb-1">付与済み</div>
+                        <div className="text-xs text-white/80 mb-1">付与済み</div>
                         <div className="text-2xl font-bold font-mono text-blue-400">{Number(pool.granted).toLocaleString()}</div>
-                        <div className="text-[10px] text-white/20 mt-1">{usedPercent.toFixed(1)}% 消費</div>
+                        <div className="text-[10px] text-white/70 mt-1">{usedPercent.toFixed(1)}% 消費</div>
                       </div>
                       <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10 text-center">
-                        <div className="text-xs text-white/40 mb-1">残り</div>
+                        <div className="text-xs text-white/80 mb-1">残り</div>
                         <div className={`text-2xl font-bold font-mono ${textColor}`}>{Number(pool.remaining).toLocaleString()}</div>
-                        <div className="text-[10px] text-white/20 mt-1">{(100 - usedPercent).toFixed(1)}% 残</div>
+                        <div className="text-[10px] text-white/70 mt-1">{(100 - usedPercent).toFixed(1)}% 残</div>
                       </div>
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1 text-xs">
-                        <span className="text-white/30">プール消費率</span>
+                        <span className="text-white/80">プール消費率</span>
                         <span className={`font-bold font-mono ${textColor}`}>{usedPercent.toFixed(1)}%</span>
                       </div>
                       <div className="relative h-4 rounded-full bg-white/5 overflow-hidden">
@@ -1849,7 +1966,7 @@ export default function LcjCoinDashboard() {
                         />
                       </div>
                     </div>
-                    <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5 text-xs text-white/30 space-y-1">
+                    <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5 text-xs text-white/80 space-y-1">
                       <p>• プールサイズは「設定」の <code className="text-emerald-400/60">option_pool_size</code> で変更可能</p>
                       <p>• コイン付与時、プール残高を超える付与はエラーになります</p>
                       <p>• 消費率80%で警告、100%で付与停止</p>
@@ -1867,7 +1984,7 @@ export default function LcjCoinDashboard() {
               </h3>
               {(() => {
                 const pool = (dashboard as any)?.creatorPool;
-                if (!pool) return <div className="text-center py-8 text-white/30"><p>読み込み中...</p></div>;
+                if (!pool) return <div className="text-center py-8 text-white/80"><p>読み込み中...</p></div>;
                 const usedPercent = pool.grantedPercent || 0;
                 const barColor = usedPercent >= 100 ? "bg-red-500" : usedPercent >= 80 ? "bg-amber-500" : "bg-violet-500";
                 const textColor = usedPercent >= 100 ? "text-red-400" : usedPercent >= 80 ? "text-amber-400" : "text-violet-400";
@@ -1875,24 +1992,24 @@ export default function LcjCoinDashboard() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="p-4 rounded-xl bg-violet-500/5 border border-violet-500/20 text-center">
-                        <div className="text-xs text-white/40 mb-1">プールサイズ</div>
+                        <div className="text-xs text-white/80 mb-1">プールサイズ</div>
                         <div className="text-2xl font-bold font-mono text-violet-400">{Number(pool.size).toLocaleString()}</div>
-                        <div className="text-[10px] text-white/20 mt-1">発行総額の{pool.percentOfTotal.toFixed(1)}%</div>
+                        <div className="text-[10px] text-white/70 mt-1">発行総額の{pool.percentOfTotal.toFixed(1)}%</div>
                       </div>
                       <div className="p-4 rounded-xl bg-pink-500/5 border border-pink-500/20 text-center">
-                        <div className="text-xs text-white/40 mb-1">付与済み</div>
+                        <div className="text-xs text-white/80 mb-1">付与済み</div>
                         <div className="text-2xl font-bold font-mono text-pink-400">{Number(pool.granted).toLocaleString()}</div>
-                        <div className="text-[10px] text-white/20 mt-1">{usedPercent.toFixed(1)}% 消費</div>
+                        <div className="text-[10px] text-white/70 mt-1">{usedPercent.toFixed(1)}% 消費</div>
                       </div>
                       <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10 text-center">
-                        <div className="text-xs text-white/40 mb-1">残り</div>
+                        <div className="text-xs text-white/80 mb-1">残り</div>
                         <div className={`text-2xl font-bold font-mono ${textColor}`}>{Number(pool.remaining).toLocaleString()}</div>
-                        <div className="text-[10px] text-white/20 mt-1">{(100 - usedPercent).toFixed(1)}% 残</div>
+                        <div className="text-[10px] text-white/70 mt-1">{(100 - usedPercent).toFixed(1)}% 残</div>
                       </div>
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1 text-xs">
-                        <span className="text-white/30">プール消費率</span>
+                        <span className="text-white/80">プール消費率</span>
                         <span className={`font-bold font-mono ${textColor}`}>{usedPercent.toFixed(1)}%</span>
                       </div>
                       <div className="relative h-4 rounded-full bg-white/5 overflow-hidden">
@@ -1902,7 +2019,7 @@ export default function LcjCoinDashboard() {
                         />
                       </div>
                     </div>
-                    <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5 text-xs text-white/30 space-y-1">
+                    <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5 text-xs text-white/80 space-y-1">
                       <p>• ライバーへのコイン付与はこのプールから差し引かれます（スタッフ用とは完全別枚）</p>
                       <p>• プールサイズは「設定」の <code className="text-violet-400/60">creator_pool_size</code> で変更可能</p>
                       <p>• ライバーには「Tier L-S / L-A」のトリガーベース付与を推奨</p>
@@ -1924,12 +2041,12 @@ export default function LcjCoinDashboard() {
                     <div key={season.id} className="flex items-center gap-4 p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors">
                       <div className="flex-1">
                         <div className="font-medium text-white">{season.name}</div>
-                        <div className="text-sm text-white/40">{season.description}</div>
-                        <div className="text-xs text-white/30 mt-1 font-mono">
+                        <div className="text-sm text-white/80">{season.description}</div>
+                        <div className="text-xs text-white/80 mt-1 font-mono">
                           {new Date(season.startDate).toLocaleDateString("ja-JP")} 〜 {new Date(season.endDate).toLocaleDateString("ja-JP")}
                         </div>
                       </div>
-                      <Badge className={`${season.status === "active" ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-white/5 text-white/40 border-white/10"}`}>
+                      <Badge className={`${season.status === "active" ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-white/5 text-white/80 border-white/10"}`}>
                         {season.status === "active" ? "アクティブ" : season.status === "upcoming" ? "予定" : "終了"}
                       </Badge>
                       <div className="text-sm font-bold text-orange-400 font-mono">×{season.bonusMultiplier}</div>
@@ -1937,7 +2054,7 @@ export default function LcjCoinDashboard() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-white/30">
+                <div className="text-center py-8 text-white/80">
                   <Flame className="w-10 h-10 mx-auto mb-3 opacity-20" />
                   <p>シーズンがまだ作成されていません</p>
                 </div>
@@ -1962,7 +2079,7 @@ export default function LcjCoinDashboard() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label className="text-white/60">対象タイプ</Label>
+              <Label className="text-white/90">対象タイプ</Label>
               <Select value={grantForm.holderType} onValueChange={(v: any) => setGrantForm(f => ({ ...f, holderType: v, holderId: 0 }))}>
                 <SelectTrigger className="bg-white/5 border-white/10 text-white">
                   <SelectValue />
@@ -1974,7 +2091,7 @@ export default function LcjCoinDashboard() {
               </Select>
             </div>
             <div>
-              <Label className="text-white/60">対象者</Label>
+              <Label className="text-white/90">対象者</Label>
               <Select value={String(grantForm.holderId)} onValueChange={(v) => setGrantForm(f => ({ ...f, holderId: Number(v) }))}>
                 <SelectTrigger className="bg-white/5 border-white/10 text-white">
                   <SelectValue placeholder="選択してください" />
@@ -1987,7 +2104,7 @@ export default function LcjCoinDashboard() {
               </Select>
             </div>
             <div>
-              <Label className="text-white/60">コイン数</Label>
+              <Label className="text-white/90">コイン数</Label>
               <Input
                 type="number"
                 className="bg-white/5 border-white/10 text-white"
@@ -2008,7 +2125,7 @@ export default function LcjCoinDashboard() {
                   <div className={`mt-2 p-2 rounded-lg text-xs flex items-center gap-2 ${
                     exceeds
                       ? 'bg-red-500/10 border border-red-500/20 text-red-400'
-                      : `bg-white/[0.03] border border-white/5 text-white/40`
+                      : `bg-white/[0.03] border border-white/5 text-white/80`
                   }`}>
                     <Icon className="w-3.5 h-3.5 shrink-0" />
                     <span>{poolLabel}残: <span className="font-mono font-bold">{remaining.toLocaleString()}</span> コイン</span>
@@ -2018,7 +2135,7 @@ export default function LcjCoinDashboard() {
               })()}
             </div>
             <div>
-              <Label className="text-white/60">ベスティングタイプ</Label>
+              <Label className="text-white/90">ベスティングタイプ</Label>
               <Select value={grantForm.vestingType} onValueChange={(v: any) => setGrantForm(f => ({ ...f, vestingType: v }))}>
                 <SelectTrigger className="bg-white/5 border-white/10 text-white">
                   <SelectValue />
@@ -2032,7 +2149,7 @@ export default function LcjCoinDashboard() {
               </Select>
             </div>
             <div>
-              <Label className="text-white/60">理由（任意）</Label>
+              <Label className="text-white/90">理由（任意）</Label>
               <Textarea
                 className="bg-white/5 border-white/10 text-white"
                 value={grantForm.reason}
@@ -2043,7 +2160,7 @@ export default function LcjCoinDashboard() {
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline" className="border-white/10 text-white/60 hover:bg-white/5">キャンセル</Button>
+              <Button variant="outline" className="border-white/10 text-white/90 hover:bg-white/5">キャンセル</Button>
             </DialogClose>
             <Button
               className="bg-gradient-to-r from-orange-500 to-red-600 text-white"
@@ -2067,7 +2184,7 @@ export default function LcjCoinDashboard() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label className="text-white/60">年月</Label>
+              <Label className="text-white/90">年月</Label>
               <Input
                 type="month"
                 className="bg-white/5 border-white/10 text-white"
@@ -2076,7 +2193,7 @@ export default function LcjCoinDashboard() {
               />
             </div>
             <div>
-              <Label className="text-white/60">月間売上（円）</Label>
+              <Label className="text-white/90">月間売上（円）</Label>
               <Input
                 type="number"
                 className="bg-white/5 border-white/10 text-white"
@@ -2085,7 +2202,7 @@ export default function LcjCoinDashboard() {
               />
             </div>
             <div>
-              <Label className="text-white/60">メモ（任意）</Label>
+              <Label className="text-white/90">メモ（任意）</Label>
               <Textarea
                 className="bg-white/5 border-white/10 text-white"
                 value={valuationForm.notes}
@@ -2095,7 +2212,7 @@ export default function LcjCoinDashboard() {
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline" className="border-white/10 text-white/60 hover:bg-white/5">キャンセル</Button>
+              <Button variant="outline" className="border-white/10 text-white/90 hover:bg-white/5">キャンセル</Button>
             </DialogClose>
             <Button
               className="bg-gradient-to-r from-blue-500 to-cyan-600 text-white"
@@ -2119,14 +2236,14 @@ export default function LcjCoinDashboard() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5">
-              <div className="text-sm text-white/50 mb-1">対象人数</div>
+              <div className="text-sm text-white/80 mb-1">対象人数</div>
               <div className="text-2xl font-bold text-green-400 font-mono">{totalStaffAndLivers}名</div>
-              <div className="text-xs text-white/30 mt-1">
+              <div className="text-xs text-white/80 mt-1">
                 スタッフ {targetsQuery.data?.staff?.length || 0}名 + ライバー {targetsQuery.data?.livers?.length || 0}名
               </div>
             </div>
             <div>
-              <Label className="text-white/60">1人あたりのコイン数</Label>
+              <Label className="text-white/90">1人あたりのコイン数</Label>
               <Input
                 type="number"
                 className="bg-white/5 border-white/10 text-white"
@@ -2154,7 +2271,7 @@ export default function LcjCoinDashboard() {
                     const exceeds = needed > remaining;
                     return (
                       <div className={`p-3 rounded-xl text-sm flex items-center gap-3 ${
-                        exceeds ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-emerald-500/5 border border-emerald-500/20 text-white/50'
+                        exceeds ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-emerald-500/5 border border-emerald-500/20 text-white/80'
                       }`}>
                         <Target className="w-4 h-4 shrink-0" />
                         <div>
@@ -2170,7 +2287,7 @@ export default function LcjCoinDashboard() {
                     const exceeds = needed > remaining;
                     return (
                       <div className={`p-3 rounded-xl text-sm flex items-center gap-3 ${
-                        exceeds ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-violet-500/5 border border-violet-500/20 text-white/50'
+                        exceeds ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-violet-500/5 border border-violet-500/20 text-white/80'
                       }`}>
                         <Sparkles className="w-4 h-4 shrink-0" />
                         <div>
@@ -2186,7 +2303,7 @@ export default function LcjCoinDashboard() {
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline" className="border-white/10 text-white/60 hover:bg-white/5">キャンセル</Button>
+              <Button variant="outline" className="border-white/10 text-white/90 hover:bg-white/5">キャンセル</Button>
             </DialogClose>
             <Button
               className="bg-gradient-to-r from-green-500 to-emerald-600 text-white"
@@ -2210,7 +2327,7 @@ export default function LcjCoinDashboard() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label className="text-white/60">資料タイプ</Label>
+              <Label className="text-white/90">資料タイプ</Label>
               <Select value={uploadForm.documentType} onValueChange={(v: any) => setUploadForm(f => ({ ...f, documentType: v }))}>
                 <SelectTrigger className="bg-white/5 border-white/10 text-white">
                   <SelectValue />
@@ -2224,7 +2341,7 @@ export default function LcjCoinDashboard() {
             </div>
 
             <div>
-              <Label className="text-white/60">タイトル</Label>
+              <Label className="text-white/90">タイトル</Label>
               <Input
                 className="bg-white/5 border-white/10 text-white"
                 value={uploadForm.title}
@@ -2234,7 +2351,7 @@ export default function LcjCoinDashboard() {
             </div>
 
             <div>
-              <Label className="text-white/60">ファイル</Label>
+              <Label className="text-white/90">ファイル</Label>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -2250,13 +2367,13 @@ export default function LcjCoinDashboard() {
                   <div>
                     <FileText className="w-8 h-8 mx-auto mb-2 text-blue-400" />
                     <p className="text-white font-medium">{selectedFile.name}</p>
-                    <p className="text-xs text-white/30 mt-1">{(selectedFile.size / 1024).toFixed(0)} KB</p>
+                    <p className="text-xs text-white/80 mt-1">{(selectedFile.size / 1024).toFixed(0)} KB</p>
                   </div>
                 ) : (
                   <div>
-                    <Upload className="w-8 h-8 mx-auto mb-2 text-white/20" />
-                    <p className="text-white/40">クリックしてファイルを選択</p>
-                    <p className="text-xs text-white/20 mt-1">PDF, Excel, CSV, Word対応</p>
+                    <Upload className="w-8 h-8 mx-auto mb-2 text-white/70" />
+                    <p className="text-white/80">クリックしてファイルを選択</p>
+                    <p className="text-xs text-white/70 mt-1">PDF, Excel, CSV, Word対応</p>
                   </div>
                 )}
               </div>
@@ -2266,7 +2383,7 @@ export default function LcjCoinDashboard() {
               <>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-white/60">期間開始</Label>
+                    <Label className="text-white/90">期間開始</Label>
                     <Input
                       type="date"
                       className="bg-white/5 border-white/10 text-white"
@@ -2275,7 +2392,7 @@ export default function LcjCoinDashboard() {
                     />
                   </div>
                   <div>
-                    <Label className="text-white/60">期間終了</Label>
+                    <Label className="text-white/90">期間終了</Label>
                     <Input
                       type="date"
                       className="bg-white/5 border-white/10 text-white"
@@ -2286,7 +2403,7 @@ export default function LcjCoinDashboard() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-white/60">売上高（円）</Label>
+                    <Label className="text-white/90">売上高（円）</Label>
                     <Input
                       type="number"
                       className="bg-white/5 border-white/10 text-white"
@@ -2295,7 +2412,7 @@ export default function LcjCoinDashboard() {
                     />
                   </div>
                   <div>
-                    <Label className="text-white/60">純利益（円）</Label>
+                    <Label className="text-white/90">純利益（円）</Label>
                     <Input
                       type="number"
                       className="bg-white/5 border-white/10 text-white"
@@ -2306,7 +2423,7 @@ export default function LcjCoinDashboard() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-white/60">総資産（円）</Label>
+                    <Label className="text-white/90">総資産（円）</Label>
                     <Input
                       type="number"
                       className="bg-white/5 border-white/10 text-white"
@@ -2315,7 +2432,7 @@ export default function LcjCoinDashboard() {
                     />
                   </div>
                   <div>
-                    <Label className="text-white/60">純資産（円）</Label>
+                    <Label className="text-white/90">純資産（円）</Label>
                     <Input
                       type="number"
                       className="bg-white/5 border-white/10 text-white"
@@ -2328,7 +2445,7 @@ export default function LcjCoinDashboard() {
             )}
 
             <div>
-              <Label className="text-white/60">メモ（任意）</Label>
+              <Label className="text-white/90">メモ（任意）</Label>
               <Textarea
                 className="bg-white/5 border-white/10 text-white"
                 value={uploadForm.notes}
@@ -2338,7 +2455,7 @@ export default function LcjCoinDashboard() {
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline" className="border-white/10 text-white/60 hover:bg-white/5">キャンセル</Button>
+              <Button variant="outline" className="border-white/10 text-white/90 hover:bg-white/5">キャンセル</Button>
             </DialogClose>
             <Button
               className="bg-gradient-to-r from-blue-500 to-cyan-600 text-white"
@@ -2352,7 +2469,7 @@ export default function LcjCoinDashboard() {
       </Dialog>
 
       {/* Footer */}
-      <footer className="relative z-10 border-t border-white/5 mt-16 py-6 text-center text-xs text-white/20">
+      <footer className="relative z-10 border-t border-white/5 mt-16 py-6 text-center text-xs text-white/70">
         <p>LCJ Coin — Phantom Stock Reward System — Live Commerce Japan Inc.</p>
         <p className="mt-1">IR情報: <a href="https://livecommercejapan.jp/ir" target="_blank" rel="noopener" className="text-orange-400/50 hover:text-orange-400 transition-colors">livecommercejapan.jp/ir</a></p>
       </footer>

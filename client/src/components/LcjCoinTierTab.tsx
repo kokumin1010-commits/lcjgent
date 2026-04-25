@@ -151,7 +151,7 @@ export default function LcjCoinTierTab() {
                     />
                     <div className="grid grid-cols-4 gap-2">
                       <div>
-                        <Label className="text-[10px] text-white/40">係数(%)</Label>
+                        <Label className="text-[10px] text-white/80">係数(%)</Label>
                         <Input
                           type="number"
                           className="bg-white/5 border-white/10 text-white h-8 text-sm"
@@ -160,7 +160,7 @@ export default function LcjCoinTierTab() {
                         />
                       </div>
                       <div>
-                        <Label className="text-[10px] text-white/40">ベスティング(月)</Label>
+                        <Label className="text-[10px] text-white/80">ベスティング(月)</Label>
                         <Input
                           type="number"
                           className="bg-white/5 border-white/10 text-white h-8 text-sm"
@@ -169,7 +169,7 @@ export default function LcjCoinTierTab() {
                         />
                       </div>
                       <div>
-                        <Label className="text-[10px] text-white/40">クリフ(月)</Label>
+                        <Label className="text-[10px] text-white/80">クリフ(月)</Label>
                         <Input
                           type="number"
                           className="bg-white/5 border-white/10 text-white h-8 text-sm"
@@ -181,7 +181,7 @@ export default function LcjCoinTierTab() {
                         <Button size="sm" className="h-8 bg-orange-500 hover:bg-orange-600 text-white" onClick={saveEdit} disabled={upsertMutation.isPending}>
                           {upsertMutation.isPending ? "保存中..." : "保存"}
                         </Button>
-                        <Button size="sm" variant="outline" className="h-8 border-white/10 text-white/60" onClick={() => { setEditingTier(null); setEditForm(null); }}>
+                        <Button size="sm" variant="outline" className="h-8 border-white/10 text-white/90" onClick={() => { setEditingTier(null); setEditForm(null); }}>
                           取消
                         </Button>
                       </div>
@@ -194,8 +194,8 @@ export default function LcjCoinTierTab() {
                     </Badge>
                     <div className="flex-1">
                       <div className="font-medium text-white">{tier.tierName}</div>
-                      <div className="text-xs text-white/40 mt-0.5">{tier.description}</div>
-                      <div className="text-xs text-white/30 mt-1">
+                      <div className="text-xs text-white/80 mt-0.5">{tier.description}</div>
+                      <div className="text-xs text-white/80 mt-1">
                         対象例: {tier.exampleRoles}
                       </div>
                     </div>
@@ -203,16 +203,16 @@ export default function LcjCoinTierTab() {
                       <div className="text-2xl font-bold font-mono text-orange-400">
                         {Number(tier.salaryCoefficient)}%
                       </div>
-                      <div className="text-xs text-white/30">年収に対する係数</div>
+                      <div className="text-xs text-white/80">年収に対する係数</div>
                     </div>
-                    <div className="text-right text-xs text-white/40">
+                    <div className="text-right text-xs text-white/80">
                       <div>ベスティング: {tier.vestingPeriodMonths}ヶ月</div>
                       <div>クリフ: {tier.cliffMonths}ヶ月</div>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-white/30 hover:text-white hover:bg-white/5"
+                      className="text-white/80 hover:text-white hover:bg-white/5"
                       onClick={() => startEdit(tier)}
                     >
                       <Edit className="w-4 h-4" />
@@ -223,7 +223,7 @@ export default function LcjCoinTierTab() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 text-white/30">
+          <div className="text-center py-12 text-white/80">
             <Star className="w-12 h-12 mx-auto mb-3 opacity-20" />
             <p>Tierテンプレートを読み込み中...</p>
           </div>
@@ -273,7 +273,7 @@ export default function LcjCoinTierTab() {
                     />
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <Label className="text-[10px] text-white/40">ベスティング(月)</Label>
+                        <Label className="text-[10px] text-white/80">ベスティング(月)</Label>
                         <Input
                           type="number"
                           className="bg-white/5 border-white/10 text-white h-8 text-sm"
@@ -282,7 +282,7 @@ export default function LcjCoinTierTab() {
                         />
                       </div>
                       <div>
-                        <Label className="text-[10px] text-white/40">クリフ(月)</Label>
+                        <Label className="text-[10px] text-white/80">クリフ(月)</Label>
                         <Input
                           type="number"
                           className="bg-white/5 border-white/10 text-white h-8 text-sm"
@@ -294,7 +294,7 @@ export default function LcjCoinTierTab() {
                         <Button size="sm" className="h-8 bg-violet-500 hover:bg-violet-600 text-white" onClick={saveEdit} disabled={upsertMutation.isPending}>
                           {upsertMutation.isPending ? "保存中..." : "保存"}
                         </Button>
-                        <Button size="sm" variant="outline" className="h-8 border-white/10 text-white/60" onClick={() => { setEditingTier(null); setEditForm(null); }}>
+                        <Button size="sm" variant="outline" className="h-8 border-white/10 text-white/90" onClick={() => { setEditingTier(null); setEditForm(null); }}>
                           取消
                         </Button>
                       </div>
@@ -307,12 +307,12 @@ export default function LcjCoinTierTab() {
                     </Badge>
                     <div className="flex-1">
                       <div className="font-medium text-white">{tier.tierName}</div>
-                      <div className="text-xs text-white/40 mt-0.5">{tier.description}</div>
-                      <div className="text-xs text-white/30 mt-1">
+                      <div className="text-xs text-white/80 mt-0.5">{tier.description}</div>
+                      <div className="text-xs text-white/80 mt-1">
                         対象例: {tier.exampleRoles}
                       </div>
                     </div>
-                    <div className="text-right text-xs text-white/40">
+                    <div className="text-right text-xs text-white/80">
                       <div>ベスティング: {tier.vestingPeriodMonths}ヶ月</div>
                       <div>クリフ: {tier.cliffMonths}ヶ月</div>
                       <div className="text-violet-400 mt-1">トリガーベース付与</div>
@@ -320,7 +320,7 @@ export default function LcjCoinTierTab() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-white/30 hover:text-white hover:bg-white/5"
+                      className="text-white/80 hover:text-white hover:bg-white/5"
                       onClick={() => startEdit(tier)}
                     >
                       <Edit className="w-4 h-4" />
@@ -331,13 +331,13 @@ export default function LcjCoinTierTab() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-8 text-white/30">
+          <div className="text-center py-8 text-white/80">
             <Sparkles className="w-10 h-10 mx-auto mb-3 opacity-20" />
             <p>ライバー用Tierを読み込み中...</p>
           </div>
         )}
 
-        <div className="mt-4 p-3 rounded-lg bg-violet-500/5 border border-violet-500/20 text-xs text-white/40 space-y-1">
+        <div className="mt-4 p-3 rounded-lg bg-violet-500/5 border border-violet-500/20 text-xs text-white/80 space-y-1">
           <p className="text-violet-400 font-medium">ライバーTierの運用方針</p>
           <p>• L-S: メガブランド獲得・月間GMVトップ達成時に固定コインをスポット付与</p>
           <p>• L-A: 配信回数・GMV基準達成時に少額コインを付与</p>
@@ -357,22 +357,22 @@ export default function LcjCoinTierTab() {
             <div className="text-orange-400">
               付与コイン数 = (年収 × Tier係数) ÷ 現在の1コイン価格
             </div>
-            <div className="text-white/30 text-xs">
+            <div className="text-white/80 text-xs">
               例: 年収500万 × Tier B(12%) ÷ ¥46.86 = 12,804コイン
             </div>
           </div>
         </div>
         <div className="mt-4 grid grid-cols-3 gap-3 text-center">
           <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5">
-            <div className="text-xs text-white/40 mb-1">年収</div>
+            <div className="text-xs text-white/80 mb-1">年収</div>
             <div className="text-sm font-mono text-white">スタッフの年収</div>
           </div>
           <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5">
-            <div className="text-xs text-white/40 mb-1">× Tier係数</div>
+            <div className="text-xs text-white/80 mb-1">× Tier係数</div>
             <div className="text-sm font-mono text-orange-400">S:80% A:30% B:12% C:5% D:2%</div>
           </div>
           <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5">
-            <div className="text-xs text-white/40 mb-1">÷ コイン価格</div>
+            <div className="text-xs text-white/80 mb-1">÷ コイン価格</div>
             <div className="text-sm font-mono text-blue-400">リアルタイム算出</div>
           </div>
         </div>
@@ -389,7 +389,7 @@ export default function LcjCoinTierTab() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label className="text-white/60">年収（円）</Label>
+              <Label className="text-white/90">年収（円）</Label>
               <Input
                 type="number"
                 className="bg-white/5 border-white/10 text-white"
@@ -398,7 +398,7 @@ export default function LcjCoinTierTab() {
               />
             </div>
             <div>
-              <Label className="text-white/60">Tier</Label>
+              <Label className="text-white/90">Tier</Label>
               <Select value={calcForm.tierCode} onValueChange={(v) => setCalcForm(f => ({ ...f, tierCode: v }))}>
                 <SelectTrigger className="bg-white/5 border-white/10 text-white">
                   <SelectValue />
@@ -416,29 +416,29 @@ export default function LcjCoinTierTab() {
             {calcResult && (
               <div className="p-4 rounded-xl bg-gradient-to-br from-orange-500/10 to-red-500/10 border border-orange-500/20 space-y-3">
                 <div className="text-center">
-                  <div className="text-xs text-white/40 mb-1">付与コイン数</div>
+                  <div className="text-xs text-white/80 mb-1">付与コイン数</div>
                   <div className="text-3xl font-bold font-mono text-orange-400">
                     {calcResult.coinAmount.toLocaleString()}
                   </div>
-                  <div className="text-sm text-white/40 mt-1">
+                  <div className="text-sm text-white/80 mt-1">
                     = {formatYen(calcResult.grantValueJpy)} 相当
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="p-2 rounded bg-white/[0.03]">
-                    <span className="text-white/40">年収:</span>
+                    <span className="text-white/80">年収:</span>
                     <span className="text-white ml-1">{formatYen(calcResult.annualSalary)}</span>
                   </div>
                   <div className="p-2 rounded bg-white/[0.03]">
-                    <span className="text-white/40">係数:</span>
+                    <span className="text-white/80">係数:</span>
                     <span className="text-orange-400 ml-1">{(calcResult.coefficient * 100).toFixed(0)}%</span>
                   </div>
                   <div className="p-2 rounded bg-white/[0.03]">
-                    <span className="text-white/40">1コイン:</span>
+                    <span className="text-white/80">1コイン:</span>
                     <span className="text-blue-400 ml-1">{formatYen(calcResult.coinPrice)}</span>
                   </div>
                   <div className="p-2 rounded bg-white/[0.03]">
-                    <span className="text-white/40">ベスティング:</span>
+                    <span className="text-white/80">ベスティング:</span>
                     <span className="text-white ml-1">{calcResult.vestingPeriodMonths}ヶ月</span>
                   </div>
                 </div>
@@ -447,7 +447,7 @@ export default function LcjCoinTierTab() {
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline" className="border-white/10 text-white/60 hover:bg-white/5">閉じる</Button>
+              <Button variant="outline" className="border-white/10 text-white/90 hover:bg-white/5">閉じる</Button>
             </DialogClose>
           </DialogFooter>
         </DialogContent>

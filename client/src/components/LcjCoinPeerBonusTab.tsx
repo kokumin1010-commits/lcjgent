@@ -71,7 +71,7 @@ export default function LcjCoinPeerBonusTab({ staffList, liverList }: {
           {/* Left: Form */}
           <div className="space-y-4">
             <div>
-              <Label className="text-white/60 text-xs">送信者</Label>
+              <Label className="text-white/90 text-xs">送信者</Label>
               <div className="flex gap-2 mt-1">
                 <Select value={senderType} onValueChange={(v: any) => { setSenderType(v); setSenderId(0); }}>
                   <SelectTrigger className="w-28 bg-white/5 border-white/10 text-white text-sm">
@@ -98,7 +98,7 @@ export default function LcjCoinPeerBonusTab({ staffList, liverList }: {
             </div>
 
             <div>
-              <Label className="text-white/60 text-xs">送り先</Label>
+              <Label className="text-white/90 text-xs">送り先</Label>
               <div className="flex gap-2 mt-1">
                 <Select value={receiverType} onValueChange={(v: any) => { setReceiverType(v); setReceiverId(0); }}>
                   <SelectTrigger className="w-28 bg-white/5 border-white/10 text-white text-sm">
@@ -125,7 +125,7 @@ export default function LcjCoinPeerBonusTab({ staffList, liverList }: {
             </div>
 
             <div>
-              <Label className="text-white/60 text-xs">コイン数（上限: 50）</Label>
+              <Label className="text-white/90 text-xs">コイン数（上限: 50）</Label>
               <Input
                 type="number"
                 min={1}
@@ -137,7 +137,7 @@ export default function LcjCoinPeerBonusTab({ staffList, liverList }: {
             </div>
 
             <div>
-              <Label className="text-white/60 text-xs">メッセージ（必須）</Label>
+              <Label className="text-white/90 text-xs">メッセージ（必須）</Label>
               <Textarea
                 className="bg-white/5 border-white/10 text-white mt-1"
                 value={message}
@@ -169,18 +169,18 @@ export default function LcjCoinPeerBonusTab({ staffList, liverList }: {
             {pool && senderId > 0 ? (
               <>
                 <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5 text-center">
-                  <div className="text-xs text-white/40 mb-2">今月の残りプール</div>
+                  <div className="text-xs text-white/80 mb-2">今月の残りプール</div>
                   <div className="text-4xl font-bold font-mono text-pink-400">
                     {pool.remaining}
                   </div>
-                  <div className="text-xs text-white/30 mt-1">/ {pool.monthlyPool} コイン</div>
+                  <div className="text-xs text-white/80 mt-1">/ {pool.monthlyPool} コイン</div>
                   <div className="w-full h-2 bg-white/5 rounded-full mt-3 overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-pink-500 to-rose-500 rounded-full transition-all"
                       style={{ width: `${(pool.remaining / pool.monthlyPool) * 100}%` }}
                     />
                   </div>
-                  <div className="text-xs text-white/30 mt-2">使用済み: {pool.used}コイン</div>
+                  <div className="text-xs text-white/80 mt-2">使用済み: {pool.used}コイン</div>
                 </div>
                 <div className="p-3 rounded-lg bg-pink-500/10 border border-pink-500/20">
                   <p className="text-xs text-pink-400">
@@ -191,7 +191,7 @@ export default function LcjCoinPeerBonusTab({ staffList, liverList }: {
             ) : (
               <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5 text-center py-12">
                 <Gift className="w-12 h-12 mx-auto mb-3 text-white/10" />
-                <p className="text-white/30 text-sm">送信者を選択すると残りプールが表示されます</p>
+                <p className="text-white/80 text-sm">送信者を選択すると残りプールが表示されます</p>
               </div>
             )}
           </div>
@@ -215,14 +215,14 @@ export default function LcjCoinPeerBonusTab({ staffList, liverList }: {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-white text-sm">{b.senderName}</span>
-                    <span className="text-white/30">→</span>
+                    <span className="text-white/80">→</span>
                     <span className="font-medium text-white text-sm">{b.receiverName}</span>
                     <Badge className="bg-pink-500/20 text-pink-400 border-pink-500/30 text-xs">
                       +{b.coinAmount} <Coins className="w-3 h-3 ml-0.5 inline" />
                     </Badge>
                   </div>
-                  <p className="text-sm text-white/60 mt-1">「{b.message}」</p>
-                  <div className="text-xs text-white/20 mt-1">
+                  <p className="text-sm text-white/90 mt-1">「{b.message}」</p>
+                  <div className="text-xs text-white/70 mt-1">
                     {new Date(b.createdAt).toLocaleDateString("ja-JP")} {new Date(b.createdAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
                   </div>
                 </div>
@@ -230,7 +230,7 @@ export default function LcjCoinPeerBonusTab({ staffList, liverList }: {
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 text-white/30">
+          <div className="text-center py-12 text-white/80">
             <Heart className="w-12 h-12 mx-auto mb-3 opacity-20" />
             <p>まだピアボーナスの送受信がありません</p>
             <p className="text-xs mt-1">最初のピアボーナスを送ってみましょう！</p>
