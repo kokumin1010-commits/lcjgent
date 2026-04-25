@@ -608,7 +608,7 @@ import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
 import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts } from "../drizzle/schema";
-import { eq, and, not, isNotNull, isNull, desc, gt, gte, lte, inArray, sql as sqlTag, sum } from "drizzle-orm";
+import { eq, and, or, not, isNotNull, isNull, desc, gt, gte, lte, inArray, sql as sqlTag, sum } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
@@ -10336,6 +10336,27 @@ ${conversationText}
             try {
               const db2 = await getDb();
               if (!db2) return;
+
+              // デフォルトルームを取得 or 作成（神コーチメッセージをルームに紐付けるため）
+              let defaultRoomId: number | null = null;
+              const existingRooms = await db2
+                .select()
+                .from(aiCoachRooms)
+                .where(and(eq(aiCoachRooms.liverId, input.liverId), isNull(aiCoachRooms.deletedAt)))
+                .orderBy(desc(aiCoachRooms.lastMessageAt))
+                .limit(1);
+              if (existingRooms.length > 0) {
+                defaultRoomId = existingRooms[0].id;
+              } else {
+                // ルームがない場合は自動作成
+                const [newRoom] = await db2.insert(aiCoachRooms).values({
+                  liverId: input.liverId,
+                  title: '配信フィードバック',
+                });
+                defaultRoomId = (newRoom as any).insertId;
+                console.log(`[AI Coach] Created default room ${defaultRoomId} for liver ${input.liverId}`);
+              }
+
               // Collect livestream data for AI context
               const salesAmount = input.salesAmount || 0;
               const duration = input.duration || 0;
@@ -10398,6 +10419,7 @@ ${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
               if (aiContent) {
                 await db2.insert(aiCoachMessages).values({
                   liverId: input.liverId,
+                  roomId: defaultRoomId,
                   role: 'ai',
                   content: aiContent,
                   messageType: 'auto_question',
@@ -10413,7 +10435,11 @@ ${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
                     date: dateStr,
                   },
                 });
-                console.log(`[AI Coach] Auto question generated for liver ${input.liverId}`);
+                // ルームのlastMessageAtを更新
+                if (defaultRoomId) {
+                  await db2.update(aiCoachRooms).set({ lastMessageAt: new Date() }).where(eq(aiCoachRooms.id, defaultRoomId));
+                }
+                console.log(`[AI Coach] Auto question generated for liver ${input.liverId} in room ${defaultRoomId}`);
               }
             } catch (err) {
               console.error('[AI Coach] Failed to generate auto question:', err);
@@ -11629,7 +11655,8 @@ ${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProduc
           
           const conditions = [eq(aiCoachMessages.liverId, input.liverId)];
           if (input.roomId) {
-            conditions.push(eq(aiCoachMessages.roomId, input.roomId));
+            // roomIdが指定されたルームのメッセージ OR roomIdがnullのレガシーメッセージも含める
+            conditions.push(or(eq(aiCoachMessages.roomId, input.roomId), isNull(aiCoachMessages.roomId))!);
           }
           if (input.beforeId) {
             conditions.push(sqlTag`${aiCoachMessages.id} < ${input.beforeId}`);
