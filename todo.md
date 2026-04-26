@@ -7031,3 +7031,34 @@
 - [ ] 本番検証
 - [x] モバイル余白をさらに圧縮（プロセスステップカード、全セクション）
 - [x] FINAL CTAセクション（カウントダウン＋ラッキー＋完全無料＋CTA）をヒーロー最上部に移動
+
+
+## ブランド契約ノルマの完全構造化
+### Phase 1: DBスキーマ拡張
+- [ ] brandContractsに新カラム追加:
+  - `kgLiveFrequency` (int) - KG月間配信回数
+  - `kgLiveMinutesPerSession` (int) - KG 1回あたりの配信時間（分）
+  - `liverLiveAssignments` (JSON text) - 达人別ノルマ [{liverName, minutesPerMonth}]
+  - `shortVideoAssignments` (JSON text) - 达人別短視頻 [{liverName, countPerMonth}]
+- [ ] drizzle/schema.ts更新
+- [ ] マイグレーション実行
+
+### Phase 2: バックエンド API更新
+- [ ] brandContract.create/update に新フィールド対応
+- [ ] getQuotaProgress を KOL別進捗に拡張
+
+### Phase 3: フロントエンド - 契約編集フォーム構造化
+- [ ] KG老师: 配信時間を15分刻みSelect（0.25h〜10h）
+- [ ] KG老师: 配信頻度を選択式（1回/月、2回/月...）
+- [ ] 达人直播: ライバー一覧から複数選択 + 各KOLごとに時間設定
+- [ ] 短视频: ライバー選択 + 本数設定
+- [ ] 全体の月間合計を自動計算表示
+
+### Phase 4: フロントエンド - ノルマ進捗ダッシュボード
+- [ ] BrandDetail.tsx: KOL別の進捗プログレスバー
+- [ ] BrandList.tsx: ブランド司令塔でもノルマ進捗表示
+
+### Phase 5: スケジュール連携 + AI提案
+- [ ] スケジュール30分単位入力
+- [ ] スケジュール追加時にブランドノルマ残り表示
+- [ ] AI提案でノルマありブランド優先

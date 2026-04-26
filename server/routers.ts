@@ -611,6 +611,7 @@ import {
   getTopProductsForSuggestion,
   getRecentSetsForSuggestion,
   getLiverMonthlySummaryForSuggestion,
+  getQuotaBrandsForLiver,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -7908,6 +7909,10 @@ Return ONLY valid JSON, no markdown or explanation.`,
           kgLiveHoursQuota: z.number().nullable().optional(),
           liverLiveHoursQuota: z.number().nullable().optional(),
           shortVideoCountQuota: z.number().nullable().optional(),
+          kgLiveFrequency: z.number().nullable().optional(),
+          kgLiveMinutesPerSession: z.number().nullable().optional(),
+          liverLiveAssignments: z.array(z.object({ liverName: z.string(), minutesPerMonth: z.number() })).nullable().optional(),
+          shortVideoAssignments: z.array(z.object({ liverName: z.string(), countPerMonth: z.number() })).nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -7985,6 +7990,10 @@ Return ONLY valid JSON, no markdown or explanation.`,
           kgLiveHoursQuota: z.number().nullable().optional(),
           liverLiveHoursQuota: z.number().nullable().optional(),
           shortVideoCountQuota: z.number().nullable().optional(),
+          kgLiveFrequency: z.number().nullable().optional(),
+          kgLiveMinutesPerSession: z.number().nullable().optional(),
+          liverLiveAssignments: z.array(z.object({ liverName: z.string(), minutesPerMonth: z.number() })).nullable().optional(),
+          shortVideoAssignments: z.array(z.object({ liverName: z.string(), countPerMonth: z.number() })).nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -8330,7 +8339,60 @@ Return ONLY valid JSON, no markdown or explanation.`,
             kgLiveHoursQuota: c.kgLiveHoursQuota,
             liverLiveHoursQuota: c.liverLiveHoursQuota,
             shortVideoCountQuota: c.shortVideoCountQuota,
+            kgLiveFrequency: c.kgLiveFrequency,
+            kgLiveMinutesPerSession: c.kgLiveMinutesPerSession,
+            liverLiveAssignments: c.liverLiveAssignments as Array<{liverName: string, minutesPerMonth: number}> | null,
+            shortVideoAssignments: c.shortVideoAssignments as Array<{liverName: string, countPerMonth: number}> | null,
           })),
+          // KOL別ノルマ進捗（構造化データ）
+          kolProgress: (() => {
+            const kolMap: Record<string, { quota: number; actual: number; streamCount: number }> = {};
+            for (const c of contracts) {
+              const assignments = c.liverLiveAssignments as Array<{liverName: string, minutesPerMonth: number}> | null;
+              if (assignments) {
+                for (const a of assignments) {
+                  if (!kolMap[a.liverName]) kolMap[a.liverName] = { quota: 0, actual: 0, streamCount: 0 };
+                  kolMap[a.liverName].quota += a.minutesPerMonth;
+                }
+              }
+            }
+            // マッチング: liverBreakdownのstreamerNameとKOL名を照合
+            for (const lb of liverBreakdown) {
+              if (kolMap[lb.streamerName]) {
+                kolMap[lb.streamerName].actual += lb.totalDurationMin;
+                kolMap[lb.streamerName].streamCount += lb.streamCount;
+              }
+            }
+            return Object.entries(kolMap).map(([name, data]) => ({
+              liverName: name,
+              quotaMinutes: data.quota,
+              actualMinutes: data.actual,
+              quotaHours: Math.round(data.quota / 60 * 10) / 10,
+              actualHours: Math.round(data.actual / 60 * 10) / 10,
+              progressPercent: data.quota > 0 ? Math.round(data.actual / data.quota * 100) : 0,
+              streamCount: data.streamCount,
+            }));
+          })(),
+          // 短視頻KOL別進捗
+          videoKolProgress: (() => {
+            const vMap: Record<string, { quota: number; actual: number }> = {};
+            for (const c of contracts) {
+              const assignments = c.shortVideoAssignments as Array<{liverName: string, countPerMonth: number}> | null;
+              if (assignments) {
+                for (const a of assignments) {
+                  if (!vMap[a.liverName]) vMap[a.liverName] = { quota: 0, actual: 0 };
+                  vMap[a.liverName].quota += a.countPerMonth;
+                }
+              }
+            }
+            // TODO: 短視頻の実績データソースが確定したら actual を集計
+            return Object.entries(vMap).map(([name, data]) => ({
+              liverName: name,
+              quotaCount: data.quota,
+              actualCount: data.actual,
+              progressPercent: data.quota > 0 ? Math.round(data.actual / data.quota * 100) : 0,
+            }));
+          })(),
         };
       }),
   }),
@@ -9898,13 +9960,15 @@ ${conversationText}
         let topProducts: Awaited<ReturnType<typeof getTopProductsForSuggestion>> = [];
         let recentSets: Awaited<ReturnType<typeof getRecentSetsForSuggestion>> = [];
         let monthlySummary: Awaited<ReturnType<typeof getLiverMonthlySummaryForSuggestion>> = null;
+        let quotaBrands: Awaited<ReturnType<typeof getQuotaBrandsForLiver>> = [];
 
         try {
-          [recentStreams, topProducts, recentSets, monthlySummary] = await Promise.all([
+          [recentStreams, topProducts, recentSets, monthlySummary, quotaBrands] = await Promise.all([
             getRecentLivestreamDataForSuggestion(input.liverName),
             getTopProductsForSuggestion(input.liverName),
             getRecentSetsForSuggestion(input.liverName),
             getLiverMonthlySummaryForSuggestion(input.liverName),
+            getQuotaBrandsForLiver(input.liverName),
           ]);
         } catch (dbError) {
           console.error("[LiveSuggestion] DB data fetch error:", dbError);
@@ -9962,6 +10026,18 @@ ${conversationText}
           }
         }
 
+        // ノルマありブランド情報（最優先で提案に含める）
+        if (quotaBrands.length > 0) {
+          contextInfo += `\n### ⚠️ ノルマあり契約ブランド（優先的に配信すべき）\n`;
+          for (const qb of quotaBrands) {
+            const liverH = qb.liverQuotaMinutes > 0 ? `达人ノルマ: ${Math.round(qb.liverQuotaMinutes / 60 * 10) / 10}h/月` : '';
+            const kgH = qb.kgQuotaMinutes > 0 ? `KGノルマ: ${Math.round(qb.kgQuotaMinutes / 60 * 10) / 10}h/月` : '';
+            const svQ = qb.shortVideoQuota > 0 ? `短視頻: ${qb.shortVideoQuota}本/月` : '';
+            contextInfo += `- **${qb.brandName}**: ${[liverH, kgH, svQ].filter(Boolean).join(' / ')}\n`;
+            if (qb.condition) contextInfo += `  条件詳細: ${qb.condition}\n`;
+          }
+        }
+
         const systemPrompt = `あなたはTikTokライブコマースの配信コーチです。
 ライバーの過去の配信データを分析し、今日の配信の進め方を具体的に提案してください。
 
@@ -9979,6 +10055,8 @@ ${conversationText}
 - 売上目標は必ず月間実績の時間単価に基づいて計算すること（適当な数字を書かない）
 - 過去データがない場合のみ一般的なアドバイスを提供
 - 具体的な¥金額を使って目標設定
+- 「ノルマあり契約ブランド」がある場合、そのブランドの商品を最優先でおすすめ商品に含めること
+- ノルマ消化のための配信時間配分も提案すること
 - 全体で500文字以内に収める`;
 
         const userPrompt = `以下のデータに基づいて、${input.liverName}さんの今日の配信提案を作成してください。\n\n${contextInfo}`;
@@ -10051,11 +10129,12 @@ ${conversationText}
         // Generate suggestion for each liver
         for (const [liverName, liverSchedules] of liverScheduleMap) {
           try {
-            const [recentStreams, topProducts, recentSets, monthlySummary] = await Promise.all([
+            const [recentStreams, topProducts, recentSets, monthlySummary, quotaBrands] = await Promise.all([
               getRecentLivestreamDataForSuggestion(liverName),
               getTopProductsForSuggestion(liverName),
               getRecentSetsForSuggestion(liverName),
               getLiverMonthlySummaryForSuggestion(liverName),
+              getQuotaBrandsForLiver(liverName),
             ]);
 
             let contextInfo = `## ${liverName}さんの配信データ\n\n`;
@@ -10098,16 +10177,26 @@ ${conversationText}
               }
             }
 
+            // ノルマありブランド情報
+            if (quotaBrands.length > 0) {
+              contextInfo += `\n### ⚠️ ノルマあり契約ブランド\n`;
+              for (const qb of quotaBrands) {
+                const liverH = qb.liverQuotaMinutes > 0 ? `达人ノルマ: ${Math.round(qb.liverQuotaMinutes / 60 * 10) / 10}h/月` : '';
+                const kgH = qb.kgQuotaMinutes > 0 ? `KGノルマ: ${Math.round(qb.kgQuotaMinutes / 60 * 10) / 10}h/月` : '';
+                contextInfo += `- **${qb.brandName}**: ${[liverH, kgH].filter(Boolean).join(' / ')}\n`;
+              }
+            }
+
             const systemPrompt = `あなたはTikTokライブコマースの配信コーチです。
 ライバーの過去データを分析し、今日の配信提案を作成。
 
 提案形式:
 🎯 目標（月間実績の時間単価×配信時間で算出）
-📦 おすすめ商品
+📦 おすすめ商品（ノルマありブランドの商品を最優先）
 ⏰ 配信の流れ
 💡 アドバイス
 
-重要: 売上目標は月間実績の時間単価に基づいて計算すること。簡潔に300文字以内。`;
+重要: 売上目標は月間実績の時間単価に基づいて計算。ノルマありブランドがあればその商品を優先提案。簡潔に300文字以内。`;
 
             const userPrompt = `${liverName}さんの今日の配信提案:\n\n${contextInfo}`;
 

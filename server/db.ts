@@ -855,7 +855,12 @@ export async function getAllBrands(filters?: { status?: string; search?: string 
     brandsResult.map(async (brand) => {
       // Get GMV from livestreams
       const livestreams = await db
-        .select({ gmv: brandLivestreams.gmv })
+        .select({
+          gmv: brandLivestreams.gmv,
+          streamerName: brandLivestreams.streamerName,
+          duration: brandLivestreams.duration,
+          livestreamDate: brandLivestreams.livestreamDate,
+        })
         .from(brandLivestreams)
         .where(and(eq(brandLivestreams.brandId, brand.id), isNull(brandLivestreams.deletedAt)));
       
@@ -869,6 +874,8 @@ export async function getAllBrands(filters?: { status?: string; search?: string 
           kgLiveHoursQuota: brandContracts.kgLiveHoursQuota,
           liverLiveHoursQuota: brandContracts.liverLiveHoursQuota,
           shortVideoCountQuota: brandContracts.shortVideoCountQuota,
+          liverLiveAssignments: brandContracts.liverLiveAssignments,
+          shortVideoAssignments: brandContracts.shortVideoAssignments,
         })
         .from(brandContracts)
         .where(and(eq(brandContracts.brandId, brand.id), isNull(brandContracts.deletedAt)));
@@ -883,6 +890,43 @@ export async function getAllBrands(filters?: { status?: string; search?: string 
         shortVideoCount: activeContracts.reduce((s, c) => s + (c.shortVideoCountQuota || 0), 0),
       };
       const hasQuota = quotaSummary.kgLiveHours > 0 || quotaSummary.liverLiveHours > 0 || quotaSummary.shortVideoCount > 0;
+
+      // KOL別ノルマ進捗を計算（当月の配信実績と照合）
+      const kolProgressMap: Record<string, { quota: number; actual: number; streamCount: number }> = {};
+      for (const c of activeContracts) {
+        const assignments = c.liverLiveAssignments as Array<{liverName: string, minutesPerMonth: number}> | null;
+        if (assignments) {
+          for (const a of assignments) {
+            if (!kolProgressMap[a.liverName]) kolProgressMap[a.liverName] = { quota: 0, actual: 0, streamCount: 0 };
+            kolProgressMap[a.liverName].quota += a.minutesPerMonth;
+          }
+        }
+      }
+      // 当月の配信実績をマッチング
+      const now = new Date();
+      const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      const thisYear = jstNow.getUTCFullYear();
+      const thisMonth = jstNow.getUTCMonth(); // 0-indexed
+      const monthStart = new Date(Date.UTC(thisYear, thisMonth, 1, 0, 0, 0) - 9 * 60 * 60 * 1000);
+      const monthEnd = new Date(Date.UTC(thisYear, thisMonth + 1, 0, 23, 59, 59) - 9 * 60 * 60 * 1000);
+      const thisMonthStreams = livestreams.filter(ls => {
+        const d = ls.livestreamDate ? new Date(ls.livestreamDate) : null;
+        return d && d >= monthStart && d <= monthEnd;
+      });
+      for (const ls of thisMonthStreams) {
+        const name = ls.streamerName;
+        if (kolProgressMap[name]) {
+          kolProgressMap[name].actual += (ls.duration || 0);
+          kolProgressMap[name].streamCount += 1;
+        }
+      }
+      const kolProgress = Object.entries(kolProgressMap).map(([name, data]) => ({
+        liverName: name,
+        quotaHours: Math.round(data.quota / 60 * 10) / 10,
+        actualHours: Math.round(data.actual / 60 * 10) / 10,
+        progressPercent: data.quota > 0 ? Math.round(data.actual / data.quota * 100) : 0,
+        streamCount: data.streamCount,
+      }));
       
       return {
         ...brand,
@@ -890,6 +934,7 @@ export async function getAllBrands(filters?: { status?: string; search?: string 
         totalAdBudget,
         hasQuota,
         quotaSummary,
+        kolProgress,
       };
     })
   );
@@ -21257,4 +21302,72 @@ export async function getLiverMonthlySummaryForSuggestion(liverName: string) {
     current,
     prev,
   };
+}
+
+
+// ライバーに関連するノルマありブランド契約を取得（AI提案用）
+export async function getQuotaBrandsForLiver(liverName: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  try {
+    const activeContracts = await db
+      .select({
+        brandId: brandContracts.brandId,
+        brandName: brands.name,
+        brandNameJa: brands.nameJa,
+        kgLiveCondition: brandContracts.kgLiveCondition,
+        liverLiveCondition: brandContracts.liverLiveCondition,
+        kgLiveHoursQuota: brandContracts.kgLiveHoursQuota,
+        liverLiveHoursQuota: brandContracts.liverLiveHoursQuota,
+        liverLiveAssignments: brandContracts.liverLiveAssignments,
+        shortVideoCountQuota: brandContracts.shortVideoCountQuota,
+        shortVideoAssignments: brandContracts.shortVideoAssignments,
+        startDate: brandContracts.startDate,
+        endDate: brandContracts.endDate,
+      })
+      .from(brandContracts)
+      .innerJoin(brands, eq(brands.id, brandContracts.brandId))
+      .where(and(
+        eq(brandContracts.status, '契約中'),
+        isNull(brandContracts.deletedAt),
+        isNull(brands.deletedAt),
+      ));
+    
+    // ライバーに関連するノルマがある契約をフィルタ
+    const relevantContracts = activeContracts.filter(c => {
+      // KG老师のノルマ（Ryu kyogoku等のKGアカウント）
+      if (c.kgLiveHoursQuota && c.kgLiveHoursQuota > 0) {
+        // KGアカウントの配信者名を含む場合
+        const kgNames = ['ryu', 'Ryu kyogoku', 'Ryu Kyogoku'];
+        if (kgNames.some(n => liverName.toLowerCase().includes(n.toLowerCase()))) return true;
+      }
+      // 达人ノルマ（liverLiveAssignmentsにライバー名が含まれる）
+      const assignments = c.liverLiveAssignments as Array<{liverName: string, minutesPerMonth: number}> | null;
+      if (assignments && assignments.some(a => a.liverName === liverName)) return true;
+      // 旧形式: liverLiveConditionにライバー名が含まれる
+      if (c.liverLiveCondition && c.liverLiveCondition.toLowerCase().includes(liverName.toLowerCase())) return true;
+      // liverLiveHoursQuotaがあるが具体的なアサインがない場合（全ライバー対象）
+      if (c.liverLiveHoursQuota && c.liverLiveHoursQuota > 0 && !assignments) return true;
+      return false;
+    });
+    
+    return relevantContracts.map(c => ({
+      brandName: c.brandName || c.brandNameJa || 'Unknown',
+      kgQuotaMinutes: c.kgLiveHoursQuota || 0,
+      liverQuotaMinutes: (() => {
+        const assignments = c.liverLiveAssignments as Array<{liverName: string, minutesPerMonth: number}> | null;
+        if (assignments) {
+          const match = assignments.find(a => a.liverName === liverName);
+          return match ? match.minutesPerMonth : (c.liverLiveHoursQuota || 0);
+        }
+        return c.liverLiveHoursQuota || 0;
+      })(),
+      shortVideoQuota: c.shortVideoCountQuota || 0,
+      condition: c.liverLiveCondition || c.kgLiveCondition || '',
+    }));
+  } catch (err) {
+    console.error("[getQuotaBrandsForLiver] error:", err);
+    return [];
+  }
 }

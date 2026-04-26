@@ -2572,31 +2572,61 @@ ${proposal.proposalContent}
                       <th className="text-left p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'タイプ' : '类型'}</th>
                       <th className="text-right p-3 text-xs font-medium text-gray-400">{language === 'ja' ? '配信回数' : '直播次数'}</th>
                       <th className="text-right p-3 text-xs font-medium text-gray-400">{language === 'ja' ? '配信時間' : '直播时长'}</th>
+                      <th className="text-right p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'ノルマ' : '配额'}</th>
+                      <th className="text-right p-3 text-xs font-medium text-gray-400">{language === 'ja' ? '進捗' : '进度'}</th>
                       <th className="text-right p-3 text-xs font-medium text-gray-400">GMV</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {quotaProgress.liverBreakdown.map((lb, idx) => (
-                      <tr key={idx} className="border-b border-gray-800/50 hover:bg-white/5 transition-colors">
-                        <td className="p-3">
-                          <span className="text-sm font-medium text-white">{lb.streamerName}</span>
-                        </td>
-                        <td className="p-3">
-                          <Badge variant="outline" className={lb.isKg ? 'text-red-400 border-red-500/30' : 'text-blue-400 border-blue-500/30'}>
-                            {lb.isKg ? 'KG老师' : '達人'}
-                          </Badge>
-                        </td>
-                        <td className="p-3 text-right">
-                          <span className="text-sm text-gray-300">{lb.streamCount}{language === 'ja' ? '回' : '次'}</span>
-                        </td>
-                        <td className="p-3 text-right">
-                          <span className="text-sm font-medium text-cyan-300">{lb.totalDurationHours}h</span>
-                        </td>
-                        <td className="p-3 text-right">
-                          <span className="text-sm font-medium text-green-400">¥{lb.totalGmv.toLocaleString()}</span>
-                        </td>
-                      </tr>
-                    ))}
+                    {quotaProgress.liverBreakdown.map((lb, idx) => {
+                      // KOL別ノルマを検索
+                      const kolProgress = quotaProgress.kolProgress?.find((a: any) => a.liverName === lb.streamerName);
+                      const quotaHours = kolProgress ? kolProgress.quotaHours : null;
+                      const kolPct = kolProgress ? kolProgress.progressPercent : null;
+                      return (
+                        <tr key={idx} className="border-b border-gray-800/50 hover:bg-white/5 transition-colors">
+                          <td className="p-3">
+                            <span className="text-sm font-medium text-white">{lb.streamerName}</span>
+                          </td>
+                          <td className="p-3">
+                            <Badge variant="outline" className={lb.isKg ? 'text-red-400 border-red-500/30' : 'text-blue-400 border-blue-500/30'}>
+                              {lb.isKg ? 'KG老师' : '達人'}
+                            </Badge>
+                          </td>
+                          <td className="p-3 text-right">
+                            <span className="text-sm text-gray-300">{lb.streamCount}{language === 'ja' ? '回' : '次'}</span>
+                          </td>
+                          <td className="p-3 text-right">
+                            <span className="text-sm font-medium text-cyan-300">{lb.totalDurationHours}h</span>
+                          </td>
+                          <td className="p-3 text-right">
+                            {quotaHours ? (
+                              <span className="text-sm text-gray-400">{quotaHours}h/月</span>
+                            ) : (
+                              <span className="text-xs text-gray-600">-</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-right">
+                            {kolPct !== null ? (
+                              <div className="flex items-center gap-2 justify-end">
+                                <div className="w-16 bg-gray-800 rounded-full h-2">
+                                  <div
+                                    className={`h-2 rounded-full ${kolPct >= 100 ? 'bg-green-400' : kolPct >= 70 ? 'bg-yellow-400' : 'bg-blue-400'}`}
+                                    style={{ width: `${kolPct}%` }}
+                                  />
+                                </div>
+                                <span className={`text-xs font-bold ${kolPct >= 100 ? 'text-green-400' : kolPct >= 70 ? 'text-yellow-400' : 'text-blue-400'}`}>{kolPct}%</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-600">-</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-right">
+                            <span className="text-sm font-medium text-green-400">¥{lb.totalGmv.toLocaleString()}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -601,27 +601,49 @@ export default function BrandList() {
                     </div>
                   </div>
 
-                  {/* ノルマバッジ */}
+                  {/* ノルマバッジ + KOL別進捗 */}
                   {(brand as any).hasQuota && (
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      <Badge variant="outline" className="text-cyan-400 border-cyan-500/30 text-[10px] px-1.5 py-0">
-                        <Target className="h-3 w-3 mr-0.5" />
-                        ノルマ設定あり
-                      </Badge>
-                      {(brand as any).quotaSummary?.kgLiveHours > 0 && (
-                        <Badge variant="outline" className="text-red-400 border-red-500/30 text-[10px] px-1.5 py-0">
-                          KG {(brand as any).quotaSummary.kgLiveHours}h
+                    <div className="mb-3">
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        <Badge variant="outline" className="text-cyan-400 border-cyan-500/30 text-[10px] px-1.5 py-0">
+                          <Target className="h-3 w-3 mr-0.5" />
+                          ノルマ設定あり
                         </Badge>
-                      )}
-                      {(brand as any).quotaSummary?.liverLiveHours > 0 && (
-                        <Badge variant="outline" className="text-blue-400 border-blue-500/30 text-[10px] px-1.5 py-0">
-                          達人 {(brand as any).quotaSummary.liverLiveHours}h
-                        </Badge>
-                      )}
-                      {(brand as any).quotaSummary?.shortVideoCount > 0 && (
-                        <Badge variant="outline" className="text-orange-400 border-orange-500/30 text-[10px] px-1.5 py-0">
-                          動画 {(brand as any).quotaSummary.shortVideoCount}本
-                        </Badge>
+                        {(brand as any).quotaSummary?.kgLiveHours > 0 && (
+                          <Badge variant="outline" className="text-red-400 border-red-500/30 text-[10px] px-1.5 py-0">
+                            KG {(brand as any).quotaSummary.kgLiveHours}h
+                          </Badge>
+                        )}
+                        {(brand as any).quotaSummary?.liverLiveHours > 0 && (
+                          <Badge variant="outline" className="text-blue-400 border-blue-500/30 text-[10px] px-1.5 py-0">
+                            達人 {(brand as any).quotaSummary.liverLiveHours}h
+                          </Badge>
+                        )}
+                        {(brand as any).quotaSummary?.shortVideoCount > 0 && (
+                          <Badge variant="outline" className="text-orange-400 border-orange-500/30 text-[10px] px-1.5 py-0">
+                            動画 {(brand as any).quotaSummary.shortVideoCount}本
+                          </Badge>
+                        )}
+                      </div>
+                      {/* KOL別ノルマ進捗ミニバー */}
+                      {(brand as any).kolProgress && (brand as any).kolProgress.length > 0 && (
+                        <div className="space-y-1">
+                          {(brand as any).kolProgress.map((kol: any, idx: number) => {
+                            const pct = kol.progressPercent || 0;
+                            return (
+                              <div key={idx} className="flex items-center gap-2">
+                                <span className="text-[10px] text-gray-400 w-16 truncate">{kol.liverName}</span>
+                                <div className="flex-1 bg-gray-800 rounded-full h-1.5">
+                                  <div
+                                    className={`h-1.5 rounded-full transition-all ${pct >= 100 ? 'bg-green-400' : pct >= 70 ? 'bg-yellow-400' : 'bg-blue-400'}`}
+                                    style={{ width: `${Math.min(100, pct)}%` }}
+                                  />
+                                </div>
+                                <span className={`text-[10px] font-bold min-w-[28px] text-right ${pct >= 100 ? 'text-green-400' : pct >= 70 ? 'text-yellow-400' : 'text-blue-400'}`}>{pct}%</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
                   )}

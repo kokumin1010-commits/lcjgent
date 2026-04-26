@@ -2361,7 +2361,15 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
           </div>
           
           {/* Brand Selection */}
-          {brandsData && brandsData.length > 0 && (
+          {brandsData && brandsData.length > 0 && (() => {
+            // ノルマありブランドを優先表示
+            const sortedBrands = [...brandsData].sort((a: any, b: any) => {
+              const aHasQuota = a.hasQuota ? 1 : 0;
+              const bHasQuota = b.hasQuota ? 1 : 0;
+              return bHasQuota - aHasQuota;
+            });
+            const selectedBrand = newSchedule.brandId ? brandsData.find((b: any) => b.id === newSchedule.brandId) : null;
+            return (
             <div className="px-4 py-3 border-b">
               <div className="flex items-center gap-3">
                 <div className="w-5 h-5 text-blue-500">
@@ -2372,13 +2380,13 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                     <Button variant="ghost" className="border-0 p-0 h-auto focus:ring-0 flex-1 justify-between font-normal hover:bg-transparent">
                       <span className={newSchedule.brandId ? "text-gray-900" : "text-gray-500"}>
                         {newSchedule.brandId 
-                          ? (brandsData.find((b: any) => b.id === newSchedule.brandId)?.name || brandsData.find((b: any) => b.id === newSchedule.brandId)?.brandName || "ブランドを選択")
+                          ? (selectedBrand?.name || selectedBrand?.brandName || "ブランドを選択")
                           : "ブランドを選択"}
                       </span>
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-64 p-0" align="start">
+                  <PopoverContent className="w-72 p-0" align="start">
                     <Command>
                       <CommandInput placeholder="ブランド名で検索..." />
                       <CommandList>
@@ -2388,14 +2396,17 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                             <Check className={cn("mr-2 h-4 w-4", !newSchedule.brandId ? "opacity-100" : "opacity-0")} />
                             ブランドなし
                           </CommandItem>
-                          {brandsData.map((brand: any) => (
+                          {sortedBrands.map((brand: any) => (
                             <CommandItem
                               key={brand.id}
                               value={brand.name || brand.brandName}
                               onSelect={() => { setNewSchedule(prev => ({ ...prev, brandId: brand.id })); setBrandPopoverOpen(false); }}
                             >
                               <Check className={cn("mr-2 h-4 w-4", newSchedule.brandId === brand.id ? "opacity-100" : "opacity-0")} />
-                              {brand.name || brand.brandName}
+                              <span className="flex-1">{brand.name || brand.brandName}</span>
+                              {brand.hasQuota && (
+                                <span className="ml-1 text-[10px] bg-cyan-100 text-cyan-700 px-1.5 py-0.5 rounded-full">ノルマ</span>
+                              )}
                             </CommandItem>
                           ))}
                         </CommandGroup>
@@ -2404,8 +2415,29 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                   </PopoverContent>
                 </Popover>
               </div>
+              {/* 選択したブランドのノルマ残り表示 */}
+              {selectedBrand?.hasQuota && selectedBrand?.kolProgress && (selectedBrand as any).kolProgress.length > 0 && (
+                <div className="mt-2 ml-8 p-2 bg-blue-50 rounded-lg">
+                  <p className="text-[11px] font-medium text-blue-700 mb-1">🎯 今月のノルマ進捗</p>
+                  {(selectedBrand as any).kolProgress.map((kol: any, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] text-gray-600 w-14 truncate">{kol.liverName}</span>
+                      <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+                        <div
+                          className={`h-1.5 rounded-full ${kol.progressPercent >= 100 ? 'bg-green-500' : kol.progressPercent >= 70 ? 'bg-yellow-500' : 'bg-blue-500'}`}
+                          style={{ width: `${Math.min(100, kol.progressPercent)}%` }}
+                        />
+                      </div>
+                      <span className={`text-[10px] font-bold ${kol.progressPercent >= 100 ? 'text-green-600' : 'text-blue-600'}`}>
+                        {kol.actualHours}h/{kol.quotaHours}h
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+            );
+          })()}
 
           {/* Location Selection */}
           {locationsData && locationsData.length > 0 && (

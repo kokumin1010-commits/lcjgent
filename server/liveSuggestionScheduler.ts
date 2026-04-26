@@ -14,6 +14,7 @@ import {
   getTopProductsForSuggestion,
   getRecentSetsForSuggestion,
   getLiverMonthlySummaryForSuggestion,
+  getQuotaBrandsForLiver,
   saveLiveSuggestion,
   ensureLiveSuggestionsTable,
 } from "./db";
@@ -104,11 +105,12 @@ export async function runDailyLiveSuggestion(): Promise<void> {
       try {
         console.log(`${LOG_PREFIX} Generating suggestion for ${liverName}...`);
 
-        const [recentStreams, topProducts, recentSets, monthlySummary] = await Promise.all([
+        const [recentStreams, topProducts, recentSets, monthlySummary, quotaBrands] = await Promise.all([
           getRecentLivestreamDataForSuggestion(liverName),
           getTopProductsForSuggestion(liverName),
           getRecentSetsForSuggestion(liverName),
           getLiverMonthlySummaryForSuggestion(liverName),
+          getQuotaBrandsForLiver(liverName),
         ]);
 
         let contextInfo = `## ${liverName}さんの配信データ\n\n`;
@@ -151,17 +153,27 @@ export async function runDailyLiveSuggestion(): Promise<void> {
           }
         }
 
+        // ノルマありブランド情報
+        if (quotaBrands.length > 0) {
+          contextInfo += `\n### ⚠️ ノルマあり契約ブランド\n`;
+          for (const qb of quotaBrands) {
+            const liverH = qb.liverQuotaMinutes > 0 ? `达人ノルマ: ${Math.round(qb.liverQuotaMinutes / 60 * 10) / 10}h/月` : '';
+            const kgH = qb.kgQuotaMinutes > 0 ? `KGノルマ: ${Math.round(qb.kgQuotaMinutes / 60 * 10) / 10}h/月` : '';
+            contextInfo += `- **${qb.brandName}**: ${[liverH, kgH].filter(Boolean).join(' / ')}\n`;
+          }
+        }
+
         const systemPrompt = `あなたはTikTokライブコマースの配信コーチです。
 ライバーの過去データを分析し、今日の配信提案を作成。
 みんなで数字を共有して高め合うチームです。
 
 提案形式:
 🎯 目標（月間実績の時間単価×配信時間で算出）
-📦 おすすめ商品（過去の売上データ付き）
+📦 おすすめ商品（ノルマありブランドの商品を最優先）
 ⏰ 配信の流れ（時間配分）
 💡 アドバイス（時間単価を上げる戦略）
 
-重要: 売上目標は必ず月間実績の時間単価に基づいて計算すること。簡潔に300文字以内。前向きなトーンで。`;
+重要: 売上目標は月間実績の時間単価に基づいて計算。ノルマありブランドがあればその商品を優先提案。簡潔に300文字以内。前向きなトーンで。`;
 
         const userPrompt = `${liverName}さんの今日の配信提案:\n\n${contextInfo}`;
 

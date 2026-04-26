@@ -52,6 +52,16 @@ function getServiceTypeBadge(type: string) {
   }
 }
 
+interface LiverAssignment {
+  liverName: string;
+  minutesPerMonth: number;
+}
+
+interface VideoAssignment {
+  liverName: string;
+  countPerMonth: number;
+}
+
 interface ContractFormData {
   brandId: string;
   serviceType: string;
@@ -67,9 +77,66 @@ interface ContractFormData {
   kgLiveHoursQuota: string;
   liverLiveHoursQuota: string;
   shortVideoCountQuota: string;
+  kgLiveFrequency: string;
+  kgLiveMinutesPerSession: string;
+  liverLiveAssignments: LiverAssignment[];
+  shortVideoAssignments: VideoAssignment[];
   status: string;
   memo: string;
 }
+
+// 15分刻みの時間選択肢
+const TIME_OPTIONS = [
+  { value: "15", label: "15分" },
+  { value: "30", label: "30分" },
+  { value: "45", label: "45分" },
+  { value: "60", label: "1時間" },
+  { value: "75", label: "1時間15分" },
+  { value: "90", label: "1時間30分" },
+  { value: "105", label: "1時間45分" },
+  { value: "120", label: "2時間" },
+  { value: "150", label: "2時間30分" },
+  { value: "180", label: "3時間" },
+  { value: "210", label: "3時間30分" },
+  { value: "240", label: "4時間" },
+  { value: "300", label: "5時間" },
+  { value: "360", label: "6時間" },
+  { value: "420", label: "7時間" },
+  { value: "480", label: "8時間" },
+  { value: "600", label: "10時間" },
+  { value: "720", label: "12時間" },
+  { value: "900", label: "15時間" },
+  { value: "1200", label: "20時間" },
+  { value: "1500", label: "25時間" },
+  { value: "1800", label: "30時間" },
+];
+
+const FREQUENCY_OPTIONS = [
+  { value: "1", label: "月1回" },
+  { value: "2", label: "月2回" },
+  { value: "3", label: "月3回" },
+  { value: "4", label: "月4回（週1）" },
+  { value: "5", label: "月5回" },
+  { value: "8", label: "月8回（週2）" },
+  { value: "10", label: "月10回" },
+  { value: "12", label: "月12回（週3）" },
+  { value: "15", label: "月15回" },
+  { value: "20", label: "月20回（週5）" },
+];
+
+const VIDEO_COUNT_OPTIONS = [
+  { value: "5", label: "5本" },
+  { value: "10", label: "10本" },
+  { value: "15", label: "15本" },
+  { value: "20", label: "20本" },
+  { value: "25", label: "25本" },
+  { value: "30", label: "30本" },
+  { value: "40", label: "40本" },
+  { value: "50", label: "50本" },
+  { value: "60", label: "60本" },
+  { value: "80", label: "80本" },
+  { value: "100", label: "100本" },
+];
 
 const emptyForm: ContractFormData = {
   brandId: "",
@@ -86,6 +153,10 @@ const emptyForm: ContractFormData = {
   kgLiveHoursQuota: "",
   liverLiveHoursQuota: "",
   shortVideoCountQuota: "",
+  kgLiveFrequency: "",
+  kgLiveMinutesPerSession: "",
+  liverLiveAssignments: [],
+  shortVideoAssignments: [],
   status: "契約中",
   memo: "",
 };
@@ -101,6 +172,11 @@ export default function BrandContractTab() {
   // Queries
   const contractsQuery = trpc.brandContract.listAll.useQuery();
   const brandsQuery = trpc.brand.list.useQuery();
+  const liversQuery = trpc.liver.getAll.useQuery();
+  const liverNames = useMemo(() => {
+    if (!liversQuery.data) return [];
+    return (liversQuery.data as any[]).map((l: any) => l.name).filter(Boolean).sort();
+  }, [liversQuery.data]);
 
   // Mutations
   const createMutation = trpc.brandContract.create.useMutation({
@@ -189,6 +265,10 @@ export default function BrandContractTab() {
       kgLiveHoursQuota: contract.kgLiveHoursQuota ? String(contract.kgLiveHoursQuota) : "",
       liverLiveHoursQuota: contract.liverLiveHoursQuota ? String(contract.liverLiveHoursQuota) : "",
       shortVideoCountQuota: contract.shortVideoCountQuota ? String(contract.shortVideoCountQuota) : "",
+      kgLiveFrequency: contract.kgLiveFrequency ? String(contract.kgLiveFrequency) : "",
+      kgLiveMinutesPerSession: contract.kgLiveMinutesPerSession ? String(contract.kgLiveMinutesPerSession) : "",
+      liverLiveAssignments: (contract.liverLiveAssignments as LiverAssignment[] || []),
+      shortVideoAssignments: (contract.shortVideoAssignments as VideoAssignment[] || []),
       status: contract.status || "契約中",
       memo: contract.memo || "",
     });
@@ -215,6 +295,10 @@ export default function BrandContractTab() {
       kgLiveHoursQuota: form.kgLiveHoursQuota ? Number(form.kgLiveHoursQuota) : undefined,
       liverLiveHoursQuota: form.liverLiveHoursQuota ? Number(form.liverLiveHoursQuota) : undefined,
       shortVideoCountQuota: form.shortVideoCountQuota ? Number(form.shortVideoCountQuota) : undefined,
+      kgLiveFrequency: form.kgLiveFrequency ? Number(form.kgLiveFrequency) : null,
+      kgLiveMinutesPerSession: form.kgLiveMinutesPerSession ? Number(form.kgLiveMinutesPerSession) : null,
+      liverLiveAssignments: form.liverLiveAssignments.length > 0 ? form.liverLiveAssignments : null,
+      shortVideoAssignments: form.shortVideoAssignments.length > 0 ? form.shortVideoAssignments : null,
       status: form.status as any,
       memo: form.memo || undefined,
     };
@@ -365,14 +449,37 @@ export default function BrandContractTab() {
                     <td className="p-3 text-xs max-w-[180px]">
                       <div className="whitespace-pre-line">{c.kgLiveCondition || "/"}</div>
                       {c.kgLiveHoursQuota && <Badge variant="outline" className="mt-1 text-red-500 border-red-500/30">{c.kgLiveHoursQuota}h/月</Badge>}
+                      {c.kgLiveFrequency && c.kgLiveMinutesPerSession && (
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          {FREQUENCY_OPTIONS.find(o => o.value === String(c.kgLiveFrequency))?.label || `月${c.kgLiveFrequency}回`} × {TIME_OPTIONS.find(o => o.value === String(c.kgLiveMinutesPerSession))?.label || `${c.kgLiveMinutesPerSession}分`}
+                        </div>
+                      )}
                     </td>
                     <td className="p-3 text-xs max-w-[200px]">
                       <div className="whitespace-pre-line">{c.liverLiveCondition || "/"}</div>
                       {c.liverLiveHoursQuota && <Badge variant="outline" className="mt-1 text-blue-500 border-blue-500/30">{c.liverLiveHoursQuota}h/月</Badge>}
+                      {c.liverLiveAssignments && (c.liverLiveAssignments as any[]).length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          {(c.liverLiveAssignments as any[]).map((a: any, i: number) => (
+                            <div key={i} className="text-[10px] text-muted-foreground">
+                              {a.liverName}: {Math.round(a.minutesPerMonth / 60 * 10) / 10}h/月
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="p-3 text-xs max-w-[200px]">
                       <div className="whitespace-pre-line">{c.shortVideoCondition || "/"}</div>
                       {c.shortVideoCountQuota && <Badge variant="outline" className="mt-1 text-orange-500 border-orange-500/30">{c.shortVideoCountQuota}本/月</Badge>}
+                      {c.shortVideoAssignments && (c.shortVideoAssignments as any[]).length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          {(c.shortVideoAssignments as any[]).map((a: any, i: number) => (
+                            <div key={i} className="text-[10px] text-muted-foreground">
+                              {a.liverName}: {a.countPerMonth}本/月
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="p-3">{getStatusBadge(c.status)}</td>
                     <td className="p-3 text-right">
@@ -539,16 +646,17 @@ export default function BrandContractTab() {
               </div>
             </div>
 
-            {/* Conditions with Quota */}
-            <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+            {/* Conditions with Quota - 構造化ノルマ設定 */}
+            <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
               <h4 className="font-semibold text-sm flex items-center gap-2"><Target className="h-4 w-4 text-green-500" />ノルマ設定（月間）</h4>
               
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
+              {/* KG老师直播条件 */}
+              <div className="space-y-2 border-b pb-4">
+                <Label className="flex items-center gap-2 font-medium">
                   <Video className="h-4 w-4 text-red-500" />
                   KG老师直播条件
                 </Label>
-                <div className="flex gap-2 items-center">
+                <div className="flex gap-2 items-start">
                   <div className="flex-1">
                     <Textarea
                       placeholder="例：每月1小时専場直播"
@@ -557,50 +665,154 @@ export default function BrandContractTab() {
                       rows={1}
                     />
                   </div>
-                  <div className="w-32">
-                    <Input
-                      type="number"
-                      placeholder="時間(h)"
-                      value={form.kgLiveHoursQuota}
-                      onChange={e => setForm(prev => ({ ...prev, kgLiveHoursQuota: e.target.value }))}
-                    />
-                  </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">h/月</span>
                 </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">配信頻度</Label>
+                    <Select value={form.kgLiveFrequency} onValueChange={v => setForm(prev => ({ ...prev, kgLiveFrequency: v }))}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="選択..." /></SelectTrigger>
+                      <SelectContent>
+                        {FREQUENCY_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">1回あたりの時間</Label>
+                    <Select value={form.kgLiveMinutesPerSession} onValueChange={v => setForm(prev => ({ ...prev, kgLiveMinutesPerSession: v }))}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="選択..." /></SelectTrigger>
+                      <SelectContent>
+                        {TIME_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">月間合計時間</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        placeholder="時間(h)"
+                        value={form.kgLiveHoursQuota}
+                        onChange={e => setForm(prev => ({ ...prev, kgLiveHoursQuota: e.target.value }))}
+                        className="h-9"
+                      />
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">h/月</span>
+                    </div>
+                  </div>
+                </div>
+                {form.kgLiveFrequency && form.kgLiveMinutesPerSession && (
+                  <p className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
+                    → 自動計算: {FREQUENCY_OPTIONS.find(o => o.value === form.kgLiveFrequency)?.label} × {TIME_OPTIONS.find(o => o.value === form.kgLiveMinutesPerSession)?.label} = {Math.round(Number(form.kgLiveFrequency) * Number(form.kgLiveMinutesPerSession) / 60 * 10) / 10}h/月
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
+              {/* 达人直播条件 - KOL別ノルマ */}
+              <div className="space-y-2 border-b pb-4">
+                <Label className="flex items-center gap-2 font-medium">
                   <Users className="h-4 w-4 text-blue-500" />
                   达人直播条件
                 </Label>
-                <div className="flex gap-2 items-center">
+                <div className="flex gap-2 items-start">
                   <div className="flex-1">
                     <Textarea
-                      placeholder="例：旗下KOL：每月合計20時間"
+                      placeholder="例：旗下KOL：毎月合計20時間"
                       value={form.liverLiveCondition}
                       onChange={e => setForm(prev => ({ ...prev, liverLiveCondition: e.target.value }))}
                       rows={1}
                     />
                   </div>
-                  <div className="w-32">
+                  <div className="w-28">
                     <Input
                       type="number"
-                      placeholder="時間(h)"
+                      placeholder="合計(h)"
                       value={form.liverLiveHoursQuota}
                       onChange={e => setForm(prev => ({ ...prev, liverLiveHoursQuota: e.target.value }))}
+                      className="h-9"
                     />
                   </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">h/月</span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap mt-2">h/月</span>
+                </div>
+                {/* KOL別ノルマ設定 */}
+                <div className="space-y-2 ml-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">KOL別ノルマ設定</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => setForm(prev => ({
+                        ...prev,
+                        liverLiveAssignments: [...prev.liverLiveAssignments, { liverName: "", minutesPerMonth: 0 }]
+                      }))}
+                    >
+                      <Plus className="h-3 w-3" />
+                      KOL追加
+                    </Button>
+                  </div>
+                  {form.liverLiveAssignments.map((assignment, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Select
+                        value={assignment.liverName}
+                        onValueChange={v => {
+                          const updated = [...form.liverLiveAssignments];
+                          updated[idx] = { ...updated[idx], liverName: v };
+                          setForm(prev => ({ ...prev, liverLiveAssignments: updated }));
+                        }}
+                      >
+                        <SelectTrigger className="flex-1 h-8">
+                          <SelectValue placeholder="ライバーを選択..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {liverNames.map((name: string) => (
+                            <SelectItem key={name} value={name}>{name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={assignment.minutesPerMonth ? String(assignment.minutesPerMonth) : ""}
+                        onValueChange={v => {
+                          const updated = [...form.liverLiveAssignments];
+                          updated[idx] = { ...updated[idx], minutesPerMonth: Number(v) };
+                          setForm(prev => ({ ...prev, liverLiveAssignments: updated }));
+                        }}
+                      >
+                        <SelectTrigger className="w-36 h-8">
+                          <SelectValue placeholder="時間選択..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIME_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}/月</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => {
+                          const updated = form.liverLiveAssignments.filter((_, i) => i !== idx);
+                          setForm(prev => ({ ...prev, liverLiveAssignments: updated }));
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                  {form.liverLiveAssignments.length > 0 && (
+                    <p className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
+                      → KOL別合計: {Math.round(form.liverLiveAssignments.reduce((sum, a) => sum + (a.minutesPerMonth || 0), 0) / 60 * 10) / 10}h/月
+                    </p>
+                  )}
                 </div>
               </div>
 
+              {/* 短视频条件 - KOL別 */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2">
+                <Label className="flex items-center gap-2 font-medium">
                   <Clapperboard className="h-4 w-4 text-orange-500" />
                   短视频条件
                 </Label>
-                <div className="flex gap-2 items-center">
+                <div className="flex gap-2 items-start">
                   <div className="flex-1">
                     <Textarea
                       placeholder="例：30本/月（切り抜き可、アカウント指定）"
@@ -609,15 +821,88 @@ export default function BrandContractTab() {
                       rows={1}
                     />
                   </div>
-                  <div className="w-32">
+                  <div className="w-28">
                     <Input
                       type="number"
-                      placeholder="本数"
+                      placeholder="合計"
                       value={form.shortVideoCountQuota}
                       onChange={e => setForm(prev => ({ ...prev, shortVideoCountQuota: e.target.value }))}
+                      className="h-9"
                     />
                   </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">本/月</span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap mt-2">本/月</span>
+                </div>
+                {/* KOL別短视频ノルマ */}
+                <div className="space-y-2 ml-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">KOL別短视频ノルマ</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => setForm(prev => ({
+                        ...prev,
+                        shortVideoAssignments: [...prev.shortVideoAssignments, { liverName: "", countPerMonth: 0 }]
+                      }))}
+                    >
+                      <Plus className="h-3 w-3" />
+                      KOL追加
+                    </Button>
+                  </div>
+                  {form.shortVideoAssignments.map((assignment, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Select
+                        value={assignment.liverName}
+                        onValueChange={v => {
+                          const updated = [...form.shortVideoAssignments];
+                          updated[idx] = { ...updated[idx], liverName: v };
+                          setForm(prev => ({ ...prev, shortVideoAssignments: updated }));
+                        }}
+                      >
+                        <SelectTrigger className="flex-1 h-8">
+                          <SelectValue placeholder="ライバーを選択..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {liverNames.map((name: string) => (
+                            <SelectItem key={name} value={name}>{name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={assignment.countPerMonth ? String(assignment.countPerMonth) : ""}
+                        onValueChange={v => {
+                          const updated = [...form.shortVideoAssignments];
+                          updated[idx] = { ...updated[idx], countPerMonth: Number(v) };
+                          setForm(prev => ({ ...prev, shortVideoAssignments: updated }));
+                        }}
+                      >
+                        <SelectTrigger className="w-36 h-8">
+                          <SelectValue placeholder="本数選択..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {VIDEO_COUNT_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}/月</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => {
+                          const updated = form.shortVideoAssignments.filter((_, i) => i !== idx);
+                          setForm(prev => ({ ...prev, shortVideoAssignments: updated }));
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                  {form.shortVideoAssignments.length > 0 && (
+                    <p className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
+                      → KOL別合計: {form.shortVideoAssignments.reduce((sum, a) => sum + (a.countPerMonth || 0), 0)}本/月
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

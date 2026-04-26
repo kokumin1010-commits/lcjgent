@@ -456,6 +456,13 @@ export const brandContracts = mysqlTable("brand_contracts", {
   kgLiveHoursQuota: int("kgLiveHoursQuota"), // KG老师の月間配信ノルマ（分単位）
   liverLiveHoursQuota: int("liverLiveHoursQuota"), // 达人の月間配信ノルマ（分単位）
   shortVideoCountQuota: int("shortVideoCountQuota"), // 短視頻の月間本数ノルマ
+  // 構造化ノルマフィールド
+  kgLiveFrequency: int("kgLiveFrequency"), // KG月間配信回数
+  kgLiveMinutesPerSession: int("kgLiveMinutesPerSession"), // KG 1回あたりの配信時間（分）
+  liverLiveAssignments: json("liverLiveAssignments").$type<Array<{liverName: string, minutesPerMonth: number}>>()
+  , // 达人別ノルマ [{liverName, minutesPerMonth}]
+  shortVideoAssignments: json("shortVideoAssignments").$type<Array<{liverName: string, countPerMonth: number}>>()
+  , // 达人別短視頻 [{liverName, countPerMonth}]
   contractPeriodLabel: varchar("contractPeriodLabel", { length: 100 }), // 契約期間ラベル（例：半年矩阵、3个月）
   createdBy: int("createdBy").notNull(), // 作成者（user ID）
   createdAt: timestamp("createdAt").defaultNow().notNull(),
