@@ -610,6 +610,7 @@ import {
   getRecentLivestreamDataForSuggestion,
   getTopProductsForSuggestion,
   getRecentSetsForSuggestion,
+  getLiverMonthlySummaryForSuggestion,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -9892,12 +9893,23 @@ ${conversationText}
         scheduledEndTime: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        // Gather context data for AI
-        const [recentStreams, topProducts, recentSets] = await Promise.all([
-          getRecentLivestreamDataForSuggestion(input.liverName),
-          getTopProductsForSuggestion(input.liverName),
-          getRecentSetsForSuggestion(input.liverName),
-        ]);
+        // Gather context data for AI (全てtry-catchで囲んでエラー防止)
+        let recentStreams: Awaited<ReturnType<typeof getRecentLivestreamDataForSuggestion>> = [];
+        let topProducts: Awaited<ReturnType<typeof getTopProductsForSuggestion>> = [];
+        let recentSets: Awaited<ReturnType<typeof getRecentSetsForSuggestion>> = [];
+        let monthlySummary: Awaited<ReturnType<typeof getLiverMonthlySummaryForSuggestion>> = null;
+
+        try {
+          [recentStreams, topProducts, recentSets, monthlySummary] = await Promise.all([
+            getRecentLivestreamDataForSuggestion(input.liverName),
+            getTopProductsForSuggestion(input.liverName),
+            getRecentSetsForSuggestion(input.liverName),
+            getLiverMonthlySummaryForSuggestion(input.liverName),
+          ]);
+        } catch (dbError) {
+          console.error("[LiveSuggestion] DB data fetch error:", dbError);
+          // Continue with empty data - AI will provide general advice
+        }
 
         // Build AI prompt
         const now = new Date();
@@ -9908,6 +9920,19 @@ ${conversationText}
         contextInfo += `### 今日の予定: ${todayStr}\n`;
         if (input.scheduledStartTime) {
           contextInfo += `配信予定時間: ${input.scheduledStartTime}${input.scheduledEndTime ? ` 〜 ${input.scheduledEndTime}` : ''}\n`;
+        }
+
+        // 月間実績データ（最重要コンテキスト）
+        if (monthlySummary) {
+          const cur = monthlySummary.current;
+          const prev = monthlySummary.prev;
+          contextInfo += `\n### 月間実績サマリー\n`;
+          contextInfo += `**今月（${monthlySummary.currentMonth}）**: 売上 ¥${cur.sales.toLocaleString()} / ${cur.durationHours}h配信 / 時間単価 ¥${cur.hourlyRate.toLocaleString()} / ${cur.livestreamCount}回配信\n`;
+          contextInfo += `**先月（${monthlySummary.prevMonth}）**: 売上 ¥${prev.sales.toLocaleString()} / ${prev.durationHours}h配信 / 時間単価 ¥${prev.hourlyRate.toLocaleString()} / ${prev.livestreamCount}回配信\n`;
+          if (prev.hourlyRate > 0) {
+            const rateChange = Math.round(((cur.hourlyRate - prev.hourlyRate) / prev.hourlyRate) * 100);
+            contextInfo += `時間単価の前月比: ${rateChange >= 0 ? '+' : ''}${rateChange}%\n`;
+          }
         }
 
         if (recentStreams.length > 0) {
@@ -9940,18 +9965,21 @@ ${conversationText}
         const systemPrompt = `あなたはTikTokライブコマースの配信コーチです。
 ライバーの過去の配信データを分析し、今日の配信の進め方を具体的に提案してください。
 
-提案は以下の形式で、簡潔かつ実用的に書いてください：
+提案は以下の形式で書いてください：
 
-1. 🎯 今日の目標（売上目標・視聴者目標）
-2. 📦 おすすめ商品・セット（過去の売れ筋から）
-3. ⏰ タイムライン提案（配信の流れ）
-4. 💡 ワンポイントアドバイス
+1. 🎯 今日の目標
+   - 売上目標は「月間実績サマリー」の時間単価と今日の配信時間から算出すること
+   - 例: 時間単価¥22万で2時間配信なら、売上目標は¥44万以上
+   - 時間単価が前月より下がっている場合は、回復目標を設定
+2. 📦 おすすめ商品・セット（過去の売れ筋データから具体的に）
+3. ⏰ タイムライン提案（配信時間に合わせた具体的な流れ）
+4. 💡 ワンポイントアドバイス（時間単価を上げるための具体的な戦略）
 
-注意:
-- 過去データがない場合は一般的なアドバイスを提供
-- 具体的な数字を使って目標設定
-- ライバーが読みやすいように絵文字を適度に使用
-- 全体で300文字以内に収める`;
+重要ルール:
+- 売上目標は必ず月間実績の時間単価に基づいて計算すること（適当な数字を書かない）
+- 過去データがない場合のみ一般的なアドバイスを提供
+- 具体的な¥金額を使って目標設定
+- 全体で500文字以内に収める`;
 
         const userPrompt = `以下のデータに基づいて、${input.liverName}さんの今日の配信提案を作成してください。\n\n${contextInfo}`;
 
@@ -9961,7 +9989,7 @@ ${conversationText}
               { role: "system", content: systemPrompt },
               { role: "user", content: userPrompt },
             ],
-            maxTokens: 1000,
+            maxTokens: 1500,
           });
 
           const suggestionText = (typeof result.choices?.[0]?.message?.content === 'string' ? result.choices[0].message.content : '') || "提案を生成できませんでした。";
@@ -9973,6 +10001,7 @@ ${conversationText}
               recentStreamsCount: recentStreams.length,
               topProductsCount: topProducts.length,
               recentSetsCount: recentSets.length,
+              hasMonthlyData: !!monthlySummary,
             },
           };
         } catch (error) {
@@ -9985,6 +10014,7 @@ ${conversationText}
               recentStreamsCount: recentStreams.length,
               topProductsCount: topProducts.length,
               recentSetsCount: recentSets.length,
+              hasMonthlyData: !!monthlySummary,
             },
           };
         }
@@ -10021,10 +10051,11 @@ ${conversationText}
         // Generate suggestion for each liver
         for (const [liverName, liverSchedules] of liverScheduleMap) {
           try {
-            const [recentStreams, topProducts, recentSets] = await Promise.all([
+            const [recentStreams, topProducts, recentSets, monthlySummary] = await Promise.all([
               getRecentLivestreamDataForSuggestion(liverName),
               getTopProductsForSuggestion(liverName),
               getRecentSetsForSuggestion(liverName),
+              getLiverMonthlySummaryForSuggestion(liverName),
             ]);
 
             let contextInfo = `## ${liverName}さんの配信データ\n\n`;
@@ -10033,6 +10064,15 @@ ${conversationText}
               const startTime = s.startTime ? new Date(s.startTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : '不明';
               const endTime = s.endTime ? new Date(s.endTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : '';
               contextInfo += `- ${startTime}${endTime ? `〜${endTime}` : ''} ${s.title}\n`;
+            }
+
+            // 月間実績データ（最重要）
+            if (monthlySummary) {
+              const cur = monthlySummary.current;
+              const prev = monthlySummary.prev;
+              contextInfo += `\n### 月間実績\n`;
+              contextInfo += `今月: 売上¥${cur.sales.toLocaleString()} / ${cur.durationHours}h / 時間単価¥${cur.hourlyRate.toLocaleString()}\n`;
+              contextInfo += `先月: 売上¥${prev.sales.toLocaleString()} / ${prev.durationHours}h / 時間単価¥${prev.hourlyRate.toLocaleString()}\n`;
             }
 
             if (recentStreams.length > 0) {
@@ -10059,15 +10099,15 @@ ${conversationText}
             }
 
             const systemPrompt = `あなたはTikTokライブコマースの配信コーチです。
-ライバーの過去データを分析し、今日の配信の進め方を提案してください。
+ライバーの過去データを分析し、今日の配信提案を作成。
 
 提案形式:
-🎯 目標
+🎯 目標（月間実績の時間単価×配信時間で算出）
 📦 おすすめ商品
 ⏰ 配信の流れ
 💡 アドバイス
 
-注意: 簡潔に200文字以内。具体的な数字を使う。`;
+重要: 売上目標は月間実績の時間単価に基づいて計算すること。簡潔に300文字以内。`;
 
             const userPrompt = `${liverName}さんの今日の配信提案:\n\n${contextInfo}`;
 

@@ -21186,3 +21186,75 @@ export async function getRecentSetsForSuggestion(liverName: string) {
     .orderBy(desc(livestreamSets.totalGmv))
     .limit(5);
 }
+
+/**
+ * Get liver's monthly performance summary for AI suggestion context
+ * Returns current month + previous month sales, duration, hourly rate
+ */
+export async function getLiverMonthlySummaryForSuggestion(liverName: string) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Find liver by name
+  const liver = await db
+    .select({ id: livers.id, name: livers.name })
+    .from(livers)
+    .where(eq(livers.name, liverName))
+    .limit(1);
+
+  if (liver.length === 0) return null;
+
+  const liverId = liver[0].id;
+
+  // Current month range (JST)
+  const now = new Date();
+  const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const currentMonth = `${jstNow.getFullYear()}-${String(jstNow.getMonth() + 1).padStart(2, '0')}`;
+  const prevMonthDate = new Date(jstNow.getFullYear(), jstNow.getMonth() - 1, 1);
+  const prevMonth = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`;
+
+  const getMonthStats = async (month: string) => {
+    const { startDate, endDate } = getJSTMonthRange(month);
+    const result = await db
+      .select({
+        totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+        totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+        livestreamCount: sql<number>`COUNT(*)`,
+      })
+      .from(brandLivestreams)
+      .where(
+        and(
+          eq(brandLivestreams.liverId, liverId),
+          isNull(brandLivestreams.deletedAt),
+          sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+          sql`${brandLivestreams.livestreamDate} <= ${endDate}`
+        )
+      );
+    const r = result[0];
+    const sales = Number(r?.totalSales || 0);
+    const duration = Number(r?.totalDuration || 0);
+    const durationHours = duration / 60;
+    const hourlyRate = durationHours > 0 ? Math.round(sales / durationHours) : 0;
+    return {
+      sales,
+      duration,
+      durationHours: Math.round(durationHours * 10) / 10,
+      livestreamCount: Number(r?.livestreamCount || 0),
+      hourlyRate,
+    };
+  };
+
+  const [current, prev] = await Promise.all([
+    getMonthStats(currentMonth),
+    getMonthStats(prevMonth),
+  ]);
+
+  return {
+    liverName: liver[0].name,
+    liverId,
+    currentMonth,
+    prevMonth,
+    current,
+    prev,
+  };
+}

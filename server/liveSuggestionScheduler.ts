@@ -13,6 +13,7 @@ import {
   getRecentLivestreamDataForSuggestion,
   getTopProductsForSuggestion,
   getRecentSetsForSuggestion,
+  getLiverMonthlySummaryForSuggestion,
   saveLiveSuggestion,
   ensureLiveSuggestionsTable,
 } from "./db";
@@ -103,10 +104,11 @@ export async function runDailyLiveSuggestion(): Promise<void> {
       try {
         console.log(`${LOG_PREFIX} Generating suggestion for ${liverName}...`);
 
-        const [recentStreams, topProducts, recentSets] = await Promise.all([
+        const [recentStreams, topProducts, recentSets, monthlySummary] = await Promise.all([
           getRecentLivestreamDataForSuggestion(liverName),
           getTopProductsForSuggestion(liverName),
           getRecentSetsForSuggestion(liverName),
+          getLiverMonthlySummaryForSuggestion(liverName),
         ]);
 
         let contextInfo = `## ${liverName}さんの配信データ\n\n`;
@@ -115,6 +117,15 @@ export async function runDailyLiveSuggestion(): Promise<void> {
           const startTime = s.startTime ? new Date(s.startTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : '不明';
           const endTime = s.endTime ? new Date(s.endTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : '';
           contextInfo += `- ${startTime}${endTime ? `〜${endTime}` : ''} ${s.title}\n`;
+        }
+
+        // 月間実績データ（最重要）
+        if (monthlySummary) {
+          const cur = monthlySummary.current;
+          const prev = monthlySummary.prev;
+          contextInfo += `\n### 月間実績\n`;
+          contextInfo += `今月: 売上¥${cur.sales.toLocaleString()} / ${cur.durationHours}h / 時間単価¥${cur.hourlyRate.toLocaleString()}\n`;
+          contextInfo += `先月: 売上¥${prev.sales.toLocaleString()} / ${prev.durationHours}h / 時間単価¥${prev.hourlyRate.toLocaleString()}\n`;
         }
 
         if (recentStreams.length > 0) {
@@ -141,16 +152,16 @@ export async function runDailyLiveSuggestion(): Promise<void> {
         }
 
         const systemPrompt = `あなたはTikTokライブコマースの配信コーチです。
-ライバーの過去データを分析し、今日の配信の進め方を提案してください。
-みんなで数字を共有して高め合うチームです。具体的な売上目標と過去実績の数字を必ず入れてください。
+ライバーの過去データを分析し、今日の配信提案を作成。
+みんなで数字を共有して高め合うチームです。
 
 提案形式:
-🎯 目標（具体的な売上目標と根拠）
+🎯 目標（月間実績の時間単価×配信時間で算出）
 📦 おすすめ商品（過去の売上データ付き）
 ⏰ 配信の流れ（時間配分）
-💡 アドバイス（前回の実績を踏まえて）
+💡 アドバイス（時間単価を上げる戦略）
 
-注意: 簡潔に250文字以内。具体的な数字を使う。チームで高め合う前向きなトーンで。`;
+重要: 売上目標は必ず月間実績の時間単価に基づいて計算すること。簡潔に300文字以内。前向きなトーンで。`;
 
         const userPrompt = `${liverName}さんの今日の配信提案:\n\n${contextInfo}`;
 
