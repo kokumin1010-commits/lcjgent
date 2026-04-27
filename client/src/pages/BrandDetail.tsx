@@ -933,6 +933,27 @@ export default function BrandDetail() {
   const { data: campaignDetail, isLoading: campaignDetailLoading } = trpc.brand.getAdCampaignDetail.useQuery({ id: selectedCampaignId! }, { enabled: !!selectedCampaignId });
   const deleteReportFileMutation = trpc.brand.deleteReportFile.useMutation();
 
+  // 配信スケジュールデータ取得
+  const [scheduleFilterLiver, setScheduleFilterLiver] = useState<string>('all');
+  const [scheduleRange] = useState(() => {
+    const now = new Date();
+    const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    // 過去30日から未来60日まで表示
+    const start = new Date(jst);
+    start.setDate(start.getDate() - 30);
+    const end = new Date(jst);
+    end.setDate(end.getDate() + 60);
+    return { startDate: start.toISOString(), endDate: end.toISOString() };
+  });
+  const { data: brandSchedules = [] } = trpc.brand.getSchedules.useQuery(
+    { brandId, startDate: scheduleRange.startDate, endDate: scheduleRange.endDate },
+    { enabled: brandId > 0 }
+  );
+  const { data: scheduleLivers = [] } = trpc.brand.getScheduleLivers.useQuery(
+    { brandId },
+    { enabled: brandId > 0 }
+  );
+
   // ノルマ進捗データ取得
   const [quotaMonth] = useState(() => {
     const now = new Date();
@@ -2276,6 +2297,123 @@ ${proposal.proposalContent}
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* 配信スケジュールセクション */}
+        {brandSchedules.length > 0 && (
+          <div className="bg-gradient-to-br from-indigo-900/30 to-purple-900/20 backdrop-blur-xl rounded-2xl border-2 border-indigo-500/40 p-4 md:p-5 shadow-[0_0_50px_rgba(100,100,255,0.15)]">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-white">
+                <div className="w-1.5 h-8 bg-gradient-to-b from-indigo-400 to-purple-500 rounded-full" />
+                <Calendar className="h-5 w-5 text-indigo-400" />
+                {language === 'ja' ? '配信スケジュール' : '直播日程'}
+              </h2>
+              <span className="text-xs text-gray-400">
+                {language === 'ja' ? `${brandSchedules.length}件の予定` : `${brandSchedules.length}个日程`}
+              </span>
+            </div>
+
+            {/* ライバーフィルターボタン */}
+            {scheduleLivers.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                <button
+                  onClick={() => setScheduleFilterLiver('all')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                    scheduleFilterLiver === 'all'
+                      ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30'
+                      : 'bg-black/40 text-gray-300 hover:bg-indigo-500/20 border border-indigo-500/20'
+                  }`}
+                >
+                  {language === 'ja' ? '全員' : '全部'}
+                </button>
+                {scheduleLivers.map((liver: any) => (
+                  <button
+                    key={liver.liverName}
+                    onClick={() => setScheduleFilterLiver(liver.liverName)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                      scheduleFilterLiver === liver.liverName
+                        ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30'
+                        : 'bg-black/40 text-gray-300 hover:bg-indigo-500/20 border border-indigo-500/20'
+                    }`}
+                  >
+                    {liver.liverName}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* スケジュールテーブル */}
+            <div className="bg-black/40 rounded-xl border border-indigo-500/10 overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-indigo-500/10">
+                    <th className="text-left p-3 text-xs font-medium text-gray-400">{language === 'ja' ? '日時' : '时间'}</th>
+                    <th className="text-left p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'ライバー' : '主播'}</th>
+                    <th className="text-left p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'タイトル' : '标题'}</th>
+                    <th className="text-center p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'ステータス' : '状态'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const filtered = scheduleFilterLiver === 'all'
+                      ? brandSchedules
+                      : brandSchedules.filter((s: any) => s.liverName === scheduleFilterLiver);
+                    const now = new Date();
+                    return filtered.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="p-6 text-center text-gray-500 text-sm">
+                          {language === 'ja' ? '該当するスケジュールがありません' : '没有符合条件的日程'}
+                        </td>
+                      </tr>
+                    ) : filtered.map((schedule: any) => {
+                      const startDate = new Date(schedule.startTime);
+                      const isPast = startDate < now;
+                      const isToday = startDate.toDateString() === now.toDateString();
+                      return (
+                        <tr key={schedule.id} className={`border-b border-indigo-500/5 transition-colors ${
+                          isToday ? 'bg-indigo-500/10' : isPast ? 'opacity-60' : 'hover:bg-indigo-500/5'
+                        }`}>
+                          <td className="p-3">
+                            <div className="text-sm font-medium text-white">
+                              {startDate.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' })}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              {startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                              {schedule.endTime && ` - ${new Date(schedule.endTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`}
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <span className="text-sm text-indigo-300 font-medium">{schedule.liverName || '-'}</span>
+                          </td>
+                          <td className="p-3">
+                            <span className="text-sm text-gray-200">{schedule.title}</span>
+                            {schedule.notes && (
+                              <div className="text-xs text-gray-500 mt-0.5 truncate max-w-[200px]">{schedule.notes}</div>
+                            )}
+                          </td>
+                          <td className="p-3 text-center">
+                            {isToday ? (
+                              <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">
+                                {language === 'ja' ? '今日' : '今天'}
+                              </Badge>
+                            ) : isPast ? (
+                              <Badge className="bg-gray-500/20 text-gray-400 border-gray-500/30 text-xs">
+                                {schedule.status === 'completed' ? (language === 'ja' ? '完了' : '已完成') : (language === 'ja' ? '終了' : '已结束')}
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-indigo-500/20 text-indigo-400 border-indigo-500/30 text-xs">
+                                {language === 'ja' ? '予定' : '待定'}
+                              </Badge>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

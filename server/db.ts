@@ -21553,3 +21553,90 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
     streamCount: Number(fb.streamCount),
   }));
 }
+
+
+// =====================================================
+// Brand Schedule Functions (ブランド別配信スケジュール)
+// =====================================================
+
+/**
+ * Get schedules for a specific brand, optionally filtered by liver and date range
+ */
+export async function getSchedulesByBrandId(
+  brandId: number,
+  options?: {
+    startDate?: Date;
+    endDate?: Date;
+    liverId?: number;
+    liverName?: string;
+    limit?: number;
+  }
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: any[] = [
+    eq(schedules.brandId, brandId),
+    not(eq(schedules.status, "cancelled")),
+  ];
+
+  if (options?.startDate) {
+    conditions.push(sql`${schedules.startTime} >= ${options.startDate}`);
+  }
+  if (options?.endDate) {
+    conditions.push(sql`${schedules.startTime} <= ${options.endDate}`);
+  }
+  if (options?.liverId) {
+    conditions.push(eq(schedules.liverId, options.liverId));
+  }
+  if (options?.liverName) {
+    conditions.push(like(schedules.liverName, `%${options.liverName}%`));
+  }
+
+  return await db
+    .select({
+      id: schedules.id,
+      title: schedules.title,
+      description: schedules.description,
+      startTime: schedules.startTime,
+      endTime: schedules.endTime,
+      isAllDay: schedules.isAllDay,
+      category: schedules.category,
+      liverId: schedules.liverId,
+      liverName: schedules.liverName,
+      brandId: schedules.brandId,
+      status: schedules.status,
+      notes: schedules.notes,
+      locationId: schedules.locationId,
+      createdAt: schedules.createdAt,
+    })
+    .from(schedules)
+    .where(and(...conditions))
+    .orderBy(asc(schedules.startTime))
+    .limit(options?.limit || 200);
+}
+
+/**
+ * Get distinct liver names that have schedules for a specific brand
+ */
+export async function getDistinctLiversForBrandSchedules(brandId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const results = await db
+    .selectDistinct({
+      liverId: schedules.liverId,
+      liverName: schedules.liverName,
+    })
+    .from(schedules)
+    .where(
+      and(
+        eq(schedules.brandId, brandId),
+        not(eq(schedules.status, "cancelled")),
+        isNotNull(schedules.liverName)
+      )
+    )
+    .orderBy(asc(schedules.liverName));
+
+  return results.filter((r) => r.liverName);
+}

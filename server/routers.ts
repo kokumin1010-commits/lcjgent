@@ -183,6 +183,8 @@ import {
   updateLiverLastLogin,
   checkLiverEmailExists,
   getSchedulesByLiverId,
+  getSchedulesByBrandId,
+  getDistinctLiversForBrandSchedules,
   createLivestreamProduct,
   getLivestreamProductsByLivestreamId,
   updateLivestreamProduct,
@@ -6669,6 +6671,34 @@ Respond with a JSON object.`,
       .mutation(async ({ input }) => {
         await deleteAdReportFile(input.id);
         return { success: true };
+      }),
+
+    // ブランド別配信スケジュール取得
+    getSchedules: protectedProcedure
+      .input(
+        z.object({
+          brandId: z.number(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          liverId: z.number().optional(),
+          liverName: z.string().optional(),
+          limit: z.number().optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        const options: any = { limit: input.limit };
+        if (input.startDate) options.startDate = new Date(input.startDate);
+        if (input.endDate) options.endDate = new Date(input.endDate);
+        if (input.liverId) options.liverId = input.liverId;
+        if (input.liverName) options.liverName = input.liverName;
+        return await getSchedulesByBrandId(input.brandId, options);
+      }),
+
+    // ブランドのスケジュールに関連するライバー一覧
+    getScheduleLivers: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return await getDistinctLiversForBrandSchedules(input.brandId);
       }),
   }),
 
