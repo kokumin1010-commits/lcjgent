@@ -28,6 +28,13 @@
 - [x] 根本原因特定: LLM金額検出→DB更新後、candidateメモリ未更新でpointsCalculated=NULLのまま
 - [x] aiPass2ManualQueueReview.ts: candidateメモリ更新追加
 - [x] aiAutoApproveScheduler.ts: 同じバグ修正＋pointsCalculatedもDB保存
-- [ ] 遍及ポイント付与APIエンドポイント作成（302件・合計19,224pt）
-- [ ] GitHub push＋Railwayデプロイ
-- [ ] 本番環境で遍及付与実行＋検証
+- [x] 遡及ポイント付与APIエンドポイント作成（retroactivePointAward mutation）
+- [x] GitHub push＋Railwayデプロイ（commit b39bdf3d）
+- [x] 本番環境で遡及付与実行＋DB検証完了（43件成功・2,410pt付与、残り0件）
+
+## マイページ：ブランド別配信時間集計表示
+- [x] DB構造・スケジュールテーブル・マイページコードの調査
+- [x] バックエンド：ブランド別配信時間集計APIエンドポイント作成
+- [x] フロントエンド：マイページにブランド別配信時間UIを実装
+- [x] テスト・検証（8件パス）
+- [ ] GitHub push＋Railwayデプロイ＋本番検証（実行中）

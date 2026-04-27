@@ -28,6 +28,7 @@ import {
   getReferralStats,
   isLiverAitherhubLinked,
   getLiverMonthlyProducts,
+  getLiverBrandDurationStats,
 } from "./db";
 import { nanoid } from "nanoid";
 import nodemailer from "nodemailer";
@@ -716,6 +717,19 @@ export const liverRouter = router({
       const payload = await verifyLiverToken(token);
       if (!payload) throw new TRPCError({ code: "UNAUTHORIZED" });
       return await getLiverMonthlyProducts(payload.liverId, input.year, input.month);
+    }),
+
+  // ライバーのブランド別配信時間集計
+  getBrandDurationStats: publicProcedure
+    .input(z.object({
+      yearMonth: z.string().optional(), // "2026-04" format
+    }))
+    .query(async ({ input, ctx }) => {
+      const token = getLiverToken(ctx as any);
+      if (!token) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const payload = await verifyLiverToken(token);
+      if (!payload) throw new TRPCError({ code: "UNAUTHORIZED" });
+      return await getLiverBrandDurationStats(payload.liverId, input.yearMonth);
     }),
 
   // Admin: Bulk deactivate livers by IDs

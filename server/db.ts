@@ -21474,3 +21474,82 @@ export async function getLiverPromotionAnalysis(liverId: number) {
     topProducts,
   };
 }
+
+
+// ========== Liver Brand Duration Stats ==========
+
+/**
+ * ライバーのブランド別配信時間を集計する
+ * livestream_brandsテーブルのdurationMinutesを使用（1配信に複数ブランドが紐づく場合に対応）
+ * フォールバック: livestream_brandsにデータがない場合はbrand_livestreamsのbrandId + durationを使用
+ */
+export async function getLiverBrandDurationStats(liverId: number, yearMonth?: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Build date conditions
+  let dateCondition = sql`1=1`;
+  if (yearMonth) {
+    const [year, mon] = yearMonth.split('-').map(Number);
+    const startDate = new Date(year, mon - 1, 1);
+    const endDate = new Date(year, mon, 1);
+    dateCondition = sql`${brandLivestreams.livestreamDate} >= ${startDate.toISOString().slice(0, 10)} AND ${brandLivestreams.livestreamDate} < ${endDate.toISOString().slice(0, 10)}`;
+  }
+
+  // Primary: Use livestream_brands table (more accurate, supports multi-brand per stream)
+  const brandDurations = await db
+    .select({
+      brandId: livestreamBrands.brandId,
+      brandName: brands.name,
+      totalMinutes: sql<number>`COALESCE(SUM(${livestreamBrands.durationMinutes}), 0)`,
+      streamCount: sql<number>`COUNT(DISTINCT ${livestreamBrands.livestreamId})`,
+    })
+    .from(livestreamBrands)
+    .innerJoin(brandLivestreams, eq(livestreamBrands.livestreamId, brandLivestreams.id))
+    .leftJoin(brands, eq(livestreamBrands.brandId, brands.id))
+    .where(and(
+      eq(brandLivestreams.liverId, liverId),
+      isNull(brandLivestreams.deletedAt),
+      dateCondition,
+      sql`${livestreamBrands.durationMinutes} IS NOT NULL AND ${livestreamBrands.durationMinutes} > 0`
+    ))
+    .groupBy(livestreamBrands.brandId, brands.name)
+    .orderBy(sql`SUM(${livestreamBrands.durationMinutes}) DESC`);
+
+  if (brandDurations.length > 0) {
+    return brandDurations.map(bd => ({
+      brandId: bd.brandId,
+      brandName: bd.brandName || '不明',
+      totalMinutes: Number(bd.totalMinutes),
+      totalHours: Math.round(Number(bd.totalMinutes) / 60 * 10) / 10,
+      streamCount: Number(bd.streamCount),
+    }));
+  }
+
+  // Fallback: Use brand_livestreams table directly (single brand per stream)
+  const fallback = await db
+    .select({
+      brandId: brandLivestreams.brandId,
+      brandName: brands.name,
+      totalMinutes: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+      streamCount: sql<number>`COUNT(*)`,
+    })
+    .from(brandLivestreams)
+    .leftJoin(brands, eq(brandLivestreams.brandId, brands.id))
+    .where(and(
+      eq(brandLivestreams.liverId, liverId),
+      isNull(brandLivestreams.deletedAt),
+      dateCondition,
+      sql`${brandLivestreams.duration} IS NOT NULL AND ${brandLivestreams.duration} > 0`
+    ))
+    .groupBy(brandLivestreams.brandId, brands.name)
+    .orderBy(sql`SUM(${brandLivestreams.duration}) DESC`);
+
+  return fallback.map(fb => ({
+    brandId: fb.brandId,
+    brandName: fb.brandName || '不明',
+    totalMinutes: Number(fb.totalMinutes),
+    totalHours: Math.round(Number(fb.totalMinutes) / 60 * 10) / 10,
+    streamCount: Number(fb.streamCount),
+  }));
+}

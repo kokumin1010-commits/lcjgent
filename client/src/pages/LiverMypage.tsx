@@ -205,6 +205,12 @@ export default function LiverMypage() {
     { enabled: !!liverInfo?.id && !!productYear && !!productMonth }
   );
 
+  // ブランド別配信時間集計取得
+  const { data: brandDurationStats } = trpc.liver.getBrandDurationStats.useQuery(
+    { yearMonth: selectedMonth },
+    { enabled: !!liverInfo?.id }
+  );
+
   // Delete import history mutation
   const deleteImportHistoryMutation = trpc.csvImport.deleteImportHistory.useMutation({
     onSuccess: () => {
@@ -1190,6 +1196,75 @@ export default function LiverMypage() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ブランド別配信時間 */}
+        {brandDurationStats && brandDurationStats.length > 0 && (
+          <Card className="bg-gray-800/50 border-gray-700">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2 mb-3">
+                <Clock className="h-4 w-4 text-cyan-400" />
+                <h3 className="text-sm font-bold text-white">
+                  {language === 'en' ? 'Brand Duration' : language === 'zh-TW' ? '品牌配信時間' : 'ブランド別配信時間'}
+                </h3>
+                <span className="text-xs bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full">
+                  {brandDurationStats.length}{language === 'ja' ? 'ブランド' : ''}
+                </span>
+              </div>
+              {/* 合計サマリー */}
+              <div className="bg-gray-700/30 rounded-lg p-2 mb-3 text-center">
+                <p className="text-lg font-bold text-cyan-400">
+                  {Math.round(brandDurationStats.reduce((sum, b) => sum + b.totalMinutes, 0) / 60 * 10) / 10}h
+                </p>
+                <p className="text-[10px] text-gray-400">
+                  {language === 'en' ? 'Total Brand Duration' : language === 'zh-TW' ? '品牌配信時間合計' : 'ブランド配信時間合計'}
+                </p>
+              </div>
+              {/* ブランド別バー */}
+              <div className="space-y-2">
+                {(() => {
+                  const maxMinutes = Math.max(...brandDurationStats.map(b => b.totalMinutes));
+                  const colors = [
+                    'from-cyan-500 to-blue-500',
+                    'from-pink-500 to-rose-500',
+                    'from-amber-500 to-orange-500',
+                    'from-emerald-500 to-green-500',
+                    'from-violet-500 to-purple-500',
+                    'from-red-500 to-pink-500',
+                    'from-teal-500 to-cyan-500',
+                    'from-yellow-500 to-amber-500',
+                  ];
+                  return brandDurationStats.map((brand, idx) => {
+                    const barWidth = maxMinutes > 0 ? (brand.totalMinutes / maxMinutes) * 100 : 0;
+                    const hours = Math.floor(brand.totalMinutes / 60);
+                    const mins = brand.totalMinutes % 60;
+                    const colorClass = colors[idx % colors.length];
+                    return (
+                      <div key={brand.brandId} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-white font-medium truncate flex-1">{brand.brandName}</span>
+                          <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                            <span className="text-gray-400">
+                              {brand.streamCount}{language === 'ja' ? '回' : 'x'}
+                            </span>
+                            <span className="text-cyan-400 font-bold">
+                              {hours > 0 ? `${hours}h${mins > 0 ? `${mins}m` : ''}` : `${mins}m`}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full bg-gradient-to-r ${colorClass} rounded-full transition-all duration-500`}
+                            style={{ width: `${Math.max(barWidth, 3)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
             </CardContent>
           </Card>
         )}
