@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake, Trash2, Target } from "lucide-react";
+import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake, Trash2, Target, AlertTriangle, Flame } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -284,6 +284,11 @@ export default function BrandList() {
 
   // ソートされたブランドリスト
   const brands = brandsData ? [...brandsData].sort((a, b) => {
+    // ノルマありブランドを常に最上部に優先表示
+    const hasQuotaA = (a as any).hasQuota ? 1 : 0;
+    const hasQuotaB = (b as any).hasQuota ? 1 : 0;
+    if (hasQuotaB !== hasQuotaA) return hasQuotaB - hasQuotaA;
+    
     if (sortBy === "gmv") {
       const gmvA = (a as any).totalGmv || 0;
       const gmvB = (b as any).totalGmv || 0;
@@ -558,7 +563,18 @@ export default function BrandList() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {brands.map((brand) => (
               <Link key={brand.id} href={`/master/brands/${brand.id}`}>
-                <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 hover:border-red-500/50 hover:bg-gray-800/70 transition-all cursor-pointer group">
+                <div className={`rounded-xl p-6 transition-all cursor-pointer group relative overflow-hidden ${
+                  (brand as any).hasQuota 
+                    ? 'bg-gradient-to-br from-orange-950/60 via-red-950/40 to-amber-950/50 border-2 border-orange-500/70 hover:border-orange-400 hover:shadow-[0_0_40px_rgba(255,140,0,0.4)] shadow-[0_0_25px_rgba(255,100,0,0.25)]' 
+                    : 'bg-gray-800/50 border border-gray-700/50 hover:border-red-500/50 hover:bg-gray-800/70'
+                }`}>
+                  {/* ノルマありブランドの光彩エフェクト */}
+                  {(brand as any).hasQuota && (
+                    <>
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/20 rounded-full blur-3xl animate-pulse" />
+                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/15 rounded-full blur-2xl" />
+                    </>
+                  )}
                   <div className="flex items-start gap-4 mb-4">
                     {brand.logoUrl ? (
                       <img
@@ -601,45 +617,45 @@ export default function BrandList() {
                     </div>
                   </div>
 
-                  {/* ノルマバッジ + KOL別進捗 */}
+                  {/* ノルマバッジ + KOL別進捗 - 派手な強調デザイン */}
                   {(brand as any).hasQuota && (
-                    <div className="mb-3">
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        <Badge variant="outline" className="text-cyan-400 border-cyan-500/30 text-[10px] px-1.5 py-0">
-                          <Target className="h-3 w-3 mr-0.5" />
-                          ノルマ設定あり
-                        </Badge>
+                    <div className="relative mb-3 bg-gradient-to-r from-orange-900/40 via-red-900/30 to-amber-900/40 rounded-xl p-3 border border-orange-500/40">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-1.5 bg-orange-500/90 text-white px-3 py-1 rounded-full text-sm font-bold shadow-[0_0_15px_rgba(255,140,0,0.5)] animate-pulse">
+                          <Flame className="h-4 w-4" />
+                          ノルマあり
+                        </div>
                         {(brand as any).quotaSummary?.kgLiveHours > 0 && (
-                          <Badge variant="outline" className="text-red-400 border-red-500/30 text-[10px] px-1.5 py-0">
+                          <Badge className="bg-red-500/20 text-red-300 border border-red-500/50 text-xs px-2 py-0.5 font-bold">
                             KG {(brand as any).quotaSummary.kgLiveHours}h
                           </Badge>
                         )}
                         {(brand as any).quotaSummary?.liverLiveHours > 0 && (
-                          <Badge variant="outline" className="text-blue-400 border-blue-500/30 text-[10px] px-1.5 py-0">
+                          <Badge className="bg-blue-500/20 text-blue-300 border border-blue-500/50 text-xs px-2 py-0.5 font-bold">
                             達人 {(brand as any).quotaSummary.liverLiveHours}h
                           </Badge>
                         )}
                         {(brand as any).quotaSummary?.shortVideoCount > 0 && (
-                          <Badge variant="outline" className="text-orange-400 border-orange-500/30 text-[10px] px-1.5 py-0">
+                          <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/50 text-xs px-2 py-0.5 font-bold">
                             動画 {(brand as any).quotaSummary.shortVideoCount}本
                           </Badge>
                         )}
                       </div>
                       {/* KOL別ノルマ進捗ミニバー */}
                       {(brand as any).kolProgress && (brand as any).kolProgress.length > 0 && (
-                        <div className="space-y-1">
+                        <div className="space-y-1.5">
                           {(brand as any).kolProgress.map((kol: any, idx: number) => {
                             const pct = kol.progressPercent || 0;
                             return (
                               <div key={idx} className="flex items-center gap-2">
-                                <span className="text-[10px] text-gray-400 w-16 truncate">{kol.liverName}</span>
-                                <div className="flex-1 bg-gray-800 rounded-full h-1.5">
+                                <span className="text-xs text-gray-300 w-20 truncate font-medium">{kol.liverName}</span>
+                                <div className="flex-1 bg-gray-800/80 rounded-full h-2.5">
                                   <div
-                                    className={`h-1.5 rounded-full transition-all ${pct >= 100 ? 'bg-green-400' : pct >= 70 ? 'bg-yellow-400' : 'bg-blue-400'}`}
+                                    className={`h-2.5 rounded-full transition-all ${pct >= 100 ? 'bg-gradient-to-r from-green-400 to-emerald-500' : pct >= 70 ? 'bg-gradient-to-r from-yellow-400 to-orange-500' : 'bg-gradient-to-r from-blue-400 to-cyan-500'}`}
                                     style={{ width: `${Math.min(100, pct)}%` }}
                                   />
                                 </div>
-                                <span className={`text-[10px] font-bold min-w-[28px] text-right ${pct >= 100 ? 'text-green-400' : pct >= 70 ? 'text-yellow-400' : 'text-blue-400'}`}>{pct}%</span>
+                                <span className={`text-xs font-bold min-w-[32px] text-right ${pct >= 100 ? 'text-green-400' : pct >= 70 ? 'text-yellow-400' : 'text-blue-400'}`}>{pct}%</span>
                               </div>
                             );
                           })}

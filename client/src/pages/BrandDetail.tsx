@@ -2096,6 +2096,189 @@ ${proposal.proposalContent}
           </div>
         </div>
 
+        {/* ノルマ進捗セクション - 最上部に配置 */}
+        {quotaProgress && (quotaProgress.quotas.kgLiveHours > 0 || quotaProgress.quotas.liverLiveHours > 0 || quotaProgress.quotas.shortVideoCount > 0) && (
+          <div className="bg-gradient-to-br from-cyan-900/30 to-blue-900/20 backdrop-blur-xl rounded-2xl border-2 border-cyan-500/40 p-4 md:p-5 shadow-[0_0_50px_rgba(0,200,255,0.15)]">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                <div className="w-1.5 h-8 bg-gradient-to-b from-cyan-400 to-blue-500 rounded-full" />
+                <Target className="h-5 w-5 text-cyan-400" />
+                {language === 'ja' ? `ノルマ進捗 (${quotaProgress.year}年${quotaProgress.month}月)` : `配额进度 (${quotaProgress.year}年${quotaProgress.month}月)`}
+              </h2>
+            </div>
+
+            {/* 進捗バー */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              {/* KG老师直播 */}
+              {quotaProgress.quotas.kgLiveHours > 0 && (
+                <div className="bg-black/40 rounded-xl p-4 border border-red-500/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-red-400">{language === 'ja' ? 'KG老师直播' : 'KG老师直播'}</span>
+                    <span className="text-xs text-gray-400">
+                      {quotaProgress.actuals.kgLiveHours}h / {quotaProgress.quotas.kgLiveHours}h
+                    </span>
+                  </div>
+                  {(() => {
+                    const pct = Math.min(100, Math.round((quotaProgress.actuals.kgLiveHours / quotaProgress.quotas.kgLiveHours) * 100));
+                    const remaining = Math.max(0, quotaProgress.quotas.kgLiveHours - quotaProgress.actuals.kgLiveHours);
+                    const remainingDisplay = Number(remaining.toFixed(1));
+                    return (
+                      <>
+                        <div className="w-full bg-gray-800 rounded-full h-3 mb-2">
+                          <div
+                            className={`h-3 rounded-full transition-all duration-500 ${pct >= 100 ? 'bg-gradient-to-r from-green-400 to-emerald-500' : pct >= 70 ? 'bg-gradient-to-r from-yellow-400 to-orange-500' : 'bg-gradient-to-r from-red-400 to-red-600'}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className={`text-lg font-bold ${pct >= 100 ? 'text-green-400' : pct >= 70 ? 'text-yellow-400' : 'text-red-400'}`}>{pct}%</span>
+                          {remainingDisplay > 0 && <span className="text-xs text-gray-500">{language === 'ja' ? `残り${remainingDisplay}h` : `剩余${remainingDisplay}h`}</span>}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* 达人直播 */}
+              {quotaProgress.quotas.liverLiveHours > 0 && (
+                <div className="bg-black/40 rounded-xl p-4 border border-blue-500/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-blue-400">{language === 'ja' ? '達人直播' : '达人直播'}</span>
+                    <span className="text-xs text-gray-400">
+                      {quotaProgress.actuals.liverLiveHours}h / {quotaProgress.quotas.liverLiveHours}h
+                    </span>
+                  </div>
+                  {(() => {
+                    const pct = Math.min(100, Math.round((quotaProgress.actuals.liverLiveHours / quotaProgress.quotas.liverLiveHours) * 100));
+                    const remaining = Math.max(0, quotaProgress.quotas.liverLiveHours - quotaProgress.actuals.liverLiveHours);
+                    const remainingDisplay = Number(remaining.toFixed(1));
+                    return (
+                      <>
+                        <div className="w-full bg-gray-800 rounded-full h-3 mb-2">
+                          <div
+                            className={`h-3 rounded-full transition-all duration-500 ${pct >= 100 ? 'bg-gradient-to-r from-green-400 to-emerald-500' : pct >= 70 ? 'bg-gradient-to-r from-yellow-400 to-orange-500' : 'bg-gradient-to-r from-blue-400 to-blue-600'}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className={`text-lg font-bold ${pct >= 100 ? 'text-green-400' : pct >= 70 ? 'text-yellow-400' : 'text-blue-400'}`}>{pct}%</span>
+                          {remainingDisplay > 0 && <span className="text-xs text-gray-500">{language === 'ja' ? `残り${remainingDisplay}h` : `剩余${remainingDisplay}h`}</span>}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* 短視頻 */}
+              {quotaProgress.quotas.shortVideoCount > 0 && (
+                <div className="bg-black/40 rounded-xl p-4 border border-orange-500/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-orange-400">{language === 'ja' ? '短視頻' : '短视频'}</span>
+                    <span className="text-xs text-gray-400">
+                      {quotaProgress.actuals.shortVideoCount}本 / {quotaProgress.quotas.shortVideoCount}本
+                    </span>
+                  </div>
+                  {(() => {
+                    const pct = Math.min(100, Math.round((quotaProgress.actuals.shortVideoCount / quotaProgress.quotas.shortVideoCount) * 100));
+                    const remaining = Math.max(0, quotaProgress.quotas.shortVideoCount - quotaProgress.actuals.shortVideoCount);
+                    return (
+                      <>
+                        <div className="w-full bg-gray-800 rounded-full h-3 mb-2">
+                          <div
+                            className={`h-3 rounded-full transition-all duration-500 ${pct >= 100 ? 'bg-gradient-to-r from-green-400 to-emerald-500' : pct >= 70 ? 'bg-gradient-to-r from-yellow-400 to-orange-500' : 'bg-gradient-to-r from-orange-400 to-orange-600'}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className={`text-lg font-bold ${pct >= 100 ? 'text-green-400' : pct >= 70 ? 'text-yellow-400' : 'text-orange-400'}`}>{pct}%</span>
+                          {remaining > 0 && <span className="text-xs text-gray-500">{language === 'ja' ? `残り${remaining}本` : `剩余${remaining}本`}</span>}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+
+            {/* ライバー別内訳テーブル */}
+            {quotaProgress.liverBreakdown.length > 0 && (
+              <div className="bg-black/40 rounded-xl border border-cyan-500/10 overflow-hidden">
+                <div className="px-4 py-2 border-b border-cyan-500/10">
+                  <span className="text-sm font-medium text-cyan-300">
+                    <Users className="h-4 w-4 inline mr-1" />
+                    {language === 'ja' ? 'ライバー別内訳' : '主播明细'}
+                  </span>
+                </div>
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-800">
+                      <th className="text-left p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'ライバー' : '主播'}</th>
+                      <th className="text-left p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'タイプ' : '类型'}</th>
+                      <th className="text-right p-3 text-xs font-medium text-gray-400">{language === 'ja' ? '配信回数' : '直播次数'}</th>
+                      <th className="text-right p-3 text-xs font-medium text-gray-400">{language === 'ja' ? '配信時間' : '直播时长'}</th>
+                      <th className="text-right p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'ノルマ' : '配额'}</th>
+                      <th className="text-right p-3 text-xs font-medium text-gray-400">{language === 'ja' ? '進捗' : '进度'}</th>
+                      <th className="text-right p-3 text-xs font-medium text-gray-400">GMV</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {quotaProgress.liverBreakdown.map((lb, idx) => {
+                      const kolProg = quotaProgress.kolProgress?.find((a: any) => a.liverName === lb.streamerName);
+                      const quotaHours = kolProg ? kolProg.quotaHours : null;
+                      const kolPct = kolProg ? kolProg.progressPercent : null;
+                      return (
+                        <tr key={idx} className="border-b border-gray-800/50 hover:bg-white/5 transition-colors">
+                          <td className="p-3">
+                            <span className="text-sm font-medium text-white">{lb.streamerName}</span>
+                          </td>
+                          <td className="p-3">
+                            <Badge variant="outline" className={lb.isKg ? 'text-red-400 border-red-500/30' : 'text-blue-400 border-blue-500/30'}>
+                              {lb.isKg ? 'KG老师' : '達人'}
+                            </Badge>
+                          </td>
+                          <td className="p-3 text-right">
+                            <span className="text-sm text-gray-300">{lb.streamCount}{language === 'ja' ? '回' : '次'}</span>
+                          </td>
+                          <td className="p-3 text-right">
+                            <span className="text-sm font-medium text-cyan-300">{lb.totalDurationHours}h</span>
+                          </td>
+                          <td className="p-3 text-right">
+                            {quotaHours ? (
+                              <span className="text-sm text-gray-400">{quotaHours}h/月</span>
+                            ) : (
+                              <span className="text-xs text-gray-600">-</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-right">
+                            {kolPct !== null ? (
+                              <div className="flex items-center gap-2 justify-end">
+                                <div className="w-16 bg-gray-800 rounded-full h-2">
+                                  <div
+                                    className={`h-2 rounded-full ${kolPct >= 100 ? 'bg-green-400' : kolPct >= 70 ? 'bg-yellow-400' : 'bg-blue-400'}`}
+                                    style={{ width: `${kolPct}%` }}
+                                  />
+                                </div>
+                                <span className={`text-xs font-bold ${kolPct >= 100 ? 'text-green-400' : kolPct >= 70 ? 'text-yellow-400' : 'text-blue-400'}`}>{kolPct}%</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-600">-</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-right">
+                            <span className="text-sm font-medium text-green-400">¥{lb.totalGmv.toLocaleString()}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Main KPI Card */}
         <div className="grid grid-cols-1 gap-4">
           {/* Total GMV - Large card with fire icon */}
@@ -2451,188 +2634,6 @@ ${proposal.proposalContent}
             </div>
           )}
         </div>
-
-        {/* ノルマ進捗セクション */}
-        {quotaProgress && (quotaProgress.quotas.kgLiveHours > 0 || quotaProgress.quotas.liverLiveHours > 0 || quotaProgress.quotas.shortVideoCount > 0) && (
-          <div className="bg-gradient-to-br from-cyan-900/30 to-blue-900/20 backdrop-blur-xl rounded-2xl border-2 border-cyan-500/40 p-4 md:p-5 shadow-[0_0_50px_rgba(0,200,255,0.15)]">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-white flex items-center gap-3">
-                <div className="w-1.5 h-8 bg-gradient-to-b from-cyan-400 to-blue-500 rounded-full" />
-                <Target className="h-5 w-5 text-cyan-400" />
-                {language === 'ja' ? `ノルマ進捗 (${quotaProgress.year}年${quotaProgress.month}月)` : `配额进度 (${quotaProgress.year}年${quotaProgress.month}月)`}
-              </h2>
-            </div>
-
-            {/* 進捗バー */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              {/* KG老师直播 */}
-              {quotaProgress.quotas.kgLiveHours > 0 && (
-                <div className="bg-black/40 rounded-xl p-4 border border-red-500/20">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-red-400">{language === 'ja' ? 'KG老师直播' : 'KG老师直播'}</span>
-                    <span className="text-xs text-gray-400">
-                      {quotaProgress.actuals.kgLiveHours}h / {quotaProgress.quotas.kgLiveHours}h
-                    </span>
-                  </div>
-                  {(() => {
-                    const pct = Math.min(100, Math.round((quotaProgress.actuals.kgLiveHours / quotaProgress.quotas.kgLiveHours) * 100));
-                    const remaining = Math.max(0, quotaProgress.quotas.kgLiveHours - quotaProgress.actuals.kgLiveHours);
-                    return (
-                      <>
-                        <div className="w-full bg-gray-800 rounded-full h-3 mb-2">
-                          <div
-                            className={`h-3 rounded-full transition-all duration-500 ${pct >= 100 ? 'bg-gradient-to-r from-green-400 to-emerald-500' : pct >= 70 ? 'bg-gradient-to-r from-yellow-400 to-orange-500' : 'bg-gradient-to-r from-red-400 to-red-600'}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className={`text-lg font-bold ${pct >= 100 ? 'text-green-400' : pct >= 70 ? 'text-yellow-400' : 'text-red-400'}`}>{pct}%</span>
-                          {remaining > 0 && <span className="text-xs text-gray-500">{language === 'ja' ? `残り${remaining}h` : `剩余${remaining}h`}</span>}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {/* 达人直播 */}
-              {quotaProgress.quotas.liverLiveHours > 0 && (
-                <div className="bg-black/40 rounded-xl p-4 border border-blue-500/20">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-blue-400">{language === 'ja' ? '達人直播' : '达人直播'}</span>
-                    <span className="text-xs text-gray-400">
-                      {quotaProgress.actuals.liverLiveHours}h / {quotaProgress.quotas.liverLiveHours}h
-                    </span>
-                  </div>
-                  {(() => {
-                    const pct = Math.min(100, Math.round((quotaProgress.actuals.liverLiveHours / quotaProgress.quotas.liverLiveHours) * 100));
-                    const remaining = Math.max(0, quotaProgress.quotas.liverLiveHours - quotaProgress.actuals.liverLiveHours);
-                    return (
-                      <>
-                        <div className="w-full bg-gray-800 rounded-full h-3 mb-2">
-                          <div
-                            className={`h-3 rounded-full transition-all duration-500 ${pct >= 100 ? 'bg-gradient-to-r from-green-400 to-emerald-500' : pct >= 70 ? 'bg-gradient-to-r from-yellow-400 to-orange-500' : 'bg-gradient-to-r from-blue-400 to-blue-600'}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className={`text-lg font-bold ${pct >= 100 ? 'text-green-400' : pct >= 70 ? 'text-yellow-400' : 'text-blue-400'}`}>{pct}%</span>
-                          {remaining > 0 && <span className="text-xs text-gray-500">{language === 'ja' ? `残り${remaining}h` : `剩余${remaining}h`}</span>}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {/* 短視頻 */}
-              {quotaProgress.quotas.shortVideoCount > 0 && (
-                <div className="bg-black/40 rounded-xl p-4 border border-orange-500/20">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-orange-400">{language === 'ja' ? '短視頻' : '短视频'}</span>
-                    <span className="text-xs text-gray-400">
-                      {quotaProgress.actuals.shortVideoCount}本 / {quotaProgress.quotas.shortVideoCount}本
-                    </span>
-                  </div>
-                  {(() => {
-                    const pct = Math.min(100, Math.round((quotaProgress.actuals.shortVideoCount / quotaProgress.quotas.shortVideoCount) * 100));
-                    const remaining = Math.max(0, quotaProgress.quotas.shortVideoCount - quotaProgress.actuals.shortVideoCount);
-                    return (
-                      <>
-                        <div className="w-full bg-gray-800 rounded-full h-3 mb-2">
-                          <div
-                            className={`h-3 rounded-full transition-all duration-500 ${pct >= 100 ? 'bg-gradient-to-r from-green-400 to-emerald-500' : pct >= 70 ? 'bg-gradient-to-r from-yellow-400 to-orange-500' : 'bg-gradient-to-r from-orange-400 to-orange-600'}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className={`text-lg font-bold ${pct >= 100 ? 'text-green-400' : pct >= 70 ? 'text-yellow-400' : 'text-orange-400'}`}>{pct}%</span>
-                          {remaining > 0 && <span className="text-xs text-gray-500">{language === 'ja' ? `残り${remaining}本` : `剩余${remaining}本`}</span>}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
-
-            {/* ライバー別内訳テーブル */}
-            {quotaProgress.liverBreakdown.length > 0 && (
-              <div className="bg-black/40 rounded-xl border border-cyan-500/10 overflow-hidden">
-                <div className="px-4 py-2 border-b border-cyan-500/10">
-                  <span className="text-sm font-medium text-cyan-300">
-                    <Users className="h-4 w-4 inline mr-1" />
-                    {language === 'ja' ? 'ライバー別内訳' : '主播明细'}
-                  </span>
-                </div>
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-800">
-                      <th className="text-left p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'ライバー' : '主播'}</th>
-                      <th className="text-left p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'タイプ' : '类型'}</th>
-                      <th className="text-right p-3 text-xs font-medium text-gray-400">{language === 'ja' ? '配信回数' : '直播次数'}</th>
-                      <th className="text-right p-3 text-xs font-medium text-gray-400">{language === 'ja' ? '配信時間' : '直播时长'}</th>
-                      <th className="text-right p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'ノルマ' : '配额'}</th>
-                      <th className="text-right p-3 text-xs font-medium text-gray-400">{language === 'ja' ? '進捗' : '进度'}</th>
-                      <th className="text-right p-3 text-xs font-medium text-gray-400">GMV</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {quotaProgress.liverBreakdown.map((lb, idx) => {
-                      // KOL別ノルマを検索
-                      const kolProgress = quotaProgress.kolProgress?.find((a: any) => a.liverName === lb.streamerName);
-                      const quotaHours = kolProgress ? kolProgress.quotaHours : null;
-                      const kolPct = kolProgress ? kolProgress.progressPercent : null;
-                      return (
-                        <tr key={idx} className="border-b border-gray-800/50 hover:bg-white/5 transition-colors">
-                          <td className="p-3">
-                            <span className="text-sm font-medium text-white">{lb.streamerName}</span>
-                          </td>
-                          <td className="p-3">
-                            <Badge variant="outline" className={lb.isKg ? 'text-red-400 border-red-500/30' : 'text-blue-400 border-blue-500/30'}>
-                              {lb.isKg ? 'KG老师' : '達人'}
-                            </Badge>
-                          </td>
-                          <td className="p-3 text-right">
-                            <span className="text-sm text-gray-300">{lb.streamCount}{language === 'ja' ? '回' : '次'}</span>
-                          </td>
-                          <td className="p-3 text-right">
-                            <span className="text-sm font-medium text-cyan-300">{lb.totalDurationHours}h</span>
-                          </td>
-                          <td className="p-3 text-right">
-                            {quotaHours ? (
-                              <span className="text-sm text-gray-400">{quotaHours}h/月</span>
-                            ) : (
-                              <span className="text-xs text-gray-600">-</span>
-                            )}
-                          </td>
-                          <td className="p-3 text-right">
-                            {kolPct !== null ? (
-                              <div className="flex items-center gap-2 justify-end">
-                                <div className="w-16 bg-gray-800 rounded-full h-2">
-                                  <div
-                                    className={`h-2 rounded-full ${kolPct >= 100 ? 'bg-green-400' : kolPct >= 70 ? 'bg-yellow-400' : 'bg-blue-400'}`}
-                                    style={{ width: `${kolPct}%` }}
-                                  />
-                                </div>
-                                <span className={`text-xs font-bold ${kolPct >= 100 ? 'text-green-400' : kolPct >= 70 ? 'text-yellow-400' : 'text-blue-400'}`}>{kolPct}%</span>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-600">-</span>
-                            )}
-                          </td>
-                          <td className="p-3 text-right">
-                            <span className="text-sm font-medium text-green-400">¥{lb.totalGmv.toLocaleString()}</span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Livestream Performance Table - 全幅表示 */}
         <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-pink-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,100,0.15)]">
