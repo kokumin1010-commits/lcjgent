@@ -255,6 +255,7 @@ export const svmRouter = router({
   updatePost: protectedProcedure
     .input(z.object({
       id: z.number(),
+      accountId: z.number().optional(),
       title: z.string().optional(),
       description: z.string().optional(),
       videoUrl: z.string().optional(),
