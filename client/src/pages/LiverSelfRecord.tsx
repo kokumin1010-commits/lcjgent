@@ -131,7 +131,7 @@ export default function LiverSelfRecord() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   
   // セット組みデータ
-  type SetItem = { productName: string; originalPrice: string };
+  type SetItem = { productName: string; originalPrice: string; quantity: string };
   type SetData = { setName: string; setPrice: string; quantitySold: string; items: SetItem[] };
   const [sets, setSets] = useState<SetData[]>([]);
 
@@ -646,6 +646,7 @@ export default function LiverSelfRecord() {
                 .map(item => ({
                   productName: item.productName.trim(),
                   originalPrice: parseInt(item.originalPrice) || 0,
+                  quantity: parseInt(item.quantity) || 1,
                 })),
             }))
             .filter(s => s.items.length > 0);
@@ -1272,7 +1273,7 @@ export default function LiverSelfRecord() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setSets([...sets, { setName: '', setPrice: '', quantitySold: '1', items: [{ productName: '', originalPrice: '' }] }])}
+                    onClick={() => setSets([...sets, { setName: '', setPrice: '', quantitySold: '1', items: [{ productName: '', originalPrice: '', quantity: '1' }] }])}
                     className="text-purple-400 border-purple-500/30 hover:bg-purple-500/10 text-xs h-7"
                   >
                     <Plus className="h-3 w-3 mr-1" />
@@ -1283,7 +1284,7 @@ export default function LiverSelfRecord() {
                 <p className="text-xs text-white -mt-1">{t("record.setNote")}</p>
 
                 {sets.map((set, setIndex) => {
-                  const totalOriginalPrice = set.items.reduce((sum, item) => sum + (parseInt(item.originalPrice) || 0), 0);
+                  const totalOriginalPrice = set.items.reduce((sum, item) => sum + (parseInt(item.originalPrice) || 0) * (parseInt(item.quantity) || 1), 0);
                   const setPrice = parseInt(set.setPrice) || 0;
                   const discountRate = totalOriginalPrice > 0 ? Math.round(((totalOriginalPrice - setPrice) / totalOriginalPrice) * 100) : 0;
                   const quantitySold = parseInt(set.quantitySold) || 1;
@@ -1362,7 +1363,7 @@ export default function LiverSelfRecord() {
                               size="sm"
                               onClick={() => {
                                 const newSets = [...sets];
-                                newSets[setIndex].items.push({ productName: '', originalPrice: '' });
+                                newSets[setIndex].items.push({ productName: '', originalPrice: '', quantity: '1' });
                                 setSets(newSets);
                               }}
                               className="text-white hover:text-white text-xs h-6 px-2"
@@ -1394,6 +1395,18 @@ export default function LiverSelfRecord() {
                                   setSets(newSets);
                                 }}
                                 className="bg-gray-800 border-gray-700 text-white text-sm w-24"
+                              />
+                              <Input
+                                type="number"
+                                placeholder={language === 'ja' ? '数量' : language === 'zh-TW' ? '數量' : language === 'en' ? 'Qty' : '数量'}
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const newSets = [...sets];
+                                  newSets[setIndex].items[itemIndex].quantity = e.target.value;
+                                  setSets(newSets);
+                                }}
+                                className="bg-gray-800 border-gray-700 text-white text-sm w-16"
+                                min="1"
                               />
                               {set.items.length > 1 && (
                                 <Button

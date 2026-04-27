@@ -21397,3 +21397,80 @@ export async function deleteLivestreamPromotionsByLivestreamId(livestreamId: num
   return db.delete(livestreamPromotions)
     .where(eq(livestreamPromotions.livestreamId, livestreamId));
 }
+
+// ============================================================
+// Liver Promotion Analysis (ライバー別プロモーション分析)
+// ============================================================
+
+export async function getLiverPromotionAnalysis(liverId: number) {
+  const db = await getDb();
+  if (!db) return { summary: null, promotions: [], topProducts: [] };
+  
+  const promos = await db
+    .select({
+      id: livestreamPromotions.id,
+      livestreamId: livestreamPromotions.livestreamId,
+      productName: livestreamPromotions.productName,
+      originalPrice: livestreamPromotions.originalPrice,
+      discountPrice: livestreamPromotions.discountPrice,
+      quantity: livestreamPromotions.quantity,
+      discountRate: livestreamPromotions.discountRate,
+      totalRevenue: livestreamPromotions.totalRevenue,
+      sortOrder: livestreamPromotions.sortOrder,
+      createdAt: livestreamPromotions.createdAt,
+      livestreamDate: brandLivestreams.livestreamDate,
+      streamerName: brandLivestreams.streamerName,
+    })
+    .from(livestreamPromotions)
+    .innerJoin(brandLivestreams, eq(livestreamPromotions.livestreamId, brandLivestreams.id))
+    .where(eq(brandLivestreams.liverId, liverId))
+    .orderBy(desc(livestreamPromotions.totalRevenue));
+  
+  if (promos.length === 0) return { summary: null, promotions: [], topProducts: [] };
+  
+  const totalPromos = promos.length;
+  const totalPromoRevenue = promos.reduce((sum, p) => sum + (p.totalRevenue || 0), 0);
+  const totalQuantitySold = promos.reduce((sum, p) => sum + (p.quantity || 0), 0);
+  const totalOriginalValue = promos.reduce((sum, p) => sum + ((p.originalPrice || 0) * (p.quantity || 1)), 0);
+  const totalDiscountValue = promos.reduce((sum, p) => sum + ((p.discountPrice || 0) * (p.quantity || 1)), 0);
+  const avgDiscountRate = totalPromos > 0
+    ? Math.round(promos.reduce((sum, p) => sum + (p.discountRate || 0), 0) / totalPromos)
+    : 0;
+  const totalSavings = totalOriginalValue - totalDiscountValue;
+  
+  // 商品別集計
+  const productFrequency: Record<string, { count: number; totalRevenue: number; totalQuantity: number; avgDiscount: number }> = {};
+  for (const promo of promos) {
+    const name = promo.productName;
+    if (!productFrequency[name]) {
+      productFrequency[name] = { count: 0, totalRevenue: 0, totalQuantity: 0, avgDiscount: 0 };
+    }
+    productFrequency[name].count += 1;
+    productFrequency[name].totalRevenue += (promo.totalRevenue || 0);
+    productFrequency[name].totalQuantity += (promo.quantity || 0);
+    productFrequency[name].avgDiscount += (promo.discountRate || 0);
+  }
+  
+  const topProducts = Object.entries(productFrequency)
+    .map(([name, data]) => ({
+      productName: name,
+      count: data.count,
+      totalRevenue: data.totalRevenue,
+      totalQuantity: data.totalQuantity,
+      avgDiscount: data.count > 0 ? Math.round(data.avgDiscount / data.count) : 0,
+    }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue)
+    .slice(0, 10);
+  
+  return {
+    summary: {
+      totalPromos,
+      totalPromoRevenue,
+      totalQuantitySold,
+      avgDiscountRate,
+      totalSavings,
+    },
+    promotions: promos,
+    topProducts,
+  };
+}

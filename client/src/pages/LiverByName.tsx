@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ChevronDown, ChevronUp, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2, UserCheck, Upload, Package, FileSpreadsheet, Trophy, Crown, ShoppingBag } from "lucide-react";
+import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ChevronDown, ChevronUp, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2, UserCheck, Upload, Package, FileSpreadsheet, Trophy, Crown, ShoppingBag, Tag, Percent } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
@@ -374,6 +374,12 @@ export default function LiverByName() {
     { enabled: !!liverId }
   );
 
+  // プロモーション分析（ライバー別）
+  const { data: promoAnalysis } = trpc.livestreamPromotions.liverPromotionAnalysis.useQuery(
+    { liverId: liverId! },
+    { enabled: !!liverId }
+  );
+
   // 月別売上商品一覧（ライバー別）
   const { data: monthlyProducts } = trpc.liver.getMonthlyProducts.useQuery(
     { liverId: liverId!, year: parseInt(selectedMonth.split('-')[0]), month: parseInt(selectedMonth.split('-')[1]) },
@@ -384,6 +390,7 @@ export default function LiverByName() {
   const [showAllProducts, setShowAllProducts] = useState(false);
   // セット詳細の展開
   const [expandedSetId, setExpandedSetId] = useState<number | null>(null);
+  const [expandedPromoId, setExpandedPromoId] = useState<number | null>(null);
 
   const unverifiedIds = useMemo(() => {
     if (!data?.livestreams) return [];
@@ -1334,6 +1341,119 @@ export default function LiverByName() {
                       <div key={idx} className="px-3 py-1.5 rounded-lg bg-gray-800/60 border border-gray-700/50 text-xs">
                         <span className="text-white font-medium">{product.productName}</span>
                         <span className="text-pink-400 ml-2">{product.count}回使用</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* プロモーション単品割引一覧 */}
+        {promoAnalysis && promoAnalysis.promotions && promoAnalysis.promotions.length > 0 && (
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardContent className="p-6">
+              <h2 className="text-lg font-bold mb-4 flex items-center gap-3">
+                <Tag className="w-6 h-6 text-violet-400" />
+                <span className="text-white">プロモーション単品割引</span>
+              </h2>
+              
+              {/* サマリー */}
+              {promoAnalysis.summary && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                  <div className="p-3 rounded-lg bg-gray-800/60 border border-gray-700/50 text-center">
+                    <div className="text-gray-400 text-xs mb-1">割引件数</div>
+                    <div className="text-violet-400 font-bold text-lg">{promoAnalysis.summary.totalPromos}件</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-gray-800/60 border border-gray-700/50 text-center">
+                    <div className="text-gray-400 text-xs mb-1">割引売上合計</div>
+                    <div className="text-emerald-400 font-mono font-bold text-lg">¥{Number(promoAnalysis.summary.totalPromoRevenue).toLocaleString()}</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-gray-800/60 border border-gray-700/50 text-center">
+                    <div className="text-gray-400 text-xs mb-1">販売数合計</div>
+                    <div className="text-cyan-300 font-bold text-lg">{promoAnalysis.summary.totalQuantitySold}個</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-gray-800/60 border border-gray-700/50 text-center">
+                    <div className="text-gray-400 text-xs mb-1">平均割引率</div>
+                    <div className="text-orange-400 font-bold text-lg">{promoAnalysis.summary.avgDiscountRate}%OFF</div>
+                  </div>
+                </div>
+              )}
+
+              {/* プロモーション一覧 */}
+              <div className="space-y-2">
+                {promoAnalysis.promotions.map((promo: any) => {
+                  const isExpanded = expandedPromoId === promo.id;
+                  return (
+                    <div key={promo.id}>
+                      <div
+                        onClick={() => setExpandedPromoId(isExpanded ? null : promo.id)}
+                        className={`p-4 rounded-lg border transition-all cursor-pointer ${
+                          isExpanded
+                            ? 'bg-gray-800/80 border-violet-400/40'
+                            : 'bg-gray-800/40 border-gray-700/50 hover:border-violet-400/30'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Tag className="w-4 h-4 text-violet-400 shrink-0" />
+                            <span className="text-white font-semibold text-sm">{promo.productName}</span>
+                            {promo.discountRate != null && Number(promo.discountRate) > 0 && (
+                              <span className="px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 text-xs font-bold">
+                                {Math.round(Number(promo.discountRate))}%OFF
+                              </span>
+                            )}
+                            {isExpanded
+                              ? <ChevronUp className="w-4 h-4 text-violet-400" />
+                              : <ChevronDown className="w-4 h-4 text-gray-500" />
+                            }
+                          </div>
+                          <div className="flex items-center gap-3 text-xs">
+                            {promo.livestreamDate && (
+                              <span className="text-gray-400">
+                                {new Date(promo.livestreamDate).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Tokyo' })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4 mt-2 text-xs">
+                          <div>
+                            <span className="text-gray-400">元値: </span>
+                            <span className="text-gray-300 line-through">¥{Number(promo.originalPrice || 0).toLocaleString()}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">割引後: </span>
+                            <span className="text-yellow-400 font-bold">¥{Number(promo.discountPrice || 0).toLocaleString()}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">数量: </span>
+                            <span className="text-cyan-300 font-bold">{promo.quantity || 1}個</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">売上: </span>
+                            <span className="text-emerald-400 font-mono font-bold">¥{Number(promo.totalRevenue || 0).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* よく割引される商品 */}
+              {promoAnalysis.topProducts && promoAnalysis.topProducts.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-gray-700">
+                  <h3 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+                    <Trophy className="w-4 h-4 text-yellow-400" />
+                    よく割引される商品
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {promoAnalysis.topProducts.map((product: any, idx: number) => (
+                      <div key={idx} className="px-3 py-1.5 rounded-lg bg-gray-800/60 border border-gray-700/50 text-xs">
+                        <span className="text-white font-medium">{product.productName}</span>
+                        <span className="text-violet-400 ml-2">{product.count}回</span>
+                        <span className="text-gray-500 ml-1">(平均{product.avgDiscount}%OFF)</span>
                       </div>
                     ))}
                   </div>

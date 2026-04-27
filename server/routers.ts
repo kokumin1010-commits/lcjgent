@@ -458,6 +458,7 @@ import {
   getSimulationFeedbackHistory,
   getAllLiversSetAnalysis,
   getLiverSetAnalysis,
+  getLiverPromotionAnalysis,
   searchSets,
   getProductReviews,
   getProductReviewStats,
@@ -19617,6 +19618,25 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({ liverId: z.number() }))
       .query(async ({ input }) => {
         return await getLiverSetAnalysis(input.liverId);
+      }),
+  }),
+
+  // ============================================================
+  // Livestream Promotions Router - プロモーション単品割引
+  // ============================================================
+  livestreamPromotions: router({
+    // ライバー別プロモーション分析
+    liverPromotionAnalysis: publicProcedure
+      .input(z.object({ liverId: z.number() }))
+      .query(async ({ input }) => {
+        return await getLiverPromotionAnalysis(input.liverId);
+      }),
+    
+    // 配信別プロモーション取得
+    getByLivestreamId: publicProcedure
+      .input(z.object({ livestreamId: z.number() }))
+      .query(async ({ input }) => {
+        return await getLivestreamPromotionsByLivestreamId(input.livestreamId);
       }),
   }),
 
