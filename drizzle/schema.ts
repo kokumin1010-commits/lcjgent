@@ -5505,3 +5505,30 @@ export const liveSuggestions = mysqlTable("live_suggestions", {
 });
 export type LiveSuggestion = typeof liveSuggestions.$inferSelect;
 export type InsertLiveSuggestion = typeof liveSuggestions.$inferInsert;
+
+/**
+ * Livestream Promotions table for tracking individual product discounts during live streams
+ * 配信中の単品割引プロモーションを記録するテーブル
+ */
+export const livestreamPromotions = mysqlTable("livestream_promotions", {
+  id: int("id").autoincrement().primaryKey(),
+  livestreamId: int("livestreamId").notNull(), // References brandLivestreams.id
+
+  // 商品情報
+  productName: varchar("productName", { length: 255 }).notNull(), // 商品名（自由入力）
+  originalPrice: bigint("originalPrice", { mode: "number" }).notNull(), // 元値（定価）
+  discountPrice: bigint("discountPrice", { mode: "number" }).notNull(), // 割引後価格
+  quantity: int("quantity").default(1).notNull(), // 販売数量
+
+  // 自動計算フィールド
+  discountRate: int("discountRate").default(0), // 割引率（%）
+  totalRevenue: bigint("totalRevenue", { mode: "number" }).default(0), // 売上合計（割引後価格 × 数量）
+
+  // 並び順
+  sortOrder: int("sortOrder").default(0),
+
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type LivestreamPromotion = typeof livestreamPromotions.$inferSelect;
+export type InsertLivestreamPromotion = typeof livestreamPromotions.$inferInsert;

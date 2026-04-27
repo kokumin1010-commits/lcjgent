@@ -443,6 +443,9 @@ import {
   createLivestreamSetItem,
   getLivestreamSetsByLivestreamId,
   deleteLivestreamSetsByLivestreamId,
+  createLivestreamPromotion,
+  getLivestreamPromotionsByLivestreamId,
+  deleteLivestreamPromotionsByLivestreamId,
   getLiverPerformanceStats,
   findSimilarCases,
   createSimulation,
@@ -10632,6 +10635,13 @@ ${conversationText}
             quantity: z.number().min(1).default(1),
           })).min(1),
         })).optional(),
+        // プロモーション単品割引データ（任意）
+        promotions: z.array(z.object({
+          productName: z.string().min(1),
+          originalPrice: z.number().min(0),
+          discountPrice: z.number().min(0),
+          quantity: z.number().min(1).default(1),
+        })).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         // Get liver info for streamerName and LINE notification
@@ -10791,6 +10801,28 @@ ${conversationText}
                 });
               }
             }
+          }
+        }
+
+        // プロモーション単品割引データの保存
+        if (input.promotions && input.promotions.length > 0) {
+          for (let i = 0; i < input.promotions.length; i++) {
+            const promo = input.promotions[i];
+            const discountRate = promo.originalPrice > 0
+              ? Math.round(((promo.originalPrice - promo.discountPrice) / promo.originalPrice) * 100)
+              : 0;
+            const totalRevenue = promo.discountPrice * promo.quantity;
+            
+            await createLivestreamPromotion({
+              livestreamId: id,
+              productName: promo.productName,
+              originalPrice: promo.originalPrice,
+              discountPrice: promo.discountPrice,
+              quantity: promo.quantity,
+              discountRate,
+              totalRevenue,
+              sortOrder: i,
+            });
           }
         }
         

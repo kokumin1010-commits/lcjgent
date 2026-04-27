@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, CheckCircle, Eye, Package, Plus, Trash2, Tag, Zap } from "lucide-react";
+import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, CheckCircle, Eye, Package, Plus, Trash2, Tag, Zap, BadgePercent } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { liverTranslations, type LiverLanguage } from "@/lib/liverI18n";
@@ -134,6 +134,10 @@ export default function LiverSelfRecord() {
   type SetItem = { productName: string; originalPrice: string };
   type SetData = { setName: string; setPrice: string; quantitySold: string; items: SetItem[] };
   const [sets, setSets] = useState<SetData[]>([]);
+
+  // プロモーション単品割引データ
+  type PromoItem = { productName: string; originalPrice: string; discountPrice: string; quantity: string };
+  const [promos, setPromos] = useState<PromoItem[]>([]);
   
   const [analyzedData, setAnalyzedData] = useState<{
     salesAmount?: number | null;
@@ -646,6 +650,18 @@ export default function LiverSelfRecord() {
             }))
             .filter(s => s.items.length > 0);
           return validSets.length > 0 ? validSets : undefined;
+        })() : undefined,
+        // プロモーション単品割引データ
+        promotions: promos.length > 0 ? (() => {
+          const validPromos = promos
+            .filter(p => p.productName.trim().length > 0)
+            .map(p => ({
+              productName: p.productName.trim(),
+              originalPrice: parseInt(p.originalPrice) || 0,
+              discountPrice: parseInt(p.discountPrice) || 0,
+              quantity: parseInt(p.quantity) || 1,
+            }));
+          return validPromos.length > 0 ? validPromos : undefined;
         })() : undefined,
       });
     } catch (error) {
@@ -1413,6 +1429,129 @@ export default function LiverSelfRecord() {
                             </div>
                             <div className="flex justify-between text-xs">
                               <span className="text-white">{t("record.setTotal")}</span>
+                              <span className="text-yellow-400 font-medium">¥{Number(totalRevenue).toLocaleString()}</span>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+
+              {/* プロモーション単品割引セクション */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-white text-sm flex items-center gap-2">
+                    <BadgePercent className="h-4 w-4 text-orange-500" />
+                    {t("record.promoSection")}
+                  </Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPromos([...promos, { productName: '', originalPrice: '', discountPrice: '', quantity: '1' }])}
+                    className="text-orange-400 border-orange-500/30 hover:bg-orange-500/10 text-xs h-7"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    {t("record.addPromo")}
+                  </Button>
+                </div>
+
+                <p className="text-xs text-white -mt-1">{t("record.promoNote")}</p>
+
+                {promos.map((promo, promoIndex) => {
+                  const origPrice = parseInt(promo.originalPrice) || 0;
+                  const discPrice = parseInt(promo.discountPrice) || 0;
+                  const qty = parseInt(promo.quantity) || 1;
+                  const discountRate = origPrice > 0 ? Math.round(((origPrice - discPrice) / origPrice) * 100) : 0;
+                  const totalRevenue = discPrice * qty;
+
+                  return (
+                    <Card key={promoIndex} className="bg-orange-500/5 border-orange-500/20">
+                      <CardContent className="p-3 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-orange-400 text-xs font-medium">{t("record.promoDiscount")} {promoIndex + 1}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setPromos(promos.filter((_, i) => i !== promoIndex))}
+                            className="text-red-400 hover:text-red-300 h-6 w-6 p-0"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+
+                        {/* 商品名 */}
+                        <Input
+                          placeholder={language === 'ja' ? '商品名（例：シャンプー 500ml）' : language === 'zh-TW' ? '商品名稱' : language === 'en' ? 'Product name' : '商品名称'}
+                          value={promo.productName}
+                          onChange={(e) => {
+                            const newPromos = [...promos];
+                            newPromos[promoIndex].productName = e.target.value;
+                            setPromos(newPromos);
+                          }}
+                          className="bg-gray-800 border-gray-700 text-white text-sm"
+                        />
+
+                        {/* 元値・割引後価格・数量 */}
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <Label className="text-white text-xs">{t("record.promoOriginalPrice")}</Label>
+                            <Input
+                              type="number"
+                              placeholder="5000"
+                              value={promo.originalPrice}
+                              onChange={(e) => {
+                                const newPromos = [...promos];
+                                newPromos[promoIndex].originalPrice = e.target.value;
+                                setPromos(newPromos);
+                              }}
+                              className="bg-gray-800 border-gray-700 text-white text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-white text-xs">{t("record.promoDiscountPrice")}</Label>
+                            <Input
+                              type="number"
+                              placeholder="3500"
+                              value={promo.discountPrice}
+                              onChange={(e) => {
+                                const newPromos = [...promos];
+                                newPromos[promoIndex].discountPrice = e.target.value;
+                                setPromos(newPromos);
+                              }}
+                              className="bg-gray-800 border-gray-700 text-white text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-white text-xs">{t("record.promoQuantity")}</Label>
+                            <Input
+                              type="number"
+                              placeholder="1"
+                              value={promo.quantity}
+                              onChange={(e) => {
+                                const newPromos = [...promos];
+                                newPromos[promoIndex].quantity = e.target.value;
+                                setPromos(newPromos);
+                              }}
+                              className="bg-gray-800 border-gray-700 text-white text-sm"
+                            />
+                          </div>
+                        </div>
+
+                        {/* 自動計算表示 */}
+                        {discPrice > 0 && origPrice > 0 && (
+                          <div className="bg-gray-800/50 rounded-lg p-2 space-y-1">
+                            <div className="flex justify-between text-xs">
+                              <span className="text-white">{t("record.discountRate")}</span>
+                              <span className={discountRate > 0 ? "text-green-400 font-medium" : "text-white"}>
+                                {discountRate > 0 ? `${discountRate}% OFF` : '-'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-white">{t("record.promoTotal")}</span>
                               <span className="text-yellow-400 font-medium">¥{Number(totalRevenue).toLocaleString()}</span>
                             </div>
                           </div>

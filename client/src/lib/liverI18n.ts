@@ -271,6 +271,15 @@ export const liverTranslations: Record<string, Record<LiverLanguage, string>> = 
   "record.selectBrandFirst": { ja: "まずブランドを選択してください", "zh-TW": "請先選擇品牌", en: "Please select a brand first", zh: "请先选择品牌" },
   "record.brandRequired": { ja: "必須", "zh-TW": "必填", en: "Required", zh: "必填" },
   "record.minLabel": { ja: "分", "zh-TW": "分鐘", en: "min", zh: "分钟" },
+  "record.promoSection": { ja: "プロモーション単品割引（任意）", "zh-TW": "促銷單品折扣（選填）", en: "Single Item Promotions (Optional)", zh: "促销单品折扣（选填）" },
+  "record.addPromo": { ja: "割引追加", "zh-TW": "新增折扣", en: "Add Discount", zh: "新增折扣" },
+  "record.promoNote": { ja: "※ 単品割引プロモーションの記録です。売上金額には加算されません。", "zh-TW": "※ 單品折扣促銷記錄，不會加入銷售金額。", en: "* Single item discount promotions for reference. Not added to total sales.", zh: "※ 单品折扣促销记录，不会加入销售金额。" },
+  "record.promoProductName": { ja: "商品名", "zh-TW": "商品名稱", en: "Product Name", zh: "商品名称" },
+  "record.promoOriginalPrice": { ja: "元値（円）", "zh-TW": "原價", en: "Original Price", zh: "原价" },
+  "record.promoDiscountPrice": { ja: "割引後価格（円）", "zh-TW": "折扣價", en: "Discounted Price", zh: "折扣价" },
+  "record.promoQuantity": { ja: "数量", "zh-TW": "數量", en: "Qty", zh: "数量" },
+  "record.promoDiscount": { ja: "割引", "zh-TW": "折扣", en: "Discount", zh: "折扣" },
+  "record.promoTotal": { ja: "割引売上合計", "zh-TW": "折扣銷售合計", en: "Discount Sales Total", zh: "折扣销售合计" },
 
   // === Reset Password ===
   "reset.title": { ja: "パスワードリセット", "zh-TW": "重設密碼", en: "Reset Password", zh: "重置密码" },
