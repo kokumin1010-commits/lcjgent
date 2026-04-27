@@ -14867,6 +14867,109 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         }
       }),
     
+    // Retroactive point award for receipts that were approved but got 0pt due to bug
+    retroactivePointAward: protectedProcedure
+      .input(z.object({ dryRun: z.boolean().default(true) }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { awardPointsForLineReceipt, getLinePointBalance } = await import("./db");
+        const { pushMessage } = await import("./line");
+        const dbMod = await import("./db");
+        const dbInstance = dbMod.db ?? (await dbMod.getDb?.());
+        if (!dbInstance) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+        const { lineReceipts } = await import("../drizzle/schema");
+        const { and, eq, gt, isNull, or, sql } = await import("drizzle-orm");
+
+        // Find all approved receipts with pointsCalculated > 0 but pointsAwarded is NULL or 0
+        const affected = await dbInstance
+          .select({
+            id: lineReceipts.id,
+            lineUserId: lineReceipts.lineUserId,
+            totalAmount: lineReceipts.totalAmount,
+            pointsCalculated: lineReceipts.pointsCalculated,
+            pointsAwarded: lineReceipts.pointsAwarded,
+            storeName: lineReceipts.storeName,
+          })
+          .from(lineReceipts)
+          .where(
+            and(
+              eq(lineReceipts.status, "approved"),
+              gt(lineReceipts.pointsCalculated, 0),
+              or(
+                isNull(lineReceipts.pointsAwarded),
+                eq(lineReceipts.pointsAwarded, 0)
+              )
+            )
+          );
+
+        if (input.dryRun) {
+          const totalPoints = affected.reduce((sum, r) => sum + (Number(r.pointsCalculated) || 0), 0);
+          return {
+            dryRun: true,
+            affectedCount: affected.length,
+            totalPoints,
+            samples: affected.slice(0, 10).map(r => ({
+              id: r.id,
+              lineUserId: r.lineUserId,
+              totalAmount: Number(r.totalAmount),
+              pointsCalculated: Number(r.pointsCalculated),
+              storeName: r.storeName,
+            })),
+          };
+        }
+
+        // Execute retroactive award
+        let successCount = 0;
+        let skipCount = 0;
+        let errorCount = 0;
+        let totalPointsAwarded = 0;
+        const errors: Array<{ id: number; error: string }> = [];
+
+        for (const receipt of affected) {
+          const pts = Number(receipt.pointsCalculated) || 0;
+          if (pts <= 0) { skipCount++; continue; }
+          try {
+            const result = await awardPointsForLineReceipt(receipt.id, pts);
+            if (result.skipped) {
+              skipCount++;
+            } else {
+              successCount++;
+              totalPointsAwarded += pts;
+              // Send LINE notification (best effort)
+              try {
+                const balance = await getLinePointBalance(receipt.lineUserId);
+                const newBalance = balance?.balance ?? pts;
+                const storeName = receipt.storeName || "不明";
+                const amount = receipt.totalAmount ? `¥${Number(receipt.totalAmount).toLocaleString()}` : "不明";
+                const appUrl = process.env.APP_URL || "https://lcjmall.com";
+                const message = `🎉 ポイント付与のお知らせ\n\nシステム修正により、以下のレシートのポイントが付与されました：\n\n🏠 店舗名: ${storeName}\n💰 購入金額: ${amount}\n⭐ 獲得ポイント: ${pts}ポイント\n\n📊 現在の残高: ${newBalance}ポイント\n\nご迷惑をおかけして申し訳ございません。\n\n📋 ポイント履歴を確認する\n${appUrl}/mypage`;
+                await pushMessage(receipt.lineUserId, [{ type: "text", text: message }]);
+              } catch (notifyErr) {
+                // Notification failure should not block the award
+                console.error(`[Retroactive] LINE notification failed for receipt #${receipt.id}:`, notifyErr);
+              }
+            }
+          } catch (err: any) {
+            errorCount++;
+            errors.push({ id: receipt.id, error: err.message });
+            console.error(`[Retroactive] Failed to award points for receipt #${receipt.id}:`, err.message);
+          }
+        }
+
+        console.log(`[Retroactive Award] Complete: ${successCount} awarded, ${skipCount} skipped, ${errorCount} errors, ${totalPointsAwarded}pt total`);
+        return {
+          dryRun: false,
+          affectedCount: affected.length,
+          successCount,
+          skipCount,
+          errorCount,
+          totalPointsAwarded,
+          errors: errors.slice(0, 20),
+        };
+      }),
+
     // Get LINE receipt statistics (admin only)
     adminGetLineStatistics: protectedProcedure.query(async ({ ctx }) => {
       if (ctx.user.role !== "admin") {

@@ -607,14 +607,18 @@ ${statisticsPrompt}${learningPrompt}`,
           }
         }
 
-        // LLMが金額を検出した場合、DBに保存
+        // LLMが金額を検出した場合、DBに保存 + メモリ上のcandidateも更新
         if ((!candidate.totalAmount || candidate.totalAmount <= 0) && llmParsed.detectedAmount && typeof llmParsed.detectedAmount === "number" && llmParsed.detectedAmount > 0) {
+          const detectedPoints = Math.floor(llmParsed.detectedAmount * 0.01);
           try {
             await db.update(lineReceipts).set({ 
               totalAmount: llmParsed.detectedAmount,
-              pointsCalculated: Math.floor(llmParsed.detectedAmount * 0.01),
+              pointsCalculated: detectedPoints,
             }).where(eq(lineReceipts.id, candidate.id));
-            console.log(`[AI Pass2] Saved LLM-detected amount to DB for receipt #${candidate.id}: ${llmParsed.detectedAmount}`);
+            // CRITICAL: メモリ上のcandidateも更新（これがないとポイント付与が0ptになる）
+            (candidate as any).totalAmount = llmParsed.detectedAmount;
+            (candidate as any).pointsCalculated = detectedPoints;
+            console.log(`[AI Pass2] Saved LLM-detected amount to DB for receipt #${candidate.id}: ¥${llmParsed.detectedAmount} → ${detectedPoints}pt`);
           } catch (dbErr: any) {
             console.error(`[AI Pass2] Failed to save detected amount:`, dbErr.message);
           }

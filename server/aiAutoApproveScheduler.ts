@@ -817,14 +817,21 @@ ${statisticsPrompt}${learningPrompt}`,
           }
         }
         if (missingAmount && parsed.detectedAmount && typeof parsed.detectedAmount === "number" && parsed.detectedAmount > 0) {
-          console.log(`[AI AutoApprove Scheduler] LLM detected amount for receipt #${candidate.id}: ${parsed.detectedAmount}`);
-          // DBにも金額を保存
+          const detectedPoints = Math.floor(parsed.detectedAmount * 0.01);
+          console.log(`[AI AutoApprove Scheduler] LLM detected amount for receipt #${candidate.id}: ¥${parsed.detectedAmount} → ${detectedPoints}pt`);
+          // DBにも金額とポイントを保存
           try {
             const { db } = await import("./db");
             const { lineReceipts } = await import("../drizzle/schema");
             const { eq } = await import("drizzle-orm");
-            await db.update(lineReceipts).set({ totalAmount: parsed.detectedAmount }).where(eq(lineReceipts.id, candidate.id));
-            console.log(`[AI AutoApprove Scheduler] Saved LLM-detected amount to DB for receipt #${candidate.id}: ${parsed.detectedAmount}`);
+            await db.update(lineReceipts).set({ 
+              totalAmount: parsed.detectedAmount,
+              pointsCalculated: detectedPoints,
+            }).where(eq(lineReceipts.id, candidate.id));
+            // CRITICAL: メモリ上のcandidateも更新（これがないとポイント付与が0ptになる）
+            (candidate as any).totalAmount = parsed.detectedAmount;
+            (candidate as any).pointsCalculated = detectedPoints;
+            console.log(`[AI AutoApprove Scheduler] Saved LLM-detected amount+points to DB for receipt #${candidate.id}: ¥${parsed.detectedAmount} → ${detectedPoints}pt`);
           } catch (dbErr) {
             console.error(`[AI AutoApprove Scheduler] Failed to save detected amount:`, dbErr);
           }
