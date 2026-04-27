@@ -911,6 +911,12 @@ export default function BrandDetail() {
   const [aiSelectedLiverIds, setAiSelectedLiverIds] = useState<number[]>([]);
   const aiImageInputRef = useRef<HTMLInputElement>(null);
 
+  // Livestream filter states
+  const [lsFilterDateFrom, setLsFilterDateFrom] = useState<string>('');
+  const [lsFilterDateTo, setLsFilterDateTo] = useState<string>('');
+  const [lsFilterAccounts, setLsFilterAccounts] = useState<string[]>([]);
+  const [lsQuickPeriod, setLsQuickPeriod] = useState<string>('all');
+
   const brandId = parseInt(id || "0");
 
   // Data fetching
@@ -2789,6 +2795,162 @@ ${proposal.proposalContent}
                 {t.add}
               </Button>
             </div>
+
+            {(() => {
+              // Quick period helper
+              const getQuickPeriodDates = (period: string) => {
+                const now = new Date();
+                const y = now.getFullYear();
+                const m = now.getMonth();
+                switch (period) {
+                  case 'thisMonth': return { from: `${y}-${String(m+1).padStart(2,'0')}-01`, to: '' };
+                  case 'lastMonth': {
+                    const lm = m === 0 ? 11 : m - 1;
+                    const ly = m === 0 ? y - 1 : y;
+                    const lastDay = new Date(ly, lm + 1, 0).getDate();
+                    return { from: `${ly}-${String(lm+1).padStart(2,'0')}-01`, to: `${ly}-${String(lm+1).padStart(2,'0')}-${lastDay}` };
+                  }
+                  case 'last3Months': {
+                    const d3 = new Date(y, m - 2, 1);
+                    return { from: `${d3.getFullYear()}-${String(d3.getMonth()+1).padStart(2,'0')}-01`, to: '' };
+                  }
+                  default: return { from: '', to: '' };
+                }
+              };
+
+              const effectiveDateFrom = lsQuickPeriod !== 'all' && lsQuickPeriod !== 'custom' ? getQuickPeriodDates(lsQuickPeriod).from : lsFilterDateFrom;
+              const effectiveDateTo = lsQuickPeriod !== 'all' && lsQuickPeriod !== 'custom' ? getQuickPeriodDates(lsQuickPeriod).to : lsFilterDateTo;
+
+              // Apply filters to livestreams
+              const filteredLivestreams = livestreams.filter(ls => {
+                if (effectiveDateFrom && ls.livestreamDate && ls.livestreamDate < effectiveDateFrom) return false;
+                if (effectiveDateTo && ls.livestreamDate && ls.livestreamDate > effectiveDateTo) return false;
+                if (lsFilterAccounts.length > 0 && !lsFilterAccounts.includes(ls.streamerName || '')) return false;
+                return true;
+              });
+
+              // Calculate summary
+              const summaryGmv = filteredLivestreams.reduce((sum, ls) => sum + (ls.gmv || ls.salesAmount || 0), 0);
+              const summarySalesCount = filteredLivestreams.reduce((sum, ls) => sum + (ls.salesCount || 0), 0);
+              const summaryDuration = filteredLivestreams.reduce((sum, ls) => sum + (ls.duration || 0), 0);
+              const summaryImpressions = filteredLivestreams.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
+              const summaryProductClicks = filteredLivestreams.reduce((sum, ls) => sum + (ls.productClicks || 0), 0);
+              const summaryCartAdd = filteredLivestreams.reduce((sum, ls) => sum + (ls.cartAddCount || 0), 0);
+              const streamCount = filteredLivestreams.length;
+
+              // Previous period comparison
+              const daysDiff = (() => {
+                if (!effectiveDateFrom) return 0;
+                const from = new Date(effectiveDateFrom);
+                const to = effectiveDateTo ? new Date(effectiveDateTo) : new Date();
+                return Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+              })();
+
+              const prevPeriodLivestreams = (() => {
+                if (!effectiveDateFrom || daysDiff <= 0) return [];
+                const from = new Date(effectiveDateFrom);
+                const prevEnd = new Date(from.getTime() - 1000 * 60 * 60 * 24);
+                const prevStart = new Date(prevEnd.getTime() - (daysDiff - 1) * 1000 * 60 * 60 * 24);
+                const prevStartStr = prevStart.toISOString().slice(0, 10);
+                const prevEndStr = prevEnd.toISOString().slice(0, 10);
+                return livestreams.filter(ls => {
+                  if (!ls.livestreamDate) return false;
+                  if (ls.livestreamDate < prevStartStr || ls.livestreamDate > prevEndStr) return false;
+                  if (lsFilterAccounts.length > 0 && !lsFilterAccounts.includes(ls.streamerName || '')) return false;
+                  return true;
+                });
+              })();
+              const prevGmv = prevPeriodLivestreams.reduce((sum, ls) => sum + (ls.gmv || ls.salesAmount || 0), 0);
+              const gmvGrowth = prevGmv > 0 ? ((summaryGmv - prevGmv) / prevGmv * 100) : null;
+
+              // Account breakdown
+              const accountNames = [...new Set(livestreams.map(ls => ls.streamerName).filter(Boolean))] as string[];
+              const accountGmvMap = new Map<string, number>();
+              filteredLivestreams.forEach(ls => {
+                if (ls.streamerName) {
+                  accountGmvMap.set(ls.streamerName, (accountGmvMap.get(ls.streamerName) || 0) + (ls.gmv || ls.salesAmount || 0));
+                }
+              });
+
+              return (
+                <>
+            {/* Filter Module - 筛选模块 */}
+            <div className="mb-4 p-4 bg-black/40 rounded-lg border border-pink-900/20">
+              {/* Quick Period Buttons */}
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <span className="text-xs text-gray-400 mr-1">{language === 'ja' ? '期間' : '时间'}:</span>
+                {[
+                  { key: 'all', label: language === 'ja' ? '全期間' : '全部' },
+                  { key: 'thisMonth', label: language === 'ja' ? '今月' : '本月' },
+                  { key: 'lastMonth', label: language === 'ja' ? '先月' : '上月' },
+                  { key: 'last3Months', label: language === 'ja' ? '過去3ヶ月' : '近三个月' },
+                  { key: 'custom', label: language === 'ja' ? 'カスタム' : '自定义' },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => { setLsQuickPeriod(key); if (key !== 'custom') { setLsFilterDateFrom(''); setLsFilterDateTo(''); } }}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                      lsQuickPeriod === key
+                        ? 'bg-pink-600 text-white shadow-lg shadow-pink-600/30'
+                        : 'bg-black/40 text-gray-400 hover:text-white hover:bg-pink-900/30 border border-red-900/20'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom Date Range (only shown when custom is selected) */}
+              {lsQuickPeriod === 'custom' && (
+                <div className="flex items-center gap-2 mb-3">
+                  <input
+                    type="date"
+                    value={lsFilterDateFrom}
+                    onChange={(e) => setLsFilterDateFrom(e.target.value)}
+                    className="bg-black/60 border border-red-900/30 rounded px-2 py-1 text-xs text-white focus:border-pink-500 focus:outline-none"
+                  />
+                  <span className="text-gray-500 text-xs">〜</span>
+                  <input
+                    type="date"
+                    value={lsFilterDateTo}
+                    onChange={(e) => setLsFilterDateTo(e.target.value)}
+                    className="bg-black/60 border border-red-900/30 rounded px-2 py-1 text-xs text-white focus:border-pink-500 focus:outline-none"
+                  />
+                </div>
+              )}
+
+              {/* Account Chips - Multi-select */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-gray-400 mr-1">{language === 'ja' ? 'アカウント' : '主播'}:</span>
+                <button
+                  onClick={() => setLsFilterAccounts([])}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                    lsFilterAccounts.length === 0
+                      ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30'
+                      : 'bg-black/40 text-gray-400 hover:text-white hover:bg-cyan-900/30 border border-red-900/20'
+                  }`}
+                >
+                  {language === 'ja' ? '全て' : '全部'}
+                </button>
+                {accountNames.map(name => (
+                  <button
+                    key={name}
+                    onClick={() => {
+                      setLsFilterAccounts(prev =>
+                        prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+                      );
+                    }}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                      lsFilterAccounts.includes(name)
+                        ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30'
+                        : 'bg-black/40 text-gray-400 hover:text-white hover:bg-cyan-900/30 border border-red-900/20'
+                    }`}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -2810,12 +2972,12 @@ ${proposal.proposalContent}
                   </tr>
                 </thead>
                 <tbody>
-                  {livestreams.length === 0 ? (
+                  {filteredLivestreams.length === 0 ? (
                     <tr>
                       <td colSpan={14} className="text-center text-gray-500 py-8">{t.noData}</td>
                     </tr>
                   ) : (
-                    livestreams.map((ls) => (
+                    filteredLivestreams.map((ls) => (
                       <tr key={ls.id} className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors group">
                         <td className="py-3 px-2 text-gray-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {formatDate(ls.livestreamDate)}
@@ -2912,6 +3074,98 @@ ${proposal.proposalContent}
                 </tbody>
               </table>
             </div>
+
+            {/* GMV Summary Module - 汇总模块 */}
+            <div className="mt-5 p-5 bg-gradient-to-br from-pink-950/50 via-purple-950/40 to-black/60 rounded-xl border border-pink-900/40 shadow-[0_0_20px_rgba(255,0,100,0.1)]">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-6 bg-gradient-to-b from-pink-400 to-purple-500 rounded-full" />
+                  <span className="text-base font-bold text-white">
+                    {language === 'ja' ? 'パフォーマンス集計' : '业绩汇总'}
+                  </span>
+                  {(lsQuickPeriod !== 'all' || lsFilterAccounts.length > 0) && (
+                    <span className="px-2 py-0.5 rounded-full bg-pink-900/30 text-xs text-pink-300 border border-pink-800/30">
+                      {language === 'ja' ? 'フィルター適用中' : '筛选中'}
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-500">{streamCount} {language === 'ja' ? '回' : '场'}</span>
+              </div>
+
+              {/* Main KPI Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                <div className="bg-black/40 rounded-lg p-3 border border-pink-900/20">
+                  <div className="text-xs text-gray-400 mb-1">{t.gmv}</div>
+                  <div className="text-xl font-bold text-pink-400">{formatCurrency(summaryGmv)}</div>
+                  {gmvGrowth !== null && (
+                    <div className={`text-xs mt-1 font-medium ${gmvGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {gmvGrowth >= 0 ? '↑' : '↓'} {Math.abs(gmvGrowth).toFixed(1)}% {language === 'ja' ? '前期比' : 'vs上期'}
+                    </div>
+                  )}
+                </div>
+                <div className="bg-black/40 rounded-lg p-3 border border-pink-900/20">
+                  <div className="text-xs text-gray-400 mb-1">{t.salesCount}</div>
+                  <div className="text-xl font-bold text-green-400">{summarySalesCount.toLocaleString()}</div>
+                  {streamCount > 0 && <div className="text-xs text-gray-500 mt-1">Ø {Math.round(summarySalesCount / streamCount)}/{language === 'ja' ? '回' : '场'}</div>}
+                </div>
+                <div className="bg-black/40 rounded-lg p-3 border border-pink-900/20">
+                  <div className="text-xs text-gray-400 mb-1">{t.impressions}</div>
+                  <div className="text-xl font-bold text-cyan-400">{summaryImpressions.toLocaleString()}</div>
+                  {streamCount > 0 && <div className="text-xs text-gray-500 mt-1">Ø {Math.round(summaryImpressions / streamCount).toLocaleString()}/{language === 'ja' ? '回' : '场'}</div>}
+                </div>
+                <div className="bg-black/40 rounded-lg p-3 border border-pink-900/20">
+                  <div className="text-xs text-gray-400 mb-1">{t.duration}</div>
+                  <div className="text-xl font-bold text-gray-300">{summaryDuration}{language === 'ja' ? '分' : '分'}</div>
+                  {streamCount > 0 && <div className="text-xs text-gray-500 mt-1">Ø {Math.round(summaryDuration / streamCount)}{language === 'ja' ? '分/回' : '分/场'}</div>}
+                </div>
+              </div>
+
+              {/* Secondary metrics row */}
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                <div className="bg-black/30 rounded-lg p-2.5 border border-red-900/10 text-center">
+                  <div className="text-xs text-gray-500 mb-0.5">{t.productClicks}</div>
+                  <div className="text-sm font-semibold text-blue-400">{summaryProductClicks.toLocaleString()}</div>
+                </div>
+                <div className="bg-black/30 rounded-lg p-2.5 border border-red-900/10 text-center">
+                  <div className="text-xs text-gray-500 mb-0.5">{t.cartAddCount}</div>
+                  <div className="text-sm font-semibold text-orange-400">{summaryCartAdd.toLocaleString()}</div>
+                </div>
+                <div className="bg-black/30 rounded-lg p-2.5 border border-red-900/10 text-center">
+                  <div className="text-xs text-gray-500 mb-0.5">{language === 'ja' ? '転換率' : '转化率'}</div>
+                  <div className="text-sm font-semibold text-purple-400">
+                    {summaryImpressions > 0 ? ((summarySalesCount / summaryImpressions) * 100).toFixed(2) : '0.00'}%
+                  </div>
+                </div>
+              </div>
+
+              {/* Account Breakdown */}
+              {accountGmvMap.size > 1 && (
+                <div className="pt-3 border-t border-pink-900/20">
+                  <div className="text-xs text-gray-400 mb-2">{language === 'ja' ? 'アカウント別GMV内訳' : '主播 GMV 分布'}</div>
+                  <div className="space-y-2">
+                    {[...accountGmvMap.entries()].sort((a, b) => b[1] - a[1]).map(([name, gmv]) => {
+                      const pct = summaryGmv > 0 ? (gmv / summaryGmv * 100) : 0;
+                      return (
+                        <div key={name} className="flex items-center gap-2">
+                          <span className="text-xs text-gray-300 w-24 truncate">{name}</span>
+                          <div className="flex-1 h-4 bg-black/40 rounded-full overflow-hidden border border-red-900/10">
+                            <div
+                              className="h-full bg-gradient-to-r from-pink-600 to-purple-600 rounded-full transition-all duration-500"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-pink-300 font-medium w-20 text-right">{formatCurrency(gmv)}</span>
+                          <span className="text-xs text-gray-500 w-10 text-right">{pct.toFixed(0)}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+                </>
+              );
+            })()}
         </div>
 
         {/* Content Grid - 商品テーブル */}
