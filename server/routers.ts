@@ -7920,8 +7920,40 @@ Return ONLY valid JSON, no markdown or explanation.`,
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // LLMでテキスト条件からノルマ数値を自動抽出
+        let quotaData: any = {};
+        try {
+          const { extractQuotaFromConditions } = await import("./contractQuotaExtractor");
+          const hasConditionText = [input.kgLiveCondition, input.liverLiveCondition, input.shortVideoCondition, input.memo].some(t => t && t.trim());
+          if (hasConditionText || input.startDate || input.endDate) {
+            const extracted = await extractQuotaFromConditions({
+              kgLiveCondition: input.kgLiveCondition,
+              liverLiveCondition: input.liverLiveCondition,
+              shortVideoCondition: input.shortVideoCondition,
+              startDate: input.startDate,
+              endDate: input.endDate,
+              memo: input.memo,
+            });
+            console.log("[brandContract.create] LLM extracted quota:", JSON.stringify(extracted));
+            // LLM抽出値をマージ（明示的に入力された値を優先）
+            quotaData = {
+              kgLiveHoursQuota: input.kgLiveHoursQuota ?? extracted.kgLiveHoursQuota,
+              kgLiveFrequency: input.kgLiveFrequency ?? extracted.kgLiveFrequency,
+              kgLiveMinutesPerSession: input.kgLiveMinutesPerSession ?? extracted.kgLiveMinutesPerSession,
+              liverLiveHoursQuota: input.liverLiveHoursQuota ?? extracted.liverLiveHoursQuota,
+              liverLiveAssignments: input.liverLiveAssignments ?? extracted.liverLiveAssignments,
+              shortVideoCountQuota: input.shortVideoCountQuota ?? extracted.shortVideoCountQuota,
+              shortVideoAssignments: input.shortVideoAssignments ?? extracted.shortVideoAssignments,
+              contractPeriodLabel: input.contractPeriodLabel ?? extracted.contractPeriodLabel,
+            };
+          }
+        } catch (err) {
+          console.error("[brandContract.create] LLM extraction error (non-fatal):", err);
+        }
+
         const contract = await createBrandContract({
           ...input,
+          ...quotaData,
           createdBy: ctx.user.id,
         });
 
@@ -8016,6 +8048,43 @@ Return ONLY valid JSON, no markdown or explanation.`,
           if (endDate) {
             data.endDate = endDate instanceof Date ? endDate : new Date(endDate);
           }
+
+          // LLMでテキスト条件からノルマ数値を自動抽出
+          try {
+            const { extractQuotaFromConditions } = await import("./contractQuotaExtractor");
+            // 更新後の条件テキストを取得（新しい値 or 既存値）
+            const kgCond = data.kgLiveCondition ?? existingContract?.kgLiveCondition;
+            const liverCond = data.liverLiveCondition ?? existingContract?.liverLiveCondition;
+            const shortCond = data.shortVideoCondition ?? existingContract?.shortVideoCondition;
+            const memoText = data.memo ?? existingContract?.memo;
+            const sDate = data.startDate ?? existingContract?.startDate;
+            const eDate = data.endDate ?? existingContract?.endDate;
+            
+            const hasConditionText = [kgCond, liverCond, shortCond, memoText].some((t: any) => t && String(t).trim());
+            if (hasConditionText || sDate || eDate) {
+              const extracted = await extractQuotaFromConditions({
+                kgLiveCondition: kgCond,
+                liverLiveCondition: liverCond,
+                shortVideoCondition: shortCond,
+                startDate: sDate,
+                endDate: eDate,
+                memo: memoText,
+              });
+              console.log("[brandContract.update] LLM extracted quota:", JSON.stringify(extracted));
+              // LLM抽出値をマージ（明示的に入力された値を優先）
+              if (extracted.kgLiveHoursQuota !== null && data.kgLiveHoursQuota === undefined) data.kgLiveHoursQuota = extracted.kgLiveHoursQuota;
+              if (extracted.kgLiveFrequency !== null && data.kgLiveFrequency === undefined) data.kgLiveFrequency = extracted.kgLiveFrequency;
+              if (extracted.kgLiveMinutesPerSession !== null && data.kgLiveMinutesPerSession === undefined) data.kgLiveMinutesPerSession = extracted.kgLiveMinutesPerSession;
+              if (extracted.liverLiveHoursQuota !== null && data.liverLiveHoursQuota === undefined) data.liverLiveHoursQuota = extracted.liverLiveHoursQuota;
+              if (extracted.liverLiveAssignments !== null && data.liverLiveAssignments === undefined) data.liverLiveAssignments = extracted.liverLiveAssignments;
+              if (extracted.shortVideoCountQuota !== null && data.shortVideoCountQuota === undefined) data.shortVideoCountQuota = extracted.shortVideoCountQuota;
+              if (extracted.shortVideoAssignments !== null && data.shortVideoAssignments === undefined) data.shortVideoAssignments = extracted.shortVideoAssignments;
+              if (extracted.contractPeriodLabel !== null && data.contractPeriodLabel === undefined) data.contractPeriodLabel = extracted.contractPeriodLabel;
+            }
+          } catch (err) {
+            console.error("[brandContract.update] LLM extraction error (non-fatal):", err);
+          }
+
           console.log("[brandContract.update] Final data:", JSON.stringify(data, null, 2));
           await updateBrandContract(id, data);
           console.log("[brandContract.update] Success for id:", id);
@@ -8112,6 +8181,100 @@ Return ONLY valid JSON, no markdown or explanation.`,
     listAll: protectedProcedure.query(async () => {
       return await getAllContracts();
     }),
+
+    // Batch LLM extraction for existing contracts (admin only)
+    batchExtractQuotas: protectedProcedure
+      .input(z.object({
+        dryRun: z.boolean().default(true),
+        onlyMissing: z.boolean().default(true), // only process contracts with missing quota values
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
+        }
+        const { extractQuotaFromConditions } = await import("./contractQuotaExtractor");
+        const allContracts = await getAllContracts();
+        
+        // Filter to contracts that need processing
+        const toProcess = input.onlyMissing
+          ? allContracts.filter((c: any) => {
+              const hasText = [c.kgLiveCondition, c.liverLiveCondition, c.shortVideoCondition].some((t: any) => t && String(t).trim());
+              const missingQuota = !c.kgLiveHoursQuota && !c.liverLiveHoursQuota && !c.shortVideoCountQuota;
+              return hasText && missingQuota;
+            })
+          : allContracts.filter((c: any) => {
+              return [c.kgLiveCondition, c.liverLiveCondition, c.shortVideoCondition].some((t: any) => t && String(t).trim());
+            });
+        
+        if (input.dryRun) {
+          return {
+            dryRun: true,
+            totalContracts: allContracts.length,
+            toProcess: toProcess.length,
+            contracts: toProcess.map((c: any) => ({
+              id: c.id,
+              brandId: c.brandId,
+              kgLiveCondition: c.kgLiveCondition,
+              liverLiveCondition: c.liverLiveCondition,
+              shortVideoCondition: c.shortVideoCondition,
+              currentKgQuota: c.kgLiveHoursQuota,
+              currentLiverQuota: c.liverLiveHoursQuota,
+              currentShortVideoQuota: c.shortVideoCountQuota,
+            })),
+          };
+        }
+        
+        const results: any[] = [];
+        let successCount = 0;
+        let errorCount = 0;
+        
+        for (const contract of toProcess) {
+          try {
+            const extracted = await extractQuotaFromConditions({
+              kgLiveCondition: (contract as any).kgLiveCondition,
+              liverLiveCondition: (contract as any).liverLiveCondition,
+              shortVideoCondition: (contract as any).shortVideoCondition,
+              startDate: (contract as any).startDate,
+              endDate: (contract as any).endDate,
+              memo: (contract as any).memo,
+            });
+            
+            // Build update data (only non-null extracted values)
+            const updateData: any = {};
+            if (extracted.kgLiveHoursQuota !== null) updateData.kgLiveHoursQuota = extracted.kgLiveHoursQuota;
+            if (extracted.kgLiveFrequency !== null) updateData.kgLiveFrequency = extracted.kgLiveFrequency;
+            if (extracted.kgLiveMinutesPerSession !== null) updateData.kgLiveMinutesPerSession = extracted.kgLiveMinutesPerSession;
+            if (extracted.liverLiveHoursQuota !== null) updateData.liverLiveHoursQuota = extracted.liverLiveHoursQuota;
+            if (extracted.liverLiveAssignments !== null) updateData.liverLiveAssignments = extracted.liverLiveAssignments;
+            if (extracted.shortVideoCountQuota !== null) updateData.shortVideoCountQuota = extracted.shortVideoCountQuota;
+            if (extracted.shortVideoAssignments !== null) updateData.shortVideoAssignments = extracted.shortVideoAssignments;
+            if (extracted.contractPeriodLabel !== null) updateData.contractPeriodLabel = extracted.contractPeriodLabel;
+            
+            if (Object.keys(updateData).length > 0) {
+              await updateBrandContract((contract as any).id, updateData);
+              successCount++;
+              results.push({ id: (contract as any).id, status: "updated", extracted });
+            } else {
+              results.push({ id: (contract as any).id, status: "skipped", reason: "no values extracted" });
+            }
+            
+            // Rate limiting
+            await new Promise(resolve => setTimeout(resolve, 500));
+          } catch (err) {
+            errorCount++;
+            results.push({ id: (contract as any).id, status: "error", error: String(err) });
+          }
+        }
+        
+        return {
+          dryRun: false,
+          totalContracts: allContracts.length,
+          processed: toProcess.length,
+          successCount,
+          errorCount,
+          results,
+        };
+      }),
 
     // Get active contracts count
     activeCount: protectedProcedure
