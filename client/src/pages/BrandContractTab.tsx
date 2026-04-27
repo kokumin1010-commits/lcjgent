@@ -433,7 +433,7 @@ export default function BrandContractTab() {
                 return (
                   <tr key={c.id} className="border-b hover:bg-muted/30 transition-colors">
                     <td className="p-3">
-                      <Link href={`/brands/${c.brandId}`} className="font-medium text-blue-500 hover:text-blue-400 hover:underline cursor-pointer">{brandName}</Link>
+                      <Link href={`/master/brands/${c.brandId}`} className="font-medium text-blue-500 hover:text-blue-400 hover:underline cursor-pointer">{brandName}</Link>
                       <div className="text-xs text-muted-foreground mt-0.5">{getServiceTypeBadge(c.serviceType)}</div>
                     </td>
                     <td className="p-3 font-medium">{formatCurrency(c.fixedFee, c.currency)}</td>
@@ -462,7 +462,7 @@ export default function BrandContractTab() {
                         <div className="mt-1 space-y-0.5">
                           {(c.liverLiveAssignments as any[]).map((a: any, i: number) => (
                             <div key={i} className="text-[10px] text-muted-foreground">
-                              {a.liverName}: {Math.round(a.minutesPerMonth / 60 * 10) / 10}h/月
+                              <Link href={`/livers/by-name/${encodeURIComponent(a.liverName)}`} className="text-blue-400 hover:text-blue-300 hover:underline">{a.liverName}</Link>: {Math.round(a.minutesPerMonth / 60 * 10) / 10}h/月
                             </div>
                           ))}
                         </div>
@@ -475,7 +475,7 @@ export default function BrandContractTab() {
                         <div className="mt-1 space-y-0.5">
                           {(c.shortVideoAssignments as any[]).map((a: any, i: number) => (
                             <div key={i} className="text-[10px] text-muted-foreground">
-                              {a.liverName}: {a.countPerMonth}本/月
+                              <Link href={`/livers/by-name/${encodeURIComponent(a.liverName)}`} className="text-blue-400 hover:text-blue-300 hover:underline">{a.liverName}</Link>: {a.countPerMonth}本/月
                             </div>
                           ))}
                         </div>
