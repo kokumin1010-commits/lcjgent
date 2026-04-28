@@ -190,7 +190,8 @@ export default function LiverSelfRecord() {
   const createLivestreamMutation = trpc.liverManagement.createLivestream.useMutation({
     onSuccess: () => {
       toast.success(tr.save);
-      setShowCoachPrompt(true);
+      // 自動的に神コーチチャットページへ遷移（AIが自動質問を生成中）
+      navigate("/liver/coach?auto=1");
     },
     onError: (error) => {
       toast.error(error.message);
@@ -1323,29 +1324,31 @@ export default function LiverSelfRecord() {
                           <div>
                             <Label className="text-white text-xs">{language === 'ja' ? '売値（円）' : language === 'zh-TW' ? '售價' : language === 'en' ? 'Price' : '售价'}</Label>
                             <Input
-                              type="number"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               placeholder="5000"
                               value={set.setPrice}
                               onChange={(e) => {
                                 const newSets = [...sets];
-                                newSets[setIndex].setPrice = e.target.value;
+                                newSets[setIndex].setPrice = e.target.value.replace(/[^0-9]/g, '');
                                 setSets(newSets);
                               }}
-                              className="bg-gray-800 border-gray-700 text-white text-sm"
+                              className="bg-gray-800 border-gray-700 text-white text-sm h-10"
                             />
                           </div>
                           <div>
                             <Label className="text-white text-xs">{language === 'ja' ? '販売数量' : language === 'zh-TW' ? '銷售數量' : language === 'en' ? 'Qty Sold' : '销售数量'}</Label>
                             <Input
-                              type="number"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               placeholder="1"
                               value={set.quantitySold}
                               onChange={(e) => {
                                 const newSets = [...sets];
-                                newSets[setIndex].quantitySold = e.target.value;
+                                newSets[setIndex].quantitySold = e.target.value.replace(/[^0-9]/g, '');
                                 setSets(newSets);
                               }}
-                              className="bg-gray-800 border-gray-700 text-white text-sm"
+                              className="bg-gray-800 border-gray-700 text-white text-sm h-10"
                             />
                           </div>
                         </div>
@@ -1374,55 +1377,67 @@ export default function LiverSelfRecord() {
                           </div>
 
                           {set.items.map((item, itemIndex) => (
-                            <div key={itemIndex} className="flex gap-2 items-center">
-                              <Input
-                                placeholder={language === 'ja' ? '商品名' : language === 'zh-TW' ? '商品名稱' : language === 'en' ? 'Product name' : '商品名称'}
-                                value={item.productName}
-                                onChange={(e) => {
-                                  const newSets = [...sets];
-                                  newSets[setIndex].items[itemIndex].productName = e.target.value;
-                                  setSets(newSets);
-                                }}
-                                className="bg-gray-800 border-gray-700 text-white text-sm flex-1"
-                              />
-                              <Input
-                                type="number"
-                                placeholder={language === 'ja' ? '元値' : language === 'zh-TW' ? '原價' : language === 'en' ? 'Original price' : '原价'}
-                                value={item.originalPrice}
-                                onChange={(e) => {
-                                  const newSets = [...sets];
-                                  newSets[setIndex].items[itemIndex].originalPrice = e.target.value;
-                                  setSets(newSets);
-                                }}
-                                className="bg-gray-800 border-gray-700 text-white text-sm w-24"
-                              />
-                              <Input
-                                type="number"
-                                placeholder={language === 'ja' ? '数量' : language === 'zh-TW' ? '數量' : language === 'en' ? 'Qty' : '数量'}
-                                value={item.quantity}
-                                onChange={(e) => {
-                                  const newSets = [...sets];
-                                  newSets[setIndex].items[itemIndex].quantity = e.target.value;
-                                  setSets(newSets);
-                                }}
-                                className="bg-gray-800 border-gray-700 text-white text-sm w-16"
-                                min="1"
-                              />
-                              {set.items.length > 1 && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
+                            <div key={itemIndex} className="bg-gray-800/50 rounded-lg p-2 space-y-1.5">
+                              {/* Row 1: Product name + delete */}
+                              <div className="flex gap-2 items-center">
+                                <Input
+                                  placeholder={language === 'ja' ? '商品名' : language === 'zh-TW' ? '商品名稱' : language === 'en' ? 'Product name' : '商品名称'}
+                                  value={item.productName}
+                                  onChange={(e) => {
                                     const newSets = [...sets];
-                                    newSets[setIndex].items = newSets[setIndex].items.filter((_, i) => i !== itemIndex);
+                                    newSets[setIndex].items[itemIndex].productName = e.target.value;
                                     setSets(newSets);
                                   }}
-                                  className="text-red-400 hover:text-red-300 h-8 w-8 p-0 shrink-0"
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
+                                  className="bg-gray-800 border-gray-700 text-white text-sm h-10 flex-1"
+                                />
+                                {set.items.length > 1 && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      const newSets = [...sets];
+                                      newSets[setIndex].items = newSets[setIndex].items.filter((_, i) => i !== itemIndex);
+                                      setSets(newSets);
+                                    }}
+                                    className="text-red-400 hover:text-red-300 h-10 w-10 p-0 shrink-0"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                              {/* Row 2: Price + Quantity */}
+                              <div className="flex gap-2 items-center">
+                                <div className="flex-1">
+                                  <Input
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    placeholder={language === 'ja' ? '元値（円）' : language === 'zh-TW' ? '原價' : language === 'en' ? 'Price' : '原价'}
+                                    value={item.originalPrice}
+                                    onChange={(e) => {
+                                      const newSets = [...sets];
+                                      newSets[setIndex].items[itemIndex].originalPrice = e.target.value.replace(/[^0-9]/g, '');
+                                      setSets(newSets);
+                                    }}
+                                    className="bg-gray-800 border-gray-700 text-white text-sm h-10"
+                                  />
+                                </div>
+                                <div className="w-20">
+                                  <Input
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    placeholder={language === 'ja' ? '数量' : language === 'zh-TW' ? '數量' : language === 'en' ? 'Qty' : '数量'}
+                                    value={item.quantity}
+                                    onChange={(e) => {
+                                      const newSets = [...sets];
+                                      newSets[setIndex].items[itemIndex].quantity = e.target.value.replace(/[^0-9]/g, '');
+                                      setSets(newSets);
+                                    }}
+                                    className="bg-gray-800 border-gray-700 text-white text-sm h-10 text-center"
+                                    min="1"
+                                  />
+                                </div>
+                              </div>
                             </div>
                           ))}
                         </div>

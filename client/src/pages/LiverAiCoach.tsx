@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useLocation, Link } from "wouter";
+import { useLocation, Link, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -22,12 +22,16 @@ import { toast } from "sonner";
 
 export default function LiverAiCoach() {
   const [, navigate] = useLocation();
+  const searchString = useSearch();
+  const isAutoMode = new URLSearchParams(searchString).get('auto') === '1';
   const [messageInput, setMessageInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeRoomId, setActiveRoomId] = useState<number | null>(null);
   const [editingRoomId, setEditingRoomId] = useState<number | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
+  const [autoModeWaiting, setAutoModeWaiting] = useState(isAutoMode);
+  const autoModePollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -108,12 +112,51 @@ export default function LiverAiCoach() {
     },
   });
 
-  // Create welcome message on first visit (for rooms with no messages)
+  // Create welcome message on first visit (for rooms with no messages) - skip in auto mode
   useEffect(() => {
-    if (liverInfo?.id && activeRoomId && chatData && chatData.messages.length === 0) {
+    if (liverInfo?.id && activeRoomId && chatData && chatData.messages.length === 0 && !isAutoMode) {
       welcomeMutation.mutate({ liverId: liverInfo.id, roomId: activeRoomId });
     }
-  }, [liverInfo?.id, activeRoomId, chatData?.messages.length]);
+  }, [liverInfo?.id, activeRoomId, chatData?.messages.length, isAutoMode]);
+
+  // Auto mode: poll for AI-generated message after livestream save
+  useEffect(() => {
+    if (!autoModeWaiting || !activeRoomId || !liverInfo?.id) return;
+    
+    // Start polling every 2 seconds to check for new AI message
+    const pollInterval = setInterval(() => {
+      refetchMessages();
+    }, 2000);
+    autoModePollingRef.current = pollInterval;
+    
+    // Stop polling after 15 seconds max
+    const timeout = setTimeout(() => {
+      setAutoModeWaiting(false);
+      if (autoModePollingRef.current) {
+        clearInterval(autoModePollingRef.current);
+        autoModePollingRef.current = null;
+      }
+    }, 15000);
+    
+    return () => {
+      clearInterval(pollInterval);
+      clearTimeout(timeout);
+    };
+  }, [autoModeWaiting, activeRoomId, liverInfo?.id]);
+
+  // Auto mode: stop waiting once we detect an AI message (auto_question type)
+  useEffect(() => {
+    if (autoModeWaiting && chatData && chatData.messages.length > 0) {
+      const lastMsg = chatData.messages[chatData.messages.length - 1];
+      if (lastMsg.role === 'ai') {
+        setAutoModeWaiting(false);
+        if (autoModePollingRef.current) {
+          clearInterval(autoModePollingRef.current);
+          autoModePollingRef.current = null;
+        }
+      }
+    }
+  }, [autoModeWaiting, chatData?.messages]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -347,9 +390,22 @@ export default function LiverAiCoach() {
 
       {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {isLoadingMessages ? (
+        {isLoadingMessages || autoModeWaiting ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500 flex items-center justify-center mx-auto mb-4 animate-pulse">
+                <Zap className="h-8 w-8 text-white" />
+              </div>
+              {autoModeWaiting ? (
+                <>
+                  <p className="text-yellow-400 text-sm font-bold mb-1">配信お疲れさまでした！</p>
+                  <p className="text-gray-400 text-xs">神コーチがあなたの配信データを分析中...</p>
+                  <Loader2 className="h-5 w-5 animate-spin text-yellow-400 mx-auto mt-3" />
+                </>
+              ) : (
+                <Loader2 className="h-6 w-6 animate-spin text-gray-500 mx-auto" />
+              )}
+            </div>
           </div>
         ) : messages.length === 0 ? (
           <div className="flex items-center justify-center py-20">
