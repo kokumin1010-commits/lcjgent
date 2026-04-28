@@ -386,11 +386,26 @@ export default function LiverByName() {
     { enabled: !!liverId }
   );
 
+  // ブランド別配信時間集計（管理者向け）
+  const { data: brandDurationStats } = trpc.liverManagement.getBrandDurationStats.useQuery(
+    { liverId: liverId!, yearMonth: selectedMonth },
+    { enabled: !!liverId }
+  );
+
+  // ブランドタップで配信一覧展開用state
+  const [expandedBrandId, setExpandedBrandId] = useState<number | null>(null);
+
   // 商品ランキングの表示切り替え
   const [showAllProducts, setShowAllProducts] = useState(false);
   // セット詳細の展開
   const [expandedSetId, setExpandedSetId] = useState<number | null>(null);
   const [expandedPromoId, setExpandedPromoId] = useState<number | null>(null);
+
+  // セクションのアコーディオン用state
+  const [showTopProductsSection, setShowTopProductsSection] = useState(false);
+  const [showSetsSection, setShowSetsSection] = useState(false);
+  const [showPromoSection, setShowPromoSection] = useState(false);
+  const [showMonthlyProductsSection, setShowMonthlyProductsSection] = useState(false);
 
   const unverifiedIds = useMemo(() => {
     if (!data?.livestreams) return [];
@@ -689,6 +704,111 @@ export default function LiverByName() {
             </CardContent>
           </Card>
         </div>
+
+        {/* ブランド別配信時間 */}
+        {brandDurationStats && brandDurationStats.length > 0 && (
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Clock className="h-5 w-5 text-cyan-400" />
+                <h3 className="text-base font-bold text-white">ブランド別配信時間</h3>
+                <span className="text-xs bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full">
+                  {brandDurationStats.length}ブランド
+                </span>
+                <span className="ml-auto text-sm font-bold text-cyan-400">
+                  {Math.round(brandDurationStats.reduce((sum: number, b: any) => sum + b.totalMinutes, 0) / 60 * 10) / 10}h
+                </span>
+              </div>
+              <div className="space-y-2">
+                {(() => {
+                  const maxMinutes = Math.max(...brandDurationStats.map((b: any) => b.totalMinutes));
+                  const colors = [
+                    'from-cyan-500 to-blue-500',
+                    'from-pink-500 to-rose-500',
+                    'from-amber-500 to-orange-500',
+                    'from-emerald-500 to-green-500',
+                    'from-violet-500 to-purple-500',
+                    'from-red-500 to-pink-500',
+                    'from-teal-500 to-cyan-500',
+                    'from-yellow-500 to-amber-500',
+                  ];
+                  return brandDurationStats.map((brand: any, idx: number) => {
+                    const barWidth = maxMinutes > 0 ? (brand.totalMinutes / maxMinutes) * 100 : 0;
+                    const hours = Math.floor(brand.totalMinutes / 60);
+                    const mins = brand.totalMinutes % 60;
+                    const colorClass = colors[idx % colors.length];
+                    const isExpanded = expandedBrandId === brand.brandId;
+                    // ブランドに属する配信一覧をフィルタリング
+                    const brandLivestreams = isExpanded && data?.livestreams
+                      ? data.livestreams.filter((l: any) => l.brandId === brand.brandId)
+                      : [];
+                    return (
+                      <div key={brand.brandId}>
+                        <div
+                          className={`space-y-1 p-2 rounded-lg cursor-pointer transition-all ${
+                            isExpanded ? 'bg-gray-800/60 border border-cyan-500/30' : 'hover:bg-gray-800/30'
+                          }`}
+                          onClick={() => setExpandedBrandId(isExpanded ? null : brand.brandId)}
+                        >
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2 flex-1">
+                              {isExpanded ? <ChevronUp className="w-4 h-4 text-cyan-400" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+                              <span className="text-white font-medium truncate">{brand.brandName}</span>
+                            </div>
+                            <div className="flex items-center gap-3 flex-shrink-0 ml-2">
+                              <span className="text-gray-400 text-xs">
+                                {brand.streamCount}回
+                              </span>
+                              <span className="text-cyan-400 font-bold text-sm">
+                                {hours > 0 ? `${hours}h${mins > 0 ? `${mins}m` : ''}` : `${mins}m`}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full bg-gradient-to-r ${colorClass} rounded-full transition-all duration-500`}
+                              style={{ width: `${Math.max(barWidth, 3)}%` }}
+                            />
+                          </div>
+                        </div>
+                        {/* ブランド配信一覧展開 */}
+                        {isExpanded && brandLivestreams.length > 0 && (
+                          <div className="ml-6 mt-2 mb-1 space-y-1">
+                            {brandLivestreams.map((ls: any) => (
+                              <div
+                                key={ls.id}
+                                className="flex items-center justify-between text-xs p-2 rounded bg-gray-800/40 border border-gray-700/30 hover:border-cyan-500/30 cursor-pointer transition-all"
+                                onClick={(e) => { e.stopPropagation(); navigate(`/livestreams/${ls.id}`); }}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="w-3 h-3 text-gray-400" />
+                                  <span className="text-white">{formatDate(ls.livestreamDate)}</span>
+                                  {formatTimeRange(ls) && (
+                                    <span className="text-gray-500">{formatTimeRange(ls)}</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-yellow-400 font-mono">{formatCurrency(ls.salesAmount)}</span>
+                                  <span className="text-blue-400">{formatDuration(ls.duration)}</span>
+                                  <ChevronRight className="w-3 h-3 text-gray-500" />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {isExpanded && brandLivestreams.length === 0 && (
+                          <div className="ml-6 mt-2 mb-1 text-xs text-gray-500 p-2">
+                            このブランドの配信データはこの月にはありません
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Growth Chart */}
         {!isGrowthLoading && chartData.length > 0 && (
@@ -1127,13 +1247,20 @@ export default function LiverByName() {
         {topProducts && topProducts.length > 0 && (
           <Card className="bg-gray-900/50 border-gray-800">
             <CardContent className="p-6">
-              <h2 className="text-lg font-bold mb-6 flex items-center gap-3">
+              <h2
+                className="text-lg font-bold flex items-center gap-3 cursor-pointer select-none"
+                onClick={() => setShowTopProductsSection(!showTopProductsSection)}
+              >
                 <Crown className="w-6 h-6 text-yellow-400" />
                 <span className="text-white">売れ筋商品ランキング</span>
                 <span className="text-gray-400 text-sm">
                   {showAllProducts ? `全${topProducts.length}件` : `TOP10`}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
                 </span>
+                <span className="ml-auto">
+                  {showTopProductsSection ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                </span>
               </h2>
+              {showTopProductsSection && <div className="mt-6">
               
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -1206,6 +1333,7 @@ export default function LiverByName() {
                   </Button>
                 </div>
               )}
+              </div>}
             </CardContent>
           </Card>
         )}
@@ -1214,10 +1342,18 @@ export default function LiverByName() {
         {setAnalysis && setAnalysis.sets && setAnalysis.sets.length > 0 && (
           <Card className="bg-gray-900/50 border-gray-800">
             <CardContent className="p-6">
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-3">
+              <h2
+                className="text-lg font-bold flex items-center gap-3 cursor-pointer select-none"
+                onClick={() => setShowSetsSection(!showSetsSection)}
+              >
                 <Package className="w-6 h-6 text-pink-400" />
                 <span className="text-white">セット活用情報</span>
+                <span className="text-gray-400 text-sm">{setAnalysis.sets.length}セット</span>
+                <span className="ml-auto">
+                  {showSetsSection ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                </span>
               </h2>
+              {showSetsSection && <div className="mt-4">
               
               {/* サマリー */}
               {setAnalysis.summary && (
@@ -1346,6 +1482,7 @@ export default function LiverByName() {
                   </div>
                 </div>
               )}
+              </div>}
             </CardContent>
           </Card>
         )}
@@ -1354,10 +1491,18 @@ export default function LiverByName() {
         {promoAnalysis && promoAnalysis.promotions && promoAnalysis.promotions.length > 0 && (
           <Card className="bg-gray-900/50 border-gray-800">
             <CardContent className="p-6">
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-3">
+              <h2
+                className="text-lg font-bold flex items-center gap-3 cursor-pointer select-none"
+                onClick={() => setShowPromoSection(!showPromoSection)}
+              >
                 <Tag className="w-6 h-6 text-violet-400" />
                 <span className="text-white">プロモーション単品割引</span>
+                <span className="text-gray-400 text-sm">{promoAnalysis.promotions.length}件</span>
+                <span className="ml-auto">
+                  {showPromoSection ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                </span>
               </h2>
+              {showPromoSection && <div className="mt-4">
               
               {/* サマリー */}
               {promoAnalysis.summary && (
@@ -1459,6 +1604,7 @@ export default function LiverByName() {
                   </div>
                 </div>
               )}
+              </div>}
             </CardContent>
           </Card>
         )}
@@ -1467,14 +1613,20 @@ export default function LiverByName() {
         {monthlyProducts && monthlyProducts.length > 0 && (
           <Card className="bg-gray-900/50 border-gray-800">
             <CardContent className="p-6">
-              <h2 className="text-lg font-bold mb-6 flex items-center gap-3">
+              <h2
+                className="text-lg font-bold flex items-center gap-3 cursor-pointer select-none"
+                onClick={() => setShowMonthlyProductsSection(!showMonthlyProductsSection)}
+              >
                 <ShoppingBag className="w-6 h-6 text-orange-400" />
                 <span className="text-white">売上商品一覧</span>
                 <span className="text-gray-400 text-sm">
                   {monthlyProducts.length}商品（{monthOptions.find(m => m.value === selectedMonth)?.label}）
                 </span>
+                <span className="ml-auto">
+                  {showMonthlyProductsSection ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                </span>
               </h2>
-
+              {showMonthlyProductsSection && <div className="mt-6">
               {/* サマリー */}
               <div className="grid grid-cols-3 gap-4 mb-6">
                 <div className="bg-gray-800/50 rounded-xl p-4 text-center">
@@ -1552,6 +1704,7 @@ export default function LiverByName() {
                   </tbody>
                 </table>
               </div>
+              </div>}
             </CardContent>
           </Card>
         )}

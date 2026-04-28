@@ -344,6 +344,7 @@ import {
   setScheduleGroupMembers,
   getLivestreamsByStreamerName,
   getLiverMonthlyGrowth,
+  getLiverBrandDurationStats,
   addProductLiver,
   removeProductLiver,
   getProductLivers,
@@ -12807,6 +12808,13 @@ ${liverName}さんの今回の配信データを分析して、以下を含む�
           return { alreadyExists: false, message: welcomeMsg };
         }),
     }),
+
+    // Get brand duration stats for a liver (管理者向け)
+    getBrandDurationStats: publicProcedure
+      .input(z.object({ liverId: z.number(), yearMonth: z.string().optional() }))
+      .query(async ({ input }) => {
+        return await getLiverBrandDurationStats(input.liverId, input.yearMonth);
+      }),
   }),
   // Brand Files Router
   brandFiles: router({

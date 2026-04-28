@@ -41,7 +41,8 @@ import {
   ChevronUp,
   Tag,
   ShoppingBag,
-  TrendingUp
+  TrendingUp,
+  TrendingDown
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -84,6 +85,7 @@ export default function LiverMypage() {
   const [showGoalNudgePopup, setShowGoalNudgePopup] = useState(false);
   const [showSetsSection, setShowSetsSection] = useState(false);
   const [showProductsSection, setShowProductsSection] = useState(true);
+  const [expandedBrandId, setExpandedBrandId] = useState<number | null>(null);
   const [goalSalesInput, setGoalSalesInput] = useState('');
   const [goalStreamCountInput, setGoalStreamCountInput] = useState('');
   
@@ -417,6 +419,66 @@ export default function LiverMypage() {
       orderCount
     };
   }, [livestreams, selectedMonth]);
+
+  // 前月の統計を計算
+  const prevMonthStats = useMemo(() => {
+    if (!livestreams) return null;
+    const [year, month] = selectedMonth.split("-").map(Number);
+    const prevDate = new Date(year, month - 2, 1); // month-1 is current, month-2 is prev
+    const prevYear = prevDate.getFullYear();
+    const prevMonth = prevDate.getMonth() + 1;
+
+    type LivestreamRecord = {
+      livestreamDate: string | Date;
+      livestreamEndTime?: string | Date | null;
+      salesAmount?: number | null;
+      duration?: number | null;
+      viewerCount?: number | null;
+      orderCount?: number | null;
+      gmv?: number | null;
+    };
+
+    const filtered = livestreams.filter((ls: LivestreamRecord) => {
+      const date = new Date(ls.livestreamDate);
+      const jstYear = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric' }));
+      const jstMonth = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric' }));
+      return jstYear === prevYear && jstMonth === prevMonth;
+    });
+
+    if (filtered.length === 0) return null;
+
+    const sales = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.salesAmount || 0), 0);
+    const viewerCount = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.viewerCount || 0), 0);
+    const orderCount = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.orderCount || 0), 0);
+    const hours = filtered.reduce((sum: number, ls: LivestreamRecord) => {
+      if (ls.livestreamDate && ls.livestreamEndTime) {
+        const start = new Date(ls.livestreamDate).getTime();
+        const end = new Date(ls.livestreamEndTime).getTime();
+        let diffMs = end - start;
+        if (diffMs < 0) diffMs += 24 * 60 * 60 * 1000;
+        const diffHours = diffMs / (1000 * 60 * 60);
+        if (diffHours > 0 && diffHours < 24) return sum + diffHours;
+      }
+      if (ls.duration && ls.duration > 0) {
+        return sum + (ls.duration / 60);
+      }
+      return sum;
+    }, 0);
+
+    return {
+      sales,
+      hours: Math.max(0, Math.round(hours * 10) / 10),
+      count: filtered.length,
+      viewerCount,
+      orderCount,
+    };
+  }, [livestreams, selectedMonth]);
+
+  // 前月比計算ヘルパー
+  const calcGrowthPct = (current: number, prev: number | null | undefined) => {
+    if (prev == null || prev === 0) return current > 0 ? 100 : null;
+    return Math.round(((current - prev) / prev) * 100);
+  };
 
   // 目標達成時にお祝いアニメーションをトリガー
   useEffect(() => {
@@ -893,6 +955,20 @@ export default function LiverMypage() {
                     <span className="text-xs">{lt("mypage.monthlySales")}</span>
                   </div>
                   <p className="text-2xl font-bold text-white">¥{Number(monthlyStats.sales).toLocaleString()}</p>
+                  {prevMonthStats && (() => {
+                    const pct = calcGrowthPct(monthlyStats.sales, prevMonthStats.sales);
+                    return pct !== null ? (
+                      <div className="flex items-center gap-1 mt-1">
+                        {pct >= 0 ? <TrendingUp className="w-3 h-3 text-green-400" /> : <TrendingDown className="w-3 h-3 text-red-400" />}
+                        <span className={`text-[10px] font-medium ${pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {pct >= 0 ? '+' : ''}{pct}%
+                        </span>
+                        <span className="text-[10px] text-gray-500 ml-1">
+                          (前月¥{Number(prevMonthStats.sales).toLocaleString()})
+                        </span>
+                      </div>
+                    ) : null;
+                  })()}
                 </CardContent>
               </Card>
               <Card className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border-blue-500/30">
@@ -902,6 +978,20 @@ export default function LiverMypage() {
                     <span className="text-xs">{lt("mypage.streamTime")}</span>
                   </div>
                   <p className="text-2xl font-bold text-white">{monthlyStats.hours}h</p>
+                  {prevMonthStats && (() => {
+                    const pct = calcGrowthPct(monthlyStats.hours, prevMonthStats.hours);
+                    return pct !== null ? (
+                      <div className="flex items-center gap-1 mt-1">
+                        {pct >= 0 ? <TrendingUp className="w-3 h-3 text-green-400" /> : <TrendingDown className="w-3 h-3 text-red-400" />}
+                        <span className={`text-[10px] font-medium ${pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {pct >= 0 ? '+' : ''}{pct}%
+                        </span>
+                        <span className="text-[10px] text-gray-500 ml-1">
+                          (前月{prevMonthStats.hours}h)
+                        </span>
+                      </div>
+                    ) : null;
+                  })()}
                 </CardContent>
               </Card>
             </div>
@@ -913,6 +1003,14 @@ export default function LiverMypage() {
                   <Video className="h-3 w-3 mx-auto text-white mb-1" />
                   <p className="text-lg font-bold text-white">{monthlyStats.count}</p>
                   <p className="text-[10px] text-white">{lt("mypage.streamCount")}</p>
+                  {prevMonthStats && (() => {
+                    const pct = calcGrowthPct(monthlyStats.count, prevMonthStats.count);
+                    return pct !== null ? (
+                      <p className={`text-[9px] font-medium ${pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {pct >= 0 ? '+' : ''}{pct}% <span className="text-gray-500">({prevMonthStats.count})</span>
+                      </p>
+                    ) : null;
+                  })()}
                 </CardContent>
               </Card>
               <Card className="bg-gray-800/50 border-gray-700">
@@ -927,6 +1025,14 @@ export default function LiverMypage() {
                   <Eye className="h-3 w-3 mx-auto text-white mb-1" />
                   <p className="text-lg font-bold text-white">{Number(monthlyStats.viewerCount).toLocaleString()}</p>
                   <p className="text-[10px] text-white">{lt("mypage.viewers")}</p>
+                  {prevMonthStats && (() => {
+                    const pct = calcGrowthPct(monthlyStats.viewerCount, prevMonthStats.viewerCount);
+                    return pct !== null ? (
+                      <p className={`text-[9px] font-medium ${pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {pct >= 0 ? '+' : ''}{pct}%
+                      </p>
+                    ) : null;
+                  })()}
                 </CardContent>
               </Card>
               <Card className="bg-gray-800/50 border-gray-700">
@@ -934,6 +1040,14 @@ export default function LiverMypage() {
                   <ShoppingCart className="h-3 w-3 mx-auto text-white mb-1" />
                   <p className="text-lg font-bold text-white">{Number(monthlyStats.orderCount).toLocaleString()}</p>
                   <p className="text-[10px] text-white">{lt("mypage.orders")}</p>
+                  {prevMonthStats && (() => {
+                    const pct = calcGrowthPct(monthlyStats.orderCount, prevMonthStats.orderCount);
+                    return pct !== null ? (
+                      <p className={`text-[9px] font-medium ${pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {pct >= 0 ? '+' : ''}{pct}%
+                      </p>
+                    ) : null;
+                  })()}
                 </CardContent>
               </Card>
             </div>
@@ -1241,25 +1355,62 @@ export default function LiverMypage() {
                     const hours = Math.floor(brand.totalMinutes / 60);
                     const mins = brand.totalMinutes % 60;
                     const colorClass = colors[idx % colors.length];
+                    const isExpanded = expandedBrandId === brand.brandId;
+                    // このブランドの配信一覧をフィルタリング
+                    const brandLivestreams = isExpanded && filteredLivestreams
+                      ? filteredLivestreams.filter((ls: any) => ls.brandId === brand.brandId || ls.brandName === brand.brandName)
+                      : [];
                     return (
-                      <div key={brand.brandId} className="space-y-1">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-white font-medium truncate flex-1">{brand.brandName}</span>
-                          <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                            <span className="text-gray-400">
-                              {brand.streamCount}{language === 'ja' ? '回' : 'x'}
+                      <div key={brand.brandId}>
+                        <div
+                          className="space-y-1 cursor-pointer hover:bg-gray-700/30 rounded-lg p-1 -m-1 transition-colors"
+                          onClick={() => setExpandedBrandId(isExpanded ? null : brand.brandId)}
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-white font-medium truncate flex-1 flex items-center gap-1">
+                              {isExpanded ? <ChevronUp className="w-3 h-3 text-gray-400" /> : <ChevronDown className="w-3 h-3 text-gray-400" />}
+                              {brand.brandName}
                             </span>
-                            <span className="text-cyan-400 font-bold">
-                              {hours > 0 ? `${hours}h${mins > 0 ? `${mins}m` : ''}` : `${mins}m`}
-                            </span>
+                            <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                              <span className="text-gray-400">
+                                {brand.streamCount}{language === 'ja' ? '回' : 'x'}
+                              </span>
+                              <span className="text-cyan-400 font-bold">
+                                {hours > 0 ? `${hours}h${mins > 0 ? `${mins}m` : ''}` : `${mins}m`}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full bg-gradient-to-r ${colorClass} rounded-full transition-all duration-500`}
+                              style={{ width: `${Math.max(barWidth, 3)}%` }}
+                            />
                           </div>
                         </div>
-                        <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full bg-gradient-to-r ${colorClass} rounded-full transition-all duration-500`}
-                            style={{ width: `${Math.max(barWidth, 3)}%` }}
-                          />
-                        </div>
+                        {isExpanded && brandLivestreams.length > 0 && (
+                          <div className="mt-2 ml-4 space-y-1">
+                            {brandLivestreams.map((ls: any) => {
+                              const date = new Date(ls.livestreamDate);
+                              const dateStr = date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' });
+                              const timeStr = date.toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' });
+                              return (
+                                <div
+                                  key={ls.id}
+                                  className="flex items-center justify-between text-[10px] bg-gray-700/30 rounded px-2 py-1 cursor-pointer hover:bg-gray-700/50"
+                                  onClick={(e) => { e.stopPropagation(); navigate(`/livestreams/${ls.id}`); }}
+                                >
+                                  <span className="text-gray-300">{dateStr} {timeStr}</span>
+                                  <span className="text-orange-400 font-medium">¥{Number(ls.salesAmount || 0).toLocaleString()}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {isExpanded && brandLivestreams.length === 0 && (
+                          <p className="text-[10px] text-gray-500 ml-4 mt-1">
+                            {language === 'en' ? 'No streams found for this brand' : 'このブランドの配信が見つかりません'}
+                          </p>
+                        )}
                       </div>
                     );
                   });
