@@ -625,7 +625,7 @@ import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
 import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts } from "../drizzle/schema";
-import { eq, and, or, not, isNotNull, isNull, desc, gt, gte, lte, inArray, sql as sqlTag, sum } from "drizzle-orm";
+import { eq, and, or, not, isNotNull, isNull, desc, gt, gte, lte, inArray, sql as sqlTag, sum, count, max } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
@@ -12806,6 +12806,80 @@ ${liverName}さんの今回の配信データを分析して、以下を含む�
           });
           
           return { alreadyExists: false, message: welcomeMsg };
+        }),
+      // Get all liver AI coach usage stats (master view)
+      getAllLiverUsageStats: publicProcedure
+        .query(async () => {
+          const db = await getDb();
+          if (!db) return [];
+          
+          // Get message counts and last activity per liver
+          const stats = await db
+            .select({
+              liverId: aiCoachMessages.liverId,
+              totalMessages: count(aiCoachMessages.id),
+              lastMessageAt: max(aiCoachMessages.createdAt),
+            })
+            .from(aiCoachMessages)
+            .groupBy(aiCoachMessages.liverId);
+          
+          // Get room counts per liver
+          const roomStats = await db
+            .select({
+              liverId: aiCoachRooms.liverId,
+              roomCount: count(aiCoachRooms.id),
+            })
+            .from(aiCoachRooms)
+            .where(isNull(aiCoachRooms.deletedAt))
+            .groupBy(aiCoachRooms.liverId);
+          
+          // Get user message counts (only user role)
+          const userMsgStats = await db
+            .select({
+              liverId: aiCoachMessages.liverId,
+              userMessages: count(aiCoachMessages.id),
+            })
+            .from(aiCoachMessages)
+            .where(eq(aiCoachMessages.role, 'user'))
+            .groupBy(aiCoachMessages.liverId);
+          
+          // Get liver names
+          const allLivers = await db.select({ id: livers.id, name: livers.name }).from(livers);
+          const liverMap = new Map(allLivers.map(l => [l.id, l.name]));
+          const roomMap = new Map(roomStats.map(r => [r.liverId, r.roomCount]));
+          const userMsgMap = new Map(userMsgStats.map(u => [u.liverId, u.userMessages]));
+          
+          return stats.map(s => ({
+            liverId: s.liverId,
+            liverName: liverMap.get(s.liverId) || `Liver #${s.liverId}`,
+            totalMessages: s.totalMessages,
+            userMessages: userMsgMap.get(s.liverId) || 0,
+            roomCount: roomMap.get(s.liverId) || 0,
+            lastMessageAt: s.lastMessageAt,
+          })).sort((a, b) => (b.totalMessages) - (a.totalMessages));
+        }),
+
+      // Get conversation history for a specific liver (master view)
+      getLiverConversations: publicProcedure
+        .input(z.object({ liverId: z.number(), limit: z.number().optional().default(50) }))
+        .query(async ({ input }) => {
+          const db = await getDb();
+          if (!db) return { rooms: [], messages: [] };
+          
+          const rooms = await db
+            .select()
+            .from(aiCoachRooms)
+            .where(and(eq(aiCoachRooms.liverId, input.liverId), isNull(aiCoachRooms.deletedAt)))
+            .orderBy(desc(aiCoachRooms.lastMessageAt));
+          
+          const messages = await db
+            .select()
+            .from(aiCoachMessages)
+            .where(eq(aiCoachMessages.liverId, input.liverId))
+            .orderBy(desc(aiCoachMessages.createdAt))
+            .limit(input.limit);
+          
+          return { rooms, messages: messages.reverse() };
         }),
     }),
 

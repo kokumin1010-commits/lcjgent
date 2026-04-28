@@ -141,6 +141,7 @@ const LcjCoinDashboard = lazy(() => import("./pages/LcjCoinDashboard"));
 const LcjCoinMyLogin = lazy(() => import("./pages/LcjCoinMyLogin"));
 const LcjCoinMyPage = lazy(() => import("./pages/LcjCoinMyPage"));
 const LiveSuggestions = lazy(() => import("./pages/LiveSuggestions"));
+const AiCoachMaster = lazy(() => import("./pages/AiCoachMaster"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -483,6 +484,11 @@ function Router() {
         </Route>
         <Route path="/master/lcj-coin">
           <LcjCoinDashboard />
+        </Route>
+        <Route path="/master/ai-coach">
+          <DashboardLayout>
+            <AiCoachMaster />
+          </DashboardLayout>
         </Route>
 
         {/* LCJ Coin My Page */}
