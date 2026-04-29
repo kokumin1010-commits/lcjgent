@@ -21177,9 +21177,27 @@ export async function getTodaySchedulesForSuggestion() {
   const startOfDayUTC = new Date(todayJST.getTime() - 9 * 60 * 60 * 1000);
   const endOfDayUTC = new Date(startOfDayUTC.getTime() + 24 * 60 * 60 * 1000 - 1);
   
-  return await db
-    .select()
+  // JOIN livers to get lineUserId for mention
+  const results = await db
+    .select({
+      id: schedules.id,
+      title: schedules.title,
+      description: schedules.description,
+      startTime: schedules.startTime,
+      endTime: schedules.endTime,
+      isAllDay: schedules.isAllDay,
+      category: schedules.category,
+      liverId: schedules.liverId,
+      liverName: schedules.liverName,
+      brandId: schedules.brandId,
+      lineGroupId: schedules.lineGroupId,
+      status: schedules.status,
+      notes: schedules.notes,
+      createdBy: schedules.createdBy,
+      liverLineUserId: livers.lineUserId,
+    })
     .from(schedules)
+    .leftJoin(livers, eq(schedules.liverId, livers.id))
     .where(
       and(
         sql`${schedules.startTime} >= ${startOfDayUTC}`,
@@ -21188,6 +21206,8 @@ export async function getTodaySchedulesForSuggestion() {
       )
     )
     .orderBy(asc(schedules.startTime));
+  
+  return results;
 }
 
 /**

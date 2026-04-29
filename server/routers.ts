@@ -10572,13 +10572,16 @@ ${conversationText}
         }
 
         const results: Array<{ liverName: string; success: boolean; suggestion: string }> = [];
-        const allSuggestionTexts: string[] = [];
 
         const now = new Date();
         const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
         const todayStr = jstNow.toISOString().split('T')[0];
 
-        // Generate suggestion for each liver
+        // Send header message to group first
+        const headerMsg = `\ud83d\udce2 \u3010${todayStr} \u4eca\u65e5\u306e\u914d\u4fe1\u63d0\u6848\u3011\n\n\u4eca\u65e5\u306f${liverScheduleMap.size}\u540d\u304c\u914d\u4fe1\u4e88\u5b9a\uff01\n\u307f\u3093\u306a\u3067\u6700\u9ad8\u306e\u914d\u4fe1\u306b\u3057\u307e\u3057\u3087\u3046\ud83d\udd25`;
+        await pushMessage(input.lineGroupId, [{ type: "text", text: headerMsg }]);
+
+        // Generate and send suggestion for each liver individually
         for (const [liverName, liverSchedules] of liverScheduleMap) {
           try {
             const fetchSafe = async <T>(fn: () => Promise<T>, fallback: T, label: string): Promise<T> => {
@@ -10675,7 +10678,33 @@ ${conversationText}
             const firstSchedule = liverSchedules[0];
             const startTimeStr = firstSchedule.startTime ? new Date(firstSchedule.startTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : '';
 
-            allSuggestionTexts.push(`━━━━━━━━━━━━━━━\n👤 ${liverName}（${startTimeStr}〜）\n━━━━━━━━━━━━━━━\n${suggestionText}`);
+            const endTimeStr = firstSchedule.endTime ? new Date(firstSchedule.endTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : '';
+
+            // Get lineUserId for mention (from joined livers table)
+            const lineUserId = (firstSchedule as any).liverLineUserId || null;
+
+            // 1. Send individual message to GROUP with mention
+            const mentionTag = lineUserId ? `@${liverName}` : `👤 ${liverName}`;
+            const timeInfo = `（${startTimeStr}${endTimeStr ? `〜${endTimeStr}` : '〜'}）`;
+            const msgHeader = `━━━━━━━━━━━━━━━\n${mentionTag}${timeInfo}\n━━━━━━━━━━━━━━━`;
+            const fullText = `${msgHeader}\n${suggestionText}`;
+
+            const groupMsg: any = { type: "text", text: fullText };
+            if (lineUserId) {
+              const mentionIndex = fullText.indexOf(mentionTag);
+              groupMsg.mention = {
+                mentionees: [{ index: mentionIndex, length: mentionTag.length, userId: lineUserId }],
+              };
+            }
+            const groupSuccess = await pushMessage(input.lineGroupId, [groupMsg]);
+
+            // 2. Send DM to individual liver
+            let dmSuccess = false;
+            if (lineUserId) {
+              const dmText = `📢 【${todayStr} あなたへの配信提案】\n\n${liverName}さん、今日の配信頑張りましょう！\n\n${suggestionText}`;
+              dmSuccess = await pushMessage(lineUserId, [{ type: "text", text: dmText }]);
+              console.log(`[LiveSuggestion] DM to ${liverName}: ${dmSuccess ? '✅' : '❌'}`);
+            }
 
             // Save to DB
             await saveLiveSuggestion({
@@ -10689,78 +10718,29 @@ ${conversationText}
               promptUsed: userPrompt,
               sentToLineGroupId: input.lineGroupId,
               sentToLineGroupName: input.lineGroupName,
-              lineSendSuccess: false, // Will update after LINE send
+              lineSendSuccess: groupSuccess,
+              lineSendError: groupSuccess ? (dmSuccess || !lineUserId ? null : 'DM failed') : 'Group send failed',
               generatedBy: ctx.user?.email || 'system',
             });
 
-            results.push({ liverName, success: true, suggestion: suggestionText });
+            results.push({ liverName, success: groupSuccess, suggestion: suggestionText });
+
+            // Delay to avoid LINE rate limiting
+            await new Promise(resolve => setTimeout(resolve, 500));
           } catch (error) {
             console.error(`[LiveSuggestion] Error for ${liverName}:`, error);
             results.push({ liverName, success: false, suggestion: 'エラー' });
           }
         }
 
-        // Send combined message to LINE group
-        if (allSuggestionTexts.length > 0) {
-          const header = `📢 【${todayStr} 配信提案】\n\n今日配信予定の${allSuggestionTexts.length}名のライバーへの提案です：\n`;
-          const fullMessage = header + "\n" + allSuggestionTexts.join("\n\n");
-
-          // LINE message limit is 5000 chars, split if needed
-          const messages: Array<{ type: "text"; text: string }> = [];
-          if (fullMessage.length <= 4900) {
-            messages.push({ type: "text", text: fullMessage });
-          } else {
-            // Split into header + individual messages
-            messages.push({ type: "text", text: header });
-            let currentBatch = "";
-            for (const suggestion of allSuggestionTexts) {
-              if ((currentBatch + "\n\n" + suggestion).length > 4800) {
-                if (currentBatch) messages.push({ type: "text", text: currentBatch });
-                currentBatch = suggestion;
-              } else {
-                currentBatch = currentBatch ? currentBatch + "\n\n" + suggestion : suggestion;
-              }
-            }
-            if (currentBatch) messages.push({ type: "text", text: currentBatch });
-          }
-
-          // Send to LINE group (max 5 messages per push)
-          const lineSuccess = await pushMessage(input.lineGroupId, messages.slice(0, 5));
-
-          // Update DB records with LINE send status
-          const db = await getDb();
-          if (db) {
-            const { liveSuggestions } = await import("../drizzle/schema");
-            // Update all today's suggestions for this group
-            const todayStart = new Date();
-            todayStart.setHours(0, 0, 0, 0);
-            await db.update(liveSuggestions)
-              .set({
-                lineSendSuccess: lineSuccess,
-                lineSendError: lineSuccess ? null : 'LINE push failed',
-              })
-              .where(
-                and(
-                  eq(liveSuggestions.sentToLineGroupId, input.lineGroupId),
-                  gte(liveSuggestions.createdAt, todayStart)
-                )
-              );
-          }
-
-          return {
-            success: lineSuccess,
-            message: lineSuccess
-              ? `${results.length}名のライバーへの配信提案をLINEグループに送信しました`
-              : 'LINE送信に失敗しました',
-            suggestions: results,
-            lineMessageCount: messages.length,
-          };
-        }
+        // Send header message first (after individual messages, as summary)
+        const successCount = results.filter(r => r.success).length;
 
         return {
-          success: false,
-          message: '提案を生成できませんでした',
+          success: successCount > 0,
+          message: `${successCount}/${results.length}名のライバーへの配信提案を個別メンション付きでLINEグループに送信しました`,
           suggestions: results,
+          lineMessageCount: successCount,
         };
       }),
 

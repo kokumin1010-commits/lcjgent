@@ -2,9 +2,8 @@
  * AI配信提案 自動送信スケジューラー
  * 
  * 毎朝7:00 JST に今日の配信予定ライバー全員のAI提案を生成し、
- * LINEグループ「LCJ所属ライバー連絡網」に自動送信する。
- * 
- * みんなで数字を共有して高め合うスタイル。
+ * LINEグループ「LCJ所属ライバー連絡網」に一人ずつメンション付きで送信。
+ * さらに個人にもDMで同じ提案を送信する。
  */
 
 import { getDb } from "./db";
@@ -61,7 +60,42 @@ async function findTargetLineGroup(): Promise<{ lineGroupId: string; groupName: 
 }
 
 /**
- * Main function: Generate AI suggestions for all today's livers and send to LINE group
+ * Build a text message with LINE mention
+ * LINE mention requires: text with @name placeholder, and mentionees array with index/length/userId
+ */
+function buildMentionTextMessage(
+  liverName: string,
+  lineUserId: string | null,
+  suggestionText: string,
+  startTimeStr: string,
+  endTimeStr: string,
+): { type: "text"; text: string; mention?: { mentionees: Array<{ index: number; length: number; userId: string }> } } {
+  const mentionTag = lineUserId ? `@${liverName}` : `👤 ${liverName}`;
+  const timeInfo = `（${startTimeStr}${endTimeStr ? `〜${endTimeStr}` : '〜'}）`;
+  const header = `━━━━━━━━━━━━━━━\n${mentionTag}${timeInfo}\n━━━━━━━━━━━━━━━`;
+  const fullText = `${header}\n${suggestionText}`;
+
+  if (lineUserId) {
+    // Calculate the index of @liverName in the text
+    const mentionIndex = fullText.indexOf(mentionTag);
+    return {
+      type: "text",
+      text: fullText,
+      mention: {
+        mentionees: [{
+          index: mentionIndex,
+          length: mentionTag.length,
+          userId: lineUserId,
+        }],
+      },
+    };
+  }
+
+  return { type: "text", text: fullText };
+}
+
+/**
+ * Main function: Generate AI suggestions for all today's livers and send individually to LINE group + DM
  */
 export async function runDailyLiveSuggestion(): Promise<void> {
   console.log(`${LOG_PREFIX} Starting daily live suggestion generation...`);
@@ -78,7 +112,7 @@ export async function runDailyLiveSuggestion(): Promise<void> {
     }
     console.log(`${LOG_PREFIX} Target group: ${targetGroup.groupName} (${targetGroup.lineGroupId})`);
 
-    // Get today's schedules
+    // Get today's schedules (now includes liverLineUserId from JOIN)
     const todaySchedules = await getTodaySchedulesForSuggestion();
     if (todaySchedules.length === 0) {
       console.log(`${LOG_PREFIX} No schedules for today. Skipping.`);
@@ -95,12 +129,20 @@ export async function runDailyLiveSuggestion(): Promise<void> {
       liverScheduleMap.get(name)!.push(s);
     }
 
-    const allSuggestionTexts: string[] = [];
     const now = new Date();
     const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
     const todayStr = jstNow.toISOString().split('T')[0];
 
-    // Generate suggestion for each liver
+    // Send header message to group first
+    const headerMsg = `📢 【${todayStr} 今日の配信提案】\n\n今日は${liverScheduleMap.size}名が配信予定！\nみんなで最高の配信にしましょう🔥`;
+    await pushMessage(targetGroup.lineGroupId, [{ type: "text", text: headerMsg }]);
+    console.log(`${LOG_PREFIX} Sent header message to group`);
+
+    // Small delay between messages to avoid rate limiting
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // Generate and send suggestion for each liver individually
+    let successCount = 0;
     for (const [liverName, liverSchedules] of liverScheduleMap) {
       try {
         console.log(`${LOG_PREFIX} Generating suggestion for ${liverName}...`);
@@ -197,7 +239,32 @@ export async function runDailyLiveSuggestion(): Promise<void> {
         const startTimeStr = firstSchedule.startTime ? new Date(firstSchedule.startTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : '';
         const endTimeStr = firstSchedule.endTime ? new Date(firstSchedule.endTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : '';
 
-        allSuggestionTexts.push(`━━━━━━━━━━━━━━━\n👤 ${liverName}（${startTimeStr}${endTimeStr ? `〜${endTimeStr}` : '〜'}）\n━━━━━━━━━━━━━━━\n${suggestionText}`);
+        // Get lineUserId from schedule (joined from livers table)
+        const lineUserId = firstSchedule.liverLineUserId || null;
+
+        // 1. Send to GROUP with mention
+        const groupMessage = buildMentionTextMessage(liverName, lineUserId, suggestionText, startTimeStr, endTimeStr);
+        const groupSuccess = await pushMessage(targetGroup.lineGroupId, [groupMessage]);
+        
+        if (groupSuccess) {
+          console.log(`${LOG_PREFIX} ✅ Sent to group for ${liverName}${lineUserId ? ' (with mention)' : ' (no mention - no lineUserId)'}`);
+        } else {
+          console.error(`${LOG_PREFIX} ❌ Failed to send to group for ${liverName}`);
+        }
+
+        // 2. Send DM to individual liver (if lineUserId exists)
+        let dmSuccess = false;
+        if (lineUserId) {
+          const dmText = `📢 【${todayStr} あなたへの配信提案】\n\n${liverName}さん、今日の配信頑張りましょう！\n\n${suggestionText}`;
+          dmSuccess = await pushMessage(lineUserId, [{ type: "text", text: dmText }]);
+          if (dmSuccess) {
+            console.log(`${LOG_PREFIX} ✅ Sent DM to ${liverName}`);
+          } else {
+            console.error(`${LOG_PREFIX} ❌ Failed to send DM to ${liverName}`);
+          }
+        } else {
+          console.log(`${LOG_PREFIX} ⚠️ No lineUserId for ${liverName}, skipping DM`);
+        }
 
         // Save to DB (履歴として記録)
         await saveLiveSuggestion({
@@ -211,69 +278,24 @@ export async function runDailyLiveSuggestion(): Promise<void> {
           promptUsed: userPrompt,
           sentToLineGroupId: targetGroup.lineGroupId,
           sentToLineGroupName: targetGroup.groupName,
-          lineSendSuccess: false, // Will update after LINE send
+          lineSendSuccess: groupSuccess,
+          lineSendError: groupSuccess ? (dmSuccess || !lineUserId ? null : 'DM failed') : 'Group send failed',
           generatedBy: 'auto-scheduler',
         });
 
+        successCount++;
         console.log(`${LOG_PREFIX} Generated suggestion for ${liverName} ✓`);
+
+        // Delay between messages to avoid LINE rate limiting (max ~5 req/sec)
+        await delay(500);
+
       } catch (error) {
         console.error(`${LOG_PREFIX} Error generating suggestion for ${liverName}:`, error);
       }
     }
 
-    // Send combined message to LINE group
-    if (allSuggestionTexts.length > 0) {
-      const header = `📢 【${todayStr} 今日の配信提案】\n\n今日は${allSuggestionTexts.length}名が配信予定！\nみんなで最高の配信にしましょう🔥\n`;
-      const fullMessage = header + "\n" + allSuggestionTexts.join("\n\n");
+    console.log(`${LOG_PREFIX} ✅ Completed: ${successCount}/${liverScheduleMap.size} suggestions sent individually to group${successCount > 0 ? ' + DMs' : ''}`);
 
-      // LINE message limit is 5000 chars, split if needed
-      const messages: Array<{ type: "text"; text: string }> = [];
-      if (fullMessage.length <= 4900) {
-        messages.push({ type: "text", text: fullMessage });
-      } else {
-        // Split into header + individual messages
-        messages.push({ type: "text", text: header });
-        let currentBatch = "";
-        for (const suggestion of allSuggestionTexts) {
-          if ((currentBatch + "\n\n" + suggestion).length > 4800) {
-            if (currentBatch) messages.push({ type: "text", text: currentBatch });
-            currentBatch = suggestion;
-          } else {
-            currentBatch = currentBatch ? currentBatch + "\n\n" + suggestion : suggestion;
-          }
-        }
-        if (currentBatch) messages.push({ type: "text", text: currentBatch });
-      }
-
-      // Send to LINE group (max 5 messages per push)
-      const lineSuccess = await pushMessage(targetGroup.lineGroupId, messages.slice(0, 5));
-
-      // Update DB records with LINE send status
-      const db = await getDb();
-      if (db) {
-        const { liveSuggestions } = await import("../drizzle/schema");
-        const { gte } = await import("drizzle-orm");
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        await db.update(liveSuggestions)
-          .set({
-            lineSendSuccess: lineSuccess,
-            lineSendError: lineSuccess ? null : 'LINE push failed',
-          })
-          .where(
-            and(
-              eq(liveSuggestions.sentToLineGroupId, targetGroup.lineGroupId),
-              gte(liveSuggestions.createdAt, todayStart)
-            )
-          );
-      }
-
-      if (lineSuccess) {
-        console.log(`${LOG_PREFIX} ✅ Successfully sent ${allSuggestionTexts.length} suggestions to ${targetGroup.groupName}`);
-      } else {
-        console.error(`${LOG_PREFIX} ❌ Failed to send to LINE group`);
-      }
-    }
   } catch (error) {
     console.error(`${LOG_PREFIX} Fatal error:`, error);
   }

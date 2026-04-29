@@ -53,7 +53,8 @@ export function verifyLineSignature(body: string, signature: string): boolean {
 }
 
 // LINE Message types
-type LineTextMessage = { type: "text"; text: string };
+type LineMentionee = { index: number; length: number; userId: string };
+type LineTextMessage = { type: "text"; text: string; mention?: { mentionees: LineMentionee[] } };
 type LineImageMessage = { type: "image"; originalContentUrl: string; previewImageUrl: string };
 type LineFlexMessage = { type: "flex"; altText: string; contents: any };
 type LineMessage = LineTextMessage | LineImageMessage | LineFlexMessage;
