@@ -10358,8 +10358,9 @@ ${conversationText}
   liveSuggestion: router({
     // Get today's schedules with liver info
     getTodaySchedules: protectedProcedure
-      .query(async () => {
-        const todaySchedules = await getTodaySchedulesForSuggestion();
+      .input(z.object({ date: z.string().optional() }).optional())
+      .query(async ({ input }) => {
+        const todaySchedules = await getTodaySchedulesForSuggestion(input?.date);
         // Group by liverName
         const liverSchedules = new Map<string, typeof todaySchedules>();
         for (const s of todaySchedules) {

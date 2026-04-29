@@ -21164,14 +21164,21 @@ export async function getLiveSuggestionsByLiverName(liverName: string, limit: nu
  * Get today's schedules with liver info for suggestion generation
  * Returns schedules for today (JST) that are not cancelled
  */
-export async function getTodaySchedulesForSuggestion() {
+export async function getTodaySchedulesForSuggestion(targetDate?: string) {
   const db = await getDb();
   if (!db) return [];
   
-  // Get today in JST
-  const now = new Date();
-  const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const todayJST = new Date(jstNow.getFullYear(), jstNow.getMonth(), jstNow.getDate());
+  // Get target date in JST (default: today)
+  let todayJST: Date;
+  if (targetDate) {
+    // targetDate is 'YYYY-MM-DD' in JST
+    const [y, m, d] = targetDate.split('-').map(Number);
+    todayJST = new Date(y, m - 1, d);
+  } else {
+    const now = new Date();
+    const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    todayJST = new Date(jstNow.getFullYear(), jstNow.getMonth(), jstNow.getDate());
+  }
   
   // Convert JST boundaries to UTC for DB query
   const startOfDayUTC = new Date(todayJST.getTime() - 9 * 60 * 60 * 1000);

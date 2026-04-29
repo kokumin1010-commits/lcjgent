@@ -26,9 +26,38 @@ export default function LiveSuggestions() {
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [editableSuggestions, setEditableSuggestions] = useState<string>("");
   const [historyDate, setHistoryDate] = useState<string>("");
+  const [expandedHistoryIds, setExpandedHistoryIds] = useState<Set<string | number>>(new Set());
+  const [scheduleDate, setScheduleDate] = useState<string>("");
 
-  // Fetch today's schedules
-  const { data: todayData, isLoading: loadingSchedules, refetch: refetchSchedules } = trpc.liveSuggestion.getTodaySchedules.useQuery();
+  // Helper: get today's date in JST as YYYY-MM-DD
+  const getTodayJST = () => {
+    const now = new Date();
+    const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    return jst.toISOString().split('T')[0];
+  };
+
+  const isToday = !scheduleDate || scheduleDate === getTodayJST();
+
+  const changeScheduleDate = (offset: number) => {
+    const current = scheduleDate || getTodayJST();
+    const d = new Date(current);
+    d.setDate(d.getDate() + offset);
+    setScheduleDate(d.toISOString().split('T')[0]);
+  };
+
+  const toggleHistoryExpand = (id: string | number) => {
+    setExpandedHistoryIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Fetch schedules for selected date
+  const { data: todayData, isLoading: loadingSchedules, refetch: refetchSchedules } = trpc.liveSuggestion.getTodaySchedules.useQuery(
+    scheduleDate ? { date: scheduleDate } : undefined
+  );
 
   // Fetch LINE groups
   const { data: lineGroups, isLoading: loadingGroups } = trpc.liveSuggestion.getLineGroups.useQuery();
@@ -224,15 +253,38 @@ export default function LiveSuggestions() {
             {/* Today's Schedule Summary */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-blue-500" />
-                  今日の配信予定
-                </CardTitle>
-                <CardDescription>
-                  {todayData?.liverCount
-                    ? `${todayData.liverCount}名のライバーが配信予定`
-                    : '配信予定を読み込み中...'}
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Calendar className="h-5 w-5 text-blue-500" />
+                      {isToday ? '今日の配信予定' : `${scheduleDate} の配信予定`}
+                    </CardTitle>
+                    <CardDescription>
+                      {todayData?.liverCount
+                        ? `${todayData.liverCount}名のライバーが配信予定`
+                        : '配信予定を読み込み中...'}
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => changeScheduleDate(-1)}>
+                      <ChevronDown className="h-4 w-4 rotate-90" />
+                    </Button>
+                    <input
+                      type="date"
+                      value={scheduleDate || getTodayJST()}
+                      onChange={(e) => setScheduleDate(e.target.value)}
+                      className="px-2 py-1 text-sm border rounded-md bg-background w-36"
+                    />
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => changeScheduleDate(1)}>
+                      <ChevronDown className="h-4 w-4 -rotate-90" />
+                    </Button>
+                    {!isToday && (
+                      <Button variant="ghost" size="sm" className="text-xs" onClick={() => setScheduleDate('')}>
+                        今日
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {loadingSchedules ? (
@@ -430,56 +482,75 @@ export default function LiveSuggestions() {
                           <Badge variant="secondary" className="ml-1">{items!.length}件</Badge>
                         </h3>
                         <div className="space-y-2">
-                          {items!.map((item, i) => (
-                            <div key={item.id || i} className="flex items-start gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
-                              <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary shrink-0 mt-0.5">
-                                <User className="h-4 w-4" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="font-medium">{item.liverName}</span>
-                                  {item.scheduledStartTime && (
-                                    <Badge variant="outline" className="text-xs">
-                                      <Clock className="h-3 w-3 mr-1" />
-                                      {new Date(item.scheduledStartTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })}
-                                    </Badge>
-                                  )}
-                                  {item.lineSendSuccess ? (
-                                    <Badge variant="default" className="bg-green-500 text-xs">
-                                      <CheckCircle className="h-3 w-3 mr-1" />
-                                      送信済
-                                    </Badge>
-                                  ) : item.sentToLineGroupId ? (
-                                    <Badge variant="destructive" className="text-xs">
-                                      <XCircle className="h-3 w-3 mr-1" />
-                                      送信失敗
-                                    </Badge>
+                          {items!.map((item, i) => {
+                            const itemKey = item.id || `${dateKey}-${i}`;
+                            const isExpanded = expandedHistoryIds.has(itemKey);
+                            return (
+                            <div
+                              key={itemKey}
+                              className="rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
+                              onClick={() => toggleHistoryExpand(itemKey)}
+                            >
+                              <div className="flex items-start gap-3 p-3">
+                                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary shrink-0 mt-0.5">
+                                  <User className="h-4 w-4" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-medium">{item.liverName}</span>
+                                    {item.scheduledStartTime && (
+                                      <Badge variant="outline" className="text-xs">
+                                        <Clock className="h-3 w-3 mr-1" />
+                                        {new Date(item.scheduledStartTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })}
+                                      </Badge>
+                                    )}
+                                    {item.lineSendSuccess ? (
+                                      <Badge variant="default" className="bg-green-500 text-xs">
+                                        <CheckCircle className="h-3 w-3 mr-1" />
+                                        送信済
+                                      </Badge>
+                                    ) : item.sentToLineGroupId ? (
+                                      <Badge variant="destructive" className="text-xs">
+                                        <XCircle className="h-3 w-3 mr-1" />
+                                        送信失敗
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="secondary" className="text-xs">
+                                        生成のみ
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {!isExpanded ? (
+                                    <div className="text-sm text-muted-foreground truncate">
+                                      {item.suggestionText?.split('\n')[0] || '提案内容'}
+                                    </div>
                                   ) : (
-                                    <Badge variant="secondary" className="text-xs">
-                                      生成のみ
-                                    </Badge>
+                                    <div className="text-sm text-muted-foreground whitespace-pre-wrap mt-2 p-3 bg-muted/30 rounded-md">
+                                      {item.suggestionText}
+                                    </div>
                                   )}
+                                  <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+                                    {item.sentToLineGroupName && (
+                                      <span className="flex items-center gap-1">
+                                        <MessageSquare className="h-3 w-3" />
+                                        {item.sentToLineGroupName}
+                                      </span>
+                                    )}
+                                    {item.generatedBy && (
+                                      <span>by {item.generatedBy}</span>
+                                    )}
+                                    {item.createdAt && (
+                                      <span>{format(new Date(item.createdAt), 'HH:mm')}</span>
+                                    )}
+                                  </div>
                                 </div>
-                                <div className="text-sm text-muted-foreground whitespace-pre-wrap line-clamp-3">
-                                  {item.suggestionText}
-                                </div>
-                                <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                                  {item.sentToLineGroupName && (
-                                    <span className="flex items-center gap-1">
-                                      <MessageSquare className="h-3 w-3" />
-                                      {item.sentToLineGroupName}
-                                    </span>
-                                  )}
-                                  {item.generatedBy && (
-                                    <span>by {item.generatedBy}</span>
-                                  )}
-                                  {item.createdAt && (
-                                    <span>{format(new Date(item.createdAt), 'HH:mm')}</span>
-                                  )}
+                                <div className="shrink-0 mt-1">
+                                  {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                                 </div>
                               </div>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     ))}
