@@ -10389,18 +10389,18 @@ ${conversationText}
         let monthlySummary: Awaited<ReturnType<typeof getLiverMonthlySummaryForSuggestion>> = null;
         let quotaBrands: Awaited<ReturnType<typeof getQuotaBrandsForLiver>> = [];
 
-        try {
-          [recentStreams, topProducts, recentSets, monthlySummary, quotaBrands] = await Promise.all([
-            getRecentLivestreamDataForSuggestion(input.liverName),
-            getTopProductsForSuggestion(input.liverName),
-            getRecentSetsForSuggestion(input.liverName),
-            getLiverMonthlySummaryForSuggestion(input.liverName),
-            getQuotaBrandsForLiver(input.liverName),
-          ]);
-        } catch (dbError) {
-          console.error("[LiveSuggestion] DB data fetch error:", dbError);
-          // Continue with empty data - AI will provide general advice
-        }
+        // Fetch each data source independently so one failure doesn't block others
+        const fetchSafe = async <T>(fn: () => Promise<T>, fallback: T, label: string): Promise<T> => {
+          try { return await fn(); } catch (e) { console.error(`[LiveSuggestion] ${label} error:`, e); return fallback; }
+        };
+        [recentStreams, topProducts, recentSets, monthlySummary, quotaBrands] = await Promise.all([
+          fetchSafe(() => getRecentLivestreamDataForSuggestion(input.liverName), [], 'recentStreams'),
+          fetchSafe(() => getTopProductsForSuggestion(input.liverName), [], 'topProducts'),
+          fetchSafe(() => getRecentSetsForSuggestion(input.liverName), [], 'recentSets'),
+          fetchSafe(() => getLiverMonthlySummaryForSuggestion(input.liverName), null, 'monthlySummary'),
+          fetchSafe(() => getQuotaBrandsForLiver(input.liverName), [], 'quotaBrands'),
+        ]);
+        console.log(`[LiveSuggestion] Data for ${input.liverName}: streams=${recentStreams.length}, products=${topProducts.length}, sets=${recentSets.length}, monthly=${!!monthlySummary}, brands=${quotaBrands.length}`);
 
         // Build AI prompt
         const now = new Date();
@@ -10560,13 +10560,17 @@ ${conversationText}
         // Generate suggestion for each liver
         for (const [liverName, liverSchedules] of liverScheduleMap) {
           try {
+            const fetchSafe = async <T>(fn: () => Promise<T>, fallback: T, label: string): Promise<T> => {
+              try { return await fn(); } catch (e) { console.error(`[LiveSuggestion:${liverName}] ${label} error:`, e); return fallback; }
+            };
             const [recentStreams, topProducts, recentSets, monthlySummary, quotaBrands] = await Promise.all([
-              getRecentLivestreamDataForSuggestion(liverName),
-              getTopProductsForSuggestion(liverName),
-              getRecentSetsForSuggestion(liverName),
-              getLiverMonthlySummaryForSuggestion(liverName),
-              getQuotaBrandsForLiver(liverName),
+              fetchSafe(() => getRecentLivestreamDataForSuggestion(liverName), [], 'recentStreams'),
+              fetchSafe(() => getTopProductsForSuggestion(liverName), [], 'topProducts'),
+              fetchSafe(() => getRecentSetsForSuggestion(liverName), [], 'recentSets'),
+              fetchSafe(() => getLiverMonthlySummaryForSuggestion(liverName), null, 'monthlySummary'),
+              fetchSafe(() => getQuotaBrandsForLiver(liverName), [], 'quotaBrands'),
             ]);
+            console.log(`[LiveSuggestion:${liverName}] Data: streams=${recentStreams.length}, products=${topProducts.length}, sets=${recentSets.length}, monthly=${!!monthlySummary}, brands=${quotaBrands.length}`);
 
             let contextInfo = `## ${liverName}さんの配信データ\n\n`;
             contextInfo += `### 今日の予定\n`;

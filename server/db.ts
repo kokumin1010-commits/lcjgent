@@ -21171,7 +21171,8 @@ export async function getRecentLivestreamDataForSuggestion(liverName: string) {
   const db = await getDb();
   if (!db) return [];
   
-  return await db
+  // Try streamerName first
+  let results = await db
     .select({
       id: brandLivestreams.id,
       livestreamDate: brandLivestreams.livestreamDate,
@@ -21190,6 +21191,38 @@ export async function getRecentLivestreamDataForSuggestion(liverName: string) {
     )
     .orderBy(desc(brandLivestreams.livestreamDate))
     .limit(10);
+  
+  // Fallback: search by liverId if streamerName didn't match
+  if (results.length === 0) {
+    const liver = await db
+      .select({ id: livers.id })
+      .from(livers)
+      .where(eq(livers.name, liverName))
+      .limit(1);
+    if (liver.length > 0) {
+      results = await db
+        .select({
+          id: brandLivestreams.id,
+          livestreamDate: brandLivestreams.livestreamDate,
+          salesAmount: brandLivestreams.salesAmount,
+          duration: brandLivestreams.duration,
+          streamerName: brandLivestreams.streamerName,
+          brandName: brands.name,
+        })
+        .from(brandLivestreams)
+        .leftJoin(brands, eq(brandLivestreams.brandId, brands.id))
+        .where(
+          and(
+            eq(brandLivestreams.liverId, liver[0].id),
+            isNull(brandLivestreams.deletedAt)
+          )
+        )
+        .orderBy(desc(brandLivestreams.livestreamDate))
+        .limit(10);
+    }
+  }
+  
+  return results;
 }
 
 /**
