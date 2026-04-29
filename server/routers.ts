@@ -8593,9 +8593,238 @@ Return ONLY valid JSON, no markdown or explanation.`,
           })(),
         };
       }),
-  }),
 
-  // AI Advice Router (日報AIアドバイス)
+    // 月別ノルマ達成推移API（契約期間の各月の達成率を返す）
+    getQuotaMonthlyTrend: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const { brandId } = input;
+
+        // アクティブ契約を取得
+        const contracts = await db
+          .select()
+          .from(brandContracts)
+          .where(and(
+            eq(brandContracts.brandId, brandId),
+            isNull(brandContracts.deletedAt),
+            eq(brandContracts.status, "契約中")
+          ));
+
+        if (contracts.length === 0) return { months: [], contracts: [] };
+
+        // 契約期間の最早開始日と最遅終了日を特定
+        let earliest: Date | null = null;
+        let latest: Date | null = null;
+        for (const c of contracts) {
+          if (c.startDate) {
+            const d = new Date(c.startDate);
+            if (!earliest || d < earliest) earliest = d;
+          }
+          if (c.endDate) {
+            const d = new Date(c.endDate);
+            if (!latest || d > latest) latest = d;
+          }
+        }
+
+        if (!earliest) earliest = new Date(new Date().getFullYear(), new Date().getMonth() - 5, 1);
+        if (!latest) latest = new Date();
+
+        // 現在月までに制限
+        const now = new Date();
+        const currentYM = now.getFullYear() * 12 + now.getMonth();
+        const endYM = Math.min(latest.getFullYear() * 12 + latest.getMonth(), currentYM);
+        const startYM = earliest.getFullYear() * 12 + earliest.getMonth();
+
+        // ノルマ集計
+        let totalKgQuota = 0;
+        let totalLiverQuota = 0;
+        let totalVideoQuota = 0;
+        for (const c of contracts) {
+          if (c.kgLiveHoursQuota) totalKgQuota += c.kgLiveHoursQuota;
+          if (c.liverLiveHoursQuota) totalLiverQuota += c.liverLiveHoursQuota;
+          if (c.shortVideoCountQuota) totalVideoQuota += c.shortVideoCountQuota;
+        }
+
+        // 各月のデータを集計
+        const months: Array<{
+          year: number; month: number;
+          kgQuota: number; kgActual: number;
+          liverQuota: number; liverActual: number;
+          videoQuota: number; videoActual: number;
+          totalGmv: number; streamCount: number;
+        }> = [];
+
+        for (let ym = startYM; ym <= endYM; ym++) {
+          const y = Math.floor(ym / 12);
+          const m = ym % 12; // 0-indexed
+          const jstStart = new Date(Date.UTC(y, m, 1, 0, 0, 0) - 9 * 60 * 60 * 1000);
+          const lastDay = new Date(y, m + 1, 0).getDate();
+          const jstEnd = new Date(Date.UTC(y, m, lastDay, 23, 59, 59) - 9 * 60 * 60 * 1000);
+
+          const livestreams = await db
+            .select({
+              streamerName: brandLivestreams.streamerName,
+              duration: brandLivestreams.duration,
+              gmv: brandLivestreams.gmv,
+              salesAmount: brandLivestreams.salesAmount,
+            })
+            .from(brandLivestreams)
+            .where(and(
+              eq(brandLivestreams.brandId, brandId),
+              isNull(brandLivestreams.deletedAt),
+              gte(brandLivestreams.livestreamDate, jstStart),
+              lte(brandLivestreams.livestreamDate, jstEnd)
+            ));
+
+          let kgMin = 0, liverMin = 0, totalGmv = 0, streamCount = livestreams.length;
+          for (const ls of livestreams) {
+            const dur = ls.duration || 0;
+            const isKg = (ls.streamerName || '').includes('KG') || (ls.streamerName || '').includes('老师') || (ls.streamerName || '').includes('kg');
+            if (isKg) kgMin += dur; else liverMin += dur;
+            totalGmv += (ls.gmv || ls.salesAmount || 0);
+          }
+
+          months.push({
+            year: y, month: m + 1, // 1-indexed
+            kgQuota: totalKgQuota, kgActual: Math.round(kgMin / 60 * 10) / 10,
+            liverQuota: totalLiverQuota, liverActual: Math.round(liverMin / 60 * 10) / 10,
+            videoQuota: totalVideoQuota, videoActual: 0,
+            totalGmv, streamCount,
+          });
+        }
+
+        return {
+          months,
+          contracts: contracts.map(c => ({
+            id: c.id, brandName: c.brandId,
+            startDate: c.startDate, endDate: c.endDate,
+            kgLiveHoursQuota: c.kgLiveHoursQuota,
+            liverLiveHoursQuota: c.liverLiveHoursQuota,
+            shortVideoCountQuota: c.shortVideoCountQuota,
+          })),
+        };
+      }),
+
+    // 全契約の今月ノルマ進捗を一括取得（ブランド契約一覧用）
+    getAllContractsProgress: protectedProcedure
+      .query(async () => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const now = new Date();
+        // JST
+        const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+        const year = jstNow.getFullYear();
+        const month = jstNow.getMonth() + 1;
+        const day = jstNow.getDate();
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const monthProgressPct = Math.round((day / daysInMonth) * 100);
+
+        // アクティブ契約を取得
+        const allContracts = await db
+          .select()
+          .from(brandContracts)
+          .where(and(
+            isNull(brandContracts.deletedAt),
+            eq(brandContracts.status, "契約中")
+          ));
+
+        // ブランドIDごとにグループ化
+        const brandGroups: Record<number, typeof allContracts> = {};
+        for (const c of allContracts) {
+          if (!brandGroups[c.brandId]) brandGroups[c.brandId] = [];
+          brandGroups[c.brandId].push(c);
+        }
+
+        // 当月の配信データを一括取得
+        const jstStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0) - 9 * 60 * 60 * 1000);
+        const lastDay = new Date(year, month, 0).getDate();
+        const jstEnd = new Date(Date.UTC(year, month - 1, lastDay, 23, 59, 59) - 9 * 60 * 60 * 1000);
+
+        const allLivestreams = await db
+          .select({
+            brandId: brandLivestreams.brandId,
+            streamerName: brandLivestreams.streamerName,
+            duration: brandLivestreams.duration,
+            gmv: brandLivestreams.gmv,
+            salesAmount: brandLivestreams.salesAmount,
+          })
+          .from(brandLivestreams)
+          .where(and(
+            isNull(brandLivestreams.deletedAt),
+            gte(brandLivestreams.livestreamDate, jstStart),
+            lte(brandLivestreams.livestreamDate, jstEnd)
+          ));
+
+        // ブランドごとに配信データを集計
+        const brandLivestreamMap: Record<number, { kgMin: number; liverMin: number; gmv: number; count: number }> = {};
+        for (const ls of allLivestreams) {
+          if (!brandLivestreamMap[ls.brandId]) brandLivestreamMap[ls.brandId] = { kgMin: 0, liverMin: 0, gmv: 0, count: 0 };
+          const dur = ls.duration || 0;
+          const isKg = (ls.streamerName || '').includes('KG') || (ls.streamerName || '').includes('老师') || (ls.streamerName || '').includes('kg');
+          if (isKg) brandLivestreamMap[ls.brandId].kgMin += dur;
+          else brandLivestreamMap[ls.brandId].liverMin += dur;
+          brandLivestreamMap[ls.brandId].gmv += (ls.gmv || ls.salesAmount || 0);
+          brandLivestreamMap[ls.brandId].count += 1;
+        }
+
+        // 各ブランドの進捗を計算
+        const results: Array<{
+          brandId: number;
+          kgQuota: number; kgActual: number; kgPct: number;
+          liverQuota: number; liverActual: number; liverPct: number;
+          videoQuota: number; videoActual: number; videoPct: number;
+          totalGmv: number; streamCount: number;
+          monthProgressPct: number;
+          paceStatus: 'ahead' | 'on_track' | 'behind' | 'critical';
+        }> = [];
+
+        for (const [brandIdStr, contracts] of Object.entries(brandGroups)) {
+          const bId = Number(brandIdStr);
+          let kgQ = 0, liverQ = 0, videoQ = 0;
+          for (const c of contracts) {
+            if (c.kgLiveHoursQuota) kgQ += c.kgLiveHoursQuota;
+            if (c.liverLiveHoursQuota) liverQ += c.liverLiveHoursQuota;
+            if (c.shortVideoCountQuota) videoQ += c.shortVideoCountQuota;
+          }
+
+          const ls = brandLivestreamMap[bId] || { kgMin: 0, liverMin: 0, gmv: 0, count: 0 };
+          const kgA = Math.round(ls.kgMin / 60 * 10) / 10;
+          const liverA = Math.round(ls.liverMin / 60 * 10) / 10;
+
+          const kgPct = kgQ > 0 ? Math.round((kgA / kgQ) * 100) : -1;
+          const liverPct = liverQ > 0 ? Math.round((liverA / liverQ) * 100) : -1;
+          const videoPct = videoQ > 0 ? 0 : -1; // TODO: 短視頻実績
+
+          // ペースステータス計算
+          const activePcts = [kgPct, liverPct, videoPct].filter(p => p >= 0);
+          const avgPct = activePcts.length > 0 ? activePcts.reduce((a, b) => a + b, 0) / activePcts.length : 0;
+          let paceStatus: 'ahead' | 'on_track' | 'behind' | 'critical' = 'on_track';
+          if (avgPct >= monthProgressPct * 1.1) paceStatus = 'ahead';
+          else if (avgPct >= monthProgressPct * 0.7) paceStatus = 'on_track';
+          else if (avgPct >= monthProgressPct * 0.4) paceStatus = 'behind';
+          else paceStatus = 'critical';
+
+          results.push({
+            brandId: bId,
+            kgQuota: kgQ, kgActual: kgA, kgPct,
+            liverQuota: liverQ, liverActual: liverA, liverPct,
+            videoQuota: videoQ, videoActual: 0, videoPct,
+            totalGmv: ls.gmv, streamCount: ls.count,
+            monthProgressPct,
+            paceStatus,
+          });
+        }
+
+        return { year, month, day, daysInMonth, monthProgressPct, results };
+      }),
+  }),
+  // AI Advice Router (日報AIアドバイス))
   aiAdvice: router({
     // Generate AI advice for a report
     generate: protectedProcedure

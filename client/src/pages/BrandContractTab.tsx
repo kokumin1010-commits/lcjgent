@@ -21,8 +21,9 @@ import { toast } from "sonner";
 import {
   Building2, Plus, Pencil, Trash2, FileText, DollarSign,
   Loader2, CheckCircle, Clock, AlertTriangle, ChevronsUpDown, Check, Search,
-  Video, Users, Clapperboard, Calendar, Filter, Target
+  Video, Users, Clapperboard, Calendar, Filter, Target, TrendingUp, TrendingDown, Minus
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 function formatCurrency(val: number | null | undefined, currency?: string | null): string {
@@ -173,6 +174,7 @@ export default function BrandContractTab() {
   const contractsQuery = trpc.brandContract.listAll.useQuery();
   const brandsQuery = trpc.brand.list.useQuery();
   const liversQuery = trpc.liver.getAll.useQuery();
+  const progressQuery = trpc.brandContract.getAllContractsProgress.useQuery();
   const liverNames = useMemo(() => {
     if (!liversQuery.data) return [];
     return (liversQuery.data as any[]).map((l: any) => l.name).filter(Boolean).sort();
@@ -413,6 +415,7 @@ export default function BrandContractTab() {
               <th className="text-left p-3 font-medium">KG老师直播条件</th>
               <th className="text-left p-3 font-medium">达人直播条件</th>
               <th className="text-left p-3 font-medium">短视频条件</th>
+              <th className="text-center p-3 font-medium">今月進捗</th>
               <th className="text-left p-3 font-medium">ステータス</th>
               <th className="text-right p-3 font-medium">操作</th>
             </tr>
@@ -420,7 +423,7 @@ export default function BrandContractTab() {
           <tbody>
             {filteredContracts.length === 0 ? (
               <tr>
-                <td colSpan={9} className="text-center py-12 text-muted-foreground">
+                <td colSpan={10} className="text-center py-12 text-muted-foreground">
                   契約データがありません
                 </td>
               </tr>
@@ -480,6 +483,47 @@ export default function BrandContractTab() {
                           ))}
                         </div>
                       )}
+                    </td>
+                    <td className="p-3">
+                      {(() => {
+                        const prog = progressQuery.data?.results?.find((r: any) => r.brandId === c.brandId);
+                        if (!prog || (prog.kgPct < 0 && prog.liverPct < 0 && prog.videoPct < 0)) {
+                          return <span className="text-xs text-muted-foreground">-</span>;
+                        }
+                        const monthPct = prog.monthProgressPct;
+                        const paceIcon = prog.paceStatus === 'ahead' ? <TrendingUp className="h-3 w-3 text-green-500" /> : prog.paceStatus === 'behind' || prog.paceStatus === 'critical' ? <TrendingDown className="h-3 w-3 text-red-500" /> : <Minus className="h-3 w-3 text-yellow-500" />;
+                        const paceColor = prog.paceStatus === 'ahead' ? 'text-green-600 bg-green-50 dark:bg-green-950 dark:text-green-400 border-green-200 dark:border-green-800' : prog.paceStatus === 'critical' ? 'text-red-600 bg-red-50 dark:bg-red-950 dark:text-red-400 border-red-200 dark:border-red-800' : prog.paceStatus === 'behind' ? 'text-orange-600 bg-orange-50 dark:bg-orange-950 dark:text-orange-400 border-orange-200 dark:border-orange-800' : 'text-blue-600 bg-blue-50 dark:bg-blue-950 dark:text-blue-400 border-blue-200 dark:border-blue-800';
+                        return (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className={`inline-flex flex-col items-center gap-1 px-2 py-1 rounded-lg border ${paceColor} cursor-help`}>
+                                  <div className="flex items-center gap-1">
+                                    {paceIcon}
+                                    <span className="text-[10px] font-medium">
+                                      {prog.paceStatus === 'ahead' ? '順調' : prog.paceStatus === 'on_track' ? 'ペース通り' : prog.paceStatus === 'behind' ? '遅れ' : '要注意'}
+                                    </span>
+                                  </div>
+                                  <div className="flex gap-1.5 text-[9px]">
+                                    {prog.kgPct >= 0 && <span className="text-red-500">KG:{prog.kgPct}%</span>}
+                                    {prog.liverPct >= 0 && <span className="text-blue-500">達人:{prog.liverPct}%</span>}
+                                    {prog.videoPct >= 0 && <span className="text-orange-500">動画:{prog.videoPct}%</span>}
+                                  </div>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs">
+                                <div className="space-y-1 text-xs">
+                                  <div className="font-medium">月経過: {monthPct}% ({progressQuery.data?.day}日/{progressQuery.data?.daysInMonth}日)</div>
+                                  {prog.kgPct >= 0 && <div>KG老師: {prog.kgActual}h / {prog.kgQuota}h ({prog.kgPct}%)</div>}
+                                  {prog.liverPct >= 0 && <div>達人: {prog.liverActual}h / {prog.liverQuota}h ({prog.liverPct}%)</div>}
+                                  {prog.videoPct >= 0 && <div>短視頻: {prog.videoActual} / {prog.videoQuota}本 ({prog.videoPct}%)</div>}
+                                  {prog.totalGmv > 0 && <div>GMV: ¥{prog.totalGmv.toLocaleString()}</div>}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        );
+                      })()}
                     </td>
                     <td className="p-3">{getStatusBadge(c.status)}</td>
                     <td className="p-3 text-right">

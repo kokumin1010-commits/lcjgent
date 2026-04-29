@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle, FileDown, Save, BarChart3, Target, MousePointerClick, CreditCard, QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend, ResponsiveContainer, LineChart, Line, Cell } from "recharts";
 import ProductCardTemplate, { ProductCardMini } from "@/components/ProductCard";
 import { toast } from "sonner";
 
@@ -969,6 +970,10 @@ export default function BrandDetail() {
   });
   const { data: quotaProgress } = trpc.brandContract.getQuotaProgress.useQuery(
     { brandId, year: quotaMonth.year, month: quotaMonth.month },
+    { enabled: brandId > 0 }
+  );
+  const { data: quotaTrend } = trpc.brandContract.getQuotaMonthlyTrend.useQuery(
+    { brandId },
     { enabled: brandId > 0 }
   );
 
@@ -2301,6 +2306,193 @@ ${proposal.proposalContent}
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 月別ノルマ推移グラフ */}
+        {quotaTrend && quotaTrend.months && quotaTrend.months.length > 0 && (
+          <div className="bg-gradient-to-br from-violet-900/30 to-indigo-900/20 backdrop-blur-xl rounded-2xl border-2 border-violet-500/40 p-4 md:p-5 shadow-[0_0_50px_rgba(150,100,255,0.15)]">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                <div className="w-1.5 h-8 bg-gradient-to-b from-violet-400 to-indigo-500 rounded-full" />
+                <BarChart3 className="h-5 w-5 text-violet-400" />
+                {language === 'ja' ? '月別ノルマ推移' : '月度配额趋势'}
+              </h2>
+              {quotaTrend.contractPeriod && (
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-violet-300 border-violet-500/30">
+                    {quotaTrend.contractPeriod.start} ~ {quotaTrend.contractPeriod.end}
+                  </Badge>
+                  {quotaTrend.contractPeriod.remainingDays >= 0 && (
+                    <Badge variant="outline" className={`${quotaTrend.contractPeriod.remainingDays <= 30 ? 'text-red-400 border-red-500/30' : 'text-gray-400 border-gray-500/30'}`}>
+                      {language === 'ja' ? `残り${quotaTrend.contractPeriod.remainingDays}日` : `剩余${quotaTrend.contractPeriod.remainingDays}天`}
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ペースアラート */}
+            {quotaProgress && (() => {
+              const now = new Date();
+              const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+              const dayOfMonth = jst.getUTCDate();
+              const daysInMonth = new Date(jst.getUTCFullYear(), jst.getUTCMonth() + 1, 0).getDate();
+              const monthPct = Math.round((dayOfMonth / daysInMonth) * 100);
+              const kgPct = quotaProgress.quotas.kgLiveHours > 0 ? Math.round((quotaProgress.actuals.kgLiveHours / quotaProgress.quotas.kgLiveHours) * 100) : -1;
+              const liverPct = quotaProgress.quotas.liverLiveHours > 0 ? Math.round((quotaProgress.actuals.liverLiveHours / quotaProgress.quotas.liverLiveHours) * 100) : -1;
+              const validPcts = [kgPct, liverPct].filter(p => p >= 0);
+              const avgPct = validPcts.length > 0 ? Math.round(validPcts.reduce((a, b) => a + b, 0) / validPcts.length) : -1;
+              if (avgPct < 0) return null;
+              const diff = avgPct - monthPct;
+              const status = diff >= 10 ? 'ahead' : diff >= -10 ? 'on_track' : diff >= -30 ? 'behind' : 'critical';
+              const statusConfig = {
+                ahead: { bg: 'from-green-900/50 to-emerald-900/30', border: 'border-green-500/40', icon: '🟢', label: language === 'ja' ? '順調 — ノルマ達成ペースを上回っています' : '进度良好 — 超额完成配额', text: 'text-green-300' },
+                on_track: { bg: 'from-blue-900/50 to-cyan-900/30', border: 'border-blue-500/40', icon: '🔵', label: language === 'ja' ? 'ペース通り — 予定通り進行中' : '进度正常 — 按计划进行中', text: 'text-blue-300' },
+                behind: { bg: 'from-yellow-900/50 to-orange-900/30', border: 'border-yellow-500/40', icon: '🟡', label: language === 'ja' ? '遅れ気味 — ペースアップが必要です' : '稍有落后 — 需要加快进度', text: 'text-yellow-300' },
+                critical: { bg: 'from-red-900/50 to-pink-900/30', border: 'border-red-500/40', icon: '🔴', label: language === 'ja' ? '要注意 — 大幅に遅れています' : '需要注意 — 严重落后', text: 'text-red-300' },
+              };
+              const cfg = statusConfig[status];
+              return (
+                <div className={`bg-gradient-to-r ${cfg.bg} rounded-xl border ${cfg.border} p-3 mb-4 flex items-center justify-between`}>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">{cfg.icon}</span>
+                    <div>
+                      <span className={`text-sm font-medium ${cfg.text}`}>{cfg.label}</span>
+                      <div className="text-xs text-gray-400 mt-0.5">
+                        {language === 'ja' ? `月経過: ${monthPct}% (${dayOfMonth}日/${daysInMonth}日) | 平均達成率: ${avgPct}%` : `月进度: ${monthPct}% (${dayOfMonth}日/${daysInMonth}日) | 平均完成率: ${avgPct}%`}
+                      </div>
+                    </div>
+                  </div>
+                  {avgPct < monthPct && quotaProgress.quotas.liverLiveHours > 0 && (() => {
+                    const remainingDays = daysInMonth - dayOfMonth;
+                    const remainingHours = Math.max(0, quotaProgress.quotas.liverLiveHours - quotaProgress.actuals.liverLiveHours);
+                    const dailyNeeded = remainingDays > 0 ? (remainingHours / remainingDays).toFixed(1) : '∞';
+                    return (
+                      <div className="text-right">
+                        <div className="text-xs text-gray-400">{language === 'ja' ? '達人 残り必要ペース' : '达人 剩余所需速度'}</div>
+                        <div className="text-sm font-bold text-orange-300">{dailyNeeded}h/{language === 'ja' ? '日' : '天'}</div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              );
+            })()}
+
+            {/* 月別達成率グラフ */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+              {/* 配信時間推移 */}
+              <div className="bg-black/40 rounded-xl p-4 border border-violet-500/10">
+                <h3 className="text-sm font-medium text-gray-300 mb-3">
+                  {language === 'ja' ? '📊 月別配信時間 (時間)' : '📊 月度直播时长 (小时)'}
+                </h3>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={quotaTrend.months} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis dataKey="label" tick={{ fill: '#999', fontSize: 11 }} />
+                    <YAxis tick={{ fill: '#999', fontSize: 11 }} />
+                    <ReTooltip
+                      contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333', borderRadius: '8px' }}
+                      labelStyle={{ color: '#fff' }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '11px' }} />
+                    <Bar dataKey="kgHours" name="KG老師" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="liverHours" name="達人" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* 達成率推移 */}
+              <div className="bg-black/40 rounded-xl p-4 border border-violet-500/10">
+                <h3 className="text-sm font-medium text-gray-300 mb-3">
+                  {language === 'ja' ? '📈 月別ノルマ達成率 (%)' : '📈 月度配额完成率 (%)'}
+                </h3>
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={quotaTrend.months} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis dataKey="label" tick={{ fill: '#999', fontSize: 11 }} />
+                    <YAxis tick={{ fill: '#999', fontSize: 11 }} domain={[0, 'auto']} />
+                    <ReTooltip
+                      contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333', borderRadius: '8px' }}
+                      labelStyle={{ color: '#fff' }}
+                      formatter={(value: number) => [`${value}%`]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '11px' }} />
+                    {quotaTrend.months.some((m: any) => m.kgPct >= 0) && <Line type="monotone" dataKey="kgPct" name="KG達成率" stroke="#ef4444" strokeWidth={2} dot={{ fill: '#ef4444', r: 4 }} />}
+                    {quotaTrend.months.some((m: any) => m.liverPct >= 0) && <Line type="monotone" dataKey="liverPct" name="達人達成率" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6', r: 4 }} />}
+                    {quotaTrend.months.some((m: any) => m.videoPct >= 0) && <Line type="monotone" dataKey="videoPct" name="動画達成率" stroke="#f97316" strokeWidth={2} dot={{ fill: '#f97316', r: 4 }} />}
+                    {/* 100%ライン */}
+                    <Line type="monotone" dataKey={() => 100} name="目標" stroke="#22c55e" strokeDasharray="5 5" strokeWidth={1} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* 契約期間累計進捗 */}
+            {quotaTrend.cumulative && (
+              <div className="bg-black/40 rounded-xl p-4 border border-violet-500/10">
+                <h3 className="text-sm font-medium text-gray-300 mb-3">
+                  {language === 'ja' ? '📋 契約期間累計進捗' : '📋 合同期间累计进度'}
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {quotaTrend.cumulative.kgTotal > 0 && (
+                    <div className="bg-black/30 rounded-lg p-3 border border-red-500/10">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-red-400">KG老師 累計</span>
+                        <span className="text-xs text-gray-500">{quotaTrend.cumulative.kgActual}h / {quotaTrend.cumulative.kgTotal}h</span>
+                      </div>
+                      <div className="w-full bg-gray-800 rounded-full h-2.5 mb-1">
+                        <div className={`h-2.5 rounded-full ${quotaTrend.cumulative.kgPct >= 100 ? 'bg-green-400' : quotaTrend.cumulative.kgPct >= 70 ? 'bg-yellow-400' : 'bg-red-400'}`} style={{ width: `${Math.min(100, quotaTrend.cumulative.kgPct)}%` }} />
+                      </div>
+                      <div className="text-right text-sm font-bold" style={{ color: quotaTrend.cumulative.kgPct >= 100 ? '#4ade80' : quotaTrend.cumulative.kgPct >= 70 ? '#facc15' : '#f87171' }}>{quotaTrend.cumulative.kgPct}%</div>
+                    </div>
+                  )}
+                  {quotaTrend.cumulative.liverTotal > 0 && (
+                    <div className="bg-black/30 rounded-lg p-3 border border-blue-500/10">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-blue-400">達人 累計</span>
+                        <span className="text-xs text-gray-500">{quotaTrend.cumulative.liverActual}h / {quotaTrend.cumulative.liverTotal}h</span>
+                      </div>
+                      <div className="w-full bg-gray-800 rounded-full h-2.5 mb-1">
+                        <div className={`h-2.5 rounded-full ${quotaTrend.cumulative.liverPct >= 100 ? 'bg-green-400' : quotaTrend.cumulative.liverPct >= 70 ? 'bg-yellow-400' : 'bg-blue-400'}`} style={{ width: `${Math.min(100, quotaTrend.cumulative.liverPct)}%` }} />
+                      </div>
+                      <div className="text-right text-sm font-bold" style={{ color: quotaTrend.cumulative.liverPct >= 100 ? '#4ade80' : quotaTrend.cumulative.liverPct >= 70 ? '#facc15' : '#60a5fa' }}>{quotaTrend.cumulative.liverPct}%</div>
+                    </div>
+                  )}
+                  {quotaTrend.cumulative.videoTotal > 0 && (
+                    <div className="bg-black/30 rounded-lg p-3 border border-orange-500/10">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-orange-400">短視頻 累計</span>
+                        <span className="text-xs text-gray-500">{quotaTrend.cumulative.videoActual}本 / {quotaTrend.cumulative.videoTotal}本</span>
+                      </div>
+                      <div className="w-full bg-gray-800 rounded-full h-2.5 mb-1">
+                        <div className={`h-2.5 rounded-full ${quotaTrend.cumulative.videoPct >= 100 ? 'bg-green-400' : quotaTrend.cumulative.videoPct >= 70 ? 'bg-yellow-400' : 'bg-orange-400'}`} style={{ width: `${Math.min(100, quotaTrend.cumulative.videoPct)}%` }} />
+                      </div>
+                      <div className="text-right text-sm font-bold" style={{ color: quotaTrend.cumulative.videoPct >= 100 ? '#4ade80' : quotaTrend.cumulative.videoPct >= 70 ? '#facc15' : '#fb923c' }}>{quotaTrend.cumulative.videoPct}%</div>
+                    </div>
+                  )}
+                </div>
+                {/* GMV推移 */}
+                {quotaTrend.months.some((m: any) => m.gmv > 0) && (
+                  <div className="mt-4">
+                    <h4 className="text-xs text-gray-400 mb-2">{language === 'ja' ? '月別GMV推移' : '月度GMV趋势'}</h4>
+                    <div className="flex items-end gap-1 h-16">
+                      {quotaTrend.months.map((m: any, i: number) => {
+                        const maxGmv = Math.max(...quotaTrend.months.map((x: any) => x.gmv || 0));
+                        const height = maxGmv > 0 ? ((m.gmv || 0) / maxGmv) * 100 : 0;
+                        return (
+                          <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+                            <span className="text-[8px] text-gray-500">¥{((m.gmv || 0) / 10000).toFixed(0)}万</span>
+                            <div className="w-full bg-green-500/80 rounded-t" style={{ height: `${Math.max(2, height)}%` }} />
+                            <span className="text-[8px] text-gray-600">{m.label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
