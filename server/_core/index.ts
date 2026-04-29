@@ -343,8 +343,11 @@ async function startServer() {
     if (event.source.type === "user" && event.message?.type === "text") {
       const text = event.message.text?.trim() || "";
       
-      // Check if it's a 6-digit link code (Liver)
-      if (/^\d{6}$/.test(text)) {
+      // Check if it's a liver link code: either 6-digit number or L-XXXXXX format
+      const liverCodeMatch = text.match(/^(?:L-?)?(\d{6})$/i);
+      if (liverCodeMatch) {
+        const codeDigits = liverCodeMatch[1];
+        const fullCode = `L-${codeDigits}`;
         const { findLiverByLineUserId, findLiverByLinkCode, linkLineUserToLiver } = await import("../lineWebhook");
         const { sendLinePushMessage } = await import("./../_core/lineMessaging");
         const lineUserId = event.source.userId;
@@ -363,8 +366,12 @@ async function startServer() {
           return;
         }
         
-        // Try to find liver by link code
-        const liverData = await findLiverByLinkCode(text);
+        // Try to find liver by link code (try both formats)
+        let liverData = await findLiverByLinkCode(fullCode);
+        if (!liverData) {
+          // Also try with just digits in case DB stores without prefix
+          liverData = await findLiverByLinkCode(codeDigits);
+        }
         
         if (!liverData) {
           await sendLinePushMessage(lineUserId, [
@@ -382,7 +389,7 @@ async function startServer() {
         await sendLinePushMessage(lineUserId, [
           {
             type: "text",
-            text: `🎉 ${liverData.name}さん、LINE連携が完了しました！\n\nこれから配信後にAIコーチングがLINEに届きます。\n\n頑張ってください！💪`,
+            text: `🎉 ${liverData.name}さん、LINE連携が完了しました！\n\nこれから配信後にAIコーチングがLINEに届きます。\n毎朝、あなた宛の配信提案もお届けします。\n\n頑張ってください！💪`,
           },
         ]);
         return;
