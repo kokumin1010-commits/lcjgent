@@ -28,7 +28,8 @@ function isInternalPage(path: string): boolean {
   return (
     path.startsWith("/master") ||
     path.startsWith("/login") ||
-    path.startsWith("/liver/") ||
+    path.startsWith("/liver") ||
+    path === "/liver" ||
     path === "/friend-challenge" ||
     path === "/spin-demo" ||
     path.startsWith("/register") ||
