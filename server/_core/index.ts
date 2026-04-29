@@ -340,11 +340,13 @@ async function startServer() {
     db: typeof lineDb
   ) {
     // Check for liver link code (6-digit number from individual user)
+    console.log(`[LINE handleLineMessage] source.type=${event.source.type}, message.type=${event.message?.type}, text="${event.message?.text?.trim()}"`);  
     if (event.source.type === "user" && event.message?.type === "text") {
       const text = event.message.text?.trim() || "";
       
       // Check if it's a liver link code: either 6-digit number or L-XXXXXX format
       const liverCodeMatch = text.match(/^(?:L-?)?(\d{6})$/i);
+      console.log(`[LINE LinkCode] text="${text}", match=${JSON.stringify(liverCodeMatch)}`);
       if (liverCodeMatch) {
         const codeDigits = liverCodeMatch[1];
         const fullCode = `L-${codeDigits}`;
