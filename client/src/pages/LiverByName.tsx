@@ -1158,8 +1158,29 @@ export default function LiverByName() {
                           </div>
                         </div>
                         
+                        {/* ブランド別配信時間 */}
+                        {(livestream as any).livestreamBrands && (livestream as any).livestreamBrands.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-gray-700/50">
+                            <div className="flex flex-wrap gap-1.5">
+                              {(livestream as any).livestreamBrands.map((lb: any, idx: number) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-orange-900/30 text-orange-300 border border-orange-700/30">
+                                  <Tag className="w-3 h-3" />
+                                  {lb.brandName}
+                                  {lb.durationMinutes != null && (
+                                    <span className="text-orange-400 font-medium ml-0.5">
+                                      {lb.durationMinutes >= 60
+                                        ? `${Math.floor(lb.durationMinutes / 60)}時間${lb.durationMinutes % 60 > 0 ? `${lb.durationMinutes % 60}分` : ''}`
+                                        : `${lb.durationMinutes}分`}
+                                    </span>
+                                  )}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {livestream.remarks && (
-                          <p className="mt-3 text-sm text-white border-t border-gray-700 pt-3 line-clamp-2">
+                          <p className="mt-2 text-sm text-white border-t border-gray-700 pt-2 line-clamp-2">
                             {livestream.remarks}
                           </p>
                         )}

@@ -8453,9 +8453,36 @@ export async function getLivestreamsByStreamerName(streamerName: string, month?:
     }
   }
   
+  // 各配信のブランド別配信時間を取得
+  let brandDurationMap: Record<number, Array<{ brandId: number; brandName: string; durationMinutes: number | null }>> = {};
+  if (livestreamIds.length > 0) {
+    const lbRows = await db
+      .select({
+        livestreamId: livestreamBrands.livestreamId,
+        brandId: livestreamBrands.brandId,
+        durationMinutes: livestreamBrands.durationMinutes,
+        brandName: brands.name,
+      })
+      .from(livestreamBrands)
+      .leftJoin(brands, eq(livestreamBrands.brandId, brands.id))
+      .where(sql`${livestreamBrands.livestreamId} IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`, `)})`);
+    
+    for (const row of lbRows) {
+      if (!brandDurationMap[row.livestreamId]) {
+        brandDurationMap[row.livestreamId] = [];
+      }
+      brandDurationMap[row.livestreamId].push({
+        brandId: row.brandId,
+        brandName: row.brandName || `Brand ${row.brandId}`,
+        durationMinutes: row.durationMinutes,
+      });
+    }
+  }
+  
   const livestreamsWithProductCount = livestreams.map(l => ({
     ...l,
     productCount: productCountMap[l.id] || 0,
+    livestreamBrands: brandDurationMap[l.id] || [],
   }));
   
   return { livestreams: livestreamsWithProductCount, totalSales, totalDuration, liverId };
