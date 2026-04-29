@@ -10417,7 +10417,8 @@ ${conversationText}
         if (monthlySummary) {
           const cur = monthlySummary.current;
           const prev = monthlySummary.prev;
-          contextInfo += `\n### 月間実績サマリー\n`;
+          contextInfo += `\n### ★月間実績サマリー（売上目標の計算にはこの時間単価をそのまま使うこと）\n`;
+          contextInfo += `★今月の時間単価: ¥${cur.hourlyRate.toLocaleString()}（この数値をそのまま使え）\n`;
           contextInfo += `**今月（${monthlySummary.currentMonth}）**: 売上 ¥${cur.sales.toLocaleString()} / ${cur.durationHours}h配信 / 時間単価 ¥${cur.hourlyRate.toLocaleString()} / ${cur.livestreamCount}回配信\n`;
           contextInfo += `**先月（${monthlySummary.prevMonth}）**: 売上 ¥${prev.sales.toLocaleString()} / ${prev.durationHours}h配信 / 時間単価 ¥${prev.hourlyRate.toLocaleString()} / ${prev.livestreamCount}回配信\n`;
           if (prev.hourlyRate > 0) {
@@ -10440,9 +10441,9 @@ ${conversationText}
         }
 
         if (topProducts.length > 0) {
-          contextInfo += `\n### 売れ筋商品TOP${topProducts.length}\n`;
+          contextInfo += `\n### ★売れ筋商品TOP${topProducts.length}（提案で使用する商品名はこのリストからのみ選ぶこと。架空の商品名は絶対禁止）\n`;
           for (const p of topProducts) {
-            contextInfo += `- ${p.productName}: GMV ¥${Number(p.totalGmv).toLocaleString()} / ${p.totalItemsSold}個 / ${p.count}回登場\n`;
+            contextInfo += `- 【${p.productName}】: GMV ¥${Number(p.totalGmv).toLocaleString()} / ${p.totalItemsSold}個 / ${p.count}回登場\n`;
           }
         }
 
@@ -10579,7 +10580,8 @@ ${conversationText}
             if (monthlySummary) {
               const cur = monthlySummary.current;
               const prev = monthlySummary.prev;
-              contextInfo += `\n### 月間実績\n`;
+              contextInfo += `\n### ★月間実績（売上目標にはこの時間単価をそのまま使え）\n`;
+              contextInfo += `★今月の時間単価: ¥${cur.hourlyRate.toLocaleString()}（この数値をそのまま使え）\n`;
               contextInfo += `今月: 売上¥${cur.sales.toLocaleString()} / ${cur.durationHours}h / 時間単価¥${cur.hourlyRate.toLocaleString()}\n`;
               contextInfo += `先月: 売上¥${prev.sales.toLocaleString()} / ${prev.durationHours}h / 時間単価¥${prev.hourlyRate.toLocaleString()}\n`;
             }
@@ -10594,9 +10596,9 @@ ${conversationText}
             }
 
             if (topProducts.length > 0) {
-              contextInfo += `\n### 売れ筋商品TOP5\n`;
+              contextInfo += `\n### ★売れ筋商品TOP5（提案で使う商品名はこのリストからのみ。架空の商品名禁止）\n`;
               for (const p of topProducts.slice(0, 5)) {
-                contextInfo += `- ${p.productName}: ¥${Number(p.totalGmv).toLocaleString()}\n`;
+                contextInfo += `- 【${p.productName}】: ¥${Number(p.totalGmv).toLocaleString()}\n`;
               }
             }
 
