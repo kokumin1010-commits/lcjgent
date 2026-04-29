@@ -55,7 +55,8 @@ export function verifyLineSignature(body: string, signature: string): boolean {
 // LINE Message types
 type LineTextMessage = { type: "text"; text: string };
 type LineImageMessage = { type: "image"; originalContentUrl: string; previewImageUrl: string };
-type LineMessage = LineTextMessage | LineImageMessage;
+type LineFlexMessage = { type: "flex"; altText: string; contents: any };
+type LineMessage = LineTextMessage | LineImageMessage | LineFlexMessage;
 
 // Send reply message
 export async function replyMessage(

@@ -625,7 +625,7 @@ import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
 import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts } from "../drizzle/schema";
-import { eq, and, or, not, isNotNull, isNull, desc, gt, gte, lte, inArray, sql as sqlTag, sum, count, max } from "drizzle-orm";
+import { eq, and, or, not, isNotNull, isNull, desc, gt, gte, lte, like, inArray, sql as sqlTag, sum, count, max } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
@@ -11405,6 +11405,100 @@ ${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
           })();
         }
         
+        // ★ LINEグループへの配信記録登録通知（非同期、レスポンスをブロックしない）
+        (async () => {
+          try {
+            const { pushMessage } = await import("./line");
+            const db3 = await getDb();
+            if (!db3) return;
+
+            // 送信先グループを取得（ライバー連絡網）
+            const TARGET_KEYWORDS = ["ライバー連絡網", "LCJ所属"];
+            let targetGroupId: string | null = null;
+            for (const keyword of TARGET_KEYWORDS) {
+              const groups = await db3
+                .select({ lineGroupId: lineGroups.lineGroupId })
+                .from(lineGroups)
+                .where(
+                  and(
+                    like(lineGroups.groupName, `%${keyword}%`),
+                    eq(lineGroups.isActive, true)
+                  )
+                )
+                .limit(1);
+              if (groups.length > 0 && groups[0].lineGroupId) {
+                targetGroupId = groups[0].lineGroupId;
+                break;
+              }
+            }
+            if (!targetGroupId) {
+              console.log('[LINE Group Notify] No target group found');
+              return;
+            }
+
+            // ブランド別配信時間を取得
+            const brandDurationsData = input.brandDurations || {};
+            const allBrandIdsForNotify = new Set<number>([input.brandId]);
+            if (input.brandIds) input.brandIds.forEach(bid => allBrandIdsForNotify.add(bid));
+            
+            // ブランド名を取得
+            const brandNames: Record<number, string> = {};
+            for (const bid of allBrandIdsForNotify) {
+              const brand = await db3.select({ name: brands.name, nameJa: brands.nameJa }).from(brands).where(eq(brands.id, bid)).limit(1);
+              if (brand.length > 0) brandNames[bid] = brand[0].nameJa || brand[0].name || `Brand#${bid}`;
+            }
+
+            // 配信時間のフォーマット
+            const durationMin = input.duration || 0;
+            const hours = Math.floor(durationMin / 60);
+            const mins = durationMin % 60;
+            const durationStr = hours > 0 ? `${hours}時間${mins > 0 ? mins + '分' : ''}` : `${mins}分`;
+
+            // 時間単価
+            const salesAmt = input.salesAmount || 0;
+            const hourlyRate = durationMin > 0 ? Math.round(salesAmt / (durationMin / 60)) : 0;
+
+            // 配信日時のフォーマット
+            const dateObj = new Date(input.livestreamDate);
+            const jstDate = new Date(dateObj.getTime() + 9 * 60 * 60 * 1000);
+            const dateStr = `${jstDate.getMonth() + 1}/${jstDate.getDate()}`;
+            const timeStr = `${String(jstDate.getHours()).padStart(2,'0')}:${String(jstDate.getMinutes()).padStart(2,'0')}`;
+
+            // ブランド別配信時間テキスト
+            let brandDurationText = '';
+            for (const bid of allBrandIdsForNotify) {
+              const bName = brandNames[bid] || `Brand#${bid}`;
+              const bDur = brandDurationsData[bid.toString()];
+              if (bDur) {
+                const bH = Math.floor(bDur / 60);
+                const bM = bDur % 60;
+                brandDurationText += `\n  📌 ${bName}: ${bH > 0 ? bH + '時間' : ''}${bM > 0 ? bM + '分' : ''}`;
+              } else {
+                brandDurationText += `\n  📌 ${bName}`;
+              }
+            }
+
+            // テキストメッセージを構築
+            const notifyText = `━━━━━━━━━━━━━━━\n📊 配信記録登録\n━━━━━━━━━━━━━━━\n👤 ${streamerName}\n📅 ${dateStr} ${timeStr}〜\n⏰ 配信時間: ${durationStr}\n💰 売上: ¥${salesAmt.toLocaleString()}\n📈 時間単価: ¥${hourlyRate.toLocaleString()}/h${brandDurationText ? '\n\n🏷️ ブランド別:' + brandDurationText : ''}\n━━━━━━━━━━━━━━━`;
+
+            const messages: any[] = [{ type: 'text', text: notifyText }];
+
+            // スクリーンショットがある場合は画像も送信
+            if (input.screenshotUrl) {
+              messages.push({
+                type: 'image',
+                originalContentUrl: input.screenshotUrl,
+                previewImageUrl: input.screenshotUrl,
+              });
+            }
+
+            const success = await pushMessage(targetGroupId, messages.slice(0, 5));
+            console.log(`[LINE Group Notify] Sent for ${streamerName}: success=${success}`);
+          } catch (err) {
+            console.error('[LINE Group Notify] Error:', err);
+          }
+        })();
+
         return { id, lineNotificationSent };
       }),
     // Update livestream (配信履歴の編集) - public for liver self-servicee
