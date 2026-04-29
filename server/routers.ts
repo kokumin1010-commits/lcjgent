@@ -10502,6 +10502,26 @@ ${conversationText}
           });
 
           const suggestionText = (typeof result.choices?.[0]?.message?.content === 'string' ? result.choices[0].message.content : '') || "提案を生成できませんでした。";
+
+          // Save to DB (even without LINE send)
+          try {
+            await saveLiveSuggestion({
+              targetDate: new Date(),
+              liverName: input.liverName,
+              liverId: undefined,
+              scheduleId: input.scheduleId,
+              scheduledStartTime: input.scheduledStartTime ? new Date(`1970-01-01T${input.scheduledStartTime}:00`) : undefined,
+              scheduledEndTime: input.scheduledEndTime ? new Date(`1970-01-01T${input.scheduledEndTime}:00`) : undefined,
+              suggestionText,
+              promptUsed: userPrompt,
+              lineSendSuccess: false,
+              generatedBy: 'manual-generate',
+            });
+            console.log(`[LiveSuggestion] Saved suggestion for ${input.liverName} to DB`);
+          } catch (saveErr) {
+            console.error(`[LiveSuggestion] Failed to save suggestion for ${input.liverName}:`, saveErr);
+          }
+
           return {
             liverName: input.liverName,
             suggestionText,
