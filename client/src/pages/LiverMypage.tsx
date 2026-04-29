@@ -854,6 +854,52 @@ export default function LiverMypage() {
           </Card>
         )}
 
+        {/* LINE連携ガイドバナー */}
+        {!liverInfo.lineUserId ? (
+          <Card className="bg-gradient-to-r from-green-600/20 via-emerald-600/20 to-teal-600/20 border-green-500/50 relative overflow-hidden animate-pulse-slow">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 via-emerald-400 to-teal-400" />
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 mt-0.5">
+                  <div className="w-10 h-10 rounded-full bg-green-600/30 flex items-center justify-center">
+                    <MessageCircle className="w-5 h-5 text-green-400" />
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-sm font-bold text-white">LINE連携が必要です</h3>
+                    <span className="px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded">重要</span>
+                  </div>
+                  <p className="text-xs text-gray-300 leading-relaxed">
+                    AIコーチングや配信提案をLINEで受け取るために、LINE連携を完了してください
+                  </p>
+                  <Link href="/liver/line-setup">
+                    <span className="inline-flex items-center gap-1.5 mt-2.5 px-4 py-2 bg-green-600 hover:bg-green-500 rounded-full text-xs font-bold text-white transition-colors cursor-pointer">
+                      LINE連携ガイドを見る
+                      <ExternalLink className="w-3 h-3" />
+                    </span>
+                  </Link>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Link href="/liver/line-setup">
+            <Card className="bg-gray-800/30 border-gray-700/50 hover:border-green-500/30 transition-colors cursor-pointer">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4 text-green-400" />
+                    <span className="text-xs text-gray-300">LINE連携ガイド</span>
+                    <span className="px-1.5 py-0.5 bg-green-600/20 text-green-400 text-[10px] font-medium rounded">連携済み ✓</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
+
         {/* 紹介コードカード */}
         <LiverReferralCard />
 
