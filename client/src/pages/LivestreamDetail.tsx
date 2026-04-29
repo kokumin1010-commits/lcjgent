@@ -1583,10 +1583,33 @@ export default function LivestreamDetail() {
                   </div>
                 )}
 
-                {/* Delivered Brand */}
-                <div className="flex justify-between items-center">
+                {/* Delivered Brand with Duration */}
+                <div>
                   <span className="text-red-500 font-medium">配信したブランド</span>
-                  <span>{livestream.brand?.name || "-"}</span>
+                  {livestream.livestreamBrands && livestream.livestreamBrands.length > 0 ? (
+                    <div className="mt-2 space-y-2">
+                      {livestream.livestreamBrands.map((lb: any) => (
+                        <div key={lb.id} className="flex justify-between items-center bg-gray-800/50 rounded-lg px-3 py-2">
+                          <span className="text-white font-medium">{lb.brandName}</span>
+                          <span className="text-gray-300">
+                            {lb.durationMinutes != null ? (
+                              <>
+                                {Math.floor(lb.durationMinutes / 60) > 0 && `${Math.floor(lb.durationMinutes / 60)}時間`}
+                                {lb.durationMinutes % 60 > 0 && `${lb.durationMinutes % 60}分`}
+                                {lb.durationMinutes === 0 && '0分'}
+                              </>
+                            ) : (
+                              '時間未設定'
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-right">
+                      <span>{livestream.brand?.name || "-"}</span>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Delivery Result */}

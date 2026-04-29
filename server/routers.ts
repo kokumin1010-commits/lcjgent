@@ -10870,7 +10870,19 @@ ${conversationText}
         // Get liver info if liverId exists
         const liver = livestream.liverId ? await getLiverById(livestream.liverId) : null;
         
-        return { ...livestream, brand, liver };
+        // Get brand durations (ブランド別配信時間)
+        const livestreamBrandsList = await getLivestreamBrandsByLivestreamId(input.id);
+        const brandsWithDetails = await Promise.all(
+          livestreamBrandsList.map(async (lb) => {
+            const brandInfo = await getBrandById(lb.brandId);
+            return {
+              ...lb,
+              brandName: brandInfo?.name || `Brand ${lb.brandId}`,
+            };
+          })
+        );
+        
+        return { ...livestream, brand, liver, livestreamBrands: brandsWithDetails };
       }),
 
     // Update livestream result (配信結果の記録)
