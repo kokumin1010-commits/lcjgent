@@ -619,6 +619,7 @@ import {
   getRecentSetsForSuggestion,
   getLiverMonthlySummaryForSuggestion,
   getQuotaBrandsForLiver,
+  getLiverMonthlyProducts,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -12420,6 +12421,17 @@ ${metricsDescription}${historicalContext}`,
       }))
       .query(async ({ input }) => {
         return await getLiverMonthlyGrowth(input.streamerName);
+      }),
+
+    // Get monthly products by liverId (管理者用・ライバー別月間売上商品一覧)
+    getMonthlyProductsByLiverId: publicProcedure
+      .input(z.object({
+        liverId: z.number(),
+        year: z.number(),
+        month: z.number().min(1).max(12),
+      }))
+      .query(async ({ input }) => {
+        return await getLiverMonthlyProducts(input.liverId, input.year, input.month);
       }),
 
     // Get top selling products ranking (売れ筋商品ランキング)

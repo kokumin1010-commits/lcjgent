@@ -381,7 +381,7 @@ export default function LiverByName() {
   );
 
   // 月別売上商品一覧（ライバー別）
-  const { data: monthlyProducts } = trpc.liver.getMonthlyProducts.useQuery(
+  const { data: monthlyProducts } = trpc.liverManagement.getMonthlyProductsByLiverId.useQuery(
     { liverId: liverId!, year: parseInt(selectedMonth.split('-')[0]), month: parseInt(selectedMonth.split('-')[1]) },
     { enabled: !!liverId }
   );
