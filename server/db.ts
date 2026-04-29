@@ -21107,6 +21107,33 @@ export async function getLiveSuggestionHistory(limit: number = 50, offset: numbe
 }
 
 /**
+ * Get live suggestion history by liver name (for LiverByName page)
+ */
+export async function getLiveSuggestionsByLiverName(liverName: string, limit: number = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  await ensureLiveSuggestionsTable();
+  
+  return await db
+    .select({
+      id: liveSuggestions.id,
+      targetDate: liveSuggestions.targetDate,
+      liverName: liveSuggestions.liverName,
+      suggestionText: liveSuggestions.suggestionText,
+      scheduledStartTime: liveSuggestions.scheduledStartTime,
+      scheduledEndTime: liveSuggestions.scheduledEndTime,
+      lineSendSuccess: liveSuggestions.lineSendSuccess,
+      generatedBy: liveSuggestions.generatedBy,
+      createdAt: liveSuggestions.createdAt,
+    })
+    .from(liveSuggestions)
+    .where(eq(liveSuggestions.liverName, liverName))
+    .orderBy(desc(liveSuggestions.createdAt))
+    .limit(limit);
+}
+
+/**
  * Get today's schedules with liver info for suggestion generation
  * Returns schedules for today (JST) that are not cancelled
  */
@@ -21172,8 +21199,8 @@ export async function getTopProductsForSuggestion(liverName: string, limit: numb
   const db = await getDb();
   if (!db) return [];
   
-  // Get liver's recent livestream IDs
-  const recentStreams = await db
+  // Get liver's recent livestream IDs (try streamerName first, then liverId)
+  let recentStreams = await db
     .select({ id: brandLivestreams.id })
     .from(brandLivestreams)
     .where(
@@ -21183,13 +21210,36 @@ export async function getTopProductsForSuggestion(liverName: string, limit: numb
       )
     )
     .orderBy(desc(brandLivestreams.livestreamDate))
-    .limit(30);
+    .limit(50);
+  
+  // Fallback: search by liverId if streamerName didn't match
+  if (recentStreams.length === 0) {
+    const liver = await db
+      .select({ id: livers.id })
+      .from(livers)
+      .where(eq(livers.name, liverName))
+      .limit(1);
+    if (liver.length > 0) {
+      recentStreams = await db
+        .select({ id: brandLivestreams.id })
+        .from(brandLivestreams)
+        .where(
+          and(
+            eq(brandLivestreams.liverId, liver[0].id),
+            isNull(brandLivestreams.deletedAt)
+          )
+        )
+        .orderBy(desc(brandLivestreams.livestreamDate))
+        .limit(50);
+    }
+  }
   
   if (recentStreams.length === 0) return [];
   
   const streamIds = recentStreams.map(s => s.id);
   
-  return await db
+  // Filter out products with ID-only names (pure numeric strings)
+  const results = await db
     .select({
       productName: livestreamProducts.productName,
       totalGmv: sql<number>`SUM(COALESCE(${livestreamProducts.directGmv}, 0))`,
@@ -21197,10 +21247,17 @@ export async function getTopProductsForSuggestion(liverName: string, limit: numb
       count: sql<number>`COUNT(*)`,
     })
     .from(livestreamProducts)
-    .where(inArray(livestreamProducts.livestreamId, streamIds))
+    .where(
+      and(
+        inArray(livestreamProducts.livestreamId, streamIds),
+        sql`${livestreamProducts.productName} NOT REGEXP '^[0-9]+$'`
+      )
+    )
     .groupBy(livestreamProducts.productName)
     .orderBy(sql`SUM(COALESCE(${livestreamProducts.directGmv}, 0)) DESC`)
     .limit(limit);
+  
+  return results;
 }
 
 /**

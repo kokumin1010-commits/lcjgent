@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ChevronDown, ChevronUp, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2, UserCheck, Upload, Package, FileSpreadsheet, Trophy, Crown, ShoppingBag, Tag, Percent } from "lucide-react";
+import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ChevronDown, ChevronUp, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2, UserCheck, Upload, Package, FileSpreadsheet, Trophy, Crown, ShoppingBag, Tag, Percent, Sparkles, MessageSquare } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
@@ -406,6 +406,14 @@ export default function LiverByName() {
   const [showSetsSection, setShowSetsSection] = useState(false);
   const [showPromoSection, setShowPromoSection] = useState(false);
   const [showMonthlyProductsSection, setShowMonthlyProductsSection] = useState(false);
+  const [showAiSuggestionsSection, setShowAiSuggestionsSection] = useState(false);
+  const [expandedSuggestionId, setExpandedSuggestionId] = useState<number | null>(null);
+
+  // AI配信提案履歴
+  const { data: aiSuggestions } = trpc.liveSuggestion.getHistoryByLiverName.useQuery(
+    { liverName: decodedName, limit: 20 },
+    { enabled: !!decodedName }
+  );
 
   const unverifiedIds = useMemo(() => {
     if (!data?.livestreams) return [];
@@ -1705,6 +1713,76 @@ export default function LiverByName() {
                 </table>
               </div>
               </div>}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* AI配信提案履歴 */}
+        {aiSuggestions && aiSuggestions.length > 0 && (
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardContent className="p-6">
+              <h2
+                className="text-lg font-bold flex items-center gap-3 cursor-pointer select-none"
+                onClick={() => setShowAiSuggestionsSection(!showAiSuggestionsSection)}
+              >
+                <Sparkles className="w-6 h-6 text-purple-400" />
+                <span className="text-white">AI配信提案履歴</span>
+                <span className="text-gray-400 text-sm">
+                  {aiSuggestions.length}件
+                </span>
+                <span className="ml-auto">
+                  {showAiSuggestionsSection ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                </span>
+              </h2>
+              {showAiSuggestionsSection && (
+                <div className="mt-4 space-y-3">
+                  {aiSuggestions.map((suggestion: any) => {
+                    const targetDate = new Date(suggestion.targetDate);
+                    const dateStr = `${targetDate.getFullYear()}/${targetDate.getMonth() + 1}/${targetDate.getDate()}`;
+                    const isExpanded = expandedSuggestionId === suggestion.id;
+                    return (
+                      <div
+                        key={suggestion.id}
+                        className="bg-gray-800/60 rounded-xl border border-gray-700/50 overflow-hidden"
+                      >
+                        <button
+                          className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-700/30 transition-colors"
+                          onClick={() => setExpandedSuggestionId(isExpanded ? null : suggestion.id)}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <Calendar className="w-4 h-4 text-purple-400 shrink-0" />
+                            <span className="text-white font-medium text-sm">{dateStr}</span>
+                            {suggestion.scheduledStartTime && (
+                              <span className="text-gray-400 text-xs">
+                                {new Date(suggestion.scheduledStartTime).getHours()}:{String(new Date(suggestion.scheduledStartTime).getMinutes()).padStart(2, '0')}
+                                {suggestion.scheduledEndTime && (
+                                  <> - {new Date(suggestion.scheduledEndTime).getHours()}:{String(new Date(suggestion.scheduledEndTime).getMinutes()).padStart(2, '0')}</>
+                                )}
+                              </span>
+                            )}
+                            {suggestion.lineSendSuccess && (
+                              <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">LINE送信済</span>
+                            )}
+                          </div>
+                          {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />}
+                        </button>
+                        {isExpanded && (
+                          <div className="px-4 pb-4 border-t border-gray-700/50">
+                            <div className="mt-3 text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">
+                              {suggestion.suggestionText}
+                            </div>
+                            {suggestion.generatedBy && (
+                              <div className="mt-2 text-xs text-gray-500">
+                                生成: {suggestion.generatedBy}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
