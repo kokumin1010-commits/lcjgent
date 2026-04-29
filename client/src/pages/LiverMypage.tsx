@@ -42,7 +42,8 @@ import {
   Tag,
   ShoppingBag,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  MessageCircle
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -83,6 +84,10 @@ export default function LiverMypage() {
   const [showImportHistoryDialog, setShowImportHistoryDialog] = useState(false);
   const [showGoalDialog, setShowGoalDialog] = useState(false);
   const [showGoalNudgePopup, setShowGoalNudgePopup] = useState(false);
+  const [showLineLinkPopup, setShowLineLinkPopup] = useState(false);
+  const [lineLinkCode, setLineLinkCode] = useState<string | null>(null);
+  const [lineLinkExpiresAt, setLineLinkExpiresAt] = useState<Date | null>(null);
+  const [lineLinkTimeLeft, setLineLinkTimeLeft] = useState<number>(0);
   const [showSetsSection, setShowSetsSection] = useState(false);
   const [showProductsSection, setShowProductsSection] = useState(true);
   const [expandedBrandId, setExpandedBrandId] = useState<number | null>(null);
@@ -118,6 +123,28 @@ export default function LiverMypage() {
       }
     }
   }, [liverInfo, currentMonthGoal]);
+
+  // LINE未連携ポップアップ表示（毎回ログイン時）
+  useEffect(() => {
+    if (liverInfo && !liverInfo.lineUserId) {
+      const timer = setTimeout(() => setShowLineLinkPopup(true), 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [liverInfo]);
+
+  // LINE連携コードカウントダウンタイマー
+  useEffect(() => {
+    if (!lineLinkExpiresAt) return;
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((lineLinkExpiresAt.getTime() - Date.now()) / 1000));
+      setLineLinkTimeLeft(remaining);
+      if (remaining === 0) {
+        setLineLinkCode(null);
+        setLineLinkExpiresAt(null);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lineLinkExpiresAt]);
 
   // 目標達成お祝いアニメーション用のstate
   const [showSalesConfetti, setShowSalesConfetti] = useState(false);
@@ -161,6 +188,18 @@ export default function LiverMypage() {
     },
     onError: (error: any) => {
       toast.error(`${lt('stream.deleteError')}: ${error.message}`);
+    },
+  });
+
+  // LINE連携コード発行mutation
+  const generateLineLinkCodeMutation = trpc.liver.generateLineLinkCode.useMutation({
+    onSuccess: (data) => {
+      setLineLinkCode(data.linkCode);
+      setLineLinkExpiresAt(new Date(Date.now() + data.expiresIn * 1000));
+      setLineLinkTimeLeft(data.expiresIn);
+    },
+    onError: (error) => {
+      toast.error(error.message || lt("common.error"));
     },
   });
 
@@ -2126,6 +2165,94 @@ export default function LiverMypage() {
               className="text-white/50 hover:text-white/80 text-xs"
             >
               {language === 'ja' ? 'あとで設定する' : language === 'zh-TW' ? '稍後設定' : language === 'en' ? 'Later' : '稍后设定'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* LINE未連携ポップアップ */}
+      <Dialog open={showLineLinkPopup} onOpenChange={setShowLineLinkPopup}>
+        <DialogContent className="bg-gradient-to-br from-green-900 via-gray-900 to-emerald-900 border-green-500/50 text-white max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <MessageCircle className="h-6 w-6 text-green-400 animate-pulse" />
+              {language === 'ja' ? 'LINE連携でAIコーチングを受け取ろう！' : language === 'zh-TW' ? '連結LINE接收AI教練！' : language === 'en' ? 'Link LINE for AI Coaching!' : '连接LINE接收AI教练！'}
+            </DialogTitle>
+            <DialogDescription className="text-white/80 text-sm leading-relaxed">
+              {language === 'ja' ? (
+                <>
+                  LINEを連携すると、配信後に<span className="text-green-400 font-bold">AIコーチング</span>がLINEに届きます。<br />
+                  毎朝、あなた宛の<span className="text-green-400 font-bold">配信提案</span>もお届けします。
+                </>
+              ) : language === 'zh-TW' ? (
+                <>
+                  連結LINE後，直播後會收到<span className="text-green-400 font-bold">AI教練</span>。<br />
+                  每天早上還會收到<span className="text-green-400 font-bold">直播建議</span>。
+                </>
+              ) : language === 'en' ? (
+                <>
+                  After linking LINE, you'll receive <span className="text-green-400 font-bold">AI coaching</span> after each stream.<br />
+                  You'll also get daily <span className="text-green-400 font-bold">stream suggestions</span> every morning.
+                </>
+              ) : (
+                <>
+                  连接LINE后，直播后会收到<span className="text-green-400 font-bold">AI教练</span>。<br />
+                  每天早上还会收到<span className="text-green-400 font-bold">直播建议</span>。
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-4">
+            {/* Step 1: 友だち追加 */}
+            <div className="bg-gray-800/60 rounded-lg p-3">
+              <p className="text-xs text-green-400 font-bold mb-2">
+                {language === 'ja' ? 'Step 1' : 'Step 1'}
+              </p>
+              <a
+                href="https://lin.ee/VunOOhW"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-[#06C755] hover:bg-[#05b04c] text-white rounded-lg text-sm font-bold transition-colors"
+              >
+                <MessageCircle className="h-4 w-4" />
+                {language === 'ja' ? 'LCJ公式LINEを友だち追加' : language === 'zh-TW' ? '加入LCJ官方LINE好友' : language === 'en' ? 'Add LCJ Official LINE' : '添加LCJ官方LINE好友'}
+              </a>
+            </div>
+
+            {/* Step 2 & 3: 連携コード発行と送信 */}
+            <div className="bg-gray-800/60 rounded-lg p-3">
+              <p className="text-xs text-green-400 font-bold mb-2">
+                {language === 'ja' ? 'Step 2' : 'Step 2'}
+              </p>
+              {lineLinkCode ? (
+                <div className="text-center space-y-2">
+                  <p className="text-xs text-yellow-400">
+                    ({Math.floor(lineLinkTimeLeft / 60)}:{String(lineLinkTimeLeft % 60).padStart(2, '0')})
+                  </p>
+                  <p className="text-3xl font-bold text-white tracking-widest">{lineLinkCode}</p>
+                  <p className="text-xs text-white/60">
+                    {language === 'ja' ? '↑ このコードをLINEで送信してください' : language === 'zh-TW' ? '↑ 請在LINE中發送此代碼' : language === 'en' ? '↑ Send this code in LINE' : '↑ 请在LINE中发送此代码'}
+                  </p>
+                </div>
+              ) : (
+                <Button
+                  onClick={() => generateLineLinkCodeMutation.mutate()}
+                  disabled={generateLineLinkCodeMutation.isPending}
+                  className="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold"
+                >
+                  {generateLineLinkCodeMutation.isPending
+                    ? (language === 'ja' ? '発行中...' : 'Loading...')
+                    : (language === 'ja' ? '連携コードを発行' : language === 'zh-TW' ? '產生連結代碼' : language === 'en' ? 'Generate Link Code' : '生成连接代码')}
+                </Button>
+              )}
+            </div>
+
+            <Button
+              variant="ghost"
+              onClick={() => setShowLineLinkPopup(false)}
+              className="text-white/50 hover:text-white/80 text-xs"
+            >
+              {language === 'ja' ? 'あとで連携する' : language === 'zh-TW' ? '稍後連結' : language === 'en' ? 'Later' : '稍后连接'}
             </Button>
           </div>
         </DialogContent>

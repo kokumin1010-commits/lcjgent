@@ -128,7 +128,7 @@ function LineLinkSection({ lineUserId, lt }: { lineUserId?: string | null; lt: (
       ) : (
         <div className="flex flex-col gap-3">
           <a
-            href="https://lin.ee/dlaoCfw"
+            href="https://lin.ee/VunOOhW"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
