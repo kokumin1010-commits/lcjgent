@@ -260,6 +260,15 @@ export default function LiveSuggestions() {
                             )}
                           </div>
                         </div>
+                        {(schedule as any).liverLineUserId ? (
+                          <Badge variant="default" className="bg-green-600 text-white text-xs">
+                            LINE連携済
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-orange-500 border-orange-500 text-xs">
+                            LINE未連携
+                          </Badge>
+                        )}
                         <Badge variant={schedule.category === 'live' ? 'default' : 'secondary'}>
                           {schedule.category === 'live' ? 'ライブ' : schedule.category || 'その他'}
                         </Badge>
