@@ -11544,13 +11544,16 @@ ${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
             // セット内訳テキストを構築
             let setDetailText = '';
             if (input.sets && input.sets.length > 0) {
-              setDetailText = '\n\n📦 セット内訳:';
+              const totalSetQuantity = input.sets.reduce((sum, s) => sum + s.quantitySold, 0);
+              const totalSetRevenue = input.sets.reduce((sum, s) => sum + (s.setPrice * s.quantitySold), 0);
+              setDetailText = `\n\n📦 セット内訳 (計${totalSetQuantity}個 / ¥${totalSetRevenue.toLocaleString()}):`;
               for (const set of input.sets) {
                 const setRevenue = set.setPrice * set.quantitySold;
-                setDetailText += `\n  📌 ${set.setName}: ¥${set.setPrice.toLocaleString()} × ${set.quantitySold}個 = ¥${setRevenue.toLocaleString()}`;
-                for (const item of set.items) {
-                  setDetailText += `\n    └ ${item.productName} × ${item.quantity || 1}`;
-                }
+                setDetailText += `\n  ┌ ${set.setName}`;
+                setDetailText += `\n  │ ¥${set.setPrice.toLocaleString()} × ${set.quantitySold}個 = ¥${setRevenue.toLocaleString()}`;
+                // 商品をコンパクトに1行で表示
+                const itemsStr = set.items.map(item => `${item.productName}×${item.quantity || 1}`).join(', ');
+                setDetailText += `\n  └ ${itemsStr}`;
               }
             }
 
