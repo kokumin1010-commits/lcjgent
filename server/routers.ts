@@ -11566,7 +11566,15 @@ ${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
                   setDetailText += `\n└  ・${item.productName} × ${totalQty}個${qty > 1 ? ` (${qty}×${set.quantitySold}セット)` : set.quantitySold > 1 ? ` (1×${set.quantitySold}セット)` : ''}${unitPrice}`;
                 }
               }
+              // 合計発送点数を計算
+              let totalShipItems = 0;
+              for (const set of input.sets) {
+                for (const item of set.items) {
+                  totalShipItems += (item.quantity || 1) * set.quantitySold;
+                }
+              }
               setDetailText += `\n━━━━━━━━━━━━━`;
+              setDetailText += `\n📣 合計発送: ${totalShipItems}点`;
             }
 
             // テキストメッセージを構築
