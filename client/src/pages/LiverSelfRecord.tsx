@@ -161,6 +161,7 @@ export default function LiverSelfRecord() {
       roi?: number | null;
       productSales?: number | null;
     };
+    productList?: Array<{ productName: string; quantity?: number; revenue?: number }>;
   } | null>(null);
 
   // Pre-fill form data from schedule
@@ -665,6 +666,26 @@ export default function LiverSelfRecord() {
             }));
           return validPromos.length > 0 ? validPromos : undefined;
         })() : undefined,
+        // ブランド別売上（AI解析のproductListからブランド名マッチングで集計）
+        brandSales: (() => {
+          const productList = (analyzedData as any)?.productList as Array<{ productName: string; quantity?: number; revenue?: number }> | undefined;
+          if (!productList || productList.length === 0 || !brands) return undefined;
+          const salesByBrand: Record<string, number> = {};
+          for (const product of productList) {
+            if (!product.productName || !product.revenue) continue;
+            const pNameLower = product.productName.toLowerCase();
+            for (const brandId of selectedBrandIds) {
+              const brand = brands.find((b: { id: number; name: string }) => b.id.toString() === brandId);
+              if (!brand) continue;
+              const brandNameLower = brand.name.toLowerCase();
+              if (pNameLower.includes(brandNameLower)) {
+                salesByBrand[brandId] = (salesByBrand[brandId] || 0) + product.revenue;
+                break;
+              }
+            }
+          }
+          return Object.keys(salesByBrand).length > 0 ? salesByBrand : undefined;
+        })(),
       });
     } catch (error) {
       console.error("Failed to save livestream:", error);

@@ -11104,6 +11104,8 @@ ${conversationText}
           discountPrice: z.number().min(0),
           quantity: z.number().min(1).default(1),
         })).optional(),
+        // ブランド別売上データ（AI解析またはセットデータから集計）
+        brandSales: z.record(z.string(), z.number()).optional(), // { brandId: revenue }
       }))
       .mutation(async ({ input, ctx }) => {
         // Get liver info for streamerName and LINE notification
@@ -11478,17 +11480,64 @@ ${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
             const dateStr = `${jstDate.getMonth() + 1}/${jstDate.getDate()}`;
             const timeStr = `${String(jstDate.getHours()).padStart(2,'0')}:${String(jstDate.getMinutes()).padStart(2,'0')}`;
 
-            // ブランド別配信時間テキスト
+            // ブランド別配信時間テキスト（売上付き）
+            const brandSalesData = input.brandSales || {};
             let brandDurationText = '';
             for (const bid of allBrandIdsForNotify) {
               const bName = brandNames[bid] || `Brand#${bid}`;
               const bDur = brandDurationsData[bid.toString()];
+              const bSales = brandSalesData[bid.toString()];
+              let line = `\n  📌 ${bName}:`;
               if (bDur) {
                 const bH = Math.floor(bDur / 60);
                 const bM = bDur % 60;
-                brandDurationText += `\n  📌 ${bName}: ${bH > 0 ? bH + '時間' : ''}${bM > 0 ? bM + '分' : ''}`;
-              } else {
-                brandDurationText += `\n  📌 ${bName}`;
+                line += ` ${bH > 0 ? bH + 'h' : ''}${bM > 0 ? bM + 'm' : ''}`;
+              }
+              if (bSales && bSales > 0) {
+                line += ` | ¥${bSales.toLocaleString()}`;
+                if (salesAmt > 0) {
+                  const pct = Math.round((bSales / salesAmt) * 100);
+                  line += ` (${pct}%)`;
+                }
+              }
+              brandDurationText += line;
+            }
+            // ブランド別売上がない場合、セットデータから推定を試みる（アプローチ1）
+            if (Object.keys(brandSalesData).length === 0 && input.sets && input.sets.length > 0) {
+              // セット内の商品名からブランドを推定
+              const estimatedBrandSales: Record<number, number> = {};
+              for (const set of input.sets) {
+                const setRevenue = set.setPrice * set.quantitySold;
+                // セット名または商品名からブランドを探す
+                for (const [bidStr, bName] of Object.entries(brandNames)) {
+                  const bid = parseInt(bidStr);
+                  const nameToMatch = bName.toLowerCase();
+                  const setNameLower = set.setName.toLowerCase();
+                  const hasMatch = setNameLower.includes(nameToMatch) ||
+                    set.items.some(item => item.productName.toLowerCase().includes(nameToMatch));
+                  if (hasMatch) {
+                    estimatedBrandSales[bid] = (estimatedBrandSales[bid] || 0) + setRevenue;
+                  }
+                }
+              }
+              // 推定売上があればテキストを再構築
+              if (Object.keys(estimatedBrandSales).length > 0) {
+                brandDurationText = '';
+                for (const bid of allBrandIdsForNotify) {
+                  const bName = brandNames[bid] || `Brand#${bid}`;
+                  const bDur = brandDurationsData[bid.toString()];
+                  const bSales = estimatedBrandSales[bid];
+                  let line = `\n  📌 ${bName}:`;
+                  if (bDur) {
+                    const bH = Math.floor(bDur / 60);
+                    const bM = bDur % 60;
+                    line += ` ${bH > 0 ? bH + 'h' : ''}${bM > 0 ? bM + 'm' : ''}`;
+                  }
+                  if (bSales && bSales > 0) {
+                    line += ` | ¥${bSales.toLocaleString()} (セット分)`;
+                  }
+                  brandDurationText += line;
+                }
               }
             }
 
@@ -11506,7 +11555,7 @@ ${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
             }
 
             // テキストメッセージを構築
-            const notifyText = `━━━━━━━━━━━━━━━\n📊 配信記録登録\n━━━━━━━━━━━━━━━\n👤 ${streamerName}\n📅 ${dateStr} ${timeStr}〜\n⏰ 配信時間: ${durationStr}\n💰 売上: ¥${salesAmt.toLocaleString()}\n📈 時間単価: ¥${hourlyRate.toLocaleString()}/h${brandDurationText ? '\n\n🏷️ ブランド別:' + brandDurationText : ''}${setDetailText}\n━━━━━━━━━━━━━━━`;
+            const notifyText = `━━━━━━━━━━━━━━━\n📊 配信記録登録\n━━━━━━━━━━━━━━━\n👤 ${streamerName}\n📅 ${dateStr} ${timeStr}〜\n⏰ 配信時間: ${durationStr}\n💰 売上: ¥${salesAmt.toLocaleString()}\n📈 時間単価: ¥${hourlyRate.toLocaleString()}/h${brandDurationText ? '\n\n🏷️ ブランド別実績:' + brandDurationText : ''}${setDetailText}\n━━━━━━━━━━━━━━━`;
 
             const messages: any[] = [{ type: 'text', text: notifyText }];
 
@@ -11770,6 +11819,15 @@ ${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
 10. rawData.liveCtr: LIVE CTR（%）
 11. rawData.orderRate: 注文率（%）
 12. rawData.productSales: 商品販売数
+13. productList: 商品リスト（画面に「商品リスト」セクションが見える場合のみ）
+
+## 商品リスト抽出ルール
+- 画面右下付近に「商品リスト」テーブルが表示されている場合があります
+- 各商品の「商品名」「販売数(quantity)」「GMV/売上(revenue)」を読み取ってください
+- 商品名の先頭にブランド名が含まれていることが多いです（例: "KYOGOKU マジッククリップ", "cicibella フェイスタオル"）
+- 商品リストが見えない場合は空配列[]を返してください
+- 数値が不明確な場合でも、見える範囲で最善の推測をしてください
+- revenueは商品単価×販売数ではなく、実際の売上金額（GMV）です
 
 ## 日時抽出ルール
 - 画面上部の日時範囲から抽出
@@ -11785,7 +11843,6 @@ ${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
 - 例: start="2026-03-20 21:30", end="2026-03-21 00:34" → durationMinutes = 184
 - 画面上の時間表示（例: "2h 30m"）がある場合は、それも参考にしてください
 - durationMinutesは通常30分以上です。数分以下の値は誤読の可能性が高いです。
-
 ## 出力形式（必ずこの形式で返してください）
 {
   "salesAmount": 数値,
@@ -11802,6 +11859,9 @@ ${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
     "orderRate": 数値,
     "productSales": 数値
   },
+  "productList": [
+    { "productName": "商品名", "quantity": 販売数, "revenue": 売上金額 }
+  ],
   "confidence": "high" | "medium" | "low"
 }
 
@@ -11809,7 +11869,8 @@ ${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
 - 数値が見える場合は必ず抽出してください。nullや空にしないでください。
 - 画像が不鮮明でも、見える数値は最善の推測で抽出してください。
 - confidenceは、数値が明確に読み取れた場合は"high"、一部不明確な場合は"medium"、多くが不明確な場合は"low"としてください。
-- 特にsalesAmount（GMV）は画面中央の最も大きな数字です。必ず抽出してください。`;
+- 特にsalesAmount（GMV）は画面中央の最も大きな数字です。必ず抽出してください。
+- productListは商品リストが見える場合のみ抽出。見えない場合は空配列[]を返す。`;
 
         const response = await invokeLLM({
           messages: [
@@ -11904,6 +11965,7 @@ ${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
             startDateTime: parsed.startDateTime ?? null,
             endDateTime: parsed.endDateTime ?? null,
             rawData: parsed.rawData ?? {},
+            productList: Array.isArray(parsed.productList) ? parsed.productList : [],
             confidence: parsed.confidence ?? "medium",
           };
         } catch (e) {
