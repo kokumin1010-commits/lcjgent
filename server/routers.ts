@@ -11558,16 +11558,15 @@ ${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
                 setDetailText += `\n│ ${set.quantitySold}セット | ¥${set.setPrice.toLocaleString()}${discountStr}`;
                 setDetailText += `\n│ 売上: ¥${setRevenue.toLocaleString()}`;
                 setDetailText += `\n│`;
-                setDetailText += `\n│ 📋 発送内容:`;
-                let setShipTotal = 0;
+                setDetailText += `\n│ 📋 発送内容 (1セットあたり):`;
+                let setItemCount = 0;
                 for (const item of set.items) {
                   const qty = item.quantity || 1;
-                  const totalQty = qty * set.quantitySold;
-                  setShipTotal += totalQty;
+                  setItemCount += qty;
                   const unitPrice = item.originalPrice > 0 ? ` @¥${item.originalPrice.toLocaleString()}` : '';
-                  setDetailText += `\n│  ・${item.productName} × ${totalQty}個${qty > 1 ? ` (${qty}×${set.quantitySold}セット)` : set.quantitySold > 1 ? ` (1×${set.quantitySold}セット)` : ''}${unitPrice}`;
+                  setDetailText += `\n│  ・${item.productName} × ${qty}個${unitPrice}`;
                 }
-                setDetailText += `\n└ ${set.setName} → 合計${setShipTotal}点`;
+                setDetailText += `\n└ ${set.setName} → ${setItemCount}点 × ${set.quantitySold}セット`;
               }
               setDetailText += `\n━━━━━━━━━━━━━`;
             }
