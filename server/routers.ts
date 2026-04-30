@@ -11559,22 +11559,17 @@ ${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
                 setDetailText += `\n│ 売上: ¥${setRevenue.toLocaleString()}`;
                 setDetailText += `\n│`;
                 setDetailText += `\n│ 📋 発送内容:`;
+                let setShipTotal = 0;
                 for (const item of set.items) {
                   const qty = item.quantity || 1;
                   const totalQty = qty * set.quantitySold;
+                  setShipTotal += totalQty;
                   const unitPrice = item.originalPrice > 0 ? ` @¥${item.originalPrice.toLocaleString()}` : '';
-                  setDetailText += `\n└  ・${item.productName} × ${totalQty}個${qty > 1 ? ` (${qty}×${set.quantitySold}セット)` : set.quantitySold > 1 ? ` (1×${set.quantitySold}セット)` : ''}${unitPrice}`;
+                  setDetailText += `\n│  ・${item.productName} × ${totalQty}個${qty > 1 ? ` (${qty}×${set.quantitySold}セット)` : set.quantitySold > 1 ? ` (1×${set.quantitySold}セット)` : ''}${unitPrice}`;
                 }
-              }
-              // 合計発送点数を計算
-              let totalShipItems = 0;
-              for (const set of input.sets) {
-                for (const item of set.items) {
-                  totalShipItems += (item.quantity || 1) * set.quantitySold;
-                }
+                setDetailText += `\n└ ${set.setName} → 合計${setShipTotal}点`;
               }
               setDetailText += `\n━━━━━━━━━━━━━`;
-              setDetailText += `\n📣 合計発送: ${totalShipItems}点`;
             }
 
             // テキストメッセージを構築
