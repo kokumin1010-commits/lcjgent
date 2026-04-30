@@ -100,6 +100,10 @@ export async function pushMessage(
         messages,
       }),
     });
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => 'unknown');
+      console.error(`[LINE] Push message failed: ${response.status} ${response.statusText} to=${to.substring(0, 8)}... body=${errorBody}`);
+    }
     return response.ok;
   } catch (error) {
     console.error("[LINE] Push message error:", error);

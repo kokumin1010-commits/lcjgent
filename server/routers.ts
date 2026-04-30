@@ -11492,8 +11492,21 @@ ${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
               }
             }
 
+            // セット内訳テキストを構築
+            let setDetailText = '';
+            if (input.sets && input.sets.length > 0) {
+              setDetailText = '\n\n📦 セット内訳:';
+              for (const set of input.sets) {
+                const setRevenue = set.setPrice * set.quantitySold;
+                setDetailText += `\n  📌 ${set.setName}: ¥${set.setPrice.toLocaleString()} × ${set.quantitySold}個 = ¥${setRevenue.toLocaleString()}`;
+                for (const item of set.items) {
+                  setDetailText += `\n    └ ${item.productName} × ${item.quantity || 1}`;
+                }
+              }
+            }
+
             // テキストメッセージを構築
-            const notifyText = `━━━━━━━━━━━━━━━\n📊 配信記録登録\n━━━━━━━━━━━━━━━\n👤 ${streamerName}\n📅 ${dateStr} ${timeStr}〜\n⏰ 配信時間: ${durationStr}\n💰 売上: ¥${salesAmt.toLocaleString()}\n📈 時間単価: ¥${hourlyRate.toLocaleString()}/h${brandDurationText ? '\n\n🏷️ ブランド別:' + brandDurationText : ''}\n━━━━━━━━━━━━━━━`;
+            const notifyText = `━━━━━━━━━━━━━━━\n📊 配信記録登録\n━━━━━━━━━━━━━━━\n👤 ${streamerName}\n📅 ${dateStr} ${timeStr}〜\n⏰ 配信時間: ${durationStr}\n💰 売上: ¥${salesAmt.toLocaleString()}\n📈 時間単価: ¥${hourlyRate.toLocaleString()}/h${brandDurationText ? '\n\n🏷️ ブランド別:' + brandDurationText : ''}${setDetailText}\n━━━━━━━━━━━━━━━`;
 
             const messages: any[] = [{ type: 'text', text: notifyText }];
 

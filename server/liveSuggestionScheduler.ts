@@ -143,17 +143,33 @@ export async function runDailyLiveSuggestion(): Promise<void> {
 
     // Generate and send suggestion for each liver individually
     let successCount = 0;
-    for (const [liverName, liverSchedules] of liverScheduleMap) {
-      try {
-        console.log(`${LOG_PREFIX} Generating suggestion for ${liverName}...`);
+    const totalLivers = liverScheduleMap.size;
+    let currentIndex = 0;
 
-        const [recentStreams, topProducts, recentSets, monthlySummary, quotaBrands] = await Promise.all([
-          getRecentLivestreamDataForSuggestion(liverName),
-          getTopProductsForSuggestion(liverName),
-          getRecentSetsForSuggestion(liverName),
-          getLiverMonthlySummaryForSuggestion(liverName),
-          getQuotaBrandsForLiver(liverName),
-        ]);
+    for (const [liverName, liverSchedules] of liverScheduleMap) {
+      currentIndex++;
+      try {
+        console.log(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] Generating suggestion for ${liverName}...`);
+
+        // DB queries with individual error handling
+        let recentStreams: any[] = [];
+        let topProducts: any[] = [];
+        let recentSets: any[] = [];
+        let monthlySummary: any = null;
+        let quotaBrands: any[] = [];
+
+        try {
+          [recentStreams, topProducts, recentSets, monthlySummary, quotaBrands] = await Promise.all([
+            getRecentLivestreamDataForSuggestion(liverName),
+            getTopProductsForSuggestion(liverName),
+            getRecentSetsForSuggestion(liverName),
+            getLiverMonthlySummaryForSuggestion(liverName),
+            getQuotaBrandsForLiver(liverName),
+          ]);
+        } catch (dbErr: any) {
+          console.error(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] DB error for ${liverName}: ${dbErr.message}`);
+          // Continue with empty data - still send a basic suggestion
+        }
 
         let contextInfo = `## ${liverName}さんの配信データ\n\n`;
         contextInfo += `### 今日の予定\n`;
@@ -224,15 +240,30 @@ export async function runDailyLiveSuggestion(): Promise<void> {
 
         const userPrompt = `${liverName}さんの今日の配信提案:\n\n${contextInfo}`;
 
-        const result = await invokeLLM({
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          maxTokens: 800,
-        });
+        // LLM呼び出し（エラー時はフォールバックメッセージを使用）
+        let suggestionText = '';
+        try {
+          console.log(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] Calling LLM for ${liverName}...`);
+          const result = await invokeLLM({
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            maxTokens: 800,
+          });
+          suggestionText = (typeof result.choices?.[0]?.message?.content === 'string' ? result.choices[0].message.content : '') || '';
+          console.log(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] LLM response received for ${liverName} (${suggestionText.length} chars)`);
+        } catch (llmErr: any) {
+          console.error(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] LLM error for ${liverName}: ${llmErr.message}`);
+          // フォールバック: LLMが失敗してもデフォルトメッセージで送信を続行
+          suggestionText = '';
+        }
 
-        const suggestionText = (typeof result.choices?.[0]?.message?.content === 'string' ? result.choices[0].message.content : '') || `${liverName}さん、今日も配信頑張りましょう！`;
+        // フォールバックメッセージ（LLMが空の場合）
+        if (!suggestionText.trim()) {
+          suggestionText = `${liverName}さん、今日も配信頑張りましょう！🔥\n視聴者とのコミュニケーションを大切に、楽しい配信を目指しましょう！`;
+          console.log(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] Using fallback message for ${liverName}`);
+        }
 
         // Build schedule time info
         const firstSchedule = liverSchedules[0];
@@ -244,13 +275,17 @@ export async function runDailyLiveSuggestion(): Promise<void> {
 
         // 1. Send to GROUP with mention
         const groupMessage = buildMentionTextMessage(liverName, lineUserId, suggestionText, startTimeStr, endTimeStr);
+        console.log(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] Sending group message for ${liverName}...`);
         const groupSuccess = await pushMessage(targetGroup.lineGroupId, [groupMessage]);
         
         if (groupSuccess) {
-          console.log(`${LOG_PREFIX} ✅ Sent to group for ${liverName}${lineUserId ? ' (with mention)' : ' (no mention - no lineUserId)'}`);
+          console.log(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] ✅ Sent to group for ${liverName}${lineUserId ? ' (with mention)' : ' (no mention - no lineUserId)'}`);
         } else {
-          console.error(`${LOG_PREFIX} ❌ Failed to send to group for ${liverName}`);
+          console.error(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] ❌ Failed to send to group for ${liverName}`);
         }
+
+        // Wait between group message and DM to avoid rate limiting
+        await delay(1000);
 
         // 2. Send DM to individual liver (if lineUserId exists)
         let dmSuccess = false;
@@ -258,43 +293,51 @@ export async function runDailyLiveSuggestion(): Promise<void> {
           const dmText = `📢 【${todayStr} あなたへの配信提案】\n\n${liverName}さん、今日の配信頑張りましょう！\n\n${suggestionText}`;
           dmSuccess = await pushMessage(lineUserId, [{ type: "text", text: dmText }]);
           if (dmSuccess) {
-            console.log(`${LOG_PREFIX} ✅ Sent DM to ${liverName}`);
+            console.log(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] ✅ Sent DM to ${liverName}`);
           } else {
-            console.error(`${LOG_PREFIX} ❌ Failed to send DM to ${liverName}`);
+            console.error(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] ❌ Failed to send DM to ${liverName}`);
           }
         } else {
-          console.log(`${LOG_PREFIX} ⚠️ No lineUserId for ${liverName}, skipping DM`);
+          console.log(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] ⚠️ No lineUserId for ${liverName}, skipping DM`);
         }
 
         // Save to DB (履歴として記録)
-        await saveLiveSuggestion({
-          targetDate: new Date(),
-          liverName,
-          liverId: firstSchedule.liverId ?? undefined,
-          scheduleId: firstSchedule.id,
-          scheduledStartTime: firstSchedule.startTime ?? undefined,
-          scheduledEndTime: firstSchedule.endTime ?? undefined,
-          suggestionText,
-          promptUsed: userPrompt,
-          sentToLineGroupId: targetGroup.lineGroupId,
-          sentToLineGroupName: targetGroup.groupName,
-          lineSendSuccess: groupSuccess,
-          lineSendError: groupSuccess ? (dmSuccess || !lineUserId ? null : 'DM failed') : 'Group send failed',
-          generatedBy: 'auto-scheduler',
-        });
+        try {
+          await saveLiveSuggestion({
+            targetDate: new Date(),
+            liverName,
+            liverId: firstSchedule.liverId ?? undefined,
+            scheduleId: firstSchedule.id,
+            scheduledStartTime: firstSchedule.startTime ?? undefined,
+            scheduledEndTime: firstSchedule.endTime ?? undefined,
+            suggestionText,
+            promptUsed: userPrompt,
+            sentToLineGroupId: targetGroup.lineGroupId,
+            sentToLineGroupName: targetGroup.groupName,
+            lineSendSuccess: groupSuccess,
+            lineSendError: groupSuccess ? (dmSuccess || !lineUserId ? null : 'DM failed') : 'Group send failed',
+            generatedBy: 'auto-scheduler',
+          });
+        } catch (saveErr: any) {
+          console.error(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] DB save error for ${liverName}: ${saveErr.message}`);
+          // DB保存失敗は致命的ではないので続行
+        }
 
         successCount++;
-        console.log(`${LOG_PREFIX} Generated suggestion for ${liverName} ✓`);
+        console.log(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] ✓ Completed for ${liverName}`);
 
-        // Delay between messages to avoid LINE rate limiting (max ~5 req/sec)
-        await delay(500);
+        // Delay between livers to avoid LINE API rate limiting
+        // 2秒待機: 各ライバーで最大2回のpushMessage（group + DM）+ LLM呼び出し
+        await delay(2000);
 
-      } catch (error) {
-        console.error(`${LOG_PREFIX} Error generating suggestion for ${liverName}:`, error);
+      } catch (error: any) {
+        console.error(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] ❌ Unexpected error for ${liverName}: ${error.message}`, error.stack || '');
+        // エラーが発生しても次のライバーの処理を続行
+        await delay(1000);
       }
     }
 
-    console.log(`${LOG_PREFIX} ✅ Completed: ${successCount}/${liverScheduleMap.size} suggestions sent individually to group${successCount > 0 ? ' + DMs' : ''}`);
+    console.log(`${LOG_PREFIX} ✅ Completed: ${successCount}/${totalLivers} suggestions sent individually to group${successCount > 0 ? ' + DMs' : ''}`);
 
   } catch (error) {
     console.error(`${LOG_PREFIX} Fatal error:`, error);
