@@ -21784,3 +21784,36 @@ export async function getDistinctLiversForBrandSchedules(brandId: number) {
 
   return results.filter((r) => r.liverName);
 }
+
+/**
+ * Get products from product_master by brand IDs (fallback for AI suggestion when no livestreamProducts data)
+ */
+export async function getProductsByBrandIdsForSuggestion(brandIds: number[], limit: number = 10) {
+  const db = await getDb();
+  if (!db || brandIds.length === 0) return [];
+  
+  try {
+    const results = await db
+      .select({
+        productName: productMaster.canonicalName,
+        brandId: productMaster.brandId,
+        regularPrice: productMaster.regularPrice,
+        brandName: brands.name,
+      })
+      .from(productMaster)
+      .leftJoin(brands, eq(productMaster.brandId, brands.id))
+      .where(
+        and(
+          inArray(productMaster.brandId, brandIds),
+          eq(productMaster.isActive, true)
+        )
+      )
+      .orderBy(desc(productMaster.regularPrice))
+      .limit(limit);
+    
+    return results;
+  } catch (err) {
+    console.error("[getProductsByBrandIdsForSuggestion] error:", err);
+    return [];
+  }
+}

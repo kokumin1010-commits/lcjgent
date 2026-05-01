@@ -14,6 +14,7 @@ import {
   getRecentSetsForSuggestion,
   getLiverMonthlySummaryForSuggestion,
   getQuotaBrandsForLiver,
+  getProductsByBrandIdsForSuggestion,
   saveLiveSuggestion,
   ensureLiveSuggestionsTable,
 } from "./db";
@@ -183,8 +184,15 @@ export async function runDailyLiveSuggestion(): Promise<void> {
         if (monthlySummary) {
           const cur = monthlySummary.current;
           const prev = monthlySummary.prev;
+          // 今月の時間単価が0の場合、先月のデータを使用
+          const effectiveHourlyRate = cur.hourlyRate > 0 ? cur.hourlyRate : prev.hourlyRate;
+          const rateSource = cur.hourlyRate > 0 ? '今月実績' : '先月実績（今月データなし）';
           contextInfo += `\n### ★月間実績（売上目標にはこの時間単価をそのまま使え）\n`;
-          contextInfo += `★今月の時間単価: ¥${cur.hourlyRate.toLocaleString()}（この数値をそのまま使え）\n`;
+          if (effectiveHourlyRate > 0) {
+            contextInfo += `★時間単価: ¥${effectiveHourlyRate.toLocaleString()}（${rateSource}。この数値をそのまま使え）\n`;
+          } else {
+            contextInfo += `★時間単価: データなし（売上目標の計算は省略せよ）\n`;
+          }
           contextInfo += `今月: 売上¥${cur.sales.toLocaleString()} / ${cur.durationHours}h / 時間単価¥${cur.hourlyRate.toLocaleString()}\n`;
           contextInfo += `先月: 売上¥${prev.sales.toLocaleString()} / ${prev.durationHours}h / 時間単価¥${prev.hourlyRate.toLocaleString()}\n`;
         }
@@ -202,6 +210,31 @@ export async function runDailyLiveSuggestion(): Promise<void> {
           contextInfo += `\n### ★売れ筋商品TOP5（提案で使う商品名はこのリストからのみ。架空の商品名禁止）\n`;
           for (const p of topProducts.slice(0, 5)) {
             contextInfo += `- 【${p.productName}】: ¥${Number(p.totalGmv).toLocaleString()}\n`;
+          }
+        } else {
+          // フォールバック: topProductsが空の場合、今日のスケジュールのbrandIdから商品マスターを取得
+          const brandIds = liverSchedules
+            .map(s => s.brandId)
+            .filter((id): id is number => id != null && id > 0);
+          
+          if (brandIds.length > 0) {
+            try {
+              const masterProducts = await getProductsByBrandIdsForSuggestion(Array.from(new Set(brandIds)), 10);
+              if (masterProducts.length > 0) {
+                contextInfo += `\n### ★取扱商品一覧（商品マスターより。提案で使う商品名はこのリストからのみ。架空の商品名禁止）\n`;
+                for (const p of masterProducts) {
+                  const price = p.regularPrice ? `¥${Number(p.regularPrice).toLocaleString()}` : '価格未設定';
+                  contextInfo += `- 【${p.productName}】(${p.brandName || '不明'}): ${price}\n`;
+                }
+              } else {
+                contextInfo += `\n### ⚠️ 商品データなし\n商品データが見つかりません。商品提案は省略してください。\n`;
+              }
+            } catch (fallbackErr: any) {
+              console.error(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] Product master fallback error for ${liverName}: ${fallbackErr.message}`);
+              contextInfo += `\n### ⚠️ 商品データなし\n商品データが見つかりません。商品提案は省略してください。\n`;
+            }
+          } else {
+            contextInfo += `\n### ⚠️ 商品データなし\n商品データが見つかりません。商品提案は省略してください。\n`;
           }
         }
 
@@ -227,14 +260,16 @@ export async function runDailyLiveSuggestion(): Promise<void> {
 みんなで数字を共有して高め合うチームです。
 
 提案形式:
-🎯 目標（「月間実績」の時間単価の数値をそのまま使って計算）
-📦 おすすめ商品（「売れ筋商品TOP」から実際の商品名をそのまま引用）
+🎯 目標（「月間実績」の時間単価の数値をそのまま使って計算。データなしなら省略）
+📦 おすすめ商品（「売れ筋商品TOP」または「取扱商品一覧」から実際の商品名をそのまま引用。データなしなら省略）
 ⏰ 配信の流れ（時間配分）
 💡 アドバイス（時間単価を上げる戦略）
 
 【絶対厳守ルール】
 - 売上目標は「月間実績」の時間単価をそのまま使え。¥20万などの仮定値は絶対に使うな
-- 商品名は「売れ筋商品TOP」から実際の商品名をコピーして使え。「ブランドA」「スキンケアセット」等の汎用表現は絶対禁止
+- 時間単価が「データなし」の場合、売上目標の計算は省略し、「配信の流れ」と「アドバイス」のみ記載せよ
+- 商品名は「売れ筋商品TOP」または「取扱商品一覧」から実際の商品名をコピーして使え。「ブランドA」「スキンケアセット」等の汎用表現は絶対禁止
+- 「商品データなし」の場合、商品提案セクションは完全に省略せよ。架空の商品名を生成するな
 - ノルマありブランドがあればその商品を優先提案
 - 簡潔に300文字以内。前向きなトーンで。`;
 
