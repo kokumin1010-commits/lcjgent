@@ -173,7 +173,7 @@ export default function LiverMypage() {
   // Get liver's livestream history (全期間取得)
   const { data: livestreams, isLoading: isLoadingLivestreams, refetch: refetchLivestreams } = trpc.liverManagement.getLivestreams.useQuery(
     { liverId: liverInfo?.id || 0 },
-    { enabled: !!liverInfo?.id }
+    { enabled: !!liverInfo?.id, refetchOnWindowFocus: true, staleTime: 60 * 1000 }
   );
 
   // 配信履歴削除用
@@ -422,8 +422,8 @@ export default function LiverMypage() {
       return jstYear === year && jstMonth === month;
     });
 
-    const sales = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.salesAmount || 0), 0);
-    const gmv = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.gmv || 0), 0);
+    const sales = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.salesAmount || ls.gmv || 0), 0);
+    const gmv = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.gmv || ls.salesAmount || 0), 0);
     const viewerCount = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.viewerCount || 0), 0);
     const orderCount = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.orderCount || 0), 0);
     
