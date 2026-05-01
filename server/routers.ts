@@ -11546,29 +11546,22 @@ ${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
             if (input.sets && input.sets.length > 0) {
               const totalSetQuantity = input.sets.reduce((sum, s) => sum + s.quantitySold, 0);
               const totalSetRevenue = input.sets.reduce((sum, s) => sum + (s.setPrice * s.quantitySold), 0);
-              setDetailText = `\n\n📦 セット内訳 (計${totalSetQuantity}セット / ¥${totalSetRevenue.toLocaleString()}):`;
+              setDetailText = `\n\n📦 セット内訳:`;
               for (const set of input.sets) {
                 const setRevenue = set.setPrice * set.quantitySold;
-                // 定価合計と割引率を計算
                 const originalTotal = set.items.reduce((sum, item) => sum + (item.originalPrice * (item.quantity || 1)), 0);
                 const discountPct = originalTotal > 0 ? Math.round((1 - set.setPrice / originalTotal) * 100) : 0;
-                const discountStr = originalTotal > 0 && discountPct > 0 ? ` (定価¥${originalTotal.toLocaleString()}/${discountPct}%OFF)` : '';
-                setDetailText += `\n━━━━━━━━━━━━━`;
-                setDetailText += `\n┌ ${set.setName}`;
-                setDetailText += `\n│ ${set.quantitySold}セット | ¥${set.setPrice.toLocaleString()}${discountStr}`;
-                setDetailText += `\n│ 売上: ¥${setRevenue.toLocaleString()}`;
-                setDetailText += `\n│`;
-                setDetailText += `\n│ 📋 発送内容 (1セットあたり):`;
+                const priceStr = originalTotal > 0 && discountPct > 0 ? `\n定価¥${originalTotal.toLocaleString()} → ¥${set.setPrice.toLocaleString()} (${discountPct}%OFF)` : `\n¥${set.setPrice.toLocaleString()}`;
+                setDetailText += `\n\n【${set.setName}】${priceStr}\n`;
                 let setItemCount = 0;
                 for (const item of set.items) {
                   const qty = item.quantity || 1;
                   setItemCount += qty;
-                  const unitPrice = item.originalPrice > 0 ? ` @¥${item.originalPrice.toLocaleString()}` : '';
-                  setDetailText += `\n│  ・${item.productName} × ${qty}個${unitPrice}`;
+                  setDetailText += `\n■ ${item.productName} ${qty}個`;
                 }
-                setDetailText += `\n└ ${set.setName} → ${setItemCount}点 × ${set.quantitySold}セット`;
+                setDetailText += `\n合計 ${setItemCount}点`;
+                setDetailText += `\n\n販売数 ${set.quantitySold}セット / 売上 ¥${setRevenue.toLocaleString()}`;
               }
-              setDetailText += `\n━━━━━━━━━━━━━`;
             }
 
             // テキストメッセージを構築
