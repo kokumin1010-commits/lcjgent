@@ -1,19 +1,18 @@
 /**
- * Peer Bonus Monthly Reset Scheduler
+ * Peer Bonus Monthly Grant & Reset Scheduler
  * 
- * ピアボーナスの月間配布プールを毎月1日 JST 00:05 に自動リセット。
- * 
- * 実際の仕組み:
- * - ピアボーナスの残りプールは yearMonth ベースで計算されている
- *   （lcj_coin_peer_bonuses.yearMonth で当月の送信済み合計を集計）
- * - つまり月が変わると自動的にプールはリセットされる
- * - このスケジューラーは「月初にログを出す + 前月の未使用分を記録する」役割
+ * 毎月1日に全アクティブメンバー（スタッフ+ライバー）に100コインを自動付与。
+ * - 付与されたコインは即時確定（vestedCoins）
+ * - 月末に未使用の送信プールは自動失効（yearMonthベース）
+ * - 受け取ったコインは保有コインに加算される
  * 
  * Schedule: 毎月1日 JST 00:05 (= UTC 15:05 前日)
  */
-
 import { getDb } from "./db";
-import { lcjCoinPeerBonuses, lcjCoinHoldings, lcjCoinSettings } from "../drizzle/schema";
+import { 
+  lcjCoinPeerBonuses, lcjCoinHoldings, lcjCoinSettings,
+  lcjCoinTransactions, staff, livers 
+} from "../drizzle/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 async function getSettingsMap(db: any): Promise<Record<string, string>> {
@@ -26,15 +25,113 @@ async function getSettingsMap(db: any): Promise<Record<string, string>> {
 }
 
 /**
- * 月初のピアボーナスリセットジョブ
- * - 前月の利用状況をログに記録
- * - 新しい月のプールが自動的に有効になっていることを確認
+ * 全アクティブメンバーにピアボーナス用コインを付与
+ * - holdingsがない人は新規作成
+ * - holdingsがある人はtotalCoins + vestedCoinsに加算
+ * - transactionに記録
+ */
+async function grantPeerBonusCoinsToAll(db: any, settings: Record<string, string>, yearMonth: string): Promise<{
+  staffGranted: number;
+  liverGranted: number;
+  coinsPerPerson: number;
+  errors: string[];
+}> {
+  const coinsPerPerson = parseInt(settings.peer_bonus_monthly_pool || "100");
+  const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
+  const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
+  const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
+  const valuation = monthlyRevenue * 12 * psrMultiplier;
+  const coinPrice = totalCoinsPool > 0 ? valuation / totalCoinsPool : 0;
+
+  // Check if already granted this month
+  const [alreadyGranted] = await db.execute(
+    sql`SELECT COUNT(*) as cnt FROM lcj_coin_transactions 
+        WHERE transactionType = 'bonus' 
+        AND reason LIKE ${`ピアボーナス月間付与 (${yearMonth})%`}
+        LIMIT 1`
+  );
+  if (Number((alreadyGranted as any[])[0]?.cnt || 0) > 0) {
+    console.log(`[PeerBonusGrant] Already granted for ${yearMonth}, skipping`);
+    return { staffGranted: 0, liverGranted: 0, coinsPerPerson, errors: ["Already granted this month"] };
+  }
+
+  const errors: string[] = [];
+  let staffGranted = 0;
+  let liverGranted = 0;
+
+  // Get all active staff
+  const staffList = await db.select({ id: staff.id }).from(staff).where(eq(staff.isActive, "active"));
+  // Get all active livers
+  const liverList = await db.select({ id: livers.id }).from(livers).where(eq(livers.isActive, true));
+
+  const allTargets: { holderType: "staff" | "liver"; holderId: number }[] = [
+    ...staffList.map((s: any) => ({ holderType: "staff" as const, holderId: s.id })),
+    ...liverList.map((l: any) => ({ holderType: "liver" as const, holderId: l.id })),
+  ];
+
+  for (const target of allTargets) {
+    try {
+      // Find or create holding
+      let [holding] = await db.select().from(lcjCoinHoldings)
+        .where(and(
+          eq(lcjCoinHoldings.holderType, target.holderType),
+          eq(lcjCoinHoldings.holderId, target.holderId),
+        )).limit(1);
+
+      if (!holding) {
+        const [result] = await db.insert(lcjCoinHoldings).values({
+          holderType: target.holderType,
+          holderId: target.holderId,
+          totalCoins: coinsPerPerson,
+          vestedCoins: coinsPerPerson, // Immediately vested
+          exercisedCoins: 0,
+          level: 1,
+          xp: 50,
+          streak: 0,
+        });
+        holding = { id: Number(result.insertId) };
+      } else {
+        await db.execute(
+          sql`UPDATE lcj_coin_holdings 
+              SET totalCoins = totalCoins + ${coinsPerPerson}, 
+                  vestedCoins = vestedCoins + ${coinsPerPerson},
+                  xp = xp + 50 
+              WHERE id = ${holding.id}`
+        );
+      }
+
+      // Record transaction
+      await db.insert(lcjCoinTransactions).values({
+        holdingId: holding.id,
+        holderType: target.holderType,
+        holderId: target.holderId,
+        transactionType: "bonus",
+        coinAmount: coinsPerPerson,
+        coinPriceAtTime: String(coinPrice),
+        reason: `ピアボーナス月間付与 (${yearMonth})`,
+        metadata: { type: "peer_bonus_monthly_grant", yearMonth },
+      });
+
+      if (target.holderType === "staff") staffGranted++;
+      else liverGranted++;
+    } catch (e: any) {
+      errors.push(`${target.holderType}:${target.holderId} - ${e.message}`);
+      console.error(`[PeerBonusGrant] Error granting to ${target.holderType}:${target.holderId}`, e);
+    }
+  }
+
+  return { staffGranted, liverGranted, coinsPerPerson, errors };
+}
+
+/**
+ * 月初のピアボーナスリセット＋コイン付与ジョブ
  */
 export async function runPeerBonusMonthlyReset(): Promise<{
   previousMonth: string;
   currentMonth: string;
   monthlyPool: number;
   totalHolders: number;
+  grantResult: { staffGranted: number; liverGranted: number; coinsPerPerson: number; errors: string[] };
   previousMonthStats: {
     totalBonusesSent: number;
     totalCoinsSent: number;
@@ -42,11 +139,9 @@ export async function runPeerBonusMonthlyReset(): Promise<{
     uniqueReceivers: number;
   };
 }> {
-  console.log("[PeerBonusReset] Starting monthly peer bonus reset job...");
-
+  console.log("[PeerBonusReset] Starting monthly peer bonus grant & reset job...");
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-
   const settings = await getSettingsMap(db);
   const monthlyPool = parseInt(settings.peer_bonus_monthly_pool || "100");
 
@@ -55,12 +150,18 @@ export async function runPeerBonusMonthlyReset(): Promise<{
   const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   const currentMonth = `${jstNow.getUTCFullYear()}-${String(jstNow.getUTCMonth() + 1).padStart(2, "0")}`;
   
-  // Previous month
   const prevDate = new Date(jstNow);
   prevDate.setUTCMonth(prevDate.getUTCMonth() - 1);
   const previousMonth = `${prevDate.getUTCFullYear()}-${String(prevDate.getUTCMonth() + 1).padStart(2, "0")}`;
 
-  // Get previous month stats
+  // 1. Grant coins to all active members
+  const grantResult = await grantPeerBonusCoinsToAll(db, settings, currentMonth);
+  console.log(`[PeerBonusGrant] Granted ${grantResult.coinsPerPerson} coins each: ${grantResult.staffGranted} staff, ${grantResult.liverGranted} livers`);
+  if (grantResult.errors.length > 0) {
+    console.warn(`[PeerBonusGrant] ${grantResult.errors.length} errors occurred`);
+  }
+
+  // 2. Get previous month stats
   const [statsResult] = await db.execute(
     sql`SELECT 
       COUNT(*) as totalBonuses,
@@ -72,7 +173,6 @@ export async function runPeerBonusMonthlyReset(): Promise<{
   );
   const stats = (statsResult as any[])[0] || {};
 
-  // Count total holders
   const [holdersResult] = await db.execute(
     sql`SELECT COUNT(*) as cnt FROM lcj_coin_holdings`
   );
@@ -83,6 +183,7 @@ export async function runPeerBonusMonthlyReset(): Promise<{
     currentMonth,
     monthlyPool,
     totalHolders,
+    grantResult,
     previousMonthStats: {
       totalBonusesSent: Number(stats.totalBonuses || 0),
       totalCoinsSent: Number(stats.totalCoins || 0),
@@ -92,10 +193,8 @@ export async function runPeerBonusMonthlyReset(): Promise<{
   };
 
   console.log(`[PeerBonusReset] Monthly reset complete:`);
-  console.log(`  Previous month (${previousMonth}): ${result.previousMonthStats.totalBonusesSent} bonuses sent, ${result.previousMonthStats.totalCoinsSent} coins, ${result.previousMonthStats.uniqueSenders} senders, ${result.previousMonthStats.uniqueReceivers} receivers`);
-  console.log(`  Current month (${currentMonth}): Pool reset to ${monthlyPool} coins/person for ${totalHolders} holders`);
-  console.log(`  Total available pool: ${monthlyPool * totalHolders} coins`);
-
+  console.log(`  Previous month (${previousMonth}): ${result.previousMonthStats.totalBonusesSent} bonuses sent, ${result.previousMonthStats.totalCoinsSent} coins`);
+  console.log(`  Current month (${currentMonth}): ${grantResult.staffGranted + grantResult.liverGranted} members granted ${grantResult.coinsPerPerson} coins each`);
   return result;
 }
 
@@ -104,34 +203,7 @@ export async function runPeerBonusMonthlyReset(): Promise<{
  * 毎月1日 JST 00:05 に実行
  */
 export function startPeerBonusResetScheduler(): void {
-  const CHECK_INTERVAL_MS = 60 * 60 * 1000; // Check every hour
-
-  function getNextFirstOfMonth(): Date {
-    const now = new Date();
-    const jstOffset = 9 * 60 * 60 * 1000;
-    const jstNow = new Date(now.getTime() + jstOffset);
-    
-    // Next 1st of month at JST 00:05
-    const year = jstNow.getUTCMonth() === 11 
-      ? jstNow.getUTCFullYear() + 1 
-      : jstNow.getUTCFullYear();
-    const month = jstNow.getUTCMonth() === 11 
-      ? 0 
-      : jstNow.getUTCMonth() + 1;
-    
-    // If we're already past the 1st, schedule for next month
-    let targetJST: Date;
-    if (jstNow.getUTCDate() === 1 && jstNow.getUTCHours() < 0.1) {
-      // It's the 1st and before 00:05 JST - run today
-      targetJST = new Date(Date.UTC(jstNow.getUTCFullYear(), jstNow.getUTCMonth(), 1, 0, 5, 0));
-    } else {
-      // Schedule for next month's 1st
-      targetJST = new Date(Date.UTC(year, month, 1, 0, 5, 0));
-    }
-    
-    // Convert JST to UTC
-    return new Date(targetJST.getTime() - jstOffset);
-  }
+  const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
   let lastRunMonth = "";
 
@@ -140,7 +212,6 @@ export function startPeerBonusResetScheduler(): void {
     const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
     const currentMonth = `${jstNow.getUTCFullYear()}-${String(jstNow.getUTCMonth() + 1).padStart(2, "0")}`;
     
-    // Run on the 1st of each month (JST), only once per month
     if (jstNow.getUTCDate() === 1 && currentMonth !== lastRunMonth) {
       try {
         await runPeerBonusMonthlyReset();
@@ -152,7 +223,7 @@ export function startPeerBonusResetScheduler(): void {
     }
   }
 
-  // Also run immediately on startup if it's the 1st and hasn't run yet
+  // Run immediately on startup if it's the 1st
   const now = new Date();
   const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   if (jstNow.getUTCDate() === 1) {
@@ -160,10 +231,6 @@ export function startPeerBonusResetScheduler(): void {
     checkAndRun();
   }
 
-  // Check every hour
   setInterval(checkAndRun, CHECK_INTERVAL_MS);
-
-  const nextRun = getNextFirstOfMonth();
-  const hoursUntil = ((nextRun.getTime() - now.getTime()) / (1000 * 60 * 60)).toFixed(1);
-  console.log(`[PeerBonusReset] Scheduler started. Next reset: ${nextRun.toISOString()} (in ${hoursUntil} hours)`);
+  console.log(`[PeerBonusReset] Scheduler started. Runs on 1st of each month (JST)`);
 }

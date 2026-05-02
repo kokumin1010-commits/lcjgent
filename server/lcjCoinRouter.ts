@@ -2738,6 +2738,16 @@ export const lcjCoinRouter = router({
 
       return { success: true, deletedHoldingId: holding?.id || null };
     }),
+  // ============================================================
+  // Admin: ピアボーナス月間コイン付与を手動トリガー
+  // ============================================================
+  triggerPeerBonusGrant: protectedProcedure
+    .mutation(async () => {
+      const { runPeerBonusMonthlyReset } = await import("./peerBonusResetScheduler");
+      const result = await runPeerBonusMonthlyReset();
+      return result;
+    }),
+
 
   // ============================================================
   // My Page: 自分のLCJコイン情報を取得（スタッフ/ライバー共通）
