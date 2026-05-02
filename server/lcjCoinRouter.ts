@@ -2851,11 +2851,73 @@ export const lcjCoinRouter = router({
 
       // Get settings
       const settings = await getSettingsMap(db);
-      const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
       const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
       const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
       const xpPerLevel = parseInt(settings.xp_per_level || "1000");
-      const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
+
+      // Calculate valuation from FY revenue (same as dashboard)
+      const fiscalYear = getFiscalYearRange();
+      const myNow = new Date();
+      const myNowMonth = `${myNow.getFullYear()}-${String(myNow.getMonth() + 1).padStart(2, "0")}`;
+      const gmvData = await getTiktokTapMonthlySummary(0);
+      const commByMonth: Record<string, number> = {};
+      for (const row of gmvData) {
+        commByMonth[row.reportMonth] = Number(row.totalActualPartnerCommission || 0);
+      }
+      // Brand contracts
+      const allBrandContracts = await db.select().from(brandContracts);
+      const brandByMonthMy: Record<string, { recurring: number; single: number }> = {};
+      for (const c of allBrandContracts) {
+        const fee = Number(c.fixedFee || 0);
+        if (fee <= 0) continue;
+        const start = c.startDate ? new Date(c.startDate) : null;
+        const end = c.endDate ? new Date(c.endDate) : null;
+        if (!start) continue;
+        const isSingle = !end || (end.getTime() - start.getTime()) < 45 * 24 * 60 * 60 * 1000;
+        if (isSingle) {
+          const m = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`;
+          if (!brandByMonthMy[m]) brandByMonthMy[m] = { recurring: 0, single: 0 };
+          brandByMonthMy[m].single += fee;
+        } else {
+          const months = Math.max(1, Math.round((end.getTime() - start.getTime()) / (30.44 * 24 * 60 * 60 * 1000)));
+          const monthlyFee = fee / months;
+          const cur = new Date(start);
+          while (cur <= end) {
+            const m = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}`;
+            if (!brandByMonthMy[m]) brandByMonthMy[m] = { recurring: 0, single: 0 };
+            brandByMonthMy[m].recurring += monthlyFee;
+            cur.setMonth(cur.getMonth() + 1);
+          }
+        }
+      }
+      // TSP contracts
+      const allTsp = await db.select().from(tspContracts);
+      const tspByMonthMy: Record<string, number> = {};
+      for (const t of allTsp) {
+        const fee = Number(t.monthlyFee || 0);
+        if (fee <= 0) continue;
+        const start = t.startDate ? new Date(t.startDate) : null;
+        const end = t.endDate ? new Date(t.endDate) : null;
+        if (!start) continue;
+        const cur = new Date(start);
+        const endDate = end || new Date();
+        while (cur <= endDate) {
+          const m = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}`;
+          if (!tspByMonthMy[m]) tspByMonthMy[m] = 0;
+          tspByMonthMy[m] += fee;
+          cur.setMonth(cur.getMonth() + 1);
+        }
+      }
+      let fyTotal = 0;
+      for (const month of fiscalYear.months) {
+        if (month > myNowMonth) break;
+        const lcj = commByMonth[month] || 0;
+        const brandRec = brandByMonthMy[month]?.recurring || 0;
+        const brandSng = brandByMonthMy[month]?.single || 0;
+        const tsp = tspByMonthMy[month] || 0;
+        fyTotal += lcj + brandRec + brandSng + tsp;
+      }
+      const { valuation } = calculateValuationFromTotal(Math.round(fyTotal), psrMultiplier);
       const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
 
       // Get holding
@@ -2929,6 +2991,50 @@ export const lcjCoinRouter = router({
           .limit(20);
       }
 
+      // Get peer bonus sent this month
+      const peerBonusMonthlyPool = parseInt(settings.peer_bonus_monthly_pool || "100");
+      const peerBonusMaxPerSend = parseInt(settings.peer_bonus_max_per_send || "50");
+      const pbNow = new Date();
+      const pbYearMonth = `${pbNow.getFullYear()}-${String(pbNow.getMonth() + 1).padStart(2, "0")}`;
+      let peerBonusUsed = 0;
+      if (holding) {
+        const [sentResult] = await db.execute(
+          sql`SELECT COALESCE(SUM(coinAmount), 0) as totalSent FROM lcj_coin_peer_bonuses WHERE senderHolderType = ${holderType} AND senderHolderId = ${holderId} AND yearMonth = ${pbYearMonth}`
+        );
+        peerBonusUsed = Number((sentResult as any[])[0]?.totalSent || 0);
+      }
+
+      // Get peer bonus sent history this month
+      let peerBonusesSent: any[] = [];
+      if (holding) {
+        peerBonusesSent = await db.select().from(lcjCoinPeerBonuses)
+          .where(and(
+            eq(lcjCoinPeerBonuses.senderHolderType, holderType),
+            eq(lcjCoinPeerBonuses.senderHolderId, holderId),
+          ))
+          .orderBy(desc(lcjCoinPeerBonuses.createdAt))
+          .limit(20);
+      }
+
+      // Get all holders as peer bonus candidates (excluding self)
+      const allHoldings = await db.select({
+        id: lcjCoinHoldings.id,
+        holderType: lcjCoinHoldings.holderType,
+        holderId: lcjCoinHoldings.holderId,
+      }).from(lcjCoinHoldings);
+
+      const peerCandidates: { holderType: string; holderId: number; name: string; avatar: string | null }[] = [];
+      for (const h of allHoldings) {
+        if (h.holderType === holderType && h.holderId === holderId) continue; // skip self
+        if (h.holderType === "staff") {
+          const [s] = await db.select({ id: staff.id, name: staff.name, avatarUrl: staff.avatarUrl }).from(staff).where(eq(staff.id, h.holderId)).limit(1);
+          if (s) peerCandidates.push({ holderType: "staff", holderId: s.id, name: s.name, avatar: s.avatarUrl });
+        } else if (h.holderType === "liver") {
+          const [l] = await db.select({ id: livers.id, name: livers.name, avatarUrl: livers.avatarUrl }).from(livers).where(eq(livers.id, h.holderId)).limit(1);
+          if (l) peerCandidates.push({ holderType: "liver", holderId: l.id, name: l.name, avatar: l.avatarUrl });
+        }
+      }
+
       // Calculate tenure
       const now = new Date();
       let tenureMonths = 0;
@@ -2994,6 +3100,14 @@ export const lcjCoinRouter = router({
         badges,
         valuationHistory,
         peerBonusesReceived,
+        peerBonusesSent,
+        peerBonusPool: {
+          monthlyPool: peerBonusMonthlyPool,
+          maxPerSend: peerBonusMaxPerSend,
+          used: peerBonusUsed,
+          remaining: peerBonusMonthlyPool - peerBonusUsed,
+        },
+        peerCandidates,
         ipoProjection1000: totalCoins * (10000000000 / totalCoinsPool),
         ipoProjection300: totalCoins * (3000000000 / totalCoinsPool),
         ipoProjection100: totalCoins * (1000000000 / totalCoinsPool),
@@ -3004,5 +3118,149 @@ export const lcjCoinRouter = router({
         percentile,
         tierInfo,
       };
+    }),
+
+  // ============================================================
+  // My Page: ピアボーナス送信（publicProcedure - マイページ用）
+  // ============================================================
+  sendPeerBonusFromMyPage: publicProcedure
+    .input(z.object({
+      authType: z.enum(["staff", "liver"]),
+      receiverHolderType: z.enum(["staff", "liver"]),
+      receiverHolderId: z.number(),
+      coinAmount: z.number().min(1),
+      message: z.string().min(1),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+
+      // Authenticate sender (same logic as getMyPage)
+      let senderHolderType: "staff" | "liver" = "staff";
+      let senderHolderId = 0;
+
+      if (input.authType === "staff") {
+        const cookieHeader = ctx.req.headers.cookie || "";
+        const cookies = new Map<string, string>();
+        cookieHeader.split(";").forEach((c: string) => {
+          const [key, ...vals] = c.trim().split("=");
+          if (key) cookies.set(key, vals.join("="));
+        });
+        const token = cookies.get(COOKIE_NAME);
+        if (!token) throw new Error("認証が必要です。ログインしてください。");
+        const secret = new TextEncoder().encode(ENV.cookieSecret);
+        const { payload } = await jwtVerify(token, secret);
+        if (typeof payload.userId !== "number") throw new Error("Invalid token");
+        const [user] = await db.select().from(users).where(eq(users.id, payload.userId)).limit(1);
+        if (!user) throw new Error("ユーザーが見つかりません");
+        const [staffMember] = await db.select().from(staff).where(eq(staff.email, user.email)).limit(1);
+        senderHolderType = "staff";
+        senderHolderId = staffMember ? staffMember.id : user.id;
+      } else {
+        const authHeader = ctx.req.headers.authorization;
+        let token: string | null = null;
+        if (authHeader?.startsWith("Bearer ")) {
+          token = authHeader.slice(7);
+        } else {
+          const cookieHeader = ctx.req.headers.cookie || "";
+          const cookies = new Map<string, string>();
+          cookieHeader.split(";").forEach((c: string) => {
+            const [key, ...vals] = c.trim().split("=");
+            if (key) cookies.set(key, vals.join("="));
+          });
+          token = cookies.get("liver_session") || null;
+        }
+        if (!token) throw new Error("認証が必要です。ログインしてください。");
+        const secret = new TextEncoder().encode(ENV.cookieSecret);
+        const { payload } = await jwtVerify(token, secret);
+        if (payload.type !== "liver" || typeof payload.liverId !== "number") throw new Error("Invalid token");
+        const [liver] = await db.select().from(livers).where(eq(livers.id, payload.liverId)).limit(1);
+        if (!liver) throw new Error("ライバー情報が見つかりません");
+        if (!liver.isActive) throw new Error("このアカウントは無効化されています");
+        senderHolderType = "liver";
+        senderHolderId = liver.id;
+      }
+
+      // Validate not sending to self
+      if (senderHolderType === input.receiverHolderType && senderHolderId === input.receiverHolderId) {
+        throw new Error("自分自身には送れません");
+      }
+
+      const settings = await getSettingsMap(db);
+      const monthlyPool = parseInt(settings.peer_bonus_monthly_pool || "100");
+      const maxPerSend = parseInt(settings.peer_bonus_max_per_send || "50");
+
+      if (input.coinAmount > maxPerSend) {
+        throw new Error(`1回の送信上限は${maxPerSend}コインです`);
+      }
+
+      const now = new Date();
+      const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+      // Check sender's remaining pool this month
+      const [sentResult] = await db.execute(
+        sql`SELECT COALESCE(SUM(coinAmount), 0) as totalSent FROM lcj_coin_peer_bonuses WHERE senderHolderType = ${senderHolderType} AND senderHolderId = ${senderHolderId} AND yearMonth = ${yearMonth}`
+      );
+      const totalSent = Number((sentResult as any[])[0]?.totalSent || 0);
+      const remaining = monthlyPool - totalSent;
+
+      if (input.coinAmount > remaining) {
+        throw new Error(`今月の残りプールは${remaining}コインです（${totalSent}/${monthlyPool}使用済み）`);
+      }
+
+      // Record peer bonus
+      await db.insert(lcjCoinPeerBonuses).values({
+        senderHolderType,
+        senderHolderId,
+        receiverHolderType: input.receiverHolderType,
+        receiverHolderId: input.receiverHolderId,
+        coinAmount: input.coinAmount,
+        message: input.message,
+        yearMonth,
+      });
+
+      // Add coins to receiver's holding (immediately vested)
+      let [receiverHolding] = await db.select().from(lcjCoinHoldings)
+        .where(and(
+          eq(lcjCoinHoldings.holderType, input.receiverHolderType),
+          eq(lcjCoinHoldings.holderId, input.receiverHolderId),
+        )).limit(1);
+
+      if (!receiverHolding) {
+        const [result] = await db.insert(lcjCoinHoldings).values({
+          holderType: input.receiverHolderType,
+          holderId: input.receiverHolderId,
+          totalCoins: input.coinAmount,
+          vestedCoins: input.coinAmount,
+          exercisedCoins: 0,
+          level: 1,
+          xp: 50,
+          streak: 0,
+        });
+        receiverHolding = { id: Number(result.insertId) } as any;
+      } else {
+        await db.execute(
+          sql`UPDATE lcj_coin_holdings SET totalCoins = totalCoins + ${input.coinAmount}, vestedCoins = vestedCoins + ${input.coinAmount}, xp = xp + 50 WHERE id = ${receiverHolding.id}`
+        );
+      }
+
+      // Record transaction for receiver
+      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
+      const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
+      const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
+      const coinPriceForTx = calculateCoinPrice(monthlyRevenue * 12 * psrMultiplier, totalCoinsPool);
+
+      await db.insert(lcjCoinTransactions).values({
+        holdingId: receiverHolding.id,
+        holderType: input.receiverHolderType,
+        holderId: input.receiverHolderId,
+        transactionType: "bonus",
+        coinAmount: input.coinAmount,
+        coinPriceAtTime: String(coinPriceForTx),
+        reason: `ピアボーナス: ${input.message}`,
+        metadata: { type: "peer_bonus", senderId: senderHolderId, senderType: senderHolderType },
+      });
+
+      return { success: true, remaining: remaining - input.coinAmount };
     }),
 });

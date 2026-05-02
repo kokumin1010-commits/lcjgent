@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { getLiverToken, clearLiverToken } from "@/lib/liverAuth";
 import {
   Coins, TrendingUp, Lock, Unlock, Award, Clock, LogOut, ChevronDown, ChevronUp,
   Rocket, Target, ShieldCheck, Gift, ArrowUpRight, BarChart3, History, Trophy,
-  Star, Zap, Calendar, User, Crown, Sparkles, Flame, Shield,
+  Star, Zap, Calendar, User, Crown, Sparkles, Flame, Shield, Send, Search,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,15 @@ export default function LcjCoinMyPage() {
   const [authType, setAuthType] = useState<"staff" | "liver" | null>(null);
   const [showVestingDetail, setShowVestingDetail] = useState(false);
   const [showTransactions, setShowTransactions] = useState(false);
+  const [showPeerBonusSend, setShowPeerBonusSend] = useState(false);
+  const [showPeerBonusSent, setShowPeerBonusSent] = useState(false);
+
+  // Peer bonus form state
+  const [selectedReceiver, setSelectedReceiver] = useState<{ holderType: string; holderId: number; name: string } | null>(null);
+  const [bonusAmount, setBonusAmount] = useState(10);
+  const [bonusMessage, setBonusMessage] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
   // Determine auth type on mount
   useEffect(() => {
@@ -55,6 +64,23 @@ export default function LcjCoinMyPage() {
     }
   );
 
+  const sendPeerBonusMutation = trpc.lcjCoin.sendPeerBonusFromMyPage.useMutation({
+    onSuccess: (result) => {
+      toast.success(`ピアボーナスを送信しました！（残り${result.remaining}コイン）`);
+      setSelectedReceiver(null);
+      setBonusAmount(10);
+      setBonusMessage("");
+      setShowPeerBonusSend(false);
+      myPageQuery.refetch();
+    },
+    onError: (err) => {
+      toast.error(err.message || "送信に失敗しました");
+    },
+    onSettled: () => {
+      setIsSending(false);
+    },
+  });
+
   // Handle auth errors
   useEffect(() => {
     if (myPageQuery.error) {
@@ -73,6 +99,26 @@ export default function LcjCoinMyPage() {
     }
     // For staff, cookie will be cleared by navigating away
     window.location.href = "/my/lcj-coin/login";
+  };
+
+  const handleSendPeerBonus = () => {
+    if (!selectedReceiver || !authType) return;
+    if (!bonusMessage.trim()) {
+      toast.error("メッセージを入力してください");
+      return;
+    }
+    if (bonusAmount < 1) {
+      toast.error("1コイン以上を送信してください");
+      return;
+    }
+    setIsSending(true);
+    sendPeerBonusMutation.mutate({
+      authType,
+      receiverHolderType: selectedReceiver.holderType as "staff" | "liver",
+      receiverHolderId: selectedReceiver.holderId,
+      coinAmount: bonusAmount,
+      message: bonusMessage.trim(),
+    });
   };
 
   if (!authType || myPageQuery.isLoading) {
@@ -102,6 +148,13 @@ export default function LcjCoinMyPage() {
   }
 
   const data = myPageQuery.data!;
+  const peerBonusPool = (data as any).peerBonusPool || { monthlyPool: 100, maxPerSend: 50, used: 0, remaining: 100 };
+  const peerCandidates = (data as any).peerCandidates || [];
+  const peerBonusesSent = (data as any).peerBonusesSent || [];
+
+  const filteredCandidates = peerCandidates.filter((c: any) =>
+    c.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
@@ -225,7 +278,7 @@ export default function LcjCoinMyPage() {
                   <p className="text-slate-400 text-sm">{data.holderPosition || (data.holderType === "staff" ? "スタッフ" : "ライバー")}</p>
                   {(data as any).tierInfo && (
                     <Badge className={`text-[10px] px-1.5 py-0 ${
-                      (data as any).tierInfo.tierCode?.startsWith('L-') 
+                      (data as any).tierInfo.tierCode === "L-S" || (data as any).tierInfo.tierCode === "S"
                         ? 'bg-violet-500/20 text-violet-400 border-violet-500/30'
                         : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
                     }`}>
@@ -294,6 +347,203 @@ export default function LcjCoinMyPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* ============================================================ */}
+        {/* Peer Bonus Send Section */}
+        {/* ============================================================ */}
+        <Card className="bg-gradient-to-br from-pink-950/30 via-slate-800/60 to-slate-800/40 border-pink-500/20 overflow-hidden">
+          <CardHeader className="pb-2 px-4 pt-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold text-white flex items-center gap-2">
+                <Gift className="w-4 h-4 text-pink-400" />
+                ピアボーナスを贈る
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400">
+                  残り <span className="text-pink-400 font-bold">{peerBonusPool.remaining}</span>/{peerBonusPool.monthlyPool} コイン
+                </span>
+              </div>
+            </div>
+            {/* Pool usage bar */}
+            <div className="mt-2">
+              <div className="w-full bg-slate-700/50 rounded-full h-1.5">
+                <div
+                  className="bg-gradient-to-r from-pink-400 to-pink-500 h-1.5 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min((peerBonusPool.used / peerBonusPool.monthlyPool) * 100, 100)}%` }}
+                />
+              </div>
+              <p className="text-slate-500 text-[10px] mt-1">今月の贈呈プール（毎月1日にリセット）</p>
+            </div>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            {peerBonusPool.remaining > 0 ? (
+              <>
+                {!showPeerBonusSend ? (
+                  <Button
+                    onClick={() => setShowPeerBonusSend(true)}
+                    className="w-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg shadow-pink-500/20"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    仲間にコインを贈る
+                  </Button>
+                ) : (
+                  <div className="space-y-3 mt-2">
+                    {/* Step 1: Select receiver */}
+                    {!selectedReceiver ? (
+                      <div className="space-y-2">
+                        <label className="text-slate-300 text-xs font-medium">送り先を選択</label>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                          <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="名前で検索..."
+                            className="w-full bg-slate-900/80 border border-slate-700/50 rounded-lg pl-9 pr-3 py-2.5 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-pink-500/50 focus:ring-1 focus:ring-pink-500/20"
+                          />
+                        </div>
+                        <div className="max-h-48 overflow-y-auto space-y-1 rounded-lg bg-slate-900/50 border border-slate-700/30 p-1">
+                          {filteredCandidates.length === 0 ? (
+                            <p className="text-slate-500 text-xs text-center py-4">候補が見つかりません</p>
+                          ) : (
+                            filteredCandidates.map((c: any) => (
+                              <button
+                                key={`${c.holderType}-${c.holderId}`}
+                                onClick={() => {
+                                  setSelectedReceiver(c);
+                                  setSearchQuery("");
+                                }}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800/80 transition-colors text-left"
+                              >
+                                {c.avatar ? (
+                                  <img src={c.avatar} alt="" className="w-8 h-8 rounded-full object-cover border border-slate-600" />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
+                                    <User className="w-4 h-4 text-slate-400" />
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-white text-sm font-medium truncate">{c.name}</p>
+                                  <p className="text-slate-500 text-[10px]">{c.holderType === "staff" ? "スタッフ" : "ライバー"}</p>
+                                </div>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                        <button
+                          onClick={() => setShowPeerBonusSend(false)}
+                          className="text-slate-500 text-xs hover:text-slate-300 transition-colors"
+                        >
+                          キャンセル
+                        </button>
+                      </div>
+                    ) : (
+                      /* Step 2: Amount + Message */
+                      <div className="space-y-3">
+                        {/* Selected receiver */}
+                        <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-900/50 border border-pink-500/20">
+                          {selectedReceiver.name && (
+                            <div className="flex items-center gap-2 flex-1">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-400/20 to-rose-400/20 flex items-center justify-center border border-pink-500/30">
+                                <User className="w-4 h-4 text-pink-400" />
+                              </div>
+                              <div>
+                                <p className="text-white text-sm font-medium">{selectedReceiver.name}</p>
+                                <p className="text-slate-500 text-[10px]">{selectedReceiver.holderType === "staff" ? "スタッフ" : "ライバー"}</p>
+                              </div>
+                            </div>
+                          )}
+                          <button
+                            onClick={() => setSelectedReceiver(null)}
+                            className="text-slate-500 hover:text-white text-xs transition-colors"
+                          >
+                            変更
+                          </button>
+                        </div>
+
+                        {/* Amount */}
+                        <div>
+                          <label className="text-slate-300 text-xs font-medium mb-1.5 block">コイン数</label>
+                          <div className="flex items-center gap-2">
+                            {[5, 10, 20, 50].filter(v => v <= peerBonusPool.remaining).map((amount) => (
+                              <button
+                                key={amount}
+                                onClick={() => setBonusAmount(amount)}
+                                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+                                  bonusAmount === amount
+                                    ? 'bg-pink-500 text-white shadow-lg shadow-pink-500/30'
+                                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                }`}
+                              >
+                                {amount}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2 mt-2">
+                            <input
+                              type="number"
+                              min={1}
+                              max={Math.min(peerBonusPool.remaining, peerBonusPool.maxPerSend)}
+                              value={bonusAmount}
+                              onChange={(e) => setBonusAmount(Math.max(1, Math.min(parseInt(e.target.value) || 1, Math.min(peerBonusPool.remaining, peerBonusPool.maxPerSend))))}
+                              className="flex-1 bg-slate-900/80 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500/50"
+                            />
+                            <span className="text-slate-400 text-xs whitespace-nowrap">/ {peerBonusPool.remaining} コイン</span>
+                          </div>
+                        </div>
+
+                        {/* Message */}
+                        <div>
+                          <label className="text-slate-300 text-xs font-medium mb-1.5 block">メッセージ</label>
+                          <textarea
+                            value={bonusMessage}
+                            onChange={(e) => setBonusMessage(e.target.value)}
+                            placeholder="感謝のメッセージを入力..."
+                            rows={2}
+                            className="w-full bg-slate-900/80 border border-slate-700/50 rounded-lg px-3 py-2.5 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-pink-500/50 focus:ring-1 focus:ring-pink-500/20 resize-none"
+                          />
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setShowPeerBonusSend(false);
+                              setSelectedReceiver(null);
+                              setBonusMessage("");
+                            }}
+                            className="flex-1 py-2.5 rounded-lg bg-slate-800 text-slate-400 text-sm hover:bg-slate-700 transition-colors"
+                          >
+                            キャンセル
+                          </button>
+                          <button
+                            onClick={handleSendPeerBonus}
+                            disabled={isSending || !bonusMessage.trim()}
+                            className="flex-1 py-2.5 rounded-lg bg-gradient-to-r from-pink-500 to-rose-500 text-white text-sm font-medium shadow-lg shadow-pink-500/20 hover:from-pink-600 hover:to-rose-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          >
+                            {isSending ? (
+                              <span className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />
+                            ) : (
+                              <>
+                                <Send className="w-4 h-4" />
+                                {bonusAmount}コイン贈る
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-3">
+                <p className="text-slate-400 text-sm">今月のプールは使い切りました</p>
+                <p className="text-slate-500 text-xs mt-1">来月1日にリセットされます</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* XP Progress */}
         <Card className="bg-slate-800/40 border-slate-700/50">
@@ -500,7 +750,7 @@ export default function LcjCoinMyPage() {
           </Card>
         )}
 
-        {/* Peer Bonuses */}
+        {/* Peer Bonuses Received */}
         {data.peerBonusesReceived.length > 0 && (
           <Card className="bg-slate-800/40 border-slate-700/50">
             <CardHeader className="pb-2 px-4 pt-4">
@@ -516,10 +766,45 @@ export default function LcjCoinMyPage() {
                     <p className="text-slate-300 text-sm">{pb.message || "称賛"}</p>
                     <p className="text-slate-500 text-xs">{new Date(pb.createdAt).toLocaleDateString("ja-JP")}</p>
                   </div>
-                  <span className="text-emerald-400 font-semibold text-sm">+{pb.amount}</span>
+                  <span className="text-emerald-400 font-semibold text-sm">+{pb.coinAmount}</span>
                 </div>
               ))}
             </CardContent>
+          </Card>
+        )}
+
+        {/* Peer Bonuses Sent */}
+        {peerBonusesSent.length > 0 && (
+          <Card className="bg-slate-800/40 border-slate-700/50">
+            <CardHeader className="px-4 pt-4 pb-2">
+              <button
+                onClick={() => setShowPeerBonusSent(!showPeerBonusSent)}
+                className="flex items-center justify-between w-full"
+              >
+                <CardTitle className="text-sm font-semibold text-white flex items-center gap-2">
+                  <Send className="w-4 h-4 text-rose-400" />
+                  ピアボーナス送信履歴 ({peerBonusesSent.length})
+                </CardTitle>
+                {showPeerBonusSent ? (
+                  <ChevronUp className="w-4 h-4 text-slate-400" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                )}
+              </button>
+            </CardHeader>
+            {showPeerBonusSent && (
+              <CardContent className="px-4 pb-4 space-y-2">
+                {peerBonusesSent.map((pb: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between py-2 border-b border-slate-700/30 last:border-0">
+                    <div>
+                      <p className="text-slate-300 text-sm">{pb.message || "称賛"}</p>
+                      <p className="text-slate-500 text-xs">{new Date(pb.createdAt).toLocaleDateString("ja-JP")}</p>
+                    </div>
+                    <span className="text-rose-400 font-semibold text-sm">-{pb.coinAmount}</span>
+                  </div>
+                ))}
+              </CardContent>
+            )}
           </Card>
         )}
 
