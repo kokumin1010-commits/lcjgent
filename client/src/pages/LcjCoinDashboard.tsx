@@ -414,7 +414,7 @@ export default function LcjCoinDashboard() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [holdersSearch, setHoldersSearch] = useState("");
-  const [holdersFilter, setHoldersFilter] = useState<"all" | "staff" | "liver">("all");
+  const [holdersFilter, setHoldersFilter] = useState<"all" | "staff" | "liver" | "shareholder">("all");
   const [holdersSearchDebounced, setHoldersSearchDebounced] = useState("");
 
   // Debounce holders search
@@ -1784,7 +1784,7 @@ export default function LcjCoinDashboard() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
               <h3 className="text-lg font-bold flex items-center gap-2">
                 <Users className="w-5 h-5 text-blue-400" />
-                コイン保有者一覧
+資本テーブル（Cap Table）
                 <span className="text-sm font-normal text-white/80 ml-2">
                   {holdersQuery.data?.total || 0}名
                 </span>
@@ -1802,6 +1802,7 @@ export default function LcjCoinDashboard() {
                   </SelectTrigger>
                   <SelectContent className="bg-gray-900 border-white/10">
                     <SelectItem value="all" className="text-white">全員</SelectItem>
+                    <SelectItem value="shareholder" className="text-white">株主</SelectItem>
                     <SelectItem value="staff" className="text-white">スタッフ</SelectItem>
                     <SelectItem value="liver" className="text-white">ライバー</SelectItem>
                   </SelectContent>
@@ -1873,7 +1874,7 @@ export default function LcjCoinDashboard() {
                       <th className="text-left py-3 px-3">名前</th>
                       <th className="text-left py-3 px-3">タイプ</th>
                       <th className="text-center py-3 px-3">Tier</th>
-                      <th className="text-center py-3 px-3">月間実績</th>
+                      <th className="text-center py-3 px-3">月間実績/株数</th>
                       <th className="text-left py-3 px-3">部署</th>
                       <th className="text-center py-3 px-3">在籍期間</th>
                       <th className="text-right py-3 px-3">総コイン</th>
@@ -1887,7 +1888,7 @@ export default function LcjCoinDashboard() {
                     {(holdersQuery.data?.holders || []).map((h: any) => (
                       <tr
                         key={`${h.holderType}-${h.holderId}`}
-                        className="border-b border-white/5 hover:bg-white/[0.03] transition-colors"
+                        className={`border-b border-white/5 hover:bg-white/[0.03] transition-colors ${h.holderType === "shareholder" ? "bg-yellow-500/[0.04]" : ""}`}
                       >
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
@@ -1895,9 +1896,11 @@ export default function LcjCoinDashboard() {
                               <img src={h.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
                             ) : (
                               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                                h.holderType === "liver"
-                                  ? "bg-gradient-to-br from-pink-500 to-rose-600 text-white"
-                                  : "bg-gradient-to-br from-blue-500 to-indigo-600 text-white"
+                                h.holderType === "shareholder"
+                                  ? "bg-gradient-to-br from-yellow-500 to-amber-600 text-white"
+                                  : h.holderType === "liver"
+                                    ? "bg-gradient-to-br from-pink-500 to-rose-600 text-white"
+                                    : "bg-gradient-to-br from-blue-500 to-indigo-600 text-white"
                               }`}>
                                 {h.name?.charAt(0) || "?"}
                               </div>
@@ -1906,46 +1909,63 @@ export default function LcjCoinDashboard() {
                           </div>
                         </td>
                         <td className="py-3 px-4">
-                          <a
-                            href={h.holderType === "liver" ? "/master/livers" : "/master/hr"}
-                            className="inline-block"
-                            title={h.holderType === "liver" ? "ライバー管理ページへ" : "人事管理ページへ"}
-                          >
-                            <Badge variant="outline" className={`text-xs border-white/10 cursor-pointer hover:opacity-80 transition-opacity ${h.holderType === "liver" ? "text-pink-400 hover:border-pink-400/40" : "text-blue-400 hover:border-blue-400/40"}`}>
-                              {h.holderType === "liver" ? "ライバー" : "スタッフ"}
+                          {h.holderType === "shareholder" ? (
+                            <Badge variant="outline" className="text-xs border-yellow-500/30 text-yellow-400">
+                              株主
                             </Badge>
-                          </a>
+                          ) : (
+                            <a
+                              href={h.holderType === "liver" ? "/master/livers" : "/master/hr"}
+                              className="inline-block"
+                              title={h.holderType === "liver" ? "ライバー管理ページへ" : "人事管理ページへ"}
+                            >
+                              <Badge variant="outline" className={`text-xs border-white/10 cursor-pointer hover:opacity-80 transition-opacity ${h.holderType === "liver" ? "text-pink-400 hover:border-pink-400/40" : "text-blue-400 hover:border-blue-400/40"}`}>
+                                {h.holderType === "liver" ? "ライバー" : "スタッフ"}
+                              </Badge>
+                            </a>
+                          )}
                         </td>
                         <td className="py-3 px-3">
-                          <select
-                            className="bg-transparent border border-white/10 rounded px-1.5 py-1 text-xs cursor-pointer hover:border-white/20 focus:outline-none focus:border-orange-500/40 transition-colors"
-                            value={h.tierCode || ""}
-                            onChange={(e) => {
-                              const val = e.target.value || null;
-                              updateTierMutation.mutate({ holderType: h.holderType, holderId: h.holderId, tierCode: val });
-                            }}
-                          >
-                            <option value="" className="bg-gray-900 text-white">-</option>
-                            {(h.holderType === "liver" ? LIVER_TIER_OPTIONS : STAFF_TIER_OPTIONS).map(t => (
-                              <option key={t} value={t} className="bg-gray-900 text-white">{TIER_DISPLAY_NAMES[t] ? `${t} (${TIER_DISPLAY_NAMES[t]})` : t}</option>
-                            ))}
-                          </select>
-                          {h.tierCode && (
-                            <Badge className={`ml-1 text-[10px] px-1.5 py-0 ${TIER_COLORS[h.tierCode] || ""}`}>
-                              {TIER_DISPLAY_NAMES[h.tierCode] || h.tierCode}
-                            </Badge>
-                          )}
-                          {h.holderType === "liver" && h.recommendedTier && h.recommendedTier !== h.tierCode && (
-                            <div className="mt-1">
-                              <span className="text-[9px] text-white/40">推奨:</span>
-                              <Badge className={`ml-0.5 text-[9px] px-1 py-0 opacity-70 ${TIER_COLORS[h.recommendedTier] || ""}`}>
-                                {TIER_DISPLAY_NAMES[h.recommendedTier] || h.recommendedTier}
-                              </Badge>
-                            </div>
+                          {h.holderType === "shareholder" ? (
+                            <span className="text-xs text-white/30">-</span>
+                          ) : (
+                            <>
+                              <select
+                                className="bg-transparent border border-white/10 rounded px-1.5 py-1 text-xs cursor-pointer hover:border-white/20 focus:outline-none focus:border-orange-500/40 transition-colors"
+                                value={h.tierCode || ""}
+                                onChange={(e) => {
+                                  const val = e.target.value || null;
+                                  updateTierMutation.mutate({ holderType: h.holderType, holderId: h.holderId, tierCode: val });
+                                }}
+                              >
+                                <option value="" className="bg-gray-900 text-white">-</option>
+                                {(h.holderType === "liver" ? LIVER_TIER_OPTIONS : STAFF_TIER_OPTIONS).map(t => (
+                                  <option key={t} value={t} className="bg-gray-900 text-white">{TIER_DISPLAY_NAMES[t] ? `${t} (${TIER_DISPLAY_NAMES[t]})` : t}</option>
+                                ))}
+                              </select>
+                              {h.tierCode && (
+                                <Badge className={`ml-1 text-[10px] px-1.5 py-0 ${TIER_COLORS[h.tierCode] || ""}`}>
+                                  {TIER_DISPLAY_NAMES[h.tierCode] || h.tierCode}
+                                </Badge>
+                              )}
+                              {h.holderType === "liver" && h.recommendedTier && h.recommendedTier !== h.tierCode && (
+                                <div className="mt-1">
+                                  <span className="text-[9px] text-white/40">推奨:</span>
+                                  <Badge className={`ml-0.5 text-[9px] px-1 py-0 opacity-70 ${TIER_COLORS[h.recommendedTier] || ""}`}>
+                                    {TIER_DISPLAY_NAMES[h.recommendedTier] || h.recommendedTier}
+                                  </Badge>
+                                </div>
+                              )}
+                            </>
                           )}
                         </td>
                         <td className="py-3 px-3 text-center">
-                          {h.holderType === "liver" ? (
+                          {h.holderType === "shareholder" ? (
+                            <div className="text-xs">
+                              <div className="text-yellow-400 font-mono font-semibold">{Number(h.shares).toLocaleString()}株</div>
+                              <div className="text-[10px] text-white/50">{h.shareRatio}</div>
+                            </div>
+                          ) : h.holderType === "liver" ? (
                             <div className="text-xs">
                               {h.monthlyStreamCount != null && h.monthlyStreamCount > 0 ? (
                                 <>
@@ -1966,17 +1986,25 @@ export default function LcjCoinDashboard() {
                           {h.joinDate && <div className="text-[10px] text-white">{h.joinDate}</div>}
                         </td>
                         <td className="py-3 px-3 text-right font-mono">
-                          {h.hasHolding ? (
+                          {h.holderType === "shareholder" ? (
+                            <span className="text-yellow-400 font-semibold">{Number(h.shares).toLocaleString()}株</span>
+                          ) : h.hasHolding ? (
                             <span className="text-white">{Number(h.totalCoins).toLocaleString()}</span>
                           ) : (
                             <Badge variant="outline" className="text-xs border-white/20 text-white">未付与</Badge>
                           )}
                         </td>
                         <td className="py-3 px-3 text-right font-mono text-white">
-                          {h.hasHolding ? Number(h.vestedCoins).toLocaleString() : "-"}
+                          {h.holderType === "shareholder" ? (
+                            <span className="text-yellow-400/70">{h.shareRatio}</span>
+                          ) : h.hasHolding ? Number(h.vestedCoins).toLocaleString() : "-"}
                         </td>
                         <td className="py-3 px-3 text-right font-mono font-bold">
-                          {h.hasHolding ? (
+                          {h.holderType === "shareholder" ? (
+                            <span className="text-yellow-400" style={{ textShadow: '0 0 10px rgba(234,179,8,0.3)' }}>
+                              {formatYenFull(Number(h.shareValue || h.totalValue))}
+                            </span>
+                          ) : h.hasHolding ? (
                             <span className="text-orange-400">{formatYenFull(Number(h.totalValue))}</span>
                           ) : (
                             <span className="text-white">-</span>
@@ -1994,17 +2022,19 @@ export default function LcjCoinDashboard() {
                           )}
                         </td>
                         <td className="py-3 px-2 text-center">
-                          <button
-                            className="p-1.5 rounded-lg text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                            title="保有者を削除"
-                            onClick={() => {
-                              if (window.confirm(`${h.name} をLCJコイン保有者から削除しますか？\n\n※ コイン付与履歴・ベスティング・バッジ等すべて削除されます。\n※ スタッフ/ライバー本体のデータは削除されません。`)) {
-                                deleteHolderMutation.mutate({ holderType: h.holderType, holderId: h.holderId });
-                              }
-                            }}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {h.holderType !== "shareholder" && (
+                            <button
+                              className="p-1.5 rounded-lg text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                              title="保有者を削除"
+                              onClick={() => {
+                                if (window.confirm(`${h.name} をLCJコイン保有者から削除しますか？\n\n※ コイン付与履歴・ベスティング・バッジ等すべて削除されます。\n※ スタッフ/ライバー本体のデータは削除されません。`)) {
+                                  deleteHolderMutation.mutate({ holderType: h.holderType, holderId: h.holderId });
+                                }
+                              }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

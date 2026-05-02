@@ -1206,7 +1206,7 @@ export const lcjCoinRouter = router({
       page: z.number().default(1),
       limit: z.number().default(100),
       search: z.string().optional(),
-      filterType: z.enum(["all", "staff", "liver"]).default("all"),
+      filterType: z.enum(["all", "staff", "liver", "shareholder"]).default("all"),
     }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
@@ -1226,7 +1226,7 @@ export const lcjCoinRouter = router({
       const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
 
       // 1. HRに登録済みのスタッフのみ取得（reportStaff起点でstaffをLEFT JOIN）
-      const hrStaffRaw = filterType === "liver" ? [] : await db
+      const hrStaffRaw = (filterType === "liver" || filterType === "shareholder") ? [] : await db
         .select({
           rsId: reportStaff.id,
           rsName: reportStaff.name,
@@ -1257,7 +1257,7 @@ export const lcjCoinRouter = router({
       }));
 
       // 2. 全アクティブライバーを取得（createdAt含む）
-      const allLivers = filterType === "staff" ? [] : await db
+      const allLivers = (filterType === "staff" || filterType === "shareholder") ? [] : await db
         .select({
           id: livers.id,
           name: livers.name,
@@ -1309,10 +1309,81 @@ export const lcjCoinRouter = router({
         return null;
       };
 
-      // 4. スタッフとライバーをマージ
+      // 3.6. 株主データを取得
+      const allShareholders = (filterType === "staff" || filterType === "liver") ? [] : await db
+        .select()
+        .from(lcjCoinShareholders)
+        .where(eq(lcjCoinShareholders.isActive, true))
+        .orderBy(desc(lcjCoinShareholders.shares));
+
+      // 株主の1株あたり価値を計算（dashboardと同じロジック）
+      const totalSharesForCalc = allShareholders.reduce((s, sh) => s + sh.shares, 0);
+      // 擬似時価総額はfiscalYearベースで計算済みのものを使う
+      const fiscalYear = getFiscalYearRange();
+      const gmvMonthlyDataForShares = await getTiktokTapMonthlySummary(0);
+      const commByMonth: Record<string, number> = {};
+      for (const m of gmvMonthlyDataForShares) {
+        commByMonth[m.reportMonth] = Number(m.totalActualPartnerCommission || 0);
+      }
+      // Brand contracts for FY
+      const brandContractsForShares = await db.select({
+        fixedFee: brandContracts.fixedFee,
+        startDate: brandContracts.startDate,
+        endDate: brandContracts.endDate,
+        serviceType: brandContracts.serviceType,
+      }).from(brandContracts)
+        .where(and(eq(brandContracts.status, "契約中"), isNull(brandContracts.deletedAt)));
+      const tspForShares = await db.select().from(tspContracts).where(eq(tspContracts.status, "active"));
+      // Calculate FY total
+      const brandByMonthSH: Record<string, number> = {};
+      const tspByMonthSH: Record<string, number> = {};
+      const nowMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      for (const month of fiscalYear.months) {
+        brandByMonthSH[month] = 0;
+        tspByMonthSH[month] = 0;
+      }
+      for (const c of brandContractsForShares) {
+        if (!c.fixedFee || !c.startDate || !c.endDate) continue;
+        const start = new Date(c.startDate);
+        const end = new Date(c.endDate);
+        const contractMonths = Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
+        const monthlyAmt = Number(c.fixedFee) / contractMonths;
+        for (const month of fiscalYear.months) {
+          if (month > nowMonth) break;
+          const [y, m] = month.split('-').map(Number);
+          const monthStart = new Date(y, m - 1, 1);
+          const monthEnd = new Date(y, m, 0);
+          if (start <= monthEnd && end >= monthStart) {
+            brandByMonthSH[month] += monthlyAmt;
+          }
+        }
+      }
+      for (const c of tspForShares) {
+        const monthly = Number(c.monthlyAmount || 0);
+        for (const month of fiscalYear.months) {
+          if (month > nowMonth) break;
+          const [y, m] = month.split('-').map(Number);
+          const monthStart = new Date(y, m - 1, 1);
+          const monthEnd = new Date(y, m, 0);
+          const cStart = c.contractStartDate ? new Date(c.contractStartDate) : new Date(0);
+          const cEnd = c.contractEndDate ? new Date(c.contractEndDate) : new Date(2099, 11, 31);
+          if (cStart <= monthEnd && cEnd >= monthStart) {
+            tspByMonthSH[month] += monthly;
+          }
+        }
+      }
+      let fyTotalForShares = 0;
+      for (const month of fiscalYear.months) {
+        if (month > nowMonth) break;
+        fyTotalForShares += (commByMonth[month] || 0) + (brandByMonthSH[month] || 0) + (tspByMonthSH[month] || 0);
+      }
+      const valuationForShares = fyTotalForShares * psrMultiplier;
+      const pricePerShare = totalSharesForCalc > 0 ? valuationForShares / totalSharesForCalc : 0;
+
+      // 4. スタッフとライバーと株主をマージ
       type MergedHolder = {
         id: number | null;
-        holderType: "staff" | "liver";
+        holderType: "staff" | "liver" | "shareholder";
         holderId: number;
         name: string;
         avatarUrl: string | null;
@@ -1328,13 +1399,17 @@ export const lcjCoinRouter = router({
         vestedValue: number;
         hasHolding: boolean;
         tierCode: string | null;
-        tenureMonths: number; // 在籍期間（月）
-        joinDate: string | null; // 入社日/登録日
-        // ライバー用: 月間配信データ
+        tenureMonths: number;
+        joinDate: string | null;
         monthlyHours: number | null;
         monthlyGmv: number | null;
         monthlyStreamCount: number | null;
         recommendedTier: string | null;
+        // 株主用フィールド
+        shares: number | null;
+        shareRatio: string | null;
+        shareType: string | null;
+        shareValue: number | null;
       };
 
       const merged: MergedHolder[] = [];
@@ -1353,6 +1428,39 @@ export const lcjCoinRouter = router({
         if (isNaN(dt.getTime())) return null;
         return dt.toISOString().split("T")[0];
       };
+
+      // 株主を先に追加
+      for (const sh of allShareholders) {
+        merged.push({
+          id: null,
+          holderType: "shareholder",
+          holderId: sh.id,
+          name: sh.name,
+          avatarUrl: null,
+          department: null,
+          position: null,
+          totalCoins: 0,
+          vestedCoins: 0,
+          exercisedCoins: 0,
+          level: 0,
+          xp: 0,
+          streak: 0,
+          totalValue: sh.shares * pricePerShare,
+          vestedValue: sh.shares * pricePerShare,
+          hasHolding: true, // 株主は常に保有あり
+          tierCode: null,
+          tenureMonths: 0,
+          joinDate: sh.acquisitionDate || null,
+          monthlyHours: null,
+          monthlyGmv: null,
+          monthlyStreamCount: null,
+          recommendedTier: null,
+          shares: sh.shares,
+          shareRatio: sh.ratio,
+          shareType: sh.shareType,
+          shareValue: sh.shares * pricePerShare,
+        });
+      }
 
       for (const s of allStaff) {
         const holding = holdingsMap.get(`staff_${s.id}`);
@@ -1381,6 +1489,10 @@ export const lcjCoinRouter = router({
           monthlyGmv: null,
           monthlyStreamCount: null,
           recommendedTier: null,
+          shares: null,
+          shareRatio: null,
+          shareType: null,
+          shareValue: null,
         });
       }
 
@@ -1415,6 +1527,10 @@ export const lcjCoinRouter = router({
           monthlyGmv: Math.round(mGmv),
           monthlyStreamCount: mCount,
           recommendedTier: calcRecommendedTier(mHours, mGmv, hasAnyStream),
+          shares: null,
+          shareRatio: null,
+          shareType: null,
+          shareValue: null,
         });
       }
 
@@ -1427,11 +1543,19 @@ export const lcjCoinRouter = router({
         );
       }
 
-      // 6. ソート: コイン保有者を先に（totalCoins降順）、未付与は最後
+      // 6. ソート: 資産価値降順（株主が上に来る）
       filtered.sort((a, b) => {
+        // 株主を最上位に
+        if (a.holderType === "shareholder" && b.holderType !== "shareholder") return -1;
+        if (a.holderType !== "shareholder" && b.holderType === "shareholder") return 1;
+        // 株主同士は株数順
+        if (a.holderType === "shareholder" && b.holderType === "shareholder") {
+          return (b.shares || 0) - (a.shares || 0);
+        }
+        // コイン保有者: 保有ありを先に、totalValue降順
         if (a.hasHolding && !b.hasHolding) return -1;
         if (!a.hasHolding && b.hasHolding) return 1;
-        if (a.totalCoins !== b.totalCoins) return b.totalCoins - a.totalCoins;
+        if (a.totalValue !== b.totalValue) return b.totalValue - a.totalValue;
         return a.name.localeCompare(b.name);
       });
 
@@ -1442,6 +1566,9 @@ export const lcjCoinRouter = router({
         holders: paged,
         total,
         coinPrice,
+        pricePerShare: Math.round(pricePerShare),
+        totalShares: totalSharesForCalc,
+        valuationAmount: Math.round(valuationForShares),
       };
     }),
 
