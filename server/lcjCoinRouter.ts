@@ -420,6 +420,7 @@ export const lcjCoinRouter = router({
           totalRevenue: fyTotalRevenue,
           monthsWithData: fiscalYearMonthsWithData,
           totalMonths: fiscalYearMonthlyBreakdown.length,
+          monthlyBreakdown: fiscalYearMonthlyBreakdown,
         },
       },
       gmv: {

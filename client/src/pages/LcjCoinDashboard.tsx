@@ -437,7 +437,7 @@ export default function LcjCoinDashboard() {
   // Separate queries for contract details (loaded on GMV tab)
   const brandContractDetailsQuery = trpc.lcjCoin.getBrandContractDetails.useQuery(undefined, { enabled: activeTab === "gmv" });
   const tspContractDetailsQuery = trpc.lcjCoin.getTspContractDetails.useQuery(undefined, { enabled: activeTab === "gmv" });
-  const monthlyRevenueQuery = trpc.lcjCoin.getMonthlyRevenueBreakdown.useQuery();
+  const monthlyRevenueQuery = trpc.lcjCoin.getMonthlyRevenueBreakdown.useQuery(undefined, { enabled: activeTab === "gmv" });
 
   // Mutations
   const grantMutation = trpc.lcjCoin.grantCoins.useMutation({
@@ -674,8 +674,22 @@ export default function LcjCoinDashboard() {
               <AnimatedCounter value={coinPrice} prefix="¥" decimals={2} />
             </span>
           </div>
-          <div className="mt-6 flex items-center justify-center gap-8 text-sm text-white/80">
-            <span>計算式: 当期売上実績合計（{dashboard?.valuation?.fiscalYear?.start || '2025-08'}〜{dashboard?.valuation?.fiscalYear?.end || '2026-07'}） × PSR {dashboard?.valuation?.psrMultiplier || 15}倍</span>
+          <div className="mt-6 space-y-2">
+            <div className="flex items-center justify-center gap-3 text-sm text-white/80">
+              <span>計算式: 当期売上実績合計 × PSR {dashboard?.valuation?.psrMultiplier || 15}倍</span>
+            </div>
+            <div className="flex items-center justify-center gap-4 text-xs">
+              <span className="px-3 py-1 rounded-full bg-orange-500/20 border border-orange-500/30 text-orange-300 font-semibold">
+                <Calendar className="w-3 h-3 inline mr-1" />
+                決算期: {dashboard?.valuation?.fiscalYear?.end || '2026-07'}月
+              </span>
+              <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70">
+                当期: {dashboard?.valuation?.fiscalYear?.start || '2025-08'} 〜 {dashboard?.valuation?.fiscalYear?.end || '2026-07'}
+              </span>
+              <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70">
+                {dashboard?.valuation?.fiscalYear?.monthsWithData || 0}ヶ月分実績
+              </span>
+            </div>
           </div>
           {/* Sparkline */}
           {gmvSparklineData.length > 1 && (
@@ -686,67 +700,78 @@ export default function LcjCoinDashboard() {
         </NeonCard>
 
         {/* ============================================================ */}
-        {/* Monthly Revenue Table (below hero) */}
+        {/* Monthly Revenue Table (below hero) - 当期月別売上 */}
         {/* ============================================================ */}
-        {monthlyRevenueQuery.data?.months?.length ? (
-          <NeonCard color="yellow" className="!py-4 !px-5">
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-white/90">
-              <BarChart3 className="w-4 h-4 text-yellow-400" />
-              月別売上推移
-            </h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-white/10 text-white/70">
-                    <th className="text-left py-2 px-2">月</th>
-                    <th className="text-right py-2 px-2">LCJ手数料</th>
-                    <th className="text-right py-2 px-2">ブランド契約</th>
-                    <th className="text-right py-2 px-2">単発</th>
-                    <th className="text-right py-2 px-2">TSP</th>
-                    <th className="text-right py-2 px-2">継続収益</th>
-                    <th className="text-right py-2 px-2 font-bold">全収益合計</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {monthlyRevenueQuery.data.months.map((m: any) => (
-                    <tr key={m.month} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
-                      <td className="py-2 px-2 font-mono text-white/80">{m.month}</td>
-                      <td className="py-2 px-2 text-right font-mono text-orange-400">{formatYenFull(m.lcjCommission)}</td>
-                      <td className="py-2 px-2 text-right font-mono text-purple-400">{formatYenFull(m.brandRecurring)}</td>
-                      <td className="py-2 px-2 text-right font-mono text-white/50">{m.brandSingle > 0 ? formatYenFull(m.brandSingle) : "-"}</td>
-                      <td className="py-2 px-2 text-right font-mono text-cyan-400">{formatYenFull(m.tsp)}</td>
-                      <td className="py-2 px-2 text-right font-mono font-semibold text-green-400">{formatYenFull(m.totalRecurring)}</td>
-                      <td className="py-2 px-2 text-right font-mono font-bold text-red-400">{formatYenFull(m.total)}</td>
+        {(() => {
+          const fyData = dashboard?.valuation?.fiscalYear?.monthlyBreakdown as any[] | undefined;
+          if (!fyData?.length) return null;
+          return (
+            <NeonCard color="yellow" className="!py-4 !px-5">
+              <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-white/90">
+                <BarChart3 className="w-4 h-4 text-yellow-400" />
+                当期月別売上推移
+                <span className="text-xs font-normal text-white/50 ml-2">
+                  {dashboard?.valuation?.fiscalYear?.start} 〜 {dashboard?.valuation?.fiscalYear?.end}（決算期: {dashboard?.valuation?.fiscalYear?.end}月）
+                </span>
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-white/10 text-white/70">
+                      <th className="text-left py-2 px-2">月</th>
+                      <th className="text-right py-2 px-2">LCJ手数料</th>
+                      <th className="text-right py-2 px-2">ブランド契約</th>
+                      <th className="text-right py-2 px-2">単発</th>
+                      <th className="text-right py-2 px-2">TSP</th>
+                      <th className="text-right py-2 px-2 font-bold">月合計</th>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-yellow-500/30">
-                    <td className="py-2 px-2 font-bold text-white/90">合計</td>
-                    <td className="py-2 px-2 text-right font-mono font-bold text-orange-400">
-                      {formatYenFull(monthlyRevenueQuery.data.months.reduce((s: number, m: any) => s + m.lcjCommission, 0))}
-                    </td>
-                    <td className="py-2 px-2 text-right font-mono font-bold text-purple-400">
-                      {formatYenFull(monthlyRevenueQuery.data.months.reduce((s: number, m: any) => s + m.brandRecurring, 0))}
-                    </td>
-                    <td className="py-2 px-2 text-right font-mono font-bold text-white/50">
-                      {formatYenFull(monthlyRevenueQuery.data.months.reduce((s: number, m: any) => s + m.brandSingle, 0))}
-                    </td>
-                    <td className="py-2 px-2 text-right font-mono font-bold text-cyan-400">
-                      {formatYenFull(monthlyRevenueQuery.data.months.reduce((s: number, m: any) => s + m.tsp, 0))}
-                    </td>
-                    <td className="py-2 px-2 text-right font-mono font-bold text-green-400">
-                      {formatYenFull(monthlyRevenueQuery.data.months.reduce((s: number, m: any) => s + m.totalRecurring, 0))}
-                    </td>
-                    <td className="py-2 px-2 text-right font-mono font-bold text-red-400 text-sm">
-                      {formatYenFull(monthlyRevenueQuery.data.months.reduce((s: number, m: any) => s + m.total, 0))}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </NeonCard>
-        ) : null}
+                  </thead>
+                  <tbody>
+                    {fyData.map((m: any) => (
+                      <tr key={m.month} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+                        <td className="py-2 px-2 font-mono text-white/80">{m.month}</td>
+                        <td className="py-2 px-2 text-right font-mono text-orange-400">{formatYenFull(m.lcjCommission)}</td>
+                        <td className="py-2 px-2 text-right font-mono text-purple-400">{formatYenFull(m.brandRecurring)}</td>
+                        <td className="py-2 px-2 text-right font-mono text-white/50">{m.brandSingle > 0 ? formatYenFull(m.brandSingle) : "-"}</td>
+                        <td className="py-2 px-2 text-right font-mono text-cyan-400">{formatYenFull(m.tsp)}</td>
+                        <td className="py-2 px-2 text-right font-mono font-bold text-red-400">{formatYenFull(m.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-yellow-500/30">
+                      <td className="py-2 px-2 font-bold text-white/90">当期合計</td>
+                      <td className="py-2 px-2 text-right font-mono font-bold text-orange-400">
+                        {formatYenFull(fyData.reduce((s: number, m: any) => s + m.lcjCommission, 0))}
+                      </td>
+                      <td className="py-2 px-2 text-right font-mono font-bold text-purple-400">
+                        {formatYenFull(fyData.reduce((s: number, m: any) => s + m.brandRecurring, 0))}
+                      </td>
+                      <td className="py-2 px-2 text-right font-mono font-bold text-white/50">
+                        {formatYenFull(fyData.reduce((s: number, m: any) => s + m.brandSingle, 0))}
+                      </td>
+                      <td className="py-2 px-2 text-right font-mono font-bold text-cyan-400">
+                        {formatYenFull(fyData.reduce((s: number, m: any) => s + m.tsp, 0))}
+                      </td>
+                      <td className="py-2 px-2 text-right font-mono font-bold text-red-400 text-sm">
+                        {formatYenFull(dashboard?.valuation?.fiscalYear?.totalRevenue || 0)}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan={5} className="py-2 px-2 text-right text-[10px] text-white/50">
+                        × PSR {dashboard?.valuation?.psrMultiplier || 15}倍 =
+                      </td>
+                      <td className="py-2 px-2 text-right font-mono font-bold text-lg"
+                        style={{ color: '#ff4444', textShadow: '0 0 15px rgba(255,68,68,0.4)' }}>
+                        {formatYenFull(dashboard?.valuation?.valuationAmount || 0)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </NeonCard>
+          );
+        })()}
 
         {/* ============================================================ */}
         {/* Stats Row */}
