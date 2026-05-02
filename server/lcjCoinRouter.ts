@@ -1534,10 +1534,21 @@ export const lcjCoinRouter = router({
         });
       }
 
+      // 4.5. 除外リストを適用（LCJコインページから削除されたメンバーを非表示）
+      const excludedRaw = settings["excluded_holders"] || "[]";
+      let excludedSet: Set<string> = new Set();
+      try {
+        const excludedArr: Array<{ holderType: string; holderId: number }> = JSON.parse(excludedRaw);
+        for (const e of excludedArr) {
+          excludedSet.add(`${e.holderType}_${e.holderId}`);
+        }
+      } catch { /* ignore parse errors */ }
+      const mergedFiltered = merged.filter(h => !excludedSet.has(`${h.holderType}_${h.holderId}`));
+
       // 5. 検索フィルタ
-      let filtered = merged;
+      let filtered = mergedFiltered;
       if (search) {
-        filtered = merged.filter(h =>
+        filtered = mergedFiltered.filter(h =>
           h.name.toLowerCase().includes(search) ||
           (h.department || "").toLowerCase().includes(search)
         );
@@ -2706,6 +2717,24 @@ export const lcjCoinRouter = router({
         eq(lcjCoinHoldings.holderType, holderType),
         eq(lcjCoinHoldings.holderId, holderId)
       ));
+
+      // 3. Add to excluded list (settings) so they don't appear in holders list
+      const settingsMap = await getSettingsMap(db);
+      const excludedRaw = settingsMap["excluded_holders"] || "[]";
+      let excludedList: Array<{ holderType: string; holderId: number }> = [];
+      try { excludedList = JSON.parse(excludedRaw); } catch { excludedList = []; }
+      // Add if not already in list
+      const alreadyExcluded = excludedList.some(e => e.holderType === holderType && e.holderId === holderId);
+      if (!alreadyExcluded) {
+        excludedList.push({ holderType, holderId });
+        const newValue = JSON.stringify(excludedList);
+        const [existing] = await db.select().from(lcjCoinSettings).where(eq(lcjCoinSettings.settingKey, "excluded_holders")).limit(1);
+        if (existing) {
+          await db.update(lcjCoinSettings).set({ settingValue: newValue }).where(eq(lcjCoinSettings.settingKey, "excluded_holders"));
+        } else {
+          await db.insert(lcjCoinSettings).values({ settingKey: "excluded_holders", settingValue: newValue, description: "LCJコイン保有者一覧から除外されたメンバー", category: "general" });
+        }
+      }
 
       return { success: true, deletedHoldingId: holding?.id || null };
     }),
