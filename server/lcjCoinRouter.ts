@@ -1309,6 +1309,8 @@ export const lcjCoinRouter = router({
         return null;
       };
 
+      const now = new Date();
+
       // 3.6. 株主データを取得
       const allShareholders = (filterType === "staff" || filterType === "liver") ? [] : await db
         .select()
@@ -1413,8 +1415,6 @@ export const lcjCoinRouter = router({
       };
 
       const merged: MergedHolder[] = [];
-
-      const now = new Date();
       const calcTenureMonths = (d: Date | string | null): number => {
         if (!d) return 0;
         const dt = typeof d === "string" ? new Date(d) : d;
