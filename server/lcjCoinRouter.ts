@@ -2510,6 +2510,79 @@ export const lcjCoinRouter = router({
     }),
 
   // ============================================================
+  // Delete Holder: 保有者を削除（holdings + transactions + vesting + badges + ranking + peer_bonuses + buyback_requests）
+  // ============================================================
+  deleteHolder: protectedProcedure
+    .input(z.object({
+      holderType: z.enum(["staff", "liver"]),
+      holderId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      const { holderType, holderId } = input;
+
+      // 1. Find the holding record
+      const [holding] = await db
+        .select({ id: lcjCoinHoldings.id })
+        .from(lcjCoinHoldings)
+        .where(and(
+          eq(lcjCoinHoldings.holderType, holderType),
+          eq(lcjCoinHoldings.holderId, holderId)
+        ))
+        .limit(1);
+
+      // 2. Delete related records (order matters for FK-like constraints)
+      // Buyback requests
+      await db.delete(lcjCoinBuybackRequests).where(and(
+        eq(lcjCoinBuybackRequests.holderType, holderType),
+        eq(lcjCoinBuybackRequests.holderId, holderId)
+      ));
+
+      // Peer bonuses (sent & received)
+      await db.delete(lcjCoinPeerBonuses).where(and(
+        eq(lcjCoinPeerBonuses.senderHolderType, holderType),
+        eq(lcjCoinPeerBonuses.senderHolderId, holderId)
+      ));
+      await db.delete(lcjCoinPeerBonuses).where(and(
+        eq(lcjCoinPeerBonuses.receiverHolderType, holderType),
+        eq(lcjCoinPeerBonuses.receiverHolderId, holderId)
+      ));
+
+      // Ranking history
+      await db.delete(lcjCoinRankingHistory).where(and(
+        eq(lcjCoinRankingHistory.holderType, holderType),
+        eq(lcjCoinRankingHistory.holderId, holderId)
+      ));
+
+      // Badge awards
+      await db.delete(lcjCoinBadgeAwards).where(and(
+        eq(lcjCoinBadgeAwards.holderType, holderType),
+        eq(lcjCoinBadgeAwards.holderId, holderId)
+      ));
+
+      // Vesting schedules
+      await db.delete(lcjCoinVestingSchedules).where(and(
+        eq(lcjCoinVestingSchedules.holderType, holderType),
+        eq(lcjCoinVestingSchedules.holderId, holderId)
+      ));
+
+      // Transactions
+      await db.delete(lcjCoinTransactions).where(and(
+        eq(lcjCoinTransactions.holderType, holderType),
+        eq(lcjCoinTransactions.holderId, holderId)
+      ));
+
+      // Holdings
+      await db.delete(lcjCoinHoldings).where(and(
+        eq(lcjCoinHoldings.holderType, holderType),
+        eq(lcjCoinHoldings.holderId, holderId)
+      ));
+
+      return { success: true, deletedHoldingId: holding?.id || null };
+    }),
+
+  // ============================================================
   // My Page: 自分のLCJコイン情報を取得（スタッフ/ライバー共通）
   // ============================================================
   getMyPage: publicProcedure

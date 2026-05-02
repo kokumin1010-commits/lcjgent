@@ -437,7 +437,7 @@ export default function LcjCoinDashboard() {
   // Separate queries for contract details (loaded on GMV tab)
   const brandContractDetailsQuery = trpc.lcjCoin.getBrandContractDetails.useQuery(undefined, { enabled: activeTab === "gmv" });
   const tspContractDetailsQuery = trpc.lcjCoin.getTspContractDetails.useQuery(undefined, { enabled: activeTab === "gmv" });
-  const monthlyRevenueQuery = trpc.lcjCoin.getMonthlyRevenueBreakdown.useQuery(undefined, { enabled: activeTab === "gmv" });
+  const monthlyRevenueQuery = trpc.lcjCoin.getMonthlyRevenueBreakdown.useQuery();
 
   // Mutations
   const grantMutation = trpc.lcjCoin.grantCoins.useMutation({
@@ -505,6 +505,15 @@ export default function LcjCoinDashboard() {
       holdersQuery.refetch();
     },
     onError: (e) => toast.error(`エラー: ${e.message}`),
+  });
+
+  const deleteHolderMutation = trpc.lcjCoin.deleteHolder.useMutation({
+    onSuccess: () => {
+      toast.success("保有者を削除しました");
+      holdersQuery.refetch();
+      dashboardQuery.refetch();
+    },
+    onError: (e) => toast.error(`削除エラー: ${e.message}`),
   });
 
   // Derived data
@@ -675,6 +684,69 @@ export default function LcjCoinDashboard() {
             </div>
           )}
         </NeonCard>
+
+        {/* ============================================================ */}
+        {/* Monthly Revenue Table (below hero) */}
+        {/* ============================================================ */}
+        {monthlyRevenueQuery.data?.months?.length ? (
+          <NeonCard color="yellow" className="!py-4 !px-5">
+            <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-white/90">
+              <BarChart3 className="w-4 h-4 text-yellow-400" />
+              月別売上推移
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-white/10 text-white/70">
+                    <th className="text-left py-2 px-2">月</th>
+                    <th className="text-right py-2 px-2">LCJ手数料</th>
+                    <th className="text-right py-2 px-2">ブランド契約</th>
+                    <th className="text-right py-2 px-2">単発</th>
+                    <th className="text-right py-2 px-2">TSP</th>
+                    <th className="text-right py-2 px-2">継続収益</th>
+                    <th className="text-right py-2 px-2 font-bold">全収益合計</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyRevenueQuery.data.months.map((m: any) => (
+                    <tr key={m.month} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+                      <td className="py-2 px-2 font-mono text-white/80">{m.month}</td>
+                      <td className="py-2 px-2 text-right font-mono text-orange-400">{formatYenFull(m.lcjCommission)}</td>
+                      <td className="py-2 px-2 text-right font-mono text-purple-400">{formatYenFull(m.brandRecurring)}</td>
+                      <td className="py-2 px-2 text-right font-mono text-white/50">{m.brandSingle > 0 ? formatYenFull(m.brandSingle) : "-"}</td>
+                      <td className="py-2 px-2 text-right font-mono text-cyan-400">{formatYenFull(m.tsp)}</td>
+                      <td className="py-2 px-2 text-right font-mono font-semibold text-green-400">{formatYenFull(m.totalRecurring)}</td>
+                      <td className="py-2 px-2 text-right font-mono font-bold text-red-400">{formatYenFull(m.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-yellow-500/30">
+                    <td className="py-2 px-2 font-bold text-white/90">合計</td>
+                    <td className="py-2 px-2 text-right font-mono font-bold text-orange-400">
+                      {formatYenFull(monthlyRevenueQuery.data.months.reduce((s: number, m: any) => s + m.lcjCommission, 0))}
+                    </td>
+                    <td className="py-2 px-2 text-right font-mono font-bold text-purple-400">
+                      {formatYenFull(monthlyRevenueQuery.data.months.reduce((s: number, m: any) => s + m.brandRecurring, 0))}
+                    </td>
+                    <td className="py-2 px-2 text-right font-mono font-bold text-white/50">
+                      {formatYenFull(monthlyRevenueQuery.data.months.reduce((s: number, m: any) => s + m.brandSingle, 0))}
+                    </td>
+                    <td className="py-2 px-2 text-right font-mono font-bold text-cyan-400">
+                      {formatYenFull(monthlyRevenueQuery.data.months.reduce((s: number, m: any) => s + m.tsp, 0))}
+                    </td>
+                    <td className="py-2 px-2 text-right font-mono font-bold text-green-400">
+                      {formatYenFull(monthlyRevenueQuery.data.months.reduce((s: number, m: any) => s + m.totalRecurring, 0))}
+                    </td>
+                    <td className="py-2 px-2 text-right font-mono font-bold text-red-400 text-sm">
+                      {formatYenFull(monthlyRevenueQuery.data.months.reduce((s: number, m: any) => s + m.total, 0))}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </NeonCard>
+        ) : null}
 
         {/* ============================================================ */}
         {/* Stats Row */}
@@ -1783,6 +1855,7 @@ export default function LcjCoinDashboard() {
                       <th className="text-right py-3 px-3">確定済み</th>
                       <th className="text-right py-3 px-3">資産価値</th>
                       <th className="text-center py-3 px-3">Lv</th>
+                      <th className="text-center py-3 px-2 w-10"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1894,6 +1967,19 @@ export default function LcjCoinDashboard() {
                               -
                             </span>
                           )}
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          <button
+                            className="p-1.5 rounded-lg text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                            title="保有者を削除"
+                            onClick={() => {
+                              if (window.confirm(`${h.name} をLCJコイン保有者から削除しますか？\n\n※ コイン付与履歴・ベスティング・バッジ等すべて削除されます。\n※ スタッフ/ライバー本体のデータは削除されません。`)) {
+                                deleteHolderMutation.mutate({ holderType: h.holderType, holderId: h.holderId });
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </td>
                       </tr>
                     ))}
