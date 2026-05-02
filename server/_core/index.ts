@@ -23,6 +23,7 @@ import { startArticleRewriter } from "../articleRewriter";
 import { initPointExpiryScheduler } from "../pointExpiryScheduler";
 import { startStepEmailScheduler } from "../stepEmailScheduler";
 import { startLiveSuggestionScheduler } from "../liveSuggestionScheduler";
+import { startPeerBonusResetScheduler } from "../peerBonusResetScheduler";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
 
@@ -2017,6 +2018,9 @@ async function startServer() {
     
     // Start AI live suggestion scheduler (sends daily suggestions at JST 07:00)
     startLiveSuggestionScheduler();
+    
+    // Start peer bonus monthly reset scheduler (resets pool on 1st of each month JST)
+    startPeerBonusResetScheduler();
     
     // Ensure lineReceipts.orderNumber column exists and backfill from ocrRawText
     import("../db").then(({ ensureLineReceiptsOrderNumberColumn, backfillOrderNumbers }) => {
