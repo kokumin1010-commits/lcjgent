@@ -1283,6 +1283,8 @@ export const lcjCoinRouter = router({
       const filterType = input?.filterType || "all";
 
       const settings = await getSettingsMap(db);
+      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
+      const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
       const { coinPrice } = await getFYCoinPrice(db, settings);
       // 1. HRに登録済みのスタッフのみ取得（reportStaff起点でstaffをLEFT JOIN））
       const hrStaffRaw = (filterType === "liver" || filterType === "shareholder") ? [] : await db
