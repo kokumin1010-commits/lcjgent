@@ -88,7 +88,87 @@ function calculateValuationFromTotal(totalRevenue: number, psrMultiplier: number
 }
 
 // ============================================================
-// Helper: Calculate valuation from monthly revenue
+// Helper: Get FY-based coin price (shared across all procedures)
+// Uses fiscal year total revenue × PSR for valuation
+// ============================================================
+async function getFYCoinPrice(db: any, settings: Record<string, string>): Promise<{ coinPrice: number; valuation: number; fyTotal: number }> {
+  const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
+  const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
+  const fiscalYear = getFiscalYearRange();
+  const nowMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+  // 1. TikTok TAP commission by month
+  let gmvMonthlyData: any[] = [];
+  try { gmvMonthlyData = await getTiktokTapMonthlySummary(0); } catch (e) { console.error("[getFYCoinPrice] TAP error:", e); }
+  const commissionByMonth: Record<string, number> = {};
+  for (const m of gmvMonthlyData) {
+    commissionByMonth[m.reportMonth] = Number(m.totalActualPartnerCommission || 0);
+  }
+
+  // 2. Brand contracts by month
+  const brandByMonthFY: Record<string, { recurring: number; single: number }> = {};
+  for (const month of fiscalYear.months) brandByMonthFY[month] = { recurring: 0, single: 0 };
+  try {
+    const allContracts = await db.select({
+      fixedFee: brandContracts.fixedFee,
+      startDate: brandContracts.startDate,
+      endDate: brandContracts.endDate,
+      serviceType: brandContracts.serviceType,
+    }).from(brandContracts).where(and(eq(brandContracts.status, "契約中"), isNull(brandContracts.deletedAt)));
+    for (const c of allContracts) {
+      if (!c.fixedFee) continue;
+      const isSingle = (c.serviceType || "").includes("単発");
+      if (c.startDate && c.endDate) {
+        const start = new Date(c.startDate);
+        const end = new Date(c.endDate);
+        const months = Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
+        const monthly = Number(c.fixedFee) / months;
+        for (const month of fiscalYear.months) {
+          const [y, m] = month.split('-').map(Number);
+          const ms = new Date(y, m - 1, 1), me = new Date(y, m, 0);
+          if (start <= me && end >= ms) {
+            if (isSingle) brandByMonthFY[month].single += monthly;
+            else brandByMonthFY[month].recurring += monthly;
+          }
+        }
+      }
+    }
+  } catch (e) { console.error("[getFYCoinPrice] Brand error:", e); }
+
+  // 3. TSP contracts by month
+  const tspByMonthFY: Record<string, number> = {};
+  for (const month of fiscalYear.months) tspByMonthFY[month] = 0;
+  try {
+    const activeTsp = await db.select({
+      monthlyAmount: tspContracts.monthlyAmount,
+      contractStartDate: tspContracts.contractStartDate,
+      contractEndDate: tspContracts.contractEndDate,
+    }).from(tspContracts).where(eq(tspContracts.status, "active"));
+    for (const c of activeTsp) {
+      const fee = Number(c.monthlyAmount || 0);
+      for (const month of fiscalYear.months) {
+        const [y, m] = month.split('-').map(Number);
+        const ms = new Date(y, m - 1, 1), me = new Date(y, m, 0);
+        const cStart = c.contractStartDate ? new Date(c.contractStartDate) : new Date(0);
+        const cEnd = c.contractEndDate ? new Date(c.contractEndDate) : new Date(2099, 11, 31);
+        if (cStart <= me && cEnd >= ms) tspByMonthFY[month] += fee;
+      }
+    }
+  } catch (e) { console.error("[getFYCoinPrice] TSP error:", e); }
+
+  // 4. Sum fiscal year total
+  let fyTotal = 0;
+  for (const month of fiscalYear.months) {
+    if (month > nowMonth) break;
+    fyTotal += (commissionByMonth[month] || 0) + (brandByMonthFY[month]?.recurring || 0) + (brandByMonthFY[month]?.single || 0) + (tspByMonthFY[month] || 0);
+  }
+
+  const { valuation } = calculateValuationFromTotal(Math.round(fyTotal), psrMultiplier);
+  const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
+  return { coinPrice, valuation, fyTotal };
+}
+// ============================================================
+// Helper: Calculate valuation from monthly revenue (legacy)
 // ============================================================
 function calculateValuation(monthlyRevenue: number, psrMultiplier: number) {
   const annualRevenue = monthlyRevenue * 12;
@@ -710,13 +790,10 @@ export const lcjCoinRouter = router({
       if (!db) throw new Error("DB not available");
 
       const settings = await getSettingsMap(db);
-      const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
       const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
       const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
       const xpPerLevel = parseInt(settings.xp_per_level || "1000");
-
-      const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
-      const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
+      const { coinPrice } = await getFYCoinPrice(db, settings);
 
       // Get holding
       const [holding] = await db
@@ -809,12 +886,7 @@ export const lcjCoinRouter = router({
       const limit = input?.limit || 20;
 
       const settings = await getSettingsMap(db);
-      const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
-      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
-      const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
-      const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
-      const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
-
+      const { coinPrice } = await getFYCoinPrice(db, settings);
       const holdings = await db
         .select()
         .from(lcjCoinHoldings)
@@ -961,13 +1033,9 @@ export const lcjCoinRouter = router({
       const defaultVestingRates = JSON.parse(settings.default_vesting_rates || '{"year1":5,"year2":15,"year3":40,"year4":40}');
       const vestingPeriodMonths = parseInt(settings.vesting_period_months || "48");
       const cliffMonths = parseInt(settings.cliff_months || "12");
-      const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
-      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
+      const { coinPrice } = await getFYCoinPrice(db, settings);
       const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
-      const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
-      const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
-
-      // Pool check: staff → option_pool, liver → creator_pool
+      // Pool check: staff → option_pool, liver → creator_pooll
       const isCreator = input.holderType === "liver";
       const poolSize = isCreator
         ? parseInt(settings.creator_pool_size || "200000")
@@ -1069,13 +1137,9 @@ export const lcjCoinRouter = router({
       const defaultVestingRates = JSON.parse(settings.default_vesting_rates || '{"year1":5,"year2":15,"year3":40,"year4":40}');
       const vestingPeriodMonths = parseInt(settings.vesting_period_months || "48");
       const cliffMonths = parseInt(settings.cliff_months || "12");
-      const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
-      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
+      const { coinPrice } = await getFYCoinPrice(db, settings);
       const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
-      const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
-      const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
-
-          // Collect targets
+          // Collect targetss
       let grantedCount = 0;
       const staffTargets: { holderType: "staff" | "liver"; holderId: number }[] = [];
       const liverTargets: { holderType: "staff" | "liver"; holderId: number }[] = [];
@@ -1219,13 +1283,8 @@ export const lcjCoinRouter = router({
       const filterType = input?.filterType || "all";
 
       const settings = await getSettingsMap(db);
-      const monthlyRevenue = parseFloat(settings.monthly_revenue || "0");
-      const psrMultiplier = parseFloat(settings.psr_multiplier || "15");
-      const totalCoinsPool = parseInt(settings.total_coins_pool || "10000000");
-      const { valuation } = calculateValuation(monthlyRevenue, psrMultiplier);
-      const coinPrice = calculateCoinPrice(valuation, totalCoinsPool);
-
-      // 1. HRに登録済みのスタッフのみ取得（reportStaff起点でstaffをLEFT JOIN）
+      const { coinPrice } = await getFYCoinPrice(db, settings);
+      // 1. HRに登録済みのスタッフのみ取得（reportStaff起点でstaffをLEFT JOIN））
       const hrStaffRaw = (filterType === "liver" || filterType === "shareholder") ? [] : await db
         .select({
           rsId: reportStaff.id,
