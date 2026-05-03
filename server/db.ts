@@ -22054,3 +22054,62 @@ export async function resolveLineUserIdByName(liverName: string): Promise<string
     return null;
   }
 }
+
+/**
+ * Get liver's monthly goal by name (for suggestion scheduler)
+ * Returns salesGoal, streamCountGoal, and current progress
+ */
+export async function getLiverMonthlyGoalByName(liverName: string): Promise<{
+  salesGoal: number;
+  streamCountGoal: number;
+  currentSales: number;
+  currentStreamCount: number;
+  achievementRate: number;
+} | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    // Find liver by name
+    const liver = await db
+      .select({ id: livers.id })
+      .from(livers)
+      .where(eq(livers.name, liverName))
+      .limit(1);
+    if (liver.length === 0) return null;
+    
+    const liverId = liver[0].id;
+    
+    // Get current month in JST
+    const now = new Date();
+    const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const year = jstNow.getFullYear();
+    const month = jstNow.getMonth() + 1;
+    
+    const goal = await db.select()
+      .from(liverGoals)
+      .where(and(
+        eq(liverGoals.liverId, liverId),
+        eq(liverGoals.year, year),
+        eq(liverGoals.month, month)
+      ))
+      .limit(1);
+    
+    if (goal.length === 0) return null;
+    
+    const g = goal[0];
+    const salesGoal = Number(g.salesGoal || 0);
+    const currentSales = Number(g.currentSales || 0);
+    const achievementRate = salesGoal > 0 ? Math.round(currentSales / salesGoal * 1000) / 10 : 0;
+    
+    return {
+      salesGoal,
+      streamCountGoal: Number(g.streamCountGoal || 0),
+      currentSales,
+      currentStreamCount: Number(g.currentStreamCount || 0),
+      achievementRate,
+    };
+  } catch (err) {
+    console.error("[getLiverMonthlyGoalByName] error:", err);
+    return null;
+  }
+}

@@ -30,6 +30,7 @@ import {
   getLiverMonthlySummaryV2,
   getRecentLivestreamDataV2,
   resolveLineUserIdByName,
+  getLiverMonthlyGoalByName,
 } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { pushMessage } from "./line";
@@ -235,6 +236,15 @@ export async function runDailyLiveSuggestion(): Promise<void> {
           'resolveLineUserId',
           liverName
         );
+        
+        // 8. Monthly goal (salesGoal, achievement rate)
+        const monthlyGoal = await safeDbCall(
+          () => getLiverMonthlyGoalByName(liverName),
+          null,
+          'monthlyGoal',
+          liverName
+        );
+        console.log(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] monthlyGoal: ${monthlyGoal ? `¥${monthlyGoal.salesGoal.toLocaleString()} (${monthlyGoal.achievementRate}%)` : 'null'}`);
         // Use resolved lineUserId or fall back to schedule's liverLineUserId
         const firstSchedule = liverSchedules[0];
         const lineUserId = resolvedLineUserId || firstSchedule.liverLineUserId || null;
@@ -250,13 +260,34 @@ export async function runDailyLiveSuggestion(): Promise<void> {
           const endTime = s.endTime ? new Date(s.endTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : '';
           contextInfo += `- ${startTime}${endTime ? `〜${endTime}` : ''} ${s.title}\n`;
           if (s.startTime && s.endTime) {
-            const diffMs = new Date(s.endTime).getTime() - new Date(s.startTime).getTime();
+            let diffMs = new Date(s.endTime).getTime() - new Date(s.startTime).getTime();
+            // Handle overnight streams (e.g., 22:00 -> 02:00)
+            if (diffMs < 0) diffMs += 24 * 60 * 60 * 1000;
             if (diffMs > 0) totalScheduledMinutes += diffMs / 60000;
           }
         }
         const scheduledHours = Math.round(totalScheduledMinutes / 60 * 10) / 10;
         if (scheduledHours > 0) {
           contextInfo += `→ 合計配信予定: ${scheduledHours}時間\n`;
+        }
+        
+        // Monthly goal (from liver_goals table)
+        if (monthlyGoal && monthlyGoal.salesGoal > 0) {
+          contextInfo += `\n### 🎯 月間目標\n`;
+          contextInfo += `月間売上目標: ¥${monthlyGoal.salesGoal.toLocaleString()}\n`;
+          contextInfo += `今月の売上実績: ¥${monthlyGoal.currentSales.toLocaleString()}\n`;
+          contextInfo += `達成率: ${monthlyGoal.achievementRate}%\n`;
+          const remaining = monthlyGoal.salesGoal - monthlyGoal.currentSales;
+          if (remaining > 0) {
+            contextInfo += `残り: ¥${remaining.toLocaleString()}\n`;
+            if (monthlyGoal.streamCountGoal > 0) {
+              const remainingStreams = Math.max(0, monthlyGoal.streamCountGoal - monthlyGoal.currentStreamCount);
+              if (remainingStreams > 0) {
+                const perStream = Math.round(remaining / remainingStreams);
+                contextInfo += `残り配信回数: ${remainingStreams}回（1配信あたり¥${perStream.toLocaleString()}必要）\n`;
+              }
+            }
+          }
         }
         
         // Monthly performance (MOST IMPORTANT)
@@ -362,7 +393,11 @@ export async function runDailyLiveSuggestion(): Promise<void> {
 ライバーの実際の売上データを分析し、今日の配信に直接役立つ具体的な提案を作成してください。
 
 【出力フォーマット（厳守）】
-🎯 目標: [データにある時間単価×配信時間の計算結果をそのまま記載。データに「今日の売上目標（自動計算）」があればその数値をそのまま使う]
+🎯 目標:
+• 今日の配信: [配信時間]時間
+• 時間単価: ¥[XX,XXX]（[今月/先月]実績）
+• 今日の売上目安: ¥[XX,XXX]（時間単価×配信時間）
+• 月間目標: ¥[X,XXX,XXX] / 達成率[XX]% / 残り¥[X,XXX,XXX]
 
 📦 推奨商品（売れ筋順）:
 1. [データの売れ筋リストから商品名をそのままコピー] - [なぜこの商品を推すか1行]
@@ -376,16 +411,17 @@ export async function runDailyLiveSuggestion(): Promise<void> {
 - [終盤-30分]〜[終了]: ラストチャンス告知・まとめ
 
 💡 今日の戦略:
-[時間単価のトレンド（上昇/下降）に基づく具体的アドバイス。例：「先月より時間単価が下がっているので、高単価商品Xを前半に持ってきて早めに売上を作りましょう」]
+[月間目標の達成状況と時間単価のトレンドに基づく具体的アドバイス。例：「月間目標まであと¥XX万、今日は高単価商品Xを前半に持ってきて早めに売上を作りましょう」]
 
 【絶対厳守ルール】
-- 売上目標はデータの「今日の売上目標（自動計算）」の数値をそのまま使え。自分で計算するな
-- 「今日の売上目標（自動計算）」がない場合、目標セクションは「データ不足のため省略」と書け
+- 目標セクションの数値はデータの数値をそのまま使え。自分で計算するな
+- 「今日の売上目標（自動計算）」がデータにあればその数値をそのまま使う
+- 月間目標データがあれば必ず目標セクションに含めること
 - 商品名はデータの「売れ筋商品」「取扱商品一覧」「全体の売れ筋」からそのまま引用。架空の商品名は絶対禁止
 - 商品データがない場合、商品セクションは省略
 - ノルマありブランドの商品を最優先で推奨
 - 配信タイムラインは実際のスケジュール時間に合わせる
-- 400文字以内。前向きで具体的なトーンで`;
+- 500文字以内。前向きで具体的なトーンで`;
 
         const userPrompt = `${liverName}さんの今日の配信提案:\n\n${contextInfo}`;
         
@@ -412,8 +448,16 @@ export async function runDailyLiveSuggestion(): Promise<void> {
           const effectiveRate = monthlySummary 
             ? (monthlySummary.current.hourlyRate > 0 ? monthlySummary.current.hourlyRate : monthlySummary.prev.hourlyRate)
             : 0;
+          let fallbackGoal = '';
           if (effectiveRate > 0 && scheduledHours > 0) {
-            suggestionText = `🎯 目標: ¥${Math.round(effectiveRate * scheduledHours).toLocaleString()}（時間単価¥${effectiveRate.toLocaleString()} × ${scheduledHours}h）\n\n${liverName}さん、今日も配信頑張りましょう！🔥\n視聴者とのコミュニケーションを大切に、楽しい配信を目指しましょう！`;
+            fallbackGoal += `🎯 目標:\n• 今日の配信: ${scheduledHours}時間\n• 時間単価: ¥${effectiveRate.toLocaleString()}\n• 今日の売上目安: ¥${Math.round(effectiveRate * scheduledHours).toLocaleString()}`;
+          }
+          if (monthlyGoal && monthlyGoal.salesGoal > 0) {
+            const remaining = monthlyGoal.salesGoal - monthlyGoal.currentSales;
+            fallbackGoal += `${fallbackGoal ? '\n' : '🎯 目標:\n'}• 月間目標: ¥${monthlyGoal.salesGoal.toLocaleString()} / 達成率${monthlyGoal.achievementRate}% / 残り¥${remaining.toLocaleString()}`;
+          }
+          if (fallbackGoal) {
+            suggestionText = `${fallbackGoal}\n\n${liverName}さん、今日も配信頑張りましょう！🔥\n視聴者とのコミュニケーションを大切に、楽しい配信を目指しましょう！`;
           } else {
             suggestionText = `${liverName}さん、今日も配信頑張りましょう！🔥\n視聴者とのコミュニケーションを大切に、楽しい配信を目指しましょう！`;
           }
@@ -648,6 +692,16 @@ export async function runSingleLiverSuggestion(targetLiverName: string): Promise
       'resolveLineUserId',
       targetLiverName
     );
+    
+    // 8. Monthly goal
+    const monthlyGoal = await safeDbCall(
+      () => getLiverMonthlyGoalByName(targetLiverName),
+      null,
+      'monthlyGoal',
+      targetLiverName
+    );
+    console.log(`${LOG_PREFIX} [SingleLiver] monthlyGoal: ${monthlyGoal ? `\u00a5${monthlyGoal.salesGoal.toLocaleString()} (${monthlyGoal.achievementRate}%)` : 'null'}`);
+    
     const firstSchedule = liverSchedules[0];
     const lineUserId = resolvedLineUserId || firstSchedule.liverLineUserId || null;
     
@@ -661,13 +715,34 @@ export async function runSingleLiverSuggestion(targetLiverName: string): Promise
       const endTime = s.endTime ? new Date(s.endTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : '';
       contextInfo += `- ${startTime}${endTime ? `〜${endTime}` : ''} ${s.title}\n`;
       if (s.startTime && s.endTime) {
-        const diffMs = new Date(s.endTime).getTime() - new Date(s.startTime).getTime();
+        let diffMs = new Date(s.endTime).getTime() - new Date(s.startTime).getTime();
+        // Handle overnight streams (e.g., 22:00 -> 02:00)
+        if (diffMs < 0) diffMs += 24 * 60 * 60 * 1000;
         if (diffMs > 0) totalScheduledMinutes += diffMs / 60000;
       }
     }
     const scheduledHours = Math.round(totalScheduledMinutes / 60 * 10) / 10;
     if (scheduledHours > 0) {
       contextInfo += `→ 合計配信予定: ${scheduledHours}時間\n`;
+    }
+    
+    // Monthly goal (from liver_goals table)
+    if (monthlyGoal && monthlyGoal.salesGoal > 0) {
+      contextInfo += `\n### 🎯 月間目標\n`;
+      contextInfo += `月間売上目標: ¥${monthlyGoal.salesGoal.toLocaleString()}\n`;
+      contextInfo += `今月の売上実績: ¥${monthlyGoal.currentSales.toLocaleString()}\n`;
+      contextInfo += `達成率: ${monthlyGoal.achievementRate}%\n`;
+      const remaining = monthlyGoal.salesGoal - monthlyGoal.currentSales;
+      if (remaining > 0) {
+        contextInfo += `残り: ¥${remaining.toLocaleString()}\n`;
+        if (monthlyGoal.streamCountGoal > 0) {
+          const remainingStreams = Math.max(0, monthlyGoal.streamCountGoal - monthlyGoal.currentStreamCount);
+          if (remainingStreams > 0) {
+            const perStream = Math.round(remaining / remainingStreams);
+            contextInfo += `残り配信回数: ${remainingStreams}回（1配信あたり¥${perStream.toLocaleString()}必要）\n`;
+          }
+        }
+      }
     }
     
     if (monthlySummary) {
@@ -764,7 +839,11 @@ export async function runSingleLiverSuggestion(targetLiverName: string): Promise
 ライバーの実際の売上データを分析し、今日の配信に直接役立つ具体的な提案を作成してください。
 
 【出力フォーマット（厳守）】
-🎯 目標: [データにある時間単価×配信時間の計算結果をそのまま記載。データに「今日の売上目標（自動計算）」があればその数値をそのまま使う]
+🎯 目標:
+• 今日の配信: [配信時間]時間
+• 時間単価: ¥[XX,XXX]（[今月/先月]実績）
+• 今日の売上目安: ¥[XX,XXX]（時間単価×配信時間）
+• 月間目標: ¥[X,XXX,XXX] / 達成率[XX]% / 残り¥[X,XXX,XXX]
 
 📦 推奨商品（売れ筋順）:
 1. [データの売れ筋リストから商品名をそのままコピー] - [なぜこの商品を推すか1行]
@@ -778,16 +857,17 @@ export async function runSingleLiverSuggestion(targetLiverName: string): Promise
 - [終盤-30分]〜[終了]: ラストチャンス告知・まとめ
 
 💡 今日の戦略:
-[時間単価のトレンド（上昇/下降）に基づく具体的アドバイス。例：「先月より時間単価が下がっているので、高単価商品Xを前半に持ってきて早めに売上を作りましょう」]
+[月間目標の達成状況と時間単価のトレンドに基づく具体的アドバイス。例：「月間目標まであと¥XX万、今日は高単価商品Xを前半に持ってきて早めに売上を作りましょう」]
 
 【絶対厳守ルール】
-- 売上目標はデータの「今日の売上目標（自動計算）」の数値をそのまま使え。自分で計算するな
-- 「今日の売上目標（自動計算）」がない場合、目標セクションは「データ不足のため省略」と書け
+- 目標セクションの数値はデータの数値をそのまま使え。自分で計算するな
+- 「今日の売上目標（自動計算）」がデータにあればその数値をそのまま使う
+- 月間目標データがあれば必ず目標セクションに含めること
 - 商品名はデータの「売れ筋商品」「取扱商品一覧」「全体の売れ筋」からそのまま引用。架空の商品名は絶対禁止
 - 商品データがない場合、商品セクションは省略
 - ノルマありブランドの商品を最優先で推奨
 - 配信タイムラインは実際のスケジュール時間に合わせる
-- 400文字以内。前向きで具体的なトーンで`;
+- 500文字以内。前向きで具体的なトーンで`;
 
     const userPrompt = `${targetLiverName}さんの今日の配信提案:\n\n${contextInfo}`;
     
