@@ -21817,3 +21817,240 @@ export async function getProductsByBrandIdsForSuggestion(brandIds: number[], lim
     return [];
   }
 }
+
+/**
+ * Get recent top-selling products for a specific liver in the last N days
+ * Uses both liverId and streamerName for maximum coverage
+ */
+export async function getRecentTopProductsForLiver(liverName: string, days: number = 7, limit: number = 5) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    // Find liver by name
+    const liver = await db
+      .select({ id: livers.id })
+      .from(livers)
+      .where(eq(livers.name, liverName))
+      .limit(1);
+    
+    const liverId = liver.length > 0 ? liver[0].id : null;
+    const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    
+    // Build WHERE conditions: match by liverId OR streamerName
+    const conditions = [];
+    if (liverId) {
+      conditions.push(sql`(${brandLivestreams.liverId} = ${liverId} OR ${brandLivestreams.streamerName} = ${liverName})`);
+    } else {
+      conditions.push(eq(brandLivestreams.streamerName, liverName));
+    }
+    
+    const results = await db
+      .select({
+        productName: livestreamProducts.productName,
+        totalGmv: sql<number>`SUM(COALESCE(${livestreamProducts.directGmv}, 0))`,
+        totalItemsSold: sql<number>`SUM(COALESCE(${livestreamProducts.itemsSold}, ${livestreamProducts.quantity}, 0))`,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(livestreamProducts)
+      .innerJoin(brandLivestreams, eq(livestreamProducts.livestreamId, brandLivestreams.id))
+      .where(
+        and(
+          ...conditions,
+          isNull(brandLivestreams.deletedAt),
+          sql`${brandLivestreams.livestreamDate} >= ${cutoffDate}`,
+          sql`${livestreamProducts.productName} NOT REGEXP '^[0-9]+$'`,
+          sql`COALESCE(${livestreamProducts.directGmv}, 0) > 0`
+        )
+      )
+      .groupBy(livestreamProducts.productName)
+      .orderBy(sql`SUM(COALESCE(${livestreamProducts.directGmv}, 0)) DESC`)
+      .limit(limit);
+    
+    return results;
+  } catch (err) {
+    console.error("[getRecentTopProductsForLiver] error:", err);
+    return [];
+  }
+}
+
+/**
+ * Get global top-selling products across all livers in the last N days
+ */
+export async function getGlobalRecentTopProducts(days: number = 7, limit: number = 10) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    
+    const results = await db
+      .select({
+        productName: livestreamProducts.productName,
+        totalGmv: sql<number>`SUM(COALESCE(${livestreamProducts.directGmv}, 0))`,
+        totalItemsSold: sql<number>`SUM(COALESCE(${livestreamProducts.itemsSold}, ${livestreamProducts.quantity}, 0))`,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(livestreamProducts)
+      .innerJoin(brandLivestreams, eq(livestreamProducts.livestreamId, brandLivestreams.id))
+      .where(
+        and(
+          isNull(brandLivestreams.deletedAt),
+          sql`${brandLivestreams.livestreamDate} >= ${cutoffDate}`,
+          sql`${livestreamProducts.productName} NOT REGEXP '^[0-9]+$'`,
+          sql`COALESCE(${livestreamProducts.directGmv}, 0) > 0`
+        )
+      )
+      .groupBy(livestreamProducts.productName)
+      .orderBy(sql`SUM(COALESCE(${livestreamProducts.directGmv}, 0)) DESC`)
+      .limit(limit);
+    
+    return results;
+  } catch (err) {
+    console.error("[getGlobalRecentTopProducts] error:", err);
+    return [];
+  }
+}
+
+/**
+ * Improved monthly summary that uses BOTH liverId and streamerName
+ */
+export async function getLiverMonthlySummaryV2(liverName: string) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    // Find liver by name
+    const liver = await db
+      .select({ id: livers.id, name: livers.name })
+      .from(livers)
+      .where(eq(livers.name, liverName))
+      .limit(1);
+    
+    const liverId = liver.length > 0 ? liver[0].id : null;
+    
+    // Current month range (JST)
+    const now = new Date();
+    const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const currentMonth = `${jstNow.getFullYear()}-${String(jstNow.getMonth() + 1).padStart(2, '0')}`;
+    const prevMonthDate = new Date(jstNow.getFullYear(), jstNow.getMonth() - 1, 1);
+    const prevMonth = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`;
+    
+    const getMonthStats = async (month: string) => {
+      const { startDate, endDate } = getJSTMonthRange(month);
+      
+      // Build WHERE: match by liverId OR streamerName
+      const matchCondition = liverId
+        ? sql`(${brandLivestreams.liverId} = ${liverId} OR ${brandLivestreams.streamerName} = ${liverName})`
+        : sql`${brandLivestreams.streamerName} = ${liverName}`;
+      
+      const result = await db
+        .select({
+          totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+          totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+          livestreamCount: sql<number>`COUNT(*)`,
+        })
+        .from(brandLivestreams)
+        .where(
+          and(
+            matchCondition,
+            isNull(brandLivestreams.deletedAt),
+            sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+            sql`${brandLivestreams.livestreamDate} <= ${endDate}`
+          )
+        );
+      
+      const r = result[0];
+      const sales = Number(r?.totalSales || 0);
+      const duration = Number(r?.totalDuration || 0);
+      const durationHours = duration / 60;
+      const hourlyRate = durationHours > 0 ? Math.round(sales / durationHours) : 0;
+      return {
+        sales,
+        duration,
+        durationHours: Math.round(durationHours * 10) / 10,
+        livestreamCount: Number(r?.livestreamCount || 0),
+        hourlyRate,
+      };
+    };
+    
+    const [current, prev] = await Promise.all([
+      getMonthStats(currentMonth),
+      getMonthStats(prevMonth),
+    ]);
+    
+    return {
+      liverName: liver.length > 0 ? liver[0].name : liverName,
+      liverId,
+      currentMonth,
+      prevMonth,
+      current,
+      prev,
+    };
+  } catch (err) {
+    console.error("[getLiverMonthlySummaryV2] error:", err);
+    return null;
+  }
+}
+
+/**
+ * Get recent livestream data using BOTH liverId and streamerName
+ */
+export async function getRecentLivestreamDataV2(liverName: string, limit: number = 10) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const liver = await db
+      .select({ id: livers.id })
+      .from(livers)
+      .where(eq(livers.name, liverName))
+      .limit(1);
+    
+    const liverId = liver.length > 0 ? liver[0].id : null;
+    
+    const matchCondition = liverId
+      ? sql`(${brandLivestreams.liverId} = ${liverId} OR ${brandLivestreams.streamerName} = ${liverName})`
+      : sql`${brandLivestreams.streamerName} = ${liverName}`;
+    
+    const results = await db
+      .select({
+        id: brandLivestreams.id,
+        livestreamDate: brandLivestreams.livestreamDate,
+        salesAmount: brandLivestreams.salesAmount,
+        duration: brandLivestreams.duration,
+        streamerName: brandLivestreams.streamerName,
+        brandName: brands.name,
+      })
+      .from(brandLivestreams)
+      .leftJoin(brands, eq(brandLivestreams.brandId, brands.id))
+      .where(
+        and(
+          matchCondition,
+          isNull(brandLivestreams.deletedAt)
+        )
+      )
+      .orderBy(desc(brandLivestreams.livestreamDate))
+      .limit(limit);
+    
+    return results;
+  } catch (err) {
+    console.error("[getRecentLivestreamDataV2] error:", err);
+    return [];
+  }
+}
+
+/**
+ * Resolve liverId from liverName in schedules (since schedules.liverId is often NULL)
+ */
+export async function resolveLineUserIdByName(liverName: string): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db
+      .select({ lineUserId: livers.lineUserId })
+      .from(livers)
+      .where(eq(livers.name, liverName))
+      .limit(1);
+    return result.length > 0 ? result[0].lineUserId : null;
+  } catch (err) {
+    console.error("[resolveLineUserIdByName] error:", err);
+    return null;
+  }
+}
