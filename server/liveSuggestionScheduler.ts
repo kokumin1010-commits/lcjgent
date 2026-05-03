@@ -550,3 +550,335 @@ export function stopLiveSuggestionScheduler(): void {
     console.log(`${LOG_PREFIX} Stopped`);
   }
 }
+
+/**
+ * Run suggestion for a SINGLE liver (for testing)
+ * Same logic as runDailyLiveSuggestion but for one person only
+ */
+export async function runSingleLiverSuggestion(targetLiverName: string): Promise<{
+  success: boolean;
+  message: string;
+  suggestionText?: string;
+  promptUsed?: string;
+  dataStats?: Record<string, number | boolean>;
+}> {
+  console.log(`${LOG_PREFIX} [SingleLiver] Starting for ${targetLiverName}...`);
+  
+  try {
+    await ensureLiveSuggestionsTable();
+    
+    const targetGroup = await findTargetLineGroup();
+    if (!targetGroup) {
+      return { success: false, message: "No target LINE group found" };
+    }
+    
+    // Get today's schedules
+    const todaySchedules = await getTodaySchedulesForSuggestion();
+    
+    // Find schedules for this liver
+    const liverSchedules = todaySchedules.filter(s => {
+      const name = s.liverName || s.title;
+      return name === targetLiverName;
+    });
+    
+    if (liverSchedules.length === 0) {
+      return { success: false, message: `${targetLiverName}の今日のスケジュールが見つかりません` };
+    }
+    
+    const now = new Date();
+    const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const todayStr = jstNow.toISOString().split('T')[0];
+    
+    // Pre-fetch global top products
+    const globalTopProducts = await safeDbCall(
+      () => getGlobalRecentTopProducts(7, 10),
+      [],
+      'globalTopProducts',
+      targetLiverName
+    );
+    
+    // ===== DB queries with INDIVIDUAL error handling =====
+    const monthlySummary = await safeDbCall(
+      () => getLiverMonthlySummaryV2(targetLiverName),
+      null,
+      'monthlySummary',
+      targetLiverName
+    );
+    console.log(`${LOG_PREFIX} [SingleLiver] monthlySummary: ${monthlySummary ? `prev=${monthlySummary.prev.hourlyRate}/h, cur=${monthlySummary.current.hourlyRate}/h` : 'null'}`);
+    
+    const liverTopProducts = await safeDbCall(
+      () => getRecentTopProductsForLiver(targetLiverName, 7, 5),
+      [],
+      'liverTopProducts',
+      targetLiverName
+    );
+    console.log(`${LOG_PREFIX} [SingleLiver] liverTopProducts: ${liverTopProducts.length} items`);
+    
+    const recentStreams = await safeDbCall(
+      () => getRecentLivestreamDataV2(targetLiverName, 10),
+      [],
+      'recentStreams',
+      targetLiverName
+    );
+    
+    const topProducts = await safeDbCall(
+      () => getTopProductsForSuggestion(targetLiverName),
+      [],
+      'topProducts',
+      targetLiverName
+    );
+    
+    const recentSets = await safeDbCall(
+      () => getRecentSetsForSuggestion(targetLiverName),
+      [],
+      'recentSets',
+      targetLiverName
+    );
+    
+    const quotaBrands = await safeDbCall(
+      () => getQuotaBrandsForLiver(targetLiverName),
+      [],
+      'quotaBrands',
+      targetLiverName
+    );
+    
+    const resolvedLineUserId = await safeDbCall(
+      () => resolveLineUserIdByName(targetLiverName),
+      null,
+      'resolveLineUserId',
+      targetLiverName
+    );
+    const firstSchedule = liverSchedules[0];
+    const lineUserId = resolvedLineUserId || firstSchedule.liverLineUserId || null;
+    
+    // ===== Build context info for LLM =====
+    let contextInfo = `## ${targetLiverName}さんの配信データ\n\n`;
+    
+    contextInfo += `### 今日の予定\n`;
+    let totalScheduledMinutes = 0;
+    for (const s of liverSchedules) {
+      const startTime = s.startTime ? new Date(s.startTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : '不明';
+      const endTime = s.endTime ? new Date(s.endTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : '';
+      contextInfo += `- ${startTime}${endTime ? `〜${endTime}` : ''} ${s.title}\n`;
+      if (s.startTime && s.endTime) {
+        const diffMs = new Date(s.endTime).getTime() - new Date(s.startTime).getTime();
+        if (diffMs > 0) totalScheduledMinutes += diffMs / 60000;
+      }
+    }
+    const scheduledHours = Math.round(totalScheduledMinutes / 60 * 10) / 10;
+    if (scheduledHours > 0) {
+      contextInfo += `→ 合計配信予定: ${scheduledHours}時間\n`;
+    }
+    
+    if (monthlySummary) {
+      const cur = monthlySummary.current;
+      const prev = monthlySummary.prev;
+      const effectiveHourlyRate = cur.hourlyRate > 0 ? cur.hourlyRate : prev.hourlyRate;
+      const rateSource = cur.hourlyRate > 0 ? '今月実績' : '先月実績';
+      
+      contextInfo += `\n### ★月間実績\n`;
+      if (effectiveHourlyRate > 0) {
+        contextInfo += `★あなたの平均時間単価: ¥${effectiveHourlyRate.toLocaleString()}（${rateSource}）\n`;
+        if (scheduledHours > 0) {
+          const targetSales = Math.round(effectiveHourlyRate * scheduledHours);
+          contextInfo += `★今日の売上目標（自動計算）: ¥${targetSales.toLocaleString()}（= 時間単価¥${effectiveHourlyRate.toLocaleString()} × ${scheduledHours}h）\n`;
+        }
+      } else {
+        contextInfo += `★時間単価: データ不足\n`;
+      }
+      contextInfo += `今月: ${cur.livestreamCount}配信 / 売上¥${cur.sales.toLocaleString()} / ${cur.durationHours}h / 時間単価¥${cur.hourlyRate.toLocaleString()}\n`;
+      contextInfo += `先月: ${prev.livestreamCount}配信 / 売上¥${prev.sales.toLocaleString()} / ${prev.durationHours}h / 時間単価¥${prev.hourlyRate.toLocaleString()}\n`;
+      
+      if (prev.hourlyRate > 0 && cur.hourlyRate > 0) {
+        const trend = Math.round((cur.hourlyRate - prev.hourlyRate) / prev.hourlyRate * 100);
+        contextInfo += `時間単価トレンド: ${trend >= 0 ? `+${trend}%（上昇中）` : `${trend}%（下降中）`}\n`;
+      }
+    }
+    
+    if (recentStreams.length > 0) {
+      contextInfo += `\n### 直近の配信実績（最新5件）\n`;
+      for (const s of recentStreams.slice(0, 5)) {
+        const date = s.livestreamDate ? new Date(s.livestreamDate).toLocaleDateString('ja-JP') : '不明';
+        const sales = s.salesAmount ? `¥${Number(s.salesAmount).toLocaleString()}` : '¥0';
+        const dur = s.duration ? `${Math.round(Number(s.duration) / 60 * 10) / 10}h` : '';
+        const hourly = s.salesAmount && s.duration && Number(s.duration) > 0 
+          ? `(時間単価¥${Math.round(Number(s.salesAmount) / (Number(s.duration) / 60)).toLocaleString()})` 
+          : '';
+        contextInfo += `- ${date}: ${s.brandName || ''} / 売上${sales} ${dur} ${hourly}\n`;
+      }
+    }
+    
+    const allProducts = liverTopProducts.length > 0 ? liverTopProducts : topProducts;
+    if (allProducts.length > 0) {
+      contextInfo += `\n### ★あなたの直近売れ筋商品（この商品名をそのまま使え）\n`;
+      for (const p of allProducts.slice(0, 5)) {
+        const gmv = Number(p.totalGmv || 0);
+        const sold = Number(p.totalItemsSold || 0);
+        contextInfo += `- 「${p.productName}」: 売上¥${gmv.toLocaleString()}${sold > 0 ? `（${sold}個）` : ''}\n`;
+      }
+    } else {
+      const brandIds = liverSchedules
+        .map(s => s.brandId)
+        .filter((id): id is number => id != null && id > 0);
+      if (brandIds.length > 0) {
+        try {
+          const masterProducts = await getProductsByBrandIdsForSuggestion(Array.from(new Set(brandIds)), 10);
+          if (masterProducts.length > 0) {
+            contextInfo += `\n### ★取扱商品一覧（この商品名をそのまま使え）\n`;
+            for (const p of masterProducts) {
+              const price = p.regularPrice ? `¥${Number(p.regularPrice).toLocaleString()}` : '';
+              contextInfo += `- 「${p.productName}」${p.brandName ? `(${p.brandName})` : ''} ${price}\n`;
+            }
+          }
+        } catch (fallbackErr: any) {
+          console.error(`${LOG_PREFIX} [SingleLiver] Product master fallback error: ${fallbackErr.message}`);
+        }
+      }
+    }
+    
+    if (globalTopProducts.length > 0) {
+      contextInfo += `\n### 📈 全体の直近7日間売れ筋TOP5（参考）\n`;
+      for (const p of globalTopProducts.slice(0, 5)) {
+        contextInfo += `- 「${p.productName}」: ¥${Number(p.totalGmv || 0).toLocaleString()}\n`;
+      }
+    }
+    
+    if (recentSets.length > 0) {
+      contextInfo += `\n### よく使うセット\n`;
+      for (const s of recentSets.slice(0, 3)) {
+        contextInfo += `- ${s.name}\n`;
+      }
+    }
+    
+    if (quotaBrands.length > 0) {
+      contextInfo += `\n### ⚠️ ノルマあり契約ブランド（優先的に配信に組み込むこと）\n`;
+      for (const qb of quotaBrands) {
+        const liverH = qb.liverQuotaMinutes > 0 ? `达人ノルマ: ${Math.round(qb.liverQuotaMinutes / 60 * 10) / 10}h/月` : '';
+        const kgH = qb.kgQuotaMinutes > 0 ? `KGノルマ: ${Math.round(qb.kgQuotaMinutes / 60 * 10) / 10}h/月` : '';
+        contextInfo += `- **${qb.brandName}**: ${[liverH, kgH].filter(Boolean).join(' / ')}\n`;
+      }
+    }
+    
+    // ===== LLM Prompt =====
+    const systemPrompt = `あなたはTikTokライブコマースの配信コーチです。
+ライバーの実際の売上データを分析し、今日の配信に直接役立つ具体的な提案を作成してください。
+
+【出力フォーマット（厳守）】
+🎯 目標: [データにある時間単価×配信時間の計算結果をそのまま記載。データに「今日の売上目標（自動計算）」があればその数値をそのまま使う]
+
+📦 推奨商品（売れ筋順）:
+1. [データの売れ筋リストから商品名をそのままコピー] - [なぜこの商品を推すか1行]
+2. [同上]
+3. [同上]
+
+⏰ 配信タイムライン:
+- [開始]〜[+30分]: オープニング・軽い商品紹介（視聴者を温める）
+- [+30分]〜[中盤]: メイン商品のデモ・比較（購買意欲を高める）
+- [中盤]〜[終盤-30分]: セット販売・限定オファー（単価アップ）
+- [終盤-30分]〜[終了]: ラストチャンス告知・まとめ
+
+💡 今日の戦略:
+[時間単価のトレンド（上昇/下降）に基づく具体的アドバイス。例：「先月より時間単価が下がっているので、高単価商品Xを前半に持ってきて早めに売上を作りましょう」]
+
+【絶対厳守ルール】
+- 売上目標はデータの「今日の売上目標（自動計算）」の数値をそのまま使え。自分で計算するな
+- 「今日の売上目標（自動計算）」がない場合、目標セクションは「データ不足のため省略」と書け
+- 商品名はデータの「売れ筋商品」「取扱商品一覧」「全体の売れ筋」からそのまま引用。架空の商品名は絶対禁止
+- 商品データがない場合、商品セクションは省略
+- ノルマありブランドの商品を最優先で推奨
+- 配信タイムラインは実際のスケジュール時間に合わせる
+- 400文字以内。前向きで具体的なトーンで`;
+
+    const userPrompt = `${targetLiverName}さんの今日の配信提案:\n\n${contextInfo}`;
+    
+    let suggestionText = '';
+    try {
+      console.log(`${LOG_PREFIX} [SingleLiver] Calling LLM for ${targetLiverName}...`);
+      const result = await invokeLLM({
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        maxTokens: 1000,
+      });
+      suggestionText = (typeof result.choices?.[0]?.message?.content === 'string' ? result.choices[0].message.content : '') || '';
+      console.log(`${LOG_PREFIX} [SingleLiver] LLM response: ${suggestionText.length} chars`);
+    } catch (llmErr: any) {
+      console.error(`${LOG_PREFIX} [SingleLiver] LLM error: ${llmErr.message}`);
+    }
+    
+    if (!suggestionText.trim()) {
+      const effectiveRate = monthlySummary 
+        ? (monthlySummary.current.hourlyRate > 0 ? monthlySummary.current.hourlyRate : monthlySummary.prev.hourlyRate)
+        : 0;
+      if (effectiveRate > 0 && scheduledHours > 0) {
+        suggestionText = `🎯 目標: ¥${Math.round(effectiveRate * scheduledHours).toLocaleString()}（時間単価¥${effectiveRate.toLocaleString()} × ${scheduledHours}h）\n\n${targetLiverName}さん、今日も配信頑張りましょう！🔥`;
+      } else {
+        suggestionText = `${targetLiverName}さん、今日も配信頑張りましょう！🔥`;
+      }
+    }
+    
+    // Build time strings
+    const startTimeStr = firstSchedule.startTime
+      ? new Date(firstSchedule.startTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
+      : '';
+    const endTimeStr = firstSchedule.endTime
+      ? new Date(firstSchedule.endTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
+      : '';
+    
+    // Send to GROUP with mention
+    const groupMessage = buildMentionTextMessage(targetLiverName, lineUserId, suggestionText, startTimeStr, endTimeStr);
+    const groupSuccess = await pushMessage(targetGroup.lineGroupId, [groupMessage]);
+    console.log(`${LOG_PREFIX} [SingleLiver] Group send: ${groupSuccess ? '✅' : '❌'}`);
+    
+    // Send DM
+    let dmSuccess = false;
+    if (lineUserId) {
+      const dmText = `📢 【${todayStr} あなたへの配信提案】\n\n${targetLiverName}さん、今日の配信頑張りましょう！\n\n${suggestionText}`;
+      dmSuccess = await pushMessage(lineUserId, [{ type: "text", text: dmText }]);
+      console.log(`${LOG_PREFIX} [SingleLiver] DM send: ${dmSuccess ? '✅' : '❌'}`);
+    }
+    
+    // Save to DB
+    try {
+      await saveLiveSuggestion({
+        targetDate: new Date(),
+        liverName: targetLiverName,
+        liverId: firstSchedule.liverId ?? undefined,
+        scheduleId: firstSchedule.id,
+        scheduledStartTime: firstSchedule.startTime ?? undefined,
+        scheduledEndTime: firstSchedule.endTime ?? undefined,
+        suggestionText,
+        promptUsed: userPrompt,
+        sentToLineGroupId: targetGroup.lineGroupId,
+        sentToLineGroupName: targetGroup.groupName,
+        lineSendSuccess: groupSuccess,
+        lineSendError: groupSuccess ? null : 'Group send failed',
+        generatedBy: 'manual-single-test',
+      });
+    } catch (saveErr: any) {
+      console.error(`${LOG_PREFIX} [SingleLiver] DB save error: ${saveErr.message}`);
+    }
+    
+    return {
+      success: groupSuccess,
+      message: `${targetLiverName}: グループ送信${groupSuccess ? '成功' : '失敗'}, DM${dmSuccess ? '成功' : lineUserId ? '失敗' : 'スキップ(lineUserId無し)'}`,
+      suggestionText,
+      promptUsed: userPrompt,
+      dataStats: {
+        monthlySummary: !!monthlySummary,
+        liverTopProducts: liverTopProducts.length,
+        recentStreams: recentStreams.length,
+        topProducts: topProducts.length,
+        recentSets: recentSets.length,
+        quotaBrands: quotaBrands.length,
+        globalTopProducts: globalTopProducts.length,
+        hasLineUserId: !!lineUserId,
+      },
+    };
+    
+  } catch (error: any) {
+    console.error(`${LOG_PREFIX} [SingleLiver] Fatal error:`, error);
+    return { success: false, message: `Error: ${error.message}` };
+  }
+}

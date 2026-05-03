@@ -10784,6 +10784,14 @@ ${conversationText}
         await runDailyLiveSuggestion();
         return { success: true, message: "AI配信提案の自動送信を実行しました" };
       }),
+    // 1人だけテスト送信
+    triggerSingleLiver: protectedProcedure
+      .input(z.object({ liverName: z.string() }))
+      .mutation(async ({ input }) => {
+        const { runSingleLiverSuggestion } = await import("./liveSuggestionScheduler");
+        const result = await runSingleLiverSuggestion(input.liverName);
+        return result;
+      }),
   }),
 
   // Liver (Streamer) Authentication Router
