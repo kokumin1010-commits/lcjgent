@@ -186,7 +186,7 @@ function VerifiedPurchaseBadge({ compact = false }: { compact?: boolean }) {
 function VideoFeedCard({ review }: { review: any }) {
   const [, setLocation] = useLocation();
   const isLive = !!review.liveCommerceUrl;
-  const videoUrl = review.videoUrl || review.tiktokUrl || review.liveCommerceUrl;
+  const videoUrl = (review.videoUrl && review.videoUrl.startsWith("http")) ? review.videoUrl : (review.tiktokUrl && review.tiktokUrl.startsWith("http")) ? review.tiktokUrl : (review.liveCommerceUrl && review.liveCommerceUrl.startsWith("http")) ? review.liveCommerceUrl : null;
 
   const handleClick = () => {
     if (videoUrl) {
@@ -233,7 +233,7 @@ function VideoFeedCard({ review }: { review: any }) {
           <StarRating rating={review.rating} size="sm" />
           <VerifiedPurchaseBadge compact />
         </div>
-        <h4 className="text-white font-bold text-sm line-clamp-2 mb-2 drop-shadow-lg">{review.productName}</h4>
+        <h4 className="text-white font-bold text-sm line-clamp-2 mb-2 drop-shadow-lg">{review.productName || review.brandName || "レビュー動画"}</h4>
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-full bg-gray-500/50 backdrop-blur-sm flex items-center justify-center" style={{ filter: "blur(1px)" }}>
             <User className="h-3 w-3 text-white/70" />
