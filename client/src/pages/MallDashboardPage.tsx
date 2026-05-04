@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -357,7 +357,32 @@ function DashboardContent() {
 }
 
 export default function MallDashboardPage() {
-  const [activeTab, setActiveTab] = useState<TabId>("dashboard");
+  const getTabFromUrl = (): TabId => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    if (tab && TABS.some(t => t.id === tab)) return tab as TabId;
+    return "dashboard";
+  };
+  const [activeTab, setActiveTabState] = useState<TabId>(getTabFromUrl());
+  
+  const setActiveTab = (tab: TabId) => {
+    setActiveTabState(tab);
+    const url = new URL(window.location.href);
+    if (tab === "dashboard") {
+      url.searchParams.delete("tab");
+    } else {
+      url.searchParams.set("tab", tab);
+    }
+    window.history.replaceState({}, "", url.toString());
+  };
+  
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveTabState(getTabFromUrl());
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
   const [, setLocation] = useLocation();
   const { loading, user } = useAuth();
 
