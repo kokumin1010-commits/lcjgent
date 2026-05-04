@@ -643,32 +643,7 @@ export default function ReceiptManagement({ embedded = false }: { embedded?: boo
                           <span className="font-medium">{ocr.productName}</span>
                         </div>
                       ) : null}
-                      {/* 配送先情報 */}
-                      {hasDelivery && (
-                        <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
-                          <p className="text-xs font-medium text-amber-600 mb-2">配送先情報</p>
-                          <div className="space-y-1 text-sm">
-                            {ocr.deliveryInfo.recipientName && (
-                              <div><span className="text-muted-foreground">氏名: </span><span className="font-medium">{ocr.deliveryInfo.recipientName}</span></div>
-                            )}
-                            {ocr.deliveryInfo.phoneNumber && (
-                              <div><span className="text-muted-foreground">電話: </span><span>{ocr.deliveryInfo.phoneNumber}</span></div>
-                            )}
-                            {ocr.deliveryInfo.address && (
-                              <div><span className="text-muted-foreground">住所: </span><span>{ocr.deliveryInfo.postalCode ? `〒${ocr.deliveryInfo.postalCode} ` : ""}{ocr.deliveryInfo.address}</span></div>
-                            )}
-                            {ocr.deliveryInfo.deliveryStatus && (
-                              <div><span className="text-muted-foreground">状況: </span><span className="font-medium">{ocr.deliveryInfo.deliveryStatus}</span></div>
-                            )}
-                            {ocr.deliveryInfo.deliveryDate && (
-                              <div><span className="text-muted-foreground">配達日: </span><span>{ocr.deliveryInfo.deliveryDate}</span></div>
-                            )}
-                            {ocr.deliveryInfo.returnDeadline && (
-                              <div><span className="text-muted-foreground">返品期限: </span><span>{ocr.deliveryInfo.returnDeadline}</span></div>
-                            )}
-                          </div>
-                        </div>
-                      )}
+                      {/* 配送先情報は個人情報保護のため非表示 */}
                       {/* 支払い情報 */}
                       {hasPayment && (
                         <div className="bg-green-50 border border-green-100 rounded-lg p-3">
