@@ -6,6 +6,7 @@ import { useReferralCapture } from "./hooks/useReferralCapture";
 import RandomSpinProvider from "./components/RandomSpinProvider";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
+import ProtectedLiverRoute from "./components/ProtectedLiverRoute";
 import { lazy, Suspense } from "react";
 
 // 即時ロードが必要なコンポーネント（最初に表示される可能性が高いもの）
@@ -413,31 +414,99 @@ function Router() {
         <Route path={"/master/schedule-groups"} component={ScheduleGroupManagement} />
         <Route path={"/master/live-suggestions"} component={LiveSuggestions} />
         
-        {/* Public Pages - Liver */}
-        <Route path={"/livers"} component={LcjLiverList} />
+        {/* Protected Liver Pages - ライバーまたは管理者のみアクセス可能 */}
+        <Route path={"/livers"}>
+          <ProtectedLiverRoute>
+            <LcjLiverList />
+          </ProtectedLiverRoute>
+        </Route>
         <Route path={"/livers/by-name/:name"} component={LiverByName} />
-        <Route path={"/livers/:id/edit"} component={LiverProfile} />
-        <Route path={"/livers/:id/record"} component={LiverSelfRecord} />
-        <Route path={"/livers/:id"} component={LiverDetail} />
-        <Route path={"/livestreams/:id"} component={LivestreamDetail} />
+        <Route path={"/livers/:id/edit"}>
+          <ProtectedLiverRoute>
+            <LiverProfile />
+          </ProtectedLiverRoute>
+        </Route>
+        <Route path={"/livers/:id/record"}>
+          <ProtectedLiverRoute>
+            <LiverSelfRecord />
+          </ProtectedLiverRoute>
+        </Route>
+        <Route path={"/livers/:id"}>
+          <ProtectedLiverRoute>
+            <LiverDetail />
+          </ProtectedLiverRoute>
+        </Route>
+        <Route path={"/livestreams/:id"}>
+          <ProtectedLiverRoute>
+            <LivestreamDetail />
+          </ProtectedLiverRoute>
+        </Route>
         
-        {/* Liver Self-Service Pages */}
+        {/* Liver Self-Service Pages - 認証が必要なページ */}
         <Route path={"/liver/register"} component={LiverRegister} />
         <Route path={"/liver/login"} component={LiverLogin} />
-        <Route path={"/liver/mypage"} component={LiverMypage} />
-        <Route path={"/liver/dashboard"} component={LiverDashboard} />
-        <Route path={"/liver/profile"} component={LiverProfile} />
-        <Route path={"/liver/edit"} component={LiverProfile} />
-        <Route path={"/liver/record"} component={LiverSelfRecord} />
-        <Route path={"/liver/schedule"} component={LiverSchedule} />
-        <Route path={"/liver/set-application"} component={LiverSetApplication} />
-        <Route path={"/liver/sample-request"} component={LiverSampleRequest} />
         <Route path={"/liver/forgot-password"} component={LiverForgotPassword} />
         <Route path={"/liver/reset-password"} component={LiverResetPassword} />
-        <Route path={"/liver/coach"} component={LiverAiCoach} />
-        <Route path={"/liver/line-setup"} component={LiverLineSetup} />
-        <Route path={"/liver/products"} component={LiverProductCatalog} />
-        <Route path={"/liver/products/:brandId"} component={LiverProductSelect} />
+        <Route path={"/liver/mypage"}>
+          <ProtectedLiverRoute>
+            <LiverMypage />
+          </ProtectedLiverRoute>
+        </Route>
+        <Route path={"/liver/dashboard"}>
+          <ProtectedLiverRoute>
+            <LiverDashboard />
+          </ProtectedLiverRoute>
+        </Route>
+        <Route path={"/liver/profile"}>
+          <ProtectedLiverRoute>
+            <LiverProfile />
+          </ProtectedLiverRoute>
+        </Route>
+        <Route path={"/liver/edit"}>
+          <ProtectedLiverRoute>
+            <LiverProfile />
+          </ProtectedLiverRoute>
+        </Route>
+        <Route path={"/liver/record"}>
+          <ProtectedLiverRoute>
+            <LiverSelfRecord />
+          </ProtectedLiverRoute>
+        </Route>
+        <Route path={"/liver/schedule"}>
+          <ProtectedLiverRoute>
+            <LiverSchedule />
+          </ProtectedLiverRoute>
+        </Route>
+        <Route path={"/liver/set-application"}>
+          <ProtectedLiverRoute>
+            <LiverSetApplication />
+          </ProtectedLiverRoute>
+        </Route>
+        <Route path={"/liver/sample-request"}>
+          <ProtectedLiverRoute>
+            <LiverSampleRequest />
+          </ProtectedLiverRoute>
+        </Route>
+        <Route path={"/liver/coach"}>
+          <ProtectedLiverRoute>
+            <LiverAiCoach />
+          </ProtectedLiverRoute>
+        </Route>
+        <Route path={"/liver/line-setup"}>
+          <ProtectedLiverRoute>
+            <LiverLineSetup />
+          </ProtectedLiverRoute>
+        </Route>
+        <Route path={"/liver/products"}>
+          <ProtectedLiverRoute>
+            <LiverProductCatalog />
+          </ProtectedLiverRoute>
+        </Route>
+        <Route path={"/liver/products/:brandId"}>
+          <ProtectedLiverRoute>
+            <LiverProductSelect />
+          </ProtectedLiverRoute>
+        </Route>
         
         <Route path="/master/brand-applications">
           <DashboardLayout>
