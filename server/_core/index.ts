@@ -23,6 +23,8 @@ import { startArticleRewriter } from "../articleRewriter";
 import { initPointExpiryScheduler } from "../pointExpiryScheduler";
 import { startStepEmailScheduler } from "../stepEmailScheduler";
 import { startLiveSuggestionScheduler } from "../liveSuggestionScheduler";
+import { startWeeklyReportScheduler } from "../weeklyReportScheduler";
+import { startMonthlyReportScheduler } from "../monthlyReportScheduler";
 import { startPeerBonusResetScheduler } from "../peerBonusResetScheduler";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
