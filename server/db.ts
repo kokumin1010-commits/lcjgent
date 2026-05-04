@@ -6103,12 +6103,13 @@ export async function getLineReceiptStatistics() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const [pending, approved, rejected, onHold, totalPoints] = await Promise.all([
+  const [pending, approved, rejected, onHold, totalPoints, expiredPoints] = await Promise.all([
     db.select({ count: sql<number>`COUNT(*)` }).from(lineReceipts).where(eq(lineReceipts.status, "pending")),
     db.select({ count: sql<number>`COUNT(*)` }).from(lineReceipts).where(eq(lineReceipts.status, "approved")),
     db.select({ count: sql<number>`COUNT(*)` }).from(lineReceipts).where(eq(lineReceipts.status, "rejected")),
     db.select({ count: sql<number>`COUNT(*)` }).from(lineReceipts).where(eq(lineReceipts.status, "on_hold")),
     db.select({ total: sql<number>`COALESCE(SUM(pointsAwarded), 0)` }).from(lineReceipts).where(eq(lineReceipts.status, "approved")),
+    db.select({ total: sql<number>`COALESCE(SUM(ABS(amount)), 0)` }).from(linePointTransactions).where(eq(linePointTransactions.type, "expire")),
   ]);
   
   return {
@@ -6117,6 +6118,7 @@ export async function getLineReceiptStatistics() {
     rejected: rejected[0]?.count || 0,
     onHold: onHold[0]?.count || 0,
     totalPointsAwarded: totalPoints[0]?.total || 0,
+    expiredPoints: expiredPoints[0]?.total || 0,
   };
 }
 
