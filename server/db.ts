@@ -22098,14 +22098,51 @@ export async function getLiverMonthlyGoalByName(liverName: string): Promise<{
     
     const g = goal[0];
     const salesGoal = Number(g.salesGoal || 0);
-    const currentSales = Number(g.currentSales || 0);
+    
+    // Calculate actual current sales from brand_livestreams (real-time)
+    // This fixes the bug where liver_goals.currentSales is never updated
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01 00:00:00`;
+    const monthEnd = month === 12 
+      ? `${year + 1}-01-01 00:00:00`
+      : `${year}-${String(month + 1).padStart(2, '0')}-01 00:00:00`;
+    
+    const salesResult = await db
+      .select({
+        totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+        streamCount: sql<number>`COUNT(*)`,
+      })
+      .from(brandLivestreams)
+      .where(and(
+        or(
+          eq(brandLivestreams.liverId, liverId),
+          eq(brandLivestreams.streamerName, liverName)
+        ),
+        gte(brandLivestreams.livestreamDate, new Date(monthStart)),
+        lt(brandLivestreams.livestreamDate, new Date(monthEnd)),
+        isNull(brandLivestreams.deletedAt)
+      ));
+    
+    const currentSales = Number(salesResult[0]?.totalSales || 0);
+    const currentStreamCount = Number(salesResult[0]?.streamCount || 0);
     const achievementRate = salesGoal > 0 ? Math.round(currentSales / salesGoal * 1000) / 10 : 0;
+    
+    // Also update the liver_goals record for consistency (non-blocking)
+    try {
+      await db.update(liverGoals)
+        .set({ 
+          currentSales: currentSales,
+          currentStreamCount: currentStreamCount,
+        })
+        .where(eq(liverGoals.id, g.id));
+    } catch (updateErr) {
+      console.error("[getLiverMonthlyGoalByName] Failed to sync liver_goals:", updateErr);
+    }
     
     return {
       salesGoal,
       streamCountGoal: Number(g.streamCountGoal || 0),
       currentSales,
-      currentStreamCount: Number(g.currentStreamCount || 0),
+      currentStreamCount,
       achievementRate,
     };
   } catch (err) {
