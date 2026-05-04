@@ -1949,19 +1949,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                         <span className="font-medium">{ocr.productName}</span>
                                       </div>
                                     ) : null}
-                                    {hasDelivery && (
-                                      <div className="bg-amber-50/50 border border-amber-100 rounded px-1.5 py-1">
-                                        <p className="text-[9px] font-medium text-amber-600 mb-0.5">{t("lr.deliveryAddress")}</p>
-                                        <div className="text-[10px] leading-tight space-y-0">
-                                          {ocr.deliveryInfo.recipientName && (
-                                            <div>{ocr.deliveryInfo.recipientName}{ocr.deliveryInfo.phoneNumber ? ` / ${ocr.deliveryInfo.phoneNumber}` : ""}</div>
-                                          )}
-                                          {ocr.deliveryInfo.address && (
-                                            <div className="text-muted-foreground truncate">{ocr.deliveryInfo.postalCode ? `〒${ocr.deliveryInfo.postalCode} ` : ""}{ocr.deliveryInfo.address}</div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
+                                    {/* 配送先情報は個人情報保護のため非表示 */}
                                   </div>
                                 );
                               } catch { return null; }
@@ -2343,8 +2331,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                 if (!raw) return null;
                                 const ocr = typeof raw === "string" ? JSON.parse(raw) : raw;
                                 const productName = ocr.items?.[0]?.productName || ocr.productName;
-                                const recipientName = ocr.deliveryInfo?.recipientName;
-                                if (!productName && !recipientName) return null;
+                                if (!productName) return null;
                                 return (
                                   <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                     {productName && (
@@ -2352,11 +2339,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                         📦 {productName}
                                       </span>
                                     )}
-                                    {recipientName && (
-                                      <span className="truncate max-w-[100px] text-amber-600" title={recipientName}>
-                                        👤 {recipientName}
-                                      </span>
-                                    )}
+                                    {/* recipientName hidden for privacy */}
                                   </div>
                                 );
                               } catch { return null; }
