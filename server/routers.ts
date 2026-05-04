@@ -11204,13 +11204,67 @@ ${conversationText}
         let lineNotificationSent = false;
         if (liver?.lineUserId && liver?.lineNotificationEnabled !== false) {
           try {
+            // Gather enriched data for richer LINE message
+            let enrichedData: {
+              duration?: number;
+              orderCount?: number;
+              viewerCount?: number;
+              previousSales?: number;
+              previousDuration?: number;
+              brandBreakdown?: { brandName: string; sales: number; duration?: number }[];
+              monthlyGoal?: { salesGoal: number; currentSales: number; achievementRate: number };
+            } | null = null;
+            
+            try {
+              // Get previous livestream for comparison
+              const { getLiverPreviousLivestream, getLiverMonthlyGoalByName, getBrandById } = await import("./db");
+              const prevStream = await getLiverPreviousLivestream(input.liverId, id);
+              
+              // Get monthly goal progress
+              const monthlyGoal = await getLiverMonthlyGoalByName(liver.name);
+              
+              // Build brand breakdown from brandSales input
+              let brandBreakdown: { brandName: string; sales: number; duration?: number }[] = [];
+              if (input.brandSales) {
+                const brandEntries = Object.entries(input.brandSales);
+                for (const [brandIdStr, revenue] of brandEntries) {
+                  try {
+                    const brand = await getBrandById(Number(brandIdStr));
+                    brandBreakdown.push({
+                      brandName: brand?.name || `Brand ${brandIdStr}`,
+                      sales: revenue as number,
+                    });
+                  } catch {
+                    brandBreakdown.push({ brandName: `Brand ${brandIdStr}`, sales: revenue as number });
+                  }
+                }
+              }
+              
+              enrichedData = {
+                duration: input.duration || undefined,
+                orderCount: input.orderCount || undefined,
+                viewerCount: input.viewerCount || undefined,
+                previousSales: prevStream?.salesAmount || undefined,
+                previousDuration: prevStream?.duration || undefined,
+                brandBreakdown: brandBreakdown.length > 0 ? brandBreakdown : undefined,
+                monthlyGoal: monthlyGoal ? {
+                  salesGoal: monthlyGoal.salesGoal,
+                  currentSales: monthlyGoal.currentSales,
+                  achievementRate: monthlyGoal.achievementRate,
+                } : undefined,
+              };
+            } catch (enrichErr) {
+              console.error("[LINE Coaching] Failed to gather enriched data:", enrichErr);
+            }
+            
             const result = await sendCoachingToLiver(
               liver.lineUserId,
               liver.name,
               input.salesAmount || 0,
               input.structuredAdvice || null,
               input.calculatedMetrics as Record<string, string | number> | null | undefined,
-              input.aiAdvice
+              input.aiAdvice,
+              enrichedData
             );
             lineNotificationSent = result.success;
             if (!result.success) {
