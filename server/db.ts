@@ -2388,7 +2388,7 @@ export async function getAllLineUsers() {
   return await db
     .select()
     .from(lineUsers)
-    .orderBy(desc(lineUsers.lastMessageAt));
+    .orderBy(desc(lineUsers.createdAt));
 }
 
 // Get LINE users linked to livers with liver details
