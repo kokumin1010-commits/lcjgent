@@ -81,7 +81,9 @@ function buildMentionTextMessage(
   const mentionTag = lineUserId ? `@${liverName}` : `👤 ${liverName}`;
   const timeInfo = `（${startTimeStr}${endTimeStr ? `〜${endTimeStr}` : '〜'}）`;
   const header = `━━━━━━━━━━━━━━━\n${mentionTag}${timeInfo}\n━━━━━━━━━━━━━━━`;
-  const fullText = `${header}\n${suggestionText}`;
+  const today = new Date().toISOString().split('T')[0];
+  const coachFooter = `\n\n━━━━━━━━━━━━━━━\n💬 神コーチに相談する\nhttps://lcjmall.com/liver/coach?context=suggestion&date=${today}`;
+  const fullText = `${header}\n${suggestionText}${coachFooter}`;
 
   if (lineUserId) {
     const mentionIndex = fullText.indexOf(mentionTag);
@@ -489,7 +491,8 @@ export async function runDailyLiveSuggestion(): Promise<void> {
         // 2. Send DM to individual liver (if lineUserId exists)
         let dmSuccess = false;
         if (lineUserId) {
-          const dmText = `📢 【${todayStr} あなたへの配信提案】\n\n${liverName}さん、今日の配信頑張りましょう！\n\n${suggestionText}`;
+          const coachLink = `https://lcjmall.com/liver/coach?context=suggestion&date=${todayStr}`;
+          const dmText = `📢 【${todayStr} あなたへの配信提案】\n\n${liverName}さん、今日の配信頑張りましょう！\n\n${suggestionText}\n\n━━━━━━━━━━━━━━━\n💬 もっと詳しく相談したい？\n👇 神コーチに聞いてみよう\n${coachLink}`;
           dmSuccess = await pushMessage(lineUserId, [{ type: "text", text: dmText }]);
           if (dmSuccess) {
             console.log(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] ✅ Sent DM to ${liverName}`);
@@ -914,7 +917,8 @@ export async function runSingleLiverSuggestion(targetLiverName: string): Promise
     // Send DM
     let dmSuccess = false;
     if (lineUserId) {
-      const dmText = `📢 【${todayStr} あなたへの配信提案】\n\n${targetLiverName}さん、今日の配信頑張りましょう！\n\n${suggestionText}`;
+      const coachLink = `https://lcjmall.com/liver/coach?context=suggestion&date=${todayStr}`;
+      const dmText = `📢 【${todayStr} あなたへの配信提案】\n\n${targetLiverName}さん、今日の配信頑張りましょう！\n\n${suggestionText}\n\n━━━━━━━━━━━━━━━\n💬 もっと詳しく相談したい？\n👇 神コーチに聞いてみよう\n${coachLink}`;
       dmSuccess = await pushMessage(lineUserId, [{ type: "text", text: dmText }]);
       console.log(`${LOG_PREFIX} [SingleLiver] DM send: ${dmSuccess ? '✅' : '❌'}`);
     }
