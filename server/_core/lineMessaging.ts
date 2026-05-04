@@ -241,6 +241,12 @@ export function createCoachingMessage(
     messages.push({ type: "text", text: `💡 アドバイス\n${plainAdvice}` });
   }
   
+  // Add 神コーチ link as the last message
+  const coachLink = enrichedData?.livestreamId 
+    ? `https://lcjmall.com/liver/coach?context=post_stream&livestreamId=${enrichedData.livestreamId}`
+    : `https://lcjmall.com/liver/coach?context=post_stream`;
+  messages.push({ type: "text", text: `━━━━━━━━━━━━━━━\n💬 もっと詳しく振り返りたい？\n👇 神コーチに相談する\n${coachLink}` });
+  
   // Ensure we don't exceed LINE's 5 message limit
   return messages.slice(0, 5);
 }
