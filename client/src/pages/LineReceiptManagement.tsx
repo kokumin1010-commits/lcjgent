@@ -1527,6 +1527,15 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             <p className="text-2xl font-bold mt-1">{(stats?.totalPointsAwarded || 0).toLocaleString()} pt</p>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-500" />
+              <span className="text-sm text-muted-foreground">失効ポイント</span>
+            </div>
+            <p className="text-2xl font-bold mt-1 text-red-600">{(stats?.expiredPoints || 0).toLocaleString()} pt</p>
+          </CardContent>
+        </Card>
         <Card 
           className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "ai_log" ? "ring-2 ring-purple-400 bg-purple-50" : ""}`}
           onClick={() => { setActiveTab("ai_log" as ReceiptStatus); setCalcReceiptId(null); setCalcAmount(""); setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}
