@@ -17222,9 +17222,9 @@ export async function getVideoReviews(limit: number = 10) {
     .where(and(
       eq(receiptReviews.isVisible, true),
       or(
-        isNotNull(receiptReviews.tiktokUrl),
-        isNotNull(receiptReviews.videoUrl),
-        isNotNull(receiptReviews.liveCommerceUrl)
+        and(isNotNull(receiptReviews.tiktokUrl), sql`${receiptReviews.tiktokUrl} != ''`),
+        and(isNotNull(receiptReviews.videoUrl), sql`${receiptReviews.videoUrl} != ''`),
+        and(isNotNull(receiptReviews.liveCommerceUrl), sql`${receiptReviews.liveCommerceUrl} != ''`)
       )
     ))
     .orderBy(desc(receiptReviews.createdAt))
