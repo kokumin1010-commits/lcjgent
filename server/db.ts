@@ -22055,6 +22055,50 @@ export async function resolveLineUserIdByName(liverName: string): Promise<string
   }
 }
 
+
+/**
+ * Get the previous livestream for a liver (for comparison in LINE messages)
+ * Returns the most recent livestream before the current one
+ */
+export async function getLiverPreviousLivestream(liverId: number, currentLivestreamId: number): Promise<{
+  salesAmount: number;
+  duration: number;
+  viewerCount: number;
+  orderCount: number;
+} | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const results = await db
+      .select({
+        salesAmount: brandLivestreams.salesAmount,
+        duration: brandLivestreams.duration,
+        viewerCount: brandLivestreams.viewerCount,
+        orderCount: brandLivestreams.orderCount,
+      })
+      .from(brandLivestreams)
+      .where(and(
+        eq(brandLivestreams.liverId, liverId),
+        isNull(brandLivestreams.deletedAt),
+        sql`${brandLivestreams.id} != ${currentLivestreamId}`
+      ))
+      .orderBy(desc(brandLivestreams.livestreamDate))
+      .limit(1);
+    
+    if (results.length === 0) return null;
+    
+    return {
+      salesAmount: Number(results[0].salesAmount || 0),
+      duration: Number(results[0].duration || 0),
+      viewerCount: Number(results[0].viewerCount || 0),
+      orderCount: Number(results[0].orderCount || 0),
+    };
+  } catch (err) {
+    console.error("[getLiverPreviousLivestream] error:", err);
+    return null;
+  }
+}
+
 /**
  * Get liver's monthly goal by name (for suggestion scheduler)
  * Returns salesGoal, streamCountGoal, and current progress
