@@ -63,11 +63,13 @@ export async function sendLinePushMessage(
 }
 
 /**
- * Create a coaching advice message for LINE
+ * Create a coaching advice message for LINE (enriched version)
  * @param liverName - Name of the liver
  * @param salesAmount - Sales amount in yen
  * @param advice - AI-generated advice (structured or plain text)
- * @param metrics - Calculated metrics
+ * @param metrics - Calculated metrics (CVR, 客単価, 時間効率, etc.)
+ * @param plainAdvice - Fallback plain text advice
+ * @param enrichedData - Additional data for richer messages (brand breakdown, prev comparison, goal progress)
  */
 export function createCoachingMessage(
   liverName: string,
@@ -80,30 +82,120 @@ export function createCoachingMessage(
     targetForNextTime?: string;
   } | null,
   metrics?: Record<string, string | number> | null,
-  plainAdvice?: string
+  plainAdvice?: string,
+  enrichedData?: {
+    duration?: number; // minutes
+    orderCount?: number;
+    viewerCount?: number;
+    previousSales?: number;
+    previousDuration?: number;
+    brandBreakdown?: { brandName: string; sales: number; duration?: number }[];
+    monthlyGoal?: { salesGoal: number; currentSales: number; achievementRate: number };
+  } | null
 ): LineMessage[] {
   const messages: LineMessage[] = [];
   
-  // Main message with summary
+  // === Message 1: Main Report ===
   let mainText = `🎉 ${liverName}さん、配信お疲れ様でした！\n\n`;
-  mainText += `💰 売上: ¥${salesAmount.toLocaleString()}\n`;
+  mainText += `━━━━━━━━━━━━━━\n`;
+  mainText += `📊 配信レポート\n`;
+  mainText += `━━━━━━━━━━━━━━\n`;
+  mainText += `💰 売上: ¥${salesAmount.toLocaleString()}`;
   
-  // Add metrics if available
-  if (metrics) {
+  // Add comparison with previous stream
+  if (enrichedData?.previousSales !== undefined && enrichedData.previousSales > 0) {
+    const diff = salesAmount - enrichedData.previousSales;
+    const diffPercent = Math.round((diff / enrichedData.previousSales) * 100);
+    if (diff >= 0) {
+      mainText += ` (前回比 +${diffPercent}%↑)`;
+    } else {
+      mainText += ` (前回比 ${diffPercent}%)`;
+    }
+  }
+  mainText += `\n`;
+  
+  // Duration and hourly rate
+  if (enrichedData?.duration && enrichedData.duration > 0) {
+    const hours = enrichedData.duration / 60;
+    const hourlyRate = Math.round(salesAmount / hours);
+    const durationStr = hours >= 1 
+      ? `${Math.floor(hours)}時間${enrichedData.duration % 60 > 0 ? (enrichedData.duration % 60) + '分' : ''}`
+      : `${enrichedData.duration}分`;
+    mainText += `⏱️ 配信時間: ${durationStr}\n`;
+    mainText += `📈 時間単価: ¥${hourlyRate.toLocaleString()}/h`;
+    
+    // Compare hourly rate with previous
+    if (enrichedData.previousSales && enrichedData.previousDuration && enrichedData.previousDuration > 0) {
+      const prevHourlyRate = Math.round(enrichedData.previousSales / (enrichedData.previousDuration / 60));
+      const hrDiff = hourlyRate - prevHourlyRate;
+      const hrDiffPercent = Math.round((hrDiff / prevHourlyRate) * 100);
+      if (hrDiff >= 0) {
+        mainText += ` (+${hrDiffPercent}%↑)`;
+      } else {
+        mainText += ` (${hrDiffPercent}%)`;
+      }
+    }
+    mainText += `\n`;
+  }
+  
+  // Order count and CVR
+  if (enrichedData?.orderCount) {
+    mainText += `🛒 注文数: ${enrichedData.orderCount}件`;
+    if (enrichedData.viewerCount && enrichedData.viewerCount > 0) {
+      const cvr = ((enrichedData.orderCount / enrichedData.viewerCount) * 100).toFixed(2);
+      mainText += ` (CVR ${cvr}%)`;
+    }
+    mainText += `\n`;
+  } else if (metrics) {
     if (metrics["コンバージョン率"]) mainText += `📊 CVR: ${metrics["コンバージョン率"]}\n`;
     if (metrics["客単価"]) mainText += `💵 客単価: ${metrics["客単価"]}\n`;
     if (metrics["時間効率"]) mainText += `⏱️ 時間効率: ${metrics["時間効率"]}\n`;
   }
   
-  messages.push({ type: "text", text: mainText });
+  // Viewer count
+  if (enrichedData?.viewerCount) {
+    mainText += `👀 視聴者: ${enrichedData.viewerCount.toLocaleString()}人\n`;
+  }
   
-  // Structured advice
+  // Monthly goal progress
+  if (enrichedData?.monthlyGoal && enrichedData.monthlyGoal.salesGoal > 0) {
+    const mg = enrichedData.monthlyGoal;
+    const remaining = mg.salesGoal - mg.currentSales;
+    mainText += `\n🎯 月間目標進捗\n`;
+    mainText += `  目標: ¥${mg.salesGoal.toLocaleString()}\n`;
+    mainText += `  達成: ¥${mg.currentSales.toLocaleString()} (${mg.achievementRate}%)\n`;
+    mainText += `  残り: ¥${Math.max(0, remaining).toLocaleString()}`;
+    if (mg.achievementRate >= 100) {
+      mainText += ` 🏆達成！`;
+    }
+    mainText += `\n`;
+  }
+  
+  messages.push({ type: "text", text: mainText.trim() });
+  
+  // === Message 2: Brand Breakdown (if available) ===
+  if (enrichedData?.brandBreakdown && enrichedData.brandBreakdown.length > 0) {
+    let brandText = `📦 ブランド別実績\n`;
+    brandText += `━━━━━━━━━━━━━━\n`;
+    enrichedData.brandBreakdown.forEach(brand => {
+      const percentage = salesAmount > 0 ? Math.round((brand.sales / salesAmount) * 100) : 0;
+      brandText += `・${brand.brandName}: ¥${brand.sales.toLocaleString()} (${percentage}%)`;
+      if (brand.duration) {
+        brandText += ` / ${brand.duration}分`;
+      }
+      brandText += `\n`;
+    });
+    messages.push({ type: "text", text: brandText.trim() });
+  }
+  
+  // === Message 3: Advice ===
   if (advice) {
-    let adviceText = "";
+    let adviceText = `💡 AIコーチング\n`;
+    adviceText += `━━━━━━━━━━━━━━\n`;
     
     // Summary
     if (advice.summary) {
-      adviceText += `📝 総評\n${advice.summary}\n\n`;
+      adviceText += `${advice.summary}\n\n`;
     }
     
     // Good points
@@ -117,18 +209,18 @@ export function createCoachingMessage(
     
     // Improvements
     if (advice.improvements && advice.improvements.length > 0) {
-      adviceText += `⚠️ 改善ポイント\n`;
+      adviceText += `⚡ 伸びしろ\n`;
       advice.improvements.forEach(point => {
         adviceText += `・${point}\n`;
       });
       adviceText += "\n";
     }
     
-    if (adviceText) {
+    if (adviceText.length > 30) {
       messages.push({ type: "text", text: adviceText.trim() });
     }
     
-    // Next actions
+    // Next actions (separate message to stay within LINE limits)
     if (advice.nextActions && advice.nextActions.length > 0) {
       let actionsText = `🎯 次回のアクション\n\n`;
       advice.nextActions.forEach((action, i) => {
@@ -136,22 +228,21 @@ export function createCoachingMessage(
         actionsText += `   理由: ${action.reason}\n`;
         actionsText += `   タイミング: ${action.timing}\n\n`;
       });
+      
+      // Target for next time
+      if (advice.targetForNextTime) {
+        actionsText += `\n🏆 次回の目標\n${advice.targetForNextTime}`;
+      }
+      
       messages.push({ type: "text", text: actionsText.trim() });
-    }
-    
-    // Target for next time
-    if (advice.targetForNextTime) {
-      messages.push({ 
-        type: "text", 
-        text: `🏆 次回の目標\n${advice.targetForNextTime}` 
-      });
     }
   } else if (plainAdvice) {
     // Fallback to plain text advice
     messages.push({ type: "text", text: `💡 アドバイス\n${plainAdvice}` });
   }
   
-  return messages;
+  // Ensure we don't exceed LINE's 5 message limit
+  return messages.slice(0, 5);
 }
 
 /**
@@ -169,14 +260,24 @@ export async function sendCoachingToLiver(
     targetForNextTime?: string;
   } | null,
   metrics?: Record<string, string | number> | null,
-  plainAdvice?: string
+  plainAdvice?: string,
+  enrichedData?: {
+    duration?: number;
+    orderCount?: number;
+    viewerCount?: number;
+    previousSales?: number;
+    previousDuration?: number;
+    brandBreakdown?: { brandName: string; sales: number; duration?: number }[];
+    monthlyGoal?: { salesGoal: number; currentSales: number; achievementRate: number };
+  } | null
 ): Promise<{ success: boolean; error?: string }> {
   const messages = createCoachingMessage(
     liverName,
     salesAmount,
     advice,
     metrics,
-    plainAdvice
+    plainAdvice,
+    enrichedData
   );
   
   return sendLinePushMessage(lineUserId, messages);
