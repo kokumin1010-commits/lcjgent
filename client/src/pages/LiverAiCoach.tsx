@@ -23,7 +23,14 @@ import { toast } from "sonner";
 export default function LiverAiCoach() {
   const [, navigate] = useLocation();
   const searchString = useSearch();
-  const isAutoMode = new URLSearchParams(searchString).get('auto') === '1';
+  const urlParams = new URLSearchParams(searchString);
+  const isAutoMode = urlParams.get('auto') === '1';
+  const contextType = urlParams.get('context') || null; // 'suggestion', 'post_stream', 'weekly', 'monthly'
+  const contextFrom = urlParams.get('from') || null;
+  const contextTo = urlParams.get('to') || null;
+  const contextLivestreamId = urlParams.get('livestreamId') ? Number(urlParams.get('livestreamId')) : null;
+  const contextMonth = urlParams.get('month') || null;
+  const [contextInitialized, setContextInitialized] = useState(false);
   const [messageInput, setMessageInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -158,6 +165,48 @@ export default function LiverAiCoach() {
     }
   }, [autoModeWaiting, chatData?.messages]);
 
+  // Context-aware initialization from URL parameters (e.g., from LINE report links)
+  useEffect(() => {
+    if (!contextType || !liverInfo?.id || !activeRoomId || contextInitialized || isSending) return;
+    
+    // Only trigger once when room is ready and has no messages yet (or for new context)
+    let contextMessage = '';
+    switch (contextType) {
+      case 'suggestion':
+        contextMessage = '今日の配信提案について相談したいです。具体的にどう進めればいいですか？';
+        break;
+      case 'post_stream':
+        contextMessage = contextLivestreamId 
+          ? `さっきの配信（ID:${contextLivestreamId}）の結果について詳しく分析してほしいです。改善点を教えてください。`
+          : 'さっきの配信結果について詳しく分析してほしいです。改善点を教えてください。';
+        break;
+      case 'weekly':
+        contextMessage = contextFrom && contextTo
+          ? `${contextFrom}〜${contextTo}の週間レポートについて相談したいです。来週どうすればもっと売上を伸ばせますか？`
+          : '今週の配信レポートについて相談したいです。来週どうすればもっと売上を伸ばせますか？';
+        break;
+      case 'monthly':
+        contextMessage = contextMonth
+          ? `${contextMonth}の月間レポートについて相談したいです。来月の目標と戦略を一緒に考えてほしいです。`
+          : '先月の月間レポートについて相談したいです。来月の目標と戦略を一緒に考えてほしいです。';
+        break;
+      default:
+        return;
+    }
+    
+    if (contextMessage) {
+      setContextInitialized(true);
+      setIsSending(true);
+      sendMessageMutation.mutate({
+        liverId: liverInfo.id,
+        roomId: activeRoomId,
+        message: contextMessage,
+        contextType: contextType,
+        contextId: contextLivestreamId || undefined,
+      });
+    }
+  }, [contextType, liverInfo?.id, activeRoomId, contextInitialized, isSending]);
+
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -170,6 +219,8 @@ export default function LiverAiCoach() {
       liverId: liverInfo.id,
       roomId: activeRoomId,
       message: messageInput.trim(),
+      contextType: contextType || undefined,
+      contextId: contextLivestreamId || undefined,
     });
   }, [messageInput, liverInfo?.id, isSending, activeRoomId]);
 
