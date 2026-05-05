@@ -170,18 +170,7 @@ function ReviewCard({ review, onHelpful }: { review: any; onHelpful: (id: number
         {/* ヘッダー */}
         <div className="p-4 pb-3">
           <div className="flex items-start gap-3">
-            {/* 商品画像 */}
-            {review.productImageUrl ? (
-              <div
-                className="w-16 h-16 rounded-xl overflow-hidden bg-gray-100 shrink-0 cursor-pointer relative group shadow-sm"
-                onClick={() => setLightboxOpen(true)}
-              >
-                <img src={review.productImageUrl} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                  <Camera className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-              </div>
-            ) : null}
+            {/* 商品画像 - セキュリティ: レシート画像には個人情報が含まれるため非表示 */}
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
@@ -268,10 +257,7 @@ function ReviewCard({ review, onHelpful }: { review: any; onHelpful: (id: number
           </button>
         </div>
 
-        {/* ライトボックス */}
-        {lightboxOpen && review.productImageUrl && (
-          <PhotoLightbox images={[review.productImageUrl]} initialIndex={0} onClose={() => setLightboxOpen(false)} />
-        )}
+        {/* ライトボックス - セキュリティ: レシート画像非表示のため無効化 */}
 
         {/* Q&A */}
         {showQA && (
@@ -369,7 +355,8 @@ export default function ProductReviews() {
   }, [reviews]);
 
   // 商品画像（product_masterの画像を優先、なければレビューの画像をフォールバック）
-  const productImage = masterImage?.imageUrl || reviews?.[0]?.productImageUrl;
+  // セキュリティ: レシート画像には個人情報が含まれるため、product_masterの画像のみ使用
+  const productImage = masterImage?.imageUrl || null;
   const brandName = reviews?.[0]?.brandName;
 
   return (
