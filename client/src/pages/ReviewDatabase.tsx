@@ -200,13 +200,7 @@ function VideoFeedCard({ review }: { review: any }) {
       onClick={handleClick}
     >
       <div className="absolute inset-0 bg-gradient-to-b from-gray-800 via-gray-700 to-gray-900" />
-      {review.productImageUrl && (
-        <img
-          src={review.productImageUrl}
-          alt={review.productName}
-          className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-500"
-        />
-      )}
+      {/* プライバシー保護: レシート画像は非表示 */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
 
       <div className="absolute top-3 left-3 z-10">
@@ -350,19 +344,11 @@ function TopRankingCard({ product, rank }: { product: any; rank: number }) {
             {config.icon}
           </div>
 
-          {/* 商品画像 */}
+          {/* 商品画像（プライバシー保護: レシート画像は非表示） */}
           <div className={`shrink-0 ${isFirst ? 'w-24 h-24 md:w-28 md:h-28' : 'w-16 h-16 md:w-20 md:h-20'} rounded-xl overflow-hidden bg-white shadow-md`}>
-            {product.images && product.images[0] ? (
-              <img
-                src={product.images[0]}
-                alt={product.productName}
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                <ShoppingBag className="h-8 w-8 text-gray-300" />
-              </div>
-            )}
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-50 to-pink-50">
+              <ShoppingBag className={`${isFirst ? 'h-10 w-10' : 'h-8 w-8'} text-rose-300`} />
+            </div>
           </div>
 
           {/* 商品情報 */}
@@ -413,15 +399,11 @@ function RankingListItem({ product, rank }: { product: any; rank: number }) {
         {rank}
       </div>
 
-      {/* 商品画像 */}
+      {/* 商品画像（プライバシー保護: レシート画像は非表示） */}
       <div className="w-14 h-14 rounded-xl overflow-hidden bg-white shadow-sm shrink-0 border border-gray-100">
-        {product.images && product.images[0] ? (
-          <img src={product.images[0]} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gray-50">
-            <ShoppingBag className="h-5 w-5 text-gray-300" />
-          </div>
-        )}
+        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-50 to-pink-50">
+          <ShoppingBag className="h-5 w-5 text-rose-300" />
+        </div>
       </div>
 
       {/* 商品情報 */}
@@ -498,26 +480,10 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
         {/* 上部：商品情報 */}
         <div className="p-4 pb-3">
           <div className="flex gap-3">
-            {/* 商品画像 */}
-            {review.productImageUrl ? (
-              <div
-                className="w-20 h-20 md:w-24 md:h-24 rounded-xl overflow-hidden bg-gray-100 shrink-0 cursor-pointer relative group/img shadow-sm"
-                onClick={() => setLightboxOpen(true)}
-              >
-                <img
-                  src={review.productImageUrl}
-                  alt={review.productName}
-                  className="w-full h-full object-cover group-hover/img:scale-110 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/20 transition-colors flex items-center justify-center">
-                  <Camera className="h-5 w-5 text-white opacity-0 group-hover/img:opacity-100 transition-opacity" />
-                </div>
-              </div>
-            ) : (
-              <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl bg-gradient-to-br from-rose-50 to-pink-50 flex items-center justify-center shrink-0">
-                <ShoppingBag className="h-8 w-8 text-rose-200" />
-              </div>
-            )}
+            {/* 商品画像（プライバシー保護: レシート画像は非表示） */}
+            <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl bg-gradient-to-br from-rose-50 to-pink-50 flex items-center justify-center shrink-0">
+              <ShoppingBag className="h-8 w-8 text-rose-200" />
+            </div>
 
             {/* 商品情報 */}
             <div className="flex-1 min-w-0">
@@ -631,14 +597,7 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
           </button>
         </div>
 
-        {/* ライトボックス */}
-        {lightboxOpen && review.productImageUrl && (
-          <PhotoLightbox
-            images={[review.productImageUrl]}
-            initialIndex={0}
-            onClose={() => setLightboxOpen(false)}
-          />
-        )}
+        {/* ライトボックス無効化（プライバシー保護） */}
 
         {/* Q&Aセクション */}
         {showQA && (
