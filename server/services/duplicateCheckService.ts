@@ -39,10 +39,10 @@ export interface Level2Result {
 /**
  * Check Level 2: Cross-user duplicate order number
  * 
- * Winner rule (first valid wins):
+ * Winner rule (approved only):
  * 1. If another user already has an APPROVED receipt with same order → reject
- * 2. If another user has a PENDING receipt submitted earlier → reject (they were first)
- * 3. If this receipt was submitted first → it wins (no duplicate)
+ * 2. Pending/on_hold receipts are NOT considered duplicates (points not yet awarded)
+ * 3. Only receipts that have successfully awarded points trigger duplicate rejection
  */
 export async function checkLevel2CrossUserDuplicate(
   receiptId: number,
@@ -68,11 +68,7 @@ export async function checkLevel2CrossUserDuplicate(
       and(
         ne(lineReceipts.id, receiptId),
         ne(lineReceipts.lineUserId, lineUserId), // Different user
-        or(
-          eq(lineReceipts.status, "approved"),
-          eq(lineReceipts.status, "pending"),
-          eq(lineReceipts.status, "on_hold")
-        )
+        eq(lineReceipts.status, "approved")
       )
     );
   
