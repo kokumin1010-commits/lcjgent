@@ -8773,7 +8773,7 @@ export async function checkDuplicateOrderNumberGlobal(
   // 1. Search lineReceipts table (independent orderNumber column first, fallback to ocrRawText JSON)
   // Check approved/pending/on_hold receipts (approvedはポイント発送済みなので再提出不可)
   // rejectedは除外して再提出を許可
-  let conditions = sql`(${lineReceipts.orderNumber} = ${orderNumber} OR JSON_EXTRACT(${lineReceipts.ocrRawText}, '$.orderNumber') = ${orderNumber}) AND ${lineReceipts.status} IN ('approved', 'pending', 'on_hold')`;
+  let conditions = sql`(${lineReceipts.orderNumber} = ${orderNumber} OR JSON_EXTRACT(${lineReceipts.ocrRawText}, '$.orderNumber') = ${orderNumber}) AND ${lineReceipts.status} = 'approved'`;
   
   if (excludeId) {
     conditions = sql`${conditions} AND ${lineReceipts.id} != ${excludeId}`;
@@ -8798,7 +8798,7 @@ export async function checkDuplicateOrderNumberGlobal(
   }
   
   // 2. Also check pointRequests table (cross-system duplicate detection)
-  // rejectedは除外して再提出を許可（lineReceiptsと同じロジック）
+  // approvedのみチェック（ポイント発放済みの注文のみ重複拒絶）
   const prResult = await db
     .select({
       id: pointRequests.id,
@@ -8810,7 +8810,7 @@ export async function checkDuplicateOrderNumberGlobal(
     .from(pointRequests)
     .where(and(
       eq(pointRequests.orderNumber, orderNumber),
-      inArray(pointRequests.status, ["pending", "approved"])
+      eq(pointRequests.status, "approved")
     ))
     .limit(1);
   
