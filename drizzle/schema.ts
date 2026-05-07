@@ -40,6 +40,10 @@ export const staff = mysqlTable("staff", {
   isActive: mysqlEnum("isActive", ["active", "inactive"]).default("active").notNull(),
   resignDate: timestamp("resignDate"), // 退職日
   resignReason: text("resignReason"), // 退職理由
+  tier: varchar("tier", { length: 10 }), // 人事Tier (tier1~tier6)
+  evaluationScore: int("evaluationScore"), // ランク内評価 (-2~+4)
+  salary: decimal("salary", { precision: 10, scale: 2 }), // 月給
+  salaryCurrency: varchar("salaryCurrency", { length: 5 }).default("JPY"), // 通貨 (JPY/RMB)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

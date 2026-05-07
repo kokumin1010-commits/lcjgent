@@ -2609,11 +2609,18 @@ export const appRouter = router({
           isActive: z.enum(["active", "inactive"]).optional(),
           resignDate: z.string().nullable().optional(),
           resignReason: z.string().nullable().optional(),
+          tier: z.string().nullable().optional(),
+          evaluationScore: z.number().min(-2).max(4).nullable().optional(),
+          salary: z.number().nullable().optional(),
+          salaryCurrency: z.string().nullable().optional(),
         })
       )
       .mutation(async ({ input }) => {
-        const { id, joinDate, birthDate, resignDate, ...rest } = input;
+        const { id, joinDate, birthDate, resignDate, salary, ...rest } = input;
         const updateData: any = { ...rest };
+        if (salary !== undefined) {
+          updateData.salary = salary !== null ? String(salary) : null;
+        }
         if (joinDate !== undefined) {
           updateData.joinDate = joinDate ? new Date(joinDate) : null;
         }
@@ -2829,6 +2836,25 @@ export const appRouter = router({
       .input(z.object({ reportStaffId: z.number() }))
       .query(async ({ input }) => {
         return await getReportsByReportStaffId(input.reportStaffId);
+      }),
+
+    // HR: Update tier info for a staff member
+    updateTier: protectedProcedure
+      .input(z.object({
+        staffId: z.number(),
+        tier: z.string().nullable(),
+        evaluationScore: z.number().min(-2).max(4).nullable(),
+        salary: z.number().nullable(),
+        salaryCurrency: z.string().nullable(),
+      }))
+      .mutation(async ({ input }) => {
+        await updateStaff(input.staffId, {
+          tier: input.tier,
+          evaluationScore: input.evaluationScore,
+          salary: input.salary !== null ? String(input.salary) : null,
+          salaryCurrency: input.salaryCurrency,
+        });
+        return { success: true };
       }),
   }),
 

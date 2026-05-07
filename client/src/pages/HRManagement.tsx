@@ -39,7 +39,8 @@ import {
   LayoutGrid, List, X, Upload, Mail, Phone, MapPin, Calendar,
   Tag, MessageCircle, AlertCircle, FileText, Trash2, Edit, UserPlus,
   ChevronLeft, Camera, ClipboardList, BookOpen, CheckCircle2, Clock,
-  AlertTriangle, CircleDot, Link2, Link2Off, RefreshCw, UserRoundCog
+  AlertTriangle, CircleDot, Link2, Link2Off, RefreshCw, UserRoundCog,
+  TrendingUp, DollarSign, Award, Star, ChevronRight, Save
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -169,6 +170,10 @@ interface UnifiedStaffItem {
   staffNameEn: string | null;
   staffResignDate: Date | string | null;
   staffResignReason: string | null;
+  staffTier: string | null;
+  staffEvaluationScore: number | null;
+  staffSalary: number | null;
+  staffSalaryCurrency: string | null;
   isLinked: boolean;
 }
 
@@ -350,9 +355,365 @@ function ReportHistoryTab({ reportStaffId, staffId }: { reportStaffId: number; s
 }
 
 // ============================================
+// Tier System Constants
+// ============================================
+const TIER_DATA_JP = [
+  { tier: "tier1", name: "Tier 1", title: "ジュニアメンバー", salaryMin: 250000, salaryMax: 300000, currency: "JPY", roles: "アシスタント、データ入力、サポート業務" },
+  { tier: "tier2", name: "Tier 2", title: "メンバー", salaryMin: 300000, salaryMax: 380000, currency: "JPY", roles: "運営担当、営業担当、動画編集者" },
+  { tier: "tier3", name: "Tier 3", title: "シニアメンバー", salaryMin: 380000, salaryMax: 500000, currency: "JPY", roles: "コア運営、コアBD、AI企画、ライバー管理" },
+  { tier: "tier4", name: "Tier 4", title: "リーダー", salaryMin: 500000, salaryMax: 700000, currency: "JPY", roles: "運営Leader、BD Leader、コンテンツLeader" },
+  { tier: "tier5", name: "Tier 5", title: "マネージャー", salaryMin: 700000, salaryMax: 1000000, currency: "JPY", roles: "運営マネージャー、営業マネージャー、MCN責任者" },
+  { tier: "tier6", name: "Tier 6", title: "事業責任者", salaryMin: 1000000, salaryMax: null, currency: "JPY", roles: "TikTok事業責任者、AI事業責任者" },
+];
+
+const TIER_DATA_CN = [
+  { tier: "tier1", name: "Tier 1", title: "初級実行メンバー", salaryMinRMB: 6000, salaryMaxRMB: 8000, salaryMinJPY: 123000, salaryMaxJPY: 164000, roles: "配信アシスタント、運営アシスタント、AI動画編集アシスタント、データ入力" },
+  { tier: "tier2", name: "Tier 2", title: "独立実行メンバー", salaryMinRMB: 8000, salaryMaxRMB: 12000, salaryMinJPY: 164000, salaryMaxJPY: 246000, roles: "ライブ運営、TikTok運営、動画編集者、営業担当、店舗運営" },
+  { tier: "tier3", name: "Tier 3", title: "コアメンバー", salaryMinRMB: 12000, salaryMaxRMB: 20000, salaryMinJPY: 246000, salaryMaxJPY: 410000, roles: "コア運営、コアBD、ライブコマース運営、AI企画、ライバー管理" },
+  { tier: "tier4", name: "Tier 4", title: "Team Leader", salaryMinRMB: 20000, salaryMaxRMB: 35000, salaryMinJPY: 410000, salaryMaxJPY: 718000, roles: "運営Leader、BD Leader、コンテンツLeader" },
+  { tier: "tier5", name: "Tier 5", title: "Manager", salaryMinRMB: 35000, salaryMaxRMB: 60000, salaryMinJPY: 718000, salaryMaxJPY: 1230000, roles: "運営マネージャー、営業マネージャー、MCN責任者" },
+  { tier: "tier6", name: "Tier 6", title: "事業責任者", salaryMinRMB: 60000, salaryMaxRMB: 120000, salaryMinJPY: 1230000, salaryMaxJPY: 2460000, roles: "TikTok事業責任者、AI事業責任者、中国エリア責任者" },
+];
+
+const EVALUATION_SCORES = [
+  { value: -2, label: "-2", description: "期待大幅未達" },
+  { value: -1, label: "-1", description: "期待未達" },
+  { value: 0, label: "0", description: "基準レベル" },
+  { value: 1, label: "+1", description: "期待以上" },
+  { value: 2, label: "+2", description: "優秀" },
+  { value: 3, label: "+3", description: "卓越" },
+  { value: 4, label: "+4", description: "昇格候補" },
+];
+
+const TIER_COLORS: Record<string, string> = {
+  tier1: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  tier2: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+  tier3: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
+  tier4: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
+  tier5: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+  tier6: "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300",
+};
+
+// ============================================
+// Tier System Tab Component
+// ============================================
+function TierSystemTab({ staffList }: { staffList: UnifiedStaffItem[] }) {
+  const [selectedCountry, setSelectedCountry] = useState<"jp" | "cn">("cn");
+  const [editingStaffId, setEditingStaffId] = useState<number | null>(null);
+  const [editTier, setEditTier] = useState<string | null>(null);
+  const [editScore, setEditScore] = useState<number | null>(null);
+  const [editSalary, setEditSalary] = useState<string>("");
+  const [editCurrency, setEditCurrency] = useState<string>("JPY");
+
+  const utils = trpc.useUtils();
+  const updateTierMutation = trpc.staff.updateTier.useMutation({
+    onSuccess: () => {
+      toast.success("Tier情報を更新しました");
+      utils.staff.listReportStaffUnified.invalidate();
+      setEditingStaffId(null);
+    },
+    onError: (error) => toast.error("更新に失敗しました", { description: error.message }),
+  });
+
+  const linkedStaff = staffList.filter(s => s.isLinked && s.staffId && s.reportStaffIsActive === "active");
+
+  const tierDistribution = useMemo(() => {
+    const dist: Record<string, number> = {};
+    linkedStaff.forEach(s => {
+      const t = s.staffTier || "未設定";
+      dist[t] = (dist[t] || 0) + 1;
+    });
+    return dist;
+  }, [linkedStaff]);
+
+  const startEdit = (item: UnifiedStaffItem) => {
+    setEditingStaffId(item.staffId);
+    setEditTier(item.staffTier || null);
+    setEditScore(item.staffEvaluationScore ?? null);
+    setEditSalary(item.staffSalary ? String(item.staffSalary) : "");
+    setEditCurrency(item.staffSalaryCurrency || (item.reportStaffCountry === "中国" ? "RMB" : "JPY"));
+  };
+
+  const saveEdit = () => {
+    if (!editingStaffId) return;
+    updateTierMutation.mutate({
+      staffId: editingStaffId,
+      tier: editTier,
+      evaluationScore: editScore,
+      salary: editSalary ? Number(editSalary) : null,
+      salaryCurrency: editCurrency,
+    });
+  };
+
+  const formatSalary = (amount: number, currency: string) => {
+    if (currency === "RMB") return `¥${amount.toLocaleString()} RMB`;
+    return `¥${amount.toLocaleString()}`;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Tier Distribution Summary */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        {["tier1", "tier2", "tier3", "tier4", "tier5", "tier6", "未設定"].map((t) => (
+          <Card key={t} className="text-center">
+            <CardContent className="p-3">
+              <Badge className={TIER_COLORS[t] || "bg-gray-100 text-gray-600"}>
+                {t === "未設定" ? "未設定" : t.replace("tier", "Tier ")}
+              </Badge>
+              <p className="text-2xl font-bold mt-1">{tierDistribution[t] || 0}</p>
+              <p className="text-[10px] text-muted-foreground">名</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Salary Reference Table */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-primary" />
+              給与基準テーブル
+            </CardTitle>
+            <div className="flex border rounded-md">
+              <button
+                className={`px-3 py-1 text-xs font-medium rounded-l-md transition-colors ${selectedCountry === "jp" ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
+                onClick={() => setSelectedCountry("jp")}
+              >
+                🇯🇵 日本 (JPY)
+              </button>
+              <button
+                className={`px-3 py-1 text-xs font-medium rounded-r-md transition-colors ${selectedCountry === "cn" ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
+                onClick={() => setSelectedCountry("cn")}
+              >
+                🇨🇳 中国 (RMB)
+              </button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {selectedCountry === "jp" ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-3 font-medium">Tier</th>
+                    <th className="text-left py-2 px-3 font-medium">位置付け</th>
+                    <th className="text-left py-2 px-3 font-medium">月給レンジ</th>
+                    <th className="text-left py-2 px-3 font-medium">年収目安</th>
+                    <th className="text-left py-2 px-3 font-medium">主な職種</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {TIER_DATA_JP.map((t) => (
+                    <tr key={t.tier} className="border-b last:border-0 hover:bg-accent/50">
+                      <td className="py-2.5 px-3">
+                        <Badge className={TIER_COLORS[t.tier]}>{t.name}</Badge>
+                      </td>
+                      <td className="py-2.5 px-3 font-medium">{t.title}</td>
+                      <td className="py-2.5 px-3">
+                        ¥{(t.salaryMin / 10000).toFixed(0)}万～{t.salaryMax ? `¥${(t.salaryMax / 10000).toFixed(0)}万` : ""}
+                      </td>
+                      <td className="py-2.5 px-3 text-muted-foreground">
+                        {(t.salaryMin * 12 / 10000).toFixed(0)}万円～
+                      </td>
+                      <td className="py-2.5 px-3 text-xs text-muted-foreground">{t.roles}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-3 font-medium">Tier</th>
+                    <th className="text-left py-2 px-3 font-medium">位置付け</th>
+                    <th className="text-left py-2 px-3 font-medium">月給 (RMB)</th>
+                    <th className="text-left py-2 px-3 font-medium">月給 (JPY換算)</th>
+                    <th className="text-left py-2 px-3 font-medium">主な職種</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {TIER_DATA_CN.map((t) => (
+                    <tr key={t.tier} className="border-b last:border-0 hover:bg-accent/50">
+                      <td className="py-2.5 px-3">
+                        <Badge className={TIER_COLORS[t.tier]}>{t.name}</Badge>
+                      </td>
+                      <td className="py-2.5 px-3 font-medium">{t.title}</td>
+                      <td className="py-2.5 px-3">
+                        {(t.salaryMinRMB / 1000).toFixed(0)}K～{(t.salaryMaxRMB / 1000).toFixed(0)}K
+                      </td>
+                      <td className="py-2.5 px-3 text-muted-foreground">
+                        ¥{(t.salaryMinJPY / 10000).toFixed(1)}万～¥{(t.salaryMaxJPY / 10000).toFixed(1)}万
+                      </td>
+                      <td className="py-2.5 px-3 text-xs text-muted-foreground">{t.roles}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Evaluation Score Reference */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Star className="h-5 w-5 text-primary" />
+            ランク内評価基準 (-2～+4)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {EVALUATION_SCORES.map((s) => (
+              <div key={s.value} className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5">
+                <span className={`font-mono font-bold text-sm ${
+                  s.value < 0 ? "text-red-600" : s.value === 0 ? "text-gray-600" : s.value >= 3 ? "text-emerald-600" : "text-blue-600"
+                }`}>
+                  {s.label}
+                </span>
+                <span className="text-xs text-muted-foreground">{s.description}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            ※ +4で昇格候補。評価軸: 数字責任・実行力・問題解決力・組織貢献・事業理解
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Staff Tier Assignment Table */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-primary" />
+            スタッフTier設定
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 px-3 font-medium">名前</th>
+                  <th className="text-left py-2 px-3 font-medium">国</th>
+                  <th className="text-left py-2 px-3 font-medium">部署</th>
+                  <th className="text-left py-2 px-3 font-medium">Tier</th>
+                  <th className="text-left py-2 px-3 font-medium">評価</th>
+                  <th className="text-left py-2 px-3 font-medium">月給</th>
+                  <th className="text-left py-2 px-3 font-medium">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {linkedStaff.map((item) => (
+                  <tr key={item.staffId} className="border-b last:border-0 hover:bg-accent/50">
+                    <td className="py-2.5 px-3 font-medium">{item.staffName || item.reportStaffName}</td>
+                    <td className="py-2.5 px-3">
+                      <Badge variant="outline" className="text-[10px]">{item.reportStaffCountry}</Badge>
+                    </td>
+                    <td className="py-2.5 px-3 text-muted-foreground">{item.staffDepartment || "-"}</td>
+                    <td className="py-2.5 px-3">
+                      {editingStaffId === item.staffId ? (
+                        <Select value={editTier || "none"} onValueChange={v => setEditTier(v === "none" ? null : v)}>
+                          <SelectTrigger className="h-8 w-[100px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">未設定</SelectItem>
+                            <SelectItem value="tier1">Tier 1</SelectItem>
+                            <SelectItem value="tier2">Tier 2</SelectItem>
+                            <SelectItem value="tier3">Tier 3</SelectItem>
+                            <SelectItem value="tier4">Tier 4</SelectItem>
+                            <SelectItem value="tier5">Tier 5</SelectItem>
+                            <SelectItem value="tier6">Tier 6</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        item.staffTier ? (
+                          <Badge className={TIER_COLORS[item.staffTier] || ""}>
+                            {item.staffTier.replace("tier", "Tier ")}
+                          </Badge>
+                        ) : <span className="text-muted-foreground">-</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      {editingStaffId === item.staffId ? (
+                        <Select value={String(editScore ?? "none")} onValueChange={v => setEditScore(v === "none" ? null : Number(v))}>
+                          <SelectTrigger className="h-8 w-[80px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">-</SelectItem>
+                            {EVALUATION_SCORES.map(s => (
+                              <SelectItem key={s.value} value={String(s.value)}>{s.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        item.staffEvaluationScore !== null ? (
+                          <span className={`font-mono font-bold ${
+                            item.staffEvaluationScore < 0 ? "text-red-600" : item.staffEvaluationScore === 0 ? "text-gray-600" : item.staffEvaluationScore >= 3 ? "text-emerald-600" : "text-blue-600"
+                          }`}>
+                            {item.staffEvaluationScore > 0 ? "+" : ""}{item.staffEvaluationScore}
+                          </span>
+                        ) : <span className="text-muted-foreground">-</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      {editingStaffId === item.staffId ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            value={editSalary}
+                            onChange={e => setEditSalary(e.target.value)}
+                            className="h-8 w-[100px]"
+                            placeholder="金額"
+                          />
+                          <Select value={editCurrency} onValueChange={setEditCurrency}>
+                            <SelectTrigger className="h-8 w-[70px]"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="JPY">JPY</SelectItem>
+                              <SelectItem value="RMB">RMB</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        item.staffSalary ? (
+                          <span>{formatSalary(item.staffSalary, item.staffSalaryCurrency || "JPY")}</span>
+                        ) : <span className="text-muted-foreground">-</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      {editingStaffId === item.staffId ? (
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="default" className="h-7 px-2" onClick={saveEdit} disabled={updateTierMutation.isPending}>
+                            <Save className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingStaffId(null)}>
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => startEdit(item)}>
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ============================================
 // Main HR Management Component
 // ============================================
 export default function HRManagement() {
+  const [pageTab, setPageTab] = useState<"staff" | "tier">("staff");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [countryFilter, setCountryFilter] = useState("all");
@@ -479,6 +840,10 @@ export default function HRManagement() {
       staffNameEn: item.linkedStaff?.nameEn || null,
       staffResignDate: item.linkedStaff?.resignDate || null,
       staffResignReason: item.linkedStaff?.resignReason || null,
+      staffTier: item.linkedStaff?.tier || null,
+      staffEvaluationScore: item.linkedStaff?.evaluationScore ?? null,
+      staffSalary: item.linkedStaff?.salary ? Number(item.linkedStaff.salary) : null,
+      staffSalaryCurrency: item.linkedStaff?.salaryCurrency || null,
       isLinked: !!item.linkedStaff,
     }));
   }, [unifiedData]);
@@ -910,6 +1275,25 @@ export default function HRManagement() {
         </div>
       </div>
 
+      {/* Page Tabs */}
+      <div className="flex border-b">
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${pageTab === "staff" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          onClick={() => setPageTab("staff")}
+        >
+          <Users className="inline h-4 w-4 mr-1.5" />
+          スタッフ一覧
+        </button>
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${pageTab === "tier" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          onClick={() => setPageTab("tier")}
+        >
+          <Award className="inline h-4 w-4 mr-1.5" />
+          Tier制度・給与基準
+        </button>
+      </div>
+
+      {pageTab === "staff" && (<>
       {/* Statistics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
@@ -1056,6 +1440,13 @@ export default function HRManagement() {
             </p>
           </CardContent>
         </Card>
+      )}
+
+      </>)}
+
+      {/* Tier制度・給与基準タブ */}
+      {pageTab === "tier" && (
+        <TierSystemTab staffList={unifiedStaffList} />
       )}
 
       {/* Create Staff Dialog */}
