@@ -357,7 +357,7 @@ function ReportHistoryTab({ reportStaffId, staffId }: { reportStaffId: number; s
 // ============================================
 // Tier System Constants
 // ============================================
-const TIER_DATA_JP = [
+const TIER_DATA_JPY = [
   { tier: "tier1", name: "Tier 1", title: "ジュニアメンバー", salaryMin: 250000, salaryMax: 300000, currency: "JPY", roles: "アシスタント、データ入力、サポート業務" },
   { tier: "tier2", name: "Tier 2", title: "メンバー", salaryMin: 300000, salaryMax: 380000, currency: "JPY", roles: "運営担当、営業担当、動画編集者" },
   { tier: "tier3", name: "Tier 3", title: "シニアメンバー", salaryMin: 380000, salaryMax: 500000, currency: "JPY", roles: "コア運営、コアBD、AI企画、ライバー管理" },
@@ -366,13 +366,13 @@ const TIER_DATA_JP = [
   { tier: "tier6", name: "Tier 6", title: "事業責任者", salaryMin: 1000000, salaryMax: null, currency: "JPY", roles: "TikTok事業責任者、AI事業責任者" },
 ];
 
-const TIER_DATA_CN = [
+const TIER_DATA_RMB = [
   { tier: "tier1", name: "Tier 1", title: "初級実行メンバー", salaryMinRMB: 6000, salaryMaxRMB: 8000, salaryMinJPY: 123000, salaryMaxJPY: 164000, roles: "配信アシスタント、運営アシスタント、AI動画編集アシスタント、データ入力" },
   { tier: "tier2", name: "Tier 2", title: "独立実行メンバー", salaryMinRMB: 8000, salaryMaxRMB: 12000, salaryMinJPY: 164000, salaryMaxJPY: 246000, roles: "ライブ運営、TikTok運営、動画編集者、営業担当、店舗運営" },
   { tier: "tier3", name: "Tier 3", title: "コアメンバー", salaryMinRMB: 12000, salaryMaxRMB: 20000, salaryMinJPY: 246000, salaryMaxJPY: 410000, roles: "コア運営、コアBD、ライブコマース運営、AI企画、ライバー管理" },
   { tier: "tier4", name: "Tier 4", title: "Team Leader", salaryMinRMB: 20000, salaryMaxRMB: 35000, salaryMinJPY: 410000, salaryMaxJPY: 718000, roles: "運営Leader、BD Leader、コンテンツLeader" },
   { tier: "tier5", name: "Tier 5", title: "Manager", salaryMinRMB: 35000, salaryMaxRMB: 60000, salaryMinJPY: 718000, salaryMaxJPY: 1230000, roles: "運営マネージャー、営業マネージャー、MCN責任者" },
-  { tier: "tier6", name: "Tier 6", title: "事業責任者", salaryMinRMB: 60000, salaryMaxRMB: 120000, salaryMinJPY: 1230000, salaryMaxJPY: 2460000, roles: "TikTok事業責任者、AI事業責任者、中国エリア責任者" },
+  { tier: "tier6", name: "Tier 6", title: "事業責任者", salaryMinRMB: 60000, salaryMaxRMB: 120000, salaryMinJPY: 1230000, salaryMaxJPY: 2460000, roles: "TikTok事業責任者、AI事業責任者、エリア責任者" },
 ];
 
 const EVALUATION_SCORES = [
@@ -398,7 +398,7 @@ const TIER_COLORS: Record<string, string> = {
 // Tier System Tab Component
 // ============================================
 function TierSystemTab({ staffList }: { staffList: UnifiedStaffItem[] }) {
-  const [selectedCountry, setSelectedCountry] = useState<"jp" | "cn">("cn");
+  const [selectedCurrency, setSelectedCurrency] = useState<"jpy" | "rmb">("rmb");
   const [editingStaffId, setEditingStaffId] = useState<number | null>(null);
   const [editTier, setEditTier] = useState<string | null>(null);
   const [editScore, setEditScore] = useState<number | null>(null);
@@ -431,7 +431,7 @@ function TierSystemTab({ staffList }: { staffList: UnifiedStaffItem[] }) {
     setEditTier(item.staffTier || null);
     setEditScore(item.staffEvaluationScore ?? null);
     setEditSalary(item.staffSalary ? String(item.staffSalary) : "");
-    setEditCurrency(item.staffSalaryCurrency || (item.reportStaffCountry === "中国" ? "RMB" : "JPY"));
+    setEditCurrency(item.staffSalaryCurrency || "JPY");
   };
 
   const saveEdit = () => {
@@ -477,22 +477,22 @@ function TierSystemTab({ staffList }: { staffList: UnifiedStaffItem[] }) {
             </CardTitle>
             <div className="flex border rounded-md">
               <button
-                className={`px-3 py-1 text-xs font-medium rounded-l-md transition-colors ${selectedCountry === "jp" ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
-                onClick={() => setSelectedCountry("jp")}
+                className={`px-3 py-1 text-xs font-medium rounded-l-md transition-colors ${selectedCurrency === "jpy" ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
+                onClick={() => setSelectedCurrency("jpy")}
               >
-                🇯🇵 日本 (JPY)
+                JPY（円）
               </button>
               <button
-                className={`px-3 py-1 text-xs font-medium rounded-r-md transition-colors ${selectedCountry === "cn" ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
-                onClick={() => setSelectedCountry("cn")}
+                className={`px-3 py-1 text-xs font-medium rounded-r-md transition-colors ${selectedCurrency === "rmb" ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
+                onClick={() => setSelectedCurrency("rmb")}
               >
-                🇨🇳 中国 (RMB)
+                RMB（人民元）
               </button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {selectedCountry === "jp" ? (
+          {selectedCurrency === "jpy" ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -505,7 +505,7 @@ function TierSystemTab({ staffList }: { staffList: UnifiedStaffItem[] }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {TIER_DATA_JP.map((t) => (
+                  {TIER_DATA_JPY.map((t) => (
                     <tr key={t.tier} className="border-b last:border-0 hover:bg-accent/50">
                       <td className="py-2.5 px-3">
                         <Badge className={TIER_COLORS[t.tier]}>{t.name}</Badge>
@@ -536,7 +536,7 @@ function TierSystemTab({ staffList }: { staffList: UnifiedStaffItem[] }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {TIER_DATA_CN.map((t) => (
+                  {TIER_DATA_RMB.map((t) => (
                     <tr key={t.tier} className="border-b last:border-0 hover:bg-accent/50">
                       <td className="py-2.5 px-3">
                         <Badge className={TIER_COLORS[t.tier]}>{t.name}</Badge>
