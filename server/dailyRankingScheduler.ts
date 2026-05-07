@@ -121,16 +121,19 @@ async function findTargetLineGroup(): Promise<{ lineGroupId: string; groupName: 
 }
 
 /**
- * Get today's livestream records (JST date)
+ * Get target day's livestream records (JST date)
+ * Since this runs at JST 00:00, we get YESTERDAY's data (the day that just ended)
  */
 async function getTodayLivestreams(): Promise<LivestreamRecord[]> {
   const db = await getDb();
   if (!db) return [];
 
-  // Get JST today boundaries
+  // Since this runs at JST 00:00, get YESTERDAY's data (the day that just ended)
   const now = new Date();
   const jstNow = getJSTDate(now);
-  const todayStr = jstNow.toISOString().split('T')[0]; // YYYY-MM-DD in JST
+  const targetDay = new Date(jstNow);
+  targetDay.setUTCDate(targetDay.getUTCDate() - 1); // Go back 1 day
+  const todayStr = targetDay.toISOString().split('T')[0]; // YYYY-MM-DD in JST (yesterday)
   
   // Convert JST day boundaries to UTC
   const jstDayStart = new Date(`${todayStr}T00:00:00+09:00`);
@@ -157,7 +160,8 @@ async function getTodayLivestreams(): Promise<LivestreamRecord[]> {
 }
 
 /**
- * Get this week's livestream records (Monday to today, JST)
+ * Get this week's livestream records (Monday to target day, JST)
+ * Since this runs at JST 00:00, week includes up to yesterday
  */
 async function getWeekLivestreams(): Promise<LivestreamRecord[]> {
   const db = await getDb();
@@ -165,17 +169,20 @@ async function getWeekLivestreams(): Promise<LivestreamRecord[]> {
 
   const now = new Date();
   const jstNow = getJSTDate(now);
+  // Target day is yesterday (the day that just ended)
+  const targetDay = new Date(jstNow);
+  targetDay.setUTCDate(targetDay.getUTCDate() - 1);
   
-  // Find Monday of this week (JST)
-  const dayOfWeek = jstNow.getUTCDay(); // 0=Sun, 1=Mon, ...
+  // Find Monday of target day's week (JST)
+  const dayOfWeek = targetDay.getUTCDay(); // 0=Sun, 1=Mon, ...
   const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const monday = new Date(jstNow);
+  const monday = new Date(targetDay);
   monday.setUTCDate(monday.getUTCDate() - daysToMonday);
   const mondayStr = monday.toISOString().split('T')[0];
-  const todayStr = jstNow.toISOString().split('T')[0];
+  const targetDayStr = targetDay.toISOString().split('T')[0];
   
   const weekStart = new Date(`${mondayStr}T00:00:00+09:00`);
-  const weekEnd = new Date(`${todayStr}T23:59:59+09:00`);
+  const weekEnd = new Date(`${targetDayStr}T23:59:59+09:00`);
 
   const records = await db
     .select({
@@ -197,7 +204,8 @@ async function getWeekLivestreams(): Promise<LivestreamRecord[]> {
 }
 
 /**
- * Get yesterday's livestream records for comparison
+ * Get the day before target day's livestream records for comparison
+ * Since target = yesterday, this gets day-before-yesterday
  */
 async function getYesterdayLivestreams(): Promise<LivestreamRecord[]> {
   const db = await getDb();
@@ -205,9 +213,10 @@ async function getYesterdayLivestreams(): Promise<LivestreamRecord[]> {
 
   const now = new Date();
   const jstNow = getJSTDate(now);
-  const yesterday = new Date(jstNow);
-  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  // Target day is yesterday, so "yesterday" relative to target is 2 days ago
+  const twoDaysAgo = new Date(jstNow);
+  twoDaysAgo.setUTCDate(twoDaysAgo.getUTCDate() - 2);
+  const yesterdayStr = twoDaysAgo.toISOString().split('T')[0];
   
   const dayStart = new Date(`${yesterdayStr}T00:00:00+09:00`);
   const dayEnd = new Date(`${yesterdayStr}T23:59:59+09:00`);
@@ -535,8 +544,17 @@ function buildRankingMessage(
   yesterdayTotalSales: number,
   nonStreamers: string[],
 ): string {
+  // Show yesterday's date (the day that just ended)
   const now = new Date();
-  const dateStr = formatJSTDate(now);
+  const jstNow = getJSTDate(now);
+  const targetDay = new Date(jstNow);
+  targetDay.setUTCDate(targetDay.getUTCDate() - 1);
+  // Format target day directly (don't use getJSTDate again since targetDay is already in JST)
+  const month = targetDay.getUTCMonth() + 1;
+  const day = targetDay.getUTCDate();
+  const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
+  const weekday = weekdays[targetDay.getUTCDay()];
+  const dateStr = `${month}/${day}（${weekday}）`;
   
   let msg = "";
   msg += "━━━━━━━━━━━━━━━━━━━━\n";
@@ -655,8 +673,16 @@ export async function runDailyRanking(): Promise<void> {
     // 2. Get today's livestream data
     const todayRecords = await getTodayLivestreams();
     if (todayRecords.length === 0) {
-      console.log(`${LOG_PREFIX} No livestream records today. Sending minimal message.`);
-      const dateStr = formatJSTDate(new Date());
+      console.log(`${LOG_PREFIX} No livestream records for target day. Sending minimal message.`);
+      // Show yesterday's date (the day that just ended)
+      const jstNow = getJSTDate(new Date());
+      const targetDay = new Date(jstNow);
+      targetDay.setUTCDate(targetDay.getUTCDate() - 1);
+      const month = targetDay.getUTCMonth() + 1;
+      const day = targetDay.getUTCDate();
+      const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
+      const weekday = weekdays[targetDay.getUTCDay()];
+      const dateStr = `${month}/${day}（${weekday}）`;
       const noDataMsg = `━━━━━━━━━━━━━━━━━━━━\n📊 ${dateStr} デイリーランキング\n━━━━━━━━━━━━━━━━━━━━\n\n本日の配信記録はありませんでした。\n明日はみんなで配信しよう！🔥\n\n━━━━━━━━━━━━━━━━━━━━`;
       await pushMessage(targetGroup.lineGroupId, [{ type: "text", text: noDataMsg }]);
       return;
