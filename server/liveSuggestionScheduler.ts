@@ -289,6 +289,10 @@ export async function runDailyLiveSuggestion(): Promise<void> {
                 contextInfo += `残り配信回数: ${remainingStreams}回（1配信あたり¥${perStream.toLocaleString()}必要）\n`;
               }
             }
+          } else {
+            // Goal achieved! Show excess amount
+            const excess = Math.abs(remaining);
+            contextInfo += `🎉 目標達成済み！超過額: ¥${excess.toLocaleString()}\n`;
           }
         }
         
@@ -396,10 +400,10 @@ export async function runDailyLiveSuggestion(): Promise<void> {
 
 【出力フォーマット（厳守）】
 🎯 目標:
-• 今日の配信: [配信時間]時間
+• 今日の配信: [「合計配信予定」の数値をそのまま使う]時間
 • 時間単価: ¥[XX,XXX]（[今月/先月]実績）
 • 今日の売上目安: ¥[XX,XXX]（時間単価×配信時間）
-• 月間目標: ¥[X,XXX,XXX] / 達成率[XX]% / 残り¥[X,XXX,XXX]
+• 月間目標: ¥[X,XXX,XXX] / 達成率[XX]% / [達成率100%未満なら「残り¥X,XXX,XXX」、100%以上なら「🎉目標達成！超過¥X,XXX,XXX」]
 
 📦 推奨商品（売れ筋順）:
 1. [データの売れ筋リストから商品名をそのままコピー] - [なぜこの商品を推すか1行]
@@ -413,12 +417,14 @@ export async function runDailyLiveSuggestion(): Promise<void> {
 - [終盤-30分]〜[終了]: ラストチャンス告知・まとめ
 
 💡 今日の戦略:
-[月間目標の達成状況と時間単価のトレンドに基づく具体的アドバイス。例：「月間目標まであと¥XX万、今日は高単価商品Xを前半に持ってきて早めに売上を作りましょう」]
+[月間目標の達成状況と時間単価のトレンドに基づく具体的アドバイス。目標達成済みの場合は「素晴らしい！この調子でさらに上を目指そう」のようなポジティブなメッセージ]
 
 【絶対厳守ルール】
 - 目標セクションの数値はデータの数値をそのまま使え。自分で計算するな
+- 「今日の配信」の時間はデータの「合計配信予定: X時間」の数値をそのまま使う。絶対に自分で計算するな
 - 「今日の売上目標（自動計算）」がデータにあればその数値をそのまま使う
 - 月間目標データがあれば必ず目標セクションに含めること
+- 達成率100%以上の場合、「残り」ではなく「🎉目標達成！超過¥X,XXX,XXX」と表示すること。マイナスの「残り」は絶対禁止
 - 商品名はデータの「売れ筋商品」「取扱商品一覧」「全体の売れ筋」からそのまま引用。架空の商品名は絶対禁止
 - 商品データがない場合、商品セクションは省略
 - ノルマありブランドの商品を最優先で推奨
@@ -456,7 +462,12 @@ export async function runDailyLiveSuggestion(): Promise<void> {
           }
           if (monthlyGoal && monthlyGoal.salesGoal > 0) {
             const remaining = monthlyGoal.salesGoal - monthlyGoal.currentSales;
-            fallbackGoal += `${fallbackGoal ? '\n' : '🎯 目標:\n'}• 月間目標: ¥${monthlyGoal.salesGoal.toLocaleString()} / 達成率${monthlyGoal.achievementRate}% / 残り¥${remaining.toLocaleString()}`;
+            if (remaining > 0) {
+              fallbackGoal += `${fallbackGoal ? '\n' : '🎯 目標:\n'}• 月間目標: ¥${monthlyGoal.salesGoal.toLocaleString()} / 達成率${monthlyGoal.achievementRate}% / 残り¥${remaining.toLocaleString()}`;
+            } else {
+              const excess = Math.abs(remaining);
+              fallbackGoal += `${fallbackGoal ? '\n' : '🎯 目標:\n'}• 月間目標: ¥${monthlyGoal.salesGoal.toLocaleString()} / 達成率${monthlyGoal.achievementRate}% / 🎉目標達成！超過¥${excess.toLocaleString()}`;
+            }
           }
           if (fallbackGoal) {
             suggestionText = `${fallbackGoal}\n\n${liverName}さん、今日も配信頑張りましょう！🔥\n視聴者とのコミュニケーションを大切に、楽しい配信を目指しましょう！`;
@@ -745,6 +756,10 @@ export async function runSingleLiverSuggestion(targetLiverName: string): Promise
             contextInfo += `残り配信回数: ${remainingStreams}回（1配信あたり¥${perStream.toLocaleString()}必要）\n`;
           }
         }
+      } else {
+        // Goal achieved! Show excess amount
+        const excess = Math.abs(remaining);
+        contextInfo += `🎉 目標達成済み！超過額: ¥${excess.toLocaleString()}\n`;
       }
     }
     
@@ -843,10 +858,10 @@ export async function runSingleLiverSuggestion(targetLiverName: string): Promise
 
 【出力フォーマット（厳守）】
 🎯 目標:
-• 今日の配信: [配信時間]時間
+• 今日の配信: [「合計配信予定」の数値をそのまま使う]時間
 • 時間単価: ¥[XX,XXX]（[今月/先月]実績）
 • 今日の売上目安: ¥[XX,XXX]（時間単価×配信時間）
-• 月間目標: ¥[X,XXX,XXX] / 達成率[XX]% / 残り¥[X,XXX,XXX]
+• 月間目標: ¥[X,XXX,XXX] / 達成率[XX]% / [達成率100%未満なら「残り¥X,XXX,XXX」、100%以上なら「🎉目標達成！超過¥X,XXX,XXX」]
 
 📦 推奨商品（売れ筋順）:
 1. [データの売れ筋リストから商品名をそのままコピー] - [なぜこの商品を推すか1行]
@@ -860,12 +875,14 @@ export async function runSingleLiverSuggestion(targetLiverName: string): Promise
 - [終盤-30分]〜[終了]: ラストチャンス告知・まとめ
 
 💡 今日の戦略:
-[月間目標の達成状況と時間単価のトレンドに基づく具体的アドバイス。例：「月間目標まであと¥XX万、今日は高単価商品Xを前半に持ってきて早めに売上を作りましょう」]
+[月間目標の達成状況と時間単価のトレンドに基づく具体的アドバイス。目標達成済みの場合は「素晴らしい！この調子でさらに上を目指そう」のようなポジティブなメッセージ]
 
 【絶対厳守ルール】
 - 目標セクションの数値はデータの数値をそのまま使え。自分で計算するな
+- 「今日の配信」の時間はデータの「合計配信予定: X時間」の数値をそのまま使う。絶対に自分で計算するな
 - 「今日の売上目標（自動計算）」がデータにあればその数値をそのまま使う
 - 月間目標データがあれば必ず目標セクションに含めること
+- 達成率100%以上の場合、「残り」ではなく「🎉目標達成！超過¥X,XXX,XXX」と表示すること。マイナスの「残り」は絶対禁止
 - 商品名はデータの「売れ筋商品」「取扱商品一覧」「全体の売れ筋」からそのまま引用。架空の商品名は絶対禁止
 - 商品データがない場合、商品セクションは省略
 - ノルマありブランドの商品を最優先で推奨
