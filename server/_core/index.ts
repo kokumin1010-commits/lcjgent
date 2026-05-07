@@ -26,6 +26,7 @@ import { startLiveSuggestionScheduler } from "../liveSuggestionScheduler";
 import { startWeeklyReportScheduler } from "../weeklyReportScheduler";
 import { startMonthlyReportScheduler } from "../monthlyReportScheduler";
 import { startPeerBonusResetScheduler } from "../peerBonusResetScheduler";
+import { startDailyRankingScheduler } from "../dailyRankingScheduler";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
 
@@ -2023,6 +2024,9 @@ async function startServer() {
     
     // Start peer bonus monthly reset scheduler (resets pool on 1st of each month JST)
     startPeerBonusResetScheduler();
+
+    // Start daily ranking scheduler (sends daily ranking to LINE at JST 00:00)
+    startDailyRankingScheduler();
     
     // Ensure lineReceipts.orderNumber column exists and backfill from ocrRawText
     import("../db").then(({ ensureLineReceiptsOrderNumberColumn, backfillOrderNumbers }) => {

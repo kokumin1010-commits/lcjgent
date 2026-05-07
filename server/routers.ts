@@ -10818,6 +10818,13 @@ ${conversationText}
         const result = await runSingleLiverSuggestion(input.liverName);
         return result;
       }),
+    // デイリーランキング手動トリガー
+    triggerDailyRanking: protectedProcedure
+      .mutation(async () => {
+        const { runDailyRanking } = await import("./dailyRankingScheduler");
+        await runDailyRanking();
+        return { success: true, message: "デイリーランキングをLINEに送信しました" };
+      }),
   }),
 
   // Liver (Streamer) Authentication Router
