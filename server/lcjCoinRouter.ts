@@ -2030,6 +2030,10 @@ export const lcjCoinRouter = router({
       vestingPeriodMonths: z.number().default(36),
       cliffMonths: z.number().default(12),
       vestingType: z.string().default("monthly_flat"),
+      salaryMinJPY: z.number().optional().nullable(),
+      salaryMaxJPY: z.number().optional().nullable(),
+      salaryMinRMB: z.number().optional().nullable(),
+      salaryMaxRMB: z.number().optional().nullable(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -2045,6 +2049,10 @@ export const lcjCoinRouter = router({
           vestingPeriodMonths: input.vestingPeriodMonths,
           cliffMonths: input.cliffMonths,
           vestingType: input.vestingType,
+          ...(input.salaryMinJPY !== undefined && { salaryMinJPY: input.salaryMinJPY }),
+          ...(input.salaryMaxJPY !== undefined && { salaryMaxJPY: input.salaryMaxJPY }),
+          ...(input.salaryMinRMB !== undefined && { salaryMinRMB: input.salaryMinRMB }),
+          ...(input.salaryMaxRMB !== undefined && { salaryMaxRMB: input.salaryMaxRMB }),
         }).where(eq(lcjCoinTierTemplates.id, input.id));
         return { success: true, id: input.id };
       } else {
@@ -2058,6 +2066,10 @@ export const lcjCoinRouter = router({
           vestingPeriodMonths: input.vestingPeriodMonths,
           cliffMonths: input.cliffMonths,
           vestingType: input.vestingType,
+          salaryMinJPY: input.salaryMinJPY ?? null,
+          salaryMaxJPY: input.salaryMaxJPY ?? null,
+          salaryMinRMB: input.salaryMinRMB ?? null,
+          salaryMaxRMB: input.salaryMaxRMB ?? null,
         });
         return { success: true, id: result.insertId };
       }

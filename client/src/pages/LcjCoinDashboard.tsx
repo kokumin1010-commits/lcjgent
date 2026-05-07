@@ -150,6 +150,12 @@ const TIER_COLORS: Record<string, string> = {
   B: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
   C: "bg-green-500/20 text-green-400 border-green-500/30",
   D: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  "1": "bg-slate-500/20 text-slate-300 border-slate-500/30",
+  "2": "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  "3": "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  "4": "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  "5": "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  "6": "bg-rose-500/20 text-rose-400 border-rose-500/30",
   "L-S": "bg-gray-800/40 text-gray-100 border-gray-500/40",
   "L-A": "bg-yellow-600/20 text-yellow-300 border-yellow-500/30",
   "L-B": "bg-slate-400/20 text-slate-300 border-slate-400/30",
@@ -163,7 +169,7 @@ const TIER_DISPLAY_NAMES: Record<string, string> = {
   "L-C": "BRONZE",
 };
 
-const STAFF_TIER_OPTIONS = ["S", "A", "B", "C", "D"];
+const STAFF_TIER_OPTIONS = ["1", "2", "3", "4", "5", "6"];
 const LIVER_TIER_OPTIONS = ["L-S", "L-A", "L-B", "L-C"];
 
 // ============================================================
@@ -1817,12 +1823,12 @@ export default function LcjCoinDashboard() {
                   <Star className="w-4 h-4 text-blue-400" />
                   スタッフ用 Tier
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
                   {tierTemplatesQuery.data.filter((t: any) => t.tierType !== 'creator').map((tier: any) => (
                     <div key={tier.id} className="p-3 rounded-lg bg-white/[0.02] border border-white/5">
                       <div className="flex items-center gap-2 mb-1">
                         <Badge className={`text-xs px-2 py-0.5 ${TIER_COLORS[tier.tierCode] || ''}`}>
-                          {tier.tierCode}
+                          Tier {tier.tierCode}
                         </Badge>
                         <span className="text-sm font-medium text-white">{tier.tierName}</span>
                       </div>

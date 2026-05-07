@@ -1,5 +1,6 @@
 /**
- * LCJ Coin Tier Tab - Tier別付与テンプレート管理
+ * LCJ Coin Tier Tab - Tier制度・給与基準・コイン付与管理
+ * HR管理画面のTier設定と連携
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
@@ -10,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Star, Calculator, Edit, Coins, Sparkles, Crown } from "lucide-react";
+import { Star, Calculator, Edit, Sparkles, DollarSign, TrendingUp } from "lucide-react";
 
 function NeonCard({ children, color = "orange", className = "" }: { children: React.ReactNode; color?: string; className?: string }) {
   const glowColors: Record<string, string> = {
@@ -26,11 +27,12 @@ function NeonCard({ children, color = "orange", className = "" }: { children: Re
 }
 
 const tierColors: Record<string, string> = {
-  S: "bg-red-500/20 text-red-400 border-red-500/30",
-  A: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-  B: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  C: "bg-green-500/20 text-green-400 border-green-500/30",
-  D: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  "1": "bg-slate-500/20 text-slate-300 border-slate-500/30",
+  "2": "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  "3": "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  "4": "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  "5": "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  "6": "bg-rose-500/20 text-rose-400 border-rose-500/30",
   "L-S": "bg-gray-800/40 text-gray-100 border-gray-500/40",
   "L-A": "bg-yellow-600/20 text-yellow-300 border-yellow-500/30",
   "L-B": "bg-slate-400/20 text-slate-300 border-slate-400/30",
@@ -46,13 +48,14 @@ const tierDisplayNames: Record<string, string> = {
 
 export default function LcjCoinTierTab() {
   const [calcDialog, setCalcDialog] = useState(false);
-  const [calcForm, setCalcForm] = useState({ annualSalary: 5000000, tierCode: "B" });
+  const [calcForm, setCalcForm] = useState({ annualSalary: 5000000, tierCode: "3" });
   const [editingTier, setEditingTier] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{
     tierCode: string; tierName: string; description: string;
     exampleRoles: string; salaryCoefficient: number;
     vestingPeriodMonths: number; cliffMonths: number;
-    coefficientMin: number; coefficientMax: number;
+    salaryMinRMB: number; salaryMaxRMB: number;
+    salaryMinJPY: number; salaryMaxJPY: number;
   } | null>(null);
 
   const tiersQuery = trpc.lcjCoin.getTierTemplates.useQuery();
@@ -86,16 +89,17 @@ export default function LcjCoinTierTab() {
       description: tier.description || "",
       exampleRoles: tier.exampleRoles || "",
       salaryCoefficient: Number(tier.salaryCoefficient) || 0,
-      vestingPeriodMonths: tier.vestingPeriodMonths || 48,
+      vestingPeriodMonths: tier.vestingPeriodMonths || 36,
       cliffMonths: tier.cliffMonths || 12,
-      coefficientMin: Number(tier.coefficientMin) || 0,
-      coefficientMax: Number(tier.coefficientMax) || 0,
+      salaryMinRMB: tier.salaryMinRMB || 0,
+      salaryMaxRMB: tier.salaryMaxRMB || 0,
+      salaryMinJPY: tier.salaryMinJPY || 0,
+      salaryMaxJPY: tier.salaryMaxJPY || 0,
     });
   };
 
   const saveEdit = () => {
     if (!editForm) return;
-    // Find existing tier to get its ID for update
     const existingTier = tiers.find((t: any) => t.tierCode === editForm.tierCode);
     upsertMutation.mutate({
       id: existingTier?.id,
@@ -106,17 +110,21 @@ export default function LcjCoinTierTab() {
       salaryCoefficient: editForm.salaryCoefficient,
       vestingPeriodMonths: editForm.vestingPeriodMonths,
       cliffMonths: editForm.cliffMonths,
+      salaryMinJPY: editForm.salaryMinJPY || null,
+      salaryMaxJPY: editForm.salaryMaxJPY || null,
+      salaryMinRMB: editForm.salaryMinRMB || null,
+      salaryMaxRMB: editForm.salaryMaxRMB || null,
     });
   };
 
   return (
     <div className="space-y-6">
-      {/* Tier Templates */}
+      {/* Tier Templates - Staff */}
       <NeonCard color="orange">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold flex items-center gap-2">
             <Star className="w-5 h-5 text-orange-400" />
-            Tier別付与テンプレート
+            Tier別付与テンプレート（Tier 1〜6）
           </h3>
           <Button
             variant="outline"
@@ -136,7 +144,7 @@ export default function LcjCoinTierTab() {
                 {editingTier === tier.tierCode && editForm ? (
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
-                      <Badge className={`text-lg px-3 py-1 ${tierColors[tier.tierCode] || tierColors.D}`}>
+                      <Badge className={`text-lg px-3 py-1 ${tierColors[tier.tierCode] || "bg-slate-500/20 text-slate-300"}`}>
                         {tier.tierCode}
                       </Badge>
                       <Input
@@ -158,9 +166,9 @@ export default function LcjCoinTierTab() {
                       onChange={(e) => setEditForm(f => f ? { ...f, exampleRoles: e.target.value } : f)}
                       placeholder="対象例"
                     />
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                       <div>
-                        <Label className="text-[10px] text-white/80">係数(%)</Label>
+                        <Label className="text-[10px] text-white/80">コイン係数(%)</Label>
                         <Input
                           type="number"
                           className="bg-white/5 border-white/10 text-white h-8 text-sm"
@@ -198,30 +206,30 @@ export default function LcjCoinTierTab() {
                   </div>
                 ) : (
                   <div className="flex items-center gap-4">
-                    <Badge className={`text-lg px-3 py-1 ${tierColors[tier.tierCode] || tierColors.D}`}>
+                    <Badge className={`text-lg px-3 py-1 ${tierColors[tier.tierCode] || "bg-slate-500/20 text-slate-300"}`}>
                       {tier.tierCode}
                     </Badge>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="font-medium text-white">{tier.tierName}</div>
                       <div className="text-xs text-white/80 mt-0.5">{tier.description}</div>
-                      <div className="text-xs text-white/80 mt-1">
+                      <div className="text-xs text-white/60 mt-1">
                         対象例: {tier.exampleRoles}
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right shrink-0">
                       <div className="text-2xl font-bold font-mono text-orange-400">
                         {Number(tier.salaryCoefficient)}%
                       </div>
                       <div className="text-xs text-white/80">年収に対する係数</div>
                     </div>
-                    <div className="text-right text-xs text-white/80">
+                    <div className="text-right text-xs text-white/80 shrink-0 hidden md:block">
                       <div>ベスティング: {tier.vestingPeriodMonths}ヶ月</div>
                       <div>クリフ: {tier.cliffMonths}ヶ月</div>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-white/80 hover:text-white hover:bg-white/5"
+                      className="text-white/80 hover:text-white hover:bg-white/5 shrink-0"
                       onClick={() => startEdit(tier)}
                     >
                       <Edit className="w-4 h-4" />
@@ -237,6 +245,48 @@ export default function LcjCoinTierTab() {
             <p>Tierテンプレートを読み込み中...</p>
           </div>
         )}
+      </NeonCard>
+
+      {/* Salary Reference Table */}
+      <NeonCard color="green">
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+          <DollarSign className="w-5 h-5 text-emerald-400" />
+          給与基準テーブル（RMB / JPY換算）
+        </h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/10">
+                <th className="text-left py-2 px-3 font-medium text-white/90">Tier</th>
+                <th className="text-left py-2 px-3 font-medium text-white/90">位置付け</th>
+                <th className="text-left py-2 px-3 font-medium text-white/90">月給 (RMB)</th>
+                <th className="text-left py-2 px-3 font-medium text-white/90">月給 (JPY換算)</th>
+                <th className="text-left py-2 px-3 font-medium text-white/90">コイン係数</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tiers.map((tier: any) => (
+                <tr key={tier.id} className="border-b border-white/5 hover:bg-white/[0.03]">
+                  <td className="py-2.5 px-3">
+                    <Badge className={tierColors[tier.tierCode] || "bg-slate-500/20 text-slate-300"}>
+                      Tier {tier.tierCode}
+                    </Badge>
+                  </td>
+                  <td className="py-2.5 px-3 text-white font-medium">{tier.tierName}</td>
+                  <td className="py-2.5 px-3 text-white/90 font-mono">
+                    {tier.salaryMinRMB ? `${(tier.salaryMinRMB / 1000).toFixed(0)}K〜${(tier.salaryMaxRMB / 1000).toFixed(0)}K` : "-"}
+                  </td>
+                  <td className="py-2.5 px-3 text-white/70 font-mono">
+                    {tier.salaryMinJPY ? `¥${(tier.salaryMinJPY / 10000).toFixed(1)}万〜¥${(tier.salaryMaxJPY / 10000).toFixed(1)}万` : "-"}
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <span className="text-orange-400 font-bold font-mono">{Number(tier.salaryCoefficient)}%</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </NeonCard>
 
       {/* Creator Tier Templates (ライバー用) */}
@@ -258,7 +308,7 @@ export default function LcjCoinTierTab() {
                 {editingTier === tier.tierCode && editForm ? (
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
-                      <Badge className={`text-lg px-3 py-1 ${tierColors[tier.tierCode] || tierColors.D}`}>
+                      <Badge className={`text-lg px-3 py-1 ${tierColors[tier.tierCode] || "bg-slate-500/20 text-slate-300"}`}>
                         {tier.tierCode}
                       </Badge>
                       <Input
@@ -311,14 +361,14 @@ export default function LcjCoinTierTab() {
                   </div>
                 ) : (
                   <div className="flex items-center gap-4">
-                    <Badge className={`text-lg px-3 py-1 ${tierColors[tier.tierCode] || tierColors.D}`}>
+                    <Badge className={`text-lg px-3 py-1 ${tierColors[tier.tierCode] || "bg-slate-500/20 text-slate-300"}`}>
                       {tierDisplayNames[tier.tierCode] || tier.tierCode}
                     </Badge>
                     <span className="text-xs text-white/40">({tier.tierCode})</span>
                     <div className="flex-1">
                       <div className="font-medium text-white">{tier.tierName}</div>
                       <div className="text-xs text-white/80 mt-0.5">{tier.description}</div>
-                      <div className="text-xs text-white/80 mt-1">
+                      <div className="text-xs text-white/60 mt-1">
                         対象例: {tier.exampleRoles}
                       </div>
                     </div>
@@ -370,7 +420,7 @@ export default function LcjCoinTierTab() {
               付与コイン数 = (年収 × Tier係数) ÷ 現在の1コイン価格
             </div>
             <div className="text-white/80 text-xs">
-              例: 年収500万 × Tier B(12%) ÷ ¥46.86 = 12,804コイン
+              例: 年収500万 × Tier 3(12%) ÷ ¥46.86 = 12,804コイン
             </div>
           </div>
         </div>
@@ -381,12 +431,26 @@ export default function LcjCoinTierTab() {
           </div>
           <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5">
             <div className="text-xs text-white/80 mb-1">× Tier係数</div>
-            <div className="text-sm font-mono text-orange-400">S:80% A:30% B:12% C:5% D:2%</div>
+            <div className="text-sm font-mono text-orange-400">1:2% 2:5% 3:12% 4:30% 5:50% 6:80%</div>
           </div>
           <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5">
             <div className="text-xs text-white/80 mb-1">÷ コイン価格</div>
             <div className="text-sm font-mono text-blue-400">リアルタイム算出</div>
           </div>
+        </div>
+      </NeonCard>
+
+      {/* HR連携情報 */}
+      <NeonCard color="green">
+        <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-emerald-400" />
+          HR連携
+        </h3>
+        <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs text-white/80 space-y-1">
+          <p>• スタッフのTier設定は <span className="text-emerald-400 font-medium">人事管理（HR）→ Tier制度・給与基準</span> タブからも編集可能</p>
+          <p>• HRで設定したTierは、コイン付与計算時に自動参照されます</p>
+          <p>• 評価スコア（-2〜+4）はHR側で管理。+4で昇格候補</p>
+          <p>• 評価軸: 数字責任・実行力・問題解決力・組織貢献・事業理解</p>
         </div>
       </NeonCard>
 

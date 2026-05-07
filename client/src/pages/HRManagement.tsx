@@ -406,6 +406,8 @@ function TierSystemTab({ staffList }: { staffList: UnifiedStaffItem[] }) {
   const [editCurrency, setEditCurrency] = useState<string>("JPY");
 
   const utils = trpc.useUtils();
+  // DB連携: LCJ CoinのTierテンプレートを参照（同じデータを共有）
+  const tierTemplatesQuery = trpc.lcjCoin.getTierTemplates.useQuery();
   const updateTierMutation = trpc.staff.updateTier.useMutation({
     onSuccess: () => {
       toast.success("Tier情報を更新しました");
