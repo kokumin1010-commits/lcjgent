@@ -12233,9 +12233,16 @@ ${metricsDescription}${historicalContext}`,
           const structured = JSON.parse(jsonStr);
           
           // 従来のワンポイントアドバイスも生成（後方互換性）
-          const simpleAdvice = structured.improvements?.[0] 
-            ? `${structured.improvements[0]}。具体的なアドバイス：「${structured.nextActions?.[0]?.action || '次回の配信で試してみましょう'}」`
-            : content.trim();
+          let simpleAdvice = '';
+          if (structured.improvements?.[0]) {
+            simpleAdvice = `${structured.improvements[0]}。具体的なアドバイス：「${structured.nextActions?.[0]?.action || '次回の配信で試してみましょう'}」`;
+          } else if (structured.summary) {
+            simpleAdvice = structured.summary;
+          } else if (structured.goodPoints?.[0]) {
+            simpleAdvice = structured.goodPoints[0];
+          } else {
+            simpleAdvice = '次回の配信も頑張りましょう！';
+          }
           
           return { 
             advice: simpleAdvice,

@@ -127,6 +127,7 @@ export default function LiverSelfRecord() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGeneratingAdvice, setIsGeneratingAdvice] = useState(false);
   const [advice, setAdvice] = useState<string | null>(null);
+  const [structuredAdvice, setStructuredAdvice] = useState<any>(null);
   const [analysisConfidence, setAnalysisConfidence] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   
@@ -478,6 +479,9 @@ export default function LiverSelfRecord() {
       });
       
       setAdvice(adviceResult.advice);
+      if (adviceResult.structured) {
+        setStructuredAdvice(adviceResult.structured);
+      }
     } catch (error) {
       console.error("Failed to generate advice:", error);
     } finally {
@@ -635,6 +639,7 @@ export default function LiverSelfRecord() {
         beforeScreenshotUrl: finalBeforeScreenshotUrl || undefined,
         scheduleId: formData.scheduleId ? parseInt(formData.scheduleId) : undefined,
         aiAdvice: advice || undefined,
+        structuredAdvice: structuredAdvice || undefined,
         // セット組みデータ（空のセット名・商品名をフィルタリング）
         sets: sets.length > 0 ? (() => {
           const validSets = sets

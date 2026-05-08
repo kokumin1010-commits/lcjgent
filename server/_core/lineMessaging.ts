@@ -263,8 +263,51 @@ export function createCoachingMessage(
       messages.push({ type: "text", text: actionsText.trim() });
     }
   } else if (plainAdvice) {
-    // Fallback to plain text advice
-    messages.push({ type: "text", text: `💡 アドバイス\n${plainAdvice}` });
+    // Fallback to plain text advice - try to parse JSON if it looks like structured data
+    let formattedAdvice = plainAdvice;
+    try {
+      if (plainAdvice.trim().startsWith('{')) {
+        const parsed = JSON.parse(plainAdvice);
+        // Convert structured JSON to readable text
+        let adviceText = `💡 AIコーチング\n`;
+        adviceText += `━━━━━━━━━━━━━━\n`;
+        if (parsed.summary) {
+          adviceText += `${parsed.summary}\n\n`;
+        }
+        if (parsed.goodPoints && parsed.goodPoints.length > 0) {
+          adviceText += `✅ 良かった点\n`;
+          parsed.goodPoints.forEach((point: string) => {
+            adviceText += `・${point}\n`;
+          });
+          adviceText += "\n";
+        }
+        if (parsed.improvements && parsed.improvements.length > 0) {
+          adviceText += `⚡ 伸びしろ\n`;
+          parsed.improvements.forEach((point: string) => {
+            adviceText += `・${point}\n`;
+          });
+          adviceText += "\n";
+        }
+        if (parsed.nextActions && parsed.nextActions.length > 0) {
+          adviceText += `🎯 次回のアクション\n\n`;
+          parsed.nextActions.forEach((action: any, i: number) => {
+            adviceText += `${i + 1}. ${action.action}\n`;
+            if (action.reason) adviceText += `   理由: ${action.reason}\n`;
+            if (action.timing) adviceText += `   タイミング: ${action.timing}\n`;
+            adviceText += `\n`;
+          });
+        }
+        if (parsed.targetForNextTime) {
+          adviceText += `🏆 次回の目標\n${parsed.targetForNextTime}`;
+        }
+        formattedAdvice = adviceText.trim();
+      } else {
+        formattedAdvice = `💡 アドバイス\n${plainAdvice}`;
+      }
+    } catch {
+      formattedAdvice = `💡 アドバイス\n${plainAdvice}`;
+    }
+    messages.push({ type: "text", text: formattedAdvice });
   }
   
   // Add 神コーチ link as the last message
