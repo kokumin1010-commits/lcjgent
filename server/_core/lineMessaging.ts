@@ -91,6 +91,10 @@ export function createCoachingMessage(
     previousDuration?: number;
     brandBreakdown?: { brandName: string; sales: number; duration?: number }[];
     monthlyGoal?: { salesGoal: number; currentSales: number; achievementRate: number };
+    livestreamId?: number;
+    sets?: { setName: string; setPrice: number; quantitySold: number; items: { productName: string; originalPrice: number; quantity: number }[] }[];
+    livestreamDate?: string;
+    brandDurations?: Record<string, number>;
   } | null
 ): LineMessage[] {
   const messages: LineMessage[] = [];
@@ -164,11 +168,12 @@ export function createCoachingMessage(
     mainText += `\n🎯 月間目標進捗\n`;
     mainText += `  目標: ¥${mg.salesGoal.toLocaleString()}\n`;
     mainText += `  達成: ¥${mg.currentSales.toLocaleString()} (${mg.achievementRate}%)\n`;
-    mainText += `  残り: ¥${Math.max(0, remaining).toLocaleString()}`;
     if (mg.achievementRate >= 100) {
-      mainText += ` 🏆達成！`;
+      const exceeded = mg.currentSales - mg.salesGoal;
+      mainText += `  🏆 目標達成！超過: ¥${exceeded.toLocaleString()}\n`;
+    } else {
+      mainText += `  残り: ¥${remaining.toLocaleString()}\n`;
     }
-    mainText += `\n`;
   }
   
   messages.push({ type: "text", text: mainText.trim() });
@@ -186,6 +191,27 @@ export function createCoachingMessage(
       brandText += `\n`;
     });
     messages.push({ type: "text", text: brandText.trim() });
+  }
+  
+  // === Message 2.5: Set Breakdown (same as group LINE format) ===
+  if (enrichedData?.sets && enrichedData.sets.length > 0) {
+    let setText = `📦 セット内訳:\n\n`;
+    enrichedData.sets.forEach(set => {
+      const totalOriginalPrice = set.items.reduce((sum, item) => sum + item.originalPrice * (item.quantity || 1), 0);
+      const discountRate = totalOriginalPrice > 0 ? Math.round(((totalOriginalPrice - set.setPrice) / totalOriginalPrice) * 100) : 0;
+      setText += `【${set.setName}】\n`;
+      setText += `定価¥${totalOriginalPrice.toLocaleString()} → ¥${set.setPrice.toLocaleString()}`;
+      if (discountRate > 0) setText += ` (${discountRate}%OFF)`;
+      setText += `\n\n`;
+      set.items.forEach(item => {
+        const qty = item.quantity || 1;
+        setText += `■ ${item.productName} ${qty}個\n`;
+      });
+      setText += `合計 ${set.items.reduce((sum, item) => sum + (item.quantity || 1), 0)}点\n\n`;
+      setText += `販売数 ${set.quantitySold}セット / 売上 ¥${(set.setPrice * set.quantitySold).toLocaleString()}\n`;
+      setText += `━━━━━━━━━━━━━━\n`;
+    });
+    messages.push({ type: "text", text: setText.trim() });
   }
   
   // === Message 3: Advice ===
@@ -275,6 +301,10 @@ export async function sendCoachingToLiver(
     previousDuration?: number;
     brandBreakdown?: { brandName: string; sales: number; duration?: number }[];
     monthlyGoal?: { salesGoal: number; currentSales: number; achievementRate: number };
+    livestreamId?: number;
+    sets?: { setName: string; setPrice: number; quantitySold: number; items: { productName: string; originalPrice: number; quantity: number }[] }[];
+    livestreamDate?: string;
+    brandDurations?: Record<string, number>;
   } | null
 ): Promise<{ success: boolean; error?: string }> {
   const messages = createCoachingMessage(

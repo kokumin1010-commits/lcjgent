@@ -78,7 +78,7 @@ export default function LivestreamDetail() {
   );
 
   // セット組み編集用state
-  type SetItem = { productName: string; originalPrice: string };
+  type SetItem = { productName: string; originalPrice: string; quantity: string };
   type SetData = { setName: string; setPrice: string; quantitySold: string; items: SetItem[] };
   const [editSets, setEditSets] = useState<SetData[]>([]);
 
@@ -114,8 +114,9 @@ export default function LivestreamDetail() {
           ? set.items.map((item: any) => ({
               productName: item.productName || '',
               originalPrice: (item.originalPrice || 0).toString(),
+              quantity: (item.quantity || 1).toString(),
             }))
-          : [{ productName: '', originalPrice: '' }],
+          : [{ productName: '', originalPrice: '', quantity: '1' }],
       })));
     } else if (!isEditing) {
       setEditSets([]);
@@ -510,7 +511,7 @@ export default function LivestreamDetail() {
               .map(item => ({
                 productName: item.productName.trim(),
                 originalPrice: parseInt(item.originalPrice) || 0,
-                quantity: 1,
+                quantity: parseInt(item.quantity) || 1,
               })),
           }))
           .filter(s => s.items.length > 0);
@@ -827,7 +828,7 @@ export default function LivestreamDetail() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => setEditSets([...editSets, { setName: '', setPrice: '', quantitySold: '1', items: [{ productName: '', originalPrice: '' }] }])}
+                      onClick={() => setEditSets([...editSets, { setName: '', setPrice: '', quantitySold: '1', items: [{ productName: '', originalPrice: '', quantity: '1' }] }])}
                       className="text-purple-400 border-purple-500/30 hover:bg-purple-500/10 text-xs h-7"
                     >
                       <Plus className="h-3 w-3 mr-1" />
@@ -837,7 +838,7 @@ export default function LivestreamDetail() {
                   <p className="text-xs text-gray-300 -mt-1">※ セット売上は配信全体の売上の内訳参考です。売上金額には加算されません。</p>
 
                   {editSets.map((set, setIndex) => {
-                    const totalOriginalPrice = set.items.reduce((sum, item) => sum + (parseInt(item.originalPrice) || 0), 0);
+                    const totalOriginalPrice = set.items.reduce((sum, item) => sum + (parseInt(item.originalPrice) || 0) * (parseInt(item.quantity) || 1), 0);
                     const setPrice = parseInt(set.setPrice) || 0;
                     const discountRate = totalOriginalPrice > 0 ? Math.round(((totalOriginalPrice - setPrice) / totalOriginalPrice) * 100) : 0;
                     const quantitySold = parseInt(set.quantitySold) || 1;
@@ -916,7 +917,7 @@ export default function LivestreamDetail() {
                                 size="sm"
                                 onClick={() => {
                                   const newSets = [...editSets];
-                                  newSets[setIndex].items.push({ productName: '', originalPrice: '' });
+                                  newSets[setIndex].items.push({ productName: '', originalPrice: '', quantity: '1' });
                                   setEditSets(newSets);
                                 }}
                                 className="text-gray-200 hover:text-white text-xs h-6 px-2"
@@ -940,7 +941,7 @@ export default function LivestreamDetail() {
                                 />
                                 <Input
                                   type="number"
-                                  placeholder="元値"
+                                  placeholder="元値（円）"
                                   value={item.originalPrice}
                                   onChange={(e) => {
                                     const newSets = [...editSets];
@@ -948,6 +949,18 @@ export default function LivestreamDetail() {
                                     setEditSets(newSets);
                                   }}
                                   className="bg-gray-800 border-gray-700 text-white text-sm w-24"
+                                />
+                                <Input
+                                  type="number"
+                                  placeholder="数量"
+                                  value={item.quantity}
+                                  onChange={(e) => {
+                                    const newSets = [...editSets];
+                                    newSets[setIndex].items[itemIndex].quantity = e.target.value;
+                                    setEditSets(newSets);
+                                  }}
+                                  className="bg-gray-800 border-gray-700 text-white text-sm w-16"
+                                  min="1"
                                 />
                                 {set.items.length > 1 && (
                                   <Button
@@ -1362,12 +1375,15 @@ export default function LivestreamDetail() {
                                   セット内容（元値合計: ¥{Number(set.totalOriginalPrice || 0).toLocaleString()}）
                                 </p>
                                 <div className="space-y-1">
-                                  {set.items.map((item: any, iIdx: number) => (
-                                    <div key={item.id || iIdx} className="flex justify-between items-center text-xs">
-                                      <span className="text-gray-300">{item.productName}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}</span>
-                                      <span className="text-gray-400">¥{Number(item.originalPrice || 0).toLocaleString()}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}</span>
-                                    </div>
-                                  ))}
+                                  {set.items.map((item: any, iIdx: number) => {
+                                    const qty = item.quantity || 1;
+                                    return (
+                                      <div key={item.id || iIdx} className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-300">{item.productName} ×{qty}</span>
+                                        <span className="text-gray-400">¥{Number(item.originalPrice || 0).toLocaleString()} ×{qty}</span>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}

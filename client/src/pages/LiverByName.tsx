@@ -1480,12 +1480,15 @@ export default function LiverByName() {
                             )}
                           </div>
                           <div className="space-y-1">
-                            {set.items.map((item: any, idx: number) => (
-                              <div key={idx} className="flex items-center justify-between text-xs">
-                                <span className="text-gray-300">{item.productName}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}</span>
-                                <span className="text-gray-500 font-mono">¥{Number(item.originalPrice || 0).toLocaleString()}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}</span>
-                              </div>
-                            ))}
+                            {set.items.map((item: any, idx: number) => {
+                              const qty = item.quantity || 1;
+                              return (
+                                <div key={idx} className="flex items-center justify-between text-xs">
+                                  <span className="text-gray-300">{item.productName} ×{qty}</span>
+                                  <span className="text-gray-500 font-mono">¥{Number(item.originalPrice || 0).toLocaleString()} ×{qty}</span>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}

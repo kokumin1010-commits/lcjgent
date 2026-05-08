@@ -11285,6 +11285,17 @@ ${conversationText}
                   currentSales: monthlyGoal.currentSales,
                   achievementRate: monthlyGoal.achievementRate,
                 } : undefined,
+                livestreamId: id,
+                sets: (input.sets || []).map((s: any) => ({
+                  setName: s.setName,
+                  setPrice: s.setPrice,
+                  quantitySold: s.quantitySold,
+                  items: (s.items || []).map((item: any) => ({
+                    productName: item.productName,
+                    originalPrice: item.originalPrice,
+                    quantity: item.quantity || 1,
+                  })),
+                })),
               };
             } catch (enrichErr) {
               console.error("[LINE Coaching] Failed to gather enriched data:", enrichErr);
@@ -11452,15 +11463,16 @@ ${conversationText}
 性格:
 - 熱血だが的確。褒めるところは全力で褒め、改善点は具体的に指摘する
 - フレンドリーで親しみやすい口調（「〜だね！」「すごい！」など）
-- データに基づいた具体的なアドバイスをする
+- 必ず具体的な数字を引用してフィードバックする（売上額、時間単価、セット販売数、前月比など）
 - ライバーのモチベーションを上げることを最優先にする
 
 ルール:
 - 必ず日本語で回答する
-- 最初に配信結果を簡潔に評価する（良かった点）
-- 次に1つだけ具体的な質問をする（ライバーの振り返りを促す）
-- 質問は配信の具体的な内容に関するものにする
-- 200文字以内で簡潔に`;
+- 最初に配信データの数字を引用して具体的に評価する（例：「売上¥300万、67セット販売は素晴らしい！時間単価¥15万超えてるね」）
+- 次に数字に基づいた改善ポイントを1つ指摘する（例：「配信時間が0分記録 → 正確に記録すれば時間単価の推移が見えるよ」）
+- 最後に1つだけ具体的な質問をする（ライバーの振り返りを促す）
+- 数字のない抽象的な褒め言葉は禁止（「すごいですね」だけはNG、必ず「¥○○の売上すごい」のように数字付き）
+- 300文字以内で簡潔に`;
               
               const userPrompt = `${liverName}さんが${dateStr}の配信データを記録しました。フィードバックと質問をしてください。
 
@@ -11471,7 +11483,8 @@ ${conversationText}
 視聴者数: ${viewerCount}
 注文数: ${orderCount}
 ${setsInfo ? `\n【セット組み】\n${setsInfo}` : ''}
-${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}`;
+${statsContext ? `\n【直近の月別実績】\n${statsContext}` : ''}
+${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.monthlyGoal.salesGoal.toLocaleString()} / 達成: ¥${enrichedData.monthlyGoal.currentSales.toLocaleString()} (${enrichedData.monthlyGoal.achievementRate}%)` : ''}`;
               
               const aiResult = await invokeLLM({
                 messages: [
