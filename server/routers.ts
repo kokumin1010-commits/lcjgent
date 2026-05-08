@@ -18952,7 +18952,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
      * 確変チャンスを実行（レシート申請時にTikTok URLを入力した場合）
      * 還元率1%→1.5%にブースト + 全額還元抽選
      */
-    play: protectedProcedure
+    play: rateLimitedPublicProcedure
       .input(z.object({
         receiptType: z.enum(["point_request", "line_receipt"]),
         receiptId: z.number(),
@@ -18965,21 +18965,42 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         const JACKPOT_ODDS = 1000000; // 全額還元の確率 1/1,000,000
         const DAILY_LIMIT = 3; // 1日の確変チャンス回数制限
 
+        // ===== 認証: 管理者cookie OR LINEセッション =====
+        let userId: number | null = ctx.user?.id || null;
+        let lineUserId: string | null = null;
+        
+        if (!userId) {
+          // LINEセッションから認証を試みる
+          const lineResult = await getLineUserFromSession(ctx);
+          if (lineResult && lineResult.lineUser) {
+            lineUserId = lineResult.lineUser.lineUserId || `email_${lineResult.lineUser.id}`;
+            userId = lineResult.lineUser.id; // line_users.idを使用
+          }
+        }
+        
+        if (!userId && !lineUserId) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+
         // ===== 制限チェック =====
         const { getDb } = await import("./db");
-        const { sql: sqlTag, and, eq, gte } = await import("drizzle-orm");
+        const { sql: sqlTag, and, eq, gte, or } = await import("drizzle-orm");
         const { receiptKakuhenResults } = await import("../drizzle/schema");
         const dbInst = await getDb();
         if (!dbInst) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
-        // 1. 1日3回制限チェック
+        // 1. 1日3回制限チェック（userId OR lineUserIdで検索）
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
+        const whereConditions = [];
+        if (userId) whereConditions.push(eq(receiptKakuhenResults.userId, userId));
+        if (lineUserId) whereConditions.push(eq(receiptKakuhenResults.lineUserId, lineUserId));
+        
         const todayPlays = await dbInst
           .select({ count: sqlTag<number>`COUNT(*)` })
           .from(receiptKakuhenResults)
           .where(and(
-            eq(receiptKakuhenResults.userId, ctx.user.id),
+            or(...whereConditions),
             gte(receiptKakuhenResults.createdAt, todayStart)
           ));
         const todayCount = todayPlays[0]?.count || 0;
@@ -18992,11 +19013,15 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
         // 2. 同一ユーザーのTikTokリンク重複チェック
         if (input.tiktokUrl && input.tiktokUrl.trim().length > 0) {
+          const dupWhereConditions = [];
+          if (userId) dupWhereConditions.push(eq(receiptKakuhenResults.userId, userId));
+          if (lineUserId) dupWhereConditions.push(eq(receiptKakuhenResults.lineUserId, lineUserId));
+          
           const duplicateUrl = await dbInst
             .select({ id: receiptKakuhenResults.id })
             .from(receiptKakuhenResults)
             .where(and(
-              eq(receiptKakuhenResults.userId, ctx.user.id),
+              or(...dupWhereConditions),
               eq(receiptKakuhenResults.tiktokUrl, input.tiktokUrl.trim())
             ))
             .limit(1);
@@ -19126,7 +19151,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         const resultId = await createKakuhenResult({
           receiptType: input.receiptType,
           receiptId: input.receiptId,
-          userId: ctx.user.id,
+          userId: userId,
+          lineUserId: lineUserId,
           tiktokUrl: input.tiktokUrl,
           baseRate: String(BASE_RATE),
           boostedRate: String(rate),
@@ -19235,7 +19261,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     /**
      * レビューを投稿（レシート申請のフローの一部として）
      */
-    submit: protectedProcedure
+    submit: rateLimitedPublicProcedure
       .input(z.object({
         receiptType: z.enum(["point_request", "line_receipt"]),
         receiptId: z.number(),
@@ -19252,11 +19278,29 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         tiktokUrl: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        // 認証: 管理者cookie OR LINEセッション
+        let userId: number | null = ctx.user?.id || null;
+        let lineUserId: string | null = null;
+        
+        if (!userId) {
+          // LINEセッションから認証を試みる
+          const lineResult = await getLineUserFromSession(ctx);
+          if (lineResult && lineResult.lineUser) {
+            lineUserId = lineResult.lineUser.lineUserId || `email_${lineResult.lineUser.id}`;
+            userId = lineResult.lineUser.id;
+          }
+        }
+        
+        if (!userId && !lineUserId) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+
         const reviewId = await createReceiptReview({
           receiptType: input.receiptType,
           receiptId: input.receiptId,
           kakuhenResultId: input.kakuhenResultId,
-          userId: ctx.user.id,
+          userId: userId,
+          lineUserId: lineUserId,
           productName: input.productName,
           brandName: input.brandName,
           shopName: input.shopName,

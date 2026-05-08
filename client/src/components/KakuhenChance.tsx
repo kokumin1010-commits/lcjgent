@@ -622,7 +622,12 @@ export default function KakuhenChance({
       setStep("meter");
     } catch (err: any) {
       const msg = err.message || "";
-      if (msg.includes("回まで") || msg.includes("TOO_MANY_REQUESTS") || msg.includes("本日の確変")) {
+      const code = err.data?.code || err.shape?.data?.code || "";
+      if (code === "UNAUTHORIZED" || msg.includes("ログインが必要")) {
+        // 認証エラー: 管理者ログインページには飛ばさず、ユーザーに通知してスキップ
+        toast.error("セッションが切れました。ページをリロードしてください。");
+        setTimeout(() => onSkip(), 2000);
+      } else if (msg.includes("回まで") || msg.includes("TOO_MANY_REQUESTS") || msg.includes("本日の確変")) {
         toast.error(msg.includes("本日の確変") ? msg : "本日の確変チャンスは上限に達しました（1日3回まで）");
         // 制限到達時はスキップに遷移
         setTimeout(() => onSkip(), 2000);
@@ -672,7 +677,13 @@ export default function KakuhenChance({
 
       handleStartKakuhen();
     } catch (err: any) {
-      toast.error(err.message || "レビューの投稿に失敗しました");
+      const code = err.data?.code || err.shape?.data?.code || "";
+      if (code === "UNAUTHORIZED" || (err.message || "").includes("ログインが必要")) {
+        toast.error("セッションが切れました。ページをリロードしてください。");
+        setTimeout(() => onSkip(), 2000);
+      } else {
+        toast.error(err.message || "レビューの投稿に失敗しました");
+      }
     }
   }, [rating, reviewText, selectedTags, kakuhenData, handleStartKakuhen]);
 

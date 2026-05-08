@@ -19,29 +19,21 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [name, setName] = useState("");
   const { t, language, setLanguage } = useLanguage();
 
   const loginMutation = trpc.auth.login.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success(t("login.title"));
-      // Check if there's a redirect URL in the query params
-      const params = new URLSearchParams(window.location.search);
-      const redirect = params.get('redirect') || '/master';
-      window.location.href = redirect;
-    },
-    onError: (error) => {
-      toast.error(error.message);
-    },
-  });
-
-  const registerMutation = trpc.auth.register.useMutation({
-    onSuccess: () => {
-      toast.success(t("register.title"));
-      setIsRegistering(false);
-      setName("");
-      setPassword("");
+      // セキュリティ: ロールに応じてリダイレクト先を分岐
+      if (data.user?.role === 'admin') {
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get('redirect') || '/master';
+        window.location.href = redirect;
+      } else {
+        // admin以外は管理ダッシュボードにアクセスさせない
+        toast.error(language === "ja" ? "管理者権限がありません" : "没有管理员权限");
+        window.location.href = "/";
+      }
     },
     onError: (error) => {
       toast.error(error.message);
@@ -50,12 +42,7 @@ export default function Login() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (isRegistering) {
-      registerMutation.mutate({ email, password, name });
-    } else {
-      loginMutation.mutate({ email, password });
-    }
+    loginMutation.mutate({ email, password });
   };
 
   const handleLanguageChange = (lang: Language) => {
@@ -78,13 +65,13 @@ export default function Login() {
               onClick={() => handleLanguageChange("ja")}
               className={`cursor-pointer ${language === "ja" ? "bg-accent" : ""}`}
             >
-              🇯🇵 日本語
+              日本語
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => handleLanguageChange("zh")}
               className={`cursor-pointer ${language === "zh" ? "bg-accent" : ""}`}
             >
-              🇨🇳 中文
+              中文
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -93,30 +80,14 @@ export default function Login() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
-            {isRegistering ? t("register.title") : t("login.title")}
+            {t("login.title")}
           </CardTitle>
           <CardDescription className="text-center">
-            {isRegistering
-              ? t("register.subtitle")
-              : t("login.subtitle")}
+            {t("login.subtitle")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {isRegistering && (
-              <div className="space-y-2">
-                <Label htmlFor="name">{t("register.name")}</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder={language === "ja" ? "山田 太郎" : "张三"}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
-            )}
-
             <div className="space-y-2">
               <Label htmlFor="email">{t("login.email")}</Label>
               <Input
@@ -140,49 +111,24 @@ export default function Login() {
                 required
                 minLength={6}
               />
-              {isRegistering && (
-                <p className="text-xs text-muted-foreground">
-                  {language === "ja" ? "6文字以上のパスワードを入力してください" : "请输入6位以上的密码"}
-                </p>
-              )}
             </div>
 
             <Button
               type="submit"
               className="w-full"
-              disabled={loginMutation.isPending || registerMutation.isPending}
+              disabled={loginMutation.isPending}
             >
-              {loginMutation.isPending || registerMutation.isPending
-                ? (isRegistering ? t("register.submitting") : t("login.submitting"))
-                : isRegistering
-                  ? t("register.submit")
-                  : t("login.submit")}
+              {loginMutation.isPending
+                ? t("login.submitting")
+                : t("login.submit")}
             </Button>
 
-            <div className="text-center space-y-2">
-              <Button
-                type="button"
-                variant="link"
-                onClick={() => {
-                  setIsRegistering(!isRegistering);
-                  setName("");
-                  setPassword("");
-                }}
-                className="text-sm"
-              >
-                {isRegistering
-                  ? t("register.login")
-                  : t("login.register")}
-              </Button>
-              {!isRegistering && (
-                <div>
-                  <Link href="/forgot-password-admin">
-                    <Button type="button" variant="link" className="text-sm text-muted-foreground">
-                      {language === "ja" ? "パスワードを忘れた場合" : "忘记密码"}
-                    </Button>
-                  </Link>
-                </div>
-              )}
+            <div className="text-center">
+              <Link href="/forgot-password-admin">
+                <Button type="button" variant="link" className="text-sm text-muted-foreground">
+                  {language === "ja" ? "パスワードを忘れた場合" : "忘记密码"}
+                </Button>
+              </Link>
             </div>
           </form>
         </CardContent>

@@ -57,6 +57,12 @@ export default function DashboardLayout({
     return null;
   }
 
+  // セキュリティ: admin以外のユーザーは管理ダッシュボードにアクセスできない
+  if (user.role !== 'admin') {
+    window.location.href = "/";
+    return null;
+  }
+
   return (
     <SidebarProvider
       style={

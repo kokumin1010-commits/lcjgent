@@ -44,6 +44,18 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
     return;
   }
 
+  // セキュリティ: LINEユーザー向けページからは管理者ログインページにリダイレクトしない
+  // 確変チャンス、レシートアップロード、マイページ等の一般ユーザー向けページ
+  const lineUserPages = [
+    '/receipt-upload', '/line-login', '/line-callback', '/mypage',
+    '/products', '/mall', '/point-request', '/friend-challenge',
+    '/beauty-wallet', '/reviews', '/my/'
+  ];
+  if (lineUserPages.some(p => currentPath.startsWith(p) || currentPath === p)) {
+    // LINEユーザー向けページではリダイレクトしない（コンポーネント内でエラーハンドリング）
+    return;
+  }
+
   window.location.href = getLoginUrl();
 };
 
