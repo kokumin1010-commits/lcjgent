@@ -22352,3 +22352,189 @@ export async function getAllAdoptions() {
     .orderBy(desc(masterSetAdoptions.adoptedAt))
     .limit(100);
 }
+
+
+/**
+ * Update adoption with actual sales results (link to livestream)
+ */
+export async function updateAdoptionResults(adoptionId: number, data: {
+  livestreamId?: number;
+  actualSales?: number;
+  actualRevenue?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  
+  await db.update(masterSetAdoptions)
+    .set(data)
+    .where(eq(masterSetAdoptions.id, adoptionId));
+  return { success: true };
+}
+
+/**
+ * Auto-link adoptions to actual livestream sets
+ * Finds matching sets by liverId + similar setName within 30 days of adoption
+ */
+export async function autoLinkAdoptionResults() {
+  const db = await getDb();
+  if (!db) return { linked: 0 };
+  
+  // Get adoptions without linked results
+  const unlinkedAdoptions = await db
+    .select({
+      id: masterSetAdoptions.id,
+      suggestionId: masterSetAdoptions.suggestionId,
+      liverId: masterSetAdoptions.liverId,
+      adoptedAt: masterSetAdoptions.adoptedAt,
+    })
+    .from(masterSetAdoptions)
+    .where(sql`${masterSetAdoptions.actualRevenue} IS NULL OR ${masterSetAdoptions.actualRevenue} = 0`);
+  
+  if (unlinkedAdoptions.length === 0) return { linked: 0 };
+  
+  // Get suggestion titles for matching
+  const suggestionIds = [...new Set(unlinkedAdoptions.map(a => a.suggestionId))];
+  const suggestions = await db
+    .select({ id: masterSetSuggestions.id, title: masterSetSuggestions.title })
+    .from(masterSetSuggestions)
+    .where(sql`${masterSetSuggestions.id} IN (${sql.join(suggestionIds.map(id => sql`${id}`), sql`, `)})`);
+  
+  const suggestionMap = new Map(suggestions.map(s => [s.id, s.title]));
+  
+  let linkedCount = 0;
+  
+  for (const adoption of unlinkedAdoptions) {
+    const suggestionTitle = suggestionMap.get(adoption.suggestionId) || '';
+    if (!suggestionTitle) continue;
+    
+    // Find matching livestream sets by this liver after adoption date
+    const matchingSets = await db
+      .select({
+        setId: livestreamSets.id,
+        livestreamId: livestreamSets.livestreamId,
+        setName: livestreamSets.setName,
+        quantitySold: livestreamSets.quantitySold,
+        totalRevenue: livestreamSets.totalRevenue,
+        livestreamDate: brandLivestreams.livestreamDate,
+      })
+      .from(livestreamSets)
+      .innerJoin(brandLivestreams, eq(livestreamSets.livestreamId, brandLivestreams.id))
+      .where(
+        and(
+          eq(brandLivestreams.liverId, adoption.liverId),
+          sql`${brandLivestreams.livestreamDate} >= ${adoption.adoptedAt}`,
+          sql`${brandLivestreams.livestreamDate} <= DATE_ADD(${adoption.adoptedAt}, INTERVAL 30 DAY)`
+        )
+      )
+      .orderBy(desc(livestreamSets.totalRevenue))
+      .limit(5);
+    
+    // Find best matching set by name similarity
+    const bestMatch = matchingSets.find(s => {
+      const name = (s.setName || '').toLowerCase();
+      const title = suggestionTitle.toLowerCase();
+      // Check if set name contains key words from suggestion title
+      const titleWords = title.split(/[\s・&＆、,]+/).filter(w => w.length >= 2);
+      return titleWords.some(word => name.includes(word));
+    });
+    
+    if (bestMatch) {
+      await db.update(masterSetAdoptions)
+        .set({
+          livestreamId: bestMatch.livestreamId,
+          actualSales: bestMatch.quantitySold || 0,
+          actualRevenue: Number(bestMatch.totalRevenue) || 0,
+        })
+        .where(eq(masterSetAdoptions.id, adoption.id));
+      linkedCount++;
+    }
+  }
+  
+  return { linked: linkedCount };
+}
+
+/**
+ * Get suggestion performance metrics (for effect measurement)
+ */
+export async function getSuggestionPerformanceMetrics() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get all suggestions with their adoption results
+  const results = await db
+    .select({
+      suggestionId: masterSetAdoptions.suggestionId,
+      adoptionCount: sql<number>`COUNT(*)`,
+      linkedCount: sql<number>`SUM(CASE WHEN ${masterSetAdoptions.actualRevenue} > 0 THEN 1 ELSE 0 END)`,
+      totalActualRevenue: sql<number>`COALESCE(SUM(${masterSetAdoptions.actualRevenue}), 0)`,
+      totalActualSales: sql<number>`COALESCE(SUM(${masterSetAdoptions.actualSales}), 0)`,
+      avgActualRevenue: sql<number>`COALESCE(AVG(CASE WHEN ${masterSetAdoptions.actualRevenue} > 0 THEN ${masterSetAdoptions.actualRevenue} END), 0)`,
+      avgActualSales: sql<number>`COALESCE(AVG(CASE WHEN ${masterSetAdoptions.actualSales} > 0 THEN ${masterSetAdoptions.actualSales} END), 0)`,
+    })
+    .from(masterSetAdoptions)
+    .groupBy(masterSetAdoptions.suggestionId);
+  
+  return results;
+}
+
+/**
+ * Get discount rate distribution from historical sets
+ */
+export async function getHistoricalDiscountRateStats() {
+  const db = await getDb();
+  if (!db) return { avg: 30, min: 10, max: 70, p25: 20, p50: 30, p75: 45, distribution: [] };
+  
+  const stats = await db
+    .select({
+      avgRate: sql<number>`AVG(${livestreamSets.discountRate})`,
+      minRate: sql<number>`MIN(${livestreamSets.discountRate})`,
+      maxRate: sql<number>`MAX(${livestreamSets.discountRate})`,
+      totalSets: sql<number>`COUNT(*)`,
+    })
+    .from(livestreamSets)
+    .where(sql`${livestreamSets.discountRate} > 0 AND ${livestreamSets.totalRevenue} > 0`);
+  
+  // Get percentiles
+  const allRates = await db
+    .select({ rate: livestreamSets.discountRate, revenue: livestreamSets.totalRevenue })
+    .from(livestreamSets)
+    .where(sql`${livestreamSets.discountRate} > 0 AND ${livestreamSets.totalRevenue} > 0`)
+    .orderBy(livestreamSets.discountRate);
+  
+  const rates = allRates.map(r => Number(r.rate));
+  const p25 = rates[Math.floor(rates.length * 0.25)] || 20;
+  const p50 = rates[Math.floor(rates.length * 0.5)] || 30;
+  const p75 = rates[Math.floor(rates.length * 0.75)] || 45;
+  
+  // Revenue by discount rate bucket (for optimal range analysis)
+  const distribution = await db
+    .select({
+      bucket: sql<string>`CASE 
+        WHEN ${livestreamSets.discountRate} < 20 THEN '0-19%'
+        WHEN ${livestreamSets.discountRate} < 30 THEN '20-29%'
+        WHEN ${livestreamSets.discountRate} < 40 THEN '30-39%'
+        WHEN ${livestreamSets.discountRate} < 50 THEN '40-49%'
+        ELSE '50%+' END`,
+      count: sql<number>`COUNT(*)`,
+      avgRevenue: sql<number>`AVG(${livestreamSets.totalRevenue})`,
+      totalRevenue: sql<number>`SUM(${livestreamSets.totalRevenue})`,
+    })
+    .from(livestreamSets)
+    .where(sql`${livestreamSets.discountRate} > 0 AND ${livestreamSets.totalRevenue} > 0`)
+    .groupBy(sql`CASE 
+      WHEN ${livestreamSets.discountRate} < 20 THEN '0-19%'
+      WHEN ${livestreamSets.discountRate} < 30 THEN '20-29%'
+      WHEN ${livestreamSets.discountRate} < 40 THEN '30-39%'
+      WHEN ${livestreamSets.discountRate} < 50 THEN '40-49%'
+      ELSE '50%+' END`);
+  
+  return {
+    avg: Math.round(Number(stats[0]?.avgRate) || 30),
+    min: Number(stats[0]?.minRate) || 10,
+    max: Number(stats[0]?.maxRate) || 70,
+    p25,
+    p50,
+    p75,
+    distribution,
+  };
+}

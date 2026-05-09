@@ -27,6 +27,19 @@ export default function MasterSetSuggestions() {
   
   const suggestionsQuery = trpc.masterSetSuggestion.list.useQuery({ status: filterStatus || undefined });
   const adoptionsQuery = trpc.masterSetSuggestion.adoptions.useQuery();
+  const performanceQuery = trpc.masterSetSuggestion.performanceMetrics.useQuery();
+  const autoLinkMutation = trpc.masterSetSuggestion.autoLinkResults.useMutation({
+    onSuccess: (data) => {
+      if (data.linked > 0) {
+        toast.success(`${data.linked}件の採用を実績と紐付けました`);
+        performanceQuery.refetch();
+        adoptionsQuery.refetch();
+      } else {
+        toast.info("新たに紐付けできる採用はありませんでした");
+      }
+    },
+    onError: (e) => toast.error(e.message),
+  });
   
   // 過去の全セット実績データ
   const allLiversQuery = trpc.livestreamSets.allLiversSetAnalysis.useQuery();
@@ -149,6 +162,10 @@ export default function MasterSetSuggestions() {
   
   const suggestions = suggestionsQuery.data || [];
   const adoptions = adoptionsQuery.data || [];
+  const performanceMetrics = performanceQuery.data || [];
+  
+  // 提案ごとの効果測定データをマップ化
+  const performanceMap = new Map(performanceMetrics.map((p: any) => [p.suggestionId, p]));
   // APIがbigintを文字列で返すためNumber()で変換
   const allLivers = (allLiversQuery.data || []).map((l: any) => ({
     ...l,
@@ -201,8 +218,8 @@ export default function MasterSetSuggestions() {
         </div>
       </div>
       
-      {/* Stats - 文字見やすく修正 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Stats - 効果測定付き */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-slate-800 border border-slate-600 rounded-lg p-4">
           <div className="text-slate-300 text-sm font-medium">アクティブ提案</div>
           <div className="text-2xl font-bold text-cyan-400 mt-1">{suggestions.filter((s: any) => s.status === "active").length}件</div>
@@ -222,10 +239,30 @@ export default function MasterSetSuggestions() {
           </div>
         </div>
         <div className="bg-slate-800 border border-slate-600 rounded-lg p-4">
-          <div className="text-slate-300 text-sm font-medium">採用ライバー数</div>
-          <div className="text-2xl font-bold text-purple-400 mt-1">
-            {new Set(adoptions.map((a: any) => a.liverId)).size}人
+          <div className="text-slate-300 text-sm font-medium">採用後売上実績</div>
+          <div className="text-2xl font-bold text-amber-400 mt-1">
+            ¥{performanceMetrics.reduce((sum: number, p: any) => sum + Number(p.totalActualRevenue || 0), 0).toLocaleString()}
           </div>
+          <div className="text-xs text-slate-400 mt-0.5">
+            {performanceMetrics.reduce((sum: number, p: any) => sum + Number(p.linkedCount || 0), 0)}件紐付済
+          </div>
+        </div>
+        <div className="bg-slate-800 border border-slate-600 rounded-lg p-4">
+          <div className="text-slate-300 text-sm font-medium">平均売上/採用</div>
+          <div className="text-2xl font-bold text-purple-400 mt-1">
+            {(() => {
+              const totalRevenue = performanceMetrics.reduce((sum: number, p: any) => sum + Number(p.totalActualRevenue || 0), 0);
+              const linkedCount = performanceMetrics.reduce((sum: number, p: any) => sum + Number(p.linkedCount || 0), 0);
+              return linkedCount > 0 ? `¥${Math.round(totalRevenue / linkedCount).toLocaleString()}` : '-';
+            })()}
+          </div>
+          <button
+            onClick={() => autoLinkMutation.mutate()}
+            disabled={autoLinkMutation.isPending}
+            className="mt-2 text-xs text-cyan-400 hover:text-cyan-300 underline disabled:opacity-50"
+          >
+            {autoLinkMutation.isPending ? "紐付け中..." : "↔ 売上自動紐付け"}
+          </button>
         </div>
       </div>
       
@@ -520,6 +557,26 @@ export default function MasterSetSuggestions() {
                     {s.priority > 0 && <span className="text-orange-300">優先度: {s.priority}</span>}
                   </div>
                   
+                  {/* 効果測定データ */}
+                  {performanceMap.has(s.id) && (() => {
+                    const perf = performanceMap.get(s.id);
+                    const avgRevenue = Number(perf.avgActualRevenue || 0);
+                    const totalRevenue = Number(perf.totalActualRevenue || 0);
+                    const linkedCount = Number(perf.linkedCount || 0);
+                    if (linkedCount === 0) return null;
+                    return (
+                      <div className="mt-2 flex flex-wrap gap-3 text-xs bg-emerald-900/20 border border-emerald-700/30 rounded-lg px-3 py-2">
+                        <span className="text-emerald-300 font-medium flex items-center gap-1">
+                          <TrendingUp className="w-3 h-3" />
+                          実売上: ¥{totalRevenue.toLocaleString()}
+                        </span>
+                        <span className="text-emerald-200">平均: ¥{Math.round(avgRevenue).toLocaleString()}/採用</span>
+                        <span className="text-emerald-200">紐付: {linkedCount}/{Number(perf.adoptionCount || 0)}件</span>
+                        <span className="text-emerald-200">平均販売: {Math.round(Number(perf.avgActualSales || 0))}セット</span>
+                      </div>
+                    );
+                  })()}
+                  
                   {/* Items */}
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(s.items || []).map((item: any, idx: number) => (
@@ -573,6 +630,14 @@ export default function MasterSetSuggestions() {
                 <div className="flex items-center gap-3">
                   <span className="text-white font-medium">{a.liverName || `Liver #${a.liverId}`}</span>
                   <span className="text-slate-300 text-sm">が提案#{a.suggestionId}を採用</span>
+                  {Number(a.actualRevenue) > 0 && (
+                    <span className="px-2 py-0.5 bg-emerald-900/40 text-emerald-300 text-xs rounded font-medium">
+                      売上¥{Number(a.actualRevenue).toLocaleString()} / {a.actualSales || 0}セット
+                    </span>
+                  )}
+                  {!a.actualRevenue && (
+                    <span className="px-2 py-0.5 bg-slate-700 text-slate-400 text-xs rounded">未紐付</span>
+                  )}
                 </div>
                 <span className="text-sm text-slate-400">
                   {new Date(a.adoptedAt).toLocaleDateString("ja-JP")}
