@@ -5565,7 +5565,7 @@ export const masterSetSuggestions = mysqlTable("master_set_suggestions", {
   aiReasoning: text("aiReasoning"), // AI提案理由
   
   // ステータス管理
-  status: varchar("status", { length: 50 }).default("active").notNull(), // active, archived, expired
+  status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, approved, rejected, active, archived, expired
   priority: int("priority").default(0), // 表示優先度（高い順）
   
   // 有効期間
@@ -5628,3 +5628,57 @@ export const masterSetAdoptions = mysqlTable("master_set_adoptions", {
 });
 export type MasterSetAdoption = typeof masterSetAdoptions.$inferSelect;
 export type InsertMasterSetAdoption = typeof masterSetAdoptions.$inferInsert;
+
+/**
+ * Master Set Feedback - 管理者/ライバーからのフィードバック（承認/却下理由含む）
+ * Phase 1: 管理者の承認/却下理由
+ * Phase 3: AIが自動分類してパターン認識に活用
+ */
+export const masterSetFeedback = mysqlTable("master_set_feedback", {
+  id: int("id").autoincrement().primaryKey(),
+  suggestionId: int("suggestionId").notNull(), // References masterSetSuggestions.id
+  
+  // フィードバック情報
+  action: varchar("action", { length: 50 }).notNull(), // approved, rejected, comment
+  reason: text("reason"), // 自由テキスト（「割引率が低い」「季節外れ」等）
+  
+  // AI自動分類（Phase 3）
+  category: varchar("category", { length: 100 }), // AI分類カテゴリ（割引率, 季節性, 商品相性, 在庫, 価格帯, その他）
+  sentiment: varchar("sentiment", { length: 20 }), // positive, negative, neutral
+  keywords: json("keywords").$type<string[]>(), // AIが抽出したキーワード
+  
+  // 投稿者情報
+  userId: int("userId").notNull(), // 管理者ID
+  userName: varchar("userName", { length: 255 }),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type MasterSetFeedback = typeof masterSetFeedback.$inferSelect;
+export type InsertMasterSetFeedback = typeof masterSetFeedback.$inferInsert;
+
+/**
+ * Master Set Reviews - ライバーからの口コミ・星評価（Phase 2）
+ */
+export const masterSetReviews = mysqlTable("master_set_reviews", {
+  id: int("id").autoincrement().primaryKey(),
+  suggestionId: int("suggestionId").notNull(), // References masterSetSuggestions.id
+  
+  // ライバー情報
+  liverId: int("liverId").notNull(),
+  liverName: varchar("liverName", { length: 255 }),
+  
+  // 評価
+  rating: int("rating").notNull(), // 1-5星
+  comment: text("comment"), // 口コミテキスト
+  
+  // AI自動分類
+  category: varchar("category", { length: 100 }), // AI分類カテゴリ
+  sentiment: varchar("sentiment", { length: 20 }), // positive, negative, neutral
+  keywords: json("keywords").$type<string[]>(), // AIが抽出したキーワード
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type MasterSetReview = typeof masterSetReviews.$inferSelect;
+export type InsertMasterSetReview = typeof masterSetReviews.$inferInsert;
