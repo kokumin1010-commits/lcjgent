@@ -132,7 +132,7 @@ export default function MasterSetSuggestions() {
   // 過去のセットを提案に追加
   function handleAddFromPastSet(set: any) {
     setFormTitle(set.setName || "");
-    setFormDescription(`過去実績: ${set.quantitySold || 0}セット販売 / 売上¥${(set.totalRevenue || 0).toLocaleString()}`);
+    setFormDescription(`過去実績: ${set.quantitySold || 0}セット販売 / 売上¥${Number(set.totalRevenue || 0).toLocaleString()}`);
     setFormCategory("定番");
     setFormPrice(String(set.setPrice || ""));
     setFormItems(
@@ -149,7 +149,13 @@ export default function MasterSetSuggestions() {
   
   const suggestions = suggestionsQuery.data || [];
   const adoptions = adoptionsQuery.data || [];
-  const allLivers = allLiversQuery.data || [];
+  // APIがbigintを文字列で返すためNumber()で変換
+  const allLivers = (allLiversQuery.data || []).map((l: any) => ({
+    ...l,
+    totalSetRevenue: Number(l.totalSetRevenue) || 0,
+    totalQuantitySold: Number(l.totalQuantitySold) || 0,
+    avgDiscountRate: Number(l.avgDiscountRate) || 0,
+  }));
   const liverSets = liverSetQuery.data;
   
   // 過去セットのソート
@@ -157,7 +163,7 @@ export default function MasterSetSuggestions() {
     if (pastSetsSortBy === "date") {
       return new Date(b.livestreamDate || 0).getTime() - new Date(a.livestreamDate || 0).getTime();
     }
-    return (b.totalRevenue || 0) - (a.totalRevenue || 0);
+    return Number(b.totalRevenue || 0) - Number(a.totalRevenue || 0);
   }).filter((s: any) => {
     if (!pastSetsSearch) return true;
     const search = pastSetsSearch.toLowerCase();
@@ -232,7 +238,7 @@ export default function MasterSetSuggestions() {
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {aiResults.map((result, idx) => {
-              const totalOriginal = (result.items || []).reduce((sum: number, i: any) => sum + (i.originalPrice || 0) * (i.quantity || 1), 0);
+              const totalOriginal = (result.items || []).reduce((sum: number, i: any) => sum + Number(i.originalPrice || 0) * Number(i.quantity || 1), 0);
               const discountRate = totalOriginal > 0 ? Math.round((1 - (result.suggestedPrice || 0) / totalOriginal) * 100) : 0;
               return (
               <div key={idx} className="bg-slate-800 border border-purple-600/40 rounded-lg p-4">
@@ -266,7 +272,7 @@ export default function MasterSetSuggestions() {
                     {(result.items || []).map((i: any, iIdx: number) => (
                       <div key={iIdx} className="flex items-center justify-between text-sm">
                         <span className="text-slate-200">{i.productName}{(i.quantity || 1) > 1 ? ` ×${i.quantity}` : ""}</span>
-                        <span className="text-slate-400">¥{(i.originalPrice || 0).toLocaleString()}</span>
+                        <span className="text-slate-400">¥{Number(i.originalPrice || 0).toLocaleString()}</span>
                       </div>
                     ))}
                   </div>
@@ -503,8 +509,8 @@ export default function MasterSetSuggestions() {
                   {s.description && <p className="text-sm text-slate-300 mt-1">{s.description}</p>}
                   
                   <div className="flex flex-wrap gap-4 mt-3 text-sm">
-                    <span className="text-slate-400 line-through">元値: ¥{(s.items || []).reduce((sum: number, i: any) => sum + (i.originalPrice || 0) * (i.quantity || 1), 0).toLocaleString()}</span>
-                    <span className="text-cyan-300 font-bold">売値: ¥{(s.suggestedPrice || 0).toLocaleString()}</span>
+                    <span className="text-slate-400 line-through">元値: ¥{(s.items || []).reduce((sum: number, i: any) => sum + Number(i.originalPrice || 0) * Number(i.quantity || 1), 0).toLocaleString()}</span>
+                    <span className="text-cyan-300 font-bold">売値: ¥{Number(s.suggestedPrice || 0).toLocaleString()}</span>
                     <span className="text-yellow-300 font-bold">{s.suggestedDiscountRate}%OFF</span>
                     {s.expectedSales > 0 && <span className="text-green-300">予想: {s.expectedSales}セット</span>}
                     <span className="text-purple-300 flex items-center gap-1">
@@ -518,7 +524,7 @@ export default function MasterSetSuggestions() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(s.items || []).map((item: any, idx: number) => (
                       <span key={idx} className="px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded font-medium">
-                        {item.productName} ¥{(item.originalPrice || 0).toLocaleString()}
+                        {item.productName} ¥{Number(item.originalPrice || 0).toLocaleString()}
                         {item.quantity > 1 && ` ×${item.quantity}`}
                       </span>
                     ))}
@@ -592,7 +598,7 @@ export default function MasterSetSuggestions() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-amber-300 font-medium">
-              {allLivers.length}人 / 合計¥{allLivers.reduce((sum: number, l: any) => sum + (l.totalSetRevenue || 0), 0).toLocaleString()}
+              {allLivers.length}人 / 合計¥{allLivers.reduce((sum: number, l: any) => sum + Number(l.totalSetRevenue || 0), 0).toLocaleString()}
             </span>
             {showPastSets ? <ChevronUp className="w-5 h-5 text-slate-300" /> : <ChevronDown className="w-5 h-5 text-slate-300" />}
           </div>
@@ -656,7 +662,7 @@ export default function MasterSetSuggestions() {
                       <div className="space-y-2 max-h-[500px] overflow-y-auto">
                         {sortedLiverSets.map((set: any) => {
                           const dateStr = set.livestreamDate ? new Date(set.livestreamDate).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" }) : "";
-                          const totalOriginalPrice = (set.items || []).reduce((sum: number, i: any) => sum + (i.price || i.originalPrice || 0) * (i.quantity || 1), 0);
+                          const totalOriginalPrice = (set.items || []).reduce((sum: number, i: any) => sum + Number(i.price || i.originalPrice || 0) * Number(i.quantity || 1), 0);
                           return (
                             <div key={set.id} className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 hover:border-slate-500 transition">
                               <div className="flex items-start justify-between">
@@ -674,9 +680,9 @@ export default function MasterSetSuggestions() {
                                     {totalOriginalPrice > 0 && (
                                       <span className="text-slate-400 line-through">元値¥{totalOriginalPrice.toLocaleString()}</span>
                                     )}
-                                    <span className="text-cyan-300 font-bold">売値¥{(set.setPrice || 0).toLocaleString()}</span>
+                                    <span className="text-cyan-300 font-bold">売値¥{Number(set.setPrice || 0).toLocaleString()}</span>
                                     <span className="text-green-300 font-medium">{set.quantitySold || 0}セット販売</span>
-                                    <span className="text-amber-300">売上¥{(set.totalRevenue || 0).toLocaleString()}</span>
+                                    <span className="text-amber-300">売上¥{Number(set.totalRevenue || 0).toLocaleString()}</span>
                                   </div>
                                   
                                   {/* 商品一覧（定価付き） */}
@@ -684,8 +690,8 @@ export default function MasterSetSuggestions() {
                                     {(set.items || []).map((item: any, idx: number) => (
                                       <div key={idx} className="flex items-center gap-2 text-xs">
                                         <span className="text-slate-300">{item.productName}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}</span>
-                                        {(item.price || item.originalPrice) > 0 && (
-                                          <span className="text-slate-500">¥{(item.price || item.originalPrice || 0).toLocaleString()}</span>
+                                        {Number(item.price || item.originalPrice || 0) > 0 && (
+                                          <span className="text-slate-500">¥{Number(item.price || item.originalPrice || 0).toLocaleString()}</span>
                                         )}
                                       </div>
                                     ))}
