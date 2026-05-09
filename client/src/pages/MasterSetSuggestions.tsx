@@ -1,14 +1,17 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Sparkles, Plus, Trash2, Edit, Archive, CheckCircle, Package, TrendingUp, Users } from "lucide-react";
+import { Sparkles, Plus, Trash2, Archive, CheckCircle, Package, TrendingUp, Users, ChevronDown, ChevronUp, ArrowRight, Calendar, Search } from "lucide-react";
 
 export default function MasterSetSuggestions() {
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("active");
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiResults, setAiResults] = useState<any[]>([]);
+  const [showPastSets, setShowPastSets] = useState(false);
+  const [pastSetsSortBy, setPastSetsSortBy] = useState<"revenue" | "date">("revenue");
+  const [pastSetsSearch, setPastSetsSearch] = useState("");
+  const [expandedLiverId, setExpandedLiverId] = useState<number | null>(null);
   
   // Form state
   const [formTitle, setFormTitle] = useState("");
@@ -25,6 +28,13 @@ export default function MasterSetSuggestions() {
   const suggestionsQuery = trpc.masterSetSuggestion.list.useQuery({ status: filterStatus || undefined });
   const adoptionsQuery = trpc.masterSetSuggestion.adoptions.useQuery();
   
+  // 過去の全セット実績データ
+  const allLiversQuery = trpc.livestreamSets.allLiversSetAnalysis.useQuery();
+  const liverSetQuery = trpc.livestreamSets.liverSetAnalysis.useQuery(
+    { liverId: expandedLiverId! },
+    { enabled: expandedLiverId !== null }
+  );
+  
   const createMutation = trpc.masterSetSuggestion.create.useMutation({
     onSuccess: () => {
       toast.success("セット提案を作成しました");
@@ -38,7 +48,6 @@ export default function MasterSetSuggestions() {
     onSuccess: () => {
       toast.success("更新しました");
       suggestionsQuery.refetch();
-      setEditingId(null);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -105,7 +114,6 @@ export default function MasterSetSuggestions() {
   }
   
   function handleAdoptAiResult(result: any) {
-    // AI結果をフォームに反映
     setFormTitle(result.title || "");
     setFormDescription(result.description || "");
     setFormCategory(result.category || "季節");
@@ -121,8 +129,41 @@ export default function MasterSetSuggestions() {
     toast.info("AI提案をフォームに反映しました。内容を確認して登録してください。");
   }
   
+  // 過去のセットを提案に追加
+  function handleAddFromPastSet(set: any) {
+    setFormTitle(set.setName || "");
+    setFormDescription(`過去実績: ${set.quantitySold || 0}セット販売 / 売上¥${(set.totalRevenue || 0).toLocaleString()}`);
+    setFormCategory("定番");
+    setFormPrice(String(set.setPrice || ""));
+    setFormItems(
+      (set.items || []).map((i: any) => ({
+        productName: i.productName || "",
+        originalPrice: String(i.price || ""),
+        quantity: String(i.quantity || 1),
+      }))
+    );
+    setShowCreateForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    toast.info("過去セットをフォームに反映しました。内容を確認して登録してください。");
+  }
+  
   const suggestions = suggestionsQuery.data || [];
   const adoptions = adoptionsQuery.data || [];
+  const allLivers = allLiversQuery.data || [];
+  const liverSets = liverSetQuery.data;
+  
+  // 過去セットのソート
+  const sortedLiverSets = liverSets?.sets ? [...liverSets.sets].sort((a: any, b: any) => {
+    if (pastSetsSortBy === "date") {
+      return new Date(b.livestreamDate || 0).getTime() - new Date(a.livestreamDate || 0).getTime();
+    }
+    return (b.totalRevenue || 0) - (a.totalRevenue || 0);
+  }).filter((s: any) => {
+    if (!pastSetsSearch) return true;
+    const search = pastSetsSearch.toLowerCase();
+    return (s.setName || "").toLowerCase().includes(search) ||
+      (s.items || []).some((i: any) => (i.productName || "").toLowerCase().includes(search));
+  }) : [];
   
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -139,14 +180,14 @@ export default function MasterSetSuggestions() {
           <button
             onClick={handleAiGenerate}
             disabled={aiGenerating}
-            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2 font-medium"
           >
             <Sparkles className="w-4 h-4" />
             {aiGenerating ? "AI分析中..." : "AI生成"}
           </button>
           <button
             onClick={() => setShowCreateForm(true)}
-            className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 flex items-center gap-2"
+            className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 flex items-center gap-2 font-medium"
           >
             <Plus className="w-4 h-4" />
             手動追加
@@ -154,19 +195,19 @@ export default function MasterSetSuggestions() {
         </div>
       </div>
       
-      {/* Stats */}
+      {/* Stats - 文字見やすく修正 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-          <div className="text-slate-400 text-sm">アクティブ提案</div>
-          <div className="text-2xl font-bold text-cyan-400">{suggestions.filter((s: any) => s.status === "active").length}件</div>
+        <div className="bg-slate-800 border border-slate-600 rounded-lg p-4">
+          <div className="text-slate-300 text-sm font-medium">アクティブ提案</div>
+          <div className="text-2xl font-bold text-cyan-400 mt-1">{suggestions.filter((s: any) => s.status === "active").length}件</div>
         </div>
-        <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-          <div className="text-slate-400 text-sm">総採用数</div>
-          <div className="text-2xl font-bold text-green-400">{suggestions.reduce((sum: number, s: any) => sum + (s.adoptionCount || 0), 0)}回</div>
+        <div className="bg-slate-800 border border-slate-600 rounded-lg p-4">
+          <div className="text-slate-300 text-sm font-medium">総採用数</div>
+          <div className="text-2xl font-bold text-green-400 mt-1">{suggestions.reduce((sum: number, s: any) => sum + (s.adoptionCount || 0), 0)}回</div>
         </div>
-        <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-          <div className="text-slate-400 text-sm">今月の採用</div>
-          <div className="text-2xl font-bold text-yellow-400">
+        <div className="bg-slate-800 border border-slate-600 rounded-lg p-4">
+          <div className="text-slate-300 text-sm font-medium">今月の採用</div>
+          <div className="text-2xl font-bold text-yellow-400 mt-1">
             {adoptions.filter((a: any) => {
               const d = new Date(a.adoptedAt);
               const now = new Date();
@@ -174,9 +215,9 @@ export default function MasterSetSuggestions() {
             }).length}回
           </div>
         </div>
-        <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-          <div className="text-slate-400 text-sm">採用ライバー数</div>
-          <div className="text-2xl font-bold text-purple-400">
+        <div className="bg-slate-800 border border-slate-600 rounded-lg p-4">
+          <div className="text-slate-300 text-sm font-medium">採用ライバー数</div>
+          <div className="text-2xl font-bold text-purple-400 mt-1">
             {new Set(adoptions.map((a: any) => a.liverId)).size}人
           </div>
         </div>
@@ -184,29 +225,29 @@ export default function MasterSetSuggestions() {
       
       {/* AI Results */}
       {aiResults.length > 0 && (
-        <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-700/50 rounded-xl p-6">
-          <h3 className="text-lg font-bold text-purple-300 flex items-center gap-2 mb-4">
+        <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/50 rounded-xl p-6">
+          <h3 className="text-lg font-bold text-purple-200 flex items-center gap-2 mb-4">
             <Sparkles className="w-5 h-5" />
             AI生成結果（{aiResults.length}件）
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {aiResults.map((result, idx) => (
-              <div key={idx} className="bg-slate-800/80 border border-purple-600/30 rounded-lg p-4">
-                <h4 className="font-bold text-white mb-1">{result.title}</h4>
-                <p className="text-sm text-slate-400 mb-2">{result.description}</p>
+              <div key={idx} className="bg-slate-800 border border-purple-600/40 rounded-lg p-4">
+                <h4 className="font-bold text-white text-base mb-1">{result.title}</h4>
+                <p className="text-sm text-slate-300 mb-2">{result.description}</p>
                 <div className="text-sm space-y-1 mb-3">
-                  <div className="text-cyan-400">売値: ¥{(result.suggestedPrice || 0).toLocaleString()}</div>
-                  <div className="text-green-400">予想販売: {result.expectedSales}セット</div>
-                  <div className="text-slate-300">
+                  <div className="text-cyan-300 font-medium">売値: ¥{(result.suggestedPrice || 0).toLocaleString()}</div>
+                  <div className="text-green-300">予想販売: {result.expectedSales}セット</div>
+                  <div className="text-slate-200">
                     商品: {(result.items || []).map((i: any) => `${i.productName}×${i.quantity || 1}`).join(", ")}
                   </div>
                   {result.reasoning && (
-                    <div className="text-xs text-slate-500 mt-2 border-t border-slate-700 pt-2">{result.reasoning}</div>
+                    <div className="text-xs text-slate-400 mt-2 border-t border-slate-600 pt-2">{result.reasoning}</div>
                   )}
                 </div>
                 <button
                   onClick={() => handleAdoptAiResult(result)}
-                  className="w-full px-3 py-1.5 bg-purple-600 text-white rounded text-sm hover:bg-purple-700"
+                  className="w-full px-3 py-2 bg-purple-600 text-white rounded font-medium text-sm hover:bg-purple-700"
                 >
                   この提案を登録する
                 </button>
@@ -215,7 +256,7 @@ export default function MasterSetSuggestions() {
           </div>
           <button
             onClick={() => setAiResults([])}
-            className="mt-4 text-sm text-slate-400 hover:text-white"
+            className="mt-4 text-sm text-slate-300 hover:text-white underline"
           >
             結果を閉じる
           </button>
@@ -224,24 +265,24 @@ export default function MasterSetSuggestions() {
       
       {/* Create Form */}
       {showCreateForm && (
-        <div className="bg-slate-800/80 border border-slate-600 rounded-xl p-6">
+        <div className="bg-slate-800 border border-cyan-600/50 rounded-xl p-6">
           <h3 className="text-lg font-bold text-white mb-4">新規セット提案</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="text-sm text-slate-400">セット名 *</label>
+              <label className="text-sm text-slate-300 font-medium">セット名 *</label>
               <input
                 value={formTitle}
                 onChange={e => setFormTitle(e.target.value)}
-                className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
+                className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-500 rounded text-white placeholder-slate-400"
                 placeholder="例: 5月UVケアセット"
               />
             </div>
             <div>
-              <label className="text-sm text-slate-400">カテゴリ</label>
+              <label className="text-sm text-slate-300 font-medium">カテゴリ</label>
               <select
                 value={formCategory}
                 onChange={e => setFormCategory(e.target.value)}
-                className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
+                className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-500 rounded text-white"
               >
                 <option value="">選択してください</option>
                 <option value="季節">季節</option>
@@ -252,50 +293,50 @@ export default function MasterSetSuggestions() {
               </select>
             </div>
             <div>
-              <label className="text-sm text-slate-400">推奨売値 (円) *</label>
+              <label className="text-sm text-slate-300 font-medium">推奨売値 (円) *</label>
               <input
                 type="number"
                 value={formPrice}
                 onChange={e => setFormPrice(e.target.value)}
-                className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
+                className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-500 rounded text-white placeholder-slate-400"
                 placeholder="5000"
               />
             </div>
             <div>
-              <label className="text-sm text-slate-400">優先度 (高い順)</label>
+              <label className="text-sm text-slate-300 font-medium">優先度 (高い順)</label>
               <input
                 type="number"
                 value={formPriority}
                 onChange={e => setFormPriority(e.target.value)}
-                className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
+                className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-500 rounded text-white placeholder-slate-400"
                 placeholder="0"
               />
             </div>
             <div>
-              <label className="text-sm text-slate-400">有効開始日</label>
+              <label className="text-sm text-slate-300 font-medium">有効開始日</label>
               <input
                 type="date"
                 value={formValidFrom}
                 onChange={e => setFormValidFrom(e.target.value)}
-                className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
+                className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-500 rounded text-white"
               />
             </div>
             <div>
-              <label className="text-sm text-slate-400">有効終了日</label>
+              <label className="text-sm text-slate-300 font-medium">有効終了日</label>
               <input
                 type="date"
                 value={formValidUntil}
                 onChange={e => setFormValidUntil(e.target.value)}
-                className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
+                className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-500 rounded text-white"
               />
             </div>
           </div>
           <div className="mb-4">
-            <label className="text-sm text-slate-400">説明・セールスポイント</label>
+            <label className="text-sm text-slate-300 font-medium">説明・セールスポイント</label>
             <textarea
               value={formDescription}
               onChange={e => setFormDescription(e.target.value)}
-              className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
+              className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-500 rounded text-white placeholder-slate-400"
               rows={2}
               placeholder="このセットの魅力を1-2文で"
             />
@@ -303,7 +344,7 @@ export default function MasterSetSuggestions() {
           
           {/* Items */}
           <div className="mb-4">
-            <label className="text-sm text-slate-400 mb-2 block">セット商品 *</label>
+            <label className="text-sm text-slate-300 font-medium mb-2 block">セット商品 *</label>
             {formItems.map((item, idx) => (
               <div key={idx} className="flex gap-2 mb-2">
                 <input
@@ -313,7 +354,7 @@ export default function MasterSetSuggestions() {
                     newItems[idx].productName = e.target.value;
                     setFormItems(newItems);
                   }}
-                  className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm"
+                  className="flex-1 px-3 py-2 bg-slate-700 border border-slate-500 rounded text-white text-sm placeholder-slate-400"
                   placeholder="商品名"
                 />
                 <input
@@ -324,7 +365,7 @@ export default function MasterSetSuggestions() {
                     newItems[idx].originalPrice = e.target.value;
                     setFormItems(newItems);
                   }}
-                  className="w-28 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm"
+                  className="w-28 px-3 py-2 bg-slate-700 border border-slate-500 rounded text-white text-sm placeholder-slate-400"
                   placeholder="元値"
                 />
                 <input
@@ -335,7 +376,7 @@ export default function MasterSetSuggestions() {
                     newItems[idx].quantity = e.target.value;
                     setFormItems(newItems);
                   }}
-                  className="w-16 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm"
+                  className="w-16 px-3 py-2 bg-slate-700 border border-slate-500 rounded text-white text-sm placeholder-slate-400"
                   placeholder="数量"
                 />
                 {formItems.length > 1 && (
@@ -350,7 +391,7 @@ export default function MasterSetSuggestions() {
             ))}
             <button
               onClick={() => setFormItems([...formItems, { productName: "", originalPrice: "", quantity: "1" }])}
-              className="text-sm text-cyan-400 hover:text-cyan-300"
+              className="text-sm text-cyan-400 hover:text-cyan-300 font-medium"
             >
               + 商品を追加
             </button>
@@ -358,16 +399,16 @@ export default function MasterSetSuggestions() {
           
           {/* Preview */}
           {formPrice && formItems.some(i => i.originalPrice) && (
-            <div className="bg-slate-900/50 border border-slate-700 rounded p-3 mb-4">
-              <div className="text-sm text-slate-400">プレビュー</div>
+            <div className="bg-slate-900 border border-slate-600 rounded p-3 mb-4">
+              <div className="text-sm text-slate-300 font-medium">プレビュー</div>
               <div className="flex gap-4 mt-1">
                 <span className="text-white">
                   元値合計: ¥{formItems.reduce((sum, i) => sum + (Number(i.originalPrice) || 0) * (Number(i.quantity) || 1), 0).toLocaleString()}
                 </span>
-                <span className="text-cyan-400">
+                <span className="text-cyan-400 font-bold">
                   売値: ¥{Number(formPrice).toLocaleString()}
                 </span>
-                <span className="text-green-400">
+                <span className="text-green-400 font-bold">
                   割引率: {Math.round((1 - Number(formPrice) / formItems.reduce((sum, i) => sum + (Number(i.originalPrice) || 0) * (Number(i.quantity) || 1), 0)) * 100)}%OFF
                 </span>
               </div>
@@ -378,7 +419,7 @@ export default function MasterSetSuggestions() {
             <button
               onClick={handleCreate}
               disabled={createMutation.isPending}
-              className="px-4 py-2 bg-cyan-600 text-white rounded hover:bg-cyan-700 disabled:opacity-50"
+              className="px-4 py-2 bg-cyan-600 text-white rounded font-medium hover:bg-cyan-700 disabled:opacity-50"
             >
               {createMutation.isPending ? "登録中..." : "登録する"}
             </button>
@@ -395,10 +436,10 @@ export default function MasterSetSuggestions() {
           <button
             key={status}
             onClick={() => setFilterStatus(status)}
-            className={`px-3 py-1.5 rounded text-sm ${
+            className={`px-3 py-1.5 rounded text-sm font-medium ${
               filterStatus === status
                 ? "bg-cyan-600 text-white"
-                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                : "bg-slate-700 text-slate-200 hover:bg-slate-600"
             }`}
           >
             {status === "active" ? "アクティブ" : status === "archived" ? "アーカイブ" : "すべて"}
@@ -409,42 +450,42 @@ export default function MasterSetSuggestions() {
       {/* Suggestions List */}
       <div className="space-y-4">
         {suggestions.length === 0 ? (
-          <div className="text-center text-slate-500 py-12">
+          <div className="text-center text-slate-400 py-12">
             セット提案がありません。AIで生成するか手動で追加してください。
           </div>
         ) : (
           suggestions.map((s: any) => (
-            <div key={s.id} className="bg-slate-800/60 border border-slate-700 rounded-xl p-5 hover:border-slate-600 transition">
+            <div key={s.id} className="bg-slate-800 border border-slate-600 rounded-xl p-5 hover:border-slate-500 transition">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <h3 className="text-lg font-bold text-white">{s.title}</h3>
                     {s.category && (
-                      <span className="px-2 py-0.5 bg-purple-900/50 text-purple-300 text-xs rounded">{s.category}</span>
+                      <span className="px-2 py-0.5 bg-purple-800 text-purple-200 text-xs rounded font-medium">{s.category}</span>
                     )}
-                    <span className={`px-2 py-0.5 text-xs rounded ${
-                      s.status === "active" ? "bg-green-900/50 text-green-300" : "bg-slate-700 text-slate-400"
+                    <span className={`px-2 py-0.5 text-xs rounded font-medium ${
+                      s.status === "active" ? "bg-green-800 text-green-200" : "bg-slate-600 text-slate-300"
                     }`}>
                       {s.status === "active" ? "公開中" : "アーカイブ"}
                     </span>
                   </div>
-                  {s.description && <p className="text-sm text-slate-400 mt-1">{s.description}</p>}
+                  {s.description && <p className="text-sm text-slate-300 mt-1">{s.description}</p>}
                   
                   <div className="flex flex-wrap gap-4 mt-3 text-sm">
-                    <span className="text-cyan-400">売値: ¥{(s.suggestedPrice || 0).toLocaleString()}</span>
-                    <span className="text-yellow-400">{s.suggestedDiscountRate}%OFF</span>
-                    <span className="text-green-400">予想: {s.expectedSales}セット</span>
-                    <span className="text-purple-400 flex items-center gap-1">
+                    <span className="text-cyan-300 font-bold">売値: ¥{(s.suggestedPrice || 0).toLocaleString()}</span>
+                    <span className="text-yellow-300 font-bold">{s.suggestedDiscountRate}%OFF</span>
+                    {s.expectedSales > 0 && <span className="text-green-300">予想: {s.expectedSales}セット</span>}
+                    <span className="text-purple-300 flex items-center gap-1">
                       <Users className="w-3 h-3" />
                       採用: {s.adoptionCount || 0}回
                     </span>
-                    {s.priority > 0 && <span className="text-orange-400">優先度: {s.priority}</span>}
+                    {s.priority > 0 && <span className="text-orange-300">優先度: {s.priority}</span>}
                   </div>
                   
                   {/* Items */}
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(s.items || []).map((item: any, idx: number) => (
-                      <span key={idx} className="px-2 py-1 bg-slate-700/50 text-slate-300 text-xs rounded">
+                      <span key={idx} className="px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded font-medium">
                         {item.productName} ¥{(item.originalPrice || 0).toLocaleString()}
                         {item.quantity > 1 && ` ×${item.quantity}`}
                       </span>
@@ -452,7 +493,7 @@ export default function MasterSetSuggestions() {
                   </div>
                   
                   {s.aiReasoning && (
-                    <div className="mt-2 text-xs text-slate-500 border-t border-slate-700 pt-2">
+                    <div className="mt-2 text-xs text-slate-400 border-t border-slate-600 pt-2">
                       💡 {s.aiReasoning}
                     </div>
                   )}
@@ -461,7 +502,7 @@ export default function MasterSetSuggestions() {
                 <div className="flex gap-1 ml-4">
                   <button
                     onClick={() => updateMutation.mutate({ id: s.id, status: s.status === "active" ? "archived" : "active" })}
-                    className="p-2 text-slate-400 hover:text-yellow-400"
+                    className="p-2 text-slate-300 hover:text-yellow-300"
                     title={s.status === "active" ? "アーカイブ" : "公開する"}
                   >
                     {s.status === "active" ? <Archive className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
@@ -470,7 +511,7 @@ export default function MasterSetSuggestions() {
                     onClick={() => {
                       if (confirm("本当に削除しますか？")) deleteMutation.mutate({ id: s.id });
                     }}
-                    className="p-2 text-slate-400 hover:text-red-400"
+                    className="p-2 text-slate-300 hover:text-red-400"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -483,19 +524,19 @@ export default function MasterSetSuggestions() {
       
       {/* Recent Adoptions */}
       {adoptions.length > 0 && (
-        <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-5">
+        <div className="bg-slate-800 border border-slate-600 rounded-xl p-5">
           <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-4">
             <TrendingUp className="w-5 h-5 text-green-400" />
             最近の採用履歴
           </h3>
           <div className="space-y-2">
             {adoptions.slice(0, 10).map((a: any) => (
-              <div key={a.id} className="flex items-center justify-between py-2 border-b border-slate-700/50">
+              <div key={a.id} className="flex items-center justify-between py-2 border-b border-slate-700">
                 <div className="flex items-center gap-3">
                   <span className="text-white font-medium">{a.liverName || `Liver #${a.liverId}`}</span>
-                  <span className="text-slate-400 text-sm">が提案#{a.suggestionId}を採用</span>
+                  <span className="text-slate-300 text-sm">が提案#{a.suggestionId}を採用</span>
                 </div>
-                <span className="text-xs text-slate-500">
+                <span className="text-sm text-slate-400">
                   {new Date(a.adoptedAt).toLocaleDateString("ja-JP")}
                 </span>
               </div>
@@ -503,6 +544,129 @@ export default function MasterSetSuggestions() {
           </div>
         </div>
       )}
+      
+      {/* ===== 過去の全セット実績 ===== */}
+      <div className="border-t border-slate-600 pt-6">
+        <button
+          onClick={() => setShowPastSets(!showPastSets)}
+          className="w-full flex items-center justify-between bg-slate-800 border border-slate-600 rounded-xl p-5 hover:border-slate-500 transition"
+        >
+          <div className="flex items-center gap-3">
+            <Calendar className="w-6 h-6 text-amber-400" />
+            <div className="text-left">
+              <h3 className="text-lg font-bold text-white">過去の全セット実績</h3>
+              <p className="text-sm text-slate-400">全ライバーのセット実績から「提案に追加」できます</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-amber-300 font-medium">
+              {allLivers.length}人 / 合計¥{allLivers.reduce((sum: number, l: any) => sum + (l.totalSetRevenue || 0), 0).toLocaleString()}
+            </span>
+            {showPastSets ? <ChevronUp className="w-5 h-5 text-slate-300" /> : <ChevronDown className="w-5 h-5 text-slate-300" />}
+          </div>
+        </button>
+        
+        {showPastSets && (
+          <div className="mt-4 space-y-3">
+            {/* ライバー一覧 */}
+            {allLivers.map((liver: any) => (
+              <div key={liver.liverId} className="bg-slate-800/80 border border-slate-600 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setExpandedLiverId(expandedLiverId === liver.liverId ? null : liver.liverId)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-slate-700/50 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-white font-bold text-base">{liver.streamerName}</span>
+                    <span className="text-xs text-slate-400">{liver.totalSets}セット</span>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="text-cyan-300 font-medium">¥{(liver.totalSetRevenue || 0).toLocaleString()}</span>
+                    <span className="text-green-300">{liver.totalQuantitySold}個販売</span>
+                    <span className="text-yellow-300">{Math.round(liver.avgDiscountRate || 0)}%OFF</span>
+                    {expandedLiverId === liver.liverId ? <ChevronUp className="w-4 h-4 text-slate-300" /> : <ChevronDown className="w-4 h-4 text-slate-300" />}
+                  </div>
+                </button>
+                
+                {expandedLiverId === liver.liverId && (
+                  <div className="border-t border-slate-700 p-4">
+                    {/* ソート & 検索 */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => setPastSetsSortBy("revenue")}
+                          className={`px-2 py-1 rounded text-xs font-medium ${pastSetsSortBy === "revenue" ? "bg-cyan-600 text-white" : "bg-slate-700 text-slate-300"}`}
+                        >
+                          売上順
+                        </button>
+                        <button
+                          onClick={() => setPastSetsSortBy("date")}
+                          className={`px-2 py-1 rounded text-xs font-medium ${pastSetsSortBy === "date" ? "bg-cyan-600 text-white" : "bg-slate-700 text-slate-300"}`}
+                        >
+                          新着順
+                        </button>
+                      </div>
+                      <div className="flex-1 relative">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
+                        <input
+                          value={pastSetsSearch}
+                          onChange={e => setPastSetsSearch(e.target.value)}
+                          className="w-full pl-7 pr-3 py-1 bg-slate-700 border border-slate-600 rounded text-sm text-white placeholder-slate-400"
+                          placeholder="セット名・商品名で検索..."
+                        />
+                      </div>
+                    </div>
+                    
+                    {liverSetQuery.isLoading ? (
+                      <div className="text-center text-slate-400 py-4">読み込み中...</div>
+                    ) : sortedLiverSets.length === 0 ? (
+                      <div className="text-center text-slate-400 py-4">セットデータがありません</div>
+                    ) : (
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {sortedLiverSets.map((set: any) => {
+                          const dateStr = set.livestreamDate ? new Date(set.livestreamDate).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" }) : "";
+                          return (
+                            <div key={set.id} className="flex items-center justify-between bg-slate-900/50 border border-slate-700 rounded-lg p-3 hover:border-slate-500 transition">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-white font-medium text-sm">{set.setName}</span>
+                                  {set.discountRate > 0 && (
+                                    <span className="px-1.5 py-0.5 bg-green-900/60 text-green-300 text-[10px] rounded font-medium">{Math.round(set.discountRate)}%OFF</span>
+                                  )}
+                                  {dateStr && <span className="text-slate-500 text-xs">{dateStr}</span>}
+                                </div>
+                                <div className="flex items-center gap-3 mt-1 text-xs">
+                                  <span className="text-cyan-300">¥{(set.setPrice || 0).toLocaleString()}</span>
+                                  <span className="text-slate-400">{set.quantitySold || 0}セット販売</span>
+                                  <span className="text-green-300">売上¥{(set.totalRevenue || 0).toLocaleString()}</span>
+                                </div>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {(set.items || []).map((item: any, idx: number) => (
+                                    <span key={idx} className="text-[10px] text-slate-400">
+                                      {item.productName}{item.quantity > 1 ? `×${item.quantity}` : ''}
+                                      {idx < (set.items || []).length - 1 ? '、' : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleAddFromPastSet(set)}
+                                className="ml-3 px-3 py-1.5 bg-amber-600 text-white text-xs rounded font-medium hover:bg-amber-700 whitespace-nowrap flex items-center gap-1"
+                              >
+                                <ArrowRight className="w-3 h-3" />
+                                提案に追加
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
