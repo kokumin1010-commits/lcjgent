@@ -1193,6 +1193,9 @@ export default function LiverMypage() {
           </Card>
         </Link>
 
+        {/* おすすめセット提案 */}
+        <MasterSetSuggestionsSection liverId={liverInfo?.id || 0} liverName={liverInfo?.name || ''} />
+
         {/* セット一覧 */}
         {setAnalysis && setAnalysis.sets && setAnalysis.sets.length > 0 && (
           <Card className="bg-gray-800/50 border-gray-700">
@@ -2304,5 +2307,121 @@ export default function LiverMypage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// おすすめセット提案セクション
+function MasterSetSuggestionsSection({ liverId, liverName }: { liverId: number; liverName: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [adoptingId, setAdoptingId] = useState<number | null>(null);
+  
+  const { data, refetch } = trpc.masterSetSuggestion.activeForLiver.useQuery(
+    { liverId },
+    { enabled: liverId > 0 }
+  );
+  
+  const adoptMutation = trpc.masterSetSuggestion.adopt.useMutation({
+    onSuccess: () => {
+      toast.success("セットを採用しました！次の配信で使ってみてください");
+      refetch();
+      setAdoptingId(null);
+    },
+    onError: (e) => {
+      toast.error(e.message);
+      setAdoptingId(null);
+    },
+  });
+  
+  const suggestions = data?.suggestions || [];
+  const myAdoptions = data?.myAdoptions || [];
+  
+  if (suggestions.length === 0) return null;
+  
+  const adoptedIds = new Set(myAdoptions.map((a: any) => a.suggestionId));
+  
+  return (
+    <Card className="bg-gradient-to-r from-amber-600/10 via-orange-600/10 to-red-600/10 border-amber-500/30">
+      <CardContent className="p-3">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full flex items-center justify-between"
+        >
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-amber-400" />
+            <span className="text-sm font-bold text-white">おすすめセット提案</span>
+            <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 text-xs rounded">
+              {suggestions.length}件
+            </span>
+          </div>
+          {expanded ? <ChevronUp className="h-4 w-4 text-white/50" /> : <ChevronDown className="h-4 w-4 text-white/50" />}
+        </button>
+        
+        {expanded && (
+          <div className="mt-3 space-y-3">
+            <p className="text-xs text-slate-400">
+              管理者がおすすめするセット構成です。「採用する」を押すと次の配信で使えます。
+            </p>
+            {suggestions.map((s: any) => {
+              const isAdopted = adoptedIds.has(s.id);
+              return (
+                <div key={s.id} className="bg-slate-800/60 border border-slate-700 rounded-lg p-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-white">{s.title}</h4>
+                        {s.category && (
+                          <span className="px-1.5 py-0.5 bg-purple-900/50 text-purple-300 text-[10px] rounded">{s.category}</span>
+                        )}
+                        {s.suggestedDiscountRate > 0 && (
+                          <span className="px-1.5 py-0.5 bg-green-900/50 text-green-300 text-[10px] rounded">{s.suggestedDiscountRate}%OFF</span>
+                        )}
+                      </div>
+                      {s.description && <p className="text-xs text-slate-400 mt-1">{s.description}</p>}
+                      <div className="flex items-center gap-3 mt-2 text-xs">
+                        <span className="text-cyan-400 font-bold">¥{(s.suggestedPrice || 0).toLocaleString()}</span>
+                        {s.totalOriginalPrice > 0 && (
+                          <span className="text-slate-500 line-through">¥{s.totalOriginalPrice.toLocaleString()}</span>
+                        )}
+                      </div>
+                      {/* Items */}
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {(s.items || []).map((item: any, idx: number) => (
+                          <span key={idx} className="px-1.5 py-0.5 bg-slate-700/50 text-slate-300 text-[10px] rounded">
+                            {item.productName}{item.quantity > 1 ? ` ×${item.quantity}` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="ml-3">
+                      {isAdopted ? (
+                        <span className="px-2 py-1 bg-green-900/30 text-green-400 text-xs rounded flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" />
+                          採用済
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setAdoptingId(s.id);
+                            adoptMutation.mutate({
+                              suggestionId: s.id,
+                              liverId,
+                              liverName,
+                            });
+                          }}
+                          disabled={adoptingId === s.id}
+                          className="px-3 py-1.5 bg-amber-600 text-white text-xs rounded hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap"
+                        >
+                          {adoptingId === s.id ? "..." : "採用する"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

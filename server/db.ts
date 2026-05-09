@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion, livestreamPromotions, InsertLivestreamPromotion } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion, livestreamPromotions, InsertLivestreamPromotion, masterSetSuggestions, InsertMasterSetSuggestion, masterSetSuggestionItems, InsertMasterSetSuggestionItem, masterSetAdoptions, InsertMasterSetAdoption } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -22195,4 +22195,160 @@ export async function getLiverMonthlyGoalByName(liverName: string): Promise<{
     console.error("[getLiverMonthlyGoalByName] error:", err);
     return null;
   }
+}
+
+
+// ============================================================
+// Master Set Suggestions DB Functions
+// ============================================================
+
+/**
+ * Get all active master set suggestions with their items
+ */
+export async function getAllMasterSetSuggestions(status?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = status ? eq(masterSetSuggestions.status, status) : undefined;
+  
+  const suggestions = await db
+    .select()
+    .from(masterSetSuggestions)
+    .where(conditions)
+    .orderBy(desc(masterSetSuggestions.priority), desc(masterSetSuggestions.createdAt));
+  
+  const suggestionsWithItems = await Promise.all(suggestions.map(async (s) => {
+    const items = await db!.select().from(masterSetSuggestionItems)
+      .where(eq(masterSetSuggestionItems.suggestionId, s.id))
+      .orderBy(asc(masterSetSuggestionItems.sortOrder));
+    return { ...s, items };
+  }));
+  
+  return suggestionsWithItems;
+}
+
+/**
+ * Get active suggestions for liver mypage (only active + within valid period)
+ */
+export async function getActiveMasterSetSuggestionsForLiver() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const now = new Date();
+  
+  const suggestions = await db
+    .select()
+    .from(masterSetSuggestions)
+    .where(
+      and(
+        eq(masterSetSuggestions.status, "active"),
+        or(
+          isNull(masterSetSuggestions.validFrom),
+          lte(masterSetSuggestions.validFrom, now)
+        ),
+        or(
+          isNull(masterSetSuggestions.validUntil),
+          gte(masterSetSuggestions.validUntil, now)
+        )
+      )
+    )
+    .orderBy(desc(masterSetSuggestions.priority), desc(masterSetSuggestions.createdAt));
+  
+  const suggestionsWithItems = await Promise.all(suggestions.map(async (s) => {
+    const items = await db!.select().from(masterSetSuggestionItems)
+      .where(eq(masterSetSuggestionItems.suggestionId, s.id))
+      .orderBy(asc(masterSetSuggestionItems.sortOrder));
+    return { ...s, items };
+  }));
+  
+  return suggestionsWithItems;
+}
+
+/**
+ * Create a master set suggestion
+ */
+export async function createMasterSetSuggestion(data: InsertMasterSetSuggestion) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  
+  const result = await db.insert(masterSetSuggestions).values(data);
+  const insertId = result[0].insertId;
+  return { id: insertId, ...data };
+}
+
+/**
+ * Create master set suggestion items
+ */
+export async function createMasterSetSuggestionItems(items: InsertMasterSetSuggestionItem[]) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  
+  if (items.length === 0) return;
+  await db.insert(masterSetSuggestionItems).values(items);
+}
+
+/**
+ * Update a master set suggestion
+ */
+export async function updateMasterSetSuggestion(id: number, data: Partial<InsertMasterSetSuggestion>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  
+  await db.update(masterSetSuggestions).set(data).where(eq(masterSetSuggestions.id, id));
+}
+
+/**
+ * Delete a master set suggestion and its items
+ */
+export async function deleteMasterSetSuggestion(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  
+  await db.delete(masterSetSuggestionItems).where(eq(masterSetSuggestionItems.suggestionId, id));
+  await db.delete(masterSetSuggestions).where(eq(masterSetSuggestions.id, id));
+}
+
+/**
+ * Record a liver adopting a master set suggestion
+ */
+export async function createMasterSetAdoption(data: InsertMasterSetAdoption) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  
+  const result = await db.insert(masterSetAdoptions).values(data);
+  
+  // Increment adoption count
+  await db.update(masterSetSuggestions)
+    .set({ adoptionCount: sql`${masterSetSuggestions.adoptionCount} + 1` })
+    .where(eq(masterSetSuggestions.id, data.suggestionId));
+  
+  return { id: result[0].insertId, ...data };
+}
+
+/**
+ * Get adoptions for a specific liver
+ */
+export async function getLiverAdoptions(liverId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(masterSetAdoptions)
+    .where(eq(masterSetAdoptions.liverId, liverId))
+    .orderBy(desc(masterSetAdoptions.adoptedAt));
+}
+
+/**
+ * Get all adoptions (for admin view)
+ */
+export async function getAllAdoptions() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(masterSetAdoptions)
+    .orderBy(desc(masterSetAdoptions.adoptedAt))
+    .limit(100);
 }

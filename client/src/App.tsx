@@ -120,6 +120,7 @@ const ProductReviews = lazy(() => import("./pages/ProductReviews"));
 const BeautyWallet = lazy(() => import("./pages/BeautyWallet"));
 const KakuhenTest = lazy(() => import("./pages/KakuhenTest"));
 const SetApplicationsAdmin = lazy(() => import("./pages/SetApplicationsAdmin"));
+const MasterSetSuggestions = lazy(() => import("./pages/MasterSetSuggestions"));
 const SampleRequestsAdmin = lazy(() => import("./pages/SampleRequestsAdmin"));
 const StepEmailTemplates = lazy(() => import("./pages/StepEmailTemplates"));
 const StepEmailLogs = lazy(() => import("./pages/StepEmailLogs"));
@@ -349,6 +350,11 @@ function Router() {
         <Route path={"/master/set-applications"}>
           <DashboardLayout>
             <SetApplicationsAdmin />
+          </DashboardLayout>
+        </Route>
+        <Route path={"/master/set-suggestions"}>
+          <DashboardLayout>
+            <MasterSetSuggestions />
           </DashboardLayout>
         </Route>
         <Route path={"/master/sample-requests"}>

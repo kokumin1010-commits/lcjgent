@@ -122,6 +122,7 @@ function DashboardLayoutContent({
     { icon: Calculator, label: "配信シミュレーター", path: "/master/simulator" },
     { icon: Sparkles, label: "AI配信提案", path: "/master/live-suggestions" },
     { icon: Package, label: "セット申請管理", path: "/master/set-applications" },
+    { icon: Sparkles, label: "セット提案管理", path: "/master/set-suggestions" },
     { icon: Gift, label: "サンプル管理", path: "/master/sample-requests" },
     { icon: Store, label: "LCJ MALL", path: "/master/mall" },
     { icon: Newspaper, label: "ブログ管理", path: "/master/blog" },

@@ -620,12 +620,21 @@ import {
   getLiverMonthlySummaryForSuggestion,
   getQuotaBrandsForLiver,
   getLiverMonthlyProducts,
+  getAllMasterSetSuggestions,
+  getActiveMasterSetSuggestionsForLiver,
+  createMasterSetSuggestion,
+  createMasterSetSuggestionItems,
+  updateMasterSetSuggestion,
+  deleteMasterSetSuggestion,
+  createMasterSetAdoption,
+  getLiverAdoptions,
+  getAllAdoptions,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions } from "../drizzle/schema";
 import { eq, and, or, not, isNotNull, isNull, desc, gt, gte, lte, like, inArray, sql as sqlTag, sum, count, max } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -22846,6 +22855,221 @@ ${topProductsContext}
   svm: svmRouter,
   // LCJコイン（ファントムストック）システム
   lcjCoin: lcjCoinRouter,
+  // マスターセット提案
+  masterSetSuggestion: router({
+    // 管理者: 全提案取得
+    list: protectedProcedure
+      .input(z.object({ status: z.string().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getAllMasterSetSuggestions(input?.status);
+      }),
+    // 管理者: 提案作成
+    create: protectedProcedure
+      .input(z.object({
+        title: z.string().min(1),
+        description: z.string().optional(),
+        category: z.string().optional(),
+        suggestedPrice: z.number(),
+        totalOriginalPrice: z.number().optional(),
+        suggestedDiscountRate: z.number().optional(),
+        expectedSales: z.number().optional(),
+        expectedRevenue: z.number().optional(),
+        aiReasoning: z.string().optional(),
+        priority: z.number().optional(),
+        validFrom: z.string().optional(),
+        validUntil: z.string().optional(),
+        items: z.array(z.object({
+          productName: z.string(),
+          originalPrice: z.number(),
+          quantity: z.number().default(1),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const { items, ...suggestionData } = input;
+        const totalOriginal = items.reduce((sum, i) => sum + (i.originalPrice * i.quantity), 0);
+        const discountRate = totalOriginal > 0 ? Math.round((1 - input.suggestedPrice / totalOriginal) * 100) : 0;
+        
+        const suggestion = await createMasterSetSuggestion({
+          ...suggestionData,
+          suggestedPrice: input.suggestedPrice,
+          totalOriginalPrice: totalOriginal,
+          suggestedDiscountRate: discountRate,
+          expectedSales: input.expectedSales || 0,
+          expectedRevenue: input.expectedRevenue || (input.suggestedPrice * (input.expectedSales || 0)),
+          validFrom: input.validFrom ? new Date(input.validFrom) : undefined,
+          validUntil: input.validUntil ? new Date(input.validUntil) : undefined,
+          status: "active",
+        } as any);
+        
+        if (items.length > 0) {
+          await createMasterSetSuggestionItems(
+            items.map((item, idx) => ({
+              suggestionId: suggestion.id,
+              productName: item.productName,
+              originalPrice: item.originalPrice,
+              quantity: item.quantity,
+              sortOrder: idx,
+            }))
+          );
+        }
+        return suggestion;
+      }),
+    // 管理者: 提案更新
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        category: z.string().optional(),
+        suggestedPrice: z.number().optional(),
+        suggestedDiscountRate: z.number().optional(),
+        expectedSales: z.number().optional(),
+        expectedRevenue: z.number().optional(),
+        aiReasoning: z.string().optional(),
+        priority: z.number().optional(),
+        status: z.string().optional(),
+        validFrom: z.string().optional().nullable(),
+        validUntil: z.string().optional().nullable(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        const updateData: any = { ...data };
+        if (data.validFrom !== undefined) updateData.validFrom = data.validFrom ? new Date(data.validFrom) : null;
+        if (data.validUntil !== undefined) updateData.validUntil = data.validUntil ? new Date(data.validUntil) : null;
+        await updateMasterSetSuggestion(id, updateData);
+        return { success: true };
+      }),
+    // 管理者: 提案削除
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteMasterSetSuggestion(input.id);
+        return { success: true };
+      }),
+    // 管理者: AI生成
+    aiGenerate: protectedProcedure
+      .input(z.object({
+        liverName: z.string().optional(),
+        category: z.string().optional(),
+        season: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        // 全ライバーのセットデータを取得
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+        
+        // 過去の売れ筋セットデータを取得
+        const topSets = await db.select()
+          .from(livestreamSets)
+          .orderBy(desc(livestreamSets.totalRevenue))
+          .limit(30);
+        
+        const topSetItems = await Promise.all(topSets.map(async (s) => {
+          const items = await db.select().from(livestreamSetItems)
+            .where(eq(livestreamSetItems.setId, s.id));
+          return { ...s, items };
+        }));
+        
+        // 商品マスターから利用可能な商品を取得
+        const products = await db.select().from(productMaster).limit(50);
+        
+        const now = new Date();
+        const month = now.getMonth() + 1;
+        let seasonHint = "";
+        if (month >= 3 && month <= 5) seasonHint = "春（紫外線対策、新生活、カラーケア）";
+        else if (month >= 6 && month <= 8) seasonHint = "夏（UVケア、頭皮ケア、ダメージ補修）";
+        else if (month >= 9 && month <= 11) seasonHint = "秋（保湿、エイジングケア、乾燥対策）";
+        else seasonHint = "冬（保湿強化、ギフト需要、年末年始セール）";
+        
+        const prompt = `あなたはライブコマースのセット商品戦略AIです。
+以下のデータを分析して、次に売れるセット商品を3つ提案してください。
+
+## 現在の季節: ${input.season || seasonHint}
+${input.category ? `## カテゴリ指定: ${input.category}` : ""}
+${input.liverName ? `## 対象ライバー: ${input.liverName}` : "## 全ライバー向け"}
+
+## 過去の売れ筋セットTOP30:
+${topSetItems.map(s => `- ${s.setName}: 売値¥${s.setPrice}, 販売数${s.quantitySold}, 売上¥${s.totalRevenue}, 割引率${s.discountRate}%OFF\n  商品: ${s.items.map(i => `${i.productName}(¥${i.originalPrice}×${i.quantity || 1})`).join(', ')}`).join('\n')}
+
+## 利用可能な商品マスター:
+${products.map(p => `- ${p.name}: ¥${p.price || 0}`).join('\n')}
+
+## 提案ルール:
+1. 各セットは2-4商品で構成
+2. 割引率は20-50%の範囲
+3. 売値は¥3,000-¥15,000の範囲
+4. 季節に合った商品を優先
+5. 過去の売れ筋パターンを参考にする
+
+## 出力形式（JSON配列）:
+[
+  {
+    "title": "セット名（キャッチーな名前）",
+    "description": "セールスポイント（1-2文）",
+    "category": "季節/定番/キャンペーン",
+    "suggestedPrice": 数値,
+    "items": [{"productName": "商品名", "originalPrice": 数値, "quantity": 数値}],
+    "expectedSales": 予想販売数,
+    "reasoning": "提案理由（過去データに基づく）"
+  }
+]
+
+JSON配列のみを出力してください。`;
+        
+        const aiResponse = await invokeLLM({
+          model: "google/gemini-2.0-flash-001",
+          messages: [{ role: "user", content: prompt }],
+        });
+        
+        // JSONパース
+        let suggestions: any[] = [];
+        try {
+          const content = typeof aiResponse === 'string' ? aiResponse : (aiResponse as any)?.content || (aiResponse as any)?.choices?.[0]?.message?.content || '';
+          const jsonMatch = content.match(/\[[\s\S]*\]/);
+          if (jsonMatch) {
+            suggestions = JSON.parse(jsonMatch[0]);
+          }
+        } catch (e) {
+          console.error("AI response parse error:", e);
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI応答のパースに失敗しました" });
+        }
+        
+        return suggestions;
+      }),
+    // 管理者: 採用一覧
+    adoptions: protectedProcedure.query(async () => {
+      return await getAllAdoptions();
+    }),
+    // ライバー向け: アクティブな提案一覧取得
+    activeForLiver: rateLimitedPublicProcedure
+      .input(z.object({ liverId: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        const suggestions = await getActiveMasterSetSuggestionsForLiver();
+        // ライバーの過去の採用情報も取得
+        let myAdoptions: any[] = [];
+        if (input?.liverId) {
+          myAdoptions = await getLiverAdoptions(input.liverId);
+        }
+        return { suggestions, myAdoptions };
+      }),
+    // ライバー向け: セット提案を採用
+    adopt: rateLimitedPublicProcedure
+      .input(z.object({
+        suggestionId: z.number(),
+        liverId: z.number(),
+        liverName: z.string().optional(),
+        customPrice: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const adoption = await createMasterSetAdoption({
+          suggestionId: input.suggestionId,
+          liverId: input.liverId,
+          liverName: input.liverName,
+          customPrice: input.customPrice,
+        });
+        return adoption;
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;
 

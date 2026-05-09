@@ -5540,3 +5540,91 @@ export const livestreamPromotions = mysqlTable("livestream_promotions", {
 });
 export type LivestreamPromotion = typeof livestreamPromotions.$inferSelect;
 export type InsertLivestreamPromotion = typeof livestreamPromotions.$inferInsert;
+
+
+/**
+ * Master Set Suggestions table - 管理者が作成するセット提案マスター
+ * ライバーがマイページから選んで採用できるセット提案
+ */
+export const masterSetSuggestions = mysqlTable("master_set_suggestions", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // セット提案情報
+  title: varchar("title", { length: 255 }).notNull(), // セット提案名（例：「5月UVケアセット」）
+  description: text("description"), // 提案の説明・セールスポイント
+  category: varchar("category", { length: 100 }), // カテゴリ（季節、定番、キャンペーン等）
+  
+  // 価格情報
+  suggestedPrice: bigint("suggestedPrice", { mode: "number" }).notNull(), // 推奨売値
+  totalOriginalPrice: bigint("totalOriginalPrice", { mode: "number" }).default(0), // 元値合計
+  suggestedDiscountRate: int("suggestedDiscountRate").default(0), // 推奨割引率（%）
+  
+  // 予測情報（AI生成）
+  expectedSales: int("expectedSales").default(0), // 予想販売数
+  expectedRevenue: bigint("expectedRevenue", { mode: "number" }).default(0), // 予想売上
+  aiReasoning: text("aiReasoning"), // AI提案理由
+  
+  // ステータス管理
+  status: varchar("status", { length: 50 }).default("active").notNull(), // active, archived, expired
+  priority: int("priority").default(0), // 表示優先度（高い順）
+  
+  // 有効期間
+  validFrom: timestamp("validFrom"), // 提案有効開始日
+  validUntil: timestamp("validUntil"), // 提案有効終了日
+  
+  // 採用数トラッキング
+  adoptionCount: int("adoptionCount").default(0), // ライバーに採用された回数
+  
+  // 作成者
+  createdBy: int("createdBy").default(0), // 0=AI生成, その他=管理者ID
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type MasterSetSuggestion = typeof masterSetSuggestions.$inferSelect;
+export type InsertMasterSetSuggestion = typeof masterSetSuggestions.$inferInsert;
+
+/**
+ * Master Set Suggestion Items - マスターセット提案の個別商品
+ */
+export const masterSetSuggestionItems = mysqlTable("master_set_suggestion_items", {
+  id: int("id").autoincrement().primaryKey(),
+  suggestionId: int("suggestionId").notNull(), // References masterSetSuggestions.id
+  
+  // 商品情報
+  productName: varchar("productName", { length: 255 }).notNull(), // 商品名
+  originalPrice: bigint("originalPrice", { mode: "number" }).notNull(), // 元値（定価）
+  quantity: int("quantity").default(1).notNull(), // 個数
+  
+  // 並び順
+  sortOrder: int("sortOrder").default(0),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type MasterSetSuggestionItem = typeof masterSetSuggestionItems.$inferSelect;
+export type InsertMasterSetSuggestionItem = typeof masterSetSuggestionItems.$inferInsert;
+
+/**
+ * Master Set Adoptions - ライバーがマスター提案を採用した記録
+ */
+export const masterSetAdoptions = mysqlTable("master_set_adoptions", {
+  id: int("id").autoincrement().primaryKey(),
+  suggestionId: int("suggestionId").notNull(), // References masterSetSuggestions.id
+  liverId: int("liverId").notNull(), // ライバーID
+  liverName: varchar("liverName", { length: 255 }), // ライバー名
+  
+  // 採用時の設定（ライバーがカスタマイズ可能）
+  customPrice: bigint("customPrice", { mode: "number" }), // カスタム売値（nullなら推奨価格を使用）
+  
+  // 結果トラッキング
+  livestreamId: int("livestreamId"), // 実際に使用した配信ID（紐付け）
+  actualSales: int("actualSales"), // 実際の販売数
+  actualRevenue: bigint("actualRevenue", { mode: "number" }), // 実際の売上
+  
+  // タイムスタンプ
+  adoptedAt: timestamp("adoptedAt").defaultNow().notNull(),
+});
+export type MasterSetAdoption = typeof masterSetAdoptions.$inferSelect;
+export type InsertMasterSetAdoption = typeof masterSetAdoptions.$inferInsert;
