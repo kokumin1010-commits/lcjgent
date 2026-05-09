@@ -231,20 +231,50 @@ export default function MasterSetSuggestions() {
             AI生成結果（{aiResults.length}件）
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {aiResults.map((result, idx) => (
+            {aiResults.map((result, idx) => {
+              const totalOriginal = (result.items || []).reduce((sum: number, i: any) => sum + (i.originalPrice || 0) * (i.quantity || 1), 0);
+              const discountRate = totalOriginal > 0 ? Math.round((1 - (result.suggestedPrice || 0) / totalOriginal) * 100) : 0;
+              return (
               <div key={idx} className="bg-slate-800 border border-purple-600/40 rounded-lg p-4">
-                <h4 className="font-bold text-white text-base mb-1">{result.title}</h4>
-                <p className="text-sm text-slate-300 mb-2">{result.description}</p>
-                <div className="text-sm space-y-1 mb-3">
-                  <div className="text-cyan-300 font-medium">売値: ¥{(result.suggestedPrice || 0).toLocaleString()}</div>
-                  <div className="text-green-300">予想販売: {result.expectedSales}セット</div>
-                  <div className="text-slate-200">
-                    商品: {(result.items || []).map((i: any) => `${i.productName}×${i.quantity || 1}`).join(", ")}
+                <h4 className="font-bold text-white text-base mb-2">{result.title}</h4>
+                <p className="text-sm text-slate-300 mb-3">{result.description}</p>
+                
+                {/* 価格情報 */}
+                <div className="bg-slate-900/60 rounded-lg p-3 mb-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 text-xs">元値合計</span>
+                    <span className="text-slate-200 font-medium line-through">¥{totalOriginal.toLocaleString()}</span>
                   </div>
-                  {result.reasoning && (
-                    <div className="text-xs text-slate-400 mt-2 border-t border-slate-600 pt-2">{result.reasoning}</div>
-                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 text-xs">売値</span>
+                    <span className="text-cyan-300 font-bold text-lg">¥{(result.suggestedPrice || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 text-xs">割引率</span>
+                    <span className="text-yellow-300 font-bold">{discountRate}%OFF</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 text-xs">予想販売</span>
+                    <span className="text-green-300 font-medium">{result.expectedSales}セット</span>
+                  </div>
                 </div>
+                
+                {/* 商品一覧 */}
+                <div className="mb-3">
+                  <div className="text-xs text-slate-400 mb-1.5 font-medium">セット内容</div>
+                  <div className="space-y-1">
+                    {(result.items || []).map((i: any, iIdx: number) => (
+                      <div key={iIdx} className="flex items-center justify-between text-sm">
+                        <span className="text-slate-200">{i.productName}{(i.quantity || 1) > 1 ? ` ×${i.quantity}` : ""}</span>
+                        <span className="text-slate-400">¥{(i.originalPrice || 0).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                {result.reasoning && (
+                  <div className="text-xs text-slate-400 mb-3 border-t border-slate-600 pt-2">💡 {result.reasoning}</div>
+                )}
                 <button
                   onClick={() => handleAdoptAiResult(result)}
                   className="w-full px-3 py-2 bg-purple-600 text-white rounded font-medium text-sm hover:bg-purple-700"
@@ -252,7 +282,8 @@ export default function MasterSetSuggestions() {
                   この提案を登録する
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
           <button
             onClick={() => setAiResults([])}
@@ -472,6 +503,7 @@ export default function MasterSetSuggestions() {
                   {s.description && <p className="text-sm text-slate-300 mt-1">{s.description}</p>}
                   
                   <div className="flex flex-wrap gap-4 mt-3 text-sm">
+                    <span className="text-slate-400 line-through">元値: ¥{(s.items || []).reduce((sum: number, i: any) => sum + (i.originalPrice || 0) * (i.quantity || 1), 0).toLocaleString()}</span>
                     <span className="text-cyan-300 font-bold">売値: ¥{(s.suggestedPrice || 0).toLocaleString()}</span>
                     <span className="text-yellow-300 font-bold">{s.suggestedDiscountRate}%OFF</span>
                     {s.expectedSales > 0 && <span className="text-green-300">予想: {s.expectedSales}セット</span>}
@@ -621,40 +653,52 @@ export default function MasterSetSuggestions() {
                     ) : sortedLiverSets.length === 0 ? (
                       <div className="text-center text-slate-400 py-4">セットデータがありません</div>
                     ) : (
-                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                      <div className="space-y-2 max-h-[500px] overflow-y-auto">
                         {sortedLiverSets.map((set: any) => {
                           const dateStr = set.livestreamDate ? new Date(set.livestreamDate).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" }) : "";
+                          const totalOriginalPrice = (set.items || []).reduce((sum: number, i: any) => sum + (i.price || i.originalPrice || 0) * (i.quantity || 1), 0);
                           return (
-                            <div key={set.id} className="flex items-center justify-between bg-slate-900/50 border border-slate-700 rounded-lg p-3 hover:border-slate-500 transition">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-white font-medium text-sm">{set.setName}</span>
-                                  {set.discountRate > 0 && (
-                                    <span className="px-1.5 py-0.5 bg-green-900/60 text-green-300 text-[10px] rounded font-medium">{Math.round(set.discountRate)}%OFF</span>
-                                  )}
-                                  {dateStr && <span className="text-slate-500 text-xs">{dateStr}</span>}
+                            <div key={set.id} className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 hover:border-slate-500 transition">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-white font-bold text-sm">{set.setName}</span>
+                                    {set.discountRate > 0 && (
+                                      <span className="px-2 py-0.5 bg-green-900/60 text-green-300 text-xs rounded font-medium">{Math.round(set.discountRate)}%OFF</span>
+                                    )}
+                                    {dateStr && <span className="text-slate-500 text-xs">{dateStr}</span>}
+                                  </div>
+                                  
+                                  {/* 価格情報 */}
+                                  <div className="flex items-center gap-4 mt-2 text-sm">
+                                    {totalOriginalPrice > 0 && (
+                                      <span className="text-slate-400 line-through">元値¥{totalOriginalPrice.toLocaleString()}</span>
+                                    )}
+                                    <span className="text-cyan-300 font-bold">売値¥{(set.setPrice || 0).toLocaleString()}</span>
+                                    <span className="text-green-300 font-medium">{set.quantitySold || 0}セット販売</span>
+                                    <span className="text-amber-300">売上¥{(set.totalRevenue || 0).toLocaleString()}</span>
+                                  </div>
+                                  
+                                  {/* 商品一覧（定価付き） */}
+                                  <div className="mt-2 space-y-0.5">
+                                    {(set.items || []).map((item: any, idx: number) => (
+                                      <div key={idx} className="flex items-center gap-2 text-xs">
+                                        <span className="text-slate-300">{item.productName}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}</span>
+                                        {(item.price || item.originalPrice) > 0 && (
+                                          <span className="text-slate-500">¥{(item.price || item.originalPrice || 0).toLocaleString()}</span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-3 mt-1 text-xs">
-                                  <span className="text-cyan-300">¥{(set.setPrice || 0).toLocaleString()}</span>
-                                  <span className="text-slate-400">{set.quantitySold || 0}セット販売</span>
-                                  <span className="text-green-300">売上¥{(set.totalRevenue || 0).toLocaleString()}</span>
-                                </div>
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                  {(set.items || []).map((item: any, idx: number) => (
-                                    <span key={idx} className="text-[10px] text-slate-400">
-                                      {item.productName}{item.quantity > 1 ? `×${item.quantity}` : ''}
-                                      {idx < (set.items || []).length - 1 ? '、' : ''}
-                                    </span>
-                                  ))}
-                                </div>
+                                <button
+                                  onClick={() => handleAddFromPastSet(set)}
+                                  className="ml-3 px-3 py-2 bg-amber-600 text-white text-xs rounded-lg font-medium hover:bg-amber-700 whitespace-nowrap flex items-center gap-1"
+                                >
+                                  <ArrowRight className="w-3 h-3" />
+                                  提案に追加
+                                </button>
                               </div>
-                              <button
-                                onClick={() => handleAddFromPastSet(set)}
-                                className="ml-3 px-3 py-1.5 bg-amber-600 text-white text-xs rounded font-medium hover:bg-amber-700 whitespace-nowrap flex items-center gap-1"
-                              >
-                                <ArrowRight className="w-3 h-3" />
-                                提案に追加
-                              </button>
                             </div>
                           );
                         })}
