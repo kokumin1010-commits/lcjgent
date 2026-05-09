@@ -22521,12 +22521,7 @@ export async function getHistoricalDiscountRateStats() {
     })
     .from(livestreamSets)
     .where(sql`${livestreamSets.discountRate} > 0 AND ${livestreamSets.totalRevenue} > 0`)
-    .groupBy(sql`CASE 
-      WHEN ${livestreamSets.discountRate} < 20 THEN '0-19%'
-      WHEN ${livestreamSets.discountRate} < 30 THEN '20-29%'
-      WHEN ${livestreamSets.discountRate} < 40 THEN '30-39%'
-      WHEN ${livestreamSets.discountRate} < 50 THEN '40-49%'
-      ELSE '50%+' END`);
+    .groupBy(sql`1`);
   
   return {
     avg: Math.round(Number(stats[0]?.avgRate) || 30),
