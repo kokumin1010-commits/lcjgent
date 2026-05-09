@@ -174,6 +174,8 @@ export default function LiverDashboardNew() {
   const [expandedLiverId, setExpandedLiverId] = useState<number | null>(null);
   const [setSearchKeyword, setSetSearchKeyword] = useState("");
   const [setSearchInput, setSetSearchInput] = useState("");
+  const [setDetailSortOrder, setSetDetailSortOrder] = useState<'date' | 'revenue'>('date');
+  const aiSetSuggestionMutation = trpc.livestreamSets.aiSetSuggestion.useMutation();
   const { data: setSearchResults, isLoading: isSearchingSets } = trpc.livestreamSets.search.useQuery(
     { keyword: setSearchKeyword },
     { enabled: setSearchKeyword.length > 0 }
@@ -1276,8 +1278,43 @@ export default function LiverDashboardNew() {
                     {/* セット詳細展開エリア */}
                     {expandedLiverId === liver.liverId && (
                       <div className="mt-2 ml-4 mr-2 space-y-2 animate-in slide-in-from-top-2 duration-200">
+                        {/* ソート切り替えUI */}
+                        {expandedLiverSets && expandedLiverSets.sets.length > 0 && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-cyan-300/60 text-xs">並び替え:</span>
+                            <button
+                              onClick={() => setSetDetailSortOrder('date')}
+                              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                                setDetailSortOrder === 'date'
+                                  ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40'
+                                  : 'bg-cyan-500/10 text-cyan-300/60 border border-cyan-500/20 hover:text-cyan-200'
+                              }`}
+                            >
+                              新着順
+                            </button>
+                            <button
+                              onClick={() => setSetDetailSortOrder('revenue')}
+                              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                                setDetailSortOrder === 'revenue'
+                                  ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40'
+                                  : 'bg-cyan-500/10 text-cyan-300/60 border border-cyan-500/20 hover:text-cyan-200'
+                              }`}
+                            >
+                              売上順
+                            </button>
+                          </div>
+                        )}
                         {expandedLiverSets && expandedLiverSets.sets.length > 0 ? (
-                          expandedLiverSets.sets.map((set) => {
+                          [...expandedLiverSets.sets]
+                            .sort((a, b) => {
+                              if (setDetailSortOrder === 'date') {
+                                const dateA = a.livestreamDate ? new Date(a.livestreamDate).getTime() : 0;
+                                const dateB = b.livestreamDate ? new Date(b.livestreamDate).getTime() : 0;
+                                return dateB - dateA;
+                              }
+                              return (b.totalRevenue || 0) - (a.totalRevenue || 0);
+                            })
+                            .map((set) => {
                             const isBest = expandedLiverSets.summary?.bestSetId === set.id;
                             const isMostPopular = expandedLiverSets.summary?.mostPopularSetId === set.id && !isBest;
                             return (
@@ -1339,12 +1376,23 @@ export default function LiverDashboardNew() {
                                       )}
                                     </div>
                                     <div className="space-y-0.5">
-                                      {set.items.map((item: any, idx: number) => (
-                                        <div key={idx} className="flex items-center justify-between text-xs">
-                                          <span className="text-cyan-200/70">{item.productName}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}</span>
-                                          <span className="text-cyan-300/60 font-mono">{formatCurrency(item.originalPrice || 0)}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}</span>
-                                        </div>
-                                      ))}
+                                      {set.items.map((item: any, idx: number) => {
+                                        const qty = item.quantity || 1;
+                                        // 商品名に「×N」「xN」が含まれている場合はそのまま表示（既存データ対応）
+                                        const nameHasQty = /[×x×]\s*\d+/.test(item.productName);
+                                        return (
+                                          <div key={idx} className="flex items-center justify-between text-xs">
+                                            <span className="text-cyan-200/70">
+                                              {item.productName}
+                                              {!nameHasQty && qty > 1 ? <span className="text-pink-300 ml-1">×{qty}</span> : ''}
+                                            </span>
+                                            <span className="text-cyan-300/60 font-mono">
+                                              ¥{Number(item.originalPrice || 0).toLocaleString()}
+                                              {!nameHasQty && qty > 1 ? ` ×${qty}` : ''}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 )}
@@ -1358,12 +1406,38 @@ export default function LiverDashboardNew() {
                           </div>
                         )}
 
-                        {/* ライバー詳細ページへのリンク */}
-                        <div className="text-right pt-1">
+                        {/* AIセット提案ボタン + ライバー詳細ページへのリンク */}
+                        <div className="flex items-center justify-between pt-2 border-t border-cyan-500/10">
+                          <button
+                            onClick={() => {
+                              aiSetSuggestionMutation.mutate({ liverId: liver.liverId, liverName: liver.streamerName });
+                            }}
+                            disabled={aiSetSuggestionMutation.isPending}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-300 text-xs font-medium hover:from-purple-500/30 hover:to-pink-500/30 transition-all disabled:opacity-50"
+                          >
+                            {aiSetSuggestionMutation.isPending ? (
+                              <><Loader2 className="w-3 h-3 animate-spin" /> AI分析中...</>
+                            ) : (
+                              <><Sparkles className="w-3 h-3" /> AIセット提案</>
+                            )}
+                          </button>
                           <Link href={`/master/livers/${liver.liverId}`} className="text-xs text-pink-400 hover:text-pink-300 transition-colors">
                             ライバー詳細を見る →
                           </Link>
                         </div>
+                        {/* AIセット提案結果表示 */}
+                        {aiSetSuggestionMutation.data && expandedLiverId === liver.liverId && (
+                          <div className="mt-2 p-4 rounded-lg bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-500/20">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Sparkles className="w-4 h-4 text-purple-400" />
+                              <span className="text-purple-300 font-medium text-sm">AIセット提案</span>
+                              <span className="text-purple-300/50 text-xs">(分析セット数: {aiSetSuggestionMutation.data.analyzedSets})</span>
+                            </div>
+                            <div className="text-cyan-200/80 text-xs whitespace-pre-wrap leading-relaxed max-h-[400px] overflow-y-auto">
+                              {aiSetSuggestionMutation.data.suggestion}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

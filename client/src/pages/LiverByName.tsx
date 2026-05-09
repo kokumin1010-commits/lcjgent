@@ -404,6 +404,8 @@ export default function LiverByName() {
   // セクションのアコーディオン用state
   const [showTopProductsSection, setShowTopProductsSection] = useState(false);
   const [showSetsSection, setShowSetsSection] = useState(false);
+  const [setsSortOrder, setSetsSortOrder] = useState<'date' | 'revenue'>('date');
+  const aiSetSuggestionMutation = trpc.livestreamSets.aiSetSuggestion.useMutation();
   const [showPromoSection, setShowPromoSection] = useState(false);
   const [showMonthlyProductsSection, setShowMonthlyProductsSection] = useState(false);
   const [showAiSuggestionsSection, setShowAiSuggestionsSection] = useState(false);
@@ -1407,8 +1409,40 @@ export default function LiverByName() {
               )}
 
               {/* セット一覧 */}
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-gray-400 text-xs">並び替え:</span>
+                <button
+                  onClick={() => setSetsSortOrder('date')}
+                  className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                    setsSortOrder === 'date'
+                      ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40'
+                      : 'bg-gray-700/50 text-gray-400 border border-gray-600/30 hover:text-gray-200'
+                  }`}
+                >
+                  新着順
+                </button>
+                <button
+                  onClick={() => setSetsSortOrder('revenue')}
+                  className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                    setsSortOrder === 'revenue'
+                      ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40'
+                      : 'bg-gray-700/50 text-gray-400 border border-gray-600/30 hover:text-gray-200'
+                  }`}
+                >
+                  売上順
+                </button>
+              </div>
               <div className="space-y-2">
-                {setAnalysis.sets.map((set: any) => {
+                {[...setAnalysis.sets]
+                  .sort((a: any, b: any) => {
+                    if (setsSortOrder === 'date') {
+                      const dateA = a.livestreamDate ? new Date(a.livestreamDate).getTime() : 0;
+                      const dateB = b.livestreamDate ? new Date(b.livestreamDate).getTime() : 0;
+                      return dateB - dateA;
+                    }
+                    return (b.totalRevenue || 0) - (a.totalRevenue || 0);
+                  })
+                  .map((set: any) => {
                   const isBest = setAnalysis.summary?.bestSetId === set.id;
                   const isMostPopular = setAnalysis.summary?.mostPopularSetId === set.id && !isBest;
                   const isExpanded = expandedSetId === set.id;
@@ -1512,6 +1546,34 @@ export default function LiverByName() {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+              {/* AIセット提案 */}
+              {liverId && (
+                <div className="mt-6 pt-4 border-t border-gray-700">
+                  <button
+                    onClick={() => aiSetSuggestionMutation.mutate({ liverId, liverName: decodedName })}
+                    disabled={aiSetSuggestionMutation.isPending}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-300 text-sm font-medium hover:from-purple-500/30 hover:to-pink-500/30 transition-all disabled:opacity-50"
+                  >
+                    {aiSetSuggestionMutation.isPending ? (
+                      <><Sparkles className="w-4 h-4 animate-spin" /> AI分析中...</>
+                    ) : (
+                      <><Sparkles className="w-4 h-4" /> AIセット提案を取得</>
+                    )}
+                  </button>
+                  {aiSetSuggestionMutation.data && (
+                    <div className="mt-3 p-4 rounded-lg bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-500/20">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Sparkles className="w-4 h-4 text-purple-400" />
+                        <span className="text-purple-300 font-medium text-sm">AIセット提案</span>
+                        <span className="text-purple-300/50 text-xs">(分析セット数: {aiSetSuggestionMutation.data.analyzedSets})</span>
+                      </div>
+                      <div className="text-gray-200 text-sm whitespace-pre-wrap leading-relaxed max-h-[500px] overflow-y-auto">
+                        {aiSetSuggestionMutation.data.suggestion}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               </div>}

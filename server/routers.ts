@@ -20613,6 +20613,101 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .query(async ({ input }) => {
         return await getLiverSetAnalysis(input.liverId);
       }),
+
+    // AIセット提案: ライバーの過去データを分析して次のセットを提案
+    aiSetSuggestion: rateLimitedPublicProcedure
+      .input(z.object({
+        liverId: z.number(),
+        liverName: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        // ライバーのセットデータを取得
+        const setData = await getLiverSetAnalysis(input.liverId);
+        
+        if (!setData.sets || setData.sets.length === 0) {
+          return {
+            suggestion: "まだセットデータがありません。最初のセットを作成してください。",
+            analyzedSets: 0,
+          };
+        }
+
+        // セットデータを分析用に整形
+        const setsContext = setData.sets.map(s => {
+          const date = s.livestreamDate ? new Date(s.livestreamDate).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' }) : '不明';
+          const items = s.items.map((item: any) => {
+            const qty = item.quantity || 1;
+            return `${item.productName}${qty > 1 ? `×${qty}` : ''}(¥${Number(item.originalPrice).toLocaleString()})`;
+          }).join(', ');
+          return `${date} 「${s.setName}」 売値:¥${Number(s.setPrice || 0).toLocaleString()} 販売数:${s.quantitySold || 0} セット売上:¥${Number(s.totalRevenue || 0).toLocaleString()} 割引率:${Math.round(Number(s.discountRate || 0))}%OFF 商品:[${items}]`;
+        }).join('\n');
+
+        // トップ商品データ
+        const topProductsContext = setData.topProducts.map((p, i) => 
+          `${i + 1}. ${p.productName} (登場${p.count}回, 累計売上:¥${Number(p.totalRevenue).toLocaleString()})`
+        ).join('\n');
+
+        // 季節・時期のコンテキスト
+        const now = new Date();
+        const month = now.getMonth() + 1;
+        const seasonContext = month >= 3 && month <= 5 ? '春（紫外線対策、新生活）'
+          : month >= 6 && month <= 8 ? '夏（UVケア、汗対策、清涼感）'
+          : month >= 9 && month <= 11 ? '秋（保湿、ダメージケア）'
+          : '冬（保湿強化、ギフト需要）';
+
+        const prompt = `あなたはライブコマースのセット構成AIアドバイザーです。
+以下のライバー「${input.liverName || '不明'}」の過去のセットデータを分析し、次に作るべきセットを提案してください。
+
+## 現在の季節: ${seasonContext}
+
+## 過去のセット実績（${setData.sets.length}セット）
+${setsContext}
+
+## よく使われる商品TOP10
+${topProductsContext}
+
+## サマリー
+- 総セット数: ${setData.summary?.totalSets || 0}
+- 総セット売上: ¥${Number(setData.summary?.totalSetRevenue || 0).toLocaleString()}
+- 平均割引率: ${setData.summary?.avgDiscountRate || 0}%OFF
+- 平均セット内商品数: ${setData.summary?.avgQuantityPerSet || 0}個
+
+---
+
+以下の形式で回答してください：
+
+### 📊 分析結果
+- このライバーの売れ筋パターン（価格帯、割引率、商品構成）
+- 時期別の傾向
+
+### 💡 提案セット（最大つ）
+各提案について：
+- セット名（キャッチーな名前）
+- 商品構成（商品名 × 数量）
+- 推奨売値と割引率
+- 予想販売数と売上
+- 提案理由（過去データに基づく）
+
+### ⚠️ 注意点
+- 避けるべき組み合わせや価格帯
+
+日本語で回答してください。具体的な数字を含めてください。`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: "あなたはライブコマースの専門家で、セット商品の構成と価格設定に精通しています。データに基づいた具体的で実行可能な提案を行います。" },
+            { role: "user", content: prompt },
+          ],
+        });
+
+        const suggestion = response.choices[0]?.message?.content || "提案を生成できませんでした。";
+
+        return {
+          suggestion,
+          analyzedSets: setData.sets.length,
+          topProducts: setData.topProducts.slice(0, 5),
+          summary: setData.summary,
+        };
+      }),
   }),
 
   // ============================================================
