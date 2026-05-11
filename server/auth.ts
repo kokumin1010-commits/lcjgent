@@ -1,7 +1,10 @@
 import bcrypt from "bcrypt";
 import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
-import { createUser, getUserByEmail, getUserById, updateUserLastSignedIn, createUserPasswordResetToken, getUserPasswordResetToken, markUserPasswordResetTokenUsed, updateUserPassword } from "./db";
+import { createUser, getUserByEmail, getUserById, updateUserLastSignedIn, createUserPasswordResetToken, getUserPasswordResetToken, markUserPasswordResetTokenUsed, updateUserPassword, getActiveStaff } from "./db";
+import { users } from "../drizzle/schema";
+import { eq } from "drizzle-orm";
+import { getDb } from "./_core/db";
 import { nanoid } from "nanoid";
 import { TRPCError } from "@trpc/server";
 import { SignJWT } from "jose";
@@ -66,6 +69,26 @@ export const authRouter = router({
       }
 
       await updateUserLastSignedIn(user.id);
+
+      // Auto-promote to admin if user is in staff table
+      if (user.role !== 'admin') {
+        try {
+          const activeStaff = await getActiveStaff();
+          const isStaffMember = activeStaff.some(
+            (s: any) => s.email.toLowerCase() === input.email.toLowerCase()
+          );
+          if (isStaffMember) {
+            const db = await getDb();
+            if (db) {
+              await db.update(users).set({ role: 'admin' }).where(eq(users.id, user.id));
+              user.role = 'admin' as any;
+              console.log(`[Auth] Auto-promoted staff member to admin: ${input.email}`);
+            }
+          }
+        } catch (e) {
+          console.error('[Auth] Failed to check staff auto-promote:', e);
+        }
+      }
 
       // Create JWT token (10 years expiration for persistent login)
       const secret = new TextEncoder().encode(ENV.cookieSecret);
