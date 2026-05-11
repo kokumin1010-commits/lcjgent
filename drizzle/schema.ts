@@ -331,6 +331,8 @@ export const brandLivestreams = mysqlTable("brand_livestreams", {
   verifiedBy: int("verifiedBy"), // 確認者のUser ID
   verifiedByStaffId: int("verifiedByStaffId"), // 確認者のStaff ID (staff.id)
   verifiedByStaffName: varchar("verifiedByStaffName", { length: 255 }), // 確認者のスタッフ名
+  // 配信アカウント（間借り配信）
+  streamAccountLiverId: int("streamAccountLiverId"), // 配信アカウントの持ち主ライバーID（NULL=自分のアカウント、値あり=そのライバーのアカウントで配信）
 });
 
 export type BrandLivestream = typeof brandLivestreams.$inferSelect;

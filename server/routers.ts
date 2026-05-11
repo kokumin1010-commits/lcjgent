@@ -7272,6 +7272,7 @@ Respond with a JSON object.`,
           acos: z.string().optional(),
           roas: z.string().optional(),
           livestreamStartTime: z.string().optional(), // ライブ開始時間 (e.g., "14:30")
+          streamAccountLiverId: z.number().nullable().optional(), // 配信アカウント（間借り配信）
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -7295,6 +7296,7 @@ Respond with a JSON object.`,
           liverId: resolvedLiverId || null,
           livestreamDate: new Date(input.livestreamDate),
           createdBy: ctx.user.id,
+          streamAccountLiverId: input.streamAccountLiverId ?? null,
         });
         
         // Record edit log with full data for recovery
@@ -7361,6 +7363,7 @@ Respond with a JSON object.`,
           acos: z.string().optional(),
           roas: z.string().optional(),
           livestreamStartTime: z.string().optional(), // ライブ開始時間 (e.g., "14:30")
+          streamAccountLiverId: z.number().nullable().optional(), // 配信アカウント（間借り配信）
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -11169,6 +11172,8 @@ ${conversationText}
         })).optional(),
         // ブランド別売上データ（AI解析またはセットデータから集計）
         brandSales: z.record(z.string(), z.number()).optional(), // { brandId: revenue }
+        // 配信アカウント（間借り配信）
+        streamAccountLiverId: z.number().nullable().optional(), // 配信アカウントの持ち主ライバーID
       }))
       .mutation(async ({ input, ctx }) => {
         // Get liver info for streamerName and LINE notification
@@ -11252,6 +11257,7 @@ ${conversationText}
           aiStructuredAdvice, // 構造化アドバイスを永続保存
           streamerName,
           createdBy: ctx.user?.id || 0,
+          streamAccountLiverId: input.streamAccountLiverId ?? null,
         });
         const id = livestreamResult.id;
         

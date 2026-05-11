@@ -150,6 +150,8 @@ export default function LiverRecord() {
   const [calculatedMetrics, setCalculatedMetrics] = useState<Record<string, string | number> | null>(null);
   const [analysisConfidence, setAnalysisConfidence] = useState<string | null>(null);
   const [isAutoCalculatedDuration, setIsAutoCalculatedDuration] = useState(false);
+  // 配信アカウント（間借り配信）
+  const [streamAccountLiverId, setStreamAccountLiverId] = useState<number | null>(null);
   
   // 配信時間の自動計算
   useEffect(() => {
@@ -184,6 +186,9 @@ export default function LiverRecord() {
   
   // Fetch brands for selection
   const { data: brands } = trpc.brand.list.useQuery();
+  
+  // Fetch all livers for 配信アカウント selection (間借り配信)
+  const { data: allLivers } = trpc.liverManagement.listAll.useQuery();
   
   // Note: Schedule selection feature will be added later
   const schedules: { id: number; startTime: string; brandId?: number; brandName?: string; endTime?: string }[] = [];
@@ -279,6 +284,10 @@ export default function LiverRecord() {
       manualSalesAmount: "手入力売上金額",
       manualSalesAmountHint: "任意：スクショから読み取れない場合に入力",
       noAnalysis: "AI分析なし（記録のみ）",
+      streamAccount: "配信アカウント",
+      streamAccountHint: "他のライバーのアカウントで配信する場合に選択",
+      myAccount: "自分のアカウント",
+      otherAccount: "さんのアカウントで配信",
     },
     zh: {
       title: "记录直播内容",
@@ -347,6 +356,10 @@ export default function LiverRecord() {
       analyzingMultiple: "正在分析多张图片...",
       mergedResults: "合并结果",
       imageCount: "张",
+      streamAccount: "直播账号",
+      streamAccountHint: "使用其他主播的账号直播时选择",
+      myAccount: "自己的账号",
+      otherAccount: "的账号直播",
     },
   };
   
@@ -855,6 +868,8 @@ export default function LiverRecord() {
         // LINE通知用の構造化データ
         structuredAdvice: structuredAdvice || undefined,
         calculatedMetrics: calculatedMetrics || undefined,
+        // 配信アカウント（間借り配信）
+        streamAccountLiverId: streamAccountLiverId || undefined,
       });
     } catch (error) {
       console.error("Failed to save livestream record:", error);
@@ -1386,6 +1401,32 @@ export default function LiverRecord() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              
+              {/* 配信アカウント選択（間借り配信） */}
+              <div className="space-y-2">
+                <Label className="text-white text-sm">
+                  {tr.streamAccount}
+                </Label>
+                <Select 
+                  value={streamAccountLiverId?.toString() || "self"} 
+                  onValueChange={(v) => setStreamAccountLiverId(v === "self" ? null : parseInt(v, 10))}
+                >
+                  <SelectTrigger className="bg-gray-800 border-gray-600">
+                    <SelectValue placeholder={tr.myAccount} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-300 text-black max-h-60">
+                    <SelectItem value="self">{tr.myAccount}</SelectItem>
+                    {allLivers
+                      ?.filter((l: any) => l.id !== liverId && l.isActive !== false)
+                      .map((l: any) => (
+                        <SelectItem key={l.id} value={l.id.toString()}>
+                          {l.name}{l.tiktokAccount ? ` (@${l.tiktokAccount})` : ""}{tr.otherAccount}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">{tr.streamAccountHint}</p>
               </div>
               
               {/* Delivery Date */}
