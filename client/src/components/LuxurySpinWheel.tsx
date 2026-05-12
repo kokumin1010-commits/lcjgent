@@ -567,11 +567,15 @@ export default function LuxurySpinWheel({ items, onComplete, targetIndex, tierCo
     requestAnimationFrame(animateSpin);
   }, [items, targetIndex, onComplete, drawWheel]);
 
-  // Countdown logic
+  // Countdown logic - use ref to avoid stale closure issues
+  const doSpinRef = useRef(doSpin);
+  doSpinRef.current = doSpin;
+  const onCountdownStartRef = useRef(onCountdownStart);
+  onCountdownStartRef.current = onCountdownStart;
+
   const startCountdown = useCallback(() => {
-    if (phase !== 'ready') return;
     sfx.initAudio();
-    onCountdownStart?.();
+    onCountdownStartRef.current?.();
     setPhase("countdown");
     setCountdown(3);
     sfx.playCountdown(3);
@@ -579,8 +583,8 @@ export default function LuxurySpinWheel({ items, onComplete, targetIndex, tierCo
 
     setTimeout(() => { setCountdown(2); sfx.playCountdown(2); haptic.tap(); }, 1000);
     setTimeout(() => { setCountdown(1); sfx.playCountdown(1); haptic.tap(); }, 2000);
-    setTimeout(() => { sfx.playCountdownGo(); haptic.spinStart(); doSpin(); }, 3000);
-  }, [doSpin, onCountdownStart, phase]);
+    setTimeout(() => { sfx.playCountdownGo(); haptic.spinStart(); doSpinRef.current(); }, 3000);
+  }, []); // no dependencies - uses refs for latest values
 
   // Eagerly init audio on any touch/click
   useEffect(() => {
@@ -593,14 +597,19 @@ export default function LuxurySpinWheel({ items, onComplete, targetIndex, tierCo
     };
   }, []);
 
-  // Auto-start countdown
+  // Auto-start countdown - robust: does not depend on startCountdown reference
   useEffect(() => {
-    if (autoStart && !autoStartedRef.current && phase === 'ready') {
-      autoStartedRef.current = true;
-      const timer = setTimeout(() => { startCountdown(); }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [autoStart, phase, startCountdown]);
+    if (!autoStart) return;
+    if (autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    const timer = setTimeout(() => { startCountdown(); }, 500);
+    return () => {
+      // Only clear if component unmounts before timer fires
+      // Do NOT reset autoStartedRef here to prevent double-fire
+      clearTimeout(timer);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run only once on mount
 
   const wheelSize = Math.min(340, typeof window !== "undefined" ? window.innerWidth - 40 : 300);
   const ledCount = 32;

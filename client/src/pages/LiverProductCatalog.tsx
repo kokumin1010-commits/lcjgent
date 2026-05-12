@@ -244,7 +244,7 @@ export default function LiverProductCatalog() {
             variant={selectedBrand === "all" ? "default" : "outline"}
             size="sm"
             onClick={() => setSelectedBrand("all")}
-            className="text-xs whitespace-nowrap flex-shrink-0"
+            className={`text-xs whitespace-nowrap flex-shrink-0 ${selectedBrand === "all" ? "" : "text-gray-200 border-gray-500 hover:text-white hover:border-gray-300"}`}
           >
             全ブランド
           </Button>
@@ -254,7 +254,7 @@ export default function LiverProductCatalog() {
               variant={selectedBrand === String(brand.id) ? "default" : "outline"}
               size="sm"
               onClick={() => setSelectedBrand(String(brand.id))}
-              className="text-xs whitespace-nowrap flex-shrink-0"
+              className={`text-xs whitespace-nowrap flex-shrink-0 ${selectedBrand === String(brand.id) ? "" : "text-gray-200 border-gray-500 hover:text-white hover:border-gray-300"}`}
             >
               {brand.name}
             </Button>
@@ -268,7 +268,7 @@ export default function LiverProductCatalog() {
               variant={selectedCategory === "all" ? "default" : "outline"}
               size="sm"
               onClick={() => setSelectedCategory("all")}
-              className="text-xs whitespace-nowrap flex-shrink-0"
+              className={`text-xs whitespace-nowrap flex-shrink-0 ${selectedCategory === "all" ? "" : "text-gray-200 border-gray-500 hover:text-white hover:border-gray-300"}`}
             >
               <Tag className="h-3 w-3 mr-1" />
               全カテゴリ
@@ -279,7 +279,7 @@ export default function LiverProductCatalog() {
                 variant={selectedCategory === String(cat.id) ? "default" : "outline"}
                 size="sm"
                 onClick={() => setSelectedCategory(String(cat.id))}
-                className="text-xs whitespace-nowrap flex-shrink-0"
+                className={`text-xs whitespace-nowrap flex-shrink-0 ${selectedCategory === String(cat.id) ? "" : "text-gray-200 border-gray-500 hover:text-white hover:border-gray-300"}`}
               >
                 {cat.iconEmoji && <span className="mr-1">{cat.iconEmoji}</span>}
                 {cat.name}
