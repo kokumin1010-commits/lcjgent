@@ -2129,7 +2129,7 @@ const ClipEditorV2 = ({ videoId, clip, videoData, onClose, onClipUpdated }) => {
                       phase_index: clip.phase_index,
                       time_start: clip.time_start || origStart,
                       time_end: clip.time_end || origEnd,
-                      clip_id: clip.id || null,
+                      clip_id: clip.clip_id || clip.id || null,
                       export_type: 'subtitled',
                     });
                     setStatus({ ok: true, msg: window.__t('clipEditorV2_adfd89', '字幕付きMP4のダウンロードを開始しました！') });
@@ -2212,7 +2212,7 @@ const ClipEditorV2 = ({ videoId, clip, videoData, onClose, onClipUpdated }) => {
                   phase_index: clip.phase_index,
                   time_start: clip.time_start || origStart,
                   time_end: clip.time_end || origEnd,
-                  clip_id: clip.id || null,
+                  clip_id: clip.clip_id || clip.id || null,
                   export_type: 'raw',
                 });
               }}

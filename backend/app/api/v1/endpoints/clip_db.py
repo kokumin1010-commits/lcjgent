@@ -351,10 +351,29 @@ async def search_clips(
         conditions.append("vc.trim_data IS NULL")
 
     # Not downloaded filter (clips with zero downloads)
+    # Match by clip_id OR by (video_id + phase_index) for legacy records where clip_id was NULL
     if not_downloaded is True:
-        conditions.append("vc.id::text NOT IN (SELECT DISTINCT clip_id::text FROM clip_download_log WHERE clip_id IS NOT NULL)")
+        conditions.append("""
+            vc.id::text NOT IN (SELECT DISTINCT clip_id::text FROM clip_download_log WHERE clip_id IS NOT NULL)
+            AND NOT EXISTS (
+                SELECT 1 FROM clip_download_log cdl2
+                WHERE cdl2.video_id = vc.video_id
+                AND cdl2.phase_index = vc.phase_index::text
+                AND cdl2.clip_id IS NULL
+            )
+        """)
     elif not_downloaded is False:
-        conditions.append("vc.id::text IN (SELECT DISTINCT clip_id::text FROM clip_download_log WHERE clip_id IS NOT NULL)")
+        conditions.append("""
+            (
+                vc.id::text IN (SELECT DISTINCT clip_id::text FROM clip_download_log WHERE clip_id IS NOT NULL)
+                OR EXISTS (
+                    SELECT 1 FROM clip_download_log cdl2
+                    WHERE cdl2.video_id = vc.video_id
+                    AND cdl2.phase_index = vc.phase_index::text
+                    AND cdl2.clip_id IS NULL
+                )
+            )
+        """)
 
     # Language filter
     if language:
@@ -474,11 +493,12 @@ async def search_clips(
             LEFT JOIN clip_feedback cf ON cf.video_id = vc.video_id
                 AND cf.phase_index = vc.phase_index
             LEFT JOIN videos v ON v.id = vc.video_id
-            LEFT JOIN (
-                SELECT clip_id, COUNT(*) as download_count
-                FROM clip_download_log
-                GROUP BY clip_id
-            ) cdl ON cdl.clip_id = vc.id
+            LEFT JOIN LATERAL (
+                SELECT COUNT(*) as download_count
+                FROM clip_download_log cdl_inner
+                WHERE cdl_inner.clip_id = vc.id
+                   OR (cdl_inner.clip_id IS NULL AND cdl_inner.video_id = vc.video_id AND cdl_inner.phase_index = vc.phase_index::text)
+            ) cdl ON TRUE
             WHERE {where_clause}
             ORDER BY vc.id
         ) sub
@@ -728,8 +748,14 @@ async def get_clip_stats(
                 COUNT(*) FILTER (WHERE COALESCE(vc.is_unusable, FALSE) = FALSE AND vc.id::text NOT IN (
                     SELECT wca.clip_id FROM widget_clip_assignments wca WHERE wca.is_active = TRUE
                 )) as no_brand_count,
-                COUNT(*) FILTER (WHERE COALESCE(vc.is_unusable, FALSE) = FALSE AND vc.id::text IN (
-                    SELECT DISTINCT clip_id::text FROM clip_download_log WHERE clip_id IS NOT NULL
+                COUNT(*) FILTER (WHERE COALESCE(vc.is_unusable, FALSE) = FALSE AND (
+                    vc.id::text IN (SELECT DISTINCT clip_id::text FROM clip_download_log WHERE clip_id IS NOT NULL)
+                    OR EXISTS (
+                        SELECT 1 FROM clip_download_log cdl2
+                        WHERE cdl2.video_id = vc.video_id
+                        AND cdl2.phase_index = vc.phase_index::text
+                        AND cdl2.clip_id IS NULL
+                    )
                 )) as downloaded_count
             FROM video_clips vc
             WHERE vc.status = 'completed' AND vc.clip_url IS NOT NULL
