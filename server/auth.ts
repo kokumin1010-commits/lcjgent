@@ -4,7 +4,7 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { createUser, getUserByEmail, getUserById, updateUserLastSignedIn, createUserPasswordResetToken, getUserPasswordResetToken, markUserPasswordResetTokenUsed, updateUserPassword, getActiveStaff } from "./db";
 import { users } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
-import { getDb } from "./_core/db";
+import { getDb } from "./db";
 import { nanoid } from "nanoid";
 import { TRPCError } from "@trpc/server";
 import { SignJWT } from "jose";

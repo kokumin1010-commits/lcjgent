@@ -368,7 +368,6 @@ export const liverTranslations: Record<string, Record<LiverLanguage, string>> = 
   "mypage.productTypes": { ja: "商品種類", "zh-TW": "商品種類", en: "Product Types", zh: "商品种类" },
   "mypage.productName": { ja: "商品名", "zh-TW": "商品名", en: "Product", zh: "商品名" },
   "mypage.soldCount": { ja: "販売数", "zh-TW": "銷售數", en: "Sold", zh: "销售数" },
-  "mypage.streamCount": { ja: "配信回数", "zh-TW": "直播次數", en: "Streams", zh: "直播次数" },
 
 };
 
