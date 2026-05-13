@@ -467,49 +467,50 @@ async def get_uncertain_phases(
     """
     _check_admin(x_admin_key)
 
-    # Fetch phases with their features
-    conditions = ["vp.user_rating IS NULL OR vp.user_rating = 0"]  # 未レビュー優先
-    params = {"limit": limit}
-    if video_id:
-        conditions.append("vp.video_id = :video_id")
-        params["video_id"] = video_id
-
-    where = "WHERE " + " AND ".join(conditions)
-
-    query = f"""
-        SELECT 
-            vp.video_id,
-            vp.phase_index,
-            vp.phase_description,
-            vp.time_start,
-            vp.time_end,
-            vp.cta_score,
-            vp.importance_score,
-            vp.sales_psychology_tags,
-            vp.human_sales_tags,
-            vp.user_rating,
-            vp.user_comment,
-            vp.reviewer_name,
-            vp.frame_quality,
-            vp.audio_features,
-            v.title as video_title,
-            v.created_at as video_created_at
-        FROM video_phases vp
-        LEFT JOIN videos v ON v.video_id = vp.video_id
-        {where}
-        ORDER BY vp.video_id, vp.phase_index
-        LIMIT 500
-    """
-
-    async with get_session() as session:
-        result = await session.execute(text(query), params)
-        rows = result.fetchall()
-
-    if not rows:
-        return {"phases": [], "stats": {"total_uncertain": 0, "total_scanned": 0}}
-
-    # Try to use ml_scorer for uncertainty detection
     try:
+        # Fetch phases with their features
+        # Fix: wrap OR condition in parentheses to prevent precedence issues with AND
+        conditions = ["(vp.user_rating IS NULL OR vp.user_rating = 0)"]  # 未レビュー優先
+        params = {}
+        if video_id:
+            conditions.append("vp.video_id = :video_id")
+            params["video_id"] = video_id
+
+        where = "WHERE " + " AND ".join(conditions)
+
+        query = f"""
+            SELECT 
+                vp.video_id,
+                vp.phase_index,
+                vp.phase_description,
+                vp.time_start,
+                vp.time_end,
+                vp.cta_score,
+                vp.importance_score,
+                vp.sales_psychology_tags,
+                vp.human_sales_tags,
+                vp.user_rating,
+                vp.user_comment,
+                vp.reviewer_name,
+                vp.frame_quality,
+                vp.audio_features,
+                v.title as video_title,
+                v.created_at as video_created_at
+            FROM video_phases vp
+            LEFT JOIN videos v ON v.video_id = vp.video_id
+            {where}
+            ORDER BY vp.video_id, vp.phase_index
+            LIMIT 500
+        """
+
+        async with get_session() as session:
+            result = await session.execute(text(query), params)
+            rows = result.fetchall()
+
+        if not rows:
+            return {"phases": [], "stats": {"total_uncertain": 0, "total_scanned": 0}}
+
+        # Try to use ml_scorer for uncertainty detection
         import sys
         import os
         worker_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..", "worker", "batch")
@@ -578,22 +579,41 @@ async def get_uncertain_phases(
                 },
             }
         else:
+            # ML scorer not available (no model files on this server)
+            # Return unreviewed phases as candidates for review (heuristic fallback)
+            fallback_phases = []
+            for row in rows[:limit]:
+                fallback_phases.append({
+                    "video_id": str(row[0]),
+                    "phase_index": row[1],
+                    "phase_description": (row[2] or "")[:200],
+                    "time_start": float(row[3]) if row[3] else 0,
+                    "time_end": float(row[4]) if row[4] else 0,
+                    "video_title": row[14] or "",
+                    "ml_score": None,
+                    "click_score": None,
+                    "order_score": None,
+                    "uncertainty": None,
+                    "review_priority": "medium",
+                    "has_human_review": 1 if row[9] and row[9] > 0 else 0,
+                    "user_rating": row[9] or 0,
+                })
             return {
-                "phases": [],
+                "phases": fallback_phases,
                 "stats": {
-                    "total_uncertain": 0,
+                    "total_uncertain": len(rows),
                     "total_scanned": len(rows),
-                    "error": "ML scorer not available (no model loaded)",
+                    "note": "ML scorer not available on this server; showing unreviewed phases as fallback",
                 },
             }
 
     except Exception as e:
-        logger.error(f"[active-learning] Error: {e}")
+        logger.error(f"[active-learning] Error: {e}", exc_info=True)
         return {
             "phases": [],
             "stats": {
                 "total_uncertain": 0,
-                "total_scanned": len(rows),
+                "total_scanned": 0,
                 "error": str(e),
             },
         }
