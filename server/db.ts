@@ -22719,3 +22719,43 @@ export async function getFeedbackSummaryForAI() {
     lowRatedReviews,
   };
 }
+
+
+// ============================================================
+// Auto-migration: Ensure schedules.brandIds column exists
+// ============================================================
+export async function ensureSchedulesBrandIdsColumn() {
+  const db = await getDb();
+  if (!db) return;
+  
+  try {
+    // Check if column already exists
+    const [cols] = await db.execute(sql`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'schedules' 
+      AND COLUMN_NAME = 'brandIds'
+    `);
+    
+    if (!cols || (Array.isArray(cols) && cols.length === 0)) {
+      // Add the column
+      await db.execute(sql`ALTER TABLE schedules ADD COLUMN brandIds JSON DEFAULT NULL`);
+      console.log("[Migration] Added brandIds column to schedules");
+      
+      // Backfill: copy existing brandId values into brandIds array
+      await db.execute(sql`
+        UPDATE schedules 
+        SET brandIds = JSON_ARRAY(brandId) 
+        WHERE brandId IS NOT NULL AND brandIds IS NULL
+      `);
+      console.log("[Migration] Backfilled brandIds from existing brandId values");
+    }
+  } catch (error: any) {
+    // Ignore "duplicate column" errors
+    if (error?.code === 'ER_DUP_FIELDNAME' || error?.message?.includes('Duplicate column')) {
+      console.log("[Migration] brandIds column already exists in schedules");
+    } else {
+      console.error("[Migration] Error ensuring schedules.brandIds column:", error);
+    }
+  }
+}

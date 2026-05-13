@@ -2028,6 +2028,13 @@ async function startServer() {
     // Start daily ranking scheduler (sends daily ranking to LINE at JST 00:00)
     startDailyRankingScheduler();
     
+    // Ensure schedules.brandIds column exists (multi-brand support)
+    import("../db").then(({ ensureSchedulesBrandIdsColumn }) => {
+      ensureSchedulesBrandIdsColumn().catch((err: unknown) => {
+        console.error("[Migration] Failed to ensure schedules.brandIds column:", err);
+      });
+    });
+
     // Ensure lineReceipts.orderNumber column exists and backfill from ocrRawText
     import("../db").then(({ ensureLineReceiptsOrderNumberColumn, backfillOrderNumbers }) => {
       ensureLineReceiptsOrderNumberColumn().then(() => {
