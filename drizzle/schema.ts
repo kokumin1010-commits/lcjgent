@@ -805,7 +805,8 @@ export const schedules = mysqlTable("schedules", {
   // 関連情報
   liverId: int("liverId"), // ライバーID（将来のライバー管理機能と連携）
   liverName: varchar("liverName", { length: 255 }), // ライバー名（直接入力も可能）
-  brandId: int("brandId"), // ブランドID
+  brandId: int("brandId"), // ブランドID（後方互換用）
+  brandIds: json("brandIds").$type<number[]>(), // 複数ブランドID（新規）
   lineGroupId: varchar("lineGroupId", { length: 64 }), // 関連するLINEグループ
   // 繰り返し設定
   isRecurring: boolean("isRecurring").default(false).notNull(), // 繰り返し予定かどうか

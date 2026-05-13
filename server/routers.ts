@@ -10102,7 +10102,8 @@ ${conversationText}
           liverName: z.string().min(1),
           notes: z.string().optional(),
           scheduleGroupId: z.number().optional(), // スケジュールグループID
-          brandId: z.number().optional(), // ブランドID
+          brandId: z.number().optional(), // ブランドID（後方互換）
+          brandIds: z.array(z.number()).optional(), // 複数ブランドID
           locationId: z.number().optional(), // 配信場所ID
         })
       )
@@ -10117,7 +10118,8 @@ ${conversationText}
           liverName: input.liverName,
           notes: input.notes,
           scheduleGroupId: input.scheduleGroupId,
-          brandId: input.brandId,
+          brandId: input.brandIds?.[0] ?? input.brandId, // 後方互換: 最初のブランドをbrandIdにも保存
+          brandIds: input.brandIds,
           locationId: input.locationId,
         });
         return schedule;
@@ -10137,6 +10139,7 @@ ${conversationText}
           notes: z.string().optional(),
           updateAll: z.boolean().optional(), // すべての繰り返しを更新するかどうか
           locationId: z.number().nullable().optional(), // 配信場所ID
+          brandIds: z.array(z.number()).nullable().optional(), // 複数ブランドID
           liverName: z.string().optional(), // ライバー名で認証（トークンがない場合）
         })
       )
@@ -10200,6 +10203,10 @@ ${conversationText}
         if (data.category !== undefined) updateData.category = data.category;
         if (data.notes !== undefined) updateData.notes = data.notes;
         if ((input as any).locationId !== undefined) updateData.locationId = (input as any).locationId;
+        if (input.brandIds !== undefined) {
+          updateData.brandIds = input.brandIds;
+          updateData.brandId = input.brandIds?.[0] ?? null; // 後方互換
+        }
         
         // すべての繰り返しを更新する場合
         if (updateAll && schedule.parentScheduleId) {

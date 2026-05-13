@@ -130,6 +130,7 @@ type Schedule = {
   liverName?: string | null;
   liverId?: number | null;
   brandId?: number | null;
+  brandIds?: number[] | null;
   locationId?: number | null;
   parentScheduleId?: number | null; // 繰り返し予定の親 ID
   createdByEmail?: string | null;
@@ -230,8 +231,8 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
     liverName: "",
     isNewLiver: false,
     newLiverName: "",
-    // ブランド選択
-    brandId: undefined as number | undefined,
+    // ブランド選択（複数選択可能）
+    brandIds: [] as number[],
     // 配信場所
     locationId: undefined as number | undefined,
     // 繰り返し設定
@@ -402,7 +403,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
       liverName: "",
       isNewLiver: false,
       newLiverName: "",
-      brandId: undefined,
+      brandIds: [],
       locationId: undefined,
       repeatType: "none",
       repeatWeekdays: [],
@@ -498,7 +499,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
 
     // Filter by selected brand
     if (selectedBrandId) {
-      filteredSchedules = filteredSchedules.filter(s => s.brandId === selectedBrandId);
+      filteredSchedules = filteredSchedules.filter(s => s.brandIds?.includes(selectedBrandId!) || s.brandId === selectedBrandId);
     }
 
     // Filter by selected liver name (legend tap)
@@ -787,6 +788,12 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
       return;
     }
     
+    // ブランド必須チェック
+    if (newSchedule.brandIds.length === 0) {
+      toast.error("ブランドを選択してください");
+      return;
+    }
+    
     // 繰り返し設定の場合、繰り返し終了日が必須
     if (newSchedule.repeatType !== "none" && !newSchedule.repeatUntil) {
       toast.error("繰り返し終了日を設定してください");
@@ -840,7 +847,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
         category: newSchedule.category,
         liverName: defaultLiverName,
         scheduleGroupId: selectedGroupId || undefined, // 選択中のグループIDを送信
-        brandId: newSchedule.brandId, // ブランドIDを送信
+        brandIds: newSchedule.brandIds, // 複数ブランドIDを送信
         locationId: newSchedule.locationId, // 配信場所IDを送信
       });
     }
@@ -1100,7 +1107,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
               </button>
               {/* Brand tabs - only show brands that have schedules */}
               {brandsData
-                .filter((brand: any) => (schedules ?? []).some(s => s.brandId === brand.id))
+                .filter((brand: any) => (schedules ?? []).some(s => s.brandIds?.includes(brand.id) || s.brandId === brand.id))
                 .map((brand: any) => (
                 <button
                   key={brand.id}
@@ -2368,7 +2375,15 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
               const bHasQuota = b.hasQuota ? 1 : 0;
               return bHasQuota - aHasQuota;
             });
-            const selectedBrand = newSchedule.brandId ? brandsData.find((b: any) => b.id === newSchedule.brandId) : null;
+            const selectedBrands = brandsData.filter((b: any) => newSchedule.brandIds.includes(b.id));
+            const toggleBrand = (brandId: number) => {
+              setNewSchedule(prev => ({
+                ...prev,
+                brandIds: prev.brandIds.includes(brandId)
+                  ? prev.brandIds.filter(id => id !== brandId)
+                  : [...prev.brandIds, brandId]
+              }));
+            };
             return (
             <div className="px-4 py-3 border-b">
               <div className="flex items-center gap-3">
@@ -2378,10 +2393,10 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                 <Popover open={brandPopoverOpen} onOpenChange={setBrandPopoverOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="ghost" className="border-0 p-0 h-auto focus:ring-0 flex-1 justify-between font-normal hover:bg-transparent">
-                      <span className={newSchedule.brandId ? "text-gray-900" : "text-gray-500"}>
-                        {newSchedule.brandId 
-                          ? (selectedBrand?.name || selectedBrand?.brandName || "ブランドを選択")
-                          : "ブランドを選択"}
+                      <span className={newSchedule.brandIds.length > 0 ? "text-gray-900" : "text-gray-500"}>
+                        {newSchedule.brandIds.length > 0
+                          ? selectedBrands.map((b: any) => b.name || b.brandName).join(", ")
+                          : "ブランドを選択 *"}
                       </span>
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
@@ -2392,17 +2407,13 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                       <CommandList>
                         <CommandEmpty>見つかりません</CommandEmpty>
                         <CommandGroup>
-                          <CommandItem value="none" onSelect={() => { setNewSchedule(prev => ({ ...prev, brandId: undefined })); setBrandPopoverOpen(false); }}>
-                            <Check className={cn("mr-2 h-4 w-4", !newSchedule.brandId ? "opacity-100" : "opacity-0")} />
-                            ブランドなし
-                          </CommandItem>
                           {sortedBrands.map((brand: any) => (
                             <CommandItem
                               key={brand.id}
                               value={brand.name || brand.brandName}
-                              onSelect={() => { setNewSchedule(prev => ({ ...prev, brandId: brand.id })); setBrandPopoverOpen(false); }}
+                              onSelect={() => toggleBrand(brand.id)}
                             >
-                              <Check className={cn("mr-2 h-4 w-4", newSchedule.brandId === brand.id ? "opacity-100" : "opacity-0")} />
+                              <Check className={cn("mr-2 h-4 w-4", newSchedule.brandIds.includes(brand.id) ? "opacity-100" : "opacity-0")} />
                               <span className="flex-1">{brand.name || brand.brandName}</span>
                               {brand.hasQuota && (
                                 <span className="ml-1 text-[10px] bg-cyan-100 text-cyan-700 px-1.5 py-0.5 rounded-full">ノルマ</span>
@@ -2416,10 +2427,10 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                 </Popover>
               </div>
               {/* 選択したブランドのノルマ残り表示 */}
-              {selectedBrand?.hasQuota && selectedBrand?.kolProgress && (selectedBrand as any).kolProgress.length > 0 && (
-                <div className="mt-2 ml-8 p-2 bg-blue-50 rounded-lg">
-                  <p className="text-[11px] font-medium text-blue-700 mb-1">🎯 今月のノルマ進捗</p>
-                  {(selectedBrand as any).kolProgress.map((kol: any, idx: number) => (
+              {selectedBrands.filter((b: any) => b.hasQuota && b.kolProgress?.length > 0).map((selectedBrand: any) => (
+                <div key={selectedBrand.id} className="mt-2 ml-8 p-2 bg-blue-50 rounded-lg">
+                  <p className="text-[11px] font-medium text-blue-700 mb-1">🎯 {selectedBrand.name || selectedBrand.brandName} - 今月のノルマ進捗</p>
+                  {selectedBrand.kolProgress.map((kol: any, idx: number) => (
                     <div key={idx} className="flex items-center gap-2 mt-1">
                       <span className="text-[10px] text-gray-600 w-14 truncate">{kol.liverName}</span>
                       <div className="flex-1 bg-gray-200 rounded-full h-1.5">
@@ -2434,7 +2445,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                     </div>
                   ))}
                 </div>
-              )}
+              ))}
             </div>
             );
           })()}
