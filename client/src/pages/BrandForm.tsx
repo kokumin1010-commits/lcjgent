@@ -35,6 +35,8 @@ const translations = {
     adBudget: "広告費",
     salesTarget: "売上目標",
     commissionRate: "成果報酬",
+    shopId: "店舗ID",
+    shopCode: "ショップコード",
     businessCard: "名刺",
     businessCardHint: "名刺に登録できるのは2枚のみです。ドラッグ＆ドロップで登録・差し替え可能です。",
     logo: "画像情報（ロゴ）",
@@ -70,6 +72,8 @@ const translations = {
     adBudget: "广告费",
     salesTarget: "销售目标",
     commissionRate: "成果报酬",
+    shopId: "店铺ID",
+    shopCode: "店铺代码",
     businessCard: "名片",
     businessCardHint: "名片最多可上传2张。可拖拽上传或替换。",
     logo: "图片信息（Logo）",
@@ -145,6 +149,8 @@ export default function BrandForm() {
     adBudget: "",
     salesTarget: "",
     commissionRate: "",
+    shopId: "",
+    shopCode: "",
     memo: "",
   });
 
@@ -179,6 +185,8 @@ export default function BrandForm() {
         adBudget: brand.adBudget?.toString() || "",
         salesTarget: brand.salesTarget?.toString() || "",
         commissionRate: brand.commissionRate || "",
+        shopId: (brand as any).shopId || "",
+        shopCode: (brand as any).shopCode || "",
         memo: brand.memo || "",
       });
       
@@ -254,6 +262,8 @@ export default function BrandForm() {
         adBudget: formData.adBudget ? parseFloat(formData.adBudget) : undefined,
         salesTarget: formData.salesTarget ? parseFloat(formData.salesTarget) : undefined,
         commissionRate: formData.commissionRate || undefined,
+        shopId: formData.shopId || undefined,
+        shopCode: formData.shopCode || undefined,
         businessCardUrls: businessCards.map((c) => c.url),
         businessCardKeys: businessCards.map((c) => c.key),
         logoUrl: logo?.url || undefined,
@@ -393,6 +403,26 @@ export default function BrandForm() {
               </div>
             </div>
 
+
+            {/* Shop ID & Shop Code */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>{t.shopId}</Label>
+                <Input
+                  value={formData.shopId}
+                  onChange={(e) => handleInputChange("shopId", e.target.value)}
+                  placeholder="例: 12345"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t.shopCode}</Label>
+                <Input
+                  value={formData.shopCode}
+                  onChange={(e) => handleInputChange("shopCode", e.target.value)}
+                  placeholder="例: SHOP-001"
+                />
+              </div>
+            </div>
 
             {/* Business Cards */}
             <div className="space-y-2">

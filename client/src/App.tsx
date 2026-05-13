@@ -56,6 +56,7 @@ const LiverSchedule = lazy(() => import("./pages/LiverSchedule"));
 const LiverSetApplication = lazy(() => import("./pages/LiverSetApplication"));
 const LiverSampleRequest = lazy(() => import("./pages/LiverSampleRequest"));
 const LiverProfile = lazy(() => import("./pages/LiverProfile"));
+const LiverEditAdmin = lazy(() => import("./pages/LiverEditAdmin"));
 const LineReceiptManagement = lazy(() => import("./pages/LineReceiptManagement"));
 const LineLogin = lazy(() => import("./pages/LineLogin"));
 const LineLoginCallback = lazy(() => import("./pages/LineLoginCallback"));
@@ -335,11 +336,12 @@ function Router() {
         <Route path={"/master/line/pending"}>
           <Redirect to="/master/line?tab=pending" />
         </Route>
-        <Route path={"/master/calendar"}>
+        {/* /master/calendar は廃止 - /s を使用 */}
+        {/* <Route path={"/master/calendar"}>
           <DashboardLayout>
             <Calendar />
           </DashboardLayout>
-        </Route>
+        </Route> */}
         <Route path={"/master/livers-dashboard"} component={LiverDashboardNew} />
         <Route path={"/master/sales-check"}>
           <DashboardLayout>
@@ -429,7 +431,7 @@ function Router() {
         <Route path={"/livers/by-name/:name"} component={LiverByName} />
         <Route path={"/livers/:id/edit"}>
           <ProtectedLiverRoute>
-            <LiverProfile />
+            <LiverEditAdmin />
           </ProtectedLiverRoute>
         </Route>
         <Route path={"/livers/:id/record"}>

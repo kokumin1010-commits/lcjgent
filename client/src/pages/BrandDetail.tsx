@@ -2056,6 +2056,12 @@ ${proposal.proposalContent}
                   {brand.nameJa && <span className="text-red-400 mr-2">({brand.nameJa})</span>}
                   {brand.companyName || brand.name}
                 </p>
+                {((brand as any).shopId || (brand as any).shopCode) && (
+                  <p className="text-gray-500 text-xs mt-0.5 flex gap-3">
+                    {(brand as any).shopId && <span>店舗ID: <span className="text-gray-300">{(brand as any).shopId}</span></span>}
+                    {(brand as any).shopCode && <span>Shop Code: <span className="text-gray-300">{(brand as any).shopCode}</span></span>}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3">

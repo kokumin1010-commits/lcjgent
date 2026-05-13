@@ -189,6 +189,8 @@ export const brands = mysqlTable("brands", {
   businessCardKeys: json("businessCardKeys").$type<string[]>(), // 名刺画像S3 keys
   logoUrl: text("logoUrl"), // ロゴ画像URL
   logoKey: varchar("logoKey", { length: 512 }), // ロゴ画像S3 key
+  shopId: varchar("shopId", { length: 100 }), // 店舗ID
+  shopCode: varchar("shopCode", { length: 100 }), // ショップコード
   memo: text("memo"), // メモ
   createdBy: int("createdBy").notNull(), // User ID who created the brand
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -902,6 +904,8 @@ export const livers = mysqlTable("livers", {
   capEnabled: boolean("capEnabled").default(false), // CAP契約があるかどうか
   capLcjRate: decimal("capLcjRate", { precision: 5, scale: 2 }).default("0"), // CAP契約のLCJ取り分比率（%）例: 20.00 = 20%
   capCreatorRate: decimal("capCreatorRate", { precision: 5, scale: 2 }).default("100"), // CAP契約のCreator取り分比率（%）例: 80.00 = 80%
+  // UID
+  uid: varchar("uid", { length: 100 }), // ライバーUID
   // タイムスタンプ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

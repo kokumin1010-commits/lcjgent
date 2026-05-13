@@ -22759,3 +22759,67 @@ export async function ensureSchedulesBrandIdsColumn() {
     }
   }
 }
+
+
+// Auto-migration: Add shopId and shopCode columns to brands table
+export async function ensureBrandsShopColumns() {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    
+    // Check if shopId column exists
+    const [shopIdCol] = await db.execute(sql`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_NAME = 'brands' AND COLUMN_NAME = 'shopId'
+      AND TABLE_SCHEMA = DATABASE()
+    `);
+    
+    if (!(shopIdCol as any)?.length && !(shopIdCol as any)?.COLUMN_NAME) {
+      await db.execute(sql`ALTER TABLE brands ADD COLUMN shopId VARCHAR(255) DEFAULT NULL`);
+      console.log("[Migration] Added shopId column to brands");
+    }
+    
+    // Check if shopCode column exists
+    const [shopCodeCol] = await db.execute(sql`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_NAME = 'brands' AND COLUMN_NAME = 'shopCode'
+      AND TABLE_SCHEMA = DATABASE()
+    `);
+    
+    if (!(shopCodeCol as any)?.length && !(shopCodeCol as any)?.COLUMN_NAME) {
+      await db.execute(sql`ALTER TABLE brands ADD COLUMN shopCode VARCHAR(255) DEFAULT NULL`);
+      console.log("[Migration] Added shopCode column to brands");
+    }
+  } catch (error: any) {
+    if (error?.code === 'ER_DUP_FIELDNAME' || error?.message?.includes('Duplicate column')) {
+      console.log("[Migration] shopId/shopCode columns already exist in brands");
+    } else {
+      console.error("[Migration] Error ensuring brands shop columns:", error);
+    }
+  }
+}
+
+// Auto-migration: Add uid column to livers table
+export async function ensureLiversUidColumn() {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    
+    const [uidCol] = await db.execute(sql`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_NAME = 'livers' AND COLUMN_NAME = 'uid'
+      AND TABLE_SCHEMA = DATABASE()
+    `);
+    
+    if (!(uidCol as any)?.length && !(uidCol as any)?.COLUMN_NAME) {
+      await db.execute(sql`ALTER TABLE livers ADD COLUMN uid VARCHAR(255) DEFAULT NULL`);
+      console.log("[Migration] Added uid column to livers");
+    }
+  } catch (error: any) {
+    if (error?.code === 'ER_DUP_FIELDNAME' || error?.message?.includes('Duplicate column')) {
+      console.log("[Migration] uid column already exists in livers");
+    } else {
+      console.error("[Migration] Error ensuring livers.uid column:", error);
+    }
+  }
+}

@@ -110,7 +110,7 @@ function DashboardLayoutContent({
     { icon: Megaphone, label: "広告申込フォーム一覧", path: "/master/ad-form-submissions", hasBadge: true, badgeType: "adForm" as const },
     { icon: CreditCard, label: t("nav.businessCards"), path: "/master/business-cards" },
     { icon: MessageSquare, label: t("nav.line"), path: "/master/line" },
-    { icon: Calendar, label: t("nav.calendar"), path: "/master/calendar" },
+    { icon: Calendar, label: t("nav.calendar"), path: "/s" },
     { icon: Video, label: t("nav.livers"), path: "/master/livers" },
     { icon: Zap, label: t("nav.liverCommand") || "ライバー司令塔", path: "/master/livers-dashboard" },
     { icon: Bot, label: "神コーチトーク", path: "/master/ai-coach" },

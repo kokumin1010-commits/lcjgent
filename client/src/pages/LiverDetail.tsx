@@ -275,10 +275,13 @@ export default function LiverDetail() {
           
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-bold">{liver.name}</h2>
-            <Link href="/liver/profile">
+            <Link href={`/livers/${liverId}/edit`}>
               <Edit className="w-4 h-4 text-white hover:text-white cursor-pointer" />
             </Link>
           </div>
+          {(liver as any).uid && (
+            <p className="text-xs text-gray-400 mt-0.5">UID: {(liver as any).uid}</p>
+          )}
           
           {/* SNS Links */}
           {(liver.tiktokAccount || liver.instagramAccount || liver.youtubeAccount || liver.otherAccount) && (

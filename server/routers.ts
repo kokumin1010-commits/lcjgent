@@ -4285,6 +4285,8 @@ ${staffDetails.map(s => `\n【${s.staffName}】(${s.reportCount}件)\n${s.allWor
           businessCardKeys: z.array(z.string()).optional(),
           logoUrl: z.string().optional(),
           logoKey: z.string().optional(),
+          shopId: z.string().optional(),
+          shopCode: z.string().optional(),
           memo: z.string().optional(),
         })
       )
@@ -4362,6 +4364,8 @@ ${staffDetails.map(s => `\n【${s.staffName}】(${s.reportCount}件)\n${s.allWor
           businessCardKeys: z.array(z.string()).optional(),
           logoUrl: z.string().optional(),
           logoKey: z.string().optional(),
+          shopId: z.string().optional(),
+          shopCode: z.string().optional(),
           memo: z.string().optional(),
         })
       )
@@ -10985,6 +10989,14 @@ ${conversationText}
         isActive: z.boolean().optional(),
         avatarUrl: z.string().optional(),
         avatarKey: z.string().optional(),
+        uid: z.string().optional(),
+        bio: z.string().optional(),
+        tiktokAccount: z.string().optional(),
+        instagramAccount: z.string().optional(),
+        youtubeAccount: z.string().optional(),
+        otherAccount: z.string().optional(),
+        lineNotificationEnabled: z.boolean().optional(),
+        language: z.enum(['ja', 'zh-TW', 'en']).optional(),
       }))
       .mutation(async ({ input }) => {
         const { id, ...data } = input;

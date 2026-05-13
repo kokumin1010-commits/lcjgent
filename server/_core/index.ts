@@ -2035,6 +2035,20 @@ async function startServer() {
       });
     });
 
+    // Ensure brands.shopId and brands.shopCode columns exist
+    import("../db").then(({ ensureBrandsShopColumns }) => {
+      ensureBrandsShopColumns().catch((err: unknown) => {
+        console.error("[Migration] Failed to ensure brands shop columns:", err);
+      });
+    });
+
+    // Ensure livers.uid column exists
+    import("../db").then(({ ensureLiversUidColumn }) => {
+      ensureLiversUidColumn().catch((err: unknown) => {
+        console.error("[Migration] Failed to ensure livers.uid column:", err);
+      });
+    });
+
     // Ensure lineReceipts.orderNumber column exists and backfill from ocrRawText
     import("../db").then(({ ensureLineReceiptsOrderNumberColumn, backfillOrderNumbers }) => {
       ensureLineReceiptsOrderNumberColumn().then(() => {
