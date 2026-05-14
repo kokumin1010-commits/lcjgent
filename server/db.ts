@@ -9541,9 +9541,12 @@ export async function getLiverDailySalesTrend(month: string, agencyId?: number |
       ? eq(livers.agencyId, agencyId)
       : undefined;
   
+  // Use raw SQL for DATE extraction with JST timezone offset
+  const dateExpr = sql`DATE(DATE_ADD(${brandLivestreams.livestreamDate}, INTERVAL 9 HOUR))`;
+  
   const query = db
     .select({
-      date: sql<string>`DATE(CONVERT_TZ(${brandLivestreams.livestreamDate}, '+00:00', '+09:00'))`.as("date"),
+      date: sql<string>`DATE(DATE_ADD(${brandLivestreams.livestreamDate}, INTERVAL 9 HOUR))`.as("date"),
       totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
       totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
       totalLivestreams: sql<number>`COUNT(*)`,
@@ -9562,8 +9565,8 @@ export async function getLiverDailySalesTrend(month: string, agencyId?: number |
       agencyFilter
     )
   )
-  .groupBy(sql`DATE(CONVERT_TZ(${brandLivestreams.livestreamDate}, '+00:00', '+09:00'))`)
-  .orderBy(asc(sql`DATE(CONVERT_TZ(${brandLivestreams.livestreamDate}, '+00:00', '+09:00'))`));
+  .groupBy(sql`DATE(DATE_ADD(${brandLivestreams.livestreamDate}, INTERVAL 9 HOUR))`)
+  .orderBy(asc(sql`DATE(DATE_ADD(${brandLivestreams.livestreamDate}, INTERVAL 9 HOUR))`));
   
   return result.map(r => ({
     date: String(r.date),
