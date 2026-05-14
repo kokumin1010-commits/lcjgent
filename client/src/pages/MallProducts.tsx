@@ -247,6 +247,11 @@ export default function MallProducts() {
           return true;
         })
         .sort((a, b) => {
+          // 在庫あり商品を常に優先表示
+          const aInStock = a.stock > 0 ? 1 : 0;
+          const bInStock = b.stock > 0 ? 1 : 0;
+          if (bInStock !== aInStock) return bInStock - aInStock;
+
           switch (sortBy) {
             case "price_asc":
               return a.price - b.price;

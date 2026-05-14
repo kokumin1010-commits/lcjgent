@@ -80,14 +80,26 @@ function ProductImageGallery({ product, isFavorite, setIsFavorite, handleShare }
 
   return (
     <div className="space-y-4">
-      {/* メイン画像 */}
+      {/* メイン画像/動画 */}
       <div className="aspect-square relative rounded-2xl overflow-hidden bg-white shadow-lg border border-pink-100">
         {currentImage ? (
-          <img
-            src={currentImage}
-            alt={`${product.name} - 画像${selectedIndex + 1}`}
-            className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
-          />
+          /\.(mp4|webm|mov|avi|m4v)$/i.test(currentImage) ? (
+            <video
+              src={currentImage}
+              className="w-full h-full object-cover"
+              controls
+              playsInline
+              muted
+              autoPlay
+              loop
+            />
+          ) : (
+            <img
+              src={currentImage}
+              alt={`${product.name} - 画像${selectedIndex + 1}`}
+              className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+            />
+          )
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-50 to-rose-50">
             <Package className="h-32 w-32 text-pink-200" />
@@ -149,11 +161,22 @@ function ProductImageGallery({ product, isFavorite, setIsFavorite, handleShare }
                   : "border-gray-200 hover:border-pink-300"
               }`}
             >
-              <img
-                src={url}
-                alt={`${product.name} - サムネイル${i + 1}`}
-                className="w-full h-full object-cover"
-              />
+              {/\.(mp4|webm|mov|avi|m4v)$/i.test(url) ? (
+                <div className="w-full h-full bg-gray-900 flex items-center justify-center relative">
+                  <video src={url} className="w-full h-full object-cover opacity-70" muted playsInline />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-6 h-6 bg-white/80 rounded-full flex items-center justify-center">
+                      <div className="w-0 h-0 border-l-[6px] border-l-gray-800 border-y-[4px] border-y-transparent ml-0.5" />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <img
+                  src={url}
+                  alt={`${product.name} - サムネイル${i + 1}`}
+                  className="w-full h-full object-cover"
+                />
+              )}
             </button>
           ))}
         </div>

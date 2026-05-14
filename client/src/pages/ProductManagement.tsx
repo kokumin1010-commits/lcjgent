@@ -28,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Package, ImageIcon, GripVertical, X, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Package, ImageIcon, GripVertical, X, Search, FileImage, Upload } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import {
@@ -125,18 +125,27 @@ function SortableImageItem({
           : "border-border hover:border-primary/50"
       } ${index === 0 ? "ring-2 ring-primary ring-offset-2" : ""}`}
     >
-      {/* ドラッグハンドル（画像全体） */}
+      {/* ドラッグハンドル（画像/動画全体） */}
       <div
         {...attributes}
         {...listeners}
         className="cursor-grab active:cursor-grabbing"
       >
         <div className="aspect-square overflow-hidden rounded-md">
-          <img
-            src={img.url}
-            alt={`商品画像 ${index + 1}`}
-            className="w-full h-full object-cover pointer-events-none"
-          />
+          {/\.(mp4|webm|mov|avi|m4v)$/i.test(img.url) ? (
+            <video
+              src={img.url}
+              className="w-full h-full object-cover pointer-events-none"
+              muted
+              playsInline
+            />
+          ) : (
+            <img
+              src={img.url}
+              alt={`商品メディア ${index + 1}`}
+              className="w-full h-full object-cover pointer-events-none"
+            />
+          )}
         </div>
       </div>
       {/* メイン画像バッジ */}
@@ -162,6 +171,142 @@ function SortableImageItem({
       >
         <X className="h-3 w-3" />
       </Button>
+    </div>
+  );
+}
+
+// 商品説明画像管理セクション（図文モード）
+function DescImageSection({ productId }: { productId: number }) {
+  const utils = trpc.useUtils();
+  const { data: descImages, isLoading } = trpc.mall.getDescImages.useQuery({ productId });
+  const addDescImage = trpc.mall.addDescImage.useMutation({
+    onSuccess: () => {
+      utils.mall.getDescImages.invalidate({ productId });
+      toast.success("説明画像を追加しました");
+    },
+    onError: (err) => toast.error(err.message || "追加に失敗しました"),
+  });
+  const deleteDescImage = trpc.mall.deleteDescImage.useMutation({
+    onSuccess: () => {
+      utils.mall.getDescImages.invalidate({ productId });
+      toast.success("削除しました");
+    },
+    onError: (err) => toast.error(err.message || "削除に失敗しました"),
+  });
+  const [isUploadingDesc, setIsUploadingDesc] = useState(false);
+  const [captionInput, setCaptionInput] = useState("");
+
+  const handleDescImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setIsUploadingDesc(true);
+    const currentCount = descImages?.length || 0;
+    let uploaded = 0;
+    for (const file of Array.from(files)) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name}: 5MB以下にしてください`);
+        continue;
+      }
+      try {
+        const formDataUpload = new FormData();
+        formDataUpload.append("file", file);
+        const response = await fetch("/api/upload-product-image", {
+          method: "POST",
+          body: formDataUpload,
+          credentials: "include",
+        });
+        if (!response.ok) throw new Error(`アップロード失敗 (${response.status})`);
+        const result = await response.json();
+        await addDescImage.mutateAsync({
+          productId,
+          imageUrl: result.url,
+          imageKey: result.key,
+          sortOrder: currentCount + uploaded,
+          caption: captionInput || undefined,
+        });
+        uploaded++;
+      } catch (error: any) {
+        toast.error(`${file.name}: ${error?.message || 'アップロード失敗'}`);
+      }
+    }
+    setIsUploadingDesc(false);
+    setCaptionInput("");
+    e.target.value = "";
+  };
+
+  return (
+    <div className="col-span-2 border-t pt-4 mt-2">
+      <label className="text-sm font-medium flex items-center gap-2">
+        <FileImage className="h-4 w-4" />
+        商品説明画像（図文モード）
+      </label>
+      <p className="text-xs text-muted-foreground mt-1 mb-3">
+        商品詳細ページに表示されるLP風の説明画像です。上から順番に表示されます。
+      </p>
+      {/* 既存の説明画像一覧 */}
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground">読み込み中...</div>
+      ) : descImages && descImages.length > 0 ? (
+        <div className="space-y-2 mb-3">
+          {descImages.map((img, idx) => (
+            <div key={img.id} className="flex items-center gap-3 border rounded-lg p-2">
+              <span className="text-xs text-muted-foreground w-6">{idx + 1}</span>
+              <img src={img.imageUrl} alt={img.caption || `説明${idx + 1}`} className="h-12 w-20 object-cover rounded" />
+              <span className="text-xs text-muted-foreground flex-1 truncate">{img.caption || "キャプションなし"}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (confirm("この説明画像を削除しますか？")) {
+                    deleteDescImage.mutate({ id: img.id });
+                  }
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-xs text-muted-foreground mb-3">説明画像はまだありません</div>
+      )}
+      {/* キャプション入力 */}
+      <div className="flex items-center gap-2 mb-2">
+        <Input
+          placeholder="キャプション（任意）"
+          value={captionInput}
+          onChange={(e) => setCaptionInput(e.target.value)}
+          className="flex-1 text-sm"
+        />
+      </div>
+      {/* アップロードエリア */}
+      <label className="cursor-pointer block">
+        <div className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors ${
+          isUploadingDesc ? "bg-muted" : "hover:bg-muted/50 hover:border-primary"
+        }`}>
+          {isUploadingDesc ? (
+            <div className="flex items-center justify-center gap-2">
+              <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+              <span className="text-sm text-muted-foreground">アップロード中...</span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-1">
+              <Upload className="h-6 w-6 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">説明画像をアップロード（複数可）</span>
+              <span className="text-xs text-muted-foreground">PNG, JPG, GIF（各5MB以下）</span>
+            </div>
+          )}
+        </div>
+        <Input
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleDescImageUpload}
+          disabled={isUploadingDesc}
+          className="hidden"
+        />
+      </label>
     </div>
   );
 }
@@ -296,21 +441,23 @@ export default function ProductManagement() {
     const remainingSlots = maxFiles - currentCount;
     
     if (remainingSlots <= 0) {
-      toast.error(`画像は最大${maxFiles}枚までです`);
+      toast.error(`メディアは最大${maxFiles}件までです`);
       return;
     }
 
     const filesToUpload = Array.from(files).slice(0, remainingSlots);
     if (files.length > remainingSlots) {
-      toast.info(`最大${maxFiles}枚まで。${remainingSlots}枚のみアップロードします`);
+      toast.info(`最大${maxFiles}件まで。${remainingSlots}件のみアップロードします`);
     }
 
     setIsUploading(true);
     let uploadedCount = 0;
 
     for (const file of filesToUpload) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error(`${file.name}: 5MB以下にしてください`);
+      const isVideo = file.type.startsWith("video/");
+      const maxSize = isVideo ? 50 * 1024 * 1024 : 5 * 1024 * 1024;
+      if (file.size > maxSize) {
+        toast.error(`${file.name}: ${isVideo ? '50MB' : '5MB'}以下にしてください`);
         continue;
       }
 
@@ -345,7 +492,7 @@ export default function ProductManagement() {
     }
 
     if (uploadedCount > 0) {
-      toast.success(`${uploadedCount}枚の画像をアップロードしました`);
+      toast.success(`${uploadedCount}件アップロードしました`);
     }
     setIsUploading(false);
     // inputをリセット
@@ -574,10 +721,10 @@ export default function ProductManagement() {
                     </p>
                   </div>
 
-                  {/* 複数画像アップロード */}
+                  {/* 商品画像・動画アップロード */}
                   <div className="col-span-2">
                     <label className="text-sm font-medium">
-                      商品画像（最大10枚・ドラッグで並び替え可能）
+                      商品画像/動画（最大10件・ドラッグで並び替え可能）
                     </label>
                     <div className="mt-2 space-y-3">
                       {/* 画像プレビューグリッド（ドラッグ＆ドロップ並び替え対応） */}
@@ -621,17 +768,17 @@ export default function ProductManagement() {
                               <div className="flex flex-col items-center gap-1">
                                 <ImageIcon className="h-8 w-8 text-muted-foreground" />
                                 <span className="text-sm text-muted-foreground">
-                                  クリックして画像を選択（複数選択可）
+                                  クリックして画像/動画を選択（複数選択可）
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                  PNG, JPG, GIF（各5MB以下）・残り{10 - formData.images.length}枚
+                                  画像: PNG,JPG,GIF(各5MB) / 動画: MP4,MOV(合50MB)・残り{10 - formData.images.length}件
                                 </span>
                               </div>
                             )}
                           </div>
                           <Input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,video/mp4,video/webm,video/quicktime,video/x-m4v"
                             multiple
                             onChange={handleImageUpload}
                             disabled={isUploading}
@@ -664,6 +811,11 @@ export default function ProductManagement() {
                     </div>
                   </div>
                 </div>
+
+                {/* 商品説明画像（図文モード）- 編集時のみ表示 */}
+                {editingProduct && (
+                  <DescImageSection productId={editingProduct} />
+                )}
 
                 <div className="flex justify-end gap-2">
                   <Button

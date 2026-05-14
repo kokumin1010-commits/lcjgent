@@ -535,7 +535,7 @@ async function startServer() {
   
   // Voice upload endpoint
   const multer = await import("multer");
-  const upload = multer.default({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
+  const upload = multer.default({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
   const { storagePut } = await import("../storage");
   const { nanoid } = await import("nanoid");
   
@@ -1899,21 +1899,26 @@ async function startServer() {
 
       const file = req.file as Express.Multer.File;
 
-      // Validate file type
-      if (!file.mimetype.startsWith("image/")) {
-        return res.status(400).json({ error: "画像ファイルのみアップロード可能です" });
+      // Validate file type (image or video)
+      const isImage = file.mimetype.startsWith("image/");
+      const isVideo = file.mimetype.startsWith("video/");
+      if (!isImage && !isVideo) {
+        return res.status(400).json({ error: "画像または動画ファイルのみアップロード可能です" });
       }
 
-      // Validate file size (5MB max)
-      if (file.size > 5 * 1024 * 1024) {
-        return res.status(400).json({ error: "ファイルサイズは5MB以下にしてください" });
+      // Validate file size (images: 5MB, videos: 50MB)
+      const maxSize = isVideo ? 50 * 1024 * 1024 : 5 * 1024 * 1024;
+      if (file.size > maxSize) {
+        return res.status(400).json({ error: isVideo ? "動画ファイルは50MB以下にしてください" : "画像ファイルは5MB以下にしてください" });
       }
 
       // Get file extension
-      const validExts = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"];
+      const validImageExts = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"];
+      const validVideoExts = ["mp4", "webm", "mov", "avi", "m4v"];
+      const validExts = [...validImageExts, ...validVideoExts];
       const extMatch = file.originalname.match(/\.([a-zA-Z0-9]+)$/);
-      let ext = extMatch ? extMatch[1].toLowerCase() : "png";
-      if (!validExts.includes(ext)) ext = "png";
+      let ext = extMatch ? extMatch[1].toLowerCase() : (isVideo ? "mp4" : "png");
+      if (!validExts.includes(ext)) ext = isVideo ? "mp4" : "png";
 
       const { nanoid: genId } = await import("nanoid");
       const key = `mall/products/${genId()}.${ext}`;
@@ -1921,6 +1926,8 @@ async function startServer() {
         jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
         gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
         bmp: "image/bmp", ico: "image/x-icon",
+        mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime",
+        avi: "video/x-msvideo", m4v: "video/x-m4v",
       };
       const contentType = contentTypeMap[ext] || file.mimetype;
 

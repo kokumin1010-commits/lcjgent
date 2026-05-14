@@ -6369,7 +6369,12 @@ export async function getMallProducts(options?: {
     query = query.where(and(...conditions)) as typeof query;
   }
 
-  query = query.orderBy(asc(mallProducts.sortOrder), desc(mallProducts.createdAt)) as typeof query;
+  // 在庫あり商品を優先表示（stock > 0 が先）、次にsortOrder、最後にcreatedAt降順
+  query = query.orderBy(
+    desc(sql`CASE WHEN ${mallProducts.stock} > 0 THEN 1 ELSE 0 END`),
+    asc(mallProducts.sortOrder),
+    desc(mallProducts.createdAt)
+  ) as typeof query;
 
   if (options?.limit) {
     query = query.limit(options.limit) as typeof query;
