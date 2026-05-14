@@ -96,3 +96,27 @@
 - [ ] ライバー別活用状況一覧（活用度ランキング、最終利用日、トーク数）
 - [ ] 個別ライバーのトーク内容閲覧機能
 - [ ] テスト・GitHub push・Railwayデプロイ
+
+## ポイント有効期限改善（6ヶ月化＋友達招待で期限延長）
+
+### バックエンド修正
+- [ ] POINT_EXPIRY_MONTHS を 3 → 6 に変更
+- [ ] POINT_EXPIRY_MS を 90日 → 180日 に変更
+- [ ] createPointTransaction の expiresAt を 180日に変更
+- [ ] createLinePointTransaction の expiresAt を 180日に変更
+- [ ] addPointsToUser の expiresAt を 180日に変更
+- [ ] 友達招待によるポイント付与時に、全ての未失効ポイントの期限を延長するロジック追加
+- [ ] processExpiredPoints / processExpiredLinePoints の失効メッセージを6ヶ月に変更
+
+### フロントエンド修正
+- [ ] LineMypage.tsx のポイント失効表示「3ヶ月」→「6ヶ月」に変更
+- [ ] マイページにポイント有効期限の詳細表示を追加（次回失効日、友達招待で延長できる旨）
+
+### LINE通知修正
+- [ ] pointExpiryScheduler.ts の通知メッセージ「3ヶ月」→「6ヶ月」に変更
+- [ ] 期限切れ通知に「友達招待で有効期限を延長しよう」の案内を追加
+
+### デプロイ
+- [ ] GitHubプッシュ
+- [ ] Railwayデプロイ確認
+- [ ] 動作確認

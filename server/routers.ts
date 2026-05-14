@@ -329,6 +329,8 @@ import {
   getUserPointTransactions,
   getExpiringPoints,
   getExpiringLinePoints,
+  extendLinePointExpiry,
+  getNextLinePointExpiry,
   createUserPasswordResetToken,
   getUserPasswordResetToken,
   markUserPasswordResetTokenUsed,
@@ -1312,6 +1314,13 @@ export const lineLoginRouter = router({
                   referenceType: "system",
                   description: `友達招待チャレンジ ステージ${newStage}達成報酬`,
                 });
+                // Extend ALL existing point expiry for referrer (friend referral benefit)
+                await extendLinePointExpiry(referrerPointId);
+              } else {
+                // Even without stage reward, extend expiry for successful referral
+                const referrerUser2 = await getLineUserById(referrerProgress.lineUserId);
+                const referrerPointId2 = referrerUser2?.lineUserId || `email_${referrerProgress.lineUserId}`;
+                await extendLinePointExpiry(referrerPointId2);
               }
 
               // Update referrer's progress
@@ -1369,8 +1378,9 @@ export const lineLoginRouter = router({
                     notifMessage += `${stageInfo?.stageEmoji || "🎯"} 「${stageInfo?.stageName || `ステージ${newStage}`}」達成！\n`;
                   }
                   
+                  notifMessage += `\n✅ 保有中の全ポイントの有効期限が6ヶ月延長されました！\n`;
                   notifMessage += `\n📣 この調子でどんどん友達を招待して\n最大5,000ptをGETしよう！🔥\n\n`;
-                  notifMessage += `👉 招待チャレンジを確認\n${appUrl}/friend-referral`;
+                  notifMessage += `👉 招待チャレンジを確認\n${appUrl}/friend-challenge`;
                   
                   await pushMessage(referrerLineId, [{ type: "text", text: notifMessage }]);
                   console.log(`[FriendChallenge] LINE notification sent to referrer ${referrerLineId}`);
@@ -21896,18 +21906,23 @@ ${topProductsContext}
           inviteePointsAwarded: campaign.inviteeBonus,
         });
 
-        // 招待者のポイント付与（ステージ報酬）
-        if (stageReward > 0) {
+        // 招待者のポイント付与（ステージ報酬）+ 有効期限延長
+        {
           const referrerUser = await getLineUserById(referrerProgress.lineUserId);
           const referrerPointId = referrerUser?.lineUserId || `email_${referrerProgress.lineUserId}`;
-          const { createLinePointTransaction: createPtRef } = await import("./db");
-          await createPtRef({
-            lineUserId: referrerPointId,
-            type: "earn",
-            amount: stageReward,
-            referenceType: "system",
-            description: `友達招待チャレンジ ステージ${newStage}達成報酬`,
-          });
+          if (stageReward > 0) {
+            const { createLinePointTransaction: createPtRef } = await import("./db");
+            await createPtRef({
+              lineUserId: referrerPointId,
+              type: "earn",
+              amount: stageReward,
+              referenceType: "system",
+              description: `友達招待チャレンジ ステージ${newStage}達成報酬`,
+            });
+          }
+          // Extend ALL existing point expiry for referrer (friend referral benefit)
+          const { extendLinePointExpiry: extendExpiry } = await import("./db");
+          await extendExpiry(referrerPointId);
         }
 
         // 被招待者のポイント付与
@@ -21972,8 +21987,9 @@ ${topProductsContext}
               notifMessage += `${stgInfo?.stageEmoji || "🎯"} 「${stgInfo?.stageName || `ステージ${newStage}`}」達成！\n`;
             }
             
+            notifMessage += `\n✅ 保有中の全ポイントの有効期限が6ヶ月延長されました！\n`;
             notifMessage += `\n📣 この調子でどんどん友達を招待して\n最大5,000ptをGETしよう！🔥\n\n`;
-            notifMessage += `👉 招待チャレンジを確認\n${appUrl}/friend-referral`;
+            notifMessage += `👉 招待チャレンジを確認\n${appUrl}/friend-challenge`;
             
             await pushMessage(referrerLineId, [{ type: "text", text: notifMessage }]);
             console.log(`[FriendChallenge] LINE notification sent to referrer ${referrerLineId}`);

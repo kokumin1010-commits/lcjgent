@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload, Package, Truck, ChevronDown, ChevronUp, CreditCard, Gift, X, Heart, MapPin, User, Pencil, Trash2, Star, Plus, Phone, Mail, Image, Filter, Eye, BarChart3 } from "lucide-react";
+import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload, Package, Truck, ChevronDown, ChevronUp, CreditCard, Gift, X, Heart, MapPin, User, Users, Pencil, Trash2, Star, Plus, Phone, Mail, Image, Filter, Eye, BarChart3 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -577,11 +577,42 @@ export default function LineMypage() {
                         </span>
                       </div>
                     )}
-                    <p className="text-xs text-muted-foreground">
-                      ※ ポイントは付与日から3ヶ月で失効します
-                    </p>
+                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-lg p-3">
+                      <p className="text-sm font-medium text-emerald-800 mb-1">
+                        🌟 友達を招待して有効期限を延長しよう！
+                      </p>
+                      <p className="text-xs text-emerald-700 mb-2">
+                        友達を招待すると、保有中の全ポイントの有効期限が招待日から6ヶ月にリセットされます。
+                      </p>
+                      <Button
+                        size="sm"
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                        onClick={() => setLocation("/friend-challenge")}
+                      >
+                        <Users className="h-3.5 w-3.5" />
+                        友達を招待する
+                      </Button>
+                    </div>
                   </div>
                 )}
+                {/* Point Expiry Info (always shown) */}
+                <div className="mt-3 bg-gray-50 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Clock className="h-3.5 w-3.5 text-gray-500" />
+                    <span className="text-xs font-medium text-gray-600">ポイント有効期限について</span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    ※ ポイントは付与日から6ヶ月で失効します
+                  </p>
+                  <p className="text-xs text-emerald-600 mt-1">
+                    ※ 友達招待で全ポイントの有効期限が招待日から6ヶ月に延長されます
+                  </p>
+                  {pointsData?.expiring?.breakdown && pointsData.expiring.breakdown.length > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      次回失効日: {new Date(pointsData.expiring.breakdown[0].expiresAt).toLocaleDateString('ja-JP')}
+                    </p>
+                  )}
+                </div>
                 <div className="mt-4 pt-4 border-t border-rose-200 space-y-2">
                   <Button 
                     className="w-full bg-rose-500 hover:bg-rose-600 gap-2"

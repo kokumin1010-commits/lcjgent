@@ -4,6 +4,7 @@
  * Runs periodically to:
  * 1. Process expired points (mark as expired, deduct from balances)
  * 2. Send LINE notifications for points expiring soon (1 month, 1 week before)
+ *    - Includes friend referral invitation to extend expiry
  * 
  * Schedule: Runs once per day at 9:00 AM JST
  */
@@ -34,6 +35,8 @@ export async function runPointExpiryJob(): Promise<{
     notifications: { sent7Days: 0, sent30Days: 0, failed: 0 },
   };
   
+  const appUrl = process.env.APP_URL || "https://lcjmall.com";
+  
   // Step 1: Process expired points
   try {
     const webResult = await processExpiredPoints();
@@ -53,7 +56,7 @@ export async function runPointExpiryJob(): Promise<{
     console.error("[PointExpiry] Error processing LINE expired points:", err);
   }
   
-  // Step 2: Send 1-week (7 days) expiry notifications
+  // Step 2: Send 1-week (7 days) expiry notifications with friend referral CTA
   try {
     const users7Days = await getLineUsersWithExpiringPoints(7);
     for (const user of users7Days) {
@@ -68,7 +71,7 @@ export async function runPointExpiryJob(): Promise<{
         
         const success = await pushMessage(user.lineUserId, [{
           type: "text",
-          text: `⚠️ ポイント失効のお知らせ\n\n${user.expiringAmount.toLocaleString()}ポイントが${formattedDate}までに失効します。\n\nお早めにLCJ MALLでご利用ください！\n\n🛒 LCJ MALLでお買い物\nhttps://lcjmall.com/mall\n\n※ ポイントは付与日から3ヶ月で失効します。`,
+          text: `⚠️ ポイント失効のお知らせ\n\n${user.expiringAmount.toLocaleString()}ポイントが${formattedDate}までに失効します。\n\n💡 友達を招待すると有効期限が延長されます！\n友達を1人招待するだけで、保有中の全ポイントの有効期限が招待日から6ヶ月にリセットされます。\n\n👫 友達を招待して有効期限を延長\n${appUrl}/friend-challenge\n\n🛒 LCJ MALLでお買い物\n${appUrl}/mall\n\n※ ポイントは付与日から6ヶ月で失効します。\n※ 友達招待で有効期限を延長できます。`,
         }]);
         
         if (success) {
@@ -87,7 +90,7 @@ export async function runPointExpiryJob(): Promise<{
     console.error("[PointExpiry] Error sending 7-day notifications:", err);
   }
   
-  // Step 3: Send 1-month (30 days) expiry notifications
+  // Step 3: Send 1-month (30 days) expiry notifications with friend referral CTA
   try {
     const users30Days = await getLineUsersWithExpiringPoints(30);
     for (const user of users30Days) {
@@ -104,7 +107,7 @@ export async function runPointExpiryJob(): Promise<{
         
         const success = await pushMessage(user.lineUserId, [{
           type: "text",
-          text: `📢 ポイント失効予定のお知らせ\n\n${user.expiringAmount.toLocaleString()}ポイントが${formattedDate}までに失効予定です。\n\nLCJ MALLでのお買い物にぜひご利用ください！\n\n🛒 LCJ MALLでお買い物\nhttps://lcjmall.com/mall\n\n※ ポイントは付与日から3ヶ月で失効します。`,
+          text: `📢 ポイント失効予定のお知らせ\n\n${user.expiringAmount.toLocaleString()}ポイントが${formattedDate}までに失効予定です。\n\n🌟 友達招待で有効期限を延長しよう！\n友達を招待すると、保有中の全ポイントの有効期限が招待日から6ヶ月に延長されます。\n\n👫 友達を招待する\n${appUrl}/friend-challenge\n\n🛒 LCJ MALLでお買い物\n${appUrl}/mall\n\n※ ポイントは付与日から6ヶ月で失効します。\n※ 友達招待で有効期限を延長できます。`,
         }]);
         
         if (success) {

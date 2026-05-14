@@ -217,7 +217,10 @@ export default function MyPoints() {
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    ※ ポイントは付与日から3ヶ月で失効します
+                    ※ ポイントは付与日から6ヶ月で失効します
+                  </p>
+                  <p className="text-xs text-emerald-600">
+                    ※ 友達招待で全ポイントの有効期限が招待日から6ヶ月に延長されます
                   </p>
                 </div>
               )}

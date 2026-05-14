@@ -4,6 +4,10 @@ import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, In
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
+// Point Expiration Constants (6-month expiry, extendable by friend referrals)
+const POINT_EXPIRY_MONTHS = 6;
+const POINT_EXPIRY_MS = 180 * 24 * 60 * 60 * 1000; // ~6 months in ms
+
 // JST (UTC+9) based month date range helper
 // Returns UTC dates that correspond to JST month boundaries
 // e.g., "2026-02" -> startDate = 2026-01-31T15:00:00Z (= JST 2/1 00:00), endDate = 2026-02-28T14:59:59Z (= JST 2/28 23:59:59)
@@ -5046,9 +5050,9 @@ export async function createPointTransaction(data: {
   const balance = await getOrCreatePointBalance(data.userId);
   const balanceAfter = balance.balance + data.amount;
   
-  // Calculate expiration for earn-type transactions (3 months from now)
+  // Calculate expiration for earn-type transactions (6 months from now)
   const expiresAt = (data.type === "earn" || data.type === "refund")
-    ? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 3 months (90 days)
+    ? new Date(Date.now() + POINT_EXPIRY_MS) // 6 months (180 days)
     : null;
   const remainingAmount = (data.type === "earn" || data.type === "refund")
     ? data.amount
@@ -5651,9 +5655,9 @@ export async function createLinePointTransaction(data: {
   const balance = await getOrCreateLinePointBalance(data.lineUserId);
   const balanceAfter = balance.balance + data.amount;
   
-  // Calculate expiration for earn-type transactions (3 months from now)
+  // Calculate expiration for earn-type transactions (6 months from now)
   const expiresAt = (data.type === "earn" || data.type === "refund")
-    ? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 3 months (90 days)
+    ? new Date(Date.now() + POINT_EXPIRY_MS) // 6 months (180 days)
     : null;
   const remainingAmount = (data.type === "earn" || data.type === "refund")
     ? data.amount
@@ -8109,8 +8113,8 @@ export async function addPointsToUser(userId: number, points: number, pointReque
       .where(eq(pointBalances.userId, userId));
   }
   
-  // Record transaction with 3-month expiration
-  const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+  // Record transaction with 6-month expiration
+  const expiresAt = new Date(Date.now() + POINT_EXPIRY_MS);
   await db.insert(pointTransactions).values({
     userId,
     type: "earn",
@@ -13332,6 +13336,8 @@ export async function confirmPendingReferral(
       referenceType: "system",
       description: `紹介報酬: 紹介ユーザーの初回購入で${referral.referrerPoints}ポイント獲得`,
     });
+    // Extend ALL existing point expiry for referrer (friend referral benefit)
+    await extendLinePointExpiry(referrerLineUserId);
   }
   
   // Update referral code stats
@@ -16463,11 +16469,8 @@ export async function getMallBrandReviews(brandId: number, limit: number = 20) {
 
 
 // ============================================================
-// Point Expiration System (3-month individual expiry)
+// Point Expiration System (6-month individual expiry, extended by friend referrals)
 // ============================================================
-
-const POINT_EXPIRY_MONTHS = 3;
-const POINT_EXPIRY_MS = 90 * 24 * 60 * 60 * 1000; // ~3 months in ms
 
 /**
  * Get the valid (non-expired) point balance for a web user.
@@ -16913,6 +16916,79 @@ export async function getLineUsersWithExpiringPoints(withinDays: number): Promis
   return validResults;
 }
 
+
+/**
+ * Extend expiration of all active (non-expired) LINE point transactions for a user.
+ * Called when a friend referral earns points - extends ALL existing points to 6 months from now.
+ * This incentivizes users to keep inviting friends to keep their points alive.
+ */
+export async function extendLinePointExpiry(lineUserId: string): Promise<{ extended: number; newExpiresAt: Date }> {
+  const db = await getDb();
+  if (!db) return { extended: 0, newExpiresAt: new Date() };
+  
+  const newExpiresAt = new Date(Date.now() + POINT_EXPIRY_MS); // 6 months from now
+  
+  const result = await db.update(linePointTransactions)
+    .set({ expiresAt: newExpiresAt })
+    .where(and(
+      eq(linePointTransactions.lineUserId, lineUserId),
+      or(eq(linePointTransactions.type, "earn"), eq(linePointTransactions.type, "refund")),
+      eq(linePointTransactions.expired, 0),
+      gt(linePointTransactions.remainingAmount, 0),
+      gt(linePointTransactions.expiresAt, new Date()) // only extend non-expired ones
+    ));
+  
+  console.log(`[PointExpiry] Extended expiry for LINE user ${lineUserId}: ${result[0].affectedRows} transactions, new expiry: ${newExpiresAt.toISOString()}`);
+  
+  return { extended: result[0].affectedRows, newExpiresAt };
+}
+
+/**
+ * Extend expiration of all active (non-expired) web point transactions for a user.
+ * Called when a friend referral earns points.
+ */
+export async function extendWebPointExpiry(userId: number): Promise<{ extended: number; newExpiresAt: Date }> {
+  const db = await getDb();
+  if (!db) return { extended: 0, newExpiresAt: new Date() };
+  
+  const newExpiresAt = new Date(Date.now() + POINT_EXPIRY_MS); // 6 months from now
+  
+  const result = await db.update(pointTransactions)
+    .set({ expiresAt: newExpiresAt })
+    .where(and(
+      eq(pointTransactions.userId, userId),
+      or(eq(pointTransactions.type, "earn"), eq(pointTransactions.type, "refund")),
+      eq(pointTransactions.expired, 0),
+      gt(pointTransactions.remainingAmount, 0),
+      gt(pointTransactions.expiresAt, new Date()) // only extend non-expired ones
+    ));
+  
+  console.log(`[PointExpiry] Extended expiry for web user ${userId}: ${result[0].affectedRows} transactions, new expiry: ${newExpiresAt.toISOString()}`);
+  
+  return { extended: result[0].affectedRows, newExpiresAt };
+}
+
+/**
+ * Get the nearest expiration date for a LINE user's active points.
+ * Returns null if no active points.
+ */
+export async function getNextLinePointExpiry(lineUserId: string): Promise<Date | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db
+    .select({ earliestExpiry: sql<Date>`MIN(${linePointTransactions.expiresAt})` })
+    .from(linePointTransactions)
+    .where(and(
+      eq(linePointTransactions.lineUserId, lineUserId),
+      or(eq(linePointTransactions.type, "earn"), eq(linePointTransactions.type, "refund")),
+      eq(linePointTransactions.expired, 0),
+      gt(linePointTransactions.remainingAmount, 0),
+      gt(linePointTransactions.expiresAt, new Date())
+    ));
+  
+  return result[0]?.earliestExpiry || null;
+}
 
 // ============================================
 // レシート確変チャンス＋購入証明付きレビュー DB関数
