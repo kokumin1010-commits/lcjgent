@@ -57,6 +57,8 @@ export async function runPointExpiryJob(): Promise<{
   try {
     const users7Days = await getLineUsersWithExpiringPoints(7);
     for (const user of users7Days) {
+      // Skip users with 0 or negative expiring amount (safety check)
+      if (user.expiringAmount <= 0) continue;
       const notifKey = `7d_${user.lineUserId}_${new Date().toISOString().slice(0, 10)}`;
       if (notifiedToday.has(notifKey)) continue;
       
@@ -89,6 +91,8 @@ export async function runPointExpiryJob(): Promise<{
   try {
     const users30Days = await getLineUsersWithExpiringPoints(30);
     for (const user of users30Days) {
+      // Skip users with 0 or negative expiring amount (safety check)
+      if (user.expiringAmount <= 0) continue;
       const notifKey = `30d_${user.lineUserId}_${new Date().toISOString().slice(0, 10)}`;
       // Skip if already notified for 7-day (more urgent) or already sent 30-day today
       const notifKey7d = `7d_${user.lineUserId}_${new Date().toISOString().slice(0, 10)}`;

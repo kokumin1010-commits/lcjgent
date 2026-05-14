@@ -47,7 +47,7 @@ export default function Dashboard() {
         <Button
           size="lg"
           className="w-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-md"
-          onClick={() => setLocation("/master/products")}
+          onClick={() => setLocation("/master/mall?tab=products")}
         >
           <ShoppingBag className="h-5 w-5 mr-2" />
           {t("nav.products")}

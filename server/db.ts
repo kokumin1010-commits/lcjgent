@@ -6758,19 +6758,44 @@ export async function createMallOrder(data: {
       .where(eq(mallProducts.id, item.productId));
   }
 
-  // ポイントを消費
+  // ポイントを消費（FIFO方式でremainingAmountも減算）
   if (pointsUsed > 0) {
+    const pointLineUserId = data.pointLineUserId || String(data.lineUserId);
+    
+    // FIFO方式でearnトランザクションのremainingAmountを減算
+    const activeEarns = await db
+      .select()
+      .from(linePointTransactions)
+      .where(and(
+        eq(linePointTransactions.lineUserId, pointLineUserId),
+        or(eq(linePointTransactions.type, "earn"), eq(linePointTransactions.type, "refund")),
+        eq(linePointTransactions.expired, 0),
+        gt(linePointTransactions.remainingAmount, 0)
+      ))
+      .orderBy(asc(linePointTransactions.expiresAt));
+    
+    let remaining = pointsUsed;
+    for (const earn of activeEarns) {
+      if (remaining <= 0) break;
+      const available = Number(earn.remainingAmount ?? 0);
+      const deduct = Math.min(available, remaining);
+      await db.update(linePointTransactions)
+        .set({ remainingAmount: available - deduct })
+        .where(eq(linePointTransactions.id, earn.id));
+      remaining -= deduct;
+    }
+    
     // ポイント残高を更新
     await db.update(linePointBalances)
       .set({ 
         balance: sql`${linePointBalances.balance} - ${pointsUsed}`,
         totalUsed: sql`${linePointBalances.totalUsed} + ${pointsUsed}`,
       })
-      .where(eq(linePointBalances.lineUserId, data.pointLineUserId || String(data.lineUserId)));
+      .where(eq(linePointBalances.lineUserId, pointLineUserId));
 
     // ポイント取引履歴を追加
     await db.insert(linePointTransactions).values({
-      lineUserId: data.pointLineUserId || String(data.lineUserId),
+      lineUserId: pointLineUserId,
       type: "use",
       amount: -pointsUsed,
       balanceAfter: 0, // 後で更新
@@ -16864,13 +16889,28 @@ export async function getLineUsersWithExpiringPoints(withinDays: number): Promis
       lte(linePointTransactions.expiresAt, deadline),
       gt(linePointTransactions.remainingAmount, 0)
     ))
-    .groupBy(linePointTransactions.lineUserId);
+    .groupBy(linePointTransactions.lineUserId)
+    .having(sql`SUM(${linePointTransactions.remainingAmount}) > 0`);
   
-  return results.map(r => ({
-    lineUserId: r.lineUserId,
-    expiringAmount: Number(r.expiringAmount),
-    earliestExpiry: r.earliestExpiry,
-  }));
+  // Additional safety: cross-check with actual balance to avoid false notifications
+  const validResults = [];
+  for (const r of results) {
+    const balance = await db
+      .select({ balance: linePointBalances.balance })
+      .from(linePointBalances)
+      .where(eq(linePointBalances.lineUserId, r.lineUserId))
+      .limit(1);
+    const actualBalance = Number(balance[0]?.balance ?? 0);
+    if (actualBalance > 0) {
+      validResults.push({
+        lineUserId: r.lineUserId,
+        expiringAmount: Math.min(Number(r.expiringAmount), actualBalance),
+        earliestExpiry: r.earliestExpiry,
+      });
+    }
+  }
+  
+  return validResults;
 }
 
 
