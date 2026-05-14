@@ -214,6 +214,10 @@ function Router() {
         <Route path="/reset-password-admin" component={ResetPasswordAdmin} />
         <Route path="/complete/:token" component={TaskComplete} />
         
+        {/* Redirect legacy /master/products to /master/mall?tab=products */}
+        <Route path={"/master/products"}>
+          <Redirect to="/master/mall?tab=products" />
+        </Route>
         {/* Master - Admin Dashboard */}
         <Route path={"/master"}>
           <DashboardLayout>
@@ -387,9 +391,6 @@ function Router() {
         <Route path={"/blog/tag/:tagId"} component={BlogTagPage} />
         <Route path={"/blog/:slug"} component={BlogArticlePage} />
         <Route path={"/blog"} component={BlogListPage} />
-        <Route path={"/master/products"}>
-          <Redirect to="/master/mall?tab=products" />
-        </Route>
         <Route path={"/master/mall/member/:id"} component={MemberDetail} />
         <Route path={"/master/mall"} component={MallDashboardPage} />
         <Route path={"/master/finance"}>
