@@ -113,7 +113,7 @@ function DashboardLayoutContent({
     { icon: Calendar, label: t("nav.calendar"), path: "/s" },
     { icon: Video, label: t("nav.livers"), path: "/master/livers" },
     { icon: Zap, label: t("nav.liverCommand") || "ライバー司令塔", path: "/master/livers-dashboard" },
-    { icon: Bot, label: "神コーチトーク", path: "/master/ai-coach" },
+    { icon: Bot, label: "ライバー成長ダッシュボード", path: "/master/ai-coach" },
     { icon: BarChart3, label: "広告司令塔", path: "/master/ad-dashboard" },
     { icon: Video, label: "短動画マトリックス", path: "/master/short-video" },
     { icon: Building2, label: "事務所管理", path: "/master/agencies" },

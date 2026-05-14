@@ -11742,6 +11742,77 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
           }
         })();
 
+        // ★ 配信記録をai_coach_messagesに保存（ライバー成長ダッシュボード用）
+        if (input.liverId) {
+          (async () => {
+            try {
+              const db4 = await getDb();
+              if (!db4) return;
+
+              // デフォルトルームを取得
+              let roomId: number | null = null;
+              const rooms = await db4
+                .select({ id: aiCoachRooms.id })
+                .from(aiCoachRooms)
+                .where(and(eq(aiCoachRooms.liverId, input.liverId), isNull(aiCoachRooms.deletedAt)))
+                .orderBy(desc(aiCoachRooms.lastMessageAt))
+                .limit(1);
+              if (rooms.length > 0) roomId = rooms[0].id;
+
+              // 配信記録テキストを構築
+              const durationMin = input.duration || 0;
+              const hours = Math.floor(durationMin / 60);
+              const mins = durationMin % 60;
+              const durationStr = hours > 0 ? `${hours}時間${mins > 0 ? mins + '分' : ''}` : `${mins}分`;
+              const salesAmt = input.salesAmount || 0;
+              const hourlyRate = durationMin > 0 ? Math.round(salesAmt / (durationMin / 60)) : 0;
+              const dateObj = new Date(input.livestreamDate);
+              const jstDate = new Date(dateObj.getTime() + 9 * 60 * 60 * 1000);
+              const dateStr = `${jstDate.getMonth() + 1}/${jstDate.getDate()}`;
+              const timeStr = `${String(jstDate.getHours()).padStart(2,'0')}:${String(jstDate.getMinutes()).padStart(2,'0')}`;
+
+              let recordText = `📊 配信記録登録\n━━━━━━━━━━━━━━━\n👤 ${streamerName}\n📅 ${dateStr} ${timeStr}〜\n⏰ 配信時間: ${durationStr}\n💰 売上: ¥${salesAmt.toLocaleString()}\n📈 時間単価: ¥${hourlyRate.toLocaleString()}/h`;
+
+              // セット内訳
+              if (input.sets && input.sets.length > 0) {
+                recordText += `\n\n📦 セット内訳:`;
+                for (const set of input.sets) {
+                  const setRevenue = set.setPrice * set.quantitySold;
+                  recordText += `\n【${set.setName}】 ¥${set.setPrice.toLocaleString()} × ${set.quantitySold}セット = ¥${setRevenue.toLocaleString()}`;
+                  for (const item of set.items) {
+                    recordText += `\n  ■ ${item.productName} ${item.quantity || 1}個`;
+                  }
+                }
+              }
+
+              await db4.insert(aiCoachMessages).values({
+                liverId: input.liverId,
+                roomId,
+                role: 'ai',
+                content: recordText,
+                messageType: 'stream_record',
+                contextType: 'livestream',
+                contextId: id,
+                metadata: {
+                  type: 'stream_record',
+                  livestreamId: id,
+                  salesAmount: salesAmt,
+                  duration: durationMin,
+                  hourlyRate,
+                  date: dateStr,
+                  time: timeStr,
+                  sets: input.sets || [],
+                  brandDurations: input.brandDurations || {},
+                  brandSales: input.brandSales || {},
+                },
+              });
+              console.log(`[Growth Dashboard] Stream record saved for liver ${input.liverId}`);
+            } catch (err) {
+              console.error('[Growth Dashboard] Failed to save stream record:', err);
+            }
+          })();
+        }
+
         return { id, lineNotificationSent };
       }),
     // Update livestream (配信履歴の編集) - public for liver self-servicee

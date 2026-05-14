@@ -34,8 +34,8 @@ import {
 } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { pushMessage } from "./line";
-import { lineGroups } from "../drizzle/schema";
-import { eq, and, like } from "drizzle-orm";
+import { lineGroups, aiCoachMessages, aiCoachRooms } from "../drizzle/schema";
+import { eq, and, like, isNull, desc } from "drizzle-orm";
 
 const LOG_PREFIX = "[LiveSuggestion Scheduler]";
 
@@ -533,6 +533,43 @@ export async function runDailyLiveSuggestion(): Promise<void> {
           });
         } catch (saveErr: any) {
           console.error(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] DB save error for ${liverName}: ${saveErr.message}`);
+        }
+
+        // ★ ai_coach_messagesにも配信提案を保存（ライバー成長ダッシュボード用）
+        if (firstSchedule.liverId) {
+          try {
+            const dbCoach = await getDb();
+            if (dbCoach) {
+              let roomId: number | null = null;
+              const rooms = await dbCoach
+                .select({ id: aiCoachRooms.id })
+                .from(aiCoachRooms)
+                .where(and(eq(aiCoachRooms.liverId, firstSchedule.liverId), isNull(aiCoachRooms.deletedAt)))
+                .orderBy(desc(aiCoachRooms.lastMessageAt))
+                .limit(1);
+              if (rooms.length > 0) roomId = rooms[0].id;
+
+              const suggestionContent = `📢 【${todayStr} 配信提案】\n\n${liverName}さん、今日の配信頑張りましょう！\n\n${suggestionText}`;
+
+              await dbCoach.insert(aiCoachMessages).values({
+                liverId: firstSchedule.liverId,
+                roomId,
+                role: 'ai',
+                content: suggestionContent,
+                messageType: 'stream_suggestion',
+                contextType: 'livestream',
+                metadata: {
+                  type: 'stream_suggestion',
+                  date: todayStr,
+                  scheduledStart: firstSchedule.startTime,
+                  scheduledEnd: firstSchedule.endTime,
+                },
+              });
+              console.log(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] ✅ Saved suggestion to ai_coach_messages for ${liverName}`);
+            }
+          } catch (coachErr: any) {
+            console.error(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] ai_coach_messages save error: ${coachErr.message}`);
+          }
         }
         
         successCount++;
