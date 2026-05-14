@@ -1486,9 +1486,17 @@ export default function LiverMypage() {
                     const mins = brand.totalMinutes % 60;
                     const colorClass = colors[idx % colors.length];
                     const isExpanded = expandedBrandId === brand.brandId;
-                    // このブランドの配信一覧をフィルタリング
+                    // brandIdsがあれば全IDでマッチ（同名ブランドがマージされている場合）
+                    const allBrandIds: number[] = (brand as any).brandIds || [brand.brandId];
                     const brandLivestreams = isExpanded && filteredLivestreams
-                      ? filteredLivestreams.filter((ls: any) => ls.brandId === brand.brandId || ls.brandName === brand.brandName)
+                      ? filteredLivestreams.filter((ls: any) => {
+                          if (allBrandIds.includes(ls.brandId)) return true;
+                          if (ls.brandName === brand.brandName) return true;
+                          if (ls.livestreamBrands && Array.isArray(ls.livestreamBrands)) {
+                            return ls.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId));
+                          }
+                          return false;
+                        })
                       : [];
                     return (
                       <div key={brand.brandId}>

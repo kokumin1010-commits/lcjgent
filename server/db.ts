@@ -21812,23 +21812,19 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
     .orderBy(sql`SUM(${brandLivestreams.duration}) DESC`);
 
   // Merge primary (livestream_brands) and fallback (brand_livestreams) results
-  // Primary data is more accurate for multi-brand streams, but fallback covers single-brand streams
-  const mergedMap = new Map<number, { brandId: number; brandName: string; totalMinutes: number; streamCount: number }>();
-  
-  // Add primary data first (higher priority)
+  // Step 1: Merge by brandId (primary takes priority over fallback)
+  const byIdMap = new Map<number, { brandId: number; brandName: string; totalMinutes: number; streamCount: number }>();
   for (const bd of brandDurations) {
-    mergedMap.set(bd.brandId, {
+    byIdMap.set(bd.brandId, {
       brandId: bd.brandId,
       brandName: bd.brandName || '不明',
       totalMinutes: Number(bd.totalMinutes),
       streamCount: Number(bd.streamCount),
     });
   }
-  
-  // Add fallback data only for brands not already in primary
   for (const fb of fallback) {
-    if (!mergedMap.has(fb.brandId)) {
-      mergedMap.set(fb.brandId, {
+    if (!byIdMap.has(fb.brandId)) {
+      byIdMap.set(fb.brandId, {
         brandId: fb.brandId,
         brandName: fb.brandName || '不明',
         totalMinutes: Number(fb.totalMinutes),
@@ -21836,12 +21832,35 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
       });
     }
   }
-  
-  const merged = Array.from(mergedMap.values())
+
+  // Step 2: Merge by brandName (same brand name = same brand, combine stats)
+  // This handles cases where the same brand has multiple brandIds (e.g. KYOGOKU, ULUKA)
+  const byNameMap = new Map<string, { brandIds: number[]; brandName: string; totalMinutes: number; streamCount: number }>();
+  for (const entry of byIdMap.values()) {
+    const normalizedName = entry.brandName.toLowerCase().trim().replace(/\s+/g, ' ');
+    const existing = byNameMap.get(normalizedName);
+    if (existing) {
+      existing.totalMinutes += entry.totalMinutes;
+      existing.streamCount += entry.streamCount;
+      existing.brandIds.push(entry.brandId);
+      if (entry.brandName.length > existing.brandName.length) {
+        existing.brandName = entry.brandName;
+      }
+    } else {
+      byNameMap.set(normalizedName, {
+        brandIds: [entry.brandId],
+        brandName: entry.brandName,
+        totalMinutes: entry.totalMinutes,
+        streamCount: entry.streamCount,
+      });
+    }
+  }
+
+  const merged = Array.from(byNameMap.values())
     .sort((a, b) => b.totalMinutes - a.totalMinutes);
-  
   return merged.map(m => ({
-    brandId: m.brandId,
+    brandId: m.brandIds[0],
+    brandIds: m.brandIds,
     brandName: m.brandName,
     totalMinutes: m.totalMinutes,
     totalHours: Math.round(m.totalMinutes / 60 * 10) / 10,

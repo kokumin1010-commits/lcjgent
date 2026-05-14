@@ -809,13 +809,13 @@ export default function LiverByName() {
                     const isExpanded = expandedBrandId === brand.brandId;
                     // ブランドに属する配信一覧をフィルタリング
                     // brand_livestreams.brandIdだけでなく、livestream_brandsテーブルのデータも考慮
+                    // brandIdsがあれば全IDでマッチ（同名ブランドがマージされている場合）
+                    const allBrandIds: number[] = brand.brandIds || [brand.brandId];
                     const brandLivestreams = isExpanded && data?.livestreams
                       ? data.livestreams.filter((l: any) => {
-                          // メインブランドIDが一致
-                          if (l.brandId === brand.brandId) return true;
-                          // マルチブランド配信の場合、livestreamBrandsにこのブランドが含まれるか
+                          if (allBrandIds.includes(l.brandId)) return true;
                           if (l.livestreamBrands && Array.isArray(l.livestreamBrands)) {
-                            return l.livestreamBrands.some((lb: any) => lb.brandId === brand.brandId);
+                            return l.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId));
                           }
                           return false;
                         })
@@ -827,6 +827,7 @@ export default function LiverByName() {
                             isExpanded ? 'bg-gray-800/60 border border-cyan-500/30' : 'hover:bg-gray-800/30'
                           }`}
                           onClick={() => setExpandedBrandId(isExpanded ? null : brand.brandId)}
+                          data-brand-ids={JSON.stringify(allBrandIds)}
                         >
                           <div className="flex items-center justify-between text-sm">
                             <div className="flex items-center gap-2 flex-1">
