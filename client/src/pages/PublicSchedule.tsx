@@ -325,9 +325,13 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
     },
   });
 
-  // Check if user can edit/delete this schedule (admin can edit all)
+  // Fetch staff list to check if current user is HR staff
+  const { data: staffList } = trpc.staff.list.useQuery(undefined, { enabled: !!adminUser });
+  const isStaffMember = adminUser && staffList?.some((s: any) => s.email === adminUser.email && s.isActive === 'active');
+
+  // Check if user can edit/delete this schedule (admin or staff can edit all)
   const canEditSchedule = (schedule: Schedule) => {
-    if (adminUser) return true; // 管理者は全スケジュール編集可能
+    if (adminUser) return true; // Manus OAuthログインユーザー（管理者・スタッフ）は全スケジュール編集可能
     return user && schedule.liverName === user.name;
   };
 

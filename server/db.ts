@@ -108,11 +108,19 @@ export async function updateStaff(id: number, staffData: Partial<InsertStaff>) {
 export async function deleteStaff(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   return await db.delete(staff).where(eq(staff.id, id));
 }
 
-// Task management functions
+export async function isActiveStaffByEmail(email: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const result = await db.select({ id: staff.id }).from(staff)
+    .where(and(eq(staff.email, email), eq(staff.isActive, "active")))
+    .limit(1);
+  return result.length > 0;
+}
+
+// Task management functionsns
 export async function createTask(taskData: InsertTask) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -3095,6 +3103,7 @@ export async function getSchedulesByDateRange(startDate: Date, endDate: Date) {
       liverId: schedules.liverId,
       liverName: schedules.liverName,
       brandId: schedules.brandId,
+      brandIds: schedules.brandIds,
       lineGroupId: schedules.lineGroupId,
       isRecurring: schedules.isRecurring,
       recurringPattern: schedules.recurringPattern,

@@ -16,6 +16,7 @@ import {
   createStaff,
   getAllStaff,
   getActiveStaff,
+  isActiveStaffByEmail,
   getStaffById,
   updateStaff,
   deleteStaff,
@@ -10194,9 +10195,14 @@ ${conversationText}
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
         
-        // Check if user owns this schedule (by matching liverName with user name)
+        // Check if user owns this schedule or is a staff member
         if (schedule.liverName !== userName) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "この予定を編集する権限がありません" });
+          // Check if user is an active staff member (HR staff can edit all schedules)
+          const userEmail = ctx.user?.email;
+          const isStaffMember = userEmail ? await isActiveStaffByEmail(userEmail) : false;
+          if (!isStaffMember) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "この予定を編集する権限がありません" });
+          }
         }
         
         const { id, updateAll, liverName: _, ...data } = input;
@@ -10283,9 +10289,14 @@ ${conversationText}
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
         
-        // Check if user owns this schedule (by matching liverName with user name)
+        // Check if user owns this schedule or is a staff member
         if (schedule.liverName !== userName) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "この予定を削除する権限がありません" });
+          // Check if user is an active staff member (HR staff can delete all schedules)
+          const userEmail = ctx.user?.email;
+          const isStaffMember = userEmail ? await isActiveStaffByEmail(userEmail) : false;
+          if (!isStaffMember) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "この予定を削除する権限がありません" });
+          }
         }
         
         // すべての繰り返しを削除する場合
