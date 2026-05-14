@@ -21792,17 +21792,7 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
     .groupBy(livestreamBrands.brandId, brands.name)
     .orderBy(sql`SUM(${livestreamBrands.durationMinutes}) DESC`);
 
-  if (brandDurations.length > 0) {
-    return brandDurations.map(bd => ({
-      brandId: bd.brandId,
-      brandName: bd.brandName || '不明',
-      totalMinutes: Number(bd.totalMinutes),
-      totalHours: Math.round(Number(bd.totalMinutes) / 60 * 10) / 10,
-      streamCount: Number(bd.streamCount),
-    }));
-  }
-
-  // Fallback: Use brand_livestreams table directly (single brand per stream)
+  // Also get fallback data from brand_livestreams table
   const fallback = await db
     .select({
       brandId: brandLivestreams.brandId,
@@ -21821,12 +21811,41 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
     .groupBy(brandLivestreams.brandId, brands.name)
     .orderBy(sql`SUM(${brandLivestreams.duration}) DESC`);
 
-  return fallback.map(fb => ({
-    brandId: fb.brandId,
-    brandName: fb.brandName || '不明',
-    totalMinutes: Number(fb.totalMinutes),
-    totalHours: Math.round(Number(fb.totalMinutes) / 60 * 10) / 10,
-    streamCount: Number(fb.streamCount),
+  // Merge primary (livestream_brands) and fallback (brand_livestreams) results
+  // Primary data is more accurate for multi-brand streams, but fallback covers single-brand streams
+  const mergedMap = new Map<number, { brandId: number; brandName: string; totalMinutes: number; streamCount: number }>();
+  
+  // Add primary data first (higher priority)
+  for (const bd of brandDurations) {
+    mergedMap.set(bd.brandId, {
+      brandId: bd.brandId,
+      brandName: bd.brandName || '不明',
+      totalMinutes: Number(bd.totalMinutes),
+      streamCount: Number(bd.streamCount),
+    });
+  }
+  
+  // Add fallback data only for brands not already in primary
+  for (const fb of fallback) {
+    if (!mergedMap.has(fb.brandId)) {
+      mergedMap.set(fb.brandId, {
+        brandId: fb.brandId,
+        brandName: fb.brandName || '不明',
+        totalMinutes: Number(fb.totalMinutes),
+        streamCount: Number(fb.streamCount),
+      });
+    }
+  }
+  
+  const merged = Array.from(mergedMap.values())
+    .sort((a, b) => b.totalMinutes - a.totalMinutes);
+  
+  return merged.map(m => ({
+    brandId: m.brandId,
+    brandName: m.brandName,
+    totalMinutes: m.totalMinutes,
+    totalHours: Math.round(m.totalMinutes / 60 * 10) / 10,
+    streamCount: m.streamCount,
   }));
 }
 

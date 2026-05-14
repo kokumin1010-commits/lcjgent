@@ -62,8 +62,8 @@ export default function LiverByName() {
     if (monthParam && monthOptions.some(o => o.value === monthParam)) {
       return monthParam;
     }
-    // Default to previous month since current month often has no data yet (consistent with LiverList)
-    return monthOptions[1]?.value || monthOptions[0].value;
+    // Default to current month (latest)
+    return monthOptions[0].value;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   
   const [selectedMonth, setSelectedMonth] = useState(initialMonth);
@@ -749,8 +749,17 @@ export default function LiverByName() {
                     const colorClass = colors[idx % colors.length];
                     const isExpanded = expandedBrandId === brand.brandId;
                     // ブランドに属する配信一覧をフィルタリング
+                    // brand_livestreams.brandIdだけでなく、livestream_brandsテーブルのデータも考慮
                     const brandLivestreams = isExpanded && data?.livestreams
-                      ? data.livestreams.filter((l: any) => l.brandId === brand.brandId)
+                      ? data.livestreams.filter((l: any) => {
+                          // メインブランドIDが一致
+                          if (l.brandId === brand.brandId) return true;
+                          // マルチブランド配信の場合、livestreamBrandsにこのブランドが含まれるか
+                          if (l.livestreamBrands && Array.isArray(l.livestreamBrands)) {
+                            return l.livestreamBrands.some((lb: any) => lb.brandId === brand.brandId);
+                          }
+                          return false;
+                        })
                       : [];
                     return (
                       <div key={brand.brandId}>

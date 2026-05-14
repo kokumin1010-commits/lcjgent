@@ -109,8 +109,8 @@ export default function LiverDashboardNew() {
     return options;
   }, []);
   
-  // Default to previous month since current month often has no data yet
-  const [selectedMonth, setSelectedMonth] = useState(monthOptions[1]?.value || monthOptions[0].value);
+  // Default to current month (latest)
+  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
   const [showAllSales, setShowAllSales] = useState(false);
   const [showAllDuration, setShowAllDuration] = useState(false);
   const [showAllProducts, setShowAllProducts] = useState(false);
