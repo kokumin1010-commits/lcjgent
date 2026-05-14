@@ -9,8 +9,8 @@ export default function AiCoachMaster() {
   const [selectedLiverId, setSelectedLiverId] = useState<number | null>(null);
   const [expandedRoomId, setExpandedRoomId] = useState<number | null>(null);
 
-  const { data: usageStats, isLoading } = trpc.aiCoach.getAllLiverUsageStats.useQuery();
-  const { data: conversations } = trpc.aiCoach.getLiverConversations.useQuery(
+  const { data: usageStats, isLoading } = trpc.liverManagement.aiCoach.getAllLiverUsageStats.useQuery();
+  const { data: conversations } = trpc.liverManagement.aiCoach.getLiverConversations.useQuery(
     { liverId: selectedLiverId!, limit: 100 },
     { enabled: !!selectedLiverId }
   );
