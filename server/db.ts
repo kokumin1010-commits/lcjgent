@@ -9565,12 +9565,41 @@ export async function getLiverDailySalesTrend(month: string, agencyId?: number |
   .groupBy(sql`date`)
   .orderBy(asc(sql`date`));
   
-  return result.map(r => ({
-    date: String(r.date),
-    totalSales: Number(r.totalSales || 0),
-    totalDuration: Number(r.totalDuration || 0),
-    totalLivestreams: Number(r.totalLivestreams || 0),
-  }));
+  // Build full month date range (1st to today or end of month)
+  const [yearStr, monthStr] = month.split('-');
+  const year = parseInt(yearStr);
+  const mon = parseInt(monthStr);
+  const now = new Date();
+  const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const lastDayOfMonth = new Date(year, mon, 0).getDate();
+  // If current month, only show up to today (JST)
+  const isCurrentMonth = jstNow.getFullYear() === year && (jstNow.getMonth() + 1) === mon;
+  const endDay = isCurrentMonth ? jstNow.getDate() : lastDayOfMonth;
+  
+  // Create a map from DB results
+  const salesMap = new Map<string, { totalSales: number; totalDuration: number; totalLivestreams: number }>();
+  for (const r of result) {
+    salesMap.set(String(r.date), {
+      totalSales: Number(r.totalSales || 0),
+      totalDuration: Number(r.totalDuration || 0),
+      totalLivestreams: Number(r.totalLivestreams || 0),
+    });
+  }
+  
+  // Fill all days
+  const allDays = [];
+  for (let d = 1; d <= endDay; d++) {
+    const dateStr = `${year}-${String(mon).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const data = salesMap.get(dateStr);
+    allDays.push({
+      date: dateStr,
+      totalSales: data?.totalSales || 0,
+      totalDuration: data?.totalDuration || 0,
+      totalLivestreams: data?.totalLivestreams || 0,
+    });
+  }
+  
+  return allDays;
 }
 
 /**

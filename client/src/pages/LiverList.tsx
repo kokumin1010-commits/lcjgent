@@ -410,7 +410,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                   {/* Daily Sales Breakdown - shown when a month is selected */}
                   {selectedTrendMonth && dailySalesTrend && dailySalesTrend.length > 0 && (
                     <div className="mt-4 pt-3 border-t border-white/10">
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between mb-3">
                         <h4 className="text-xs text-white/70">
                           📅 {salesTrend.find(m => m.month === selectedTrendMonth)?.label || selectedTrendMonth} の日別売上
                         </h4>
@@ -418,30 +418,38 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                           合計: ¥{(dailySalesTrend.reduce((sum, d) => sum + d.totalSales, 0)).toLocaleString()}
                         </span>
                       </div>
-                      <div className="flex items-end gap-[2px]" style={{ height: '60px' }}>
+                      {/* Vertical list format */}
+                      <div className="space-y-1 max-h-[300px] overflow-y-auto pr-1">
                         {dailySalesTrend.map((day) => {
+                          const dayNum = new Date(day.date + 'T00:00:00').getDate();
+                          const monthNum = new Date(day.date + 'T00:00:00').getMonth() + 1;
                           const maxDailySales = Math.max(...dailySalesTrend.map(d => d.totalSales));
-                          const dayHeightPx = maxDailySales > 0 ? Math.max(Math.round((day.totalSales / maxDailySales) * 50), 2) : 2;
-                          const dayNum = new Date(day.date).getDate();
+                          const barWidth = maxDailySales > 0 ? Math.max((day.totalSales / maxDailySales) * 100, 0) : 0;
+                          const isZero = day.totalSales === 0;
                           return (
-                            <div key={day.date} className="flex-1 flex flex-col items-center justify-end group/day" style={{ height: '100%' }} title={`${dayNum}日: ¥${day.totalSales.toLocaleString()}`}>
-                              <div 
-                                className="w-full bg-gradient-to-t from-cyan-500 to-cyan-300 rounded-t group-hover/day:from-cyan-400 group-hover/day:to-cyan-200 transition-colors"
-                                style={{ height: `${dayHeightPx}px`, minHeight: '2px' }}
-                              />
+                            <div key={day.date} className={`flex items-center gap-2 py-1 px-2 rounded ${isZero ? 'opacity-40' : 'hover:bg-white/5'}`}>
+                              <span className="text-[11px] text-white/60 w-[36px] shrink-0 font-mono">{monthNum}/{dayNum}</span>
+                              <div className="flex-1 h-4 bg-white/5 rounded overflow-hidden">
+                                <div 
+                                  className="h-full bg-gradient-to-r from-cyan-500 to-cyan-300 rounded transition-all"
+                                  style={{ width: `${barWidth}%` }}
+                                />
+                              </div>
+                              <span className={`text-[11px] font-mono w-[80px] text-right shrink-0 ${isZero ? 'text-white/30' : 'text-cyan-300'}`}>
+                                {isZero ? '-' : `¥${day.totalSales >= 10000000 ? (day.totalSales / 10000).toFixed(0) + '万' : day.totalSales >= 1000000 ? (day.totalSales / 10000).toFixed(1) + '万' : day.totalSales.toLocaleString()}`}
+                              </span>
+                              {day.totalLivestreams > 0 && (
+                                <span className="text-[9px] text-white/30 w-[28px] shrink-0 text-right">{day.totalLivestreams}配信</span>
+                              )}
                             </div>
                           );
                         })}
                       </div>
-                      <div className="flex justify-between mt-1">
-                        <span className="text-[9px] text-white/40">1日</span>
-                        <span className="text-[9px] text-white/40">{dailySalesTrend.length}日</span>
-                      </div>
                       {/* Top 3 days */}
-                      <div className="mt-2 space-y-0.5">
+                      <div className="mt-3 pt-2 border-t border-white/5 space-y-0.5">
                         {[...dailySalesTrend].sort((a, b) => b.totalSales - a.totalSales).slice(0, 3).map((day, i) => (
                           <div key={day.date} className="flex items-center justify-between text-[10px]">
-                            <span className="text-white/50">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'} {new Date(day.date).getMonth() + 1}/{new Date(day.date).getDate()}</span>
+                            <span className="text-white/50">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'} {new Date(day.date + 'T00:00:00').getMonth() + 1}/{new Date(day.date + 'T00:00:00').getDate()}</span>
                             <span className="text-cyan-300 font-medium">¥{day.totalSales.toLocaleString()}</span>
                           </div>
                         ))}
