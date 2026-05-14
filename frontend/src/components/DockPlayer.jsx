@@ -119,9 +119,30 @@ export default function DockPlayer({
   salesMoments = [],
   eventScores = [],
   productExposures = [],
+  externalPause = false, // When true, pause video (e.g., ClipEditorV2 is open)
 }) {
   useTranslation(); // triggers re-render on language change
   const videoRef = useRef(null);
+
+  // ── External pause control (e.g., when ClipEditorV2 modal is open) ──
+  const wasPlayingBeforeExternalPause = useRef(false);
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    if (externalPause) {
+      // Pause and remember state
+      wasPlayingBeforeExternalPause.current = !vid.paused;
+      if (!vid.paused) {
+        vid.pause();
+      }
+    } else {
+      // Resume if was playing before
+      if (wasPlayingBeforeExternalPause.current) {
+        vid.play().catch(() => {});
+        wasPlayingBeforeExternalPause.current = false;
+      }
+    }
+  }, [externalPause]);
   const hasSetupRef = useRef(false);
   const prevVideoUrlRef = useRef(null);
   const prevTimeStartRef = useRef(null);

@@ -106,6 +106,7 @@ export default function VideoDetail({ videoData, editorParams }) {
   const [toast, setToast] = useState(null); // { message, type }
   const [chatMessages, setChatMessages] = useState([]);
   const [previewData, setPreviewData] = useState(null); // { url, timeStart, timeEnd, isClipPreview }
+  const [clipEditorOpen, setClipEditorOpen] = useState(false); // Track ClipEditorV2 open state to pause DockPlayer
   const restoringFromUrlRef = useRef(false);
   const closingRef = useRef(false); // Prevent URL restore from re-opening DockPlayer after close
   const [, setPreviewLoading] = useState(false);
@@ -1332,7 +1333,7 @@ export default function VideoDetail({ videoData, editorParams }) {
 
           {/* Clip Section - show generated clips at the top */}
           <SectionErrorBoundary sectionName={window.__t('clipVideos')}>
-            <ClipSection videoData={videoData} clipStates={clipStates} reports1={videoData?.reports_1} editorParams={editorParams} />
+            <ClipSection videoData={videoData} clipStates={clipStates} reports1={videoData?.reports_1} editorParams={editorParams} onEditorOpenChange={setClipEditorOpen} />
           </SectionErrorBoundary>
 
           {/* AI Sales Clip Candidates */}
@@ -2244,6 +2245,7 @@ export default function VideoDetail({ videoData, editorParams }) {
       <DockPlayer
         open={!!previewData}
         onClose={handleCloseDockPlayer}
+        externalPause={clipEditorOpen}
         videoUrl={previewData?.url}
         fullVideoUrl={previewData?.fullVideoUrl}
         timeStart={previewData?.timeStart}

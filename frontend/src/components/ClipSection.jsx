@@ -87,10 +87,15 @@ function detectSource(phaseIndex) {
  *   clipStates – current clip generation states from parent (keyed by phase_index)
  *   reports1 – array of phase objects (for phase labels)
  */
-export default function ClipSection({ videoData, clipStates, reports1, editorParams }) {
+export default function ClipSection({ videoData, clipStates, reports1, editorParams, onEditorOpenChange }) {
   useTranslation(); // triggers re-render on language change
   const [collapsed, setCollapsed] = useState(false);
   const [editorClip, setEditorClip] = useState(null);
+
+  // Notify parent when editor opens/closes (so DockPlayer can be paused)
+  useEffect(() => {
+    onEditorOpenChange?.(!!editorClip);
+  }, [editorClip, onEditorOpenChange]);
   const editorAutoOpenedRef = useRef(false);
   const [clipRatings, setClipRatings] = useState({});
   const [clipDownloads, setClipDownloads] = useState({});
