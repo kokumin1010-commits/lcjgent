@@ -93,6 +93,9 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
       noData: "データがありません",
       hours: "時間",
       liverList: "ライバー一覧",
+      forecast: "📈 月末予測",
+      forecastOptimistic: "🔥 配信頑張れば",
+      monthProgress: "月進捗",
     },
     zh: {
       title: agencyName ? `${agencyName} 主播列表` : "主播列表",
@@ -115,6 +118,9 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
       noData: "暂无数据",
       hours: "小时",
       liverList: "主播一览",
+      forecast: "📈 月末预测",
+      forecastOptimistic: "🔥 加油版",
+      monthProgress: "月进度",
     },
   };
   
@@ -122,6 +128,27 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
   
   const formatCurrency = (amount: number | string) => {
     return `¥${Number(amount).toLocaleString()}`;
+  };
+
+  // 当月かどうかの判定
+  const isCurrentMonth = useMemo(() => {
+    const now = new Date();
+    const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return selectedMonth === currentYM;
+  }, [selectedMonth]);
+
+  // 月末予測売上計算（当月のみ）
+  const calcForecast = (currentSales: number) => {
+    if (!isCurrentMonth || currentSales <= 0) return null;
+    const now = new Date();
+    const dayOfMonth = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    if (dayOfMonth < 2) return null; // 初日は予測不可
+    const dailyAvg = currentSales / dayOfMonth;
+    const baseForecast = dailyAvg * daysInMonth;
+    // 上振れ予測（配信頑張ったらバージョン）: 1.2倍
+    const optimisticForecast = baseForecast * 1.2;
+    return { base: Math.round(baseForecast), optimistic: Math.round(optimisticForecast), progress: Math.round((dayOfMonth / daysInMonth) * 100) };
   };
   
   const formatHourlyRate = (sales: number, durationMinutes: number) => {
@@ -432,6 +459,29 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                             <span className="text-xs text-white/40">{tr.prevMonth}: {formatHourlyRate((item as any).prevSales || 0, (item as any).prevDuration || 0)}</span>
                           </div>
                         </div>
+                        {/* 月末予測売上（当月のみ表示） */}
+                        {(() => {
+                          const forecast = calcForecast(item.totalSales);
+                          if (!forecast) return null;
+                          return (
+                            <div className="mt-2 p-2 rounded-lg bg-gradient-to-r from-emerald-900/30 to-cyan-900/20 border border-emerald-500/20">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[10px] text-emerald-300/80">{tr.forecast}</span>
+                                <span className="text-[10px] text-white/40">{tr.monthProgress}: {forecast.progress}%</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-bold text-emerald-400">{formatCurrency(forecast.base)}</span>
+                                <span className="text-[10px] text-white/30">→</span>
+                                <span className="text-sm font-bold text-amber-400">{tr.forecastOptimistic} {formatCurrency(forecast.optimistic)}</span>
+                              </div>
+                              {(item as any).prevSales > 0 && forecast.base > (item as any).prevSales && (
+                                <div className="mt-1 text-[10px] text-emerald-300/70">
+                                  ✅ 前月超え達成ペース！
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {/* Cumulative Sales */}
                         {(item as any).cumulativeSales > 0 && (
                           <div className="mt-1.5 pt-1.5 border-t border-white/5">
@@ -572,6 +622,29 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                             <span className="text-xs text-white/40">{tr.prevMonth}: {formatHourlyRate((item as any).prevSales || 0, (item as any).prevDuration || 0)}</span>
                           </div>
                         </div>
+                        {/* 月末予測売上（当月のみ表示） */}
+                        {(() => {
+                          const forecast = calcForecast(item.totalSales);
+                          if (!forecast) return null;
+                          return (
+                            <div className="mt-2 p-2 rounded-lg bg-gradient-to-r from-emerald-900/30 to-cyan-900/20 border border-emerald-500/20">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[10px] text-emerald-300/80">{tr.forecast}</span>
+                                <span className="text-[10px] text-white/40">{tr.monthProgress}: {forecast.progress}%</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-bold text-emerald-400">{formatCurrency(forecast.base)}</span>
+                                <span className="text-[10px] text-white/30">→</span>
+                                <span className="text-sm font-bold text-amber-400">{tr.forecastOptimistic} {formatCurrency(forecast.optimistic)}</span>
+                              </div>
+                              {(item as any).prevSales > 0 && forecast.base > (item as any).prevSales && (
+                                <div className="mt-1 text-[10px] text-emerald-300/70">
+                                  ✅ 前月超え達成ペース！
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {/* Cumulative Sales */}
                         {(item as any).cumulativeSales > 0 && (
                           <div className="mt-1.5 pt-1.5 border-t border-white/5">

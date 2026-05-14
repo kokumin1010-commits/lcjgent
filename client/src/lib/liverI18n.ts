@@ -368,6 +368,10 @@ export const liverTranslations: Record<string, Record<LiverLanguage, string>> = 
   "mypage.productTypes": { ja: "商品種類", "zh-TW": "商品種類", en: "Product Types", zh: "商品种类" },
   "mypage.productName": { ja: "商品名", "zh-TW": "商品名", en: "Product", zh: "商品名" },
   "mypage.soldCount": { ja: "販売数", "zh-TW": "銷售數", en: "Sold", zh: "销售数" },
+  "mypage.forecast": { ja: "月末予測売上", "zh-TW": "月末預測營收", en: "Month-End Forecast", zh: "月末预测营收" },
+  "mypage.forecastCurrentPace": { ja: "現在ペース", "zh-TW": "目前進度", en: "Current Pace", zh: "当前进度" },
+  "mypage.forecastOptimistic": { ja: "配信頑張れば", "zh-TW": "加油版", en: "If You Push Harder", zh: "加油版" },
+  "mypage.forecastPrevMonthBeat": { ja: "前月超え達成ペース！", "zh-TW": "超越上月進度！", en: "On track to beat last month!", zh: "超越上月进度！" },
 
 };
 

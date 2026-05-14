@@ -473,6 +473,26 @@ export default function LiverByName() {
   
   const tr = translations[language as keyof typeof translations] || translations.ja;
   
+  // 当月かどうかの判定
+  const isCurrentMonth = useMemo(() => {
+    const now = new Date();
+    const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return selectedMonth === currentYM;
+  }, [selectedMonth]);
+
+  // 月末予測売上計算（当月のみ）
+  const calcForecast = (currentSales: number) => {
+    if (!isCurrentMonth || currentSales <= 0) return null;
+    const now = new Date();
+    const dayOfMonth = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    if (dayOfMonth < 2) return null;
+    const dailyAvg = currentSales / dayOfMonth;
+    const baseForecast = dailyAvg * daysInMonth;
+    const optimisticForecast = baseForecast * 1.2;
+    return { base: Math.round(baseForecast), optimistic: Math.round(optimisticForecast), progress: Math.round((dayOfMonth / daysInMonth) * 100) };
+  };
+
   const formatCurrency = (amount: number | null | undefined) => {
     if (amount == null) return "¥0";
     return `¥${Number(amount).toLocaleString()}`;
@@ -714,6 +734,45 @@ export default function LiverByName() {
             </CardContent>
           </Card>
         </div>
+
+        {/* 月末予測売上（当月のみ表示） */}
+        {(() => {
+          const forecast = calcForecast(data?.totalSales || 0);
+          if (!forecast) return null;
+          return (
+            <Card className="bg-gradient-to-r from-emerald-900/30 to-cyan-900/20 border-emerald-500/30">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2 text-emerald-400">
+                    <TrendingUp className="w-5 h-5" />
+                    <span className="text-sm font-medium">📈 月末予測売上</span>
+                  </div>
+                  <span className="text-xs text-white/40 bg-white/5 px-2 py-0.5 rounded-full">月進捗: {forecast.progress}%</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-emerald-300/70 mb-1">現在ペース予測</p>
+                    <p className="text-xl font-bold text-emerald-400">{formatCurrency(forecast.base)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-amber-300/70 mb-1">🔥 配信頑張れば</p>
+                    <p className="text-xl font-bold text-amber-400">{formatCurrency(forecast.optimistic)}</p>
+                  </div>
+                </div>
+                {(() => {
+                  // growthDataから前月の売上を取得（growthData.salesは円単位）
+                  const prevMonthData = growthData && growthData.length >= 2 ? growthData[growthData.length - 2] : null;
+                  const prevSales = prevMonthData ? (prevMonthData as any).sales : 0;
+                  return prevSales > 0 && forecast.base > prevSales ? (
+                    <div className="mt-2 pt-2 border-t border-emerald-500/20 text-xs text-emerald-300/80">
+                      ✅ 前月（{formatCurrency(prevSales)}）超え達成ペース！
+                    </div>
+                  ) : null;
+                })()}
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* ブランド別配信時間 */}
         {brandDurationStats && brandDurationStats.length > 0 && (

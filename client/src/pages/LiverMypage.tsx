@@ -1081,6 +1081,48 @@ export default function LiverMypage() {
               </Card>
             </div>
 
+            {/* 月末予測売上（当月のみ表示） */}
+            {(() => {
+              const isCurrentMonthSelected = selectedMonth === currentMonth;
+              if (!isCurrentMonthSelected || monthlyStats.sales <= 0) return null;
+              const now = new Date();
+              const dayOfMonth = now.getDate();
+              const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+              if (dayOfMonth < 2) return null;
+              const dailyAvg = monthlyStats.sales / dayOfMonth;
+              const baseForecast = Math.round(dailyAvg * daysInMonth);
+              const optimisticForecast = Math.round(baseForecast * 1.2);
+              const progress = Math.round((dayOfMonth / daysInMonth) * 100);
+              return (
+                <Card className="bg-gradient-to-r from-emerald-900/30 to-cyan-900/20 border-emerald-500/30">
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-1.5 text-emerald-400">
+                        <TrendingUp className="h-4 w-4" />
+                        <span className="text-xs font-medium">📈 {lt('mypage.forecast')}</span>
+                      </div>
+                      <span className="text-[10px] text-white/40 bg-white/5 px-1.5 py-0.5 rounded-full">{progress}%経過</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-[10px] text-emerald-300/70 mb-0.5">{lt('mypage.forecastCurrentPace')}</p>
+                        <p className="text-lg font-bold text-emerald-400">¥{baseForecast.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-amber-300/70 mb-0.5">🔥 {lt('mypage.forecastOptimistic')}</p>
+                        <p className="text-lg font-bold text-amber-400">¥{optimisticForecast.toLocaleString()}</p>
+                      </div>
+                    </div>
+                    {prevMonthStats && prevMonthStats.sales > 0 && baseForecast > prevMonthStats.sales && (
+                      <div className="mt-1.5 pt-1.5 border-t border-emerald-500/20 text-[10px] text-emerald-300/80">
+                        ✅ {lt('mypage.forecastPrevMonthBeat')} (¥{Number(prevMonthStats.sales).toLocaleString()})
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })()}
+
             {/* Additional Stats */}
             <div className="grid grid-cols-4 gap-2">
               <Card className="bg-gray-800/50 border-gray-700">
