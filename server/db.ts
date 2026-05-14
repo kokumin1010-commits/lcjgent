@@ -9525,6 +9525,53 @@ export async function getLiverMonthlySalesTrend(agencyId?: number | null) {
   return months;
 }
 
+/**
+ * Get daily sales trend for a specific month (日別売上推移)
+ */
+export async function getLiverDailySalesTrend(month: string, agencyId?: number | null) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const { startDate, endDate } = getJSTMonthRange(month);
+  
+  // Build agency filter condition
+  const agencyFilter = agencyId === null 
+    ? isNull(livers.agencyId)
+    : agencyId !== undefined 
+      ? eq(livers.agencyId, agencyId)
+      : undefined;
+  
+  const query = db
+    .select({
+      date: sql<string>`DATE(CONVERT_TZ(${brandLivestreams.livestreamDate}, '+00:00', '+09:00'))`.as("date"),
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+      totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+      totalLivestreams: sql<number>`COUNT(*)`,
+    })
+    .from(brandLivestreams);
+  
+  if (agencyFilter) {
+    query.leftJoin(livers, eq(brandLivestreams.liverId, livers.id));
+  }
+  
+  const result = await query.where(
+    and(
+      isNull(brandLivestreams.deletedAt),
+      sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+      sql`${brandLivestreams.livestreamDate} <= ${endDate}`,
+      agencyFilter
+    )
+  )
+  .groupBy(sql`DATE(CONVERT_TZ(${brandLivestreams.livestreamDate}, '+00:00', '+09:00'))`)
+  .orderBy(asc(sql`DATE(CONVERT_TZ(${brandLivestreams.livestreamDate}, '+00:00', '+09:00'))`));
+  
+  return result.map(r => ({
+    date: String(r.date),
+    totalSales: Number(r.totalSales || 0),
+    totalDuration: Number(r.totalDuration || 0),
+    totalLivestreams: Number(r.totalLivestreams || 0),
+  }));
+}
 
 /**
  * Get detailed liver information with statistics

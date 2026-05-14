@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -41,6 +41,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
   const [showAllSales, setShowAllSales] = useState(false);
   const [showAllDuration, setShowAllDuration] = useState(false);
   const [showAllReferral, setShowAllReferral] = useState(false);
+  const [selectedTrendMonth, setSelectedTrendMonth] = useState<string | null>(null);
   
   const { data: rankings, isLoading } = trpc.liverManagement.rankings.useQuery({
     month: selectedMonth,
@@ -67,6 +68,12 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
   
   // Monthly Sales Trend
   const { data: salesTrend } = trpc.liverManagement.monthlySalesTrend.useQuery({ agencyId: agencyId });
+  
+  // Daily Sales Trend (when a month bar is tapped)
+  const { data: dailySalesTrend } = trpc.liverManagement.dailySalesTrend.useQuery(
+    { month: selectedTrendMonth || '', agencyId: agencyId },
+    { enabled: !!selectedTrendMonth }
+  );
   
   // Determine display name
   const displayName = agencyName || "LCJ";
@@ -364,25 +371,93 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                 </div>
               </div>
               
-              {/* Monthly Trend Mini Chart */}
+              {/* Monthly Trend Mini Chart - Interactive */}
               {salesTrend && salesTrend.length > 0 && (
                 <div className="mt-6 pt-4 border-t border-white/10">
-                  <h3 className="text-sm text-white/90 mb-3">売上推移（過去6ヶ月）</h3>
-                  <div className="flex items-end gap-2" style={{ height: '80px' }}>
-                    {salesTrend.map((month, index) => {
+                  <h3 className="text-sm text-white/90 mb-3">売上推移（過去6ヶ月）<span className="text-[10px] text-white/40 ml-2">タップで詳細</span></h3>
+                  <div className="flex items-end gap-2" style={{ height: '100px' }}>
+                    {salesTrend.map((month) => {
                       const maxSales = Math.max(...salesTrend.map(m => m.totalSales));
-                      const heightPx = maxSales > 0 ? Math.max(Math.round((month.totalSales / maxSales) * 60), 4) : 4;
+                      const heightPx = maxSales > 0 ? Math.max(Math.round((month.totalSales / maxSales) * 65), 4) : 4;
+                      const isSelected = selectedTrendMonth === month.month;
                       return (
-                        <div key={month.month} className="flex-1 flex flex-col items-center justify-end" style={{ height: '100%' }}>
+                        <div 
+                          key={month.month} 
+                          className="flex-1 flex flex-col items-center justify-end cursor-pointer group" 
+                          style={{ height: '100%' }}
+                          onClick={() => setSelectedTrendMonth(isSelected ? null : month.month)}
+                        >
+                          {/* Sales amount tooltip */}
+                          {isSelected && (
+                            <div className="text-[9px] font-bold text-yellow-300 mb-1 whitespace-nowrap">
+                              ¥{(month.totalSales / 10000).toFixed(0)}万
+                            </div>
+                          )}
                           <div 
-                            className="w-full bg-gradient-to-t from-yellow-500 to-yellow-300 rounded-t"
+                            className={`w-full rounded-t transition-all duration-200 ${
+                              isSelected 
+                                ? 'bg-gradient-to-t from-yellow-400 to-yellow-200 ring-2 ring-yellow-400/50' 
+                                : 'bg-gradient-to-t from-yellow-500 to-yellow-300 group-hover:from-yellow-400 group-hover:to-yellow-200'
+                            }`}
                             style={{ height: `${heightPx}px`, minHeight: '4px' }}
                           />
-                          <span className="text-xs text-white/80 mt-1">{month.label}</span>
+                          <span className={`text-xs mt-1 ${isSelected ? 'text-yellow-300 font-bold' : 'text-white/80'}`}>{month.label}</span>
                         </div>
                       );
                     })}
                   </div>
+                  
+                  {/* Daily Sales Breakdown - shown when a month is selected */}
+                  {selectedTrendMonth && dailySalesTrend && dailySalesTrend.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-white/10">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-xs text-white/70">
+                          📅 {salesTrend.find(m => m.month === selectedTrendMonth)?.label || selectedTrendMonth} の日別売上
+                        </h4>
+                        <span className="text-[10px] text-white/40">
+                          合計: ¥{(dailySalesTrend.reduce((sum, d) => sum + d.totalSales, 0)).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex items-end gap-[2px]" style={{ height: '60px' }}>
+                        {dailySalesTrend.map((day) => {
+                          const maxDailySales = Math.max(...dailySalesTrend.map(d => d.totalSales));
+                          const dayHeightPx = maxDailySales > 0 ? Math.max(Math.round((day.totalSales / maxDailySales) * 50), 2) : 2;
+                          const dayNum = new Date(day.date).getDate();
+                          return (
+                            <div key={day.date} className="flex-1 flex flex-col items-center justify-end group/day" style={{ height: '100%' }} title={`${dayNum}日: ¥${day.totalSales.toLocaleString()}`}>
+                              <div 
+                                className="w-full bg-gradient-to-t from-cyan-500 to-cyan-300 rounded-t group-hover/day:from-cyan-400 group-hover/day:to-cyan-200 transition-colors"
+                                style={{ height: `${dayHeightPx}px`, minHeight: '2px' }}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex justify-between mt-1">
+                        <span className="text-[9px] text-white/40">1日</span>
+                        <span className="text-[9px] text-white/40">{dailySalesTrend.length}日</span>
+                      </div>
+                      {/* Top 3 days */}
+                      <div className="mt-2 space-y-0.5">
+                        {[...dailySalesTrend].sort((a, b) => b.totalSales - a.totalSales).slice(0, 3).map((day, i) => (
+                          <div key={day.date} className="flex items-center justify-between text-[10px]">
+                            <span className="text-white/50">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'} {new Date(day.date).getMonth() + 1}/{new Date(day.date).getDate()}</span>
+                            <span className="text-cyan-300 font-medium">¥{day.totalSales.toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Loading state for daily trend */}
+                  {selectedTrendMonth && !dailySalesTrend && (
+                    <div className="mt-4 pt-3 border-t border-white/10">
+                      <div className="flex items-center gap-2 text-xs text-white/50">
+                        <div className="animate-spin w-3 h-3 border border-white/30 border-t-white/80 rounded-full" />
+                        読み込み中...
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
