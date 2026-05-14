@@ -96,6 +96,11 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
       forecast: "📈 月末予測",
       forecastOptimistic: "🔥 配信頑張れば",
       monthProgress: "月進捗",
+      remainingTarget: "前月超えまであと",
+      dailyGuide: "残り{days}日 × 毎日{hours}h配信でOK",
+      perSession: "1配信の売上目標",
+      alreadyExceeded: "🎉 前月超え達成済み！自己ベスト更新を目指そう！",
+      perSessionBest: "1配信の売上目標（自己ベスト更新ペース）",
     },
     zh: {
       title: agencyName ? `${agencyName} 主播列表` : "主播列表",
@@ -121,6 +126,11 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
       forecast: "📈 月末预测",
       forecastOptimistic: "🔥 加油版",
       monthProgress: "月进度",
+      remainingTarget: "超越上月还差",
+      dailyGuide: "剩余{days}天 × 每天直播{hours}h就OK",
+      perSession: "每次直播销售目标",
+      alreadyExceeded: "🎉 已超越上月！继续加油创新纪录！",
+      perSessionBest: "每次直播销售目标（创新纪录节奏）",
     },
   };
   
@@ -138,17 +148,38 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
   }, [selectedMonth]);
 
   // 月末予測売上計算（当月のみ）
-  const calcForecast = (currentSales: number) => {
+  const calcForecast = (currentSales: number, prevSales: number, currentDurationMin: number) => {
     if (!isCurrentMonth || currentSales <= 0) return null;
     const now = new Date();
     const dayOfMonth = now.getDate();
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     if (dayOfMonth < 2) return null; // 初日は予測不可
+    const remainingDays = daysInMonth - dayOfMonth;
     const dailyAvg = currentSales / dayOfMonth;
     const baseForecast = dailyAvg * daysInMonth;
-    // 上振れ予測（配信頑張ったらバージョン）: 1.2倍
     const optimisticForecast = baseForecast * 1.2;
-    return { base: Math.round(baseForecast), optimistic: Math.round(optimisticForecast), progress: Math.round((dayOfMonth / daysInMonth) * 100) };
+    const progress = Math.round((dayOfMonth / daysInMonth) * 100);
+    
+    // 前月超え目標の配信ガイド
+    const target = prevSales > 0 ? prevSales : baseForecast;
+    const remainingSales = Math.max(0, target - currentSales);
+    const hourlyRate = currentDurationMin > 0 ? currentSales / (currentDurationMin / 60) : 0;
+    const remainingHours = hourlyRate > 0 ? remainingSales / hourlyRate : 0;
+    const dailyHours = remainingDays > 0 ? remainingHours / remainingDays : 0;
+    const perSessionTarget = remainingDays > 0 ? Math.round(remainingSales / remainingDays) : 0;
+    const alreadyExceeded = prevSales > 0 && currentSales >= prevSales;
+    
+    return {
+      base: Math.round(baseForecast),
+      optimistic: Math.round(optimisticForecast),
+      progress,
+      remainingDays,
+      remainingSales: Math.round(remainingSales),
+      dailyHours: Math.round(dailyHours * 10) / 10,
+      perSessionTarget,
+      alreadyExceeded,
+      target: Math.round(target),
+    };
   };
   
   const formatHourlyRate = (sales: number, durationMinutes: number) => {
@@ -337,17 +368,17 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
               {salesTrend && salesTrend.length > 0 && (
                 <div className="mt-6 pt-4 border-t border-white/10">
                   <h3 className="text-sm text-white/90 mb-3">売上推移（過去6ヶ月）</h3>
-                  <div className="flex items-end gap-2 h-16">
+                  <div className="flex items-end gap-2" style={{ height: '80px' }}>
                     {salesTrend.map((month, index) => {
                       const maxSales = Math.max(...salesTrend.map(m => m.totalSales));
-                      const height = maxSales > 0 ? (month.totalSales / maxSales) * 100 : 0;
+                      const heightPx = maxSales > 0 ? Math.max(Math.round((month.totalSales / maxSales) * 60), 4) : 4;
                       return (
-                        <div key={month.month} className="flex-1 flex flex-col items-center gap-1">
+                        <div key={month.month} className="flex-1 flex flex-col items-center justify-end" style={{ height: '100%' }}>
                           <div 
                             className="w-full bg-gradient-to-t from-yellow-500 to-yellow-300 rounded-t"
-                            style={{ height: `${Math.max(height, 4)}%` }}
+                            style={{ height: `${heightPx}px`, minHeight: '4px' }}
                           />
-                          <span className="text-xs text-white/80">{month.label}</span>
+                          <span className="text-xs text-white/80 mt-1">{month.label}</span>
                         </div>
                       );
                     })}
@@ -461,7 +492,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                         </div>
                         {/* 月末予測売上（当月のみ表示） */}
                         {(() => {
-                          const forecast = calcForecast(item.totalSales);
+                          const forecast = calcForecast(item.totalSales, (item as any).prevSales || 0, (item as any).totalDuration || 0);
                           if (!forecast) return null;
                           return (
                             <div className="mt-2 p-2 rounded-lg bg-gradient-to-r from-emerald-900/30 to-cyan-900/20 border border-emerald-500/20">
@@ -474,9 +505,34 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                                 <span className="text-[10px] text-white/30">→</span>
                                 <span className="text-sm font-bold text-amber-400">{tr.forecastOptimistic} {formatCurrency(forecast.optimistic)}</span>
                               </div>
-                              {(item as any).prevSales > 0 && forecast.base > (item as any).prevSales && (
-                                <div className="mt-1 text-[10px] text-emerald-300/70">
-                                  ✅ 前月超え達成ペース！
+                              {forecast.alreadyExceeded ? (
+                                <div className="mt-1.5 pt-1.5 border-t border-emerald-500/10">
+                                  <div className="text-[10px] text-emerald-300/90 font-medium">{(tr as any).alreadyExceeded}</div>
+                                  {forecast.perSessionTarget > 0 && (
+                                    <div className="mt-1 flex items-center gap-1">
+                                      <span className="text-[10px] text-amber-300/70">💰 {(tr as any).perSessionBest}:</span>
+                                      <span className="text-xs font-bold text-amber-400">{formatCurrency(forecast.perSessionTarget)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="mt-1.5 pt-1.5 border-t border-emerald-500/10">
+                                  {forecast.remainingSales > 0 && (
+                                    <div className="text-[10px] text-cyan-300/80">
+                                      ⏰ {(tr as any).remainingTarget} <span className="font-bold text-cyan-300">{formatCurrency(forecast.remainingSales)}</span>
+                                    </div>
+                                  )}
+                                  {forecast.dailyHours > 0 && forecast.remainingDays > 0 && (
+                                    <div className="mt-0.5 text-[10px] text-blue-300/70">
+                                      📅 {((tr as any).dailyGuide as string).replace('{days}', String(forecast.remainingDays)).replace('{hours}', String(forecast.dailyHours))}
+                                    </div>
+                                  )}
+                                  {forecast.perSessionTarget > 0 && (
+                                    <div className="mt-0.5 flex items-center gap-1">
+                                      <span className="text-[10px] text-amber-300/70">💰 {(tr as any).perSession}:</span>
+                                      <span className="text-xs font-bold text-amber-400">{formatCurrency(forecast.perSessionTarget)}</span>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -624,7 +680,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                         </div>
                         {/* 月末予測売上（当月のみ表示） */}
                         {(() => {
-                          const forecast = calcForecast(item.totalSales);
+                          const forecast = calcForecast(item.totalSales, (item as any).prevSales || 0, (item as any).totalDuration || 0);
                           if (!forecast) return null;
                           return (
                             <div className="mt-2 p-2 rounded-lg bg-gradient-to-r from-emerald-900/30 to-cyan-900/20 border border-emerald-500/20">
@@ -637,9 +693,34 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                                 <span className="text-[10px] text-white/30">→</span>
                                 <span className="text-sm font-bold text-amber-400">{tr.forecastOptimistic} {formatCurrency(forecast.optimistic)}</span>
                               </div>
-                              {(item as any).prevSales > 0 && forecast.base > (item as any).prevSales && (
-                                <div className="mt-1 text-[10px] text-emerald-300/70">
-                                  ✅ 前月超え達成ペース！
+                              {forecast.alreadyExceeded ? (
+                                <div className="mt-1.5 pt-1.5 border-t border-emerald-500/10">
+                                  <div className="text-[10px] text-emerald-300/90 font-medium">{(tr as any).alreadyExceeded}</div>
+                                  {forecast.perSessionTarget > 0 && (
+                                    <div className="mt-1 flex items-center gap-1">
+                                      <span className="text-[10px] text-amber-300/70">💰 {(tr as any).perSessionBest}:</span>
+                                      <span className="text-xs font-bold text-amber-400">{formatCurrency(forecast.perSessionTarget)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="mt-1.5 pt-1.5 border-t border-emerald-500/10">
+                                  {forecast.remainingSales > 0 && (
+                                    <div className="text-[10px] text-cyan-300/80">
+                                      ⏰ {(tr as any).remainingTarget} <span className="font-bold text-cyan-300">{formatCurrency(forecast.remainingSales)}</span>
+                                    </div>
+                                  )}
+                                  {forecast.dailyHours > 0 && forecast.remainingDays > 0 && (
+                                    <div className="mt-0.5 text-[10px] text-blue-300/70">
+                                      📅 {((tr as any).dailyGuide as string).replace('{days}', String(forecast.remainingDays)).replace('{hours}', String(forecast.dailyHours))}
+                                    </div>
+                                  )}
+                                  {forecast.perSessionTarget > 0 && (
+                                    <div className="mt-0.5 flex items-center gap-1">
+                                      <span className="text-[10px] text-amber-300/70">💰 {(tr as any).perSession}:</span>
+                                      <span className="text-xs font-bold text-amber-400">{formatCurrency(forecast.perSessionTarget)}</span>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>

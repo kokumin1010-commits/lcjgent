@@ -481,16 +481,37 @@ export default function LiverByName() {
   }, [selectedMonth]);
 
   // 月末予測売上計算（当月のみ）
-  const calcForecast = (currentSales: number) => {
+  const calcForecast = (currentSales: number, prevSales: number, currentDurationMin: number) => {
     if (!isCurrentMonth || currentSales <= 0) return null;
     const now = new Date();
     const dayOfMonth = now.getDate();
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     if (dayOfMonth < 2) return null;
+    const remainingDays = daysInMonth - dayOfMonth;
     const dailyAvg = currentSales / dayOfMonth;
     const baseForecast = dailyAvg * daysInMonth;
     const optimisticForecast = baseForecast * 1.2;
-    return { base: Math.round(baseForecast), optimistic: Math.round(optimisticForecast), progress: Math.round((dayOfMonth / daysInMonth) * 100) };
+    const progress = Math.round((dayOfMonth / daysInMonth) * 100);
+    
+    const target = prevSales > 0 ? prevSales : baseForecast;
+    const remainingSales = Math.max(0, target - currentSales);
+    const hourlyRate = currentDurationMin > 0 ? currentSales / (currentDurationMin / 60) : 0;
+    const remainingHours = hourlyRate > 0 ? remainingSales / hourlyRate : 0;
+    const dailyHours = remainingDays > 0 ? remainingHours / remainingDays : 0;
+    const perSessionTarget = remainingDays > 0 ? Math.round(remainingSales / remainingDays) : 0;
+    const alreadyExceeded = prevSales > 0 && currentSales >= prevSales;
+    
+    return {
+      base: Math.round(baseForecast),
+      optimistic: Math.round(optimisticForecast),
+      progress,
+      remainingDays,
+      remainingSales: Math.round(remainingSales),
+      dailyHours: Math.round(dailyHours * 10) / 10,
+      perSessionTarget,
+      alreadyExceeded,
+      target: Math.round(target),
+    };
   };
 
   const formatCurrency = (amount: number | null | undefined) => {
@@ -737,7 +758,9 @@ export default function LiverByName() {
 
         {/* 月末予測売上（当月のみ表示） */}
         {(() => {
-          const forecast = calcForecast(data?.totalSales || 0);
+          const prevMonthData = growthData && growthData.length >= 2 ? growthData[growthData.length - 2] : null;
+          const prevSales = prevMonthData ? (prevMonthData as any).sales : 0;
+          const forecast = calcForecast(data?.totalSales || 0, prevSales, data?.totalDuration || 0);
           if (!forecast) return null;
           return (
             <Card className="bg-gradient-to-r from-emerald-900/30 to-cyan-900/20 border-emerald-500/30">
@@ -759,16 +782,39 @@ export default function LiverByName() {
                     <p className="text-xl font-bold text-amber-400">{formatCurrency(forecast.optimistic)}</p>
                   </div>
                 </div>
-                {(() => {
-                  // growthDataから前月の売上を取得（growthData.salesは円単位）
-                  const prevMonthData = growthData && growthData.length >= 2 ? growthData[growthData.length - 2] : null;
-                  const prevSales = prevMonthData ? (prevMonthData as any).sales : 0;
-                  return prevSales > 0 && forecast.base > prevSales ? (
-                    <div className="mt-2 pt-2 border-t border-emerald-500/20 text-xs text-emerald-300/80">
-                      ✅ 前月（{formatCurrency(prevSales)}）超え達成ペース！
-                    </div>
-                  ) : null;
-                })()}
+                {/* 配信目標ガイド */}
+                <div className="mt-3 pt-3 border-t border-emerald-500/20">
+                  {forecast.alreadyExceeded ? (
+                    <>
+                      <div className="text-sm text-emerald-300/90 font-medium">🎉 前月超え達成済み！自己ベスト更新を目指そう！</div>
+                      {forecast.perSessionTarget > 0 && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="text-xs text-amber-300/70">💰 1配信の売上目標（自己ベスト更新ペース）:</span>
+                          <span className="text-base font-bold text-amber-400">{formatCurrency(forecast.perSessionTarget)}</span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {forecast.remainingSales > 0 && (
+                        <div className="text-sm text-cyan-300/80">
+                          ⏰ 前月超えまであと <span className="font-bold text-cyan-300">{formatCurrency(forecast.remainingSales)}</span>
+                        </div>
+                      )}
+                      {forecast.dailyHours > 0 && forecast.remainingDays > 0 && (
+                        <div className="mt-1 text-sm text-blue-300/70">
+                          📅 残り{forecast.remainingDays}日 × 毎日{forecast.dailyHours}h配信でOK
+                        </div>
+                      )}
+                      {forecast.perSessionTarget > 0 && (
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className="text-xs text-amber-300/70">💰 1配信の売上目標:</span>
+                          <span className="text-base font-bold text-amber-400">{formatCurrency(forecast.perSessionTarget)}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </CardContent>
             </Card>
           );

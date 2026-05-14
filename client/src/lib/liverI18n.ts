@@ -371,7 +371,10 @@ export const liverTranslations: Record<string, Record<LiverLanguage, string>> = 
   "mypage.forecast": { ja: "月末予測売上", "zh-TW": "月末預測營收", en: "Month-End Forecast", zh: "月末预测营收" },
   "mypage.forecastCurrentPace": { ja: "現在ペース", "zh-TW": "目前進度", en: "Current Pace", zh: "当前进度" },
   "mypage.forecastOptimistic": { ja: "配信頑張れば", "zh-TW": "加油版", en: "If You Push Harder", zh: "加油版" },
-  "mypage.forecastPrevMonthBeat": { ja: "前月超え達成ペース！", "zh-TW": "超越上月進度！", en: "On track to beat last month!", zh: "超越上月进度！" },
+  "mypage.forecastPrevMonthBeat": { ja: "前月超え達成済み！", "zh-TW": "已超越上月！", en: "Already beat last month!", zh: "已超越上月！" },
+  "mypage.forecastRemaining": { ja: "前月超えまであと", "zh-TW": "距離超越上月還差", en: "To beat last month:", zh: "距离超越上月还差" },
+  "mypage.forecastDailyGuide": { ja: "残り{days}日 × 毎日{hours}h配信でOK", "zh-TW": "剩余{days}天 × 每天直播{hours}h就OK", en: "{days} days left × {hours}h/day streaming", zh: "剩余{days}天 × 每天直播{hours}h就OK" },
+  "mypage.forecastPerSession": { ja: "1配信の売上目標:", "zh-TW": "每次直播營收目標:", en: "Per-session sales target:", zh: "每次直播营收目标:" },
 
 };
 

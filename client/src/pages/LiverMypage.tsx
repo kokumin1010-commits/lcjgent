@@ -1089,10 +1089,22 @@ export default function LiverMypage() {
               const dayOfMonth = now.getDate();
               const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
               if (dayOfMonth < 2) return null;
+              const remainingDays = daysInMonth - dayOfMonth;
               const dailyAvg = monthlyStats.sales / dayOfMonth;
               const baseForecast = Math.round(dailyAvg * daysInMonth);
               const optimisticForecast = Math.round(baseForecast * 1.2);
               const progress = Math.round((dayOfMonth / daysInMonth) * 100);
+              
+              const prevSales = prevMonthStats?.sales || 0;
+              const target = prevSales > 0 ? prevSales : baseForecast;
+              const remainingSales = Math.max(0, target - monthlyStats.sales);
+              const durationMin = monthlyStats.hours * 60;
+              const hourlyRate = durationMin > 0 ? monthlyStats.sales / (durationMin / 60) : 0;
+              const remainingHours = hourlyRate > 0 ? remainingSales / hourlyRate : 0;
+              const dailyHours = remainingDays > 0 ? Math.round(remainingHours / remainingDays * 10) / 10 : 0;
+              const perSessionTarget = remainingDays > 0 ? Math.round(remainingSales / remainingDays) : 0;
+              const alreadyExceeded = prevSales > 0 && monthlyStats.sales >= prevSales;
+              
               return (
                 <Card className="bg-gradient-to-r from-emerald-900/30 to-cyan-900/20 border-emerald-500/30">
                   <CardContent className="p-3">
@@ -1113,11 +1125,39 @@ export default function LiverMypage() {
                         <p className="text-lg font-bold text-amber-400">¥{optimisticForecast.toLocaleString()}</p>
                       </div>
                     </div>
-                    {prevMonthStats && prevMonthStats.sales > 0 && baseForecast > prevMonthStats.sales && (
-                      <div className="mt-1.5 pt-1.5 border-t border-emerald-500/20 text-[10px] text-emerald-300/80">
-                        ✅ {lt('mypage.forecastPrevMonthBeat')} (¥{Number(prevMonthStats.sales).toLocaleString()})
-                      </div>
-                    )}
+                    {/* 配信目標ガイド */}
+                    <div className="mt-2 pt-2 border-t border-emerald-500/20">
+                      {alreadyExceeded ? (
+                        <>
+                          <div className="text-xs text-emerald-300/90 font-medium">🎉 {lt('mypage.forecastPrevMonthBeat')} 自己ベスト更新を目指そう！</div>
+                          {perSessionTarget > 0 && (
+                            <div className="mt-1 flex items-center gap-1.5">
+                              <span className="text-[10px] text-amber-300/70">💰 {lt('mypage.forecastPerSession')}</span>
+                              <span className="text-sm font-bold text-amber-400">¥{perSessionTarget.toLocaleString()}</span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {remainingSales > 0 && (
+                            <div className="text-xs text-cyan-300/80">
+                              ⏰ {lt('mypage.forecastRemaining')} <span className="font-bold text-cyan-300">¥{Math.round(remainingSales).toLocaleString()}</span>
+                            </div>
+                          )}
+                          {dailyHours > 0 && remainingDays > 0 && (
+                            <div className="mt-0.5 text-xs text-blue-300/70">
+                              📅 {lt('mypage.forecastDailyGuide').replace('{days}', String(remainingDays)).replace('{hours}', String(dailyHours))}
+                            </div>
+                          )}
+                          {perSessionTarget > 0 && (
+                            <div className="mt-0.5 flex items-center gap-1.5">
+                              <span className="text-[10px] text-amber-300/70">💰 {lt('mypage.forecastPerSession')}</span>
+                              <span className="text-sm font-bold text-amber-400">¥{perSessionTarget.toLocaleString()}</span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               );
