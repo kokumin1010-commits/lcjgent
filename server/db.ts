@@ -22823,3 +22823,62 @@ export async function ensureLiversUidColumn() {
     }
   }
 }
+
+// ライバー成長ダッシュボード用: 配信記録+セット情報を含む完全データ取得
+export async function getLiverGrowthData(liverId: number, limit: number = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const livestreams = await db
+    .select({
+      id: brandLivestreams.id,
+      brandId: brandLivestreams.brandId,
+      livestreamDate: brandLivestreams.livestreamDate,
+      livestreamEndTime: brandLivestreams.livestreamEndTime,
+      livestreamStartTime: brandLivestreams.livestreamStartTime,
+      duration: brandLivestreams.duration,
+      salesAmount: brandLivestreams.salesAmount,
+      manualSalesAmount: brandLivestreams.manualSalesAmount,
+      gmv: brandLivestreams.gmv,
+      viewerCount: brandLivestreams.viewerCount,
+      orderCount: brandLivestreams.orderCount,
+      streamerName: brandLivestreams.streamerName,
+      remarks: brandLivestreams.remarks,
+      screenshotUrl: brandLivestreams.screenshotUrl,
+      brandName: brands.name,
+      aiAdvice: brandLivestreams.aiAdvice,
+    })
+    .from(brandLivestreams)
+    .leftJoin(brands, eq(brandLivestreams.brandId, brands.id))
+    .where(and(eq(brandLivestreams.liverId, liverId), isNull(brandLivestreams.deletedAt)))
+    .orderBy(desc(brandLivestreams.livestreamDate))
+    .limit(limit);
+  
+  // 各配信のセット情報を取得
+  const livestreamsWithSets = await Promise.all(livestreams.map(async (ls) => {
+    const sets = await db.select().from(livestreamSets)
+      .where(eq(livestreamSets.livestreamId, ls.id))
+      .orderBy(asc(livestreamSets.sortOrder));
+    
+    const setsWithItems = await Promise.all(sets.map(async (set) => {
+      const items = await db.select().from(livestreamSetItems)
+        .where(eq(livestreamSetItems.setId, set.id))
+        .orderBy(asc(livestreamSetItems.sortOrder));
+      return { ...set, items };
+    }));
+    
+    // 売上計算（manualSalesAmount > salesAmount > gmv）
+    const effectiveSales = ls.manualSalesAmount || ls.salesAmount || ls.gmv || 0;
+    // 時間単価計算
+    const hourlyRate = ls.duration && ls.duration > 0 ? Math.round(effectiveSales / (ls.duration / 60)) : 0;
+    
+    return {
+      ...ls,
+      effectiveSales,
+      hourlyRate,
+      sets: setsWithItems,
+    };
+  }));
+  
+  return livestreamsWithSets;
+}

@@ -212,6 +212,7 @@ import {
   getLiverMonthlySalesTrendById,
   getAllLiversMonthlyTrend,
   getLiverRecentLivestreams,
+  getLiverGrowthData,
   getLiverBrandPerformance,
   getTopProductsByLiver,
   getLiverCategoryAnalysis,
@@ -13572,6 +13573,13 @@ ${liverName}さんの今回の配信データを分析して、以下を含む�
             .limit(input.limit);
           
           return { rooms, messages: messages.reverse() };
+        }),
+
+      // Get liver growth data with sets (ライバー成長データ+セット情報)
+      getLiverGrowthData: publicProcedure
+        .input(z.object({ liverId: z.number(), limit: z.number().optional().default(50) }))
+        .query(async ({ input }) => {
+          return await getLiverGrowthData(input.liverId, input.limit);
         }),
     }),
 
