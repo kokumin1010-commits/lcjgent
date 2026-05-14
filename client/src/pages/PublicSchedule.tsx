@@ -475,6 +475,19 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
     return map;
   }, [schedules, liverNamesWithColors, existingLivers]);
 
+  // Build liver UID lookup map (name -> uid)
+  const liverUidMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (liverNamesWithColors) {
+      for (const liver of liverNamesWithColors as any[]) {
+        if (liver.name && liver.uid) {
+          map.set(liver.name, liver.uid);
+        }
+      }
+    }
+    return map;
+  }, [liverNamesWithColors]);
+
   // Get selected group's member liver names
   const selectedGroupLiverNames = useMemo(() => {
     if (!selectedGroupId || !scheduleGroups) return null;
@@ -1558,7 +1571,12 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                             <div className="font-medium text-sm text-gray-900 truncate">{schedule.title}</div>
                             <div className="flex items-center gap-2">
                               {schedule.liverName && (
-                                <div className="text-xs text-gray-500 truncate">{schedule.liverName}</div>
+                                <div className="text-xs text-gray-500 truncate">
+                                  {schedule.liverName}
+                                  {liverUidMap.get(schedule.liverName) && (
+                                    <span className="ml-1 text-gray-400">({liverUidMap.get(schedule.liverName)})</span>
+                                  )}
+                                </div>
                               )}
                               {schedule.locationId && locationMap.get(schedule.locationId) && (
                                 <div className="flex items-center gap-1 text-xs text-blue-500">
@@ -1742,7 +1760,12 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                       <div className="flex-1 min-w-0">
                         <h3 className="font-medium text-gray-900 truncate">{schedule.title}</h3>
                         {schedule.liverName && (
-                          <p className="text-sm text-gray-500 truncate">{schedule.liverName}</p>
+                          <p className="text-sm text-gray-500 truncate">
+                            {schedule.liverName}
+                            {liverUidMap.get(schedule.liverName) && (
+                              <span className="ml-1 text-xs text-gray-400">({liverUidMap.get(schedule.liverName)})</span>
+                            )}
+                          </p>
                         )}
                         {schedule.locationId && locationMap.get(schedule.locationId) && (
                           <p className="flex items-center gap-1 text-xs text-blue-500">

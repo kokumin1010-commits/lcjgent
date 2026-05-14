@@ -279,9 +279,7 @@ export default function LiverDetail() {
               <Edit className="w-4 h-4 text-white hover:text-white cursor-pointer" />
             </Link>
           </div>
-          {(liver as any).uid && (
-            <p className="text-xs text-gray-400 mt-0.5">UID: {(liver as any).uid}</p>
-          )}
+          <p className="text-xs text-gray-400 mt-0.5">UID: {(liver as any).uid || '未登録'}</p>
           
           {/* SNS Links */}
           {(liver.tiktokAccount || liver.instagramAccount || liver.youtubeAccount || liver.otherAccount) && (

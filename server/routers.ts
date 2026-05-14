@@ -10008,17 +10008,19 @@ ${conversationText}
             .filter((name): name is string => Boolean(name))
         );
         
-        // Get all active livers with their colors
+        // Get all active livers with their colors and uid
         const liversResult = await db
-          .selectDistinct({ name: livers.name, color: livers.color })
+          .selectDistinct({ name: livers.name, color: livers.color, uid: livers.uid })
           .from(livers)
           .where(eq(livers.isActive, true));
         
-        // Build color lookup from livers table
+        // Build color lookup and uid lookup from livers table
         const colorMap = new Map<string, string>();
+        const uidMap = new Map<string, string | null>();
         for (const l of liversResult) {
           if (l.name && !colorMap.has(l.name)) {
             colorMap.set(l.name, l.color || '#FF69B4');
+            uidMap.set(l.name, l.uid || null);
           }
         }
         
@@ -10035,7 +10037,7 @@ ${conversationText}
         }
         
         return Array.from(allNames)
-          .map(name => ({ name, color: colorMap.get(name) || null }))
+          .map(name => ({ name, color: colorMap.get(name) || null, uid: uidMap.get(name) || null }))
           .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
       }),
 

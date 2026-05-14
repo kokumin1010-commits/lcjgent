@@ -3163,7 +3163,7 @@ export async function getLiverNamesByAgency(agencyId: number) {
   if (!db) return [];
   
   const result = await db
-    .select({ name: livers.name, color: livers.color })
+    .select({ name: livers.name, color: livers.color, uid: livers.uid })
     .from(livers)
     .where(and(
       eq(livers.agencyId, agencyId),
@@ -3172,7 +3172,7 @@ export async function getLiverNamesByAgency(agencyId: number) {
   
   return result
     .filter(r => r.name)
-    .map(r => ({ name: r.name!, color: r.color || '#FF69B4' }))
+    .map(r => ({ name: r.name!, color: r.color || '#FF69B4', uid: r.uid || null }))
     .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
 }
 
