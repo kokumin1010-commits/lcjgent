@@ -9541,9 +9541,6 @@ export async function getLiverDailySalesTrend(month: string, agencyId?: number |
       ? eq(livers.agencyId, agencyId)
       : undefined;
   
-  // Use raw SQL for DATE extraction with JST timezone offset
-  const dateExpr = sql`DATE(DATE_ADD(${brandLivestreams.livestreamDate}, INTERVAL 9 HOUR))`;
-  
   const query = db
     .select({
       date: sql<string>`DATE(DATE_ADD(${brandLivestreams.livestreamDate}, INTERVAL 9 HOUR))`.as("date"),
@@ -9565,8 +9562,8 @@ export async function getLiverDailySalesTrend(month: string, agencyId?: number |
       agencyFilter
     )
   )
-  .groupBy(sql`DATE(DATE_ADD(${brandLivestreams.livestreamDate}, INTERVAL 9 HOUR))`)
-  .orderBy(asc(sql`DATE(DATE_ADD(${brandLivestreams.livestreamDate}, INTERVAL 9 HOUR))`));
+  .groupBy(sql`date`)
+  .orderBy(asc(sql`date`));
   
   return result.map(r => ({
     date: String(r.date),
