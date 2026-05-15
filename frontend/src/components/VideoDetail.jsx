@@ -2223,6 +2223,9 @@ export default function VideoDetail({ videoData, editorParams }) {
                                                   clipUrl={clipState?.clip_url}
                                                   queuePosition={clipState?.queue_position}
                                                   queueEstimatedSeconds={clipState?.queue_estimated_seconds}
+                                                  sourceVideoUrl={videoData?.preview_url || null}
+                                                  clipTimeStart={item.time_start || 0}
+                                                  clipTimeEnd={item.time_end || null}
                                                 />
                                               )}
                                             </div>

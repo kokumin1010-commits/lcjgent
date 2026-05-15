@@ -5,7 +5,8 @@
  * 「仮想編集画面」をリアルタイムで表示する。
  *
  * Features:
- *   - プレビューウィンドウ（動画再生 + 編集オーバーレイ）
+ *   - 大きなプレビューウィンドウ（動画再生 + 編集オーバーレイ）
+ *   - リアルなマウスカーソルアニメーション（人間が操作している感）
  *   - タイムライン（カット位置マーカー、再生ヘッド、ハサミアニメーション）
  *   - 波形表示（無音除去ステップ）
  *   - 字幕タイピングアニメーション
@@ -61,35 +62,133 @@ function getStepIndex(step) {
   return idx >= 0 ? idx : 0;
 }
 
+// ─── Fake Mouse Cursor (human-like editing feel) ───
+function FakeMouseCursor({ isActive, currentStep }) {
+  const [pos, setPos] = useState({ x: 50, y: 50 });
+  const [isClicking, setIsClicking] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const animRef = useRef(null);
+
+  useEffect(() => {
+    if (!isActive) return;
+
+    // Define target positions based on current step
+    const getTargetForStep = () => {
+      switch (currentStep) {
+        case 'cutting':
+        case 'hook_detection':
+        case 'hook_insertion':
+          // Move along timeline area
+          return { x: 20 + Math.random() * 60, y: 85 + Math.random() * 8 };
+        case 'person_detection':
+          // Move around the video preview
+          return { x: 30 + Math.random() * 40, y: 30 + Math.random() * 40 };
+        case 'transcribing':
+        case 'refining_subtitles':
+        case 'subtitle_preview':
+          // Move to subtitle area
+          return { x: 20 + Math.random() * 60, y: 70 + Math.random() * 15 };
+        case 'silence_removal':
+        case 'speech_boundary':
+        case 'sound_effects':
+          // Move to audio waveform area
+          return { x: 15 + Math.random() * 70, y: 75 + Math.random() * 10 };
+        default:
+          // General movement
+          return { x: 20 + Math.random() * 60, y: 20 + Math.random() * 60 };
+      }
+    };
+
+    const moveInterval = setInterval(() => {
+      const target = getTargetForStep();
+      // Smooth easing toward target
+      setPos(prev => ({
+        x: prev.x + (target.x - prev.x) * 0.15,
+        y: prev.y + (target.y - prev.y) * 0.15,
+      }));
+
+      // Simulate clicks
+      if (Math.random() < 0.08) {
+        setIsClicking(true);
+        setTimeout(() => setIsClicking(false), 150);
+      }
+
+      // Simulate dragging on timeline
+      if (currentStep === 'cutting' && Math.random() < 0.05) {
+        setIsDragging(true);
+        setTimeout(() => setIsDragging(false), 800);
+      }
+    }, 80);
+
+    return () => clearInterval(moveInterval);
+  }, [isActive, currentStep]);
+
+  if (!isActive) return null;
+
+  return (
+    <div
+      className="absolute z-30 pointer-events-none transition-all"
+      style={{
+        left: `${pos.x}%`,
+        top: `${pos.y}%`,
+        transform: 'translate(-2px, -2px)',
+        transition: 'left 0.12s cubic-bezier(0.25, 0.1, 0.25, 1), top 0.12s cubic-bezier(0.25, 0.1, 0.25, 1)',
+      }}
+    >
+      {/* Cursor SVG */}
+      <svg
+        width="16" height="20" viewBox="0 0 16 20" fill="none"
+        className={`drop-shadow-lg ${isClicking ? 'scale-90' : ''}`}
+        style={{ transition: 'transform 0.1s ease' }}
+      >
+        <path d="M1 1L1 15L5 11L9 19L11 18L7 10L13 10L1 1Z" fill="white" stroke="#333" strokeWidth="1" />
+      </svg>
+      {/* Click ripple */}
+      {isClicking && (
+        <div className="absolute top-1 left-1 w-4 h-4 rounded-full border border-blue-400/60 animate-ping" />
+      )}
+      {/* Drag indicator */}
+      {isDragging && (
+        <div className="absolute top-5 left-0 text-[7px] font-mono text-blue-300 bg-black/60 px-1 rounded whitespace-nowrap">
+          drag
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Animated Waveform (for audio steps) ───
 function AudioWaveform({ isActive, isSilenceRemoval }) {
-  const bars = 32;
+  const bars = 40;
   return (
-    <div className="flex items-end gap-[1px] h-8 px-1">
+    <div className="flex items-end gap-[1px] h-10 px-1">
       {Array.from({ length: bars }).map((_, i) => {
-        const isSilent = isSilenceRemoval && (i >= 8 && i <= 12 || i >= 20 && i <= 24);
+        const isSilent = isSilenceRemoval && (i >= 10 && i <= 15 || i >= 25 && i <= 30);
         return (
           <div
             key={i}
-            className={`w-[3px] rounded-full transition-all duration-300 ${
+            className={`w-[3px] rounded-full transition-all duration-200 ${
               isSilent
-                ? 'bg-red-500/40 opacity-30'
+                ? 'bg-red-500/50 opacity-30'
                 : isActive
                   ? 'bg-emerald-400/80'
                   : 'bg-gray-600/40'
             }`}
             style={{
               height: isSilent ? '2px' : `${Math.random() * 70 + 30}%`,
-              animation: isActive && !isSilent ? `waveform ${0.4 + Math.random() * 0.6}s ease-in-out infinite alternate` : 'none',
-              animationDelay: `${i * 30}ms`,
+              animation: isActive && !isSilent ? `waveform ${0.3 + Math.random() * 0.4}s ease-in-out infinite alternate` : 'none',
+              animationDelay: `${i * 20}ms`,
             }}
           />
         );
       })}
       {isSilenceRemoval && (
         <>
-          <div className="absolute left-[25%] top-0 bottom-0 w-[2px] bg-red-500/60 animate-pulse" />
-          <div className="absolute left-[62%] top-0 bottom-0 w-[2px] bg-red-500/60 animate-pulse" />
+          <div className="absolute left-[25%] top-0 bottom-0 w-[2px] bg-red-500/70 animate-pulse" />
+          <div className="absolute left-[62%] top-0 bottom-0 w-[2px] bg-red-500/70 animate-pulse" />
+          {/* Strikethrough effect on silent regions */}
+          <div className="absolute left-[25%] top-1/2 w-[12%] h-[2px] bg-red-400/80" style={{ transform: 'rotate(-3deg)' }} />
+          <div className="absolute left-[62%] top-1/2 w-[12%] h-[2px] bg-red-400/80" style={{ transform: 'rotate(-3deg)' }} />
         </>
       )}
     </div>
@@ -99,18 +198,15 @@ function AudioWaveform({ isActive, isSilenceRemoval }) {
 // ─── Timeline with Cut Markers ───
 function EditTimeline({ progressPct, currentStep, logs }) {
   const cutPositions = useMemo(() => {
-    // Generate cut positions from logs that mention cutting
     const cuts = [];
     logs.forEach(log => {
       if (log.step === 'cutting' || log.step === 'silence_removal') {
-        // Simulate cut positions based on progress
         const pos = (log.pct || 0) / 100;
         if (pos > 0 && pos < 1) cuts.push(pos);
       }
     });
-    // Add some visual cuts for demo
     if (cuts.length === 0 && getStepIndex(currentStep) >= getStepIndex('cutting')) {
-      return [0.15, 0.32, 0.48, 0.67, 0.82];
+      return [0.12, 0.28, 0.43, 0.58, 0.72, 0.88];
     }
     return cuts.length > 0 ? cuts : [];
   }, [logs, currentStep]);
@@ -119,26 +215,35 @@ function EditTimeline({ progressPct, currentStep, logs }) {
   const isCutting = currentStep === 'cutting' || currentStep === 'silence_removal';
 
   return (
-    <div className="relative h-10 bg-gray-900/80 rounded-md overflow-hidden border border-gray-700/50">
-      {/* Track background with gradient segments */}
+    <div className="relative h-12 bg-gray-900/80 rounded-md overflow-hidden border border-gray-700/50">
+      {/* Track background */}
       <div className="absolute inset-0 flex">
-        <div className="flex-1 bg-gradient-to-r from-blue-900/30 via-purple-900/20 to-blue-900/30" />
+        <div className="flex-1 bg-gradient-to-r from-blue-900/20 via-purple-900/15 to-blue-900/20" />
       </div>
 
       {/* Video track visualization */}
-      <div className="absolute top-1 bottom-1 left-0 right-0 mx-2">
-        {/* Clip segments */}
+      <div className="absolute top-1.5 bottom-1.5 left-0 right-0 mx-2">
+        {/* Clip segments with thumbnails feel */}
         <div className="absolute inset-0 flex gap-[2px]">
-          {Array.from({ length: 8 }).map((_, i) => (
+          {Array.from({ length: 10 }).map((_, i) => (
             <div
               key={i}
-              className={`flex-1 rounded-sm ${
-                i % 2 === 0 ? 'bg-indigo-600/40' : 'bg-purple-600/30'
-              } ${playheadPos * 8 > i ? 'opacity-100' : 'opacity-50'}`}
-              style={{
-                transition: 'opacity 0.5s ease',
-              }}
-            />
+              className={`flex-1 rounded-sm relative overflow-hidden ${
+                i % 3 === 0 ? 'bg-indigo-600/50' : i % 3 === 1 ? 'bg-purple-600/40' : 'bg-blue-600/35'
+              } ${playheadPos * 10 > i ? 'opacity-100' : 'opacity-40'}`}
+              style={{ transition: 'opacity 0.3s ease' }}
+            >
+              {/* Mini waveform inside each segment */}
+              <div className="absolute bottom-0 left-0 right-0 h-[40%] flex items-end gap-[1px] px-[1px]">
+                {Array.from({ length: 6 }).map((_, j) => (
+                  <div
+                    key={j}
+                    className="flex-1 bg-white/20 rounded-t-sm"
+                    style={{ height: `${20 + Math.random() * 80}%` }}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
 
@@ -149,10 +254,9 @@ function EditTimeline({ progressPct, currentStep, logs }) {
             className="absolute top-0 bottom-0 flex flex-col items-center justify-center z-10"
             style={{ left: `${pos * 100}%`, transform: 'translateX(-50%)' }}
           >
-            <div className={`w-[2px] h-full ${isCutting ? 'bg-yellow-400/80' : 'bg-orange-400/60'}`} />
+            <div className={`w-[2px] h-full ${isCutting ? 'bg-yellow-400/90' : 'bg-orange-400/60'}`} />
             <span
-              className={`absolute text-[8px] -top-0.5 ${isCutting ? 'animate-bounce' : ''}`}
-              style={{ fontSize: '10px' }}
+              className={`absolute text-[9px] -top-0.5 ${isCutting ? 'animate-bounce' : ''}`}
             >
               ✂️
             </span>
@@ -161,17 +265,17 @@ function EditTimeline({ progressPct, currentStep, logs }) {
 
         {/* Playhead */}
         <div
-          className="absolute top-0 bottom-0 z-20 transition-all duration-700 ease-out"
+          className="absolute top-0 bottom-0 z-20 transition-all duration-500 ease-out"
           style={{ left: `${playheadPos * 100}%` }}
         >
-          <div className="w-[2px] h-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)]" />
-          <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white rounded-full shadow-lg" />
+          <div className="w-[2px] h-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]" />
+          <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white rounded-sm shadow-lg rotate-45" style={{ clipPath: 'polygon(0 0, 100% 0, 50% 100%)' }} />
         </div>
       </div>
 
       {/* Time markers */}
-      <div className="absolute bottom-0 left-2 right-2 flex justify-between">
-        {['0:00', '', '', '', `${Math.floor(progressPct / 100 * 60)}s`].map((t, i) => (
+      <div className="absolute bottom-0.5 left-2 right-2 flex justify-between">
+        {['0:00', '', '', '', '', `${Math.floor(progressPct / 100 * 60)}s`].map((t, i) => (
           <span key={i} className="text-[7px] font-mono text-gray-500">{t}</span>
         ))}
       </div>
@@ -188,27 +292,38 @@ function PersonDetectionOverlay({ isActive }) {
       {/* Scanning line */}
       <div
         className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-80"
-        style={{
-          animation: 'scanLine 2s ease-in-out infinite',
-        }}
+        style={{ animation: 'scanLine 1.8s ease-in-out infinite' }}
       />
-      {/* Detection boxes */}
+      {/* Primary detection box */}
       <div
         className="absolute border-2 border-cyan-400 rounded-sm"
         style={{
-          top: '15%', left: '25%', width: '30%', height: '70%',
+          top: '10%', left: '20%', width: '35%', height: '75%',
           animation: 'fadeInBox 0.5s ease-out forwards',
-          boxShadow: '0 0 8px rgba(34, 211, 238, 0.4)',
+          boxShadow: '0 0 12px rgba(34, 211, 238, 0.5)',
         }}
       >
-        <div className="absolute -top-4 left-0 bg-cyan-500/90 px-1 rounded text-[8px] text-white font-mono">
+        <div className="absolute -top-5 left-0 bg-cyan-500/90 px-1.5 py-0.5 rounded text-[9px] text-white font-mono font-bold">
           Person 1 • 98%
         </div>
         {/* Corner markers */}
-        <div className="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-cyan-400" />
-        <div className="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-cyan-400" />
-        <div className="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 border-cyan-400" />
-        <div className="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-cyan-400" />
+        <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-cyan-400" />
+        <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-cyan-400" />
+        <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-cyan-400" />
+        <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-cyan-400" />
+      </div>
+      {/* Secondary detection (smaller person in background) */}
+      <div
+        className="absolute border border-cyan-300/60 rounded-sm"
+        style={{
+          top: '25%', left: '60%', width: '18%', height: '50%',
+          animation: 'fadeInBox 0.8s ease-out 0.3s forwards',
+          opacity: 0,
+        }}
+      >
+        <div className="absolute -top-4 left-0 bg-cyan-500/70 px-1 rounded text-[7px] text-white font-mono">
+          Person 2 • 82%
+        </div>
       </div>
     </div>
   );
@@ -225,8 +340,8 @@ function CutLineOverlay({ isActive, progressPct }) {
         className="absolute top-0 bottom-0 w-[2px] bg-gradient-to-b from-yellow-400 via-orange-400 to-yellow-400"
         style={{
           left: `${(progressPct % 50) * 2}%`,
-          boxShadow: '0 0 8px rgba(251, 146, 60, 0.6), 0 0 16px rgba(251, 146, 60, 0.3)',
-          animation: 'cutSweep 3s ease-in-out infinite',
+          boxShadow: '0 0 10px rgba(251, 146, 60, 0.7), 0 0 20px rgba(251, 146, 60, 0.3)',
+          animation: 'cutSweep 2.5s ease-in-out infinite',
         }}
       />
       {/* Scissors icon at cut position */}
@@ -236,16 +351,17 @@ function CutLineOverlay({ isActive, progressPct }) {
           left: `${(progressPct % 50) * 2}%`,
           top: '45%',
           transform: 'translate(-50%, -50%)',
-          animation: 'cutSweep 3s ease-in-out infinite',
+          animation: 'cutSweep 2.5s ease-in-out infinite',
         }}
       >
         ✂️
       </div>
-      {/* Flash effect on cut */}
+      {/* Selection highlight */}
       <div
-        className="absolute inset-0 bg-white/5"
+        className="absolute top-2 bottom-2 bg-blue-400/10 border border-blue-400/30 rounded"
         style={{
-          animation: 'cutFlash 2s ease-in-out infinite',
+          left: '15%', width: '30%',
+          animation: 'selectionPulse 3s ease-in-out infinite',
         }}
       />
     </div>
@@ -272,23 +388,23 @@ function SubtitleTyping({ isActive, message }) {
       } else {
         clearInterval(interval);
       }
-    }, 60);
+    }, 45); // Faster typing
     return () => clearInterval(interval);
   }, [isActive, message]);
 
   useEffect(() => {
-    const blink = setInterval(() => setCursorVisible(v => !v), 530);
+    const blink = setInterval(() => setCursorVisible(v => !v), 500);
     return () => clearInterval(blink);
   }, []);
 
   if (!isActive && !displayText) return null;
 
   return (
-    <div className="absolute bottom-4 left-4 right-4 z-10">
-      <div className="bg-black/80 backdrop-blur-sm rounded-md px-3 py-2 border border-gray-600/50">
-        <span className="text-white text-xs font-medium">
+    <div className="absolute bottom-6 left-[10%] right-[10%] z-10">
+      <div className="bg-black/85 backdrop-blur-sm rounded-lg px-4 py-2.5 border border-gray-500/40 shadow-lg">
+        <span className="text-white text-sm font-medium leading-relaxed">
           {displayText}
-          <span className={`inline-block w-[2px] h-3 bg-white ml-0.5 ${cursorVisible ? 'opacity-100' : 'opacity-0'}`} />
+          <span className={`inline-block w-[2px] h-4 bg-white ml-0.5 align-middle ${cursorVisible ? 'opacity-100' : 'opacity-0'}`} />
         </span>
       </div>
     </div>
@@ -301,7 +417,7 @@ function TerminalLog({ logs, isActive }) {
   const [visibleLogs, setVisibleLogs] = useState([]);
 
   useEffect(() => {
-    setVisibleLogs(logs.slice(-8));
+    setVisibleLogs(logs.slice(-6));
   }, [logs]);
 
   useEffect(() => {
@@ -325,7 +441,7 @@ function TerminalLog({ logs, isActive }) {
       {/* Log content */}
       <div
         ref={scrollRef}
-        className="px-2 py-1.5 max-h-24 overflow-y-auto font-mono text-[10px] leading-relaxed"
+        className="px-2 py-1.5 max-h-20 overflow-y-auto font-mono text-[10px] leading-relaxed"
         style={{ scrollbarWidth: 'thin', scrollbarColor: '#374151 #111827' }}
       >
         {visibleLogs.map((log, idx) => {
@@ -404,7 +520,6 @@ function SourceVideoPlayer({ url, timeStart = 0, timeEnd = null, isActive }) {
   }, [timeStart, isActive]);
 
   const handleTimeUpdate = useCallback(() => {
-    // Loop within the clip range
     if (videoRef.current && timeEnd && videoRef.current.currentTime >= timeEnd) {
       videoRef.current.currentTime = timeStart || 0;
     }
@@ -437,7 +552,6 @@ function SourceVideoPlayer({ url, timeStart = 0, timeEnd = null, isActive }) {
         onTimeUpdate={handleTimeUpdate}
         onError={handleError}
       />
-      {/* Loading indicator while video loads */}
       {!isLoaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50">
           <div className="w-8 h-8 rounded-full border-2 border-gray-600 border-t-blue-400 animate-spin" />
@@ -487,10 +601,8 @@ export default function AIEditorMonitor({
   const isAudioStep = ['speech_boundary', 'silence_removal', 'sound_effects'].includes(progressStep);
   const isCutStep = ['cutting', 'hook_detection', 'hook_insertion'].includes(progressStep);
 
-  // Determine if we should show source video (when no log preview is available but sourceVideoUrl exists)
   const showSourceVideo = !currentPreview && sourceVideoUrl && isActive;
 
-  // Get latest subtitle message
   const subtitleMessage = useMemo(() => {
     const subtitleLogs = logs.filter(l =>
       ['transcribing', 'refining_subtitles', 'subtitle_preview'].includes(l.step)
@@ -535,7 +647,7 @@ export default function AIEditorMonitor({
           <div className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
         </div>
         <div className="flex-1 flex items-center justify-center gap-2">
-          <span className="text-[10px] font-medium text-gray-300 tracking-wide">
+          <span className="text-[11px] font-medium text-gray-300 tracking-wide">
             AI Editor Pro
           </span>
           {isActive && (
@@ -563,8 +675,11 @@ export default function AIEditorMonitor({
 
       {/* ─── Main Content ─── */}
       <div className="flex flex-col">
-        {/* ─── Preview Window ─── */}
-        <div className="relative bg-black aspect-video max-h-[200px] overflow-hidden">
+        {/* ─── Preview Window (LARGER - 16:9 aspect ratio, no max-height restriction) ─── */}
+        <div className="relative bg-black aspect-[16/9] overflow-hidden">
+          {/* Fake mouse cursor for human-like feel */}
+          <FakeMouseCursor isActive={isActive && !isQueued} currentStep={progressStep} />
+
           {currentPreview ? (
             <>
               <PreviewPlayer
@@ -621,18 +736,18 @@ export default function AIEditorMonitor({
               {/* Progress overlay bar at bottom */}
               <div className="absolute bottom-0 left-0 right-0 h-1 z-20 bg-gray-900/50">
                 <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-700"
+                  className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500"
                   style={{ width: `${Math.max(progressPct, 2)}%` }}
                 />
               </div>
             </>
           ) : isQueued ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
               <div className="relative">
-                <div className="w-14 h-14 rounded-full border-2 border-gray-700 border-t-amber-400 animate-spin" style={{ animationDuration: '3s' }} />
-                <span className="absolute inset-0 flex items-center justify-center text-xl">⏳</span>
+                <div className="w-16 h-16 rounded-full border-2 border-gray-700 border-t-amber-400 animate-spin" style={{ animationDuration: '3s' }} />
+                <span className="absolute inset-0 flex items-center justify-center text-2xl">⏳</span>
               </div>
-              <span className="text-[11px] font-mono text-amber-400 animate-pulse">
+              <span className="text-xs font-mono text-amber-400 animate-pulse">
                 Waiting in queue...
               </span>
               {queuePosition && (
@@ -654,12 +769,13 @@ export default function AIEditorMonitor({
               )}
             </div>
           ) : isActive ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+              {/* Animated editor workspace placeholder */}
               <div className="relative">
-                <div className="w-14 h-14 rounded-full border-2 border-gray-700 border-t-blue-400 animate-spin" />
-                <span className="absolute inset-0 flex items-center justify-center text-xl">🎬</span>
+                <div className="w-16 h-16 rounded-full border-2 border-gray-700 border-t-blue-400 animate-spin" />
+                <span className="absolute inset-0 flex items-center justify-center text-2xl">🎬</span>
               </div>
-              <span className="text-[11px] font-mono text-blue-400">
+              <span className="text-xs font-mono text-blue-400">
                 Preparing workspace...
               </span>
             </div>
@@ -668,9 +784,9 @@ export default function AIEditorMonitor({
 
         {/* ─── Audio Waveform (for audio steps) ─── */}
         {(isAudioStep || getStepIndex(progressStep) >= getStepIndex('speech_boundary')) && isActive && (
-          <div className="relative px-3 py-1.5 bg-[#111] border-t border-gray-800/50">
+          <div className="relative px-3 py-2 bg-[#111] border-t border-gray-800/50">
             <div className="flex items-center gap-2">
-              <span className="text-[8px] font-mono text-gray-500 w-8">🎵 Audio</span>
+              <span className="text-[9px] font-mono text-gray-500 w-10">🎵 Audio</span>
               <div className="flex-1 relative">
                 <AudioWaveform
                   isActive={isAudioStep}
@@ -683,17 +799,17 @@ export default function AIEditorMonitor({
 
         {/* ─── Timeline ─── */}
         <div className="px-3 py-2 bg-[#111] border-t border-gray-800/50">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[8px] font-mono text-gray-500">Timeline</span>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[9px] font-mono text-gray-500">Timeline</span>
             <div className="flex-1 h-px bg-gray-800" />
-            <span className="text-[8px] font-mono text-gray-500">{progressPct}%</span>
+            <span className="text-[9px] font-mono text-gray-400 font-bold">{progressPct}%</span>
           </div>
           <EditTimeline progressPct={progressPct} currentStep={progressStep} logs={logs} />
         </div>
 
         {/* ─── Step Progress Indicator ─── */}
-        <div className="px-3 py-1.5 bg-[#0f0f0f] border-t border-gray-800/50">
-          <div className="flex items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+        <div className="px-3 py-2 bg-[#0f0f0f] border-t border-gray-800/50">
+          <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
             {['cutting', 'person_detection', 'silence_removal', 'transcribing', 'creating_clip', 'uploading'].map((step, i) => {
               const cfg = getStepConfig(step);
               const stepIdx = getStepIndex(step);
@@ -701,18 +817,18 @@ export default function AIEditorMonitor({
               const isDone = currentIdx > stepIdx;
               const isCurrent = progressStep === step;
               return (
-                <div key={step} className="flex items-center gap-0.5">
+                <div key={step} className="flex items-center gap-1">
                   <div
-                    className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-mono transition-all ${
+                    className={`flex items-center gap-0.5 px-2 py-1 rounded text-[9px] font-mono transition-all ${
                       isDone ? 'bg-green-900/30 text-green-400' :
-                      isCurrent ? 'bg-gray-700/50 text-white ring-1 ring-gray-500' :
+                      isCurrent ? 'bg-gray-700/50 text-white ring-1 ring-gray-500 animate-pulse' :
                       'bg-gray-800/30 text-gray-600'
                     }`}
                   >
-                    <span className="text-[9px]">{isDone ? '✓' : cfg.icon}</span>
+                    <span className="text-[10px]">{isDone ? '✓' : cfg.icon}</span>
                     <span className="hidden sm:inline">{cfg.label.split(' ')[0]}</span>
                   </div>
-                  {i < 5 && <span className="text-gray-700 text-[8px]">→</span>}
+                  {i < 5 && <span className="text-gray-700 text-[9px]">→</span>}
                 </div>
               );
             })}
@@ -725,9 +841,9 @@ export default function AIEditorMonitor({
         </div>
 
         {/* ─── Footer Status Bar ─── */}
-        <div className="flex items-center justify-between px-3 py-1 bg-[#1a1a1a] border-t border-gray-800/80">
+        <div className="flex items-center justify-between px-3 py-1.5 bg-[#1a1a1a] border-t border-gray-800/80">
           <div className="flex items-center gap-2">
-            <span className="text-[8px] font-mono text-gray-500">
+            <span className="text-[9px] font-mono text-gray-500">
               {isQueued ? '⏳ Queued' : isActive ? `⚡ ${stepConfig.label}` : isCompleted ? '✅ Done' : isFailed ? '❌ Failed' : ''}
             </span>
           </div>
@@ -740,9 +856,9 @@ export default function AIEditorMonitor({
             </span>
             {/* Progress bar mini */}
             <div className="flex items-center gap-1">
-              <div className="w-16 h-1 bg-gray-800 rounded-full overflow-hidden">
+              <div className="w-20 h-1.5 bg-gray-800 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-700 ${
+                  className={`h-full rounded-full transition-all duration-500 ${
                     isFailed ? 'bg-red-500' :
                     isCompleted ? 'bg-green-500' :
                     'bg-gradient-to-r from-blue-500 to-purple-500'
@@ -750,7 +866,7 @@ export default function AIEditorMonitor({
                   style={{ width: `${Math.max(progressPct, 2)}%` }}
                 />
               </div>
-              <span className="text-[8px] font-mono text-gray-400">{progressPct}%</span>
+              <span className="text-[9px] font-mono text-gray-400 font-bold">{progressPct}%</span>
             </div>
           </div>
         </div>
@@ -759,8 +875,8 @@ export default function AIEditorMonitor({
       {/* ─── CSS Animations ─── */}
       <style>{`
         @keyframes waveform {
-          0% { height: 20%; }
-          100% { height: 80%; }
+          0% { height: 15%; }
+          100% { height: 85%; }
         }
         @keyframes scanLine {
           0% { top: 0%; }
@@ -777,12 +893,16 @@ export default function AIEditorMonitor({
         }
         @keyframes cutSweep {
           0% { left: 10%; }
-          50% { left: 90%; }
+          50% { left: 85%; }
           100% { left: 10%; }
         }
         @keyframes cutFlash {
           0%, 90%, 100% { opacity: 0; }
           95% { opacity: 1; }
+        }
+        @keyframes selectionPulse {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.6; }
         }
         .animate-fadeIn {
           animation: fadeIn 0.3s ease-out forwards;
