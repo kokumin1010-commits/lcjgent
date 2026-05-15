@@ -208,8 +208,14 @@ export default class BaseApiService {
       const currentPath = window.location.pathname;
       if (currentPath.startsWith('/video/') || currentPath.startsWith('/live/')) {
         try {
-          sessionStorage.setItem('postLoginRedirect', currentPath);
+          sessionStorage.setItem('postLoginRedirect', currentPath + window.location.search);
         } catch { /* ignore */ }
+        // Navigate to root to clear videoId from URL.
+        // Without this, MainLayout's useEffect re-sets selectedVideoId from URL params,
+        // causing ProcessingSteps to render behind LoginModal overlay (grey screen bug).
+        window.history.replaceState(null, '', '/');
+        // Dispatch popstate so React Router picks up the URL change
+        window.dispatchEvent(new PopStateEvent('popstate'));
       }
       // Then dispatch event to open login modal
       // Use setTimeout to ensure logout completes before opening modal

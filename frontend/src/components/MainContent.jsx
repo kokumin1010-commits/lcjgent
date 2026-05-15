@@ -1325,11 +1325,13 @@ export default function MainContent({
   }, [uploadedVideoId, selectedVideoId]);
 
   const shouldShowGlobalVideoLoading =
+    isLoggedIn &&  // Don't show loading when logged out
     loadingVideo &&
     Boolean(selectedVideoId) &&
     selectedVideoId !== uploadedVideoId;
   const activeProcessingVideoId = uploadedVideoId || selectedVideoId;
   const shouldRenderProcessing =
+    isLoggedIn &&  // Prevent ProcessingSteps from rendering when logged out (grey screen fix)
     !showFeedback &&
     !shouldShowGlobalVideoLoading &&
     (uploading || Boolean(activeProcessingVideoId)) &&
