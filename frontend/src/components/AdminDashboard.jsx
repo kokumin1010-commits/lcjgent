@@ -389,8 +389,9 @@ export default function AdminDashboard() {
     );
   }
 
-  // ── Loading ── (skip for reviewer — they don't need dashboard stats)
-  if (loading && !isReviewer) {
+  // ── Loading / Error ── only block rendering when on dashboard tab and not reviewer
+  const needsStats = activeTab === "dashboard" && !isReviewer;
+  if (loading && needsStats) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
@@ -398,9 +399,7 @@ export default function AdminDashboard() {
       </div>
     );
   }
-
-  // ── Error ── (skip for reviewer)
-  if (error && !isReviewer) {
+  if (error && needsStats) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4">
         <p className="text-red-500 text-lg">{error}</p>
@@ -419,8 +418,7 @@ export default function AdminDashboard() {
       </div>
     );
   }
-
-  if (!stats && !isReviewer) return null;
+  if (!stats && needsStats) return null;
 
   const { data_volume, video_types, user_scale } = stats || {};
 
@@ -640,7 +638,24 @@ export default function AdminDashboard() {
           )}
         </div>
 
-        {activeTab === "dashboard" && (
+        {activeTab === "dashboard" && !stats && (
+          <div className="flex flex-col items-center justify-center py-16 gap-4">
+            {error ? (
+              <>
+                <p className="text-red-500 text-lg">{error}</p>
+                <button onClick={fetchDashboard} className="px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors text-sm font-medium">
+                  リトライ
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500"></div>
+                <span className="text-sm text-gray-500">{window.__t('adminDashboard_4e4ae3', 'ダッシュボードを読み込み中...')}</span>
+              </>
+            )}
+          </div>
+        )}
+        {activeTab === "dashboard" && stats && (
           <>
             {/* データ量 (AI資産量) */}
             <section className="mb-8">
