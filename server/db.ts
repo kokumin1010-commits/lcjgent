@@ -21123,6 +21123,43 @@ export async function grantAdminRole(email: string): Promise<boolean> {
   }
 }
 
+/**
+ * Sync staff admin roles: Grant admin role to ALL active staff members.
+ * Called on server startup to ensure all HR staff can access admin dashboard.
+ */
+export async function syncStaffAdminRoles(): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    const activeStaffList = await getActiveStaff();
+    if (activeStaffList.length === 0) {
+      console.log('[Admin Sync] No active staff found');
+      return;
+    }
+    let promoted = 0;
+    let alreadyAdmin = 0;
+    let noAccount = 0;
+    for (const s of activeStaffList) {
+      if (!s.email) continue;
+      const existing = await db.select().from(users).where(eq(users.email, s.email)).limit(1);
+      if (existing.length > 0) {
+        if (existing[0].role === 'admin') {
+          alreadyAdmin++;
+        } else {
+          await db.update(users).set({ role: 'admin' }).where(eq(users.email, s.email));
+          promoted++;
+          console.log(`[Admin Sync] Promoted ${s.name} (${s.email}) to admin`);
+        }
+      } else {
+        noAccount++;
+      }
+    }
+    console.log(`[Admin Sync] Complete: ${promoted} promoted, ${alreadyAdmin} already admin, ${noAccount} no account yet`);
+  } catch (err) {
+    console.error('[Admin Sync] Failed:', err);
+  }
+}
+
 
 /**
  * Get all livers' monthly sales trend (past 3 months) for sparkline display

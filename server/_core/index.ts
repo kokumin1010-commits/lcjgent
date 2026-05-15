@@ -2067,10 +2067,10 @@ async function startServer() {
       });
     });
 
-    // Grant admin role to specific users on startup
-    import("../db").then(({ grantAdminRole }) => {
-      grantAdminRole("lcgxyz123@gmail.com").catch((err: unknown) => {
-        console.error("[Admin] Failed to grant admin role:", err);
+    // Sync admin roles for ALL active staff members on startup
+    import("../db").then(({ syncStaffAdminRoles }) => {
+      syncStaffAdminRoles().catch((err: unknown) => {
+        console.error("[Admin Sync] Failed to sync staff admin roles:", err);
       });
     });
 
