@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion, livestreamPromotions, InsertLivestreamPromotion, masterSetSuggestions, InsertMasterSetSuggestion, masterSetSuggestionItems, InsertMasterSetSuggestionItem, masterSetAdoptions, InsertMasterSetAdoption, masterSetFeedback, InsertMasterSetFeedback, masterSetReviews, InsertMasterSetReview } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion, livestreamPromotions, InsertLivestreamPromotion, masterSetSuggestions, InsertMasterSetSuggestion, masterSetSuggestionItems, InsertMasterSetSuggestionItem, masterSetAdoptions, InsertMasterSetAdoption, masterSetFeedback, InsertMasterSetFeedback, masterSetReviews, InsertMasterSetReview, megaChannelSettings, InsertMegaChannelSetting, megaChannelQualifications, InsertMegaChannelQualification, megaChannelHistory, InsertMegaChannelHistoryRecord } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -23188,4 +23188,460 @@ export async function getLiverGrowthData(liverId: number, limit: number = 50) {
   }));
   
   return livestreamsWithSets;
+}
+
+
+// ============================================================
+// Mega Channel Functions - メガチャンネル配信制度
+// ============================================================
+
+/**
+ * ライバーの直近N回のライブの平均時間単価を計算
+ */
+export async function getLiverRecentHourlyRate(liverId: number, recentCount: number = 3) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    // ライバー名も取得（streamerNameでのマッチ用）
+    const liver = await db
+      .select({ id: livers.id, name: livers.name })
+      .from(livers)
+      .where(eq(livers.id, liverId))
+      .limit(1);
+    
+    if (liver.length === 0) return null;
+    const liverName = liver[0].name;
+    
+    // 直近N回のライブを取得（削除されていないもの、売上と配信時間があるもの）
+    const recentLivestreams = await db
+      .select({
+        id: brandLivestreams.id,
+        salesAmount: brandLivestreams.salesAmount,
+        duration: brandLivestreams.duration,
+        livestreamDate: brandLivestreams.livestreamDate,
+      })
+      .from(brandLivestreams)
+      .where(
+        and(
+          or(
+            eq(brandLivestreams.liverId, liverId),
+            eq(brandLivestreams.streamerName, liverName)
+          ),
+          isNull(brandLivestreams.deletedAt),
+          gt(brandLivestreams.salesAmount, 0),
+          gt(brandLivestreams.duration, 0)
+        )
+      )
+      .orderBy(desc(brandLivestreams.livestreamDate))
+      .limit(recentCount);
+    
+    if (recentLivestreams.length === 0) {
+      return {
+        liverId,
+        liverName,
+        avgHourlyRate: 0,
+        recentLivestreamCount: 0,
+        livestreams: [],
+      };
+    }
+    
+    // 各ライブの時間単価を計算
+    const livestreamsWithRate = recentLivestreams.map(ls => {
+      const sales = Number(ls.salesAmount || 0);
+      const durationHours = (ls.duration || 0) / 60;
+      const hourlyRate = durationHours > 0 ? Math.round(sales / durationHours) : 0;
+      return {
+        id: ls.id,
+        salesAmount: sales,
+        duration: ls.duration || 0,
+        durationHours: Math.round(durationHours * 10) / 10,
+        hourlyRate,
+        livestreamDate: ls.livestreamDate,
+      };
+    });
+    
+    // 平均時間単価
+    const totalHourlyRate = livestreamsWithRate.reduce((sum, ls) => sum + ls.hourlyRate, 0);
+    const avgHourlyRate = Math.round(totalHourlyRate / livestreamsWithRate.length);
+    
+    return {
+      liverId,
+      liverName,
+      avgHourlyRate,
+      recentLivestreamCount: livestreamsWithRate.length,
+      livestreams: livestreamsWithRate,
+    };
+  } catch (err) {
+    console.error("[getLiverRecentHourlyRate] error:", err);
+    return null;
+  }
+}
+
+/**
+ * 全アクティブライバーの時間単価ランキングを取得
+ */
+export async function getAllLiverHourlyRateRankings(recentCount: number = 3) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    // 全アクティブライバーを取得
+    const allLivers = await db
+      .select({ id: livers.id, name: livers.name, avatarUrl: livers.avatarUrl })
+      .from(livers)
+      .where(eq(livers.isActive, true));
+    
+    // 各ライバーの時間単価を計算
+    const rankings = await Promise.all(
+      allLivers.map(async (liver) => {
+        const rate = await getLiverRecentHourlyRate(liver.id, recentCount);
+        return {
+          liverId: liver.id,
+          liverName: liver.name,
+          avatarUrl: liver.avatarUrl,
+          avgHourlyRate: rate?.avgHourlyRate || 0,
+          recentLivestreamCount: rate?.recentLivestreamCount || 0,
+        };
+      })
+    );
+    
+    // 時間単価の降順でソート
+    return rankings
+      .filter(r => r.recentLivestreamCount > 0)
+      .sort((a, b) => b.avgHourlyRate - a.avgHourlyRate);
+  } catch (err) {
+    console.error("[getAllLiverHourlyRateRankings] error:", err);
+    return [];
+  }
+}
+
+/**
+ * メガチャンネル設定を取得
+ */
+export async function getMegaChannelSettings() {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const settings = await db
+      .select()
+      .from(megaChannelSettings)
+      .where(eq(megaChannelSettings.isActive, true))
+      .limit(1);
+    return settings.length > 0 ? settings[0] : null;
+  } catch (err) {
+    console.error("[getMegaChannelSettings] error:", err);
+    return null;
+  }
+}
+
+/**
+ * メガチャンネル設定を更新
+ */
+export async function updateMegaChannelSettings(data: Partial<InsertMegaChannelSetting>) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    // 既存の設定があるか確認
+    const existing = await db.select().from(megaChannelSettings).limit(1);
+    if (existing.length > 0) {
+      await db
+        .update(megaChannelSettings)
+        .set(data)
+        .where(eq(megaChannelSettings.id, existing[0].id));
+      return { ...existing[0], ...data };
+    } else {
+      const result = await db.insert(megaChannelSettings).values(data as InsertMegaChannelSetting);
+      return { id: Number(result[0].insertId), ...data };
+    }
+  } catch (err) {
+    console.error("[updateMegaChannelSettings] error:", err);
+    return null;
+  }
+}
+
+/**
+ * ライバーのメガチャンネル資格を取得
+ */
+export async function getMegaChannelQualification(liverId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const qual = await db
+      .select()
+      .from(megaChannelQualifications)
+      .where(eq(megaChannelQualifications.liverId, liverId))
+      .limit(1);
+    return qual.length > 0 ? qual[0] : null;
+  } catch (err) {
+    console.error("[getMegaChannelQualification] error:", err);
+    return null;
+  }
+}
+
+/**
+ * 全ライバーのメガチャンネル資格一覧を取得
+ */
+export async function getAllMegaChannelQualifications() {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db
+      .select()
+      .from(megaChannelQualifications)
+      .orderBy(desc(megaChannelQualifications.avgHourlyRate));
+  } catch (err) {
+    console.error("[getAllMegaChannelQualifications] error:", err);
+    return [];
+  }
+}
+
+/**
+ * ライバーのメガチャンネル資格を更新（upsert）
+ */
+export async function upsertMegaChannelQualification(
+  liverId: number,
+  liverName: string,
+  data: Partial<InsertMegaChannelQualification>
+) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const existing = await db
+      .select()
+      .from(megaChannelQualifications)
+      .where(eq(megaChannelQualifications.liverId, liverId))
+      .limit(1);
+    
+    if (existing.length > 0) {
+      await db
+        .update(megaChannelQualifications)
+        .set(data)
+        .where(eq(megaChannelQualifications.id, existing[0].id));
+      return { ...existing[0], ...data };
+    } else {
+      const insertData = {
+        liverId,
+        liverName,
+        ...data,
+      } as InsertMegaChannelQualification;
+      const result = await db.insert(megaChannelQualifications).values(insertData);
+      return { id: Number(result[0].insertId), ...insertData };
+    }
+  } catch (err) {
+    console.error("[upsertMegaChannelQualification] error:", err);
+    return null;
+  }
+}
+
+/**
+ * メガチャンネル資格変更履歴を記録
+ */
+export async function addMegaChannelHistory(data: InsertMegaChannelHistoryRecord) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(megaChannelHistory).values(data);
+    return { id: Number(result[0].insertId), ...data };
+  } catch (err) {
+    console.error("[addMegaChannelHistory] error:", err);
+    return null;
+  }
+}
+
+/**
+ * ライバーのメガチャンネル資格変更履歴を取得
+ */
+export async function getMegaChannelHistoryByLiver(liverId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db
+      .select()
+      .from(megaChannelHistory)
+      .where(eq(megaChannelHistory.liverId, liverId))
+      .orderBy(desc(megaChannelHistory.createdAt));
+  } catch (err) {
+    console.error("[getMegaChannelHistoryByLiver] error:", err);
+    return [];
+  }
+}
+
+/**
+ * ライバーのメガチャンネル資格をチェック・更新する
+ * 直近N回のライブの平均時間単価を計算し、閾値と比較して資格状態を更新
+ */
+export async function checkAndUpdateMegaChannelQualification(liverId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    // 設定を取得
+    const settings = await getMegaChannelSettings();
+    if (!settings || !settings.isActive) return null;
+    
+    // ライバーの時間単価を計算
+    const rateData = await getLiverRecentHourlyRate(liverId, settings.recentLivestreamCount);
+    if (!rateData) return null;
+    
+    // 現在の資格状態を取得
+    const currentQual = await getMegaChannelQualification(liverId);
+    const currentStatus = currentQual?.status || "not_qualified";
+    
+    // 累計ライブ回数を取得
+    const liver = await db
+      .select({ id: livers.id, name: livers.name })
+      .from(livers)
+      .where(eq(livers.id, liverId))
+      .limit(1);
+    if (liver.length === 0) return null;
+    
+    const totalCount = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(brandLivestreams)
+      .where(
+        and(
+          or(
+            eq(brandLivestreams.liverId, liverId),
+            eq(brandLivestreams.streamerName, liver[0].name)
+          ),
+          isNull(brandLivestreams.deletedAt)
+        )
+      );
+    
+    const totalLivestreamCount = Number(totalCount[0]?.count || 0);
+    const meetsThreshold = rateData.avgHourlyRate >= settings.hourlyRateThreshold;
+    
+    let newStatus = currentStatus;
+    
+    if (meetsThreshold) {
+      if (currentStatus === "not_qualified" || currentStatus === "suspended") {
+        // 条件達成 → qualified（承認待ち）or approved（承認不要の場合）
+        newStatus = settings.requireApproval ? "qualified" : "approved";
+      }
+      // approved, qualified, rejected の場合はそのまま（管理者判断を尊重）
+    } else {
+      // 閾値未満
+      if (currentStatus === "approved") {
+        // 承認済みの場合、連続月数をチェック（ここでは即座に停止せず、月次バッチで処理）
+        // 今回は資格データの更新のみ
+      }
+      if (currentStatus === "qualified") {
+        // 承認待ちだったが基準を下回った → not_qualified に戻す
+        newStatus = "not_qualified";
+      }
+    }
+    
+    // 資格データを更新
+    const qualData: Partial<InsertMegaChannelQualification> = {
+      avgHourlyRate: rateData.avgHourlyRate,
+      recentLivestreamCount: rateData.recentLivestreamCount,
+      totalLivestreamCount,
+      status: newStatus as any,
+    };
+    
+    if (newStatus === "qualified" && currentStatus !== "qualified") {
+      qualData.qualifiedAt = new Date();
+    }
+    
+    const updated = await upsertMegaChannelQualification(liverId, rateData.liverName, qualData);
+    
+    // ステータスが変わった場合は履歴を記録
+    if (newStatus !== currentStatus) {
+      await addMegaChannelHistory({
+        liverId,
+        liverName: rateData.liverName,
+        action: newStatus === "qualified" ? "qualified" : newStatus === "approved" ? "approved" : "suspended",
+        previousStatus: currentStatus,
+        newStatus,
+        avgHourlyRate: rateData.avgHourlyRate,
+        note: `自動判定: 直近${rateData.recentLivestreamCount}回の平均時間単価 ¥${rateData.avgHourlyRate.toLocaleString()}/h（閾値: ¥${settings.hourlyRateThreshold.toLocaleString()}/h）`,
+      } as InsertMegaChannelHistoryRecord);
+    }
+    
+    return {
+      ...updated,
+      rateData,
+      settings,
+      statusChanged: newStatus !== currentStatus,
+    };
+  } catch (err) {
+    console.error("[checkAndUpdateMegaChannelQualification] error:", err);
+    return null;
+  }
+}
+
+/**
+ * メガチャンネル資格を承認する
+ */
+export async function approveMegaChannelQualification(liverId: number, approvedBy: number) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const qual = await getMegaChannelQualification(liverId);
+    if (!qual) return null;
+    
+    const previousStatus = qual.status;
+    
+    await db
+      .update(megaChannelQualifications)
+      .set({
+        status: "approved",
+        approvedAt: new Date(),
+        approvedBy,
+      })
+      .where(eq(megaChannelQualifications.liverId, liverId));
+    
+    await addMegaChannelHistory({
+      liverId,
+      liverName: qual.liverName,
+      action: "approved",
+      previousStatus,
+      newStatus: "approved",
+      avgHourlyRate: qual.avgHourlyRate,
+      note: "管理者による承認",
+      actionBy: approvedBy,
+    } as InsertMegaChannelHistoryRecord);
+    
+    return { success: true };
+  } catch (err) {
+    console.error("[approveMegaChannelQualification] error:", err);
+    return null;
+  }
+}
+
+/**
+ * メガチャンネル資格を却下する
+ */
+export async function rejectMegaChannelQualification(liverId: number, rejectedBy: number, reason: string) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const qual = await getMegaChannelQualification(liverId);
+    if (!qual) return null;
+    
+    const previousStatus = qual.status;
+    
+    await db
+      .update(megaChannelQualifications)
+      .set({
+        status: "rejected",
+        rejectedAt: new Date(),
+        rejectedReason: reason,
+      })
+      .where(eq(megaChannelQualifications.liverId, liverId));
+    
+    await addMegaChannelHistory({
+      liverId,
+      liverName: qual.liverName,
+      action: "rejected",
+      previousStatus,
+      newStatus: "rejected",
+      avgHourlyRate: qual.avgHourlyRate,
+      note: `管理者による却下: ${reason}`,
+      actionBy: rejectedBy,
+    } as InsertMegaChannelHistoryRecord);
+    
+    return { success: true };
+  } catch (err) {
+    console.error("[rejectMegaChannelQualification] error:", err);
+    return null;
+  }
 }

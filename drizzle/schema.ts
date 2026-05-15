@@ -5689,3 +5689,93 @@ export const masterSetReviews = mysqlTable("master_set_reviews", {
 });
 export type MasterSetReview = typeof masterSetReviews.$inferSelect;
 export type InsertMasterSetReview = typeof masterSetReviews.$inferInsert;
+
+
+/**
+ * Mega Channel Settings - メガチャンネル配信制度の設定
+ * 管理者がティアの閾値やメガチャンネル情報を設定する
+ */
+export const megaChannelSettings = mysqlTable("mega_channel_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  // ティア設定
+  tierName: varchar("tierName", { length: 50 }).notNull().default("Gold"), // ティア名
+  hourlyRateThreshold: int("hourlyRateThreshold").notNull().default(100000), // 時間単価の閾値（円/h）
+  recentLivestreamCount: int("recentLivestreamCount").notNull().default(3), // 直近何回のライブで判定するか
+  // メガチャンネル情報
+  channelName: varchar("channelName", { length: 255 }).default("Ryu kyogoku"), // メガチャンネル名
+  channelDescription: text("channelDescription"), // メガチャンネルの説明
+  channelFollowerCount: int("channelFollowerCount"), // フォロワー数（表示用）
+  // 制度設定
+  isActive: boolean("isActive").default(true).notNull(), // 制度が有効かどうか
+  requireApproval: boolean("requireApproval").default(true).notNull(), // 管理者承認が必要か
+  maintenanceMonths: int("maintenanceMonths").default(3), // 維持条件: N ヶ月連続で基準を下回ったら降格
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type MegaChannelSetting = typeof megaChannelSettings.$inferSelect;
+export type InsertMegaChannelSetting = typeof megaChannelSettings.$inferInsert;
+
+/**
+ * Mega Channel Qualifications - ライバーのメガチャンネル配信資格
+ * ライバーごとの資格状態・承認状態を管理する
+ */
+export const megaChannelQualifications = mysqlTable("mega_channel_qualifications", {
+  id: int("id").autoincrement().primaryKey(),
+  liverId: int("liverId").notNull(), // References livers.id
+  liverName: varchar("liverName", { length: 255 }).notNull(),
+  // 資格状態
+  status: mysqlEnum("status", [
+    "not_qualified",   // 未達成
+    "qualified",       // 条件達成（承認待ち）
+    "approved",        // 承認済み（配信可能）
+    "rejected",        // 却下
+    "suspended",       // 一時停止（基準を下回った）
+  ]).default("not_qualified").notNull(),
+  // 計算値（最終更新時点）
+  avgHourlyRate: int("avgHourlyRate").default(0), // 直近N回の平均時間単価
+  recentLivestreamCount: int("recentLivestreamCount").default(0), // 直近のライブ回数
+  totalLivestreamCount: int("totalLivestreamCount").default(0), // 累計ライブ回数
+  // 承認関連
+  approvedAt: timestamp("approvedAt"), // 承認日時
+  approvedBy: int("approvedBy"), // 承認者のUser ID
+  rejectedAt: timestamp("rejectedAt"), // 却下日時
+  rejectedReason: text("rejectedReason"), // 却下理由
+  // 履歴
+  qualifiedAt: timestamp("qualifiedAt"), // 条件達成日時
+  suspendedAt: timestamp("suspendedAt"), // 停止日時
+  consecutiveMonthsBelowThreshold: int("consecutiveMonthsBelowThreshold").default(0), // 基準を下回った連続月数
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type MegaChannelQualification = typeof megaChannelQualifications.$inferSelect;
+export type InsertMegaChannelQualification = typeof megaChannelQualifications.$inferInsert;
+
+/**
+ * Mega Channel History - メガチャンネル資格変更履歴
+ * 資格の変更（達成、承認、却下、停止等）の履歴を記録
+ */
+export const megaChannelHistory = mysqlTable("mega_channel_history", {
+  id: int("id").autoincrement().primaryKey(),
+  liverId: int("liverId").notNull(), // References livers.id
+  liverName: varchar("liverName", { length: 255 }).notNull(),
+  // 変更内容
+  action: mysqlEnum("action", [
+    "qualified",    // 条件達成
+    "approved",     // 承認
+    "rejected",     // 却下
+    "suspended",    // 停止
+    "restored",     // 復帰
+  ]).notNull(),
+  previousStatus: varchar("previousStatus", { length: 50 }),
+  newStatus: varchar("newStatus", { length: 50 }).notNull(),
+  // 詳細
+  avgHourlyRate: int("avgHourlyRate"), // その時点の平均時間単価
+  note: text("note"), // メモ
+  actionBy: int("actionBy"), // 操作者のUser ID（自動の場合はNULL）
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type MegaChannelHistoryRecord = typeof megaChannelHistory.$inferSelect;
+export type InsertMegaChannelHistoryRecord = typeof megaChannelHistory.$inferInsert;

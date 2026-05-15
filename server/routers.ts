@@ -648,12 +648,24 @@ import {
   getAllReviews,
   getFeedbackPatternAnalysis,
   getFeedbackSummaryForAI,
+  getLiverRecentHourlyRate,
+  getAllLiverHourlyRateRankings,
+  getMegaChannelSettings,
+  updateMegaChannelSettings,
+  getMegaChannelQualification,
+  getAllMegaChannelQualifications,
+  upsertMegaChannelQualification,
+  addMegaChannelHistory,
+  getMegaChannelHistoryByLiver,
+  checkAndUpdateMegaChannelQualification,
+  approveMegaChannelQualification,
+  rejectMegaChannelQualification,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory } from "../drizzle/schema";
 import { eq, and, or, not, isNotNull, isNull, desc, gt, gte, lte, like, inArray, sql as sqlTag, sum, count, max } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -23479,6 +23491,139 @@ JSON配列のみを出力してください。`;
     // 管理者: フィードバックパターン分析
     patternAnalysis: protectedProcedure.query(async () => {
       return await getFeedbackPatternAnalysis();
+    }),
+  }),
+
+  // ============================================================
+  // Mega Channel - メガチャンネル配信制度
+  // ============================================================
+  megaChannel: router({
+    // 設定取得（公開）
+    getSettings: publicProcedure.query(async () => {
+      return await getMegaChannelSettings();
+    }),
+
+    // 設定更新（管理者のみ）
+    updateSettings: protectedProcedure
+      .input(z.object({
+        tierName: z.string().optional(),
+        hourlyRateThreshold: z.number().optional(),
+        recentLivestreamCount: z.number().optional(),
+        channelName: z.string().optional(),
+        channelDescription: z.string().optional(),
+        channelFollowerCount: z.number().optional(),
+        isActive: z.boolean().optional(),
+        requireApproval: z.boolean().optional(),
+        maintenanceMonths: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return await updateMegaChannelSettings(input);
+      }),
+
+    // ライバーの時間単価を取得（ライバー用）
+    getLiverHourlyRate: publicProcedure
+      .input(z.object({
+        liverId: z.number(),
+        recentCount: z.number().optional().default(3),
+      }))
+      .query(async ({ input }) => {
+        return await getLiverRecentHourlyRate(input.liverId, input.recentCount);
+      }),
+
+    // ライバーのメガチャンネル資格状態を取得
+    getLiverStatus: publicProcedure
+      .input(z.object({ liverId: z.number() }))
+      .query(async ({ input }) => {
+        const [qualification, settings, rateData] = await Promise.all([
+          getMegaChannelQualification(input.liverId),
+          getMegaChannelSettings(),
+          getLiverRecentHourlyRate(input.liverId, 3),
+        ]);
+        return {
+          qualification,
+          settings,
+          rateData,
+        };
+      }),
+
+    // ライバーの資格をチェック・更新
+    checkQualification: publicProcedure
+      .input(z.object({ liverId: z.number() }))
+      .mutation(async ({ input }) => {
+        return await checkAndUpdateMegaChannelQualification(input.liverId);
+      }),
+
+    // 全ライバーランキング（管理者用）
+    getAllRankings: protectedProcedure
+      .input(z.object({
+        recentCount: z.number().optional().default(3),
+      }))
+      .query(async ({ input }) => {
+        const [rankings, qualifications, settings] = await Promise.all([
+          getAllLiverHourlyRateRankings(input.recentCount),
+          getAllMegaChannelQualifications(),
+          getMegaChannelSettings(),
+        ]);
+        
+        // ランキングに資格情報をマージ
+        const qualMap = new Map(qualifications.map(q => [q.liverId, q]));
+        const merged = rankings.map(r => ({
+          ...r,
+          qualification: qualMap.get(r.liverId) || null,
+        }));
+        
+        return { rankings: merged, settings };
+      }),
+
+    // 全ライバーの資格を一括チェック・更新（管理者用）
+    checkAllQualifications: protectedProcedure.mutation(async () => {
+      const settings = await getMegaChannelSettings();
+      if (!settings || !settings.isActive) return { updated: 0 };
+      
+      const db = await getDb();
+      if (!db) return { updated: 0 };
+      
+      const allLivers = await db
+        .select({ id: livers.id })
+        .from(livers)
+        .where(eq(livers.isActive, true));
+      
+      let updated = 0;
+      for (const liver of allLivers) {
+        const result = await checkAndUpdateMegaChannelQualification(liver.id);
+        if (result?.statusChanged) updated++;
+      }
+      
+      return { updated, total: allLivers.length };
+    }),
+
+    // 承認（管理者のみ）
+    approve: protectedProcedure
+      .input(z.object({ liverId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        return await approveMegaChannelQualification(input.liverId, ctx.userId);
+      }),
+
+    // 却下（管理者のみ）
+    reject: protectedProcedure
+      .input(z.object({
+        liverId: z.number(),
+        reason: z.string(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        return await rejectMegaChannelQualification(input.liverId, ctx.userId, input.reason);
+      }),
+
+    // 資格変更履歴（管理者用）
+    getHistory: protectedProcedure
+      .input(z.object({ liverId: z.number() }))
+      .query(async ({ input }) => {
+        return await getMegaChannelHistoryByLiver(input.liverId);
+      }),
+
+    // 全資格一覧（管理者用）
+    getAllQualifications: protectedProcedure.query(async () => {
+      return await getAllMegaChannelQualifications();
     }),
   }),
 });

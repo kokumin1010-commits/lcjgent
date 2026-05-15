@@ -24,6 +24,7 @@ import {
   Check,
   X
 } from "lucide-react";
+import MegaChannelBanner from "@/components/MegaChannelBanner";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -264,6 +265,9 @@ export default function LiverDashboard() {
       </header>
       
       <main className="container mx-auto px-4 py-6 space-y-6">
+        {/* Mega Channel Banner */}
+        <MegaChannelBanner />
+
         {/* Month Selector */}
         <div className="flex items-center justify-center gap-3">
           <Button

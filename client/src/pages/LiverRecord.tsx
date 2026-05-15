@@ -17,6 +17,7 @@ import {
 import { ArrowLeft, X, Sparkles, Loader2, Lightbulb, Camera, DollarSign, Users, Clock, ShoppingCart, MousePointer } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import MegaChannelBanner from "@/components/MegaChannelBanner";
 
 // 時刻文字列を正規化するヘルパー（"1:22" → "01:22", "21:10" → "21:10"）
 const normalizeTime = (time: string): string => {
@@ -907,6 +908,9 @@ export default function LiverRecord() {
           </div>
         </div>
         
+        {/* Mega Channel Banner */}
+        <MegaChannelBanner />
+
         {/* 配信前スクリーンショット（任意、AI分析なし） */}
         <Card className="bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 overflow-hidden">
           <CardHeader className="pb-2">

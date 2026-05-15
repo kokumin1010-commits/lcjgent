@@ -67,6 +67,7 @@ import { GoalAchievedConfetti } from "@/components/Confetti";
 import LiverReferralCard from "@/components/LiverReferralCard";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { createLiverT, type LiverLanguage } from "@/lib/liverI18n";
+import MegaChannelBanner from "@/components/MegaChannelBanner";
 
 export default function LiverMypage() {
   const [, navigate] = useLocation();
@@ -1220,6 +1221,9 @@ export default function LiverMypage() {
             </div>
           </>
         )}
+
+        {/* Mega Channel Status */}
+        <MegaChannelBanner />
 
         {/* Power Dashboard Link */}
         <Link href="/liver/dashboard" className="block">

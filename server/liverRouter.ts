@@ -29,6 +29,10 @@ import {
   isLiverAitherhubLinked,
   getLiverMonthlyProducts,
   getLiverBrandDurationStats,
+  getLiverRecentHourlyRate,
+  getMegaChannelSettings,
+  getMegaChannelQualification,
+  checkAndUpdateMegaChannelQualification,
 } from "./db";
 import { nanoid } from "nanoid";
 import nodemailer from "nodemailer";
@@ -731,6 +735,37 @@ export const liverRouter = router({
       if (!payload) throw new TRPCError({ code: "UNAUTHORIZED" });
       return await getLiverBrandDurationStats(payload.liverId, input.yearMonth);
     }),
+
+  // メガチャンネル: ライバー自身のステータスを取得
+  getMegaChannelStatus: publicProcedure.query(async ({ ctx }) => {
+    const token = getLiverToken(ctx as any);
+    if (!token) throw new TRPCError({ code: "UNAUTHORIZED" });
+    const payload = await verifyLiverToken(token);
+    if (!payload) throw new TRPCError({ code: "UNAUTHORIZED" });
+    
+    const [settings, qualification, rateData] = await Promise.all([
+      getMegaChannelSettings(),
+      getMegaChannelQualification(payload.liverId),
+      getLiverRecentHourlyRate(payload.liverId, 3),
+    ]);
+    
+    return {
+      settings,
+      qualification,
+      rateData,
+      liverId: payload.liverId,
+    };
+  }),
+
+  // メガチャンネル: 資格チェック・更新
+  checkMegaChannelQualification: publicProcedure.mutation(async ({ ctx }) => {
+    const token = getLiverToken(ctx as any);
+    if (!token) throw new TRPCError({ code: "UNAUTHORIZED" });
+    const payload = await verifyLiverToken(token);
+    if (!payload) throw new TRPCError({ code: "UNAUTHORIZED" });
+    
+    return await checkAndUpdateMegaChannelQualification(payload.liverId);
+  }),
 
   // Admin: Bulk deactivate livers by IDs
   bulkDeactivate: protectedProcedure
