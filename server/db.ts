@@ -9640,7 +9640,7 @@ export async function getDailyLiverBreakdown(date: string, agencyId?: number | n
       )
     )
     .groupBy(brandLivestreams.liverId, livers.name, livers.avatarUrl)
-    .orderBy(desc(sql`totalSales`));
+    .orderBy(desc(sql`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`));
   
   return result.map(r => ({
     liverId: r.liverId,
