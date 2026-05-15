@@ -1175,10 +1175,10 @@ async def list_brands_for_clips(
             SELECT wc.client_id, wc.name, wc.logo_url, wc.theme_color,
                    wc.company_name, wc.name_ja, wc.lcj_brand_id, wc.brand_keywords,
                    wc.source,
-                   COUNT(wca.id) FILTER (WHERE wca.is_active = TRUE AND vc.id IS NOT NULL AND COALESCE(vc.is_unusable, FALSE) = FALSE) as clip_count,
-                   COUNT(wca.id) FILTER (WHERE wca.is_active = TRUE AND vc.id IS NOT NULL AND COALESCE(vc.is_unusable, FALSE) = FALSE AND vc.is_sold = TRUE) as sold_count,
-                   COALESCE(SUM(vc.gmv) FILTER (WHERE wca.is_active = TRUE AND vc.id IS NOT NULL AND COALESCE(vc.is_unusable, FALSE) = FALSE), 0) as total_gmv,
-                   COUNT(wca.id) FILTER (WHERE wca.is_active = TRUE AND vc.id IS NOT NULL AND COALESCE(vc.is_unusable, FALSE) = FALSE AND vc.exported_url IS NOT NULL) as subtitle_count
+                   COUNT(wca.id) FILTER (WHERE wca.is_active = TRUE AND vc.id IS NOT NULL AND vc.status = 'completed' AND vc.clip_url IS NOT NULL AND COALESCE(vc.is_unusable, FALSE) = FALSE) as clip_count,
+                   COUNT(wca.id) FILTER (WHERE wca.is_active = TRUE AND vc.id IS NOT NULL AND vc.status = 'completed' AND vc.clip_url IS NOT NULL AND COALESCE(vc.is_unusable, FALSE) = FALSE AND vc.is_sold = TRUE) as sold_count,
+                   COALESCE(SUM(vc.gmv) FILTER (WHERE wca.is_active = TRUE AND vc.id IS NOT NULL AND vc.status = 'completed' AND vc.clip_url IS NOT NULL AND COALESCE(vc.is_unusable, FALSE) = FALSE), 0) as total_gmv,
+                   COUNT(wca.id) FILTER (WHERE wca.is_active = TRUE AND vc.id IS NOT NULL AND vc.status = 'completed' AND vc.clip_url IS NOT NULL AND COALESCE(vc.is_unusable, FALSE) = FALSE AND vc.exported_url IS NOT NULL) as subtitle_count
             FROM widget_clients wc
             LEFT JOIN widget_clip_assignments wca ON wca.client_id = wc.client_id
             LEFT JOIN video_clips vc ON vc.id::text = wca.clip_id AND wca.is_active = TRUE
