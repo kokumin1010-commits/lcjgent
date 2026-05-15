@@ -10,6 +10,43 @@ import { generateRequestId } from "../utils/runtimeErrorLogger";
 const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
 
 /**
+ * Retry configuration for transient errors (5xx, timeout, network).
+ * Uses exponential backoff: delay * 2^(attempt-1)
+ */
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  baseDelayMs: 1000, // 1s, 2s, 4s
+  retryableStatuses: [500, 502, 503, 504],
+};
+
+/**
+ * HTTP methods that are safe to retry (idempotent or explicitly marked).
+ */
+const RETRYABLE_METHODS = ['get', 'put', 'patch', 'delete', 'post'];
+
+/**
+ * Check if an error is retryable (transient server error or network issue).
+ */
+function isRetryableError(error) {
+  // Network error (no response received)
+  if (!error.response && (error.code === 'ECONNABORTED' || error.message?.includes('timeout') || error.message?.includes('Network Error'))) {
+    return true;
+  }
+  // Server error (5xx)
+  if (error.response && RETRY_CONFIG.retryableStatuses.includes(error.response.status)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Sleep for a given number of milliseconds.
+ */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
  * Maximum time (ms) a queued request will wait for a token refresh to complete.
  * Prevents deadlocks when the refresh itself hangs.
  */
@@ -328,8 +365,32 @@ export default class BaseApiService {
     );
   }
 
+  /**
+   * Execute a request with automatic retry for transient errors.
+   * Retries up to RETRY_CONFIG.maxRetries times with exponential backoff.
+   */
+  async _withRetry(requestFn) {
+    let lastError;
+    for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+      try {
+        return await requestFn();
+      } catch (error) {
+        lastError = error;
+        const isRetryable = isRetryableError(error);
+        const isLastAttempt = attempt >= RETRY_CONFIG.maxRetries;
+        if (!isRetryable || isLastAttempt) {
+          throw error;
+        }
+        const delay = RETRY_CONFIG.baseDelayMs * Math.pow(2, attempt);
+        console.info(`[BaseApiService] Retrying request (attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries}) after ${delay}ms...`);
+        await sleep(delay);
+      }
+    }
+    throw lastError;
+  }
+
   async post(url, data, config = {}) {
-    const res = await this.client.post(url, data, config);
+    const res = await this._withRetry(() => this.client.post(url, data, config));
     // Invalidate related GET caches on mutation
     const basePath = url.split('?')[0];
     API_CACHE.invalidate(basePath.split('/').slice(0, -1).join('/'));
@@ -349,7 +410,7 @@ export default class BaseApiService {
         }
         if (API_CACHE.isStale(fullUrl)) {
           // Stale cache – return immediately, revalidate in background
-          this.client.get(url, config).then(res => {
+          this._withRetry(() => this.client.get(url, config)).then(res => {
             API_CACHE.set(fullUrl, res.data);
           }).catch(() => { /* background revalidation failed, keep stale */ });
           return cached.data;
@@ -358,7 +419,7 @@ export default class BaseApiService {
     }
 
     // No cache or expired – fetch from network
-    const res = await this.client.get(url, config);
+    const res = await this._withRetry(() => this.client.get(url, config));
     if (useCache) {
       API_CACHE.set(fullUrl, res.data);
     }
@@ -366,19 +427,19 @@ export default class BaseApiService {
   }
 
   async delete(url, config = {}) {
-    const res = await this.client.delete(url, config);
+    const res = await this._withRetry(() => this.client.delete(url, config));
     API_CACHE.invalidate(url.split('?')[0]);
     return res.data;
   }
 
   async put(url, data, config = {}) {
-    const res = await this.client.put(url, data, config);
+    const res = await this._withRetry(() => this.client.put(url, data, config));
     API_CACHE.invalidate(url.split('?')[0]);
     return res.data;
   }
 
   async patch(url, data, config = {}) {
-    const res = await this.client.patch(url, data, config);
+    const res = await this._withRetry(() => this.client.patch(url, data, config));
     API_CACHE.invalidate(url.split('?')[0]);
     return res.data;
   }

@@ -61,12 +61,12 @@ cleaned_url, connect_args = prepare_database_url(DATABASE_URL)
 engine = create_async_engine(
     cleaned_url,
     echo=False,
-    pool_size=5,
-    max_overflow=10,
+    pool_size=10,
+    max_overflow=20,
     pool_pre_ping=True,
     pool_recycle=300,
-    pool_timeout=10,
-    connect_args={**connect_args, 'command_timeout': 30, 'timeout': 10},
+    pool_timeout=30,
+    connect_args={**connect_args, 'command_timeout': 60, 'timeout': 20},
 )
 
 AsyncSessionLocal = sessionmaker(

@@ -28,24 +28,39 @@ const REASON_TAGS_KEYS = [
 ];
 
 // Admin API helper — bypasses user auth, uses X-Admin-Key
+// Retry helper for transient errors (timeout, 5xx, network)
+const withRetry = async (fn, maxRetries = 3, baseDelay = 1000) => {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const isRetryable = !err.response
+        ? (err.code === 'ECONNABORTED' || err.message?.includes('timeout') || err.message?.includes('Network Error'))
+        : [500, 502, 503, 504].includes(err.response.status);
+      if (!isRetryable || attempt >= maxRetries) throw err;
+      await new Promise(r => setTimeout(r, baseDelay * Math.pow(2, attempt)));
+    }
+  }
+};
+
 const adminApi = (() => {
   const baseURL = import.meta.env.VITE_API_BASE_URL;
   const headers = { 'Content-Type': 'application/json', 'X-Admin-Key': 'aither:hub' };
   return {
     async submitClipRating(videoId, data) {
-      const res = await axios.post(`${baseURL}/api/v1/feedback/${videoId}/clip-rating`, data, { headers, timeout: 15000 });
+      const res = await withRetry(() => axios.post(`${baseURL}/api/v1/feedback/${videoId}/clip-rating`, data, { headers, timeout: 15000 }));
       return res.data;
     },
     async getClipRatings(videoId) {
-      const res = await axios.get(`${baseURL}/api/v1/feedback/${videoId}/clip-ratings`, { headers, timeout: 15000 });
+      const res = await withRetry(() => axios.get(`${baseURL}/api/v1/feedback/${videoId}/clip-ratings`, { headers, timeout: 15000 }));
       return res.data;
     },
     async submitSalesConfirmation(videoId, data) {
-      const res = await axios.post(`${baseURL}/api/v1/feedback/${videoId}/sales-confirmation`, data, { headers, timeout: 15000 });
+      const res = await withRetry(() => axios.post(`${baseURL}/api/v1/feedback/${videoId}/sales-confirmation`, data, { headers, timeout: 15000 }));
       return res.data;
     },
     async getSalesConfirmations(videoId) {
-      const res = await axios.get(`${baseURL}/api/v1/feedback/${videoId}/sales-confirmations`, { headers, timeout: 15000 });
+      const res = await withRetry(() => axios.get(`${baseURL}/api/v1/feedback/${videoId}/sales-confirmations`, { headers, timeout: 15000 }));
       return res.data;
     },
   };
@@ -178,53 +193,56 @@ const ClipFeedbackPanel = ({
     setSubmitting(true);
     setError(null);
     setSuccessMsg(null);
-
     let ratingOk = true;
     let salesOk = true;
-
-    // Save rating if set
-    if (rating) {
-      try {
-        await api.submitClipRating(videoId, {
-          phase_index: phaseIndex,
-          time_start: timeStart,
-          time_end: timeEnd,
-          rating,
-          reason_tags: selectedReasons.length > 0 ? selectedReasons : null,
-          clip_id: clipId,
-          ai_score_at_feedback: aiScore,
-          score_breakdown: scoreBreakdown,
-        });
-        setSubmitted(true);
-        loadedRef.current.rating = rating;
-        loadedRef.current.reasons = [...selectedReasons];
-      } catch (e) {
-        console.error('[Feedback] Failed to save clip rating:', e);
-        ratingOk = false;
+    let ratingError = null;
+    let salesError = null;
+    try {
+      // Save rating if set
+      if (rating) {
+        try {
+          await api.submitClipRating(videoId, {
+            phase_index: phaseIndex,
+            time_start: timeStart,
+            time_end: timeEnd,
+            rating,
+            reason_tags: selectedReasons.length > 0 ? selectedReasons : null,
+            clip_id: clipId,
+            ai_score_at_feedback: aiScore,
+            score_breakdown: scoreBreakdown,
+          });
+          setSubmitted(true);
+          loadedRef.current.rating = rating;
+          loadedRef.current.reasons = [...selectedReasons];
+        } catch (e) {
+          console.error('[Feedback] Failed to save clip rating:', e);
+          ratingOk = false;
+          ratingError = e;
+        }
       }
-    }
-
-    // Save sales confirmation if set
-    if (salesConfirm !== null) {
-      try {
-        await api.submitSalesConfirmation(videoId, {
-          phase_index: phaseIndex,
-          time_start: timeStart,
-          time_end: timeEnd,
-          is_sales_moment: salesConfirm,
-          clip_id: clipId,
-          note: salesNote || null,
-        });
-        setSalesSubmitted(true);
-        loadedRef.current.salesConfirm = salesConfirm;
-      } catch (e) {
-        console.error('[Feedback] Failed to save sales confirmation:', e);
-        salesOk = false;
+      // Save sales confirmation if set
+      if (salesConfirm !== null) {
+        try {
+          await api.submitSalesConfirmation(videoId, {
+            phase_index: phaseIndex,
+            time_start: timeStart,
+            time_end: timeEnd,
+            is_sales_moment: salesConfirm,
+            clip_id: clipId,
+            note: salesNote || null,
+          });
+          setSalesSubmitted(true);
+          loadedRef.current.salesConfirm = salesConfirm;
+        } catch (e) {
+          console.error('[Feedback] Failed to save sales confirmation:', e);
+          salesOk = false;
+          salesError = e;
+        }
       }
+    } finally {
+      // ALWAYS reset submitting state, even if unexpected errors occur
+      setSubmitting(false);
     }
-
-    setSubmitting(false);
-
     // Backup to localStorage on successful save
     if (ratingOk || salesOk) {
       const lsKey = `clipFeedback_${videoId}_${phaseIndex}`;
@@ -233,7 +251,6 @@ const ClipFeedbackPanel = ({
         localStorage.setItem(lsKey, JSON.stringify(fb));
       } catch (lsErr) { /* ignore */ }
     }
-
     if (ratingOk && salesOk) {
       setDirty(false);
       setSuccessMsg(window.__t('auto_329', '保存しました'));
@@ -246,12 +263,19 @@ const ClipFeedbackPanel = ({
       // Clear success message after 3 seconds
       setTimeout(() => setSuccessMsg(null), 3000);
     } else {
-      setError(window.__t('auto_326', '一部の保存に失敗しました。もう一度お試しください。'));
+      // Build descriptive error message with specific guidance
+      const errDetail = ratingError?.message || salesError?.message || '';
+      const isTimeout = errDetail.includes('timeout') || errDetail.includes('ECONNABORTED');
+      const isNetwork = errDetail.includes('Network Error');
+      let errorMsg = window.__t('auto_326', '一部の保存に失敗しました。もう一度お試しください。');
+      if (isTimeout) {
+        errorMsg = window.__t('auto_save_timeout', 'サーバーの応答がタイムアウトしました。ネットワーク接続を確認して再試行してください。');
+      } else if (isNetwork) {
+        errorMsg = window.__t('auto_save_network', 'ネットワーク接続エラーが発生しました。インターネット接続を確認してください。');
+      }
+      setError(errorMsg);
     }
   }, [videoId, phaseIndex, timeStart, timeEnd, clipId, aiScore, scoreBreakdown, rating, selectedReasons, salesConfirm, salesNote, onFeedbackSubmitted, api]);
-
-  // Check if there's anything to save
-  const canSave = rating !== null || salesConfirm !== null;
 
   // Compact mode: just rating buttons
   if (compact) {
