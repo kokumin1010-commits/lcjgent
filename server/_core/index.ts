@@ -2132,6 +2132,11 @@ async function startServer() {
               console.error("[Migration] Contract quota fields error:", err);
             });
           });
+          import("../migrations/createMegaChannelTables").then(({ createMegaChannelTables }) => {
+            createMegaChannelTables(db).catch((err: unknown) => {
+              console.error("[Migration] Mega channel tables error:", err);
+            });
+          });
         }
       });
     });
