@@ -42,6 +42,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
   const [showAllDuration, setShowAllDuration] = useState(false);
   const [showAllReferral, setShowAllReferral] = useState(false);
   const [selectedTrendMonth, setSelectedTrendMonth] = useState<string | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   
   const { data: rankings, isLoading } = trpc.liverManagement.rankings.useQuery({
     month: selectedMonth,
@@ -73,6 +74,12 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
   const { data: dailySalesTrend } = trpc.liverManagement.dailySalesTrend.useQuery(
     { month: selectedTrendMonth || '', agencyId: agencyId },
     { enabled: !!selectedTrendMonth }
+  );
+  
+  // Daily Liver Breakdown (when a day row is tapped)
+  const { data: dailyLiverBreakdown } = trpc.liverManagement.dailyLiverBreakdown.useQuery(
+    { date: selectedDay || '', agencyId: agencyId },
+    { enabled: !!selectedDay }
   );
   
   // Determine display name
@@ -385,7 +392,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                           key={month.month} 
                           className="flex-1 flex flex-col items-center justify-end cursor-pointer group" 
                           style={{ height: '100%' }}
-                          onClick={() => setSelectedTrendMonth(isSelected ? null : month.month)}
+                          onClick={() => { setSelectedDay(null); setSelectedTrendMonth(isSelected ? null : month.month); }}
                         >
                           {/* Sales amount tooltip */}
                           {isSelected && (
@@ -419,27 +426,75 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                         </span>
                       </div>
                       {/* Vertical list format */}
-                      <div className="space-y-1 max-h-[300px] overflow-y-auto pr-1">
+                      <div className="space-y-0.5 max-h-[400px] overflow-y-auto pr-1">
                         {dailySalesTrend.map((day) => {
                           const dayNum = new Date(day.date + 'T00:00:00').getDate();
                           const monthNum = new Date(day.date + 'T00:00:00').getMonth() + 1;
                           const maxDailySales = Math.max(...dailySalesTrend.map(d => d.totalSales));
                           const barWidth = maxDailySales > 0 ? Math.max((day.totalSales / maxDailySales) * 100, 0) : 0;
                           const isZero = day.totalSales === 0;
+                          const isSelected = selectedDay === day.date;
                           return (
-                            <div key={day.date} className={`flex items-center gap-2 py-1 px-2 rounded ${isZero ? 'opacity-40' : 'hover:bg-white/5'}`}>
-                              <span className="text-[11px] text-white/60 w-[36px] shrink-0 font-mono">{monthNum}/{dayNum}</span>
-                              <div className="flex-1 h-4 bg-white/5 rounded overflow-hidden">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-cyan-500 to-cyan-300 rounded transition-all"
-                                  style={{ width: `${barWidth}%` }}
-                                />
+                            <div key={day.date}>
+                              <div 
+                                className={`flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-all ${isZero ? 'opacity-40' : isSelected ? 'bg-cyan-500/15 ring-1 ring-cyan-500/30' : 'hover:bg-white/5'}`}
+                                onClick={() => !isZero && setSelectedDay(isSelected ? null : day.date)}
+                              >
+                                <span className="text-[11px] text-white/60 w-[36px] shrink-0 font-mono">{monthNum}/{dayNum}</span>
+                                <div className="flex-1 h-4 bg-white/5 rounded overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded transition-all ${isSelected ? 'bg-gradient-to-r from-cyan-400 to-cyan-200' : 'bg-gradient-to-r from-cyan-500 to-cyan-300'}`}
+                                    style={{ width: `${barWidth}%` }}
+                                  />
+                                </div>
+                                <span className={`text-[11px] font-mono w-[80px] text-right shrink-0 ${isZero ? 'text-white/30' : isSelected ? 'text-cyan-200 font-semibold' : 'text-cyan-300'}`}>
+                                  {isZero ? '-' : `¥${day.totalSales >= 10000000 ? (day.totalSales / 10000).toFixed(0) + '万' : day.totalSales >= 1000000 ? (day.totalSales / 10000).toFixed(1) + '万' : day.totalSales.toLocaleString()}`}
+                                </span>
+                                {day.totalLivestreams > 0 && (
+                                  <span className="text-[9px] text-white/30 w-[28px] shrink-0 text-right">{day.totalLivestreams}配信</span>
+                                )}
                               </div>
-                              <span className={`text-[11px] font-mono w-[80px] text-right shrink-0 ${isZero ? 'text-white/30' : 'text-cyan-300'}`}>
-                                {isZero ? '-' : `¥${day.totalSales >= 10000000 ? (day.totalSales / 10000).toFixed(0) + '万' : day.totalSales >= 1000000 ? (day.totalSales / 10000).toFixed(1) + '万' : day.totalSales.toLocaleString()}`}
-                              </span>
-                              {day.totalLivestreams > 0 && (
-                                <span className="text-[9px] text-white/30 w-[28px] shrink-0 text-right">{day.totalLivestreams}配信</span>
+                              {/* Liver breakdown for selected day */}
+                              {isSelected && dailyLiverBreakdown && dailyLiverBreakdown.length > 0 && (
+                                <div className="ml-10 mr-2 mt-1 mb-2 p-2 bg-white/5 rounded-lg border border-white/10">
+                                  <div className="text-[10px] text-white/40 mb-1.5">👥 ライバー別内訳</div>
+                                  <div className="space-y-1">
+                                    {dailyLiverBreakdown.map((liver, idx) => {
+                                      const maxLiverSales = dailyLiverBreakdown[0]?.totalSales || 1;
+                                      const liverBarWidth = (liver.totalSales / maxLiverSales) * 100;
+                                      return (
+                                        <div key={liver.liverId || idx} className="flex items-center gap-1.5">
+                                          {liver.avatarUrl ? (
+                                            <img src={liver.avatarUrl} className="w-4 h-4 rounded-full shrink-0" alt="" />
+                                          ) : (
+                                            <div className="w-4 h-4 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 shrink-0 flex items-center justify-center text-[7px] text-white font-bold">
+                                              {liver.liverName.charAt(0)}
+                                            </div>
+                                          )}
+                                          <span className="text-[10px] text-white/70 w-[60px] shrink-0 truncate">{liver.liverName}</span>
+                                          <div className="flex-1 h-3 bg-white/5 rounded overflow-hidden">
+                                            <div 
+                                              className="h-full bg-gradient-to-r from-purple-500 to-pink-400 rounded transition-all"
+                                              style={{ width: `${liverBarWidth}%` }}
+                                            />
+                                          </div>
+                                          <span className="text-[10px] font-mono text-purple-300 w-[70px] text-right shrink-0">
+                                            ¥{liver.totalSales >= 1000000 ? (liver.totalSales / 10000).toFixed(1) + '万' : liver.totalSales.toLocaleString()}
+                                          </span>
+                                          <span className="text-[8px] text-white/30 w-[20px] shrink-0 text-right">{liver.livestreamCount}回</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                              {isSelected && !dailyLiverBreakdown && (
+                                <div className="ml-10 mr-2 mt-1 mb-2 p-2 bg-white/5 rounded-lg">
+                                  <div className="flex items-center gap-2 text-[10px] text-white/40">
+                                    <div className="animate-spin w-3 h-3 border border-white/30 border-t-white/80 rounded-full" />
+                                    読み込み中...
+                                  </div>
+                                </div>
                               )}
                             </div>
                           );

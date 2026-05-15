@@ -9603,6 +9603,56 @@ export async function getLiverDailySalesTrend(month: string, agencyId?: number |
 }
 
 /**
+ * Get daily liver breakdown - ある日のライバー別売上内訳
+ */
+export async function getDailyLiverBreakdown(date: string, agencyId?: number | null) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Convert JST date to UTC range
+  // date is in YYYY-MM-DD format (JST)
+  const startUtc = new Date(`${date}T00:00:00+09:00`);
+  const endUtc = new Date(`${date}T23:59:59+09:00`);
+  
+  const agencyFilter = agencyId === null 
+    ? isNull(livers.agencyId)
+    : agencyId !== undefined 
+      ? eq(livers.agencyId, agencyId)
+      : undefined;
+  
+  const result = await db
+    .select({
+      liverId: brandLivestreams.liverId,
+      liverName: livers.name,
+      avatarUrl: livers.avatarUrl,
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+      totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+      livestreamCount: sql<number>`COUNT(*)`,
+    })
+    .from(brandLivestreams)
+    .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
+    .where(
+      and(
+        isNull(brandLivestreams.deletedAt),
+        sql`${brandLivestreams.livestreamDate} >= ${startUtc.toISOString().slice(0, 19).replace('T', ' ')}`,
+        sql`${brandLivestreams.livestreamDate} <= ${endUtc.toISOString().slice(0, 19).replace('T', ' ')}`,
+        agencyFilter
+      )
+    )
+    .groupBy(brandLivestreams.liverId, livers.name, livers.avatarUrl)
+    .orderBy(desc(sql`totalSales`));
+  
+  return result.map(r => ({
+    liverId: r.liverId,
+    liverName: r.liverName || 'Unknown',
+    avatarUrl: r.avatarUrl || null,
+    totalSales: Number(r.totalSales || 0),
+    totalDuration: Number(r.totalDuration || 0),
+    livestreamCount: Number(r.livestreamCount || 0),
+  }));
+}
+
+/**
  * Get detailed liver information with statistics
  */
 export async function getLiverDetailWithStats(liverId: number) {

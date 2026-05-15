@@ -210,6 +210,7 @@ import {
   getTotalLiverSalesSummary,
   getLiverMonthlySalesTrend,
   getLiverDailySalesTrend,
+  getDailyLiverBreakdown,
   getLiverDetailWithStats,
   getLiverMonthlySalesTrendById,
   getAllLiversMonthlyTrend,
@@ -11053,6 +11054,13 @@ ${conversationText}
       .input(z.object({ month: z.string(), agencyId: z.number().nullable().optional() }))
       .query(async ({ input }) => {
         return await getLiverDailySalesTrend(input.month, input.agencyId);
+      }),
+
+    // Get daily liver breakdown (日別ライバー内訳)
+    dailyLiverBreakdown: publicProcedure
+      .input(z.object({ date: z.string(), agencyId: z.number().nullable().optional() }))
+      .query(async ({ input }) => {
+        return await getDailyLiverBreakdown(input.date, input.agencyId);
       }),
 
     // Get all livers' monthly trend (全ライバーの月別推移 - スパークライン用)
