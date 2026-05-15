@@ -335,7 +335,7 @@ export const sampleRequestRouter = router({
       items: z.array(z.object({
         mallProductId: z.number().nullable(),
         productName: z.string(),
-        price: z.number(),
+        price: z.number().min(1, "価格は1円以上である必要があります"),
         quantity: z.number().min(1),
       })).min(1),
     }))

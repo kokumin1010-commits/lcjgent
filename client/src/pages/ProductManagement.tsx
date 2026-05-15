@@ -369,6 +369,11 @@ export default function ProductManagement() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (formData.price <= 0) {
+      toast.error("価格は1円以上で入力してください。¥0の商品は登録できません。");
+      return;
+    }
+    
     const submitData = {
       name: formData.name,
       description: formData.description || undefined,

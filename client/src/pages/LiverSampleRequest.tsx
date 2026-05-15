@@ -33,6 +33,7 @@ import {
   ChevronUp,
   History,
   BarChart3,
+  AlertTriangle,
 } from "lucide-react";
 
 // Types
@@ -107,6 +108,9 @@ export default function LiverSampleRequest() {
   // Error/success
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // Credit exceed confirmation dialog
+  const [showCreditExceedDialog, setShowCreditExceedDialog] = useState(false);
 
   // API calls
   const creditQuery = trpc.sampleRequest.getMyCredit.useQuery(
@@ -226,7 +230,25 @@ export default function LiverSampleRequest() {
     if (!address) { setError("配送先住所を入力してください"); return; }
     if (items.length === 0) { setError("商品を1つ以上追加してください"); return; }
     if (items.some(i => !i.productName)) { setError("商品名を入力してください"); return; }
+    if (items.some(i => i.price <= 0)) { setError("価格が0円の商品は登録できません。正しい価格を入力してください。"); return; }
 
+    // クレジット0の場合：全額実費（60%OFF）になることを警告
+    const remainingCredit = credit ? Number(credit.remainingCredit) : 0;
+    if (remainingCredit <= 0 && totalAmount > 0) {
+      setShowCreditExceedDialog(true);
+      return;
+    }
+    // クレジット超過の場合：超過分の実費支払いを確認
+    if (totalAmount > remainingCredit && remainingCredit > 0) {
+      setShowCreditExceedDialog(true);
+      return;
+    }
+
+    doSubmit();
+  }
+
+  function doSubmit() {
+    setShowCreditExceedDialog(false);
     createMutation.mutate({
       token: token || undefined,
       scheduledDate,
@@ -1182,6 +1204,98 @@ export default function LiverSampleRequest() {
             <DialogFooter>
               <Button onClick={() => setRankDetailOpen(false)} className="w-full bg-purple-600 hover:bg-purple-700">
                 閉じる
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* クレジット超過確認ダイアログ */}
+        <Dialog open={showCreditExceedDialog} onOpenChange={setShowCreditExceedDialog}>
+          <DialogContent className="bg-gray-900 border-yellow-600 text-white max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-yellow-400 flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                {credit && Number(credit.remainingCredit) <= 0 ? "クレジット残高がありません" : "クレジット超過のお知らせ"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {credit && Number(credit.remainingCredit) <= 0 ? (
+                <>
+                  <div className="bg-red-900/30 border border-red-700 rounded-lg p-3">
+                    <p className="text-sm text-red-300 font-semibold mb-2">
+                      現在のクレジット残高: ¥0
+                    </p>
+                    <p className="text-sm text-gray-300">
+                      クレジットがないため、<span className="text-yellow-400 font-bold">全額が実費負担</span>となります。
+                    </p>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-3 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">商品合計（定価）</span>
+                      <span>¥{totalAmount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">60%OFF適用</span>
+                      <span className="text-green-400">-¥{Math.round(totalAmount * 0.6).toLocaleString()}</span>
+                    </div>
+                    <div className="border-t border-gray-700 pt-2 flex justify-between text-sm font-bold">
+                      <span className="text-yellow-400">お支払い額（定価の40%）</span>
+                      <span className="text-yellow-400">¥{Math.round(totalAmount * 0.4).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-3">
+                    <p className="text-sm text-yellow-300 font-semibold mb-2">
+                      クレジットを超過しています
+                    </p>
+                    <p className="text-sm text-gray-300">
+                      超過分は<span className="text-yellow-400 font-bold">定価の40%（60%OFF）</span>で実費負担となります。
+                    </p>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-3 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">商品合計（定価）</span>
+                      <span>¥{totalAmount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">クレジット使用</span>
+                      <span className="text-blue-400">-¥{creditUsed.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">超過分（定価）</span>
+                      <span className="text-red-400">¥{(totalAmount - creditUsed).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">60%OFF適用</span>
+                      <span className="text-green-400">-¥{Math.round((totalAmount - creditUsed) * 0.6).toLocaleString()}</span>
+                    </div>
+                    <div className="border-t border-gray-700 pt-2 flex justify-between text-sm font-bold">
+                      <span className="text-yellow-400">実費負担額</span>
+                      <span className="text-yellow-400">¥{outOfPocket.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </>
+              )}
+              <p className="text-xs text-gray-500">
+                ※ 実費負担分は後日、給与から差し引きされます。
+              </p>
+            </div>
+            <DialogFooter className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowCreditExceedDialog(false)}
+                className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
+              >
+                キャンセル
+              </Button>
+              <Button
+                onClick={doSubmit}
+                className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white"
+                disabled={createMutation.isPending}
+              >
+                {createMutation.isPending ? "送信中..." : "理解して申請する"}
               </Button>
             </DialogFooter>
           </DialogContent>

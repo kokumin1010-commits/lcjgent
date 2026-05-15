@@ -116,7 +116,31 @@ export const authRouter = router({
       };
     }),
 
-  me: publicProcedure.query(({ ctx }) => ctx.user),
+  me: publicProcedure.query(async ({ ctx }) => {
+    if (!ctx.user) return null;
+    
+    // Auto-promote to admin if user is in staff table (same logic as login)
+    if (ctx.user.role !== 'admin') {
+      try {
+        const activeStaff = await getActiveStaff();
+        const isStaffMember = activeStaff.some(
+          (s: any) => s.email && ctx.user!.email && s.email.toLowerCase() === ctx.user!.email.toLowerCase()
+        );
+        if (isStaffMember) {
+          const db = await getDb();
+          if (db) {
+            await db.update(users).set({ role: 'admin' }).where(eq(users.id, ctx.user.id));
+            ctx.user.role = 'admin' as any;
+            console.log(`[Auth] Auto-promoted staff member to admin via me endpoint: ${ctx.user.email}`);
+          }
+        }
+      } catch (e) {
+        console.error('[Auth] Failed to check staff auto-promote in me:', e);
+      }
+    }
+    
+    return ctx.user;
+  }),
 
   logout: publicProcedure.mutation(({ ctx }) => {
     const cookieOptions = getSessionCookieOptions(ctx.req);
