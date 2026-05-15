@@ -95,18 +95,33 @@ async def _get_dashboard_data(db: AsyncSession) -> dict:
     total_minutes = (total_duration_seconds % 3600) // 60
 
     # ── Daily uploads (past 30 days) ──
-    daily_uploads_raw = await db.execute(
-        text("""
-            SELECT DATE(created_at) as dt, COUNT(*) as cnt,
-                   COALESCE(SUM(duration), 0) as total_duration
-            FROM videos
-            WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
-            GROUP BY DATE(created_at)
-            ORDER BY dt ASC
-        """)
-    )
-    daily_uploads_rows = daily_uploads_raw.fetchall()
-    daily_uploads = [{"date": str(r.dt), "count": r.cnt, "duration_seconds": int(r.total_duration)} for r in daily_uploads_rows]
+    try:
+        daily_uploads_raw = await db.execute(
+            text("""
+                SELECT DATE(created_at) as dt, COUNT(*) as cnt,
+                       COALESCE(SUM(duration), 0) as total_duration
+                FROM videos
+                WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
+                GROUP BY DATE(created_at)
+                ORDER BY dt ASC
+            """)
+        )
+        daily_uploads_rows = daily_uploads_raw.fetchall()
+        daily_uploads = [{"date": str(r.dt), "count": r.cnt, "duration_seconds": int(r.total_duration)} for r in daily_uploads_rows]
+    except Exception:
+        # Fallback: duration column might not exist yet
+        await db.rollback()
+        daily_uploads_raw = await db.execute(
+            text("""
+                SELECT DATE(created_at) as dt, COUNT(*) as cnt
+                FROM videos
+                WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
+                GROUP BY DATE(created_at)
+                ORDER BY dt ASC
+            """)
+        )
+        daily_uploads_rows = daily_uploads_raw.fetchall()
+        daily_uploads = [{"date": str(r.dt), "count": r.cnt, "duration_seconds": 0} for r in daily_uploads_rows]
 
     return {
         "data_volume": {
