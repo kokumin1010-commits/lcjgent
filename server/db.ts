@@ -22015,8 +22015,14 @@ export async function getSchedulesByBrandId(
   const db = await getDb();
   if (!db) return [];
 
-  const conditions: any[] = [
+  // brandId の直接一致 OR brandIds JSON配列内に含まれる場合の両方をチェック
+  const brandCondition = or(
     eq(schedules.brandId, brandId),
+    sql`JSON_CONTAINS(${schedules.brandIds}, CAST(${brandId} AS JSON))`
+  );
+
+  const conditions: any[] = [
+    brandCondition,
     not(eq(schedules.status, "cancelled")),
   ];
 
@@ -22045,6 +22051,7 @@ export async function getSchedulesByBrandId(
       liverId: schedules.liverId,
       liverName: schedules.liverName,
       brandId: schedules.brandId,
+      brandIds: schedules.brandIds,
       status: schedules.status,
       notes: schedules.notes,
       locationId: schedules.locationId,
@@ -22063,6 +22070,12 @@ export async function getDistinctLiversForBrandSchedules(brandId: number) {
   const db = await getDb();
   if (!db) return [];
 
+  // brandId の直接一致 OR brandIds JSON配列内に含まれる場合の両方をチェック
+  const brandCondition = or(
+    eq(schedules.brandId, brandId),
+    sql`JSON_CONTAINS(${schedules.brandIds}, CAST(${brandId} AS JSON))`
+  );
+
   const results = await db
     .selectDistinct({
       liverId: schedules.liverId,
@@ -22071,7 +22084,7 @@ export async function getDistinctLiversForBrandSchedules(brandId: number) {
     .from(schedules)
     .where(
       and(
-        eq(schedules.brandId, brandId),
+        brandCondition,
         not(eq(schedules.status, "cancelled")),
         isNotNull(schedules.liverName)
       )
