@@ -2129,7 +2129,7 @@ async def assign_brand_to_video(
             text("SELECT id FROM video_clips WHERE video_id = :vid"),
             {"vid": video_id},
         )
-        clip_ids = [row[0] for row in clips_result.fetchall()]
+        clip_ids = [str(row[0]) for row in clips_result.fetchall()]
 
         assigned_count = 0
         if effective_brand and clip_ids:
