@@ -221,6 +221,32 @@ class HealthHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(result, indent=2).encode())
 
+    def do_POST(self):
+        if self.path == "/trigger-retrain":
+            # Trigger cron_retrain.sh in background
+            import threading
+            def _run_retrain():
+                try:
+                    subprocess.Popen(
+                        ["/opt/aitherhub/worker/batch/cron_retrain.sh"],
+                        stdout=open("/var/log/aitherhub_retrain.log", "a"),
+                        stderr=subprocess.STDOUT,
+                        cwd="/opt/aitherhub",
+                    )
+                except Exception as e:
+                    print(f"[worker-health] Failed to trigger retrain: {e}")
+            threading.Thread(target=_run_retrain, daemon=True).start()
+            result = {"status": "triggered", "message": "Retrain started in background"}
+            status_code = 202
+        else:
+            result = {"error": "not found"}
+            status_code = 404
+
+        self.send_response(status_code)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps(result, indent=2).encode())
+
     def log_message(self, format, *args):
         """Suppress default access logs to reduce noise."""
         pass

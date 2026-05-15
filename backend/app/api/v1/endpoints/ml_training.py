@@ -8,6 +8,7 @@ ml_training.py – AI切り抜き学習 管理API
 - モデルステータス
 """
 import logging
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -239,32 +240,24 @@ async def trigger_training(
 
     # Trigger GPU VM training via SSH
     import asyncio
-    import subprocess
+    import httpx
 
-    async def _run_training_on_gpu():
-        """Background task to trigger training on GPU VM."""
+    WORKER_HEALTH_URL = os.getenv("WORKER_HEALTH_URL", "http://52.185.188.210:8081")
+
+    async def _trigger_retrain_via_worker():
+        """Trigger retrain via Worker VM health API."""
         try:
-            ssh_cmd = (
-                'ssh -i /home/azureuser/.ssh/workervm_key.pem '
-                '-o StrictHostKeyChecking=no -o ConnectTimeout=10 '
-                'azureuser@52.185.188.19 '
-                '"cd /opt/aitherhub && '
-                'sudo .venv/bin/python worker/batch/generate_dataset.py '
-                '--output-dir /tmp/datasets && '
-                'sudo .venv/bin/python worker/batch/train.py '
-                '--input-dir /tmp/datasets --output-dir /tmp/models '
-                '--save-to-db"'
-            )
-            # Non-blocking - just fire and forget
-            subprocess.Popen(
-                ssh_cmd, shell=True,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(f"{WORKER_HEALTH_URL}/trigger-retrain")
+                if resp.status_code == 202:
+                    logger.info("Successfully triggered retrain on Worker VM")
+                else:
+                    logger.warning(f"Worker retrain trigger returned {resp.status_code}: {resp.text}")
         except Exception as e:
-            logger.error(f"Failed to trigger GPU training: {e}")
+            logger.error(f"Failed to trigger retrain on Worker VM: {e}")
 
-    # Fire and forget - don't await
-    asyncio.create_task(_run_training_on_gpu())
+    # Fire and forget
+    asyncio.create_task(_trigger_retrain_via_worker())
 
     return {
         "message": f"Training triggered for targets: {targets}",
