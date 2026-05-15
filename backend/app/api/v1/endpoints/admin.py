@@ -98,7 +98,7 @@ async def _get_dashboard_data(db: AsyncSession) -> dict:
     daily_uploads_raw = await db.execute(
         text("""
             SELECT DATE(created_at) as dt, COUNT(*) as cnt,
-                   COALESCE(SUM(duration_seconds), 0) as total_duration
+                   COALESCE(SUM(duration), 0) as total_duration
             FROM videos
             WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
             GROUP BY DATE(created_at)
