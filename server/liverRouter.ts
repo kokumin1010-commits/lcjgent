@@ -268,6 +268,7 @@ export const liverRouter = router({
         otherAccount: z.string().optional(),
         lineNotificationEnabled: z.boolean().optional(),
         language: z.enum(['ja', 'zh-TW', 'en']).optional(),
+        uid: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {

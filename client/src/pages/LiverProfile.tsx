@@ -176,6 +176,7 @@ export default function LiverProfile() {
   const [color, setColor] = useState("#FF69B4");
   const [bio, setBio] = useState("");
   const [tiktokAccount, setTiktokAccount] = useState("");
+  const [uid, setUid] = useState("");
   const [instagramAccount, setInstagramAccount] = useState("");
   const [youtubeAccount, setYoutubeAccount] = useState("");
   const [otherAccount, setOtherAccount] = useState("");
@@ -192,6 +193,7 @@ export default function LiverProfile() {
       setColor(liverInfo.color || "#FF69B4");
       setBio(liverInfo.bio || "");
       setTiktokAccount(liverInfo.tiktokAccount || "");
+      setUid((liverInfo as any).uid || "");
       setInstagramAccount(liverInfo.instagramAccount || "");
       setYoutubeAccount(liverInfo.youtubeAccount || "");
       setOtherAccount(liverInfo.otherAccount || "");
@@ -285,6 +287,7 @@ export default function LiverProfile() {
       otherAccount: otherAccount || undefined,
       lineNotificationEnabled,
       language: selectedLanguage,
+      uid: uid || undefined,
     });
   };
   
@@ -521,8 +524,59 @@ export default function LiverProfile() {
             </CardContent>
           </Card>
           
-          {/* SNS Accounts */}
-          <Card className="bg-gray-900 border-gray-800">
+          {/* UID Registration Section */}
+          <Card className={`border-2 ${uid ? 'bg-gray-900/50 border-green-600/50' : 'bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border-yellow-500/50 animate-pulse-slow'}`}>
+            <CardHeader>
+              <CardTitle className="text-lg text-white flex items-center gap-2">
+                <span className="text-xl">🆔</span>
+                TikTok UID {uid ? '✅' : '（未登録）'}
+              </CardTitle>
+              {!uid && (
+                <p className="text-yellow-400 text-sm mt-1">
+                  ⚠️ UIDを登録すると、スケジュールにあなたのUIDが表示されます
+                </p>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="uid" className="text-white flex items-center gap-2">
+                  <span className="text-lg">🆔</span>
+                  TikTok UID
+                </Label>
+                <Input
+                  id="uid"
+                  value={uid}
+                  onChange={(e) => setUid(e.target.value)}
+                  placeholder="例: 7234567890123456789"
+                  className="mt-1 bg-gray-800 border-gray-700 text-white text-lg font-mono"
+                />
+                <p className="text-gray-400 text-xs mt-1">TikTokアプリの設定 → アカウント管理 で確認できます</p>
+              </div>
+              
+              {/* YouTube Tutorial Video */}
+              <div className="mt-3 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
+                <p className="text-white text-sm font-medium mb-2">📹 UIDの確認方法（動画）</p>
+                <a
+                  href="https://youtube.com/shorts/zfi-WpnaaZc"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 p-2 bg-red-900/30 rounded-lg border border-red-700/50 hover:bg-red-900/50 transition-colors"
+                >
+                  <div className="flex-shrink-0 w-12 h-12 bg-red-600 rounded-lg flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-white text-sm font-medium">UIDの確認方法を見る</p>
+                    <p className="text-gray-400 text-xs">YouTube Shorts で簡単に確認できます</p>
+                  </div>
+                </a>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-900/50 border-gray-800">
             <CardHeader>
               <CardTitle className="text-lg text-white flex items-center gap-2">
                 <LinkIcon className="h-5 w-5 text-yellow-500" />
@@ -534,8 +588,7 @@ export default function LiverProfile() {
                 <Label htmlFor="tiktok" className="text-white flex items-center gap-2">
                   <TikTokIcon className="h-4 w-4" />
                   TikTok
-                </Label>
-                <Input
+                </Label>               <Input
                   id="tiktok"
                   value={tiktokAccount}
                   onChange={(e) => setTiktokAccount(e.target.value)}

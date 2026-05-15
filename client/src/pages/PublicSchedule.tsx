@@ -2583,6 +2583,33 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
               )}
             </div>
           </div>
+
+          {/* UID Warning for selected liver */}
+          {newSchedule.liverName && !liverUidMap.get(newSchedule.liverName) && (
+            <div className="px-4 py-2 bg-yellow-50 border-b border-yellow-200">
+              <div className="flex items-center gap-2 text-yellow-700 text-sm">
+                <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                </svg>
+                <div>
+                  <span className="font-medium">{newSchedule.liverName}</span> のUIDが未登録です。
+                  <a href="https://youtube.com/shorts/zfi-WpnaaZc" target="_blank" rel="noopener noreferrer" className="underline text-yellow-800 font-medium ml-1">
+                    UIDの確認方法を見る
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* UID Display for selected liver */}
+          {newSchedule.liverName && liverUidMap.get(newSchedule.liverName) && (
+            <div className="px-4 py-2 bg-green-50 border-b border-green-200">
+              <div className="flex items-center gap-2 text-green-700 text-sm">
+                <span>🆔</span>
+                <span>UID: <span className="font-mono font-medium">{liverUidMap.get(newSchedule.liverName)}</span></span>
+              </div>
+            </div>
+          )}
           
           {/* Description */}
           <div className="px-4 py-3">

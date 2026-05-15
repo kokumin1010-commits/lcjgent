@@ -86,6 +86,7 @@ export default function LiverMypage() {
   const [showGoalDialog, setShowGoalDialog] = useState(false);
   const [showGoalNudgePopup, setShowGoalNudgePopup] = useState(false);
   const [showLineLinkPopup, setShowLineLinkPopup] = useState(false);
+  const [showUidPopup, setShowUidPopup] = useState(false);
   const [lineLinkCode, setLineLinkCode] = useState<string | null>(null);
   const [lineLinkExpiresAt, setLineLinkExpiresAt] = useState<Date | null>(null);
   const [lineLinkTimeLeft, setLineLinkTimeLeft] = useState<number>(0);
@@ -126,6 +127,17 @@ export default function LiverMypage() {
   }, [liverInfo, currentMonthGoal]);
 
   // LINE未連携ポップアップ表示（毎回ログイン時）
+  // UID未登録チェック
+  useEffect(() => {
+    if (liverInfo && !(liverInfo as any).uid) {
+      const dismissed = sessionStorage.getItem('uid_popup_dismissed');
+      if (!dismissed) {
+        const timer = setTimeout(() => setShowUidPopup(true), 2000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [liverInfo]);
+
   useEffect(() => {
     if (liverInfo && !liverInfo.lineUserId) {
       const timer = setTimeout(() => setShowLineLinkPopup(true), 1200);
@@ -2398,6 +2410,70 @@ export default function LiverMypage() {
               {language === 'ja' ? 'あとで連携する' : language === 'zh-TW' ? '稍後連結' : language === 'en' ? 'Later' : '稍后连接'}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* UID未登録ポップアップ */}
+      <Dialog open={showUidPopup} onOpenChange={(open) => {
+        if (!open) {
+          sessionStorage.setItem('uid_popup_dismissed', 'true');
+        }
+        setShowUidPopup(open);
+      }}>
+        <DialogContent className="bg-gray-900 border-yellow-500/50 text-white max-w-sm mx-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-center flex items-center justify-center gap-2">
+              <span className="text-2xl">🆔</span>
+              TikTok UIDを登録しよう
+            </DialogTitle>
+            <DialogDescription className="text-gray-300 text-center">
+              UIDを登録すると、配信スケジュールにあなたのUIDが表示されます
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="p-3 bg-yellow-900/30 rounded-lg border border-yellow-500/30">
+              <p className="text-yellow-300 text-sm">
+                ⚠️ スケジュールにUIDが表示されるためには、プロフィールでUIDの登録が必要です
+              </p>
+            </div>
+            <a
+              href="https://youtube.com/shorts/zfi-WpnaaZc"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 p-3 bg-red-900/30 rounded-lg border border-red-700/50 hover:bg-red-900/50 transition-colors"
+            >
+              <div className="flex-shrink-0 w-12 h-12 bg-red-600 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              </div>
+              <div>
+                <p className="text-white text-sm font-medium">UIDの確認方法を見る</p>
+                <p className="text-gray-400 text-xs">YouTube Shorts で簡単に確認できます</p>
+              </div>
+            </a>
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                sessionStorage.setItem('uid_popup_dismissed', 'true');
+                setShowUidPopup(false);
+              }}
+              className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
+            >
+              あとで
+            </Button>
+            <Button
+              onClick={() => {
+                setShowUidPopup(false);
+                navigate('/liver/profile');
+              }}
+              className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-bold"
+            >
+              今すぐ登録する
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
