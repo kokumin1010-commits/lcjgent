@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import {
   Crown,
   Settings,
@@ -29,7 +29,7 @@ type TabType = "rankings" | "settings" | "history";
 export default function MegaChannelAdmin() {
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<TabType>("rankings");
-  const { toast } = useToast();
+
 
   // Settings state
   const [settingsForm, setSettingsForm] = useState({
@@ -52,37 +52,37 @@ export default function MegaChannelAdmin() {
   // Mutations
   const updateSettingsMut = trpc.megaChannel.updateSettings.useMutation({
     onSuccess: () => {
-      toast({ title: "設定を更新しました" });
+      toast.success("設定を更新しました");
       settingsQuery.refetch();
     },
-    onError: (err) => toast({ title: "エラー", description: err.message, variant: "destructive" }),
+    onError: (err) => toast.error(`エラー: ${err.message}`),
   });
 
   const approveMut = trpc.megaChannel.approve.useMutation({
     onSuccess: () => {
-      toast({ title: "承認しました" });
+      toast.success("承認しました");
       rankingsQuery.refetch();
       qualificationsQuery.refetch();
     },
-    onError: (err) => toast({ title: "エラー", description: err.message, variant: "destructive" }),
+    onError: (err) => toast.error(`エラー: ${err.message}`),
   });
 
   const rejectMut = trpc.megaChannel.reject.useMutation({
     onSuccess: () => {
-      toast({ title: "却下しました" });
+      toast.success("却下しました");
       rankingsQuery.refetch();
       qualificationsQuery.refetch();
     },
-    onError: (err) => toast({ title: "エラー", description: err.message, variant: "destructive" }),
+    onError: (err) => toast.error(`エラー: ${err.message}`),
   });
 
   const checkAllMut = trpc.megaChannel.checkAllQualifications.useMutation({
     onSuccess: (data) => {
-      toast({ title: `${data.updated}名の資格を更新しました（全${data.total}名チェック）` });
+      toast.success(`${data.updated}名の資格を更新しました（全${data.total}名チェック）`);
       rankingsQuery.refetch();
       qualificationsQuery.refetch();
     },
-    onError: (err) => toast({ title: "エラー", description: err.message, variant: "destructive" }),
+    onError: (err) => toast.error(`エラー: ${err.message}`),
   });
 
   // Load settings into form
