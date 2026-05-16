@@ -1427,6 +1427,12 @@ async def generate_ai_clip_from_clip(
     """特定のクリップIDを指定してAIクリップを生成する（クリップDBから直接）"""
     verify_admin(x_admin_key)
 
+    # UUID形式のバリデーション
+    try:
+        uuid.UUID(req.clip_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail=f"無効なクリップID形式です（UUID形式が必要）: {req.clip_id}")
+
     # クリップ情報をDBから取得
     async with get_session() as session:
         result = await session.execute(text("""
