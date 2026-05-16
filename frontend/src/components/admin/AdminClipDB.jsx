@@ -1312,7 +1312,7 @@ export default function AdminClipDB({ adminKey }) {
     if (!aiClipJobId) return;
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/v1/ai-clip/status/${aiClipJobId}`, {
+        const res = await fetch(`${API_BASE}/api/v1/ai-clip/jobs/${aiClipJobId}`, {
           headers: { "X-Admin-Key": adminKey },
         });
         const data = await res.json();
