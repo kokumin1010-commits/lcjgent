@@ -521,8 +521,9 @@ def _build_advanced_ffmpeg_command(
 
     # ── 2. Flash intro (first 0.5s brightness boost) ──
     if enable_flash_intro:
-        # Boost brightness for first 0.3s, then fade to normal by 0.5s
-        flash_expr = "if(lt(t,0.3),1.5-t*1.67,1.0)"
+        # Use curves filter for a visible white flash: boost all channels for first 0.3s
+        # eq brightness range is -1.0 to 1.0, so use 0.4 (quite visible)
+        flash_expr = "if(lt(t\\,0.3)\\,0.4*(1-t/0.3)\\,0)"
         filter_parts.append(f"eq=brightness='{flash_expr}':eval=frame")
 
     # ── 3. ASS subtitles ──
@@ -532,23 +533,21 @@ def _build_advanced_ffmpeg_command(
 
     # ── 4. Progress bar at bottom ──
     if enable_progress_bar:
-        bar_height = 6
+        bar_height = 8
         bar_y = video_height - bar_height
-        # Progress bar: white bar that grows from left to right
-        # t/duration * iw = current width
-        bar_expr = f"drawbox=x=0:y={bar_y}:w='t/{duration:.2f}*iw':h={bar_height}:color=white@0.8:t=fill"
+        # Background bar (dark) - drawn first
+        bg_bar = f"drawbox=x=0:y={bar_y}:w=iw:h={bar_height}:color=black@0.5:t=fill"
+        filter_parts.append(bg_bar)
+        # Progress bar: red bar that grows from left to right over duration
+        # Use enable=1 to ensure it's always active
+        bar_w_expr = f"t/{duration:.2f}*iw"
+        bar_expr = f"drawbox=x=0:y={bar_y}:w='{bar_w_expr}':h={bar_height}:color=red@0.9:t=fill"
         filter_parts.append(bar_expr)
-        # Background bar (dark)
-        bg_bar = f"drawbox=x=0:y={bar_y}:w=iw:h={bar_height}:color=black@0.3:t=fill"
-        # Insert bg bar before the progress bar
-        filter_parts.insert(-1, bg_bar)
 
-    # ── 5. Loop fade (last 1s fade out) ──
+    # ── 5. Loop fade (last 1s fade out to black) ──
     if enable_loop_fade and duration > 5:
-        fade_start = max(0, duration - 1.0)
-        filter_parts.append(f"fade=t=out:st={fade_start:.2f}:d=1.0:alpha=0")
-        # Since alpha fade doesn't work well with non-alpha output, use regular fade
-        filter_parts[-1] = f"fade=t=out:st={fade_start:.2f}:d=1.0"
+        fade_start = max(0, duration - 1.5)
+        filter_parts.append(f"fade=t=out:st={fade_start:.2f}:d=1.5")
 
     video_filter = ",".join(filter_parts) if filter_parts else "null"
 
