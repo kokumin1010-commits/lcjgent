@@ -1259,7 +1259,7 @@ async def generate_ai_clip_from_clip(
                    vc.captions, vc.subtitle_style, vc.liver_name
             FROM video_clips vc
             WHERE vc.id = CAST(:clip_id AS uuid)
-        ""), {"clip_id": req.clip_id})
+        """), {"clip_id": req.clip_id})
         row = result.fetchone()
 
     if not row:
