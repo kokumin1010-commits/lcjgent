@@ -15,6 +15,7 @@ import AdminReviewerManager from "./AdminReviewerManager";
 import MLTrainingDashboard from "./admin/MLTrainingDashboard";
 // VideoPerformancePanel removed - integrated into TikTokTrackingPanel
 import TikTokTrackingPanel from "./admin/TikTokTrackingPanel";
+import AutoAIClipPanel from "./admin/AutoAIClipPanel";
 import { useTranslation } from 'react-i18next';
 import { changeLanguage } from '../i18n';
 import ClipFeedbackPanel from './ClipFeedbackPanel';
@@ -635,6 +636,16 @@ export default function AdminDashboard() {
               >
                 📊 パフォーマンス
               </button>
+              <button
+                onClick={() => setActiveTab("ai-clip")}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                  activeTab === "ai-clip"
+                    ? "bg-white text-purple-600 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                🤖 全自動AIクリップ
+              </button>
             </>
           )}
         </div>
@@ -772,6 +783,9 @@ export default function AdminDashboard() {
         )}
         {activeTab === "performance" && (
           <TikTokTrackingPanel adminKey={`${ADMIN_ID}:${ADMIN_PASS}`} />
+        )}
+        {activeTab === "ai-clip" && (
+          <AutoAIClipPanel adminKey={`${ADMIN_ID}:${ADMIN_PASS}`} />
         )}
       </div>
     </div>

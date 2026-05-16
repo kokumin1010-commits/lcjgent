@@ -35,6 +35,7 @@ from app.api.v1.endpoints.reviewer_auth import router as reviewer_auth_router
 from app.api.v1.endpoints.ml_training import router as ml_training_router
 from app.api.v1.endpoints.video_performance import router as video_performance_router
 from app.api.v1.endpoints.tiktok_tracking import router as tiktok_tracking_router
+from app.api.v1.endpoints.ai_clip_generator import router as ai_clip_generator_router
 
 routers = APIRouter()
 routers.include_router(auth_router, prefix="/auth", tags=["Auth"])
@@ -72,3 +73,4 @@ routers.include_router(reviewer_auth_router, tags=["Reviewer Auth"])
 routers.include_router(ml_training_router, tags=["ML Training"])
 routers.include_router(video_performance_router, tags=["Video Performance"])
 routers.include_router(tiktok_tracking_router, tags=["TikTok Tracking"])
+routers.include_router(ai_clip_generator_router, tags=["AI Clip Generator"])
