@@ -1516,7 +1516,7 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
             enable_loop_fade=req.enable_loop_fade,
         )
 
-        logger.info(f"[ai-clip {job_id}] ffmpeg V2 cmd: {' '.join(ffmpeg_cmd[:15])}...")
+        logger.info(f"[ai-clip {job_id}] ffmpeg V2 cmd: {' '.join(ffmpeg_cmd)}")
         proc = await asyncio.create_subprocess_exec(
             *ffmpeg_cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -1525,8 +1525,9 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
 
         if proc.returncode != 0:
-            err_msg = stderr.decode()[-500:] if stderr else "Unknown error"
-            raise RuntimeError(f"ffmpeg failed: {err_msg}")
+            err_full = stderr.decode() if stderr else "Unknown error"
+            logger.error(f"[ai-clip {job_id}] ffmpeg FULL stderr:\n{err_full}")
+            raise RuntimeError(f"ffmpeg failed: {err_full[-800:]}")
 
         output_size = os.path.getsize(output_path)
         logger.info(f"[ai-clip {job_id}] Encoded V2: {output_size} bytes")
