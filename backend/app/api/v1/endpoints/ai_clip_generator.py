@@ -1186,7 +1186,12 @@ async def diagnostics(x_admin_key: Optional[str] = Header(None)):
     azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
     gpt_model = os.getenv("GPT5_MODEL") or os.getenv("GPT5_DEPLOYMENT") or "gpt-4.1-mini"
     font_found = _find_cjk_font()
-    ffmpeg_ok = subprocess.run(["ffmpeg", "-version"], capture_output=True).returncode == 0
+    try:
+        ffmpeg_ok = subprocess.run(["ffmpeg", "-version"], capture_output=True, timeout=5).returncode == 0
+        ffprobe_ok = subprocess.run(["ffprobe", "-version"], capture_output=True, timeout=5).returncode == 0
+    except Exception:
+        ffmpeg_ok = False
+        ffprobe_ok = False
     return {
         "version": "2.0",
         "azure_openai_key_set": bool(azure_key),
@@ -1194,6 +1199,7 @@ async def diagnostics(x_admin_key: Optional[str] = Header(None)):
         "gpt_model": gpt_model,
         "font_found": font_found,
         "ffmpeg_available": ffmpeg_ok,
+        "ffprobe_available": ffprobe_ok,
         "job_dir": _AI_CLIP_JOB_DIR,
         "features": {
             "silence_cut": True,
