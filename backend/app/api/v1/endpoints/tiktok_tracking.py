@@ -681,3 +681,286 @@ async def cron_fetch_all(x_admin_key: Optional[str] = Header(None)):
                 results["errors"] += 1
 
     return results
+
+
+# ─── Account Bulk Import ─────────────────────────────────────────────────────
+
+class ImportAccountRequest(BaseModel):
+    tiktok_username: str  # e.g. "kyogokuprofessional" or "@kyogokuprofessional"
+    auto_match: bool = True
+    max_videos: int = 0  # 0 = all
+
+async def _fetch_user_info(username: str) -> dict:
+    """Get TikTok user info (user_id, stats) from username."""
+    api_key = RAPIDAPI_KEY or os.getenv("RAPIDAPI_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="RAPIDAPI_KEY not configured")
+    headers = {
+        "Content-Type": "application/json",
+        "x-rapidapi-host": RAPIDAPI_HOST,
+        "x-rapidapi-key": api_key,
+    }
+    clean_username = username.lstrip("@").strip()
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.get(
+            f"https://{RAPIDAPI_HOST}/user/info",
+            params={"unique_id": clean_username},
+            headers=headers,
+        )
+        data = resp.json()
+    if data.get("code") != 0:
+        raise HTTPException(status_code=502, detail=f"TikWM user info error: {data.get('msg', 'Unknown')}")
+    return data.get("data", {})
+
+
+async def _fetch_user_posts(user_id: str, count: int = 30, cursor: int = 0) -> dict:
+    """Get a page of user posts."""
+    api_key = RAPIDAPI_KEY or os.getenv("RAPIDAPI_KEY", "")
+    headers = {
+        "Content-Type": "application/json",
+        "x-rapidapi-host": RAPIDAPI_HOST,
+        "x-rapidapi-key": api_key,
+    }
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.get(
+            f"https://{RAPIDAPI_HOST}/user/posts",
+            params={"user_id": user_id, "count": count, "cursor": cursor},
+            headers=headers,
+        )
+        data = resp.json()
+    if data.get("code") != 0:
+        raise HTTPException(status_code=502, detail=f"TikWM user posts error: {data.get('msg', 'Unknown')}")
+    return data.get("data", {})
+
+
+@router.post("/import-account")
+async def import_account(
+    req: ImportAccountRequest,
+    x_admin_key: Optional[str] = Header(None),
+):
+    """
+    Bulk import all TikTok videos from an account.
+    1. Fetch user info to get user_id and video count
+    2. Paginate through all posts
+    3. For each post: register + auto-match to ClipDB (duration-based)
+    4. Return summary
+    """
+    verify_admin(x_admin_key)
+
+    # Step 1: Get user info
+    user_data = await _fetch_user_info(req.tiktok_username)
+    user_info = user_data.get("user", {})
+    user_stats = user_data.get("stats", {})
+    user_id = user_info.get("id")
+    unique_id = user_info.get("uniqueId", "")
+    total_videos = user_stats.get("videoCount", 0)
+
+    if not user_id:
+        raise HTTPException(status_code=404, detail=f"User not found: {req.tiktok_username}")
+
+    max_to_import = req.max_videos if req.max_videos > 0 else total_videos
+
+    # Step 2: Get existing tracked video IDs to skip duplicates
+    async with get_session() as session:
+        result = await session.execute(
+            text("SELECT tiktok_video_id FROM tiktok_tracked_videos WHERE account_name = :account"),
+            {"account": unique_id}
+        )
+        existing_ids = {row[0] for row in result.fetchall()}
+
+    # Step 3: Pre-load ClipDB candidates for auto-matching (duration-based)
+    clip_candidates = []
+    if req.auto_match:
+        async with get_session() as session:
+            result = await session.execute(
+                text("""
+                    SELECT id, clip_url, duration_sec, audio_fingerprint
+                    FROM video_clips
+                    WHERE status = 'completed'
+                      AND clip_url IS NOT NULL
+                      AND duration_sec IS NOT NULL
+                      AND duration_sec > 0
+                """)
+            )
+            rows = result.fetchall()
+            columns = result.keys()
+            clip_candidates = [dict(zip(columns, r)) for r in rows]
+
+    # Step 4: Paginate and import
+    results = {
+        "user": {
+            "unique_id": unique_id,
+            "nickname": user_info.get("nickname", ""),
+            "user_id": str(user_id),
+            "total_videos": total_videos,
+        },
+        "imported": 0,
+        "skipped_existing": 0,
+        "matched": 0,
+        "unmatched": 0,
+        "errors": 0,
+        "total_processed": 0,
+    }
+
+    cursor = 0
+    imported_count = 0
+    page_size = 30  # TikWM max per page is ~35
+
+    while imported_count < max_to_import:
+        try:
+            page_data = await _fetch_user_posts(str(user_id), count=page_size, cursor=cursor)
+        except Exception as e:
+            logger.error(f"Failed to fetch posts page (cursor={cursor}): {e}")
+            results["errors"] += 1
+            break
+
+        videos = page_data.get("videos", [])
+        if not videos:
+            break
+
+        for post in videos:
+            if imported_count >= max_to_import:
+                break
+
+            results["total_processed"] += 1
+            video_id = str(post.get("video_id", ""))
+            if not video_id:
+                results["errors"] += 1
+                continue
+
+            # Skip if already tracked
+            if video_id in existing_ids:
+                results["skipped_existing"] += 1
+                continue
+
+            # Extract data
+            account_name = post.get("author", {}).get("unique_id", "") if isinstance(post.get("author"), dict) else unique_id
+            if not account_name:
+                account_name = unique_id
+            title = post.get("title", "")
+            cover_url = post.get("cover", "") or post.get("origin_cover", "")
+            duration = post.get("duration", 0)
+            play_count = post.get("play_count", 0)
+            digg_count = post.get("digg_count", 0)
+            comment_count = post.get("comment_count", 0)
+            share_count = post.get("share_count", 0)
+            collect_count = post.get("collect_count", 0)
+            create_time = post.get("create_time")
+
+            tiktok_url = f"https://www.tiktok.com/@{account_name}/video/{video_id}"
+
+            # Auto-match by duration
+            clip_db_id = None
+            match_method = None
+            if req.auto_match and duration > 0 and clip_candidates:
+                # Find closest duration match within ±3s
+                tolerance = 3.0
+                close_clips = [
+                    c for c in clip_candidates
+                    if abs(float(c["duration_sec"]) - float(duration)) <= tolerance
+                ]
+                if len(close_clips) == 1:
+                    clip_db_id = str(close_clips[0]["id"])
+                    match_method = "duration_unique"
+                elif len(close_clips) > 1:
+                    # Pick closest
+                    close_clips.sort(key=lambda c: abs(float(c["duration_sec"]) - float(duration)))
+                    clip_db_id = str(close_clips[0]["id"])
+                    match_method = "duration_closest"
+
+            try:
+                async with get_session() as session:
+                    result = await session.execute(
+                        text("""
+                            INSERT INTO tiktok_tracked_videos
+                                (tiktok_url, tiktok_video_id, account_name, title, cover_url, clip_db_id, label, status)
+                            VALUES (:url, :vid, :account, :title, :cover, :clip_db_id, :label, 'active')
+                            RETURNING id
+                        """),
+                        {
+                            "url": tiktok_url, "vid": video_id, "account": account_name,
+                            "title": title, "cover": cover_url, "clip_db_id": clip_db_id,
+                            "label": title[:100] if title else None,
+                        }
+                    )
+                    new_id = result.scalar()
+
+                    await session.execute(
+                        text("""
+                            INSERT INTO tiktok_performance_snapshots
+                                (tracked_video_id, play_count, digg_count, comment_count, share_count, collect_count)
+                            VALUES (:tid, :play, :digg, :comment, :share, :collect)
+                        """),
+                        {
+                            "tid": new_id, "play": play_count, "digg": digg_count,
+                            "comment": comment_count, "share": share_count, "collect": collect_count,
+                        }
+                    )
+
+                    await session.execute(
+                        text("UPDATE tiktok_tracked_videos SET last_fetched_at = NOW() WHERE id = :id"),
+                        {"id": new_id}
+                    )
+
+                existing_ids.add(video_id)
+                imported_count += 1
+                results["imported"] += 1
+                if clip_db_id:
+                    results["matched"] += 1
+                else:
+                    results["unmatched"] += 1
+
+            except Exception as e:
+                logger.error(f"Failed to import video {video_id}: {e}")
+                results["errors"] += 1
+
+        # Check pagination
+        has_more = page_data.get("hasMore", False)
+        next_cursor = page_data.get("cursor")
+        if not has_more or not next_cursor or next_cursor == cursor:
+            break
+        cursor = next_cursor
+
+    return results
+
+
+@router.get("/import-account/status")
+async def import_account_status(
+    username: str = Query(...),
+    x_admin_key: Optional[str] = Header(None),
+):
+    """Get import status for a specific account (how many videos tracked vs total)."""
+    verify_admin(x_admin_key)
+
+    clean_username = username.lstrip("@").strip()
+
+    async with get_session() as session:
+        result = await session.execute(
+            text("""
+                SELECT
+                    COUNT(*) as total_tracked,
+                    COUNT(*) FILTER (WHERE status = 'active') as active,
+                    COUNT(*) FILTER (WHERE status = 'stopped') as stopped,
+                    COUNT(*) FILTER (WHERE clip_db_id IS NOT NULL) as matched
+                FROM tiktok_tracked_videos
+                WHERE account_name = :account
+            """),
+            {"account": clean_username}
+        )
+        row = result.fetchone()
+
+    # Get total videos from TikTok
+    try:
+        user_data = await _fetch_user_info(clean_username)
+        total_on_tiktok = user_data.get("stats", {}).get("videoCount", 0)
+    except Exception:
+        total_on_tiktok = None
+
+    return {
+        "account": clean_username,
+        "tracked": row[0],
+        "active": row[1],
+        "stopped": row[2],
+        "matched_to_clipdb": row[3],
+        "total_on_tiktok": total_on_tiktok,
+    }

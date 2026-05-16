@@ -13,7 +13,7 @@ import AdminWidgetManager from "./admin/AdminWidgetManager";
 import SubtitleDictionary from "./SubtitleDictionary";
 import AdminReviewerManager from "./AdminReviewerManager";
 import MLTrainingDashboard from "./admin/MLTrainingDashboard";
-import VideoPerformancePanel from "./admin/VideoPerformancePanel";
+// VideoPerformancePanel removed - integrated into TikTokTrackingPanel
 import TikTokTrackingPanel from "./admin/TikTokTrackingPanel";
 import { useTranslation } from 'react-i18next';
 import { changeLanguage } from '../i18n';
@@ -635,16 +635,6 @@ export default function AdminDashboard() {
               >
                 📊 パフォーマンス
               </button>
-              <button
-                onClick={() => setActiveTab("tiktok-tracking")}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                  activeTab === "tiktok-tracking"
-                    ? "bg-white text-pink-600 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                🎵 TikTok追跡
-              </button>
             </>
           )}
         </div>
@@ -781,9 +771,6 @@ export default function AdminDashboard() {
           <MLTrainingDashboard adminKey={`${ADMIN_ID}:${ADMIN_PASS}`} />
         )}
         {activeTab === "performance" && (
-          <VideoPerformancePanel adminKey={`${ADMIN_ID}:${ADMIN_PASS}`} />
-        )}
-        {activeTab === "tiktok-tracking" && (
           <TikTokTrackingPanel adminKey={`${ADMIN_ID}:${ADMIN_PASS}`} />
         )}
       </div>

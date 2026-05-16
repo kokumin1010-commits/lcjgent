@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
-
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 // ── Number formatter ──
@@ -34,15 +33,19 @@ function getFrequencyLabel(createdAt) {
   return "自動停止";
 }
 
-// ── Help tooltip content ──
 const FREQUENCY_HELP = `📊 推奨取得頻度（自動適用）
-
 • 投稿後 1〜3日：毎日取得
 • 投稿後 4〜7日：2日に1回
 • 投稿後 8〜30日：週1回
-• 投稿後 31日以降：自動停止
+• 投稿後 31日以上：自動停止
 
-※ 手動取得はいつでも可能です`;
+🔗 自動マッチング
+• TikTok動画の秒数でClipDBクリップと自動紐付け
+• 音声フィンガープリントで精度向上（要事前生成）
+
+📥 アカウント一括インポート
+• TikTokアカウントURLを入力するだけで全投稿を自動取得
+• 各投稿をClipDBクリップと自動マッチング`;
 
 export default function TikTokTrackingPanel({ adminKey }) {
   const [videos, setVideos] = useState([]);
@@ -50,14 +53,24 @@ export default function TikTokTrackingPanel({ adminKey }) {
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState("active");
 
+  // Sub-view: "list" | "register" | "import"
+  const [subView, setSubView] = useState("list");
+
   // Register form
-  const [showRegister, setShowRegister] = useState(false);
   const [registerUrl, setRegisterUrl] = useState("");
   const [registerLabel, setRegisterLabel] = useState("");
   const [registerClipDbId, setRegisterClipDbId] = useState("");
   const [registering, setRegistering] = useState(false);
   const [registerError, setRegisterError] = useState(null);
   const [registerResult, setRegisterResult] = useState(null);
+
+  // Account import
+  const [importUsername, setImportUsername] = useState("");
+  const [importMaxVideos, setImportMaxVideos] = useState(0);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState(null);
+  const [importResult, setImportResult] = useState(null);
+  const [importStatus, setImportStatus] = useState(null);
 
   // Fingerprint status
   const [fpStatus, setFpStatus] = useState(null);
@@ -82,7 +95,7 @@ export default function TikTokTrackingPanel({ adminKey }) {
     setError(null);
     try {
       const res = await fetch(
-        `${API_BASE}/api/v1/tiktok-tracking/videos?status=${statusFilter}&limit=100`,
+        `${API_BASE}/api/v1/tiktok-tracking/videos?status=${statusFilter}&limit=200`,
         { headers }
       );
       if (!res.ok) throw new Error(`API error ${res.status}`);
@@ -95,9 +108,7 @@ export default function TikTokTrackingPanel({ adminKey }) {
     }
   }, [adminKey, statusFilter]);
 
-  useEffect(() => {
-    fetchVideos();
-  }, [fetchVideos]);
+  useEffect(() => { fetchVideos(); }, [fetchVideos]);
 
   // ── Fetch fingerprint status ──
   const fetchFpStatus = useCallback(async () => {
@@ -106,17 +117,13 @@ export default function TikTokTrackingPanel({ adminKey }) {
         `${API_BASE}/api/v1/tiktok-tracking/fingerprints/status`,
         { headers }
       );
-      if (res.ok) {
-        setFpStatus(await res.json());
-      }
+      if (res.ok) setFpStatus(await res.json());
     } catch (e) {
       console.error("Failed to fetch fingerprint status:", e);
     }
   }, [adminKey]);
 
-  useEffect(() => {
-    fetchFpStatus();
-  }, [fetchFpStatus]);
+  useEffect(() => { fetchFpStatus(); }, [fetchFpStatus]);
 
   // ── Generate fingerprints batch ──
   const handleGenerateFp = async () => {
@@ -137,7 +144,7 @@ export default function TikTokTrackingPanel({ adminKey }) {
     }
   };
 
-  // ── Register video ──
+  // ── Register single video ──
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!registerUrl.trim()) return;
@@ -169,6 +176,52 @@ export default function TikTokTrackingPanel({ adminKey }) {
       setRegisterError(e.message);
     } finally {
       setRegistering(false);
+    }
+  };
+
+  // ── Import account ──
+  const handleImportAccount = async (e) => {
+    e.preventDefault();
+    if (!importUsername.trim()) return;
+    setImporting(true);
+    setImportError(null);
+    setImportResult(null);
+    try {
+      const body = {
+        tiktok_username: importUsername.trim(),
+        auto_match: true,
+        max_videos: importMaxVideos || 0,
+      };
+      const res = await fetch(`${API_BASE}/api/v1/tiktok-tracking/import-account`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Error ${res.status}`);
+      }
+      const result = await res.json();
+      setImportResult(result);
+      fetchVideos();
+    } catch (e) {
+      setImportError(e.message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // ── Check import status for a username ──
+  const checkImportStatus = async (username) => {
+    try {
+      const clean = username.replace("@", "").trim();
+      const res = await fetch(
+        `${API_BASE}/api/v1/tiktok-tracking/import-account/status?username=${encodeURIComponent(clean)}`,
+        { headers }
+      );
+      if (res.ok) setImportStatus(await res.json());
+    } catch (e) {
+      console.error("Failed to check import status:", e);
     }
   };
 
@@ -211,9 +264,7 @@ export default function TikTokTrackingPanel({ adminKey }) {
       );
       if (!res.ok) throw new Error(`Error ${res.status}`);
       fetchVideos();
-      if (selectedVideo?.id === videoId) {
-        loadSnapshots(videoId);
-      }
+      if (selectedVideo?.id === videoId) loadSnapshots(videoId);
     } catch (e) {
       alert(`取得失敗: ${e.message}`);
     } finally {
@@ -257,125 +308,80 @@ export default function TikTokTrackingPanel({ adminKey }) {
 
   // ── Highcharts options ──
   const chartOptions = {
-    chart: {
-      height: 320,
-      backgroundColor: "transparent",
-      style: { fontFamily: "inherit" },
-    },
+    chart: { height: 320, backgroundColor: "transparent", style: { fontFamily: "inherit" } },
     title: { text: null },
     credits: { enabled: false },
     legend: {
-      align: "right",
-      verticalAlign: "top",
-      floating: true,
+      align: "right", verticalAlign: "top", floating: true,
       itemStyle: { fontSize: "11px", color: "#6b7280" },
     },
     xAxis: {
       type: "datetime",
       crosshair: { width: 1, color: "#d1d5db", dashStyle: "Dash" },
-      labels: {
-        style: { fontSize: "10px", color: "#9ca3af" },
-        format: "{value:%m/%d}",
-      },
-      lineColor: "#e5e7eb",
-      tickColor: "#e5e7eb",
+      labels: { style: { fontSize: "10px", color: "#9ca3af" }, format: "{value:%m/%d}" },
+      lineColor: "#e5e7eb", tickColor: "#e5e7eb",
     },
     yAxis: [
       {
         title: { text: "再生数", style: { fontSize: "10px", color: "#ef4444" } },
-        labels: {
-          formatter: function () { return fmtNum(this.value); },
-          style: { fontSize: "10px", color: "#ef4444" },
-        },
+        labels: { formatter: function () { return fmtNum(this.value); }, style: { fontSize: "10px", color: "#ef4444" } },
         gridLineColor: "#f3f4f6",
       },
       {
         title: { text: "いいね / コメント / シェア", style: { fontSize: "10px", color: "#3b82f6" } },
         opposite: true,
-        labels: {
-          formatter: function () { return fmtNum(this.value); },
-          style: { fontSize: "10px", color: "#3b82f6" },
-        },
+        labels: { formatter: function () { return fmtNum(this.value); }, style: { fontSize: "10px", color: "#3b82f6" } },
         gridLineWidth: 0,
       },
     ],
     tooltip: {
-      shared: true,
-      useHTML: true,
+      shared: true, useHTML: true,
       headerFormat: '<span style="font-size:11px;font-weight:600">{point.key:%Y/%m/%d %H:%M}</span><br/>',
       pointFormat: '<span style="color:{series.color}">●</span> {series.name}: <b>{point.y:,.0f}</b><br/>',
     },
-    plotOptions: {
-      series: {
-        marker: { radius: 3, enabled: true },
-        lineWidth: 2,
-      },
-    },
+    plotOptions: { series: { marker: { radius: 3, enabled: true }, lineWidth: 2 } },
     series: [
-      {
-        name: "再生数",
-        data: snapshots.map((s) => [new Date(s.fetched_at).getTime(), s.play_count]),
-        color: "#ef4444",
-        yAxis: 0,
-      },
-      {
-        name: "いいね",
-        data: snapshots.map((s) => [new Date(s.fetched_at).getTime(), s.digg_count]),
-        color: "#ec4899",
-        yAxis: 1,
-      },
-      {
-        name: "コメント",
-        data: snapshots.map((s) => [new Date(s.fetched_at).getTime(), s.comment_count]),
-        color: "#3b82f6",
-        yAxis: 1,
-      },
-      {
-        name: "シェア",
-        data: snapshots.map((s) => [new Date(s.fetched_at).getTime(), s.share_count]),
-        color: "#10b981",
-        yAxis: 1,
-      },
-      {
-        name: "保存",
-        data: snapshots.map((s) => [new Date(s.fetched_at).getTime(), s.collect_count]),
-        color: "#f59e0b",
-        yAxis: 1,
-      },
+      { name: "再生数", data: snapshots.map((s) => [new Date(s.fetched_at).getTime(), s.play_count]), color: "#ef4444", yAxis: 0 },
+      { name: "いいね", data: snapshots.map((s) => [new Date(s.fetched_at).getTime(), s.digg_count]), color: "#ec4899", yAxis: 1 },
+      { name: "コメント", data: snapshots.map((s) => [new Date(s.fetched_at).getTime(), s.comment_count]), color: "#3b82f6", yAxis: 1 },
+      { name: "シェア", data: snapshots.map((s) => [new Date(s.fetched_at).getTime(), s.share_count]), color: "#10b981", yAxis: 1 },
+      { name: "保存", data: snapshots.map((s) => [new Date(s.fetched_at).getTime(), s.collect_count]), color: "#f59e0b", yAxis: 1 },
     ],
   };
+
+  // ── Summary stats ──
+  const totalPlay = videos.reduce((sum, v) => {
+    const snap = v.latest_snapshot ? (typeof v.latest_snapshot === 'string' ? JSON.parse(v.latest_snapshot) : v.latest_snapshot) : null;
+    return sum + (snap?.play_count || 0);
+  }, 0);
+  const totalDigg = videos.reduce((sum, v) => {
+    const snap = v.latest_snapshot ? (typeof v.latest_snapshot === 'string' ? JSON.parse(v.latest_snapshot) : v.latest_snapshot) : null;
+    return sum + (snap?.digg_count || 0);
+  }, 0);
+  const matchedCount = videos.filter(v => v.clip_db_id).length;
 
   // ── Render ──
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-bold text-gray-800">🎵 TikTok動画パフォーマンス追跡</h2>
-          {/* Help tooltip */}
+          <h2 className="text-lg font-bold text-gray-800">📊 TikTok動画パフォーマンス</h2>
           <div className="relative">
             <button
               onClick={() => setShowHelp(!showHelp)}
               className="w-5 h-5 rounded-full bg-gray-200 text-gray-500 text-xs font-bold flex items-center justify-center hover:bg-gray-300 transition-colors"
-              title="取得頻度について"
-            >
-              ?
-            </button>
+              title="ヘルプ"
+            >?</button>
             {showHelp && (
-              <div className="absolute left-0 top-7 z-50 w-72 bg-white border border-gray-200 rounded-lg shadow-xl p-4 text-xs text-gray-600 whitespace-pre-line">
+              <div className="absolute left-0 top-7 z-50 w-80 bg-white border border-gray-200 rounded-lg shadow-xl p-4 text-xs text-gray-600 whitespace-pre-line">
                 {FREQUENCY_HELP}
-                <button
-                  onClick={() => setShowHelp(false)}
-                  className="mt-2 text-blue-500 hover:text-blue-700 text-[10px]"
-                >
-                  閉じる
-                </button>
+                <button onClick={() => setShowHelp(false)} className="mt-2 text-blue-500 hover:text-blue-700 text-[10px]">閉じる</button>
               </div>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Status filter */}
+        <div className="flex items-center gap-2 flex-wrap">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -386,8 +392,22 @@ export default function TikTokTrackingPanel({ adminKey }) {
             <option value="all">すべて</option>
           </select>
           <button
-            onClick={() => setShowRegister(!showRegister)}
-            className="px-3 py-1.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs font-medium rounded-lg hover:from-pink-600 hover:to-rose-600 transition-all shadow-sm"
+            onClick={() => { setSubView(subView === "import" ? "list" : "import"); setImportError(null); }}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all shadow-sm ${
+              subView === "import"
+                ? "bg-indigo-600 text-white"
+                : "bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600"
+            }`}
+          >
+            📥 アカウント一括
+          </button>
+          <button
+            onClick={() => { setSubView(subView === "register" ? "list" : "register"); setRegisterError(null); }}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all shadow-sm ${
+              subView === "register"
+                ? "bg-pink-600 text-white"
+                : "bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:from-pink-600 hover:to-rose-600"
+            }`}
           >
             + URL登録
           </button>
@@ -400,14 +420,173 @@ export default function TikTokTrackingPanel({ adminKey }) {
         </div>
       </div>
 
-      {/* Register form */}
-      {showRegister && (
-        <form
-          onSubmit={handleRegister}
-          className="bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-200 rounded-xl p-4 space-y-3"
-        >
+      {/* Summary stats bar */}
+      {!loading && videos.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="bg-white rounded-xl border border-gray-200 p-3 text-center">
+            <div className="text-[10px] text-gray-400 mb-1">追跡動画数</div>
+            <div className="text-lg font-bold text-gray-800">{videos.length}</div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-3 text-center">
+            <div className="text-[10px] text-gray-400 mb-1">合計再生数</div>
+            <div className="text-lg font-bold text-red-500">{fmtNum(totalPlay)}</div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-3 text-center">
+            <div className="text-[10px] text-gray-400 mb-1">合計いいね</div>
+            <div className="text-lg font-bold text-pink-500">{fmtNum(totalDigg)}</div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-3 text-center">
+            <div className="text-[10px] text-gray-400 mb-1">ClipDB紐付け</div>
+            <div className="text-lg font-bold text-indigo-500">{matchedCount}/{videos.length}</div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-3 text-center">
+            <div className="text-[10px] text-gray-400 mb-1">アクティブ</div>
+            <div className="text-lg font-bold text-green-500">{videos.filter(v => v.status === "active").length}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Account Import form */}
+      {subView === "import" && (
+        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl p-4 space-y-3">
+          <div className="text-sm font-semibold text-indigo-700">📥 TikTokアカウント一括インポート</div>
+          <p className="text-xs text-indigo-600/70">
+            アカウントURLまたはユーザー名を入力すると、全投稿を自動取得してClipDBクリップと自動マッチングします。
+          </p>
+          <form onSubmit={handleImportAccount} className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={importUsername}
+                onChange={(e) => setImportUsername(e.target.value)}
+                placeholder="@kyogokuprofessional または https://www.tiktok.com/@kyogokuprofessional"
+                className="flex-1 px-3 py-2 text-sm border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
+                required
+              />
+              <input
+                type="number"
+                value={importMaxVideos || ""}
+                onChange={(e) => setImportMaxVideos(parseInt(e.target.value) || 0)}
+                placeholder="件数（0=全件）"
+                className="w-32 px-3 py-2 text-sm border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
+                min="0"
+              />
+            </div>
+            {importError && (
+              <div className="text-xs text-red-500 bg-red-50 px-3 py-1.5 rounded-lg">{importError}</div>
+            )}
+            <div className="flex gap-2 items-center">
+              <button
+                type="submit"
+                disabled={importing}
+                className="px-4 py-2 bg-indigo-500 text-white text-sm font-medium rounded-lg hover:bg-indigo-600 disabled:opacity-50 transition-colors"
+              >
+                {importing ? (
+                  <span className="flex items-center gap-2">
+                    <span className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span>
+                    インポート中...（数分かかります）
+                  </span>
+                ) : "一括インポート開始"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (importUsername.trim()) checkImportStatus(importUsername);
+                }}
+                className="px-3 py-2 bg-indigo-100 text-indigo-600 text-sm font-medium rounded-lg hover:bg-indigo-200 transition-colors"
+              >
+                状態確認
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSubView("list"); setImportError(null); }}
+                className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                閉じる
+              </button>
+            </div>
+          </form>
+
+          {/* Import status */}
+          {importStatus && (
+            <div className="bg-white/60 rounded-lg p-3 text-xs space-y-1">
+              <div className="font-semibold text-indigo-700">@{importStatus.account} のインポート状況</div>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-2">
+                <div className="text-center">
+                  <div className="text-[10px] text-gray-400">TikTok上</div>
+                  <div className="font-bold text-gray-700">{importStatus.total_on_tiktok ?? "—"}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] text-gray-400">追跡中</div>
+                  <div className="font-bold text-green-600">{importStatus.tracked}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] text-gray-400">アクティブ</div>
+                  <div className="font-bold text-blue-600">{importStatus.active}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] text-gray-400">停止</div>
+                  <div className="font-bold text-gray-500">{importStatus.stopped}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] text-gray-400">ClipDB紐付け</div>
+                  <div className="font-bold text-indigo-600">{importStatus.matched_to_clipdb}</div>
+                </div>
+              </div>
+              {importStatus.total_on_tiktok && importStatus.tracked < importStatus.total_on_tiktok && (
+                <div className="mt-2 text-[10px] text-amber-600">
+                  ⚠ 未インポート: {importStatus.total_on_tiktok - importStatus.tracked}件
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Import result */}
+          {importResult && (
+            <div className="bg-white/60 rounded-lg p-3 text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="font-semibold text-green-700">✅ インポート完了</div>
+                <button onClick={() => setImportResult(null)} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+              </div>
+              <div className="text-gray-600">
+                @{importResult.user?.unique_id} ({importResult.user?.nickname})
+              </div>
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-1">
+                <div className="text-center bg-green-50 rounded-lg p-2">
+                  <div className="text-[10px] text-gray-400">インポート</div>
+                  <div className="font-bold text-green-600">{importResult.imported}</div>
+                </div>
+                <div className="text-center bg-blue-50 rounded-lg p-2">
+                  <div className="text-[10px] text-gray-400">マッチ済</div>
+                  <div className="font-bold text-blue-600">{importResult.matched}</div>
+                </div>
+                <div className="text-center bg-amber-50 rounded-lg p-2">
+                  <div className="text-[10px] text-gray-400">未マッチ</div>
+                  <div className="font-bold text-amber-600">{importResult.unmatched}</div>
+                </div>
+                <div className="text-center bg-gray-50 rounded-lg p-2">
+                  <div className="text-[10px] text-gray-400">既存スキップ</div>
+                  <div className="font-bold text-gray-500">{importResult.skipped_existing}</div>
+                </div>
+                <div className="text-center bg-red-50 rounded-lg p-2">
+                  <div className="text-[10px] text-gray-400">エラー</div>
+                  <div className="font-bold text-red-500">{importResult.errors}</div>
+                </div>
+                <div className="text-center bg-indigo-50 rounded-lg p-2">
+                  <div className="text-[10px] text-gray-400">処理合計</div>
+                  <div className="font-bold text-indigo-600">{importResult.total_processed}</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Register single video form */}
+      {subView === "register" && (
+        <div className="bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-200 rounded-xl p-4 space-y-3">
           <div className="text-sm font-semibold text-pink-700">TikTok動画URLを登録</div>
-          <div className="space-y-2">
+          <form onSubmit={handleRegister} className="space-y-2">
             <input
               type="url"
               value={registerUrl}
@@ -432,27 +611,66 @@ export default function TikTokTrackingPanel({ adminKey }) {
                 className="w-48 px-3 py-2 text-sm border border-pink-200 rounded-lg focus:ring-2 focus:ring-pink-300 focus:border-pink-400 outline-none"
               />
             </div>
+            {registerError && (
+              <div className="text-xs text-red-500 bg-red-50 px-3 py-1.5 rounded-lg">{registerError}</div>
+            )}
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={registering}
+                className="px-4 py-2 bg-pink-500 text-white text-sm font-medium rounded-lg hover:bg-pink-600 disabled:opacity-50 transition-colors"
+              >
+                {registering ? "登録中..." : "追跡開始"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSubView("list"); setRegisterError(null); }}
+                className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                キャンセル
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Auto-match result notification */}
+      {registerResult && (
+        <div className={`rounded-xl border p-4 space-y-2 ${
+          registerResult.auto_match
+            ? "bg-gradient-to-r from-green-50 to-emerald-50 border-green-200"
+            : registerResult.auto_match === null
+              ? "bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200"
+              : "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200"
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold">
+              {registerResult.auto_match
+                ? "🎯 自動マッチング成功！"
+                : registerResult.auto_match === null
+                  ? "⚠️ 一致するクリップが見つかりませんでした"
+                  : "✅ 動画を登録しました"}
+            </div>
+            <button onClick={() => setRegisterResult(null)} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
           </div>
-          {registerError && (
-            <div className="text-xs text-red-500 bg-red-50 px-3 py-1.5 rounded-lg">{registerError}</div>
+          {registerResult.auto_match && (
+            <div className="text-xs space-y-1">
+              <div className="text-green-700">
+                <span className="font-medium">マッチしたClip ID:</span> {registerResult.auto_match.clip_db_id}
+              </div>
+              <div className="text-green-600">
+                <span className="font-medium">類似度:</span> {(registerResult.auto_match.similarity * 100).toFixed(1)}%
+                <span className="ml-2 font-medium">方法:</span> {registerResult.auto_match.match_method === 'fingerprint' ? '音声フィンガープリント' : registerResult.auto_match.match_method === 'duration' ? '秒数マッチ' : registerResult.auto_match.match_method}
+                {registerResult.auto_match.clip_duration && (
+                  <span className="ml-2"><span className="font-medium">クリップ秒数:</span> {registerResult.auto_match.clip_duration}秒</span>
+                )}
+              </div>
+            </div>
           )}
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={registering}
-              className="px-4 py-2 bg-pink-500 text-white text-sm font-medium rounded-lg hover:bg-pink-600 disabled:opacity-50 transition-colors"
-            >
-              {registering ? "登録中..." : "追跡開始"}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setShowRegister(false); setRegisterError(null); }}
-              className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              キャンセル
-            </button>
+          <div className="text-xs text-gray-500">
+            TikTok: @{registerResult.account_name} | 再生: {fmtNum(registerResult.initial_snapshot?.play_count)} | 秒数: {registerResult.duration}秒
           </div>
-        </form>
+        </div>
       )}
 
       {/* Error */}
@@ -473,9 +691,9 @@ export default function TikTokTrackingPanel({ adminKey }) {
       {/* Empty state */}
       {!loading && !error && videos.length === 0 && (
         <div className="text-center py-12 text-gray-400">
-          <div className="text-4xl mb-3">🎵</div>
+          <div className="text-4xl mb-3">📊</div>
           <p className="text-sm">追跡中のTikTok動画はありません</p>
-          <p className="text-xs mt-1">「+ URL登録」から動画を追加してください</p>
+          <p className="text-xs mt-1">「📥 アカウント一括」で全投稿を自動インポートするか、「+ URL登録」で個別に追加してください</p>
         </div>
       )}
 
@@ -495,38 +713,30 @@ export default function TikTokTrackingPanel({ adminKey }) {
               >
                 {/* Card header */}
                 <div className="p-3 flex gap-3">
-                  {/* Thumbnail */}
                   {video.cover_url && (
                     <div className="w-16 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
-                      <img
-                        src={video.cover_url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                        onError={(e) => { e.target.style.display = "none"; }}
-                      />
+                      <img src={video.cover_url} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; }} />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-1">
                       <div className="min-w-0">
-                        <div className="text-xs font-semibold text-gray-800 truncate">
-                          {video.label || video.title || "無題"}
-                        </div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">
-                          @{video.account_name || "—"}
-                        </div>
+                        <div className="text-xs font-semibold text-gray-800 truncate">{video.label || video.title || "無題"}</div>
+                        <div className="text-[10px] text-gray-400 mt-0.5">@{video.account_name || "—"}</div>
                       </div>
-                      <span
-                        className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium ${
-                          video.status === "active"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-gray-500"
-                        }`}
-                      >
-                        {video.status === "active" ? "追跡中" : "停止"}
-                      </span>
+                      <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${
+                          video.status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                        }`}>
+                          {video.status === "active" ? "追跡中" : "停止"}
+                        </span>
+                        {video.clip_db_id && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-indigo-100 text-indigo-600">
+                            🔗 紐付済
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    {/* Frequency */}
                     <div className="text-[10px] text-gray-400 mt-1">
                       取得頻度: {getFrequencyLabel(video.created_at)}
                     </div>
@@ -606,25 +816,22 @@ export default function TikTokTrackingPanel({ adminKey }) {
                 📈 {selectedVideo.label || selectedVideo.title || "無題"} — パフォーマンス推移
               </h3>
               <div className="text-[10px] text-gray-400 mt-0.5">
-                @{selectedVideo.account_name} | {selectedVideo.tiktok_url && (
-                  <a
-                    href={selectedVideo.tiktok_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-400 hover:text-blue-600 underline"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    TikTokで開く ↗
-                  </a>
+                @{selectedVideo.account_name}
+                {selectedVideo.clip_db_id && (
+                  <span className="ml-2 text-indigo-500">🔗 Clip: {selectedVideo.clip_db_id.slice(0, 8)}...</span>
+                )}
+                {selectedVideo.tiktok_url && (
+                  <>
+                    {" | "}
+                    <a href={selectedVideo.tiktok_url} target="_blank" rel="noopener noreferrer"
+                      className="text-blue-400 hover:text-blue-600 underline" onClick={(e) => e.stopPropagation()}>
+                      TikTokで開く ↗
+                    </a>
+                  </>
                 )}
               </div>
             </div>
-            <button
-              onClick={() => { setSelectedVideo(null); setSnapshots([]); }}
-              className="text-gray-400 hover:text-gray-600 text-lg"
-            >
-              ✕
-            </button>
+            <button onClick={() => { setSelectedVideo(null); setSnapshots([]); }} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
           </div>
 
           {snapshotsLoading ? (
@@ -678,51 +885,6 @@ export default function TikTokTrackingPanel({ adminKey }) {
         </div>
       )}
 
-      {/* Auto-match result notification */}
-      {registerResult && (
-        <div className={`rounded-xl border p-4 space-y-2 ${
-          registerResult.auto_match
-            ? "bg-gradient-to-r from-green-50 to-emerald-50 border-green-200"
-            : registerResult.auto_match === null
-              ? "bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200"
-              : "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200"
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold">
-              {registerResult.auto_match
-                ? "🎯 自動マッチング成功！"
-                : registerResult.auto_match === null
-                  ? "⚠️ 自動マッチング：一致するクリップが見つかりませんでした"
-                  : "✅ 動画を登録しました"}
-            </div>
-            <button
-              onClick={() => setRegisterResult(null)}
-              className="text-gray-400 hover:text-gray-600 text-sm"
-            >
-              ✕
-            </button>
-          </div>
-          {registerResult.auto_match && (
-            <div className="text-xs space-y-1">
-              <div className="text-green-700">
-                <span className="font-medium">マッチしたClip ID:</span> {registerResult.auto_match.clip_db_id}
-              </div>
-              <div className="text-green-600">
-                <span className="font-medium">類似度:</span> {(registerResult.auto_match.similarity * 100).toFixed(1)}%
-                <span className="ml-2 font-medium">方法:</span> {registerResult.auto_match.match_method === 'fingerprint' ? '音声フィンガープリント' : registerResult.auto_match.match_method === 'duration' ? '秒数マッチ' : registerResult.auto_match.match_method}
-                {registerResult.auto_match.clip_duration && (
-                  <span className="ml-2 font-medium">クリップ秒数:</span>
-                )}
-                {registerResult.auto_match.clip_duration && ` ${registerResult.auto_match.clip_duration}秒`}
-              </div>
-            </div>
-          )}
-          <div className="text-xs text-gray-500">
-            TikTok: @{registerResult.account_name} | 再生: {fmtNum(registerResult.initial_snapshot?.play_count)} | 秒数: {registerResult.duration}秒
-          </div>
-        </div>
-      )}
-
       {/* Fingerprint status bar */}
       {fpStatus && (
         <div className="bg-white rounded-xl border border-gray-200 p-3 flex items-center justify-between">
@@ -749,15 +911,6 @@ export default function TikTokTrackingPanel({ adminKey }) {
               {fpGenerating ? "生成中..." : `🔄 未生成${fpStatus.without_fingerprint}件を処理`}
             </button>
           )}
-        </div>
-      )}
-
-      {/* Summary stats */}
-      {!loading && videos.length > 0 && (
-        <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500">
-          追跡中: {videos.filter(v => v.status === "active").length}件 |
-          停止中: {videos.filter(v => v.status === "stopped").length}件 |
-          合計: {videos.length}件
         </div>
       )}
     </div>
@@ -813,10 +966,7 @@ export function TikTokUrlRegisterButton({ clipId, adminKey, onSuccess }) {
   }
 
   return (
-    <div
-      onClick={(e) => e.stopPropagation()}
-      className="mt-1 bg-pink-50 border border-pink-200 rounded-lg p-2 space-y-1.5"
-    >
+    <div onClick={(e) => e.stopPropagation()} className="mt-1 bg-pink-50 border border-pink-200 rounded-lg p-2 space-y-1.5">
       <form onSubmit={handleSubmit} className="flex gap-1.5">
         <input
           type="url"
@@ -827,20 +977,10 @@ export function TikTokUrlRegisterButton({ clipId, adminKey, onSuccess }) {
           required
           autoFocus
         />
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-2 py-1 text-[10px] font-medium bg-pink-500 text-white rounded-md hover:bg-pink-600 disabled:opacity-50"
-        >
+        <button type="submit" disabled={loading} className="px-2 py-1 text-[10px] font-medium bg-pink-500 text-white rounded-md hover:bg-pink-600 disabled:opacity-50">
           {loading ? "..." : "登録"}
         </button>
-        <button
-          type="button"
-          onClick={() => { setOpen(false); setError(null); }}
-          className="px-1.5 py-1 text-[10px] text-gray-400 hover:text-gray-600"
-        >
-          ✕
-        </button>
+        <button type="button" onClick={() => { setOpen(false); setError(null); }} className="px-1.5 py-1 text-[10px] text-gray-400 hover:text-gray-600">✕</button>
       </form>
       {error && <div className="text-[9px] text-red-500">{error}</div>}
     </div>
