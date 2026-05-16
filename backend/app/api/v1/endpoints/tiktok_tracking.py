@@ -700,7 +700,15 @@ async def _fetch_user_info(username: str) -> dict:
         "x-rapidapi-host": RAPIDAPI_HOST,
         "x-rapidapi-key": api_key,
     }
-    clean_username = username.lstrip("@").strip()
+    # Handle full URL like https://www.tiktok.com/@kyogokuprofessional?lang=ja-JP
+    clean_username = username.strip()
+    if "tiktok.com/" in clean_username:
+        from urllib.parse import urlparse
+        parsed = urlparse(clean_username)
+        path_parts = [p for p in parsed.path.split("/") if p]
+        if path_parts:
+            clean_username = path_parts[0]
+    clean_username = clean_username.lstrip("@").strip()
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.get(
             f"https://{RAPIDAPI_HOST}/user/info",
@@ -932,7 +940,15 @@ async def import_account_status(
     """Get import status for a specific account (how many videos tracked vs total)."""
     verify_admin(x_admin_key)
 
-    clean_username = username.lstrip("@").strip()
+    # Handle full URL like https://www.tiktok.com/@kyogokuprofessional?lang=ja-JP
+    clean_username = username.strip()
+    if "tiktok.com/" in clean_username:
+        from urllib.parse import urlparse
+        parsed = urlparse(clean_username)
+        path_parts = [p for p in parsed.path.split("/") if p]
+        if path_parts:
+            clean_username = path_parts[0]
+    clean_username = clean_username.lstrip("@").strip()
 
     async with get_session() as session:
         result = await session.execute(
