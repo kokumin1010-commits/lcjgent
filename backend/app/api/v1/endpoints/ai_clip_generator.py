@@ -470,6 +470,43 @@ async def list_templates(x_admin_key: Optional[str] = Header(None)):
     }
 
 
+@router.get("/diagnostics")
+async def diagnostics(x_admin_key: Optional[str] = Header(None)):
+    """Whisper/環境変数の診断情報を返す"""
+    verify_admin(x_admin_key)
+    import openai
+
+    azure_key = os.getenv("AZURE_OPENAI_KEY", "")
+    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+    gpt_model = os.getenv("GPT5_MODEL") or os.getenv("GPT5_DEPLOYMENT") or "gpt-4.1-mini"
+
+    # Check font availability
+    font_found = None
+    for fp in _FONT_SEARCH_PATHS:
+        if os.path.exists(fp):
+            font_found = fp
+            break
+
+    # Check ffmpeg
+    ffmpeg_ok = False
+    try:
+        r = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
+        ffmpeg_ok = r.returncode == 0
+    except Exception:
+        pass
+
+    return {
+        "azure_openai_key_set": bool(azure_key),
+        "azure_openai_key_prefix": azure_key[:8] + "..." if azure_key else "NOT SET",
+        "azure_openai_endpoint": azure_endpoint or "NOT SET",
+        "gpt_model": gpt_model,
+        "font_found": font_found,
+        "ffmpeg_available": ffmpeg_ok,
+        "job_dir": _AI_CLIP_JOB_DIR,
+        "job_dir_exists": os.path.exists(_AI_CLIP_JOB_DIR),
+    }
+
+
 @router.post("/generate")
 async def generate_ai_clip(
     req: GenerateRequest,
