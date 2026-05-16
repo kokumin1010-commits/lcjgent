@@ -57,6 +57,11 @@ export default function TikTokTrackingPanel({ adminKey }) {
   const [registerClipDbId, setRegisterClipDbId] = useState("");
   const [registering, setRegistering] = useState(false);
   const [registerError, setRegisterError] = useState(null);
+  const [registerResult, setRegisterResult] = useState(null);
+
+  // Fingerprint status
+  const [fpStatus, setFpStatus] = useState(null);
+  const [fpGenerating, setFpGenerating] = useState(false);
 
   // Detail / chart
   const [selectedVideo, setSelectedVideo] = useState(null);
@@ -94,6 +99,44 @@ export default function TikTokTrackingPanel({ adminKey }) {
     fetchVideos();
   }, [fetchVideos]);
 
+  // ── Fetch fingerprint status ──
+  const fetchFpStatus = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/v1/tiktok-tracking/fingerprints/status`,
+        { headers }
+      );
+      if (res.ok) {
+        setFpStatus(await res.json());
+      }
+    } catch (e) {
+      console.error("Failed to fetch fingerprint status:", e);
+    }
+  }, [adminKey]);
+
+  useEffect(() => {
+    fetchFpStatus();
+  }, [fetchFpStatus]);
+
+  // ── Generate fingerprints batch ──
+  const handleGenerateFp = async () => {
+    setFpGenerating(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/v1/tiktok-tracking/fingerprints/generate-batch?limit=50`,
+        { method: "POST", headers }
+      );
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data = await res.json();
+      alert(`フィンガープリント生成完了\n処理: ${data.processed}件\n成功: ${data.success}件\n失敗: ${data.failed}件\n残り: ${data.remaining}件`);
+      fetchFpStatus();
+    } catch (e) {
+      alert(`生成失敗: ${e.message}`);
+    } finally {
+      setFpGenerating(false);
+    }
+  };
+
   // ── Register video ──
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -105,6 +148,7 @@ export default function TikTokTrackingPanel({ adminKey }) {
         tiktok_url: registerUrl.trim(),
         label: registerLabel.trim() || null,
         clip_db_id: registerClipDbId.trim() || null,
+        auto_match: !registerClipDbId.trim(),
       };
       const res = await fetch(`${API_BASE}/api/v1/tiktok-tracking/register`, {
         method: "POST",
@@ -115,10 +159,11 @@ export default function TikTokTrackingPanel({ adminKey }) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || `Error ${res.status}`);
       }
+      const result = await res.json();
+      setRegisterResult(result);
       setRegisterUrl("");
       setRegisterLabel("");
       setRegisterClipDbId("");
-      setShowRegister(false);
       fetchVideos();
     } catch (e) {
       setRegisterError(e.message);
@@ -629,6 +674,80 @@ export default function TikTokTrackingPanel({ adminKey }) {
                 </div>
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Auto-match result notification */}
+      {registerResult && (
+        <div className={`rounded-xl border p-4 space-y-2 ${
+          registerResult.auto_match
+            ? "bg-gradient-to-r from-green-50 to-emerald-50 border-green-200"
+            : registerResult.auto_match === null
+              ? "bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200"
+              : "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200"
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold">
+              {registerResult.auto_match
+                ? "🎯 自動マッチング成功！"
+                : registerResult.auto_match === null
+                  ? "⚠️ 自動マッチング：一致するクリップが見つかりませんでした"
+                  : "✅ 動画を登録しました"}
+            </div>
+            <button
+              onClick={() => setRegisterResult(null)}
+              className="text-gray-400 hover:text-gray-600 text-sm"
+            >
+              ✕
+            </button>
+          </div>
+          {registerResult.auto_match && (
+            <div className="text-xs space-y-1">
+              <div className="text-green-700">
+                <span className="font-medium">マッチしたClip ID:</span> {registerResult.auto_match.clip_db_id}
+              </div>
+              <div className="text-green-600">
+                <span className="font-medium">類似度:</span> {(registerResult.auto_match.similarity * 100).toFixed(1)}%
+                <span className="ml-2 font-medium">方法:</span> {registerResult.auto_match.match_method === 'fingerprint' ? '音声フィンガープリント' : registerResult.auto_match.match_method === 'duration' ? '秒数マッチ' : registerResult.auto_match.match_method}
+                {registerResult.auto_match.clip_duration && (
+                  <span className="ml-2 font-medium">クリップ秒数:</span>
+                )}
+                {registerResult.auto_match.clip_duration && ` ${registerResult.auto_match.clip_duration}秒`}
+              </div>
+            </div>
+          )}
+          <div className="text-xs text-gray-500">
+            TikTok: @{registerResult.account_name} | 再生: {fmtNum(registerResult.initial_snapshot?.play_count)} | 秒数: {registerResult.duration}秒
+          </div>
+        </div>
+      )}
+
+      {/* Fingerprint status bar */}
+      {fpStatus && (
+        <div className="bg-white rounded-xl border border-gray-200 p-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-medium text-gray-600">🔊 音声フィンガープリント</span>
+            <div className="flex items-center gap-2">
+              <div className="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-green-400 to-emerald-500 rounded-full transition-all"
+                  style={{ width: `${fpStatus.coverage_pct}%` }}
+                />
+              </div>
+              <span className="text-[10px] text-gray-500">
+                {fpStatus.with_fingerprint}/{fpStatus.total_clips} ({fpStatus.coverage_pct}%)
+              </span>
+            </div>
+          </div>
+          {fpStatus.without_fingerprint > 0 && (
+            <button
+              onClick={handleGenerateFp}
+              disabled={fpGenerating}
+              className="px-3 py-1.5 text-[10px] font-medium bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+            >
+              {fpGenerating ? "生成中..." : `🔄 未生成${fpStatus.without_fingerprint}件を処理`}
+            </button>
           )}
         </div>
       )}

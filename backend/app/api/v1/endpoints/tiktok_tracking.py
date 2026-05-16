@@ -2,7 +2,9 @@
 TikTok Video Performance Tracking API
 - Register TikTok video URLs for tracking
 - Fetch performance data from RapidAPI TikWM
+- Auto-match TikTok videos to ClipDB clips via audio fingerprint
 - Scheduled job to update all tracked videos
+- Batch fingerprint generation for existing clips
 """
 import os
 import re
@@ -11,8 +13,8 @@ import logging
 import urllib.parse
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Optional
-from fastapi import APIRouter, HTTPException, Query, Header
+from typing import Optional, List
+from fastapi import APIRouter, HTTPException, Query, Header, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy import text
 from app.core.db import AsyncSessionLocal
@@ -48,6 +50,8 @@ class RegisterVideoRequest(BaseModel):
     tiktok_url: str
     clip_db_id: Optional[str] = None
     label: Optional[str] = None
+    auto_match: bool = True  # Enable auto-matching by default
+
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────────────
 
@@ -87,11 +91,70 @@ async def fetch_video_data_from_rapidapi(tiktok_url: str) -> dict:
     return data.get("data", {})
 
 
+async def auto_match_clip(
+    tiktok_duration: float,
+    tiktok_play_url: str,
+    tiktok_music_url: str,
+) -> Optional[dict]:
+    """
+    Auto-match a TikTok video to a ClipDB clip using:
+    1. Duration pre-filter (±3s tolerance)
+    2. Audio fingerprint comparison (if available)
+    """
+    try:
+        from app.services.audio_fingerprint import find_matching_clip, download_audio_to_temp, generate_fingerprint_from_file
+
+        async with get_session() as session:
+            # Get all completed clips with duration
+            result = await session.execute(
+                text("""
+                    SELECT id, clip_url, duration_sec, audio_fingerprint
+                    FROM video_clips
+                    WHERE status = 'completed'
+                      AND clip_url IS NOT NULL
+                      AND duration_sec IS NOT NULL
+                      AND duration_sec > 0
+                """)
+            )
+            rows = result.fetchall()
+            columns = result.keys()
+            candidates = [dict(zip(columns, r)) for r in rows]
+
+        if not candidates:
+            logger.info("No ClipDB candidates found for auto-matching")
+            return None
+
+        # Use the video play URL for fingerprint matching (has original audio)
+        audio_url = tiktok_play_url or tiktok_music_url
+        if not audio_url:
+            logger.warning("No audio URL available for matching")
+            return None
+
+        match = await find_matching_clip(
+            tiktok_duration=tiktok_duration,
+            tiktok_audio_url=audio_url,
+            clip_candidates=candidates,
+            duration_tolerance=3.0,
+            min_similarity=0.3,
+        )
+
+        if match:
+            logger.info(
+                f"Auto-matched TikTok video to clip {match['id']} "
+                f"(similarity={match.get('similarity', 0):.3f}, method={match.get('match_method', 'unknown')})"
+            )
+        return match
+
+    except Exception as e:
+        logger.error(f"Auto-match failed: {e}", exc_info=True)
+        return None
+
+
 # ─── Endpoints ────────────────────────────────────────────────────────────────────────
 
 @router.post("/register")
 async def register_video(req: RegisterVideoRequest, x_admin_key: Optional[str] = Header(None)):
-    """Register a TikTok video URL for performance tracking."""
+    """Register a TikTok video URL for performance tracking with optional auto-matching."""
     verify_admin(x_admin_key)
 
     video_id = extract_video_id_from_url(req.tiktok_url)
@@ -109,6 +172,22 @@ async def register_video(req: RegisterVideoRequest, x_admin_key: Optional[str] =
     account_name = video_data.get("author", {}).get("unique_id", "")
     title = video_data.get("title", "")
     cover_url = video_data.get("cover", "") or video_data.get("origin_cover", "")
+    duration = video_data.get("duration", 0)
+
+    # Auto-match to ClipDB if no clip_db_id provided and auto_match enabled
+    auto_match_result = None
+    clip_db_id = req.clip_db_id
+
+    if not clip_db_id and req.auto_match and duration > 0:
+        play_url = video_data.get("play", "")
+        music_url = video_data.get("music", "")
+        auto_match_result = await auto_match_clip(
+            tiktok_duration=float(duration),
+            tiktok_play_url=play_url,
+            tiktok_music_url=music_url,
+        )
+        if auto_match_result:
+            clip_db_id = str(auto_match_result["id"])
 
     async with get_session() as session:
         # Check if already registered
@@ -141,7 +220,7 @@ async def register_video(req: RegisterVideoRequest, x_admin_key: Optional[str] =
             """),
             {
                 "url": req.tiktok_url, "vid": video_id, "account": account_name,
-                "title": title, "cover": cover_url, "clip_db_id": req.clip_db_id,
+                "title": title, "cover": cover_url, "clip_db_id": clip_db_id,
                 "label": label_val,
             }
         )
@@ -170,16 +249,30 @@ async def register_video(req: RegisterVideoRequest, x_admin_key: Optional[str] =
             {"id": new_id}
         )
 
-        return {
+        response = {
             "id": new_id, "tiktok_url": req.tiktok_url,
             "tiktok_video_id": video_id, "account_name": account_name,
             "label": label_val, "status": "active",
+            "duration": duration,
             "initial_snapshot": {
                 "play_count": play_count, "digg_count": digg_count,
                 "comment_count": comment_count, "share_count": share_count,
                 "collect_count": collect_count,
             }
         }
+
+        # Include auto-match info
+        if auto_match_result:
+            response["auto_match"] = {
+                "clip_db_id": auto_match_result["id"],
+                "similarity": auto_match_result.get("similarity", 0),
+                "match_method": auto_match_result.get("match_method", "unknown"),
+                "clip_duration": auto_match_result.get("duration_sec"),
+            }
+        elif not req.clip_db_id and req.auto_match:
+            response["auto_match"] = None  # Tried but no match found
+
+        return response
 
 
 @router.get("/videos")
@@ -273,30 +366,25 @@ async def get_video_snapshots(
 
         return {
             "video": {"id": video[0], "tiktok_url": video[1], "label": video[2]},
-            "snapshots": [dict(zip(columns, row)) for row in rows]
+            "snapshots": [dict(zip(columns, row)) for row in rows],
         }
 
 
 @router.post("/videos/{video_id}/fetch-now")
-async def fetch_video_now(video_id: int, x_admin_key: Optional[str] = Header(None)):
+async def fetch_now(video_id: int, x_admin_key: Optional[str] = Header(None)):
     """Manually trigger a fetch for a specific tracked video."""
     verify_admin(x_admin_key)
 
     async with get_session() as session:
         result = await session.execute(
-            text("SELECT id, tiktok_url, status FROM tiktok_tracked_videos WHERE id = :id"),
+            text("SELECT id, tiktok_url FROM tiktok_tracked_videos WHERE id = :id"),
             {"id": video_id}
         )
         video = result.fetchone()
         if not video:
             raise HTTPException(status_code=404, detail="Tracked video not found")
 
-        try:
-            video_data = await fetch_video_data_from_rapidapi(video[1])
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"Failed to fetch: {str(e)}")
+        video_data = await fetch_video_data_from_rapidapi(video[1])
 
         play_count = video_data.get("play_count", 0)
         digg_count = video_data.get("digg_count", 0)
@@ -377,6 +465,135 @@ async def delete_tracked_video(video_id: int, x_admin_key: Optional[str] = Heade
         return {"success": True, "message": "Video and snapshots deleted"}
 
 
+# ─── Audio Fingerprint Endpoints ──────────────────────────────────────────────
+
+@router.post("/fingerprints/generate-batch")
+async def generate_fingerprints_batch(
+    x_admin_key: Optional[str] = Header(None),
+    limit: int = Query(50, ge=1, le=500),
+):
+    """
+    Generate audio fingerprints for ClipDB clips that don't have one yet.
+    Processes clips in batches. Call repeatedly until all clips are processed.
+    """
+    verify_admin(x_admin_key)
+
+    try:
+        from app.services.audio_fingerprint import download_audio_to_temp, generate_fingerprint_from_file
+        from app.services.storage_service import generate_read_sas_from_url
+    except ImportError as e:
+        raise HTTPException(status_code=500, detail=f"Missing dependency: {e}")
+
+    results = {"processed": 0, "success": 0, "failed": 0, "remaining": 0}
+
+    async with get_session() as session:
+        # Get clips without fingerprints
+        result = await session.execute(
+            text("""
+                SELECT id, clip_url, sas_token, sas_expireddate
+                FROM video_clips
+                WHERE status = 'completed'
+                  AND clip_url IS NOT NULL
+                  AND audio_fingerprint IS NULL
+                ORDER BY id DESC
+                LIMIT :limit
+            """),
+            {"limit": limit}
+        )
+        clips = result.fetchall()
+
+        # Count remaining
+        count_result = await session.execute(
+            text("""
+                SELECT COUNT(*) FROM video_clips
+                WHERE status = 'completed'
+                  AND clip_url IS NOT NULL
+                  AND audio_fingerprint IS NULL
+            """)
+        )
+        results["remaining"] = count_result.scalar() or 0
+
+        for clip in clips:
+            clip_id, clip_url, sas_token, sas_expireddate = clip
+            results["processed"] += 1
+
+            try:
+                # Get accessible URL (SAS token or generate new one)
+                download_url = None
+                if sas_token and sas_expireddate:
+                    from datetime import timezone
+                    expiry = sas_expireddate
+                    if hasattr(expiry, 'replace'):
+                        expiry = expiry.replace(tzinfo=None)
+                    if expiry > datetime.utcnow():
+                        download_url = sas_token
+
+                if not download_url:
+                    try:
+                        sas_url = generate_read_sas_from_url(clip_url)
+                        download_url = sas_url if sas_url else clip_url
+                    except Exception:
+                        download_url = clip_url
+
+                # Download audio
+                tmp_path = await download_audio_to_temp(download_url, timeout=120)
+                if not tmp_path:
+                    logger.warning(f"Failed to download clip {clip_id}")
+                    results["failed"] += 1
+                    continue
+
+                try:
+                    # Generate fingerprint
+                    fp = generate_fingerprint_from_file(tmp_path)
+                    if fp:
+                        await session.execute(
+                            text("UPDATE video_clips SET audio_fingerprint = :fp WHERE id = :id"),
+                            {"fp": fp, "id": clip_id}
+                        )
+                        results["success"] += 1
+                        logger.info(f"Generated fingerprint for clip {clip_id}")
+                    else:
+                        results["failed"] += 1
+                        logger.warning(f"Fingerprint generation returned None for clip {clip_id}")
+                finally:
+                    import os as _os
+                    try:
+                        _os.unlink(tmp_path)
+                    except OSError:
+                        pass
+
+            except Exception as e:
+                logger.error(f"Failed to process clip {clip_id}: {e}")
+                results["failed"] += 1
+
+    results["remaining"] = max(0, results["remaining"] - results["processed"])
+    return results
+
+
+@router.get("/fingerprints/status")
+async def fingerprint_status(x_admin_key: Optional[str] = Header(None)):
+    """Get fingerprint generation status for ClipDB clips."""
+    verify_admin(x_admin_key)
+
+    async with get_session() as session:
+        result = await session.execute(
+            text("""
+                SELECT
+                    COUNT(*) FILTER (WHERE status = 'completed' AND clip_url IS NOT NULL) as total_clips,
+                    COUNT(*) FILTER (WHERE status = 'completed' AND clip_url IS NOT NULL AND audio_fingerprint IS NOT NULL) as with_fingerprint,
+                    COUNT(*) FILTER (WHERE status = 'completed' AND clip_url IS NOT NULL AND audio_fingerprint IS NULL) as without_fingerprint
+                FROM video_clips
+            """)
+        )
+        row = result.fetchone()
+        return {
+            "total_clips": row[0],
+            "with_fingerprint": row[1],
+            "without_fingerprint": row[2],
+            "coverage_pct": round(row[1] / row[0] * 100, 1) if row[0] > 0 else 0,
+        }
+
+
 # ─── Scheduled Job Endpoint ───────────────────────────────────────────────────
 
 @router.post("/cron/fetch-all")
@@ -403,6 +620,7 @@ async def cron_fetch_all(x_admin_key: Optional[str] = Header(None)):
             """)
         )
         videos = result.fetchall()
+
         now = datetime.utcnow()
 
         for video in videos:
@@ -411,6 +629,7 @@ async def cron_fetch_all(x_admin_key: Optional[str] = Header(None)):
             last_fetched_naive = last_fetched.replace(tzinfo=None) if last_fetched else None
 
             should_fetch = False
+
             if days_since_created <= 3:
                 should_fetch = True
             elif days_since_created <= 7:
@@ -420,6 +639,7 @@ async def cron_fetch_all(x_admin_key: Optional[str] = Header(None)):
                 if not last_fetched_naive or (now - last_fetched_naive).total_seconds() >= 6.5 * 24 * 3600:
                     should_fetch = True
             else:
+                # Auto-stop after 31 days
                 await session.execute(
                     text("UPDATE tiktok_tracked_videos SET status = 'stopped', updated_at = NOW() WHERE id = :id"),
                     {"id": vid_id}
