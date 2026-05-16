@@ -1529,8 +1529,8 @@ async def _run_single_clip_generation(job_id: str, req: GenerateRequest, clip_da
     try:
         async with _AI_CLIP_SEMAPHORE:
             clip_id = str(clip_data["clip_id"])
-            _update_job(job_id, status="processing", progress_pct=10,
-                        current_step=f"クリップ {clip_id[:8]}... 処理中...")
+            _update_job(job_id, status="processing", progress_pct=2,
+                        current_step=f"クリップ {clip_id[:8]}... 処理開始...")
 
             result = await _process_single_clip_v2(job_id, clip_data, req, 0, 1)
             _update_job(
@@ -1793,8 +1793,8 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
     tmp_dir = tempfile.mkdtemp(prefix=f"ai_clip_{clip_id[:8]}_")
 
     try:
-        # ── 1. Download clip ──
-        _update_job(job_id, current_step=f"クリップ {idx+1}/{total}: ダウンロード中...")
+        # ── 1. Download clip ── (5%)
+        _update_job(job_id, progress_pct=5, current_step=f"クリップ {idx+1}/{total}: ダウンロード中...")
         video_path = os.path.join(tmp_dir, "input.mp4")
 
         download_url = clip_url
@@ -1837,24 +1837,24 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
         if "format" in probe_data and "duration" in probe_data["format"]:
             duration = float(probe_data["format"]["duration"])
 
-        # ── 3. Audio analysis (V2: volume peaks + silence detection) ──
+        # ── 3. Audio analysis (V2: volume peaks + silence detection) ── (15%)
         volume_peaks = []
         silence_periods = []
         keep_segments = [(0, duration)]
 
         if req.enable_zoom_pulse:
-            _update_job(job_id, current_step=f"クリップ {idx+1}/{total}: 音声分析中（ズームポイント検出）...")
+            _update_job(job_id, progress_pct=15, current_step=f"クリップ {idx+1}/{total}: 音声分析中（ズームポイント検出）...")
             volume_peaks = _detect_volume_peaks(video_path)
 
         if req.enable_silence_cut:
-            _update_job(job_id, current_step=f"クリップ {idx+1}/{total}: 無音区間検出中...")
+            _update_job(job_id, progress_pct=20, current_step=f"クリップ {idx+1}/{total}: 無音区間検出中...")
             silence_periods = _detect_silence_periods(
                 video_path, noise_db=req.silence_threshold_db
             )
 
-        # ── 4. Transcribe ──
+        # ── 4. Transcribe ── (25%)
         if not captions:
-            _update_job(job_id, current_step=f"クリップ {idx+1}/{total}: 字幕生成中 (Whisper)...")
+            _update_job(job_id, progress_pct=25, current_step=f"クリップ {idx+1}/{total}: 字幕生成中 (Whisper)...")
             captions = await _transcribe_clip(video_path, req.target_language)
 
         if isinstance(captions, str):
@@ -1876,24 +1876,24 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
                 duration, volume_peaks, captions, max_zoom=req.zoom_intensity
             )
 
-        # ── 6. Hook generation ──
+        # ── 6. Hook generation ── (40%)
         hook_text = None
         if req.enable_hook:
-            _update_job(job_id, current_step=f"クリップ {idx+1}/{total}: フック生成中...")
+            _update_job(job_id, progress_pct=40, current_step=f"クリップ {idx+1}/{total}: フック生成中...")
             hook_text = await _generate_hook(captions, clip, req)
 
-        # ── 7. CTA generation (V2) ──
+        # ── 7. CTA generation (V2) ── (45%)
         cta_text = None
         if req.enable_cta:
-            _update_job(job_id, current_step=f"クリップ {idx+1}/{total}: CTA生成中...")
+            _update_job(job_id, progress_pct=45, current_step=f"クリップ {idx+1}/{total}: CTA生成中...")
             cta_text = _generate_cta_text(captions, clip)
 
-        # ── 8. Scene classification & style assignment ──
-        _update_job(job_id, current_step=f"クリップ {idx+1}/{total}: シーン分析中...")
+        # ── 8. Scene classification & style assignment ── (50%)
+        _update_job(job_id, progress_pct=50, current_step=f"クリップ {idx+1}/{total}: シーン分析中...")
         styled_captions = _assign_scene_styles(captions, duration, req.subtitle_style)
 
-        # ── 9. Generate enhanced ASS subtitle file (V2) ──
-        _update_job(job_id, current_step=f"クリップ {idx+1}/{total}: 字幕ファイル生成中...")
+        # ── 9. Generate enhanced ASS subtitle file (V2) ── (55%)
+        _update_job(job_id, progress_pct=55, current_step=f"クリップ {idx+1}/{total}: 字幕ファイル生成中...")
         ass_path = os.path.join(tmp_dir, "subtitles.ass")
         _generate_enhanced_ass(
             styled_captions, hook_text, cta_text, ass_path,
@@ -1903,8 +1903,8 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
             enable_highlights=req.enable_keyword_highlight,
         )
 
-        # ── 10. Build advanced ffmpeg command (V2) ──
-        _update_job(job_id, current_step=f"クリップ {idx+1}/{total}: エンコード中（V2フィルタ適用）...")
+        # ── 10. Build advanced ffmpeg command (V2) ── (60%)
+        _update_job(job_id, progress_pct=60, current_step=f"クリップ {idx+1}/{total}: エンコード中（V2フィルタ適用）...")
         output_path = os.path.join(tmp_dir, "output.mp4")
         ffmpeg_cmd = _build_advanced_ffmpeg_command(
             video_path, ass_path, output_path,
@@ -1946,20 +1946,21 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
         except Exception:
             pass
 
-        # ── 11. Enhanced thumbnail (V2) ──
+        # ── 11. Enhanced thumbnail (V2) ── (85%)
         thumbnail_url = None
         if req.enable_thumbnail:
-            _update_job(job_id, current_step=f"クリップ {idx+1}/{total}: サムネイル生成中...")
+            _update_job(job_id, progress_pct=85, current_step=f"クリップ {idx+1}/{total}: サムネイル生成中...")
             thumbnail_url = await _generate_enhanced_thumbnail(
                 output_path, tmp_dir, clip_id,
                 hook_text=hook_text or "", product_name=product_name,
             )
 
-        # ── 12. Upload to Azure Blob Storage ──
-        _update_job(job_id, current_step=f"クリップ {idx+1}/{total}: アップロード中...")
+        # ── 12. Upload to Azure Blob Storage ── (90%)
+        _update_job(job_id, progress_pct=90, current_step=f"クリップ {idx+1}/{total}: アップロード中...")
         download_url, blob_url = await _upload_to_blob(output_path, clip_id, job_id)
 
-        # ── 13. Save to DB ──
+        # ── 13. Save to DB ── (95%)
+        _update_job(job_id, progress_pct=95, current_step=f"クリップ {idx+1}/{total}: DB保存中...")
         await _save_export_record(clip_id, blob_url, thumbnail_url)
 
         return {

@@ -722,7 +722,7 @@ export default function AutoAIClipPanel({ adminKey }) {
                     ></div>
                   </div>
                   <p className="text-xs text-gray-600 mt-2 font-medium">{activeJob.current_step}</p>
-                  {/* Time info */}
+                  {/* Time info - step-based ETA */}
                   {(() => {
                     const createdAt = activeJob.created_at ? new Date(activeJob.created_at) : null;
                     const now = new Date();
@@ -731,15 +731,18 @@ export default function AutoAIClipPanel({ adminKey }) {
                     const elapsedMin = Math.floor(elapsedSec / 60);
                     const elapsedRemSec = elapsedSec % 60;
                     const pct = activeJob.progress_pct || 0;
-                    let etaText = "計算中...";
-                    if (pct > 5 && elapsedMs > 5000) {
-                      const totalEstMs = (elapsedMs / pct) * 100;
-                      const remainMs = Math.max(0, totalEstMs - elapsedMs);
-                      const remainMin = Math.floor(remainMs / 1000 / 60);
-                      const remainSec = Math.floor((remainMs / 1000) % 60);
-                      etaText = remainMin > 0 ? `約${remainMin}分${remainSec}秒` : `約${remainSec}秒`;
-                    } else if (pct <= 5) {
-                      etaText = "推定中...";
+                    const typicalTotalSec = 180;
+                    const remainPct = Math.max(0, 100 - pct);
+                    const estimatedRemainSec = Math.round((remainPct / 100) * typicalTotalSec);
+                    let etaText;
+                    if (pct < 3) {
+                      etaText = "約3分";
+                    } else if (pct >= 95) {
+                      etaText = "まもなく完了";
+                    } else {
+                      const etaMin = Math.floor(estimatedRemainSec / 60);
+                      const etaSec = estimatedRemainSec % 60;
+                      etaText = etaMin > 0 ? `約${etaMin}分${etaSec}秒` : `約${etaSec}秒`;
                     }
                     return (
                       <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
@@ -793,7 +796,7 @@ export default function AutoAIClipPanel({ adminKey }) {
                     style={{ width: `${activeJob.progress_pct || 0}%` }}
                   ></div>
                 </div>
-                {/* Time info */}
+                {/* Time info - step-based ETA */}
                 {activeJob.status !== "done" && activeJob.status !== "failed" && (() => {
                   const createdAt = activeJob.created_at ? new Date(activeJob.created_at) : null;
                   const now = new Date();
@@ -802,13 +805,18 @@ export default function AutoAIClipPanel({ adminKey }) {
                   const elapsedMin = Math.floor(elapsedSec / 60);
                   const elapsedRemSec = elapsedSec % 60;
                   const pct = activeJob.progress_pct || 0;
-                  let etaText = "推定中...";
-                  if (pct > 5 && elapsedMs > 5000) {
-                    const totalEstMs = (elapsedMs / pct) * 100;
-                    const remainMs = Math.max(0, totalEstMs - elapsedMs);
-                    const remainMin = Math.floor(remainMs / 1000 / 60);
-                    const remainSec = Math.floor((remainMs / 1000) % 60);
-                    etaText = remainMin > 0 ? `約${remainMin}分${remainSec}秒` : `約${remainSec}秒`;
+                  const typicalTotalSec = 180;
+                  const remainPct = Math.max(0, 100 - pct);
+                  const estimatedRemainSec = Math.round((remainPct / 100) * typicalTotalSec);
+                  let etaText;
+                  if (pct < 3) {
+                    etaText = "約3分";
+                  } else if (pct >= 95) {
+                    etaText = "まもなく完了";
+                  } else {
+                    const etaMin = Math.floor(estimatedRemainSec / 60);
+                    const etaSec = estimatedRemainSec % 60;
+                    etaText = etaMin > 0 ? `約${etaMin}分${etaSec}秒` : `約${etaSec}秒`;
                   }
                   return (
                     <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
