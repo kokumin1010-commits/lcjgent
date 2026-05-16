@@ -8,6 +8,7 @@ import os
 import re
 import httpx
 import logging
+import urllib.parse
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Optional
@@ -69,10 +70,12 @@ async def fetch_video_data_from_rapidapi(tiktok_url: str) -> dict:
         "x-rapidapi-host": RAPIDAPI_HOST,
         "x-rapidapi-key": api_key,
     }
-    params = {"url": tiktok_url, "hd": "1"}
+    # URL must be manually encoded - httpx params encoding doesn't work with TikWM API
+    encoded_url = urllib.parse.quote(tiktok_url, safe='')
+    full_url = f"https://{RAPIDAPI_HOST}/?url={encoded_url}&hd=1"
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.get(f"https://{RAPIDAPI_HOST}/", headers=headers, params=params)
+        resp = await client.get(full_url, headers=headers)
         data = resp.json()
 
     if data.get("code") != 0:
