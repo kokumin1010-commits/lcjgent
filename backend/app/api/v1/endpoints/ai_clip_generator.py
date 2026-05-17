@@ -45,7 +45,7 @@ from typing import Optional, List
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, HTTPException, Query, Header, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, Header, BackgroundTasks, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
@@ -2326,7 +2326,8 @@ async def _save_export_record(clip_id: str, blob_url: str, thumbnail_url: Option
 
 
 @router.post("/test-db-save")
-async def test_db_save(admin=Depends(verify_admin)):
+async def test_db_save(x_admin_key: Optional[str] = Header(None)):
+    verify_admin(x_admin_key)
     """Test endpoint to verify _save_job_db works end-to-end"""
     test_job_id = f"test-{uuid.uuid4().hex[:8]}"
     test_data = {
