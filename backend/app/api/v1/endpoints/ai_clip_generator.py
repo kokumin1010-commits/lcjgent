@@ -852,21 +852,16 @@ def _build_advanced_ffmpeg_command(
         vf_parts.append(f"eq=brightness='{flash_expr}':eval=frame")
 
     # ── 4. ASS subtitles ──
-    # Use subtitles filter with fontsdir for reliable CJK font rendering.
-    # The subtitles filter uses libass internally but has better font handling.
-    # Also set FONTCONFIG_PATH to ensure fontconfig finds system fonts.
+    # Use ass filter with fontsdir. Ensure FONTCONFIG_PATH is set before
+    # ffmpeg runs so libass can find system fonts via fontconfig.
     escaped_ass = ass_path.replace(":", "\\:").replace("'", "'\\''")
     font_path = _find_cjk_font()
     font_dir = os.path.dirname(font_path)
     escaped_fontdir = font_dir.replace(":", "\\:").replace("'", "'\\''")
-    cjk_font_name = _detect_cjk_font_name()
-    # Use subtitles filter with force_style to ensure font is applied
-    force_style = f"FontName={cjk_font_name}"
-    vf_parts.append(
-        f"subtitles='{escaped_ass}'"
-        f":fontsdir='{escaped_fontdir}'"
-        f":force_style='{force_style}'"
-    )
+    # Set FONTCONFIG_PATH env var for the ffmpeg subprocess
+    os.environ.setdefault("FONTCONFIG_PATH", "/etc/fonts")
+    os.environ.setdefault("FONTCONFIG_FILE", "/etc/fonts/fonts.conf")
+    vf_parts.append(f"ass='{escaped_ass}':fontsdir='{escaped_fontdir}'")
 
     # ── 5. Progress bar at bottom ──
     if enable_progress_bar:
