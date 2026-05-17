@@ -219,6 +219,17 @@ async def _save_job_db(job_id: str, data: dict):
     """Save job to DB (async) - uses engine.begin() for guaranteed commit"""
     try:
         await _ensure_jobs_table()
+        # Parse timestamps - asyncpg requires actual datetime objects, not strings
+        def _parse_ts(val):
+            if isinstance(val, datetime):
+                return val
+            if isinstance(val, str):
+                try:
+                    return datetime.fromisoformat(val)
+                except (ValueError, TypeError):
+                    pass
+            return datetime.now(timezone.utc)
+
         params = {
             "job_id": data.get("job_id", job_id),
             "status": data.get("status", "queued"),
@@ -230,8 +241,8 @@ async def _save_job_db(job_id: str, data: dict):
             "error": data.get("error"),
             "config": json.dumps(data.get("config", {}), default=str),
             "source_clip": json.dumps(data.get("source_clip"), default=str) if data.get("source_clip") else None,
-            "created_at": data.get("created_at", datetime.now(timezone.utc).isoformat()),
-            "updated_at": data.get("updated_at", datetime.now(timezone.utc).isoformat()),
+            "created_at": _parse_ts(data.get("created_at")),
+            "updated_at": _parse_ts(data.get("updated_at")),
         }
         async with engine.begin() as conn:
             await conn.execute(text("""
@@ -239,7 +250,7 @@ async def _save_job_db(job_id: str, data: dict):
                     clips_completed, clips_total, results, error, config, source_clip, created_at, updated_at)
                 VALUES (:job_id, :status, :progress_pct, :current_step,
                     :clips_completed, :clips_total, CAST(:results AS jsonb), :error, CAST(:config AS jsonb), CAST(:source_clip AS jsonb),
-                    CAST(:created_at AS timestamptz), CAST(:updated_at AS timestamptz))
+                    :created_at, :updated_at)
                 ON CONFLICT (job_id) DO UPDATE SET
                     status = EXCLUDED.status,
                     progress_pct = EXCLUDED.progress_pct,
