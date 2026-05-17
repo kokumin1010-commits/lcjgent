@@ -526,10 +526,14 @@ _EMOJI_PATTERN = re.compile(
     "\U0001F680-\U0001F6FF"  # transport & map
     "\U0001F1E0-\U0001F1FF"  # flags
     "\U00002702-\U000027B0"  # dingbats
-    "\U000024C2-\U0001F251"  # enclosed chars
+    "\U000024C2-\U000024FF"  # enclosed alphanumerics (safe: stops before CJK)
     "\U0001F900-\U0001F9FF"  # supplemental symbols
     "\U0001FA00-\U0001FA6F"  # chess symbols
     "\U0001FA70-\U0001FAFF"  # symbols extended-A
+    "\U0001F000-\U0001F02F"  # mahjong tiles
+    "\U0001F0A0-\U0001F0FF"  # playing cards
+    "\U0001F100-\U0001F1FF"  # enclosed alphanumeric supplement
+    "\U0001F200-\U0001F251"  # enclosed ideographic supplement
     "\U00002600-\U000026FF"  # misc symbols
     "\U0000FE00-\U0000FE0F"  # variation selectors
     "\U0000200D"             # zero width joiner
@@ -545,8 +549,8 @@ _EMOJI_PATTERN = re.compile(
     "\U00002B05-\U00002B07"  # arrows
     "\U00003030"             # wavy dash
     "\U0000303D"             # part alternation mark
-    "\U00003297"             # circled ideograph
-    "\U00003299"             # circled ideograph
+    "\U00003297"             # circled ideograph congratulate
+    "\U00003299"             # circled ideograph secret
     "]+", flags=re.UNICODE
 )
 
@@ -1922,7 +1926,7 @@ async def diagnostics(x_admin_key: Optional[str] = Header(None)):
         db_status["error"] = f"{type(e).__name__}: {str(e)[:200]}\n{traceback.format_exc()[-200:]}"
 
     return {
-        "version": "2.10",
+        "version": "2.11",
         "azure_openai_key_set": bool(azure_key),
         "azure_openai_endpoint": azure_endpoint or "NOT SET",
         "gpt_model": gpt_model,
