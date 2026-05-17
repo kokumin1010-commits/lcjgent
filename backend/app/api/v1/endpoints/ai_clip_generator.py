@@ -45,7 +45,7 @@ from typing import Optional, List
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, HTTPException, Query, Header, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, Query, Header, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
@@ -1444,7 +1444,7 @@ async def diagnostics(x_admin_key: Optional[str] = Header(None)):
         db_status["error"] = f"{type(e).__name__}: {str(e)[:200]}\n{traceback.format_exc()[-200:]}"
 
     return {
-        "version": "2.1",
+        "version": "2.2",
         "azure_openai_key_set": bool(azure_key),
         "azure_openai_endpoint": azure_endpoint or "NOT SET",
         "gpt_model": gpt_model,
@@ -2334,51 +2334,3 @@ async def _save_export_record(clip_id: str, blob_url: str, thumbnail_url: Option
             logger.info(f"[ai-clip] Saved export record for clip {clip_id}")
     except Exception as e:
         logger.warning(f"[ai-clip] Failed to save export record: {e}")
-
-
-@router.post("/test-db-save")
-async def test_db_save(x_admin_key: Optional[str] = Header(None)):
-    verify_admin(x_admin_key)
-    """Test endpoint to verify _save_job_db works end-to-end"""
-    test_job_id = f"test-{uuid.uuid4().hex[:8]}"
-    test_data = {
-        "job_id": test_job_id,
-        "status": "test",
-        "progress_pct": 42,
-        "current_step": "testing DB save",
-        "clips_completed": 0,
-        "clips_total": 1,
-        "results": [],
-        "error": None,
-        "config": {"test": True},
-        "source_clip": None,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }
-    
-    # Call _save_job_db
-    await _save_job_db(test_job_id, test_data)
-    
-    # Immediately read back from DB
-    async with engine.connect() as conn:
-        result = await conn.execute(text(
-            "SELECT job_id, status, progress_pct FROM ai_clip_jobs WHERE job_id = :job_id"
-        ), {"job_id": test_job_id})
-        row = result.fetchone()
-    
-    # Also check total count
-    async with engine.connect() as conn:
-        result = await conn.execute(text("SELECT COUNT(*) as cnt FROM ai_clip_jobs"))
-        count_row = result.fetchone()
-    
-    # Clean up
-    async with engine.begin() as conn:
-        await conn.execute(text("DELETE FROM ai_clip_jobs WHERE job_id = :job_id"), {"job_id": test_job_id})
-    
-    return {
-        "test_job_id": test_job_id,
-        "found_in_db": row is not None,
-        "row_data": {"job_id": row.job_id, "status": row.status, "progress_pct": row.progress_pct} if row else None,
-        "total_jobs_before_cleanup": count_row.cnt if count_row else 0,
-        "last_save_error": _LAST_DB_SAVE_ERROR,
-    }
