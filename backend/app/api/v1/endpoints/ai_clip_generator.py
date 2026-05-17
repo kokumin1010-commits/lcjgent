@@ -1399,10 +1399,29 @@ async def diagnostics(x_admin_key: Optional[str] = Header(None)):
     except Exception:
         ffmpeg_ok = False
         ffprobe_ok = False
-    # DB table check
-    db_status = {"table_exists": False, "job_count": 0, "error": None, "last_save_error": _LAST_DB_SAVE_ERROR}
+    # DB table check with test write
+    db_status = {"table_exists": False, "job_count": 0, "error": None, "last_save_error": _LAST_DB_SAVE_ERROR, "test_write": None}
     try:
         await _ensure_jobs_table()
+        # Test write: insert a test job and then delete it
+        test_id = f"diag-test-{uuid.uuid4().hex[:8]}"
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("""
+                INSERT INTO ai_clip_jobs (job_id, status, progress_pct, current_step, clips_completed, clips_total, results, config, created_at, updated_at)
+                VALUES (:job_id, 'test', 0, 'diagnostic test', 0, 0, '[]'::jsonb, '{}'::jsonb, NOW(), NOW())
+            """), {"job_id": test_id})
+            await session.commit()
+        # Verify the test write
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(text(
+                "SELECT COUNT(*) as cnt FROM ai_clip_jobs WHERE job_id = :job_id"
+            ), {"job_id": test_id})
+            row = result.fetchone()
+            db_status["test_write"] = "OK" if (row and row.cnt > 0) else "FAILED (not found after insert)"
+            # Clean up test row
+            await session.execute(text("DELETE FROM ai_clip_jobs WHERE job_id = :job_id"), {"job_id": test_id})
+            await session.commit()
+        # Count actual jobs
         async with AsyncSessionLocal() as session:
             result = await session.execute(text(
                 "SELECT COUNT(*) as cnt FROM ai_clip_jobs"
@@ -1411,7 +1430,8 @@ async def diagnostics(x_admin_key: Optional[str] = Header(None)):
             db_status["table_exists"] = True
             db_status["job_count"] = row.cnt if row else 0
     except Exception as e:
-        db_status["error"] = str(e)[:200]
+        import traceback
+        db_status["error"] = f"{type(e).__name__}: {str(e)[:200]}\n{traceback.format_exc()[-200:]}"
 
     return {
         "version": "2.1",
