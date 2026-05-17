@@ -238,8 +238,8 @@ async def _save_job_db(job_id: str, data: dict):
                 INSERT INTO ai_clip_jobs (job_id, status, progress_pct, current_step,
                     clips_completed, clips_total, results, error, config, source_clip, created_at, updated_at)
                 VALUES (:job_id, :status, :progress_pct, :current_step,
-                    :clips_completed, :clips_total, :results::jsonb, :error, :config::jsonb, :source_clip::jsonb,
-                    :created_at::timestamptz, :updated_at::timestamptz)
+                    :clips_completed, :clips_total, CAST(:results AS jsonb), :error, CAST(:config AS jsonb), CAST(:source_clip AS jsonb),
+                    CAST(:created_at AS timestamptz), CAST(:updated_at AS timestamptz))
                 ON CONFLICT (job_id) DO UPDATE SET
                     status = EXCLUDED.status,
                     progress_pct = EXCLUDED.progress_pct,
