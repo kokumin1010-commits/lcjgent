@@ -1954,26 +1954,53 @@ async def _run_regeneration(
         # IMPORTANT: Use the ORIGINAL source video from clip-db (not the generated output
         # which already has subtitles burned in)
         video_url = None
-        # First try clip-db (original video without subtitles)
+        # First try video_clips table (original video without burned-in subtitles)
         try:
-            async with get_session() as session:
-                row = await session.execute(text(
-                    "SELECT video_url FROM clips WHERE id = CAST(:cid AS uuid) LIMIT 1"
+            async with engine.connect() as conn:
+                row = await conn.execute(text(
+                    "SELECT clip_url, clip_url_hd FROM video_clips WHERE id = CAST(:cid AS uuid) LIMIT 1"
                 ), {"cid": clip_id})
                 clip_row = row.fetchone()
                 if clip_row:
-                    video_url = clip_row.video_url
-                    logger.info(f"[ai-clip regen] Using original clip-db video for {clip_id}")
+                    # Prefer HD URL, fallback to regular clip_url
+                    raw_url = clip_row.clip_url_hd or clip_row.clip_url
+                    if raw_url:
+                        # If URL is a blob URL without SAS, generate a fresh SAS token
+                        if "blob.core.windows.net" in raw_url and "?" not in raw_url:
+                            from app.services.storage_service import generate_read_sas_from_url
+                            sas_url = generate_read_sas_from_url(raw_url, expires_hours=2)
+                            video_url = sas_url or raw_url
+                        elif "cdn.aitherhub.com" in raw_url:
+                            # CDN URLs need to be converted to blob URL for SAS
+                            blob_url = raw_url.replace("https://cdn.aitherhub.com", f"https://aitherhub.blob.core.windows.net")
+                            from app.services.storage_service import generate_read_sas_from_url
+                            sas_url = generate_read_sas_from_url(blob_url, expires_hours=2)
+                            video_url = sas_url or raw_url
+                        else:
+                            video_url = raw_url
+                        logger.info(f"[ai-clip regen] Using video_clips clip_url for {clip_id}")
         except Exception as e:
-            logger.warning(f"[ai-clip regen] Failed to get clip-db video: {e}")
-        # Fallback: use the generated video (already has subtitles - not ideal but better than nothing)
+            logger.warning(f"[ai-clip regen] Failed to get video_clips video: {e}")
+        # Fallback: use the generated video's blob_url with fresh SAS
         if not video_url:
             original_job = _load_job(original_job_id)
             if not original_job:
                 original_job = await _load_job_db(original_job_id)
             if original_job:
                 original_result = original_job.get("results", [{}])[0]
-                video_url = original_result.get("blob_url") or original_result.get("download_url")
+                blob_url = original_result.get("blob_url", "")
+                if blob_url:
+                    # Generate fresh SAS for the blob URL
+                    try:
+                        if "cdn.aitherhub.com" in blob_url:
+                            blob_url = blob_url.replace("https://cdn.aitherhub.com", "https://aitherhub.blob.core.windows.net")
+                        from app.services.storage_service import generate_read_sas_from_url
+                        sas_url = generate_read_sas_from_url(blob_url, expires_hours=2)
+                        video_url = sas_url or blob_url
+                    except Exception:
+                        video_url = blob_url
+                if not video_url:
+                    video_url = original_result.get("download_url")
                 logger.warning(f"[ai-clip regen] Falling back to generated video (may have old subtitles)")
         if not video_url:
             await _update_job(job_id, status="error", error="元動画のURLが取得できません")
