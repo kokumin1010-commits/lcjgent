@@ -1209,6 +1209,13 @@ function ArticleList() {
   );
   const { data: categories } = trpc.blog.listCategories.useQuery();
   const utils = trpc.useUtils();
+  const batchCoverMutation = trpc.blog.batchGenerateCoverImages.useMutation({
+    onSuccess: (result) => {
+      utils.blog.list.invalidate();
+      toast.success(`カバー画像を${result.generated}件生成しました（対象: ${result.total}件）`);
+    },
+    onError: (err) => toast.error(`一括生成失敗: ${err.message}`),
+  });
   const toggleMutation = trpc.blog.togglePublish.useMutation({
     onSuccess: (result) => {
       utils.blog.list.invalidate();
@@ -1250,10 +1257,21 @@ function ArticleList() {
             </Badge>
           )}
         </CardTitle>
-        <Button onClick={() => navigate("/master/blog/new")}>
-          <Plus className="h-4 w-4 mr-1" />
-          新規記事
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => batchCoverMutation.mutate({ limit: 10 })}
+            disabled={batchCoverMutation.isPending}
+          >
+            {batchCoverMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ImageIcon className="h-4 w-4 mr-1" />}
+            カバー画像一括生成
+          </Button>
+          <Button onClick={() => navigate("/master/blog/new")}>
+            <Plus className="h-4 w-4 mr-1" />
+            新規記事
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="flex gap-2 mb-4">

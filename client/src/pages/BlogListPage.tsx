@@ -15,8 +15,29 @@ import {
   ShoppingBag,
   Star,
   Users,
+  BookOpen,
+  Sparkles,
+  Lightbulb,
+  Heart,
+  Zap,
 } from "lucide-react";
 import { useLocation, Link } from "wouter";
+
+// Category-based gradient & icon fallback for articles without cover images
+const CATEGORY_THEMES: Record<number, { gradient: string; icon: React.ReactNode }> = {};
+const DEFAULT_GRADIENTS = [
+  { gradient: "from-rose-400 to-pink-600", icon: <Heart className="h-10 w-10 text-white/60" /> },
+  { gradient: "from-violet-400 to-purple-600", icon: <Sparkles className="h-10 w-10 text-white/60" /> },
+  { gradient: "from-sky-400 to-blue-600", icon: <BookOpen className="h-10 w-10 text-white/60" /> },
+  { gradient: "from-emerald-400 to-teal-600", icon: <Lightbulb className="h-10 w-10 text-white/60" /> },
+  { gradient: "from-amber-400 to-orange-600", icon: <Zap className="h-10 w-10 text-white/60" /> },
+  { gradient: "from-fuchsia-400 to-pink-600", icon: <Star className="h-10 w-10 text-white/60" /> },
+];
+
+function getArticleFallback(categoryId: number | null, articleId: number) {
+  const idx = categoryId ? (categoryId % DEFAULT_GRADIENTS.length) : (articleId % DEFAULT_GRADIENTS.length);
+  return DEFAULT_GRADIENTS[idx];
+}
 
 export default function BlogListPage() {
   const [, navigate] = useLocation();
@@ -151,9 +172,21 @@ export default function BlogListPage() {
                         />
                       </div>
                     ) : (
-                      <div className="aspect-video bg-gradient-to-br from-pink-100 to-rose-100 flex items-center justify-center">
-                        <span className="text-4xl">📝</span>
-                      </div>
+                      (() => {
+                        const fb = getArticleFallback(article.categoryId, article.id);
+                        return (
+                          <div className={`aspect-video bg-gradient-to-br ${fb.gradient} flex flex-col items-center justify-center p-6 relative overflow-hidden`}>
+                            <div className="absolute inset-0 opacity-10">
+                              <div className="absolute top-4 right-4 w-32 h-32 rounded-full bg-white/20 blur-2xl" />
+                              <div className="absolute bottom-4 left-4 w-24 h-24 rounded-full bg-white/20 blur-xl" />
+                            </div>
+                            {fb.icon}
+                            <p className="text-white/90 text-sm font-medium mt-3 line-clamp-2 text-center px-4 relative z-10">
+                              {article.title}
+                            </p>
+                          </div>
+                        );
+                      })()
                     )}
                     <div className="p-4">
                       <h3 className="font-bold text-lg mb-2 line-clamp-2 group-hover:text-pink-600 transition-colors">

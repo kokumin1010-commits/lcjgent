@@ -1066,6 +1066,7 @@ async function startServer() {
           slug: blogArticles.slug,
           excerpt: blogArticles.excerpt,
           publishedAt: blogArticles.publishedAt,
+          coverImageUrl: blogArticles.coverImageUrl,
         }).from(blogArticles)
           .where(eq(blogArticles.status, "published"))
           .orderBy(desc(blogArticles.publishedAt))
@@ -1136,9 +1137,12 @@ async function startServer() {
   <meta property="og:url" content="${baseUrl}/blog">
   <meta property="og:site_name" content="LCJ MALL">
   <meta property="og:locale" content="ja_JP">
+  ${recentArticles[0]?.coverImageUrl ? `<meta property="og:image" content="${escapeHtml(recentArticles[0].coverImageUrl)}">` : ''}
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${escapeHtml(title)}">
   <meta name="twitter:description" content="${escapeHtml(description)}">
+  ${recentArticles[0]?.coverImageUrl ? `<meta name="twitter:image" content="${escapeHtml(recentArticles[0].coverImageUrl)}">` : ''}
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
   <script type="application/ld+json">${collectionJsonLd}</script>
   <script type="application/ld+json">${breadcrumbJsonLd}</script>
 </head>

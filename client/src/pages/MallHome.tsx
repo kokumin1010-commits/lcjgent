@@ -984,10 +984,11 @@ export default function MallHome() {
             <ShoppingBag className="h-5 w-5 md:h-6 md:w-6 text-rose-400" />
             <span className="text-base md:text-lg font-bold">LCJ MALL</span>
           </div>
-          <div className="flex items-center justify-center gap-4 mb-3 text-xs md:text-sm text-gray-400">
+          <div className="flex flex-wrap items-center justify-center gap-3 md:gap-4 mb-3 text-xs md:text-sm text-gray-400">
             <Link href="/mall/products" className="hover:text-white transition-colors">商品一覧</Link>
             <Link href="/ranking" className="hover:text-white transition-colors">売れ筋ランキング</Link>
             <Link href="/reviews" className="hover:text-white transition-colors">口コミDB</Link>
+            <Link href="/blog" className="hover:text-white transition-colors">ブログ</Link>
             <Link href="/legal/tokushoho" className="hover:text-white transition-colors">特定商取引法</Link>
             <Link href="/legal/privacy" className="hover:text-white transition-colors">プライバシーポリシー</Link>
           </div>
