@@ -2051,7 +2051,7 @@ async def _run_regeneration(
         # Build ffmpeg command for re-encoding (subtitles only, no other effects)
         await _update_job(job_id, progress_pct=50, current_step="再エンコード中...")
         output_path = os.path.join(tmp_dir, "output.mp4")
-        font_path = _find_noto_font()
+        font_path = _find_cjk_font()
         fontsdir = os.path.dirname(font_path)
         # Simple re-encode with subtitles
         ffmpeg_cmd = [
