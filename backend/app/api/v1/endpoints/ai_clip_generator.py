@@ -1771,7 +1771,7 @@ async def diagnostics(x_admin_key: Optional[str] = Header(None)):
         db_status["error"] = f"{type(e).__name__}: {str(e)[:200]}\n{traceback.format_exc()[-200:]}"
 
     return {
-        "version": "2.7",
+        "version": "2.8",
         "azure_openai_key_set": bool(azure_key),
         "azure_openai_endpoint": azure_endpoint or "NOT SET",
         "gpt_model": gpt_model,
@@ -1837,34 +1837,72 @@ async def debug_fonts(x_admin_key: Optional[str] = Header(None)):
     except Exception as e:
         libass_info = f"Error: {e}"
 
-    # Quick ASS render test
-    ass_test_result = ""
+    # Quick ASS render test - multiple patterns
+    ass_test_results = {}
+    import tempfile
+    
+    # Test patterns: different font names and fontsdir combinations
+    test_patterns = {
+        "fontsdir_otf": {"fontname": font_name, "fontsdir": "/tmp/aitherhub_fonts"},
+        "fontsdir_noto": {"fontname": font_name, "fontsdir": "/usr/share/fonts/opentype/noto"},
+        "fontsdir_all": {"fontname": font_name, "fontsdir": "/usr/share/fonts"},
+        "no_fontsdir": {"fontname": font_name, "fontsdir": None},
+        "sans_serif": {"fontname": "sans-serif", "fontsdir": None},
+        "arial": {"fontname": "Arial", "fontsdir": None},
+    }
+    
+    for pattern_name, cfg in test_patterns.items():
+        try:
+            test_ass = tempfile.NamedTemporaryFile(suffix='.ass', mode='w', delete=False)
+            test_ass.write('[Script Info]\nScriptType: v4.00+\nPlayResX: 400\nPlayResY: 400\n\n')
+            test_ass.write('[V4+ Styles]\n')
+            test_ass.write('Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n')
+            test_ass.write(f'Style: Default,{cfg["fontname"]},40,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,2,0,5,10,10,10,1\n\n')
+            test_ass.write('[Events]\n')
+            test_ass.write('Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n')
+            test_ass.write('Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,\u30c6\u30b9\u30c8 Test ABC\n')
+            test_ass.close()
+            
+            test_out = test_ass.name.replace('.ass', f'_{pattern_name}.png')
+            vf = f"ass='{test_ass.name}'"
+            if cfg["fontsdir"]:
+                vf += f":fontsdir='{cfg['fontsdir']}'"
+            
+            r = subprocess.run(
+                ['ffmpeg', '-y', '-f', 'lavfi', '-i', 'color=c=black:s=400x400:d=1',
+                 '-vf', vf, '-frames:v', '1', test_out],
+                capture_output=True, text=True, timeout=15
+            )
+            file_size = os.path.getsize(test_out) if os.path.exists(test_out) else 0
+            ass_test_results[pattern_name] = {
+                "rc": r.returncode,
+                "output_size_bytes": file_size,
+                "has_content": file_size > 3000,  # >3KB means text was rendered
+                "stderr_tail": (r.stderr or '')[-200:],
+            }
+            os.unlink(test_ass.name)
+            if os.path.exists(test_out):
+                os.unlink(test_out)
+        except Exception as e:
+            ass_test_results[pattern_name] = {"error": str(e)}
+
+    # ffmpeg binary info
+    ffmpeg_which = ""
+    ffmpeg_version = ""
+    ffmpeg_drawtext = False
     try:
-        import tempfile
-        test_ass = tempfile.NamedTemporaryFile(suffix='.ass', mode='w', delete=False)
-        test_ass.write('[Script Info]\nScriptType: v4.00+\nPlayResX: 100\nPlayResY: 100\n\n')
-        test_ass.write('[V4+ Styles]\n')
-        test_ass.write('Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n')
-        test_ass.write(f'Style: Default,{font_name},20,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,2,0,5,10,10,10,1\n\n')
-        test_ass.write('[Events]\n')
-        test_ass.write('Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n')
-        test_ass.write('Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,\u30c6\u30b9\u30c8 Test\n')
-        test_ass.close()
-        
-        test_out = test_ass.name.replace('.ass', '.png')
-        font_dir = os.path.dirname(font_path)
-        r = subprocess.run(
-            ['ffmpeg', '-y', '-f', 'lavfi', '-i', 'color=c=black:s=200x200:d=1',
-             '-vf', f"ass='{test_ass.name}':fontsdir='{font_dir}'",
-             '-frames:v', '1', test_out],
-            capture_output=True, text=True, timeout=15
-        )
-        ass_test_result = f"rc={r.returncode} stderr_tail={r.stderr[-300:] if r.stderr else 'none'}"
-        os.unlink(test_ass.name)
-        if os.path.exists(test_out):
-            os.unlink(test_out)
+        rw = subprocess.run(['which', 'ffmpeg'], capture_output=True, text=True, timeout=5)
+        ffmpeg_which = rw.stdout.strip()
+        rv = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True, timeout=5)
+        ffmpeg_version = rv.stdout.split('\n')[0] if rv.stdout else ''
+        # Check all video filters
+        rf = subprocess.run(['ffmpeg', '-filters'], capture_output=True, text=True, timeout=10)
+        for line in rf.stdout.split('\n'):
+            if 'drawtext' in line:
+                ffmpeg_drawtext = True
+                break
     except Exception as e:
-        ass_test_result = f"Error: {e}"
+        ffmpeg_which = f"Error: {e}"
 
     return {
         "font_path": font_path,
@@ -1875,8 +1913,11 @@ async def debug_fonts(x_admin_key: Optional[str] = Header(None)):
         "fc_list_japanese": fc_list_output,
         "search_paths_status": {p: os.path.exists(p) for p in _FONT_SEARCH_PATHS},
         "ffmpeg_ass_filters": ffmpeg_ass_info,
+        "ffmpeg_which": ffmpeg_which,
+        "ffmpeg_version": ffmpeg_version,
+        "ffmpeg_has_drawtext": ffmpeg_drawtext,
         "libass_packages": libass_info,
-        "ass_render_test": ass_test_result,
+        "ass_render_tests": ass_test_results,
     }
 
 
