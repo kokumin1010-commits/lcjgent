@@ -29,6 +29,10 @@ jobs:
         working-directory: frontend
         run: npm install
 
+      - name: Lint frontend (catch undefined variables before deploy)
+        working-directory: frontend
+        run: node scripts/check-no-undef.cjs
+
       - name: Build frontend
         working-directory: frontend
         env:

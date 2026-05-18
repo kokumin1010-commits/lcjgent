@@ -151,7 +151,7 @@ const ClipFeedbackPanel = ({
             loadedRef.current.salesConfirm = fb.salesConfirm;
           }
         }
-      } catch (lsErr) {
+      } catch {
         // localStorage unavailable
       }
     };
@@ -249,7 +249,7 @@ const ClipFeedbackPanel = ({
       try {
         const fb = { rating, selectedReasons, salesConfirm, salesNote, savedAt: Date.now() };
         localStorage.setItem(lsKey, JSON.stringify(fb));
-      } catch (lsErr) { /* ignore */ }
+      } catch { /* ignore */ }
     }
     if (ratingOk && salesOk) {
       setDirty(false);
@@ -364,7 +364,7 @@ const ClipFeedbackPanel = ({
       <div style={{
         fontSize: '10px', color: '#9ca3af', marginBottom: '4px', lineHeight: '1.4',
       }}>
-        👍 使える = SNSにそのまま投稿できる品質　/　👎 微妙 = 内容はOKだが始まり・終わりが中途半端または冗長
+        👍 使える = SNSにそのまま投稿できる品質 / 👎 微妙 = 内容はOKだが始まり・終わりが中途半端または冗長
       </div>
       <div style={{
         display: 'flex', gap: '8px', marginBottom: '12px',

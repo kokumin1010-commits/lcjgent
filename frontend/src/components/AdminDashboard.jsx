@@ -19,6 +19,7 @@ import AutoAIClipPanel from "./admin/AutoAIClipPanel";
 import { useTranslation } from 'react-i18next';
 import { changeLanguage } from '../i18n';
 import ClipFeedbackPanel from './ClipFeedbackPanel';
+import SectionErrorBoundary from './SectionErrorBoundary';
 import VideoService from '../base/services/videoService';
 
 const ADMIN_ID = "aither";
@@ -1858,19 +1859,21 @@ function FeedbackCard({ fb, onRated, feedbacks, currentIdx, expanded, onToggle, 
               </div>
 
               {/* ClipFeedbackPanel (Good/Bad, Reason Tags, Sales DNA, Comment) */}
-              <ClipFeedbackPanel
-                videoId={fb.video_id}
-                phaseIndex={fb.phase_index}
-                timeStart={fb.time_start}
-                timeEnd={fb.time_end}
-                clipId={fb.clip_id}
-                adminMode={true}
-                onFeedbackSubmitted={() => {
-                  // Do NOT call onRated() here — it triggers a full list refresh
-                  // which resets expanded state. Just auto-advance to next card.
-                  if (onNext) setTimeout(() => onNext(), 500);
-                }}
-              />
+              <SectionErrorBoundary sectionName="フィードバックパネル">
+                <ClipFeedbackPanel
+                  videoId={fb.video_id}
+                  phaseIndex={fb.phase_index}
+                  timeStart={fb.time_start}
+                  timeEnd={fb.time_end}
+                  clipId={fb.clip_id}
+                  adminMode={true}
+                  onFeedbackSubmitted={() => {
+                    // Do NOT call onRated() here — it triggers a full list refresh
+                    // which resets expanded state. Just auto-advance to next card.
+                    if (onNext) setTimeout(() => onNext(), 500);
+                  }}
+                />
+              </SectionErrorBoundary>
 
               {/* Navigation: Prev / Next */}
               <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-200">
