@@ -63,6 +63,7 @@ interface ProductFormData {
   category: string;
   brandId: number | null;
   categoryId: number | null;
+  subcategoryId: number | null;
   price: number;
   pointPrice: number | null;
   stock: number;
@@ -78,6 +79,7 @@ const initialFormData: ProductFormData = {
   category: "",
   brandId: null,
   categoryId: null,
+  subcategoryId: null,
   price: 0,
   pointPrice: null,
   stock: 0,
@@ -311,6 +313,220 @@ function DescImageSection({ productId }: { productId: number }) {
   );
 }
 
+// バリアント管理セクション
+function VariantSection({ productId }: { productId: number }) {
+  const utils = trpc.useUtils();
+  const { data: variants, isLoading } = trpc.mall.getVariants.useQuery({ productId });
+  const createVariant = trpc.mall.createVariant.useMutation({
+    onSuccess: () => {
+      utils.mall.getVariants.invalidate({ productId });
+      toast.success("バリアントを追加しました");
+    },
+    onError: (err) => toast.error(err.message || "追加に失敗しました"),
+  });
+  const updateVariant = trpc.mall.updateVariant.useMutation({
+    onSuccess: () => {
+      utils.mall.getVariants.invalidate({ productId });
+      toast.success("バリアントを更新しました");
+    },
+    onError: (err) => toast.error(err.message || "更新に失敗しました"),
+  });
+  const deleteVariant = trpc.mall.deleteVariant.useMutation({
+    onSuccess: () => {
+      utils.mall.getVariants.invalidate({ productId });
+      toast.success("バリアントを削除しました");
+    },
+    onError: (err) => toast.error(err.message || "削除に失敗しました"),
+  });
+
+  const [newVariant, setNewVariant] = useState({
+    name: "",
+    variantType: "",
+    sku: "",
+    price: "",
+    stock: "0",
+  });
+  const [editingVariantId, setEditingVariantId] = useState<number | null>(null);
+  const [editVariant, setEditVariant] = useState({
+    name: "",
+    variantType: "",
+    sku: "",
+    price: "",
+    stock: "0",
+  });
+
+  const handleAddVariant = () => {
+    if (!newVariant.name.trim()) {
+      toast.error("バリアント名を入力してください");
+      return;
+    }
+    createVariant.mutate({
+      productId,
+      name: newVariant.name.trim(),
+      variantType: newVariant.variantType || undefined,
+      sku: newVariant.sku || undefined,
+      price: newVariant.price ? Number(newVariant.price) : null,
+      stock: Number(newVariant.stock) || 0,
+      sortOrder: (variants?.length || 0),
+    });
+    setNewVariant({ name: "", variantType: "", sku: "", price: "", stock: "0" });
+  };
+
+  const handleStartEdit = (v: any) => {
+    setEditingVariantId(v.id);
+    setEditVariant({
+      name: v.name,
+      variantType: v.variantType || "",
+      sku: v.sku || "",
+      price: v.price != null ? String(v.price) : "",
+      stock: String(v.stock),
+    });
+  };
+
+  const handleSaveEdit = (id: number) => {
+    updateVariant.mutate({
+      id,
+      name: editVariant.name.trim(),
+      variantType: editVariant.variantType || null,
+      sku: editVariant.sku || null,
+      price: editVariant.price ? Number(editVariant.price) : null,
+      stock: Number(editVariant.stock) || 0,
+    });
+    setEditingVariantId(null);
+  };
+
+  return (
+    <div className="col-span-2 border-t pt-4 mt-2">
+      <label className="text-sm font-medium flex items-center gap-2">
+        <Package className="h-4 w-4" />
+        バリアント（色・サイズ・SKU）
+      </label>
+      <p className="text-xs text-muted-foreground mt-1 mb-3">
+        口紅の色号、シャンプーの容量等、商品の規格バリエーションを管理できます。
+      </p>
+
+      {/* 既存バリアント一覧 */}
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground">読み込み中...</div>
+      ) : variants && variants.length > 0 ? (
+        <div className="space-y-2 mb-3">
+          {variants.map((v) => (
+            <div key={v.id} className="flex items-center gap-2 border rounded-lg p-2">
+              {editingVariantId === v.id ? (
+                <>
+                  <Input
+                    value={editVariant.name}
+                    onChange={(e) => setEditVariant({ ...editVariant, name: e.target.value })}
+                    placeholder="名前"
+                    className="w-24 text-xs"
+                  />
+                  <Input
+                    value={editVariant.variantType}
+                    onChange={(e) => setEditVariant({ ...editVariant, variantType: e.target.value })}
+                    placeholder="タイプ"
+                    className="w-16 text-xs"
+                  />
+                  <Input
+                    value={editVariant.sku}
+                    onChange={(e) => setEditVariant({ ...editVariant, sku: e.target.value })}
+                    placeholder="SKU"
+                    className="w-20 text-xs"
+                  />
+                  <Input
+                    value={editVariant.price}
+                    onChange={(e) => setEditVariant({ ...editVariant, price: e.target.value })}
+                    placeholder="価格"
+                    type="number"
+                    className="w-20 text-xs"
+                  />
+                  <Input
+                    value={editVariant.stock}
+                    onChange={(e) => setEditVariant({ ...editVariant, stock: e.target.value })}
+                    placeholder="在庫"
+                    type="number"
+                    className="w-16 text-xs"
+                  />
+                  <Button type="button" size="sm" variant="outline" onClick={() => handleSaveEdit(v.id)}>保存</Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setEditingVariantId(null)}>×</Button>
+                </>
+              ) : (
+                <>
+                  <span className="text-sm font-medium flex-1">{v.name}</span>
+                  {v.variantType && <Badge variant="secondary" className="text-xs">{v.variantType}</Badge>}
+                  {v.sku && <span className="text-xs text-muted-foreground">SKU:{v.sku}</span>}
+                  {v.price != null && <span className="text-xs">¥{v.price.toLocaleString()}</span>}
+                  <span className="text-xs text-muted-foreground">在庫:{v.stock}</span>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => handleStartEdit(v)}>
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      if (confirm("このバリアントを削除しますか？")) {
+                        deleteVariant.mutate({ id: v.id });
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3 text-destructive" />
+                  </Button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-xs text-muted-foreground mb-3">バリアントはまだありません</div>
+      )}
+
+      {/* 新規バリアント追加 */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Input
+          value={newVariant.name}
+          onChange={(e) => setNewVariant({ ...newVariant, name: e.target.value })}
+          placeholder="バリアント名 *"
+          className="w-28 text-xs"
+        />
+        <Input
+          value={newVariant.variantType}
+          onChange={(e) => setNewVariant({ ...newVariant, variantType: e.target.value })}
+          placeholder="タイプ(色,サイズ等)"
+          className="w-28 text-xs"
+        />
+        <Input
+          value={newVariant.sku}
+          onChange={(e) => setNewVariant({ ...newVariant, sku: e.target.value })}
+          placeholder="SKU"
+          className="w-24 text-xs"
+        />
+        <Input
+          value={newVariant.price}
+          onChange={(e) => setNewVariant({ ...newVariant, price: e.target.value })}
+          placeholder="価格(任意)"
+          type="number"
+          className="w-24 text-xs"
+        />
+        <Input
+          value={newVariant.stock}
+          onChange={(e) => setNewVariant({ ...newVariant, stock: e.target.value })}
+          placeholder="在庫"
+          type="number"
+          className="w-16 text-xs"
+        />
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleAddVariant}
+          disabled={createVariant.isPending}
+        >
+          <Plus className="h-3 w-3 mr-1" />追加
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function ProductManagement() {
   const { t } = useLanguage();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -329,6 +545,12 @@ export default function ProductManagement() {
   // ブランド・カテゴリ一覧を取得
   const { data: brands } = trpc.brand.list.useQuery({});
   const { data: categories } = trpc.mall.getCategoryRecords.useQuery();
+
+  // サブカテゴリ取得（親カテゴリが選択されている場合）
+  const { data: subcategories } = trpc.mall.getSubcategories.useQuery(
+    { parentId: formData.categoryId! },
+    { enabled: !!formData.categoryId }
+  );
 
   const createProduct = trpc.mall.createProduct.useMutation({
     onSuccess: () => {
@@ -380,6 +602,7 @@ export default function ProductManagement() {
       category: formData.category || undefined,
       brandId: formData.brandId,
       categoryId: formData.categoryId,
+      subcategoryId: formData.subcategoryId,
       price: formData.price,
       pointPrice: formData.pointPrice || undefined,
       stock: formData.stock,
@@ -420,6 +643,7 @@ export default function ProductManagement() {
       category: product.category || "",
       brandId: product.brandId ?? null,
       categoryId: product.categoryId ?? null,
+      subcategoryId: (product as any).subcategoryId ?? null,
       price: product.price,
       pointPrice: product.pointPrice,
       stock: product.stock,
@@ -627,19 +851,22 @@ export default function ProductManagement() {
                     </Select>
                   </div>
 
-                  {/* カテゴリ選択ドロップダウン */}
+                  {/* 親カテゴリ選択 */}
                   <div>
                     <label className="text-sm font-medium">カテゴリ</label>
                     <Select
                       value={formData.categoryId ? String(formData.categoryId) : "none"}
-                      onValueChange={(v) => setFormData({ ...formData, categoryId: v === "none" ? null : Number(v) })}
+                      onValueChange={(v) => {
+                        const newCatId = v === "none" ? null : Number(v);
+                        setFormData({ ...formData, categoryId: newCatId, subcategoryId: null });
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="カテゴリを選択" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">未設定</SelectItem>
-                        {categories?.filter(c => c.isActive === "yes").map((cat) => (
+                        {categories?.filter(c => c.isActive === "yes" && !c.parentId).map((cat) => (
                           <SelectItem key={cat.id} value={String(cat.id)}>
                             {cat.iconEmoji ? `${cat.iconEmoji} ` : ""}{cat.name}
                           </SelectItem>
@@ -647,6 +874,29 @@ export default function ProductManagement() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* サブカテゴリ選択（親カテゴリが選択されている場合のみ表示） */}
+                  {formData.categoryId && subcategories && subcategories.length > 0 && (
+                    <div>
+                      <label className="text-sm font-medium">サブカテゴリ</label>
+                      <Select
+                        value={formData.subcategoryId ? String(formData.subcategoryId) : "none"}
+                        onValueChange={(v) => setFormData({ ...formData, subcategoryId: v === "none" ? null : Number(v) })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="サブカテゴリを選択" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">未設定</SelectItem>
+                          {subcategories.filter(c => c.isActive === "yes").map((sub) => (
+                            <SelectItem key={sub.id} value={String(sub.id)}>
+                              {sub.iconEmoji ? `${sub.iconEmoji} ` : ""}{sub.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                   <div>
                     <label className="text-sm font-medium">ステータス</label>
@@ -820,6 +1070,11 @@ export default function ProductManagement() {
                 {/* 商品説明画像（図文モード）- 編集時のみ表示 */}
                 {editingProduct && (
                   <DescImageSection productId={editingProduct} />
+                )}
+
+                {/* バリアント管理（編集時のみ表示） */}
+                {editingProduct && (
+                  <VariantSection productId={editingProduct} />
                 )}
 
                 <div className="flex justify-end gap-2">

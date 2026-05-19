@@ -1658,6 +1658,11 @@ export const mallProducts = mysqlTable("mall_products", {
   category: varchar("category", { length: 100 }), // レガシー（テキスト入力）
   brandId: int("brandId"), // References mallBrands.id
   categoryId: int("categoryId"), // References mallCategories.id
+  subcategoryId: int("subcategoryId"), // サブカテゴリID（2段階カテゴリ対応）
+  
+  // 動画
+  videoUrl: text("videoUrl"), // メイン動画URL
+  videoKey: varchar("videoKey", { length: 512 }), // S3キー
   
   // 価格
   price: int("price").notNull(), // 通常価格（円）
@@ -1688,6 +1693,28 @@ export const mallProducts = mysqlTable("mall_products", {
 
 export type MallProduct = typeof mallProducts.$inferSelect;
 export type InsertMallProduct = typeof mallProducts.$inferInsert;
+
+/**
+ * MALL商品バリアント（SKU）テーブル
+ * 口紅の色号、シャンプーのサイズ等、多規格商品の管理
+ */
+export const mallProductVariants = mysqlTable("mall_product_variants", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(), // References mallProducts.id
+  name: varchar("name", { length: 255 }).notNull(), // バリアント名（例: "ローズレッド", "250ml"）
+  variantType: varchar("variantType", { length: 100 }), // タイプ（例: "色", "サイズ", "容量"）
+  sku: varchar("sku", { length: 100 }), // SKUコード
+  price: int("price"), // バリアント固有価格（nullの場合は親商品の価格を使用）
+  stock: int("stock").default(0).notNull(), // バリアント在庫
+  imageUrl: text("imageUrl"), // バリアント画像
+  imageKey: varchar("imageKey", { length: 512 }),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  isActive: mysqlEnum("isActive", ["yes", "no"]).default("yes").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type MallProductVariant = typeof mallProductVariants.$inferSelect;
+export type InsertMallProductVariant = typeof mallProductVariants.$inferInsert;
 
 /**
  * MALL注文テーブル

@@ -283,6 +283,12 @@ import {
   createMallCategory,
   updateMallCategory,
   deleteMallCategory,
+  getSubcategories,
+  getMallProductVariants,
+  createMallProductVariant,
+  updateMallProductVariant,
+  deleteMallProductVariant,
+  deleteAllMallProductVariants,
   getMallCart,
   addToMallCart,
   updateMallCartQuantity,
@@ -17463,6 +17469,64 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         return { success: true };
       }),
 
+    // ===== サブカテゴリ取得API =====
+    getSubcategories: publicProcedure
+      .input(z.object({ parentId: z.number() }))
+      .query(async ({ input }) => {
+        return await getSubcategories(input.parentId);
+      }),
+
+    // ===== 商品バリアント管理API =====
+    getVariants: publicProcedure
+      .input(z.object({ productId: z.number() }))
+      .query(async ({ input }) => {
+        return await getMallProductVariants(input.productId);
+      }),
+
+    createVariant: protectedProcedure
+      .input(z.object({
+        productId: z.number(),
+        name: z.string().min(1),
+        variantType: z.string().optional(),
+        sku: z.string().optional(),
+        price: z.number().nullable().optional(),
+        stock: z.number().default(0),
+        imageUrl: z.string().optional(),
+        imageKey: z.string().optional(),
+        sortOrder: z.number().default(0),
+        isActive: z.enum(["yes", "no"]).default("yes"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await createMallProductVariant(input);
+        return { success: true };
+      }),
+
+    updateVariant: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).optional(),
+        variantType: z.string().nullable().optional(),
+        sku: z.string().nullable().optional(),
+        price: z.number().nullable().optional(),
+        stock: z.number().optional(),
+        imageUrl: z.string().nullable().optional(),
+        imageKey: z.string().nullable().optional(),
+        sortOrder: z.number().optional(),
+        isActive: z.enum(["yes", "no"]).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        await updateMallProductVariant(id, data);
+        return { success: true };
+      }),
+
+    deleteVariant: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteMallProductVariant(input.id);
+        return { success: true };
+      }),
+
     // ===== 商品管理API =====
 
     // 商品作成（ログインユーザー全員可）
@@ -17473,6 +17537,9 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         category: z.string().optional(),
         brandId: z.number().nullable().optional(),
         categoryId: z.number().nullable().optional(),
+        subcategoryId: z.number().nullable().optional(),
+        videoUrl: z.string().nullable().optional(),
+        videoKey: z.string().nullable().optional(),
         price: z.number().min(1, "価格は1円以上である必要があります"),
         pointPrice: z.number().optional(),
         stock: z.number().default(0),
@@ -17498,6 +17565,9 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         category: z.string().optional(),
         brandId: z.number().nullable().optional(),
         categoryId: z.number().nullable().optional(),
+        subcategoryId: z.number().nullable().optional(),
+        videoUrl: z.string().nullable().optional(),
+        videoKey: z.string().nullable().optional(),
         price: z.number().min(1, "価格は1円以上である必要があります").optional(),
         pointPrice: z.number().nullable().optional(),
         stock: z.number().optional(),
