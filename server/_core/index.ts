@@ -2147,6 +2147,13 @@ async function startServer() {
       });
     });
 
+    // One-time fix: Correct remainingAmount for past purchases where FIFO was not applied
+    import("../db").then(({ fixRemainingAmountForPastPurchases }) => {
+      fixRemainingAmountForPastPurchases().catch((err: unknown) => {
+        console.error("[Migration] Failed to fix remainingAmount for past purchases:", err);
+      });
+    });
+
     // Seed popup variants on startup (idempotent - only inserts if table is empty)
     import("../db").then(({ seedPopupVariants }) => {
       seedPopupVariants().then((result: { seeded: boolean; count: number }) => {

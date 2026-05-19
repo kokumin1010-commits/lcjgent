@@ -16784,16 +16784,24 @@ export async function processExpiredPoints(): Promise<{ usersAffected: number; t
   
   // Deduct from each user's balance and create expire transaction
   for (const [userId, expiredAmount] of userExpiry) {
-    totalExpired += expiredAmount;
-    
+    // 残高チェック: 残高が0以下の場合は失効処理をスキップ
     const balance = await getOrCreatePointBalance(userId);
-    const newBalance = Math.max(0, balance.balance - expiredAmount);
+    if (balance.balance <= 0) {
+      console.log(`[PointExpiry] Skipping balance deduction for web user ${userId}: balance is ${balance.balance}, but ${expiredAmount} points marked as expired (FIFO mismatch)`);
+      continue;
+    }
+    
+    // 実際に失効させる額は残高を超えない
+    const actualExpiredAmount = Math.min(expiredAmount, balance.balance);
+    totalExpired += actualExpiredAmount;
+    
+    const newBalance = Math.max(0, balance.balance - actualExpiredAmount);
     
     // Create expire transaction
     await db.insert(pointTransactions).values({
       userId,
       type: "expire",
-      amount: -expiredAmount,
+      amount: -actualExpiredAmount,
       balanceAfter: newBalance,
       referenceType: "system",
       description: `ポイント失効（有効期限${POINT_EXPIRY_MONTHS}ヶ月）`,
@@ -16801,7 +16809,7 @@ export async function processExpiredPoints(): Promise<{ usersAffected: number; t
     
     // Update balance (atomic SQL decrement to prevent race conditions)
     await db.update(pointBalances)
-      .set({ balance: sql`GREATEST(${pointBalances.balance} - ${expiredAmount}, 0)` })
+      .set({ balance: sql`GREATEST(${pointBalances.balance} - ${actualExpiredAmount}, 0)` })
       .where(eq(pointBalances.userId, userId));
   }
   
@@ -16846,15 +16854,26 @@ export async function processExpiredLinePoints(): Promise<{ usersAffected: numbe
   let totalExpired = 0;
   
   for (const [lineUserId, expiredAmount] of userExpiry) {
-    totalExpired += expiredAmount;
-    
+    // 残高チェック: 残高が0以下の場合は失効処理をスキップ
+    // （FIFO未適用の過去注文により、既に使用済みのポイントが残っている場合の保護）
     const balance = await getOrCreateLinePointBalance(lineUserId);
-    const newBalance = Math.max(0, balance.balance - expiredAmount);
+    if (balance.balance <= 0) {
+      // 残高0なのにremainingAmount > 0のtxnがある = 過去のuse時にFIFO未適用
+      // expiredフラグだけ立てて、残高は変更しない（既に0）
+      console.log(`[PointExpiry] Skipping balance deduction for ${lineUserId}: balance is ${balance.balance}, but ${expiredAmount} points marked as expired (FIFO mismatch)`);
+      continue;
+    }
+    
+    // 実際に失効させる額は残高を超えない
+    const actualExpiredAmount = Math.min(expiredAmount, balance.balance);
+    totalExpired += actualExpiredAmount;
+    
+    const newBalance = Math.max(0, balance.balance - actualExpiredAmount);
     
     await db.insert(linePointTransactions).values({
       lineUserId,
       type: "expire",
-      amount: -expiredAmount,
+      amount: -actualExpiredAmount,
       balanceAfter: newBalance,
       referenceType: "system",
       description: `ポイント失効（有効期限${POINT_EXPIRY_MONTHS}ヶ月）`,
@@ -16862,7 +16881,7 @@ export async function processExpiredLinePoints(): Promise<{ usersAffected: numbe
     
     // Atomic SQL decrement to prevent race conditions
     await db.update(linePointBalances)
-      .set({ balance: sql`GREATEST(${linePointBalances.balance} - ${expiredAmount}, 0)` })
+      .set({ balance: sql`GREATEST(${linePointBalances.balance} - ${actualExpiredAmount}, 0)` })
       .where(eq(linePointBalances.lineUserId, lineUserId));
   }
   
@@ -23681,4 +23700,146 @@ export async function rejectMegaChannelQualification(liverId: number, rejectedBy
     console.error("[rejectMegaChannelQualification] error:", err);
     return null;
   }
+}
+
+
+/**
+ * One-time migration: Fix remainingAmount for earn transactions that were not
+ * decremented by FIFO during past purchases (before FIFO was added to createMallOrder).
+ * 
+ * For each user who has "use" transactions, recalculates the correct remainingAmount
+ * on earn transactions using FIFO (oldest expiresAt first).
+ */
+export async function fixRemainingAmountForPastPurchases(): Promise<{ usersFixed: number; totalAdjusted: number }> {
+  const db = await getDb();
+  if (!db) return { usersFixed: 0, totalAdjusted: 0 };
+  
+  console.log("[Migration] Starting fixRemainingAmountForPastPurchases...");
+  
+  // Get all LINE users who have "use" transactions
+  const usersWithUse = await db
+    .selectDistinct({ lineUserId: linePointTransactions.lineUserId })
+    .from(linePointTransactions)
+    .where(eq(linePointTransactions.type, "use"));
+  
+  let usersFixed = 0;
+  let totalAdjusted = 0;
+  
+  for (const { lineUserId } of usersWithUse) {
+    // Get all transactions for this user, ordered by createdAt
+    const allTxns = await db
+      .select({
+        id: linePointTransactions.id,
+        type: linePointTransactions.type,
+        amount: linePointTransactions.amount,
+        remainingAmount: linePointTransactions.remainingAmount,
+        expiresAt: linePointTransactions.expiresAt,
+        expired: linePointTransactions.expired,
+        createdAt: linePointTransactions.createdAt,
+      })
+      .from(linePointTransactions)
+      .where(eq(linePointTransactions.lineUserId, lineUserId))
+      .orderBy(asc(linePointTransactions.createdAt));
+    
+    // Separate earn/refund and use transactions
+    const earnTxns = allTxns.filter(t => t.type === "earn" || t.type === "refund");
+    const useTxns = allTxns.filter(t => t.type === "use");
+    
+    if (useTxns.length === 0) continue;
+    
+    // Calculate total used amount
+    const totalUsed = useTxns.reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
+    
+    // Calculate total earned (only from earn txns that have remainingAmount set or are in the system)
+    // We need to apply FIFO: consume from oldest expiresAt first
+    // Sort earn txns by expiresAt ASC (NULL last for safety)
+    const sortedEarns = [...earnTxns].sort((a, b) => {
+      if (!a.expiresAt && !b.expiresAt) return 0;
+      if (!a.expiresAt) return 1; // NULL expiresAt goes last
+      if (!b.expiresAt) return -1;
+      return new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime();
+    });
+    
+    // Apply FIFO deduction
+    let remainingToDeduct = totalUsed;
+    let userAdjusted = 0;
+    
+    for (const earn of sortedEarns) {
+      const originalAmount = Number(earn.amount);
+      const currentRemaining = earn.remainingAmount !== null ? Number(earn.remainingAmount) : originalAmount;
+      
+      if (remainingToDeduct <= 0) {
+        // No more to deduct - remaining should stay as-is (or be set to originalAmount if NULL)
+        if (earn.remainingAmount === null && !earn.expired) {
+          // Set remainingAmount to originalAmount for txns that never had it set
+          await db.update(linePointTransactions)
+            .set({ remainingAmount: originalAmount })
+            .where(eq(linePointTransactions.id, earn.id));
+        }
+        continue;
+      }
+      
+      // Calculate correct remaining after FIFO deduction
+      const deduct = Math.min(originalAmount, remainingToDeduct);
+      const correctRemaining = originalAmount - deduct;
+      remainingToDeduct -= deduct;
+      
+      // Only update if different from current value
+      if (currentRemaining !== correctRemaining) {
+        await db.update(linePointTransactions)
+          .set({ 
+            remainingAmount: correctRemaining,
+            // If fully consumed, also mark as expired if expiresAt has passed
+            ...(correctRemaining === 0 ? { expired: 1 } : {}),
+          })
+          .where(eq(linePointTransactions.id, earn.id));
+        userAdjusted += Math.abs(currentRemaining - correctRemaining);
+      }
+    }
+    
+    if (userAdjusted > 0) {
+      usersFixed++;
+      totalAdjusted += userAdjusted;
+      
+      // Recalculate correct balance for this user
+      // Correct balance = sum of all remaining amounts on non-expired earn/refund txns
+      const correctEarns = await db
+        .select({ remainingAmount: linePointTransactions.remainingAmount })
+        .from(linePointTransactions)
+        .where(and(
+          eq(linePointTransactions.lineUserId, lineUserId),
+          or(eq(linePointTransactions.type, "earn"), eq(linePointTransactions.type, "refund")),
+          eq(linePointTransactions.expired, 0),
+          gt(linePointTransactions.remainingAmount, 0)
+        ));
+      
+      const correctBalance = correctEarns.reduce((sum, t) => sum + Number(t.remainingAmount ?? 0), 0);
+      const currentBalance = await getOrCreateLinePointBalance(lineUserId);
+      
+      if (currentBalance.balance !== correctBalance) {
+        const diff = correctBalance - currentBalance.balance;
+        console.log(`[Migration] Fixing balance for ${lineUserId}: ${currentBalance.balance} -> ${correctBalance} (diff: ${diff > 0 ? '+' : ''}${diff})`);
+        
+        // Update balance directly
+        await db.update(linePointBalances)
+          .set({ balance: correctBalance })
+          .where(eq(linePointBalances.lineUserId, lineUserId));
+        
+        // Create adjustment transaction for audit trail
+        if (diff > 0) {
+          await db.insert(linePointTransactions).values({
+            lineUserId,
+            type: "adjustment" as any,
+            amount: diff,
+            balanceAfter: correctBalance,
+            referenceType: "system",
+            description: `システム補正: FIFO未適用による不正失効の復元`,
+          });
+        }
+      }
+    }
+  }
+  
+  console.log(`[Migration] fixRemainingAmountForPastPurchases complete: ${usersFixed} users fixed, ${totalAdjusted} total adjusted`);
+  return { usersFixed, totalAdjusted };
 }
