@@ -7612,11 +7612,11 @@ Respond with a JSON object.`,
               const { payload } = await jwtVerify(token, secret);
               if (payload.liverId) {
                 const liver = await getLiverById(payload.liverId as number);
-                if (liver && liver.role === 'admin') {
+                if (liver) {
                   importerName = liver.name || liver.email;
                   importerId = liver.id;
                 } else {
-                  throw new TRPCError({ code: 'FORBIDDEN', message: 'CSVアップロードは管理者のみ利用可能です' });
+                  throw new TRPCError({ code: 'FORBIDDEN', message: 'ライバーアカウントが見つかりません' });
                 }
               }
             } catch (e: any) {

@@ -53,7 +53,8 @@ export default function DashboardLayout({
   }
 
   if (!user) {
-    window.location.href = "/login?redirect=/master";
+    const currentPath = window.location.pathname + window.location.search;
+    window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
     return null;
   }
 
