@@ -24,6 +24,12 @@ export default function Login() {
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: (data) => {
       toast.success(t("login.title"));
+      
+      // Save token to localStorage as fallback for browsers with cookie issues
+      if (data.token) {
+        localStorage.setItem('lcj_admin_token', data.token);
+      }
+      
       // セキュリティ: ロールに応じてリダイレクト先を分岐
       if (data.user?.role === 'admin') {
         const params = new URLSearchParams(window.location.search);

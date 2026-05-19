@@ -39,6 +39,7 @@ export function useAuth(options?: UseAuthOptions) {
     onSuccess: () => {
       utils.auth.me.setData(undefined, null);
       localStorage.removeItem("manus-runtime-user-info");
+      localStorage.removeItem("lcj_admin_token");
     },
   });
 
@@ -56,6 +57,7 @@ export function useAuth(options?: UseAuthOptions) {
     } finally {
       utils.auth.me.setData(undefined, null);
       localStorage.removeItem("manus-runtime-user-info");
+      localStorage.removeItem("lcj_admin_token");
       await utils.auth.me.invalidate();
     }
   }, [logoutMutation, utils]);

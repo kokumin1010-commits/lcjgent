@@ -21,25 +21,51 @@ function isSecureRequest(req: Request) {
   return protoList.some(proto => proto.trim().toLowerCase() === "https");
 }
 
+/**
+ * Determine if the request is cross-origin (e.g., from LINE LIFF, external LP)
+ * Cross-origin requests need SameSite=None to send cookies
+ */
+function isCrossOriginRequest(req: Request): boolean {
+  const origin = req.headers.origin;
+  if (!origin) return false;
+  
+  const hostname = req.hostname;
+  try {
+    const originUrl = new URL(origin);
+    // If origin host differs from request host, it's cross-origin
+    return originUrl.hostname !== hostname;
+  } catch {
+    return false;
+  }
+}
+
 export function getSessionCookieOptions(
   req: Request
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
   const hostname = req.hostname;
   const isLocalhost = LOCAL_HOSTS.has(hostname) || isIpAddress(hostname);
   const isSecure = isSecureRequest(req);
-  
-  // For all environments, use sameSite: none with secure: true for HTTPS
-  // This ensures cookies work across all scenarios including:
-  // - Same-site navigation
-  // - Cross-origin requests (LIFF, LINE browser)
-  // - API calls from JavaScript
+  const isCrossOrigin = isCrossOriginRequest(req);
   
   if (isSecure) {
-    // HTTPS: use sameSite: none to ensure cookies are sent in all contexts
+    if (isCrossOrigin) {
+      // Cross-origin requests (LIFF, LINE browser, external LP):
+      // Must use SameSite=None + Secure=true for cookies to be sent
+      return {
+        httpOnly: true,
+        path: "/",
+        sameSite: "none",
+        secure: true,
+      };
+    }
+    
+    // Same-site HTTPS requests (normal browser navigation):
+    // Use SameSite=Lax for maximum browser compatibility
+    // Lax allows cookies on top-level navigations and same-site requests
     return {
       httpOnly: true,
       path: "/",
-      sameSite: "none",
+      sameSite: "lax",
       secure: true,
     };
   }

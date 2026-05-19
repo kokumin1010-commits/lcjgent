@@ -107,6 +107,7 @@ export const authRouter = router({
 
       return {
         success: true,
+        token, // Return token for localStorage fallback (browser cookie compatibility)
         user: {
           id: user.id,
           email: user.email,

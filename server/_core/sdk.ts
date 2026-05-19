@@ -38,15 +38,36 @@ class SDK {
       
       return null;
     } catch (error) {
-      console.error("[Auth] Token verification failed:", error);
+      // Don't log expected token expiry/invalid errors
       return null;
     }
   }
 
+  /**
+   * Extract Bearer token from Authorization header
+   */
+  private extractBearerToken(req: Request): string | undefined {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return undefined;
+    
+    const parts = authHeader.split(" ");
+    if (parts.length === 2 && parts[0].toLowerCase() === "bearer") {
+      return parts[1];
+    }
+    return undefined;
+  }
+
   async authenticateRequest(req: Request) {
+    // Strategy 1: Try session cookie first (primary auth for admin dashboard)
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
-    const session = await this.verifySession(sessionCookie);
+    let session = await this.verifySession(sessionCookie);
+    
+    // Strategy 2: Fall back to Authorization header (for browsers with cookie issues)
+    if (!session) {
+      const bearerToken = this.extractBearerToken(req);
+      session = await this.verifySession(bearerToken);
+    }
 
     if (!session) {
       throw ForbiddenError("Invalid session cookie");
