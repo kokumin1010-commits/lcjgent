@@ -2814,9 +2814,14 @@ function AiClipGenerationModal({ clip, onClose, onGenerate, generating, jobStatu
                   <div className="bg-gray-50 rounded-lg p-2 col-span-2">
                     <span className="text-gray-400">適用エフェクト</span>
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {resultClip.effects_applied.map((e, i) => (
-                        <span key={i} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[10px] font-medium">{e}</span>
-                      ))}
+                      {Array.isArray(resultClip.effects_applied)
+                        ? resultClip.effects_applied.map((e, i) => (
+                            <span key={i} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[10px] font-medium">{e}</span>
+                          ))
+                        : Object.entries(resultClip.effects_applied).filter(([_, v]) => v).map(([key, _], i) => (
+                            <span key={i} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[10px] font-medium">{key}</span>
+                          ))
+                      }
                     </div>
                   </div>
                 )}
