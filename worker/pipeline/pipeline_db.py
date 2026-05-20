@@ -219,6 +219,65 @@ def save_sales_moments(video_id: str, sales_moments: list[dict]):
         raise
 
 
+def save_scene_classifications(video_id: str, classifications: list[dict]):
+    """V9: Save scene classification results to video_scene_classifications table.
+
+    Falls back gracefully if the table doesn't exist yet.
+    """
+    if not classifications:
+        return
+    try:
+        from shared.db.session import get_session, run_sync
+        from sqlalchemy import text
+        import json
+
+        async def _save():
+            async with get_session() as session:
+                # Try to create table if not exists (idempotent)
+                await session.execute(text("""
+                    CREATE TABLE IF NOT EXISTS video_scene_classifications (
+                        id SERIAL PRIMARY KEY,
+                        video_id TEXT NOT NULL,
+                        segment_index INTEGER,
+                        start_time FLOAT,
+                        end_time FLOAT,
+                        scene_type TEXT,
+                        confidence FLOAT,
+                        priority FLOAT,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    )
+                """))
+
+                await session.execute(
+                    text("DELETE FROM video_scene_classifications WHERE video_id = :vid"),
+                    {"vid": video_id},
+                )
+                for cls in classifications:
+                    await session.execute(
+                        text("""
+                            INSERT INTO video_scene_classifications
+                                (video_id, segment_index, start_time, end_time,
+                                 scene_type, confidence, priority)
+                            VALUES (:vid, :idx, :start, :end, :stype, :conf, :pri)
+                        """),
+                        {
+                            "vid": video_id,
+                            "idx": cls.get("segment_index", 0),
+                            "start": cls.get("start", 0.0),
+                            "end": cls.get("end", 0.0),
+                            "stype": cls.get("scene_type", "unknown"),
+                            "conf": cls.get("confidence", 0.0),
+                            "pri": cls.get("priority", 0.0),
+                        },
+                    )
+
+        run_sync(_save())
+        logger.info("[pipeline.db] Saved %d scene classifications for video %s",
+                     len(classifications), video_id)
+    except Exception as e:
+        logger.warning("[pipeline.db] Failed to save scene classifications (non-critical): %s", e)
+
+
 def save_pipeline_run(video_id: str, ctx_summary: dict, worker_id: str = ""):
     """Save pipeline run metadata to video_pipeline_runs table."""
     try:
@@ -295,6 +354,14 @@ def save_pipeline_results(ctx, worker_id: str = ""):
         save_sales_moments(video_id, ctx.sales_moments)
     except Exception as e:
         logger.warning("[pipeline.db] save_sales_moments failed: %s", e)
+
+    # V9: Save scene classifications
+    try:
+        scene_cls = getattr(ctx, "scene_classifications", [])
+        if scene_cls:
+            save_scene_classifications(video_id, scene_cls)
+    except Exception as e:
+        logger.warning("[pipeline.db] save_scene_classifications failed: %s", e)
 
     # Save pipeline run metadata
     try:

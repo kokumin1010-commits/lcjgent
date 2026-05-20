@@ -1976,7 +1976,7 @@ async def diagnostics(x_admin_key: Optional[str] = Header(None)):
         db_status["error"] = f"{type(e).__name__}: {str(e)[:200]}\n{traceback.format_exc()[-200:]}"
 
     return {
-        "version": "2.15",
+        "version": "2.16",
         "azure_openai_key_set": bool(azure_key),
         "azure_openai_endpoint": azure_endpoint or "NOT SET",
         "gpt_model": gpt_model,
@@ -1996,6 +1996,11 @@ async def diagnostics(x_admin_key: Optional[str] = Header(None)):
             "keyword_highlight": True,
             "subtitle_animation": True,
             "enhanced_thumbnail": True,
+            "v9_scene_classifier": True,
+            "v9_product_demo_priority": True,
+            "v9_discount_penalty": True,
+            "v9_quality_scoring": True,
+            "v9_auto_reject": True,
         },
     }
 

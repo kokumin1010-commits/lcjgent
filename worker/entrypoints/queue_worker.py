@@ -1039,12 +1039,15 @@ def _run_pipeline_job(payload: dict) -> bool:
 
         summary = ctx.summary()
         print(
-            f"[worker] Pipeline completed: video_id={video_id} "
+            f"[worker] Pipeline V9 completed: video_id={video_id} "
             f"scenes={summary['scenes_count']} "
             f"transcript={summary['transcript_segments']} "
             f"events={summary['events_count']} "
+            f"scene_cls={summary.get('scene_classifications_count', 0)} "
             f"sales_moments={summary['sales_moments_count']} "
             f"clips={summary['clips_count']} "
+            f"(generated={summary.get('clips_generated', 0)}, "
+            f"rejected={summary.get('clips_rejected', 0)}) "
             f"errors={len(summary['errors'])} "
             f"total_time={summary.get('total_time', 0):.1f}s"
         )

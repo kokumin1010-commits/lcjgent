@@ -157,22 +157,24 @@ class PipelineRunner:
 
 
 def build_default_pipeline() -> PipelineRunner:
-    """Build the default AitherHub video processing pipeline.
+    """Build the default AitherHub video processing pipeline (V9).
 
     Pipeline steps:
-        1. scene_detection      — Detect scene boundaries
-        2. speech_extraction    — Extract audio from video
-        3. speech_to_text       — Transcribe audio to text
-        4. transcript_segmentation — Segment transcript into meaning units
-        5. event_detection      — Detect events (product_show, CTA, etc.)
-        6. sales_moment_detection — Detect high-conversion moments
-        7. clip_generation      — Generate clips from sales moments
+        1. scene_detection          — Detect scene boundaries
+        2. speech_extraction        — Extract audio from video
+        3. speech_to_text           — Transcribe audio to text
+        4. transcript_segmentation  — Segment transcript into meaning units
+        5. event_detection          — Detect events (product_show, CTA, etc.)
+        6. scene_classification     — V9: Classify segments by scene type
+        7. sales_moment_detection   — V9: Detect product moments (demo-first)
+        8. clip_generation          — V9: Generate clips with quality scoring
     """
     from worker.pipeline.pipeline_steps.scene_detection import run_scene_detection
     from worker.pipeline.pipeline_steps.speech_extraction import run_speech_extraction
     from worker.pipeline.pipeline_steps.speech_to_text import run_speech_to_text
     from worker.pipeline.pipeline_steps.transcript_segmentation import run_transcript_segmentation
     from worker.pipeline.pipeline_steps.event_detection import run_event_detection
+    from worker.pipeline.pipeline_steps.scene_classifier import run_scene_classification
     from worker.pipeline.pipeline_steps.sales_moment_detection import run_sales_moment_detection
     from worker.pipeline.pipeline_steps.clip_generator import run_clip_generation
 
@@ -182,6 +184,7 @@ def build_default_pipeline() -> PipelineRunner:
     runner.add_step("speech_to_text", run_speech_to_text, critical=True)
     runner.add_step("transcript_segmentation", run_transcript_segmentation, critical=False)
     runner.add_step("event_detection", run_event_detection, critical=False)
+    runner.add_step("scene_classification", run_scene_classification, critical=False)
     runner.add_step("sales_moment_detection", run_sales_moment_detection, critical=False)
     runner.add_step("clip_generation", run_clip_generation, critical=False)
 

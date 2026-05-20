@@ -50,9 +50,16 @@ class PipelineContext:
     Format: [{"start": float, "end": float, "event_type": str, "confidence": float}, ...]
     """
 
+    scene_classifications: list[dict] = field(default_factory=list)
+    """V9: Scene type classifications for each segment.
+    Format: [{"segment_index": int, "start": float, "end": float,
+             "scene_type": str, "confidence": float, "priority": float}, ...]
+    """
+
     sales_moments: list[dict] = field(default_factory=list)
-    """Detected sales moments (high-conversion candidates).
-    Format: [{"start": float, "end": float, "score": float, "reason": str}, ...]
+    """Detected sales/product moments (high-quality candidates).
+    Format: [{"start": float, "end": float, "score": float, "reason": str,
+             "scene_type": str, "quality_score": float}, ...]
     """
 
     clips: list[dict] = field(default_factory=list)
@@ -94,9 +101,13 @@ class PipelineContext:
             "transcript_segments": len(self.transcript),
             "segments_count": len(self.segments),
             "events_count": len(self.events),
+            "scene_classifications_count": len(self.scene_classifications),
             "sales_moments_count": len(self.sales_moments),
             "clips_count": len(self.clips),
+            "clips_generated": sum(1 for c in self.clips if c.get("status") == "generated"),
+            "clips_rejected": sum(1 for c in self.clips if c.get("status") == "rejected"),
             "errors": self.errors,
             "step_timings": self.step_timings,
             "total_time": sum(self.step_timings.values()),
+            "v9": True,
         }
