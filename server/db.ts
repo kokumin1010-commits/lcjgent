@@ -3518,11 +3518,37 @@ export async function getLivestreamProductsByLivestreamId(livestreamId: number) 
   const db = await getDb();
   if (!db) return [];
   
-  return await db
+  const products = await db
     .select()
     .from(livestreamProducts)
     .where(eq(livestreamProducts.livestreamId, livestreamId))
     .orderBy(desc(livestreamProducts.gmv));
+  
+  // 未解決の数字ID商品名を再度解決を試みる
+  const unresolvedProducts = products.filter(p => p.productName && /^\d{10,}$/.test(p.productName));
+  if (unresolvedProducts.length > 0) {
+    try {
+      const resolved = await resolveNumericProductNames(unresolvedProducts.map(p => p.productName));
+      const resolvedMap = new Map(resolved.map(r => [r.original, r.resolved]));
+      
+      // DBを更新して次回以降は解決済みにする
+      for (const product of unresolvedProducts) {
+        const resolvedName = resolvedMap.get(product.productName);
+        if (resolvedName && resolvedName !== product.productName) {
+          product.productName = resolvedName;
+          // 非同期でDB更新（レスポンスをブロックしない）
+          db.update(livestreamProducts)
+            .set({ productName: resolvedName })
+            .where(eq(livestreamProducts.id, product.id))
+            .catch(() => {});
+        }
+      }
+    } catch (e) {
+      // 解決失敗しても元のデータを返す
+    }
+  }
+  
+  return products;
 }
 
 // Update livestream product
