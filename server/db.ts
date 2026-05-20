@@ -9956,6 +9956,72 @@ export async function resolveNumericProductNames(productNames: string[]): Promis
     console.error('[resolveNumericProductNames] tiktok_tap_reports lookup error:', e);
   }
   
+  // tiktok_tap_live_reportsからも解決を試みる
+  try {
+    const unresolvedIds0 = numericNames.filter(id => !resolvedMap.has(id));
+    if (unresolvedIds0.length > 0) {
+      const liveResults = await db
+        .select({
+          productId: tiktokTapLiveReports.productId,
+          productName: tiktokTapLiveReports.productName,
+        })
+        .from(tiktokTapLiveReports)
+        .where(sql`${tiktokTapLiveReports.productId} IN (${sql.join(unresolvedIds0.map(id => sql`${id}`), sql`, `)})`);
+      
+      for (const r of liveResults) {
+        if (r.productId && r.productName && !resolvedMap.has(r.productId)) {
+          resolvedMap.set(r.productId, r.productName);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[resolveNumericProductNames] tiktok_tap_live_reports lookup error:', e);
+  }
+  
+  // tiktok_cap_product_reportsからも解決を試みる
+  try {
+    const unresolvedIds1 = numericNames.filter(id => !resolvedMap.has(id));
+    if (unresolvedIds1.length > 0) {
+      const capResults = await db
+        .select({
+          productId: tiktokCapProductReports.productId,
+          productName: tiktokCapProductReports.productName,
+        })
+        .from(tiktokCapProductReports)
+        .where(sql`${tiktokCapProductReports.productId} IN (${sql.join(unresolvedIds1.map(id => sql`${id}`), sql`, `)})`);
+      
+      for (const r of capResults) {
+        if (r.productId && r.productName && !resolvedMap.has(r.productId)) {
+          resolvedMap.set(r.productId, r.productName);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[resolveNumericProductNames] tiktok_cap_product_reports lookup error:', e);
+  }
+  
+  // tiktok_commission_ordersからも解決を試みる
+  try {
+    const unresolvedIds2 = numericNames.filter(id => !resolvedMap.has(id));
+    if (unresolvedIds2.length > 0) {
+      const commResults = await db
+        .select({
+          productId: tiktokCommissionOrders.productId,
+          productName: tiktokCommissionOrders.productName,
+        })
+        .from(tiktokCommissionOrders)
+        .where(sql`${tiktokCommissionOrders.productId} IN (${sql.join(unresolvedIds2.map(id => sql`${id}`), sql`, `)})`);
+      
+      for (const r of commResults) {
+        if (r.productId && r.productName && !resolvedMap.has(r.productId)) {
+          resolvedMap.set(r.productId, r.productName);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[resolveNumericProductNames] tiktok_commission_orders lookup error:', e);
+  }
+  
   // product_name_aliasesからも解決を試みる（手動マッピング）
   try {
     const unresolvedIds = numericNames.filter(id => !resolvedMap.has(id));

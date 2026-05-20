@@ -460,6 +460,14 @@ export default function LiverByName() {
     { enabled: !!liverId }
   );
 
+  // 商品名表示ヘルパー（数字IDの場合は短縮表示）
+  const formatProductName = (name: string) => {
+    if (/^\d{10,}$/.test(name)) {
+      return `商品ID: ${name.slice(0, 6)}...${name.slice(-4)}`;
+    }
+    return name;
+  };
+
   // ブランドタップで配信一覧展開用state
   const [expandedBrandId, setExpandedBrandId] = useState<number | null>(null);
 
@@ -1508,7 +1516,7 @@ export default function LiverByName() {
                           )}
                         </td>
                         <td className="py-3 px-2 text-white font-medium break-words">
-                          {product.productName}
+                          {formatProductName(product.productName)}
                         </td>
                         <td className="py-3 px-2 text-right">
                           <span className="text-yellow-400 font-mono font-bold">
@@ -1701,7 +1709,7 @@ export default function LiverByName() {
                               const qty = item.quantity || 1;
                               return (
                                 <div key={idx} className="flex items-center justify-between text-xs">
-                                  <span className="text-gray-300">{item.productName} ×{qty}</span>
+                                  <span className="text-gray-300">{formatProductName(item.productName)} ×{qty}</span>
                                   <span className="text-gray-500 font-mono">¥{Number(item.originalPrice || 0).toLocaleString()} ×{qty}</span>
                                 </div>
                               );
@@ -1724,7 +1732,7 @@ export default function LiverByName() {
                   <div className="flex flex-wrap gap-2">
                     {setAnalysis.topProducts.map((product: any, idx: number) => (
                       <div key={idx} className="px-3 py-1.5 rounded-lg bg-gray-800/60 border border-gray-700/50 text-xs">
-                        <span className="text-white font-medium">{product.productName}</span>
+                        <span className="text-white font-medium">{formatProductName(product.productName)}</span>
                         <span className="text-pink-400 ml-2">{product.count}回使用</span>
                       </div>
                     ))}
@@ -1873,7 +1881,7 @@ export default function LiverByName() {
                   <div className="flex flex-wrap gap-2">
                     {promoAnalysis.topProducts.map((product: any, idx: number) => (
                       <div key={idx} className="px-3 py-1.5 rounded-lg bg-gray-800/60 border border-gray-700/50 text-xs">
-                        <span className="text-white font-medium">{product.productName}</span>
+                        <span className="text-white font-medium">{formatProductName(product.productName)}</span>
                         <span className="text-violet-400 ml-2">{product.count}回</span>
                         <span className="text-gray-500 ml-1">(平均{product.avgDiscount}%OFF)</span>
                       </div>
@@ -1958,7 +1966,7 @@ export default function LiverByName() {
                             )}
                           </td>
                           <td className="py-3 px-2">
-                            <div className="text-white font-medium break-words">{product.productName}</div>
+                            <div className="text-white font-medium break-words">{formatProductName(product.productName)}</div>
                             <div className="mt-1 h-1.5 bg-gray-700 rounded-full overflow-hidden max-w-[200px]">
                               <div
                                 className="h-full bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full"

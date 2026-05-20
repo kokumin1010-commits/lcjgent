@@ -46,6 +46,14 @@ export default function LivestreamDetail() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  // 商品名表示ヘルパー（数字IDの場合は短縮表示）
+  const formatProductName = (name: string) => {
+    if (/^\d{10,}$/.test(name)) {
+      return `商品ID: ${name.slice(0, 6)}...${name.slice(-4)}`;
+    }
+    return name;
+  };
   
   // Edit form state
   const [formData, setFormData] = useState({
@@ -1104,10 +1112,10 @@ export default function LivestreamDetail() {
                     ];
                     
                     const pieChartData = sortedProducts.slice(0, 10).map((product, index) => ({
-                      name: product.productName.length > 15 
-                        ? product.productName.substring(0, 15) + '...' 
-                        : product.productName,
-                      fullName: product.productName,
+                      name: formatProductName(product.productName).length > 15 
+                        ? formatProductName(product.productName).substring(0, 15) + '...' 
+                        : formatProductName(product.productName),
+                      fullName: formatProductName(product.productName),
                       value: product.directGmv || product.gmv || 0,
                       percentage: totalSales > 0 ? ((product.directGmv || product.gmv || 0) / totalSales * 100).toFixed(1) : '0',
                       color: CHART_COLORS[index % CHART_COLORS.length],
@@ -1193,7 +1201,7 @@ export default function LivestreamDetail() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className="text-white font-medium text-sm leading-tight line-clamp-2">
-                                    {product.productName}
+                                    {formatProductName(product.productName)}
                                   </p>
                                 </div>
                               </div>
