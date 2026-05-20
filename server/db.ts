@@ -3528,8 +3528,7 @@ export async function getLivestreamProductsByLivestreamId(livestreamId: number) 
   const unresolvedProducts = products.filter(p => p.productName && /^\d{10,}$/.test(p.productName));
   if (unresolvedProducts.length > 0) {
     try {
-      const resolved = await resolveNumericProductNames(unresolvedProducts.map(p => p.productName));
-      const resolvedMap = new Map(resolved.map(r => [r.original, r.resolved]));
+      const resolvedMap = await resolveNumericProductNames(unresolvedProducts.map(p => p.productName));
       
       // DBを更新して次回以降は解決済みにする
       for (const product of unresolvedProducts) {
