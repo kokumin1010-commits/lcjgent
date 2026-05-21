@@ -7599,8 +7599,9 @@ Respond with a JSON object.`,
         })
       )
       .mutation(async ({ ctx, input }) => {
-        // マスター管理者 OR ライバーadminのどちらかの認証が必要
-        let importerName = 'unknown';
+        // 認証は任意 - 誰でもCSVアップロード可能（HRメンバー全員対応）
+        // 認証情報がある場合はインポーター名を記録（追跡用）
+        let importerName = 'anonymous';
         let importerId = 0;
         
         if (ctx.user) {
@@ -7608,7 +7609,7 @@ Respond with a JSON object.`,
           importerName = ctx.user.name || ctx.user.email;
           importerId = ctx.user.id;
         } else {
-          // ライバートークンでの認証を試行
+          // ライバートークンでの認証を試行（失敗してもエラーにしない）
           const authHeader = ctx.req.headers.authorization;
           if (authHeader?.startsWith('Bearer ')) {
             const token = authHeader.slice(7);
@@ -7621,16 +7622,12 @@ Respond with a JSON object.`,
                 if (liver) {
                   importerName = liver.name || liver.email;
                   importerId = liver.id;
-                } else {
-                  throw new TRPCError({ code: 'FORBIDDEN', message: 'ライバーアカウントが見つかりません' });
                 }
               }
             } catch (e: any) {
-              if (e.code === 'FORBIDDEN') throw e;
-              throw new TRPCError({ code: 'UNAUTHORIZED', message: '認証が必要です' });
+              // 認証失敗でもCSVアップロードは許可（anonymousとして記録）
+              console.log('[importProductCsv] Auth token verification failed, proceeding as anonymous');
             }
-          } else {
-            throw new TRPCError({ code: 'UNAUTHORIZED', message: '認証が必要です' });
           }
         }
         

@@ -1066,7 +1066,8 @@ export default function LivestreamDetail() {
                       <FileSpreadsheet className="w-4 h-4" />
                       商品別売上
                     </h3>
-                    {canEdit && (
+                    {/* CSVアップロードはHRメンバー全員に許可 */}
+                    {true && (
                       <label className="cursor-pointer">
                         <input
                           type="file"

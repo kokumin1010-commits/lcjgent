@@ -89,8 +89,8 @@ export default function LiverByName() {
     staleTime: 5 * 60 * 1000,
   });
   const isAdmin = isLiverAdmin || liverMe?.role === 'admin' || !!user;
-  // CSVアップロードはライバー本人（role問わず）または管理者に許可
-  const canUploadCsv = !!liverMe || !!user;
+  // CSVアップロードはHRメンバー全員に許可（認証不要）
+  const canUploadCsv = true;
   
   // CSVインポートmutation
   const importProductCsvMutation = trpc.brandLivestream.importProductCsv.useMutation({
