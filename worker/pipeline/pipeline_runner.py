@@ -139,18 +139,21 @@ class PipelineRunner:
 
         summary = ctx.summary()
         logger.info(
-            "[pipeline] Pipeline finished for video=%s — "
+            "[pipeline] Pipeline finished for video=%s \u2014 "
             "scenes=%d, transcript=%d, segments=%d, events=%d, "
-            "sales_moments=%d, clips=%d, errors=%d, total_time=%.2fs",
+            "sales_moments=%d, product_segments=%d, clips=%d, "
+            "errors=%d, total_time=%.2fs, ml_version=%s",
             ctx.video_id,
             summary["scenes_count"],
             summary["transcript_segments"],
             summary["segments_count"],
             summary["events_count"],
             summary["sales_moments_count"],
+            summary.get("product_segments_count", 0),
             summary["clips_count"],
             len(summary["errors"]),
             total_elapsed,
+            summary.get("ml_model_version", ""),
         )
 
         return ctx
@@ -167,7 +170,8 @@ def build_default_pipeline() -> PipelineRunner:
         5. event_detection          — Detect events (product_show, CTA, etc.)
         6. scene_classification     — V9: Classify segments by scene type
         7. sales_moment_detection   — V9: Detect product moments (demo-first)
-        8. clip_generation          — V9: Generate clips with quality scoring
+        8. product_segment_detection — V9: Detect product intro segments (1 product = 1 clip)
+        9. clip_generation          — V9: Generate clips with quality scoring + ml_model_version
     """
     from worker.pipeline.pipeline_steps.scene_detection import run_scene_detection
     from worker.pipeline.pipeline_steps.speech_extraction import run_speech_extraction
@@ -176,6 +180,7 @@ def build_default_pipeline() -> PipelineRunner:
     from worker.pipeline.pipeline_steps.event_detection import run_event_detection
     from worker.pipeline.pipeline_steps.scene_classifier import run_scene_classification
     from worker.pipeline.pipeline_steps.sales_moment_detection import run_sales_moment_detection
+    from worker.pipeline.pipeline_steps.product_segment_detector import run_product_segment_detection
     from worker.pipeline.pipeline_steps.clip_generator import run_clip_generation
 
     runner = PipelineRunner()
@@ -186,6 +191,7 @@ def build_default_pipeline() -> PipelineRunner:
     runner.add_step("event_detection", run_event_detection, critical=False)
     runner.add_step("scene_classification", run_scene_classification, critical=False)
     runner.add_step("sales_moment_detection", run_sales_moment_detection, critical=False)
+    runner.add_step("product_segment_detection", run_product_segment_detection, critical=False)
     runner.add_step("clip_generation", run_clip_generation, critical=False)
 
     return runner

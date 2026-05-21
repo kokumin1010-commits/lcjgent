@@ -4,16 +4,19 @@ Clip Generator (V9)
 Generates high-quality vertical clips from detected product moments.
 
 V9 Changes:
+    - ★ Product-segment-based clip extraction (1 product = 1 clip)
     - Target clip duration: 45-90 seconds (was 5-60s)
     - Quality scoring system for each clip
     - Auto-reject: clips below quality threshold are marked as rejected
     - Product explanation completeness check
     - Scene type awareness: product_demo clips get extended boundaries
     - Intelligent boundary detection: tries to start/end at natural pauses
+    - ml_model_version tagging for all generated clips
 
 Input (from context):
     - ctx.video_path: Path to the source video file
     - ctx.sales_moments: Detected product moments with start/end times
+    - ctx.extra["product_segments"]: V9 product segments (from product_segment_detector)
     - ctx.video_id: Video identifier
     - ctx.segments: Transcript segments (for completeness check)
     - ctx.scene_classifications: Scene type info (V9)
@@ -22,7 +25,8 @@ Output (to context):
     - ctx.clips: Generated clip metadata with quality scores
       [{"clip_id": str, "start": float, "end": float, "output_path": str,
         "status": str, "quality_score": float, "scene_type": str,
-        "reject_reason": str}, ...]
+        "reject_reason": str, "ml_model_version": str,
+        "product_name": str}, ...]
 
 Quality Score Components:
     - Duration score (0.0-0.3): Optimal at 45-75s
@@ -35,6 +39,7 @@ import sys
 import uuid
 import logging
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -44,6 +49,11 @@ if str(PROJECT_ROOT) not in sys.path:
 from worker.pipeline.pipeline_context import PipelineContext
 
 logger = logging.getLogger("worker.pipeline.clip_generator")
+
+# ─── V9 Version tag ───
+PIPELINE_VERSION = 9
+DATE_TAG = datetime.now().strftime("%Y%m%d")
+ML_MODEL_VERSION = f"v{PIPELINE_VERSION}.{DATE_TAG}"
 
 # ─── V9 Clip generation settings ───
 CLIP_PADDING_BEFORE = 3.0    # Seconds of padding before the moment (increased)
@@ -330,54 +340,133 @@ def _generate_clip(
         return False
 
 
-def run_clip_generation(ctx: PipelineContext) -> PipelineContext:
-    """Pipeline step: Generate vertical clips from product moments (V9).
+def _build_clips_from_product_segments(
+    product_segments: list[dict],
+    ctx: PipelineContext,
+    crop_filter: str,
+    scene_classifications: list[dict],
+) -> list[dict]:
+    """V9 Core: Build clips from product segments (1 product = 1 clip).
 
-    V9 improvements:
-        - Intelligent clip boundaries (natural pauses)
-        - Scene-type-aware duration preferences
-        - Quality scoring for each clip
-        - Auto-reject low-quality clips
-        - Extended padding for product demos
-
-    For each product moment (up to MAX_CLIPS), generates a vertical
-    clip trimmed from the source video with quality assessment.
+    Uses product_segment_detector output to create clips aligned with
+    individual product introductions.
     """
-    if not ctx.sales_moments:
-        logger.info("[clip_generator] No sales moments for video %s", ctx.video_id)
-        ctx.clips = []
-        return ctx
-
     video_path = ctx.video_path
-    if not video_path or not Path(video_path).exists():
-        raise FileNotFoundError(f"Video file not found: {video_path}")
-
-    # Get video dimensions for crop filter
-    src_width, src_height = _get_video_dimensions(video_path)
-    crop_filter = _build_crop_filter(src_width, src_height)
-    logger.info(
-        "[clip_generator] V9: Source %dx%d, crop_filter: %s",
-        src_width, src_height, crop_filter,
-    )
-
-    # Get scene classifications for quality scoring
-    scene_classifications = getattr(ctx, "scene_classifications", [])
-    if not scene_classifications:
-        scene_classifications = ctx.extra.get("scene_classifications", [])
-
-    # Sort sales moments by score (best first), skip discount_push
-    moments = sorted(ctx.sales_moments, key=lambda x: x.get("score", 0), reverse=True)
-
-    # Filter: prefer non-discount moments
-    preferred_moments = [m for m in moments if m.get("scene_type") != "discount_push"]
-    if not preferred_moments:
-        preferred_moments = moments  # Fallback if all are discount
-
-    moments = preferred_moments[:MAX_CLIPS]
-
-    # Output directory
     output_dir = Path(video_path).parent / "clips"
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    clips = []
+    for i, pseg in enumerate(product_segments[:MAX_CLIPS]):
+        clip_id = str(uuid.uuid4())[:8]
+        product_name = pseg.get("product_name", "")
+
+        # Use product segment boundaries directly
+        raw_start = pseg["start"]
+        raw_end = pseg["end"]
+
+        # Try to find natural boundaries (speech pauses)
+        start = _find_natural_boundary(raw_start, ctx.segments, "before", 3.0)
+        end = _find_natural_boundary(raw_end, ctx.segments, "after", 3.0)
+
+        # Enforce absolute limits
+        duration = end - start
+        if duration < MIN_CLIP_DURATION:
+            pad = (MIN_CLIP_DURATION - duration) / 2
+            start = max(0, start - pad)
+            end = end + pad
+        elif duration > MAX_CLIP_DURATION:
+            end = start + MAX_CLIP_DURATION
+
+        # Determine dominant scene type from product segment
+        scene_types = pseg.get("scene_types", [])
+        scene_type = scene_types[0] if scene_types else "product_explain"
+
+        # Build a moment-like dict for quality scoring
+        moment = {
+            "start": pseg["start"],
+            "end": pseg["end"],
+            "score": pseg.get("confidence", 0.5),
+            "scene_type": scene_type,
+            "reason": f"product_segment:{product_name}",
+        }
+
+        # ── V9: Quality scoring ──
+        quality_score, quality_notes = _calculate_quality_score(
+            start, end, moment, ctx.segments, scene_classifications
+        )
+
+        # ── V9: Auto-reject decision ──
+        status = "pending"
+        reject_reason = ""
+
+        if quality_score < QUALITY_REJECT_THRESHOLD:
+            status = "rejected"
+            reject_reason = f"quality_too_low({quality_score:.2f}<{QUALITY_REJECT_THRESHOLD}): {quality_notes}"
+            logger.info(
+                "[clip_generator] V9 AUTO-REJECT product clip %s (%s): score=%.3f",
+                clip_id, product_name, quality_score,
+            )
+        elif scene_type == "discount_push":
+            status = "rejected"
+            reject_reason = "discount_push_scene"
+
+        # Generate clip (skip if rejected)
+        output_path = str(output_dir / f"clip_{clip_id}.mp4")
+
+        if status != "rejected":
+            logger.info(
+                "[clip_generator] V9 generating product clip %d/%d: %s '%s' "
+                "(%.1fs-%.1fs, quality=%.3f, scene=%s)",
+                i + 1, len(product_segments[:MAX_CLIPS]), clip_id,
+                product_name, start, end, quality_score, scene_type,
+            )
+            success = _generate_clip(video_path, output_path, start, end, crop_filter)
+            status = "generated" if success else "failed"
+        else:
+            output_path = ""
+
+        clip_info = {
+            "clip_id": clip_id,
+            "start": round(start, 3),
+            "end": round(end, 3),
+            "duration": round(end - start, 3),
+            "score": moment["score"],
+            "quality_score": quality_score,
+            "quality_notes": quality_notes,
+            "scene_type": scene_type,
+            "reason": moment["reason"],
+            "product_name": product_name,
+            "output_path": output_path if status == "generated" else "",
+            "status": status,
+            "reject_reason": reject_reason,
+            "ml_model_version": ML_MODEL_VERSION,
+            "source": "product_segment",
+        }
+        clips.append(clip_info)
+
+    return clips
+
+
+def _build_clips_from_sales_moments(
+    moments: list[dict],
+    ctx: PipelineContext,
+    crop_filter: str,
+    scene_classifications: list[dict],
+) -> list[dict]:
+    """Fallback: Build clips from sales moments (legacy V9 behavior).
+
+    Used when product_segment_detector didn't find segments.
+    """
+    video_path = ctx.video_path
+    output_dir = Path(video_path).parent / "clips"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Sort by score, filter discount_push
+    moments = sorted(moments, key=lambda x: x.get("score", 0), reverse=True)
+    preferred_moments = [m for m in moments if m.get("scene_type") != "discount_push"]
+    if not preferred_moments:
+        preferred_moments = moments
+    moments = preferred_moments[:MAX_CLIPS]
 
     clips = []
     for i, moment in enumerate(moments):
@@ -398,15 +487,13 @@ def run_clip_generation(ctx: PipelineContext) -> PipelineContext:
         # Enforce duration limits based on scene type
         duration = end - start
         if duration < prefs["min"]:
-            # Extend to minimum duration
             deficit = prefs["min"] - duration
             start = max(0, start - deficit / 2)
             end = end + deficit / 2
         elif duration > prefs["max"]:
-            # Trim to maximum duration (keep the best part centered)
             excess = duration - prefs["max"]
-            start = start + excess / 3  # Trim less from start
-            end = end - excess * 2 / 3  # Trim more from end
+            start = start + excess / 3
+            end = end - excess * 2 / 3
 
         # Final safety: absolute limits
         duration = end - start
@@ -436,10 +523,6 @@ def run_clip_generation(ctx: PipelineContext) -> PipelineContext:
         elif scene_type == "discount_push":
             status = "rejected"
             reject_reason = "discount_push_scene"
-            logger.info(
-                "[clip_generator] V9 AUTO-REJECT clip %s: discount_push scene",
-                clip_id,
-            )
 
         # Generate clip (skip if rejected)
         output_path = str(output_dir / f"clip_{clip_id}.mp4")
@@ -451,7 +534,6 @@ def run_clip_generation(ctx: PipelineContext) -> PipelineContext:
                 i + 1, len(moments), clip_id, start, end,
                 moment.get("score", 0), quality_score, scene_type,
             )
-
             success = _generate_clip(video_path, output_path, start, end, crop_filter)
             status = "generated" if success else "failed"
         else:
@@ -467,11 +549,77 @@ def run_clip_generation(ctx: PipelineContext) -> PipelineContext:
             "quality_notes": quality_notes,
             "scene_type": scene_type,
             "reason": moment.get("reason", ""),
+            "product_name": "",
             "output_path": output_path if status == "generated" else "",
             "status": status,
             "reject_reason": reject_reason,
+            "ml_model_version": ML_MODEL_VERSION,
+            "source": "sales_moment",
         }
         clips.append(clip_info)
+
+    return clips
+
+
+def run_clip_generation(ctx: PipelineContext) -> PipelineContext:
+    """Pipeline step: Generate vertical clips from product moments (V9).
+
+    V9 improvements:
+        - ★ Product-segment-based clip extraction (1 product = 1 clip)
+        - Intelligent clip boundaries (natural pauses)
+        - Scene-type-aware duration preferences
+        - Quality scoring for each clip
+        - Auto-reject low-quality clips
+        - Extended padding for product demos
+        - ml_model_version tagging on all clips
+
+    Strategy:
+        1. If product_segments exist → use them (1 product = 1 clip)
+        2. Else fallback to sales_moments (legacy behavior)
+    """
+    # Check for product segments first (V9 core feature)
+    product_segments = ctx.extra.get("product_segments", [])
+
+    if not product_segments and not ctx.sales_moments:
+        logger.info("[clip_generator] No product segments or sales moments for video %s", ctx.video_id)
+        ctx.clips = []
+        return ctx
+
+    video_path = ctx.video_path
+    if not video_path or not Path(video_path).exists():
+        raise FileNotFoundError(f"Video file not found: {video_path}")
+
+    # Get video dimensions for crop filter
+    src_width, src_height = _get_video_dimensions(video_path)
+    crop_filter = _build_crop_filter(src_width, src_height)
+    logger.info(
+        "[clip_generator] V9: Source %dx%d, crop_filter: %s",
+        src_width, src_height, crop_filter,
+    )
+
+    # Get scene classifications for quality scoring
+    scene_classifications = getattr(ctx, "scene_classifications", [])
+    if not scene_classifications:
+        scene_classifications = ctx.extra.get("scene_classifications", [])
+
+    # ── V9: Product-segment-based clip generation (primary) ──
+    if product_segments:
+        logger.info(
+            "[clip_generator] V9 PRODUCT-SEGMENT mode: %d segments detected",
+            len(product_segments),
+        )
+        clips = _build_clips_from_product_segments(
+            product_segments, ctx, crop_filter, scene_classifications,
+        )
+    else:
+        # Fallback: use sales moments
+        logger.info(
+            "[clip_generator] V9 SALES-MOMENT fallback: %d moments",
+            len(ctx.sales_moments),
+        )
+        clips = _build_clips_from_sales_moments(
+            ctx.sales_moments, ctx, crop_filter, scene_classifications,
+        )
 
     ctx.clips = clips
 
@@ -482,12 +630,16 @@ def run_clip_generation(ctx: PipelineContext) -> PipelineContext:
 
     logger.info(
         "[clip_generator] V9 Summary for video %s: "
-        "generated=%d, rejected=%d, failed=%d (total=%d)",
+        "generated=%d, rejected=%d, failed=%d (total=%d) "
+        "ml_model_version=%s source=%s",
         ctx.video_id, generated, rejected, failed, len(clips),
+        ML_MODEL_VERSION,
+        "product_segment" if product_segments else "sales_moment",
     )
 
     # Store V9 metadata
     ctx.extra["v9_clip_generator"] = True
+    ctx.extra["ml_model_version"] = ML_MODEL_VERSION
     ctx.extra["clip_quality_stats"] = {
         "generated": generated,
         "rejected": rejected,
@@ -495,6 +647,7 @@ def run_clip_generation(ctx: PipelineContext) -> PipelineContext:
         "avg_quality": round(
             sum(c["quality_score"] for c in clips) / max(len(clips), 1), 3
         ),
+        "source": "product_segment" if product_segments else "sales_moment",
     }
 
     return ctx

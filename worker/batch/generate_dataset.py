@@ -1217,7 +1217,7 @@ async def generate(output_dir: str, video_id=None, user_id=None, use_embeddings=
         "moment_window_sec": MOMENT_WINDOW_SEC,
         "weight_decay_tau": WEIGHT_DECAY_TAU,
         "neg_ratio": NEG_RATIO,
-        "version": "v8",
+        "version": "v9",
     }
 
     print(f"[dataset] Quality features: frame_quality={n_with_fq}/{len(all_records)} "

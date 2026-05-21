@@ -62,9 +62,16 @@ class PipelineContext:
              "scene_type": str, "quality_score": float}, ...]
     """
 
+    product_segments: list[dict] = field(default_factory=list)
+    """V9: Detected product introduction segments.
+    Format: [{"product_name": str, "start": float, "end": float,
+             "duration": float, "confidence": float, "scene_types": list}, ...]
+    """
+
     clips: list[dict] = field(default_factory=list)
     """Generated clip metadata.
-    Format: [{"clip_id": str, "start": float, "end": float, "clip_url": str}, ...]
+    Format: [{"clip_id": str, "start": float, "end": float, "clip_url": str,
+             "ml_model_version": str, "product_name": str}, ...]
     """
 
     # ── Metadata ──
@@ -106,6 +113,8 @@ class PipelineContext:
             "clips_count": len(self.clips),
             "clips_generated": sum(1 for c in self.clips if c.get("status") == "generated"),
             "clips_rejected": sum(1 for c in self.clips if c.get("status") == "rejected"),
+            "product_segments_count": len(self.product_segments),
+            "ml_model_version": self.extra.get("ml_model_version", ""),
             "errors": self.errors,
             "step_timings": self.step_timings,
             "total_time": sum(self.step_timings.values()),
