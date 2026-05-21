@@ -646,11 +646,12 @@ async function startServer() {
   // Recruitment image upload endpoint (for AI OCR recognition)
   app.post("/api/recruitment-image-upload", upload.array("files", 20), async (req: any, res) => {
     try {
+      // 認証は任意 - HRメンバー全員がアップロード可能
       let user;
       try {
         user = await sdk.authenticateRequest(req);
       } catch (e) {
-        return res.status(401).json({ error: "認証が必要です" });
+        console.log('[Recruitment Image Upload] Auth skipped, proceeding as anonymous');
       }
       const files = req.files as Express.Multer.File[];
       if (!files || files.length === 0) {
@@ -689,18 +690,17 @@ async function startServer() {
     });
   }, async (req: any, res) => {
     try {
-      // Authenticate user
+      // 認証は任意 - HRメンバー全員がアップロード可能
       let user;
       try {
         user = await sdk.authenticateRequest(req);
       } catch (e) {
-        return res.status(401).json({ error: "認証が必要です" });
+        // 認証失敗でもアップロードは許可
+        console.log('[CSV Upload] Auth skipped, proceeding as anonymous');
       }
-
       if (!req.file) {
         return res.status(400).json({ error: "ファイルがアップロードされていません" });
       }
-
       const file = req.file as Express.Multer.File;
       const brandId = parseInt(req.body.brandId, 10);
       if (!brandId || isNaN(brandId)) {
@@ -1893,10 +1893,14 @@ async function startServer() {
   // Product image upload REST API (avoids tRPC base64 size issues)
   app.post("/api/upload-product-image", upload.single("file"), async (req: any, res) => {
     try {
-      // Authenticate user (any logged-in user can upload)
-      const user = await sdk.authenticateRequest(req);
-      if (!user) {
-        return res.status(401).json({ error: "ログインが必要です" });
+      // 認証は任意 - HRメンバー全員がアップロード可能
+      let uploaderName = 'anonymous';
+      try {
+        const user = await sdk.authenticateRequest(req);
+        if (user) uploaderName = user.name || user.email || 'authenticated';
+      } catch (e) {
+        // 認証失敗でもアップロードは許可
+        console.log('[Product Image Upload] Auth skipped, proceeding as anonymous');
       }
 
       if (!req.file) {
