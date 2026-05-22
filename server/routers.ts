@@ -20323,16 +20323,16 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           // Parse rows into TAP reports
           const reports: any[] = [];
           for (const row of rows) {
-            // Skip summary row (日付 = "概要")
-            const dateVal = String(row['日付'] || row['Date'] || '').trim();
-            if (dateVal === '概要' || dateVal === 'Summary' || dateVal === '') continue;
+            // Skip summary row - support Japanese, English, and Chinese
+            const dateVal = String(row['日付'] || row['日期'] || row['Date'] || '').trim();
+            if (dateVal === '概要' || dateVal === '汇总数据' || dateVal === 'Summary' || dateVal === '') continue;
             
-            // Support both Japanese and English headers
-            const creatorUsername = String(row['クリエイター名'] || row['Creator username'] || row['Creator name'] || '').trim();
-            const productName = String(row['商品名'] || row['Product name'] || '').trim();
-            const shopName = String(row['ショップ名'] || row['Shop name'] || '').trim();
-            const productId = String(row['商品ID'] || row['Product ID'] || '').trim();
-            const shopId = String(row['ショップID'] || row['Shop ID'] || '').trim();
+            // Support Japanese, English, and Chinese headers
+            const creatorUsername = String(row['クリエイター名'] || row['达人用户名'] || row['Creator username'] || row['Creator name'] || '').trim();
+            const productName = String(row['商品名'] || row['商品信息'] || row['Product name'] || '').trim();
+            const shopName = String(row['ショップ名'] || row['店铺名称'] || row['Shop name'] || '').trim();
+            const productId = String(row['商品ID'] || row['商品 ID'] || row['Product ID'] || '').trim();
+            const shopId = String(row['ショップID'] || row['店铺 ID'] || row['Shop ID'] || '').trim();
             
             if (!creatorUsername && !productName) continue;
             
@@ -20345,15 +20345,15 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               productName,
               shopId,
               shopName,
-              affiliateGmv: parseNum(row['アフィリエイトGMV'] || row['Affiliate GMV']),
-              videoGmv: parseNum(row['アフィリエイト動画GMV'] || row['Video GMV']),
-              liveGmv: parseNum(row['アフィリエイトLIVE GMV'] || row['LIVE GMV']),
-              gmvRefund: parseNum(row['GMV（返金）'] || row['GMV refund']),
+              affiliateGmv: parseNum(row['アフィリエイトGMV'] || row['联盟 GMV'] || row['Affiliate GMV']),
+              videoGmv: parseNum(row['アフィリエイト動画GMV'] || row['联盟视频 GMV'] || row['Video GMV']),
+              liveGmv: parseNum(row['アフィリエイトLIVE GMV'] || row['联盟直播 GMV'] || row['LIVE GMV']),
+              gmvRefund: parseNum(row['GMV（返金）'] || row['直接退款 GMV'] || row['GMV refund']),
               settledGmv: parseNum(row['決済済みGMV'] || row['Settled GMV']),
               showcaseRevenue: parseNum(row['収益（ショーケース）'] || row['Showcase revenue']),
               linkGmv: parseNum(row['リンクGMV'] || row['Link GMV']),
-              orders: parseNum(row['注文'] || row['Orders']),
-              salesCount: parseNum(row['販売数'] || row['Sales count']),
+              orders: parseNum(row['注文'] || row['联盟订单数'] || row['Orders']),
+              salesCount: parseNum(row['販売数'] || row['成交件数'] || row['Sales count']),
               videoViews: parseNum(row['動画視聴数'] || row['Video views']),
               liveViews: parseNum(row['LIVE視聴数'] || row['LIVE views']),
               liveCount: parseNum(row['LIVE'] || row['LIVE count']),
@@ -20556,38 +20556,37 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
           const reports: any[] = [];
           for (const row of rows) {
-            const dateVal = String(row['日付'] || '').trim();
-            if (dateVal === '概要' || dateVal === '' || dateVal === 'Summary') continue;
-
-            const creatorUsername = String(row['クリエイターのユーザー名'] || row['Creator username'] || '').trim();
+            // Support Japanese, English, and Chinese headers
+            const dateVal = String(row['日付'] || row['日期'] || row['Date'] || '').trim();
+            if (dateVal === '概要' || dateVal === '汇总数据' || dateVal === '' || dateVal === 'Summary') continue;
+            const creatorUsername = String(row['クリエイターのユーザー名'] || row['达人用户名'] || row['Creator username'] || '').trim();
             if (!creatorUsername) continue;
-
             reports.push({
               brandId: input.brandId,
               reportMonth: input.reportMonth,
               dateRange: dateVal,
               creatorUsername,
-              affiliateGmv: parseNum(row['アフィリエイトGMV']),
-              affiliateLiveGmv: parseNum(row['アフィリエイトLIVE GMV']),
-              affiliateVideoGmv: parseNum(row['アフィリエイト動画GMV']),
-              directGmv: parseNum(row['ダイレクトGMV']),
-              liveDirectGmv: parseNum(row['LIVEダイレクトGMV']),
-              videoDirectGmv: parseNum(row['動画ダイレクトGMV']),
-              affiliateOrders: parseNum(row['アフィリエイト注文数']),
-              affiliateLiveOrders: parseNum(row['アフィリエイトLIVE注文']),
-              affiliateVideoOrders: parseNum(row['アフィリエイト動画注文']),
-              directOrders: parseNum(row['直接注文']),
-              liveDirectOrders: parseNum(row['LIVE直接注文']),
-              videoDirectOrders: parseNum(row['動画直接注文']),
-              salesCount: parseNum(row['販売数'] || row['商品販売数']),
-              estimatedCommission: parseNum(row['推定成果報酬額']),
-              commissionBase: parseNum(row['手数料ベース']),
-              liveViews: parseNum(row['LIVE視聴数']),
-              videoViews: parseNum(row['視聴数']),
-              liveCount: parseNum(row['LIVE']),
-              videoCount: parseNum(row['動画']),
-              liveCtr: String(row['LIVE CTR'] || ''),
-              videoCtr: String(row['動画CTR'] || ''),
+              affiliateGmv: parseNum(row['アフィリエイトGMV'] || row['联盟 GMV'] || row['Affiliate GMV']),
+              affiliateLiveGmv: parseNum(row['アフィリエイトLIVE GMV'] || row['联盟直播 GMV'] || row['Affiliate LIVE GMV']),
+              affiliateVideoGmv: parseNum(row['アフィリエイト動画GMV'] || row['联盟视频 GMV'] || row['Affiliate Video GMV']),
+              directGmv: parseNum(row['ダイレクトGMV'] || row['直接 GMV'] || row['Direct GMV']),
+              liveDirectGmv: parseNum(row['LIVEダイレクトGMV'] || row['直播直接 GMV'] || row['LIVE Direct GMV']),
+              videoDirectGmv: parseNum(row['動画ダイレクトGMV'] || row['视频直接 GMV'] || row['Video Direct GMV']),
+              affiliateOrders: parseNum(row['アフィリエイト注文数'] || row['联盟订单数'] || row['Affiliate Orders']),
+              affiliateLiveOrders: parseNum(row['アフィリエイトLIVE注文'] || row['联盟直播订单数'] || row['Affiliate LIVE Orders']),
+              affiliateVideoOrders: parseNum(row['アフィリエイト動画注文'] || row['联盟视频订单数'] || row['Affiliate Video Orders']),
+              directOrders: parseNum(row['直接注文'] || row['直接订单数'] || row['Direct Orders']),
+              liveDirectOrders: parseNum(row['LIVE直接注文'] || row['直播直接订单数'] || row['LIVE Direct Orders']),
+              videoDirectOrders: parseNum(row['動画直接注文'] || row['视频直接订单数'] || row['Video Direct Orders']),
+              salesCount: parseNum(row['販売数'] || row['商品販売数'] || row['成交件数'] || row['Sales Count']),
+              estimatedCommission: parseNum(row['推定成果報酬額'] || row['Estimated Commission']),
+              commissionBase: parseNum(row['手数料ベース'] || row['Commission Base']),
+              liveViews: parseNum(row['LIVE視聴数'] || row['LIVE Views']),
+              videoViews: parseNum(row['視聴数'] || row['Video Views']),
+              liveCount: parseNum(row['LIVE'] || row['LIVE count']),
+              videoCount: parseNum(row['動画'] || row['Video count']),
+              liveCtr: String(row['LIVE CTR'] || row['看播-点击转化率'] || ''),
+              videoCtr: String(row['動画CTR'] || row['CTOR'] || ''),
             });
           }
 
@@ -20631,12 +20630,13 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
           const reports: any[] = [];
           for (const row of rows) {
-            const dateVal = String(row['日付'] || '').trim();
-            if (dateVal === '概要' || dateVal === '' || dateVal === 'Summary') continue;
+            // Support Japanese, English, and Chinese headers
+            const dateVal = String(row['日付'] || row['日期'] || row['Date'] || '').trim();
+            if (dateVal === '概要' || dateVal === '汇总数据' || dateVal === '' || dateVal === 'Summary') continue;
 
-            const creatorUsername = String(row['クリエイターのユーザー名'] || row['Creator username'] || '').trim();
-            const productId = String(row['商品ID'] || row['Product ID'] || '').trim();
-            const productName = String(row['商品情報'] || row['Product name'] || '').trim();
+            const creatorUsername = String(row['クリエイターのユーザー名'] || row['达人用户名'] || row['Creator username'] || '').trim();
+            const productId = String(row['商品ID'] || row['商品 ID'] || row['Product ID'] || '').trim();
+            const productName = String(row['商品情報'] || row['商品信息'] || row['Product name'] || '').trim();
             if (!creatorUsername || !productId) continue;
 
             reports.push({
@@ -20646,29 +20646,29 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               creatorUsername,
               productId,
               productName,
-              shopId: String(row['ショップID'] || '').trim(),
-              shopName: String(row['ショップ名'] || '').trim(),
-              affiliateGmv: parseNum(row['アフィリエイトGMV']),
-              affiliateLiveGmv: parseNum(row['アフィリエイトLIVE GMV']),
-              affiliateVideoGmv: parseNum(row['アフィリエイト動画GMV']),
-              directGmv: parseNum(row['ダイレクトGMV']),
-              liveDirectGmv: parseNum(row['LIVEダイレクトGMV']),
-              videoDirectGmv: parseNum(row['動画ダイレクトGMV']),
-              productCardDirectGmv: parseNum(row['商品カードダイレクトGMV']),
-              affiliateOrders: parseNum(row['アフィリエイト注文数']),
-              affiliateLiveOrders: parseNum(row['アフィリエイトLIVE注文']),
-              affiliateVideoOrders: parseNum(row['アフィリエイト動画注文']),
-              directOrders: parseNum(row['直接注文']),
-              liveDirectOrders: parseNum(row['LIVE直接注文']),
-              videoDirectOrders: parseNum(row['動画直接注文']),
-              productCardOrders: parseNum(row['商品カードからの注文数']),
-              salesCount: parseNum(row['販売数']),
-              liveSalesCount: parseNum(row['LIVEからの商品販売数']),
-              videoSalesCount: parseNum(row['動画からの商品販売数']),
-              productCardSalesCount: parseNum(row['商品カードでの商品販売数']),
-              directRefundGmv: parseNum(row['直接返金GMV']),
-              refundedItems: parseNum(row['返金されたアイテム']),
-              ctr: String(row['CTR'] || ''),
+              shopId: String(row['ショップID'] || row['店铺 ID'] || row['Shop ID'] || '').trim(),
+              shopName: String(row['ショップ名'] || row['店铺名称'] || row['Shop name'] || '').trim(),
+              affiliateGmv: parseNum(row['アフィリエイトGMV'] || row['联盟 GMV'] || row['Affiliate GMV']),
+              affiliateLiveGmv: parseNum(row['アフィリエイトLIVE GMV'] || row['联盟直播 GMV'] || row['Affiliate LIVE GMV']),
+              affiliateVideoGmv: parseNum(row['アフィリエイト動画GMV'] || row['联盟视频 GMV'] || row['Affiliate Video GMV']),
+              directGmv: parseNum(row['ダイレクトGMV'] || row['直接 GMV'] || row['Direct GMV']),
+              liveDirectGmv: parseNum(row['LIVEダイレクトGMV'] || row['直播直接 GMV'] || row['LIVE Direct GMV']),
+              videoDirectGmv: parseNum(row['動画ダイレクトGMV'] || row['视频直接 GMV'] || row['Video Direct GMV']),
+              productCardDirectGmv: parseNum(row['商品カードダイレクトGMV'] || row['商品卡直接 GMV'] || row['Product Card Direct GMV']),
+              affiliateOrders: parseNum(row['アフィリエイト注文数'] || row['联盟订单数'] || row['Affiliate Orders']),
+              affiliateLiveOrders: parseNum(row['アフィリエイトLIVE注文'] || row['联盟直播订单数'] || row['Affiliate LIVE Orders']),
+              affiliateVideoOrders: parseNum(row['アフィリエイト動画注文'] || row['联盟视频订单数'] || row['Affiliate Video Orders']),
+              directOrders: parseNum(row['直接注文'] || row['直接订单数'] || row['Direct Orders']),
+              liveDirectOrders: parseNum(row['LIVE直接注文'] || row['直播直接订单数'] || row['LIVE Direct Orders']),
+              videoDirectOrders: parseNum(row['動画直接注文'] || row['视频直接订单数'] || row['Video Direct Orders']),
+              productCardOrders: parseNum(row['商品カードからの注文数'] || row['商品卡订单数'] || row['Product Card Orders']),
+              salesCount: parseNum(row['販売数'] || row['成交件数'] || row['Sales Count']),
+              liveSalesCount: parseNum(row['LIVEからの商品販売数'] || row['直播商品成交件数'] || row['LIVE Sales Count']),
+              videoSalesCount: parseNum(row['動画からの商品販売数'] || row['视频商品成交件数'] || row['Video Sales Count']),
+              productCardSalesCount: parseNum(row['商品カードでの商品販売数'] || row['商品卡商品成交件数'] || row['Product Card Sales Count']),
+              directRefundGmv: parseNum(row['直接返金GMV'] || row['直接退款 GMV'] || row['Direct Refund GMV']),
+              refundedItems: parseNum(row['返金されたアイテム'] || row['退款商品数'] || row['Refunded Items']),
+              ctr: String(row['CTR'] || row['看播-点击转化率'] || ''),
               ctor: String(row['CTOR'] || ''),
             });
           }

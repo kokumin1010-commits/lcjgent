@@ -569,28 +569,80 @@ export default function FinanceManagement() {
     }
   };
 
-  // Smart CSV upload - auto-detect CSV type by headers
+  // Smart CSV upload - auto-detect CSV type by headers (supports Japanese, English, Chinese)
   const handleSmartCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setSmartUploading(true);
     try {
-      const text = await file.text();
-      const firstLine = text.split(/\r?\n/)[0] || '';
-      
-      // Check if it's an XLSX file (TAP data)
+      // Check if it's an XLSX file - auto-detect TAP vs CAP by reading headers
       if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-        // TAP XLSX detected - need month selection
+        const XLSX = await import('xlsx');
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '', range: 0 });
+        const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
+        const headerStr = headers.join(',');
+        
+        // Auto-detect report type by headers
+        const isCapProduct = headerStr.includes('商品ID') || headerStr.includes('商品 ID') || headerStr.includes('Product ID') || headerStr.includes('商品情報') || headerStr.includes('商品信息');
+        const hasShop = headerStr.includes('ショップ') || headerStr.includes('店铺') || headerStr.includes('Shop');
+        const isTap = headerStr.includes('リンクGMV') || headerStr.includes('Link GMV') || headerStr.includes('決済済みGMV') || headerStr.includes('Settled GMV') || headerStr.includes('ショーケース');
+        
+        // Determine upload type
+        let detectedType: 'tap' | 'cap-creator' | 'cap-product' = 'tap';
+        if (isCapProduct && hasShop) {
+          detectedType = 'cap-product';
+        } else if (isTap) {
+          detectedType = 'tap';
+        } else {
+          // Default: if has product ID it's CAP product, otherwise CAP creator
+          detectedType = isCapProduct ? 'cap-product' : 'cap-creator';
+        }
+        
+        // Auto-detect month from first data row
+        let autoMonth = '';
+        if (rows.length > 1) {
+          const firstDataRow = rows.find((r: any) => {
+            const d = String(r['日付'] || r['日期'] || r['Date'] || '').trim();
+            return d && d !== '概要' && d !== '汇总数据' && d !== 'Summary';
+          });
+          if (firstDataRow) {
+            const dateStr = String(firstDataRow['日付'] || firstDataRow['日期'] || firstDataRow['Date'] || '');
+            const match = dateStr.match(/(\d{4})-(\d{2})/);
+            if (match) autoMonth = `${match[1]}-${match[2]}`;
+          }
+        }
+        
+        // Convert to base64 for upload
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        const chunkSize = 8192;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+        }
+        const base64 = btoa(binary);
+        const month = autoMonth || tapUploadMonth || new Date().toISOString().slice(0, 7);
+        
+        if (detectedType === 'cap-product') {
+          await uploadCapProductMutation.mutateAsync({ brandId: 0, fileContent: base64, reportMonth: month });
+          toast.success(`CAP商品×ショップデータをインポートしました（${month}）`);
+        } else if (detectedType === 'cap-creator') {
+          await uploadCapCreatorMutation.mutateAsync({ brandId: 0, fileContent: base64, reportMonth: month });
+          toast.success(`CAPクリエイターデータをインポートしました（${month}）`);
+        } else {
+          uploadTapMutation.mutate({ brandId: 0, fileContent: base64, reportMonth: month });
+          toast.success(`TAPデータをインポートしました（${month}）`);
+        }
         setSmartUploadDialogOpen(false);
         setSmartUploading(false);
-        setTapUploadDialogOpen(true);
-        // Store the file for later upload
-        const dt = new DataTransfer();
-        dt.items.add(file);
-        if (tapFileInputRef.current) tapFileInputRef.current.files = dt.files;
-        toast.info('TAPデータを検出しました。レポート月を選択してアップロードしてください。');
         return;
       }
+
+      const text = await file.text();
+      const firstLine = text.split(/\r?\n/)[0] || '';
 
       if (firstLine.includes('Reference ID') && firstLine.includes('Payment')) {
         // Payment CSV detected
@@ -598,23 +650,23 @@ export default function FinanceManagement() {
         const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
         uploadPaymentCsvMutation.mutate({ brandId: 0, csvContent: base64 });
         setSmartUploadDialogOpen(false);
-      } else if (firstLine.includes('\u30b5\u30d6\u6ce8\u6587ID') || firstLine.includes('Sub Order ID')) {
-        // CAP/Commission CSV detected
+      } else if (firstLine.includes('サブ注文ID') || firstLine.includes('Sub Order ID') || firstLine.includes('子订单ID')) {
+        // CAP/Commission CSV detected (Japanese/English/Chinese)
         const formData = new FormData();
         formData.append('file', file);
         formData.append('brandId', '1');
         const res = await fetch('/api/csv-upload', { method: 'POST', body: formData });
         const result = await res.json();
         if (!res.ok) throw new Error(result.error || 'Upload failed');
-        toast.success(`${result.importedRows}\u4ef6\u30a4\u30f3\u30dd\u30fc\u30c8\uff08${result.skippedRows}\u4ef6\u30b9\u30ad\u30c3\u30d7\uff09`);
+        toast.success(`${result.importedRows}件インポート（${result.skippedRows}件スキップ）`);
         summaryQuery.refetch();
         importsQuery.refetch();
         setSmartUploadDialogOpen(false);
       } else {
-        toast.error('CSV\u306e\u5f62\u5f0f\u3092\u5224\u5225\u3067\u304d\u307e\u305b\u3093\u3002TikTok\u30b3\u30df\u30c3\u30b7\u30e7\u30f3CSV\u307e\u305f\u306f\u5165\u91d1CSV\u3092\u30a2\u30c3\u30d7\u30ed\u30fc\u30c9\u3057\u3066\u304f\u3060\u3055\u3044\u3002');
+        toast.error('CSVの形式を判別できません。TikTokコミッションCSVまたは入金CSVをアップロードしてください。');
       }
     } catch (err: any) {
-      toast.error(`\u30a2\u30c3\u30d7\u30ed\u30fc\u30c9\u5931\u6557: ${err.message}`);
+      toast.error(`アップロード失敗: ${err.message}`);
     } finally {
       setSmartUploading(false);
       if (smartFileInputRef.current) smartFileInputRef.current.value = '';
@@ -4057,9 +4109,9 @@ export default function FinanceManagement() {
       <Dialog open={smartUploadDialogOpen} onOpenChange={setSmartUploadDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>CSVアップロード</DialogTitle>
+            <DialogTitle>データアップロード（自動判別）</DialogTitle>
             <DialogDescription>
-              TikTokのCSVファイルをアップロードしてください。コミッションCSVまたは入金CSVを自動判別します。
+              TikTokのCSV/XLSXファイルをアップロードしてください。ファイル形式とヘッダーから自動でデータ種別を判別します。日本語・英語・中国語のヘッダーに対応。
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -4072,9 +4124,14 @@ export default function FinanceManagement() {
               className="w-full"
             />
             <div className="text-xs text-muted-foreground space-y-1">
-              <p>• <Badge variant="outline" className="text-xs">CAP</Badge> コミッションCSV: 「サブ注文ID」ヘッダー含む</p>
-              <p>• <Badge variant="outline" className="text-xs">入金</Badge> 入金CSV: 「Reference ID」ヘッダー含む</p>
-              <p>• <Badge variant="secondary" className="text-xs">TAP</Badge> TAPレポートXLSX: TikTokマーケットプレイスデータ</p>
+              <p>• <Badge variant="secondary" className="text-xs">TAP</Badge> TAPレポートXLSX: マーケットプレイスデータ（リンクGMV含む）</p>
+              <p>• <Badge variant="outline" className="text-xs">CAP</Badge> CAPクリエイターXLSX: クリエイター別データ</p>
+              <p>• <Badge variant="outline" className="text-xs">CAP</Badge> CAP商品×ショップXLSX: 商品ID+ショップ別データ</p>
+              <p>• <Badge variant="outline" className="text-xs">注文</Badge> コミッションCSV: サブ注文ID/子订单ID含む</p>
+              <p>• <Badge variant="outline" className="text-xs">入金</Badge> 入金CSV: Reference ID含む</p>
+            </div>
+            <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 p-2 rounded">
+              💡 レポート月はファイルの日付から自動検出されます
             </div>
             {smartUploading && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
