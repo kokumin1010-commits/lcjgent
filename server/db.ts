@@ -22280,13 +22280,19 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
     dateCondition = sql`${brandLivestreams.livestreamDate} >= ${startDate.toISOString().slice(0, 10)} AND ${brandLivestreams.livestreamDate} < ${endDate.toISOString().slice(0, 10)}`;
   }
 
-  // Primary: Use livestream_brands table (more accurate, supports multi-brand per stream)
-  const brandDurations = await db
+  // === Correct merge: combine new table (livestream_brands) and old table (brand_livestreams) ===
+  // For each brand, we need to:
+  // 1. Get livestream IDs that have entries in the NEW table (livestream_brands) with durationMinutes > 0
+  // 2. Get data from the OLD table (brand_livestreams) EXCLUDING those livestream IDs
+  // 3. Combine both for accurate totals
+
+  // Step A: Get per-brand, per-livestream data from NEW table (livestream_brands)
+  const newTableData = await db
     .select({
       brandId: livestreamBrands.brandId,
       brandName: brands.name,
-      totalMinutes: sql<number>`COALESCE(SUM(${livestreamBrands.durationMinutes}), 0)`,
-      streamCount: sql<number>`COUNT(DISTINCT ${livestreamBrands.livestreamId})`,
+      livestreamId: livestreamBrands.livestreamId,
+      durationMinutes: livestreamBrands.durationMinutes,
     })
     .from(livestreamBrands)
     .innerJoin(brandLivestreams, eq(livestreamBrands.livestreamId, brandLivestreams.id))
@@ -22296,17 +22302,43 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
       isNull(brandLivestreams.deletedAt),
       dateCondition,
       sql`${livestreamBrands.durationMinutes} IS NOT NULL AND ${livestreamBrands.durationMinutes} > 0`
-    ))
-    .groupBy(livestreamBrands.brandId, brands.name)
-    .orderBy(sql`SUM(${livestreamBrands.durationMinutes}) DESC`);
+    ));
 
-  // Also get fallback data from brand_livestreams table
-  const fallback = await db
+  // Build a set of livestreamIds per brand that are covered by the new table
+  const newTableLsIdsByBrand = new Map<number, Set<number>>();
+  const newTableSumByBrand = new Map<number, { brandName: string; totalMinutes: number; streamCount: number }>();
+  for (const row of newTableData) {
+    const bid = row.brandId;
+    if (!newTableLsIdsByBrand.has(bid)) {
+      newTableLsIdsByBrand.set(bid, new Set());
+    }
+    newTableLsIdsByBrand.get(bid)!.add(row.livestreamId);
+
+    const existing = newTableSumByBrand.get(bid);
+    if (existing) {
+      existing.totalMinutes += Number(row.durationMinutes || 0);
+      // streamCount will be calculated from the set size
+    } else {
+      newTableSumByBrand.set(bid, {
+        brandName: row.brandName || '不明',
+        totalMinutes: Number(row.durationMinutes || 0),
+        streamCount: 0, // will be set later
+      });
+    }
+  }
+  // Set correct stream counts from distinct livestream IDs
+  for (const [bid, lsIds] of newTableLsIdsByBrand.entries()) {
+    const entry = newTableSumByBrand.get(bid);
+    if (entry) entry.streamCount = lsIds.size;
+  }
+
+  // Step B: Get per-brand data from OLD table (brand_livestreams), per livestream
+  const oldTableData = await db
     .select({
+      id: brandLivestreams.id,
       brandId: brandLivestreams.brandId,
       brandName: brands.name,
-      totalMinutes: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
-      streamCount: sql<number>`COUNT(*)`,
+      duration: brandLivestreams.duration,
     })
     .from(brandLivestreams)
     .leftJoin(brands, eq(brandLivestreams.brandId, brands.id))
@@ -22315,28 +22347,40 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
       isNull(brandLivestreams.deletedAt),
       dateCondition,
       sql`${brandLivestreams.duration} IS NOT NULL AND ${brandLivestreams.duration} > 0`
-    ))
-    .groupBy(brandLivestreams.brandId, brands.name)
-    .orderBy(sql`SUM(${brandLivestreams.duration}) DESC`);
+    ));
 
-  // Merge primary (livestream_brands) and fallback (brand_livestreams) results
-  // Step 1: Merge by brandId (primary takes priority over fallback)
+  // Step C: For each brand, combine new table data + old table data (excluding overlapping livestream IDs)
   const byIdMap = new Map<number, { brandId: number; brandName: string; totalMinutes: number; streamCount: number }>();
-  for (const bd of brandDurations) {
-    byIdMap.set(bd.brandId, {
-      brandId: bd.brandId,
-      brandName: bd.brandName || '不明',
-      totalMinutes: Number(bd.totalMinutes),
-      streamCount: Number(bd.streamCount),
+
+  // First, add all brands from new table
+  for (const [bid, data] of newTableSumByBrand.entries()) {
+    byIdMap.set(bid, {
+      brandId: bid,
+      brandName: data.brandName,
+      totalMinutes: data.totalMinutes,
+      streamCount: data.streamCount,
     });
   }
-  for (const fb of fallback) {
-    if (!byIdMap.has(fb.brandId)) {
-      byIdMap.set(fb.brandId, {
-        brandId: fb.brandId,
-        brandName: fb.brandName || '不明',
-        totalMinutes: Number(fb.totalMinutes),
-        streamCount: Number(fb.streamCount),
+
+  // Then, add old table data for livestreams NOT covered by new table
+  for (const row of oldTableData) {
+    const bid = row.brandId;
+    const lsId = row.id; // brand_livestreams.id IS the livestreamId referenced by livestream_brands
+    const coveredByNew = newTableLsIdsByBrand.get(bid);
+
+    // Skip if this livestream is already covered by the new table for this brand
+    if (coveredByNew && coveredByNew.has(lsId)) continue;
+
+    const existing = byIdMap.get(bid);
+    if (existing) {
+      existing.totalMinutes += Number(row.duration || 0);
+      existing.streamCount += 1;
+    } else {
+      byIdMap.set(bid, {
+        brandId: bid,
+        brandName: row.brandName || '不明',
+        totalMinutes: Number(row.duration || 0),
+        streamCount: 1,
       });
     }
   }
