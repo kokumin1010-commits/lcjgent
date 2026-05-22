@@ -1514,13 +1514,37 @@ export default function LiverMypage() {
                 </span>
               </div>
               {/* 合計サマリー */}
-              <div className="bg-gray-700/30 rounded-lg p-2 mb-3 text-center">
-                <p className="text-lg font-bold text-cyan-400">
-                  {Math.round(brandDurationStats.reduce((sum, b) => sum + b.totalMinutes, 0) / 60 * 10) / 10}h
-                </p>
-                <p className="text-[10px] text-gray-400">
-                  {language === 'en' ? 'Total Brand Duration' : language === 'zh-TW' ? '品牌配信時間合計' : 'ブランド配信時間合計'}
-                </p>
+              <div className="bg-gray-700/30 rounded-lg p-2 mb-3">
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <p className="text-lg font-bold text-cyan-400">
+                      {Math.round(brandDurationStats.reduce((sum, b) => sum + b.totalMinutes, 0) / 60 * 10) / 10}h
+                    </p>
+                    <p className="text-[10px] text-gray-400">
+                      {language === 'ja' ? '配信時間' : 'Duration'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-yellow-400">
+                      ¥{brandDurationStats.reduce((sum, b) => sum + ((b as any).csvGmv || 0), 0).toLocaleString()}
+                    </p>
+                    <p className="text-[10px] text-gray-400">
+                      {language === 'ja' ? 'CSV売上' : 'CSV Sales'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-emerald-400">
+                      {(() => {
+                        const totalGmv = brandDurationStats.reduce((sum, b) => sum + ((b as any).csvGmv || 0), 0);
+                        const totalHours = brandDurationStats.reduce((sum, b) => sum + b.totalMinutes, 0) / 60;
+                        return totalHours > 0 ? `¥${Math.round(totalGmv / totalHours).toLocaleString()}` : '-';
+                      })()}
+                    </p>
+                    <p className="text-[10px] text-gray-400">
+                      {language === 'ja' ? '時給効率' : 'Hourly Rate'}
+                    </p>
+                  </div>
+                </div>
               </div>
               {/* ブランド別バー */}
               <div className="space-y-2">
@@ -1564,6 +1588,9 @@ export default function LiverMypage() {
                             <span className="text-white font-medium truncate flex-1 flex items-center gap-1">
                               {isExpanded ? <ChevronUp className="w-3 h-3 text-gray-400" /> : <ChevronDown className="w-3 h-3 text-gray-400" />}
                               {brand.brandName}
+                              {(brand as any).status === 'unregistered' && (
+                                <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1 py-0.5 rounded">⚠️未入力</span>
+                              )}
                             </span>
                             <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                               <span className="text-gray-400">
@@ -1574,6 +1601,20 @@ export default function LiverMypage() {
                               </span>
                             </div>
                           </div>
+                          {/* CSV売上・時給効率 */}
+                          {(brand as any).csvGmv > 0 && (
+                            <div className="flex items-center justify-between text-[10px] mt-0.5 px-1">
+                              <span className="text-yellow-400 font-medium">
+                                売上: ¥{Number((brand as any).csvGmv).toLocaleString()}
+                              </span>
+                              <span className="text-emerald-400 font-medium">
+                                時給: ¥{Number((brand as any).hourlyRate || 0).toLocaleString()}/h
+                              </span>
+                            </div>
+                          )}
+                          {(brand as any).status === 'no_csv' && (
+                            <div className="text-[10px] text-gray-500 mt-0.5 px-1">CSV未確認</div>
+                          )}
                           <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
                             <div
                               className={`h-full bg-gradient-to-r ${colorClass} rounded-full transition-all duration-500`}

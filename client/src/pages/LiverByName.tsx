@@ -906,9 +906,24 @@ export default function LiverByName() {
                 <span className="text-xs bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full">
                   {brandDurationStats.length}ブランド
                 </span>
-                <span className="ml-auto text-sm font-bold text-cyan-400">
-                  {Math.round(brandDurationStats.reduce((sum: number, b: any) => sum + b.totalMinutes, 0) / 60 * 10) / 10}h
-                </span>
+                <div className="ml-auto flex items-center gap-3">
+                  <span className="text-sm font-bold text-cyan-400">
+                    {Math.round(brandDurationStats.reduce((sum: number, b: any) => sum + b.totalMinutes, 0) / 60 * 10) / 10}h
+                  </span>
+                  {brandDurationStats.reduce((sum: number, b: any) => sum + (b.csvGmv || 0), 0) > 0 && (
+                    <span className="text-sm font-bold text-yellow-400">
+                      ¥{brandDurationStats.reduce((sum: number, b: any) => sum + (b.csvGmv || 0), 0).toLocaleString()}
+                    </span>
+                  )}
+                  {(() => {
+                    const totalGmv = brandDurationStats.reduce((sum: number, b: any) => sum + (b.csvGmv || 0), 0);
+                    const totalHours = brandDurationStats.reduce((sum: number, b: any) => sum + b.totalMinutes, 0) / 60;
+                    if (totalGmv > 0 && totalHours > 0) {
+                      return <span className="text-xs text-emerald-400">¥{Math.round(totalGmv / totalHours).toLocaleString()}/h</span>;
+                    }
+                    return null;
+                  })()}
+                </div>
               </div>
               <div className="space-y-2">
                 {(() => {
@@ -955,13 +970,29 @@ export default function LiverByName() {
                             <div className="flex items-center gap-2 flex-1">
                               {isExpanded ? <ChevronUp className="w-4 h-4 text-cyan-400" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
                               <span className="text-white font-medium truncate">{brand.brandName}</span>
+                              {brand.status === 'unregistered' && (
+                                <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">⚠️ 未入力</span>
+                              )}
+                              {brand.status === 'no_csv' && brand.totalMinutes > 0 && (
+                                <span className="text-[10px] bg-gray-500/20 text-gray-400 px-1.5 py-0.5 rounded">CSV未確認</span>
+                              )}
                             </div>
                             <div className="flex items-center gap-3 flex-shrink-0 ml-2">
+                              {brand.csvGmv > 0 && (
+                                <span className="text-yellow-400 font-bold text-xs">
+                                  ¥{brand.csvGmv.toLocaleString()}
+                                </span>
+                              )}
+                              {brand.hourlyRate > 0 && (
+                                <span className="text-emerald-400 text-[10px]">
+                                  ¥{brand.hourlyRate.toLocaleString()}/h
+                                </span>
+                              )}
                               <span className="text-gray-400 text-xs">
                                 {brand.streamCount}回
                               </span>
                               <span className="text-cyan-400 font-bold text-sm">
-                                {hours > 0 ? `${hours}h${mins > 0 ? `${mins}m` : ''}` : `${mins}m`}
+                                {hours > 0 ? `${hours}h${mins > 0 ? `${mins}m` : ''}` : brand.totalMinutes > 0 ? `${mins}m` : '-'}
                               </span>
                             </div>
                           </div>

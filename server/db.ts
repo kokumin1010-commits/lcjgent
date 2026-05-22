@@ -22231,14 +22231,130 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
 
   const merged = Array.from(byNameMap.values())
     .sort((a, b) => b.totalMinutes - a.totalMinutes);
-  return merged.map(m => ({
-    brandId: m.brandIds[0],
-    brandIds: m.brandIds,
-    brandName: m.brandName,
-    totalMinutes: m.totalMinutes,
-    totalHours: Math.round(m.totalMinutes / 60 * 10) / 10,
-    streamCount: m.streamCount,
-  }));
+
+  // ===== CSV売上データの集計（商品名からブランドを自動検出） =====
+  // Step 1: 該当ライバーの該当期間の全配信IDを取得
+  let livestreamDateCondition = sql`1=1`;
+  if (yearMonth) {
+    const [y, m] = yearMonth.split('-').map(Number);
+    const sd = new Date(y, m - 1, 1);
+    const ed = new Date(y, m, 1);
+    livestreamDateCondition = sql`${brandLivestreams.livestreamDate} >= ${sd.toISOString().slice(0, 10)} AND ${brandLivestreams.livestreamDate} < ${ed.toISOString().slice(0, 10)}`;
+  }
+  const liverStreams = await db
+    .select({ id: brandLivestreams.id })
+    .from(brandLivestreams)
+    .where(and(
+      eq(brandLivestreams.liverId, liverId),
+      isNull(brandLivestreams.deletedAt),
+      livestreamDateCondition
+    ));
+  const livestreamIds = liverStreams.map(s => s.id);
+
+  // Step 2: 全ブランド名を取得（マッチング用）
+  const allBrands = await db
+    .select({ id: brands.id, name: brands.name })
+    .from(brands)
+    .where(isNull(brands.deletedAt));
+
+  // Step 3: 全商品データを取得してブランド別に集計
+  const brandSalesMap = new Map<string, { brandName: string; brandIds: number[]; totalGmv: number; productCount: number }>();
+
+  if (livestreamIds.length > 0) {
+    // バッチで商品データを取得（最大100配信ずつ）
+    const batchSize = 100;
+    let allProducts: any[] = [];
+    for (let i = 0; i < livestreamIds.length; i += batchSize) {
+      const batch = livestreamIds.slice(i, i + batchSize);
+      const products = await db
+        .select({
+          productName: livestreamProducts.productName,
+          gmv: livestreamProducts.gmv,
+          grossRevenue: livestreamProducts.grossRevenue,
+        })
+        .from(livestreamProducts)
+        .where(inArray(livestreamProducts.livestreamId, batch));
+      allProducts = allProducts.concat(products);
+    }
+
+    // 商品名からブランドを検出して集計
+    for (const product of allProducts) {
+      const productName = (product.productName || '').trim();
+      const revenue = Number(product.grossRevenue || product.gmv || 0);
+      if (!productName || revenue === 0) continue;
+
+      let matchedBrand: { id: number; name: string } | null = null;
+      const productNameLower = productName.toLowerCase();
+
+      // ブランド名で部分一致（長い名前を優先してマッチ）
+      let longestMatch = 0;
+      for (const brand of allBrands) {
+        const brandNameLower = brand.name.toLowerCase().trim();
+        if (brandNameLower.length > longestMatch && productNameLower.includes(brandNameLower)) {
+          matchedBrand = brand;
+          longestMatch = brandNameLower.length;
+        }
+      }
+
+      if (matchedBrand) {
+        const normalizedName = matchedBrand.name.toLowerCase().trim().replace(/\s+/g, ' ');
+        const existing = brandSalesMap.get(normalizedName);
+        if (existing) {
+          existing.totalGmv += revenue;
+          existing.productCount += 1;
+          if (!existing.brandIds.includes(matchedBrand.id)) {
+            existing.brandIds.push(matchedBrand.id);
+          }
+        } else {
+          brandSalesMap.set(normalizedName, {
+            brandName: matchedBrand.name,
+            brandIds: [matchedBrand.id],
+            totalGmv: revenue,
+            productCount: 1,
+          });
+        }
+      }
+    }
+  }
+
+  // Step 4: 配信時間データと売上データをマージ
+  const result = merged.map(m => {
+    const normalizedName = m.brandName.toLowerCase().trim().replace(/\s+/g, ' ');
+    const sales = brandSalesMap.get(normalizedName);
+    const csvGmv = sales ? sales.totalGmv : 0;
+    const hourlyRate = m.totalMinutes > 0 ? Math.round(csvGmv / (m.totalMinutes / 60)) : 0;
+    // Remove from brandSalesMap so we can detect unmatched brands later
+    if (sales) brandSalesMap.delete(normalizedName);
+    return {
+      brandId: m.brandIds[0],
+      brandIds: m.brandIds,
+      brandName: m.brandName,
+      totalMinutes: m.totalMinutes,
+      totalHours: Math.round(m.totalMinutes / 60 * 10) / 10,
+      streamCount: m.streamCount,
+      csvGmv,
+      hourlyRate,
+      status: csvGmv > 0 ? 'matched' as const : 'no_csv' as const, // matched=一致, no_csv=CSV未確認
+    };
+  });
+
+  // Step 5: CSVで売上があるのに配信ブランドとして入力されていないブランドを追加
+  const unmatchedBrands = Array.from(brandSalesMap.values())
+    .filter(s => s.totalGmv > 0)
+    .sort((a, b) => b.totalGmv - a.totalGmv)
+    .map(s => ({
+      brandId: s.brandIds[0],
+      brandIds: s.brandIds,
+      brandName: s.brandName,
+      totalMinutes: 0,
+      totalHours: 0,
+      streamCount: 0,
+      csvGmv: s.totalGmv,
+      hourlyRate: 0,
+      status: 'unregistered' as const, // CSVで売上あるが配信ブランド未入力
+    }));
+
+  return [...result, ...unmatchedBrands];
 }
 
 

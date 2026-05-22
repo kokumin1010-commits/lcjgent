@@ -1636,6 +1636,74 @@ export default function LivestreamDetail() {
                     </div>
                   )}
                 </div>
+
+                {/* CSV実績 ブランド別売上内訳 */}
+                {products && products.length > 0 && brands && brands.length > 0 && (() => {
+                  // 商品名からブランドを自動検出して集計
+                  const brandSalesMap = new Map<string, { brandName: string; totalGmv: number; productCount: number; matched: boolean }>();
+                  const inputBrandNames = (livestream.livestreamBrands || []).map((lb: any) => lb.brandName?.toLowerCase().trim());
+                  
+                  for (const product of products) {
+                    const productName = (product.productName || '').toLowerCase();
+                    const revenue = Number(product.directGmv || product.gmv || 0);
+                    if (!productName || revenue === 0) continue;
+                    
+                    let matchedBrand: { name: string } | null = null;
+                    let longestMatch = 0;
+                    for (const brand of brands) {
+                      const brandNameLower = brand.name.toLowerCase().trim();
+                      if (brandNameLower.length > longestMatch && productName.includes(brandNameLower)) {
+                        matchedBrand = brand;
+                        longestMatch = brandNameLower.length;
+                      }
+                    }
+                    
+                    if (matchedBrand) {
+                      const key = matchedBrand.name.toLowerCase().trim();
+                      const existing = brandSalesMap.get(key);
+                      const isInputted = inputBrandNames.includes(key);
+                      if (existing) {
+                        existing.totalGmv += revenue;
+                        existing.productCount += 1;
+                      } else {
+                        brandSalesMap.set(key, {
+                          brandName: matchedBrand.name,
+                          totalGmv: revenue,
+                          productCount: 1,
+                          matched: isInputted,
+                        });
+                      }
+                    }
+                  }
+                  
+                  const brandSales = Array.from(brandSalesMap.values()).sort((a, b) => b.totalGmv - a.totalGmv);
+                  if (brandSales.length === 0) return null;
+                  
+                  const totalCsvGmv = brandSales.reduce((sum, b) => sum + b.totalGmv, 0);
+                  
+                  return (
+                    <div className="mt-3">
+                      <span className="text-emerald-400 font-medium text-sm">CSV実績 ブランド別売上</span>
+                      <div className="mt-2 space-y-1.5">
+                        {brandSales.map((bs) => (
+                          <div key={bs.brandName} className={`flex justify-between items-center rounded-lg px-3 py-2 ${bs.matched ? 'bg-gray-800/50' : 'bg-amber-900/20 border border-amber-600/30'}`}>
+                            <div className="flex items-center gap-2">
+                              <span className="text-white font-medium text-sm">{bs.brandName}</span>
+                              {!bs.matched && (
+                                <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">未入力</span>
+                              )}
+                              <span className="text-gray-500 text-xs">({bs.productCount}商品)</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-yellow-400 font-bold text-sm">¥{bs.totalGmv.toLocaleString()}</span>
+                              <span className="text-gray-500 text-xs">({totalCsvGmv > 0 ? (bs.totalGmv / totalCsvGmv * 100).toFixed(1) : 0}%)</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
                 
                 {/* Delivery Result */}
                 <div className="flex justify-between items-center">
