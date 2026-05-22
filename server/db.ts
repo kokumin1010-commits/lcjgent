@@ -21063,21 +21063,70 @@ export async function bulkInsertCapCreatorReports(rows: InsertTiktokCapCreatorRe
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   if (rows.length === 0) return;
-  // batch insert in chunks of 100
+  // batch insert in chunks of 100 with UPSERT
   for (let i = 0; i < rows.length; i += 100) {
     const chunk = rows.slice(i, i + 100);
-    await db.insert(tiktokCapCreatorReports).values(chunk);
+    await db.insert(tiktokCapCreatorReports).values(chunk).onDuplicateKeyUpdate({
+      set: {
+        affiliateGmv: sql`VALUES(affiliateGmv)`,
+        affiliateLiveGmv: sql`VALUES(affiliateLiveGmv)`,
+        affiliateVideoGmv: sql`VALUES(affiliateVideoGmv)`,
+        directGmv: sql`VALUES(directGmv)`,
+        liveDirectGmv: sql`VALUES(liveDirectGmv)`,
+        videoDirectGmv: sql`VALUES(videoDirectGmv)`,
+        affiliateOrders: sql`VALUES(affiliateOrders)`,
+        affiliateLiveOrders: sql`VALUES(affiliateLiveOrders)`,
+        affiliateVideoOrders: sql`VALUES(affiliateVideoOrders)`,
+        directOrders: sql`VALUES(directOrders)`,
+        liveDirectOrders: sql`VALUES(liveDirectOrders)`,
+        videoDirectOrders: sql`VALUES(videoDirectOrders)`,
+        salesCount: sql`VALUES(salesCount)`,
+        estimatedCommission: sql`VALUES(estimatedCommission)`,
+        commissionBase: sql`VALUES(commissionBase)`,
+        liveViews: sql`VALUES(liveViews)`,
+        videoViews: sql`VALUES(videoViews)`,
+        liveCount: sql`VALUES(liveCount)`,
+        videoCount: sql`VALUES(videoCount)`,
+        liveCtr: sql`VALUES(liveCtr)`,
+        videoCtr: sql`VALUES(videoCtr)`,
+      },
+    });
   }
 }
 
-// CAP Product Reports - 一括挿入
+// CAP Product Reports - 一括挿入 (UPSERT)
 export async function bulkInsertCapProductReports(rows: InsertTiktokCapProductReport[]) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   if (rows.length === 0) return;
   for (let i = 0; i < rows.length; i += 100) {
     const chunk = rows.slice(i, i + 100);
-    await db.insert(tiktokCapProductReports).values(chunk);
+    await db.insert(tiktokCapProductReports).values(chunk).onDuplicateKeyUpdate({
+      set: {
+        affiliateGmv: sql`VALUES(affiliateGmv)`,
+        affiliateLiveGmv: sql`VALUES(affiliateLiveGmv)`,
+        affiliateVideoGmv: sql`VALUES(affiliateVideoGmv)`,
+        directGmv: sql`VALUES(directGmv)`,
+        liveDirectGmv: sql`VALUES(liveDirectGmv)`,
+        videoDirectGmv: sql`VALUES(videoDirectGmv)`,
+        productCardDirectGmv: sql`VALUES(productCardDirectGmv)`,
+        affiliateOrders: sql`VALUES(affiliateOrders)`,
+        affiliateLiveOrders: sql`VALUES(affiliateLiveOrders)`,
+        affiliateVideoOrders: sql`VALUES(affiliateVideoOrders)`,
+        directOrders: sql`VALUES(directOrders)`,
+        liveDirectOrders: sql`VALUES(liveDirectOrders)`,
+        videoDirectOrders: sql`VALUES(videoDirectOrders)`,
+        productCardOrders: sql`VALUES(productCardOrders)`,
+        salesCount: sql`VALUES(salesCount)`,
+        liveSalesCount: sql`VALUES(liveSalesCount)`,
+        videoSalesCount: sql`VALUES(videoSalesCount)`,
+        productCardSalesCount: sql`VALUES(productCardSalesCount)`,
+        directRefundGmv: sql`VALUES(directRefundGmv)`,
+        refundedItems: sql`VALUES(refundedItems)`,
+        ctr: sql`VALUES(ctr)`,
+        ctor: sql`VALUES(ctor)`,
+      },
+    });
   }
 }
 

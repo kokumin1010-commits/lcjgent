@@ -157,6 +157,7 @@ export default function FinanceManagement() {
   const [deletePaymentDialogOpen, setDeletePaymentDialogOpen] = useState(false);
   const [smartUploadDialogOpen, setSmartUploadDialogOpen] = useState(false);
   const [smartUploading, setSmartUploading] = useState(false);
+  const [smartUploadProgress, setSmartUploadProgress] = useState<{ total: number; current: number; results: Array<{ name: string; success: boolean; message: string }> }>({ total: 0, current: 0, results: [] });
   const smartFileInputRef = useRef<HTMLInputElement>(null);
   const [tapMonth, setTapMonth] = useState<string>('');
   const tapFileInputRef = useRef<HTMLInputElement>(null);
@@ -571,106 +572,126 @@ export default function FinanceManagement() {
 
   // Smart CSV upload - auto-detect CSV type by headers (supports Japanese, English, Chinese)
   const handleSmartCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     setSmartUploading(true);
-    try {
-      // Check if it's an XLSX file - auto-detect TAP vs CAP by reading headers
-      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-        const XLSX = await import('xlsx');
-        const arrayBuffer = await file.arrayBuffer();
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '', range: 0 });
-        const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
-        const headerStr = headers.join(',');
-        
-        // Auto-detect report type by headers
-        const isCapProduct = headerStr.includes('商品ID') || headerStr.includes('商品 ID') || headerStr.includes('Product ID') || headerStr.includes('商品情報') || headerStr.includes('商品信息');
-        const hasShop = headerStr.includes('ショップ') || headerStr.includes('店铺') || headerStr.includes('Shop');
-        const isTap = headerStr.includes('リンクGMV') || headerStr.includes('Link GMV') || headerStr.includes('決済済みGMV') || headerStr.includes('Settled GMV') || headerStr.includes('ショーケース');
-        
-        // Determine upload type
-        let detectedType: 'tap' | 'cap-creator' | 'cap-product' = 'tap';
-        if (isCapProduct && hasShop) {
-          detectedType = 'cap-product';
-        } else if (isTap) {
-          detectedType = 'tap';
-        } else {
-          // Default: if has product ID it's CAP product, otherwise CAP creator
-          detectedType = isCapProduct ? 'cap-product' : 'cap-creator';
-        }
-        
-        // Auto-detect month from first data row
-        let autoMonth = '';
-        if (rows.length > 1) {
-          const firstDataRow = rows.find((r: any) => {
-            const d = String(r['日付'] || r['日期'] || r['Date'] || '').trim();
-            return d && d !== '概要' && d !== '汇总数据' && d !== 'Summary';
-          });
-          if (firstDataRow) {
-            const dateStr = String(firstDataRow['日付'] || firstDataRow['日期'] || firstDataRow['Date'] || '');
-            const match = dateStr.match(/(\d{4})-(\d{2})/);
-            if (match) autoMonth = `${match[1]}-${match[2]}`;
+    setSmartUploadProgress({ total: files.length, current: 0, results: [] });
+    
+    const results: Array<{ name: string; success: boolean; message: string }> = [];
+    
+    for (let fi = 0; fi < files.length; fi++) {
+      const file = files[fi];
+      setSmartUploadProgress(prev => ({ ...prev, current: fi + 1 }));
+      
+      try {
+        // Check if it's an XLSX file - auto-detect TAP vs CAP by reading headers
+        if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+          const XLSX = await import('xlsx');
+          const arrayBuffer = await file.arrayBuffer();
+          const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '', range: 0 });
+          const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
+          const headerStr = headers.join(',');
+          
+          // Auto-detect report type by headers
+          const isCapProduct = headerStr.includes('商品ID') || headerStr.includes('商品 ID') || headerStr.includes('Product ID') || headerStr.includes('商品情報') || headerStr.includes('商品信息');
+          const hasShop = headerStr.includes('ショップ') || headerStr.includes('店铺') || headerStr.includes('Shop');
+          const isTap = headerStr.includes('リンクGMV') || headerStr.includes('Link GMV') || headerStr.includes('決済済みGMV') || headerStr.includes('Settled GMV') || headerStr.includes('ショーケース');
+          
+          // Determine upload type
+          let detectedType: 'tap' | 'cap-creator' | 'cap-product' = 'tap';
+          if (isCapProduct && hasShop) {
+            detectedType = 'cap-product';
+          } else if (isTap) {
+            detectedType = 'tap';
+          } else {
+            detectedType = isCapProduct ? 'cap-product' : 'cap-creator';
           }
+          
+          // Auto-detect month from first data row
+          let autoMonth = '';
+          if (rows.length > 1) {
+            const firstDataRow = rows.find((r: any) => {
+              const d = String(r['日付'] || r['日期'] || r['Date'] || '').trim();
+              return d && d !== '概要' && d !== '汇总数据' && d !== 'Summary';
+            });
+            if (firstDataRow) {
+              const dateStr = String(firstDataRow['日付'] || firstDataRow['日期'] || firstDataRow['Date'] || '');
+              const match = dateStr.match(/(\d{4})-(\d{2})/);
+              if (match) autoMonth = `${match[1]}-${match[2]}`;
+            }
+          }
+          
+          // Convert to base64 for upload
+          const bytes = new Uint8Array(arrayBuffer);
+          let binary = '';
+          const chunkSize = 8192;
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+          }
+          const base64 = btoa(binary);
+          const month = autoMonth || tapUploadMonth || new Date().toISOString().slice(0, 7);
+          
+          if (detectedType === 'cap-product') {
+            await uploadCapProductMutation.mutateAsync({ brandId: 0, fileContent: base64, reportMonth: month });
+            results.push({ name: file.name, success: true, message: `CAP商品×ショップ（${month}）` });
+          } else if (detectedType === 'cap-creator') {
+            await uploadCapCreatorMutation.mutateAsync({ brandId: 0, fileContent: base64, reportMonth: month });
+            results.push({ name: file.name, success: true, message: `CAPクリエイター（${month}）` });
+          } else {
+            await uploadTapMutation.mutateAsync({ brandId: 0, fileContent: base64, reportMonth: month });
+            results.push({ name: file.name, success: true, message: `TAP（${month}）` });
+          }
+          continue;
         }
-        
-        // Convert to base64 for upload
-        const bytes = new Uint8Array(arrayBuffer);
-        let binary = '';
-        const chunkSize = 8192;
-        for (let i = 0; i < bytes.length; i += chunkSize) {
-          binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-        }
-        const base64 = btoa(binary);
-        const month = autoMonth || tapUploadMonth || new Date().toISOString().slice(0, 7);
-        
-        if (detectedType === 'cap-product') {
-          await uploadCapProductMutation.mutateAsync({ brandId: 0, fileContent: base64, reportMonth: month });
-          toast.success(`CAP商品×ショップデータをインポートしました（${month}）`);
-        } else if (detectedType === 'cap-creator') {
-          await uploadCapCreatorMutation.mutateAsync({ brandId: 0, fileContent: base64, reportMonth: month });
-          toast.success(`CAPクリエイターデータをインポートしました（${month}）`);
+
+        const text = await file.text();
+        const firstLine = text.split(/\r?\n/)[0] || '';
+
+        if (firstLine.includes('Reference ID') && firstLine.includes('Payment')) {
+          const arrayBuffer = await file.arrayBuffer();
+          const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+          await uploadPaymentCsvMutation.mutateAsync({ brandId: 0, csvContent: base64 });
+          results.push({ name: file.name, success: true, message: '入金CSV' });
+        } else if (firstLine.includes('サブ注文ID') || firstLine.includes('Sub Order ID') || firstLine.includes('子订单ID')) {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('brandId', '1');
+          const res = await fetch('/api/csv-upload', { method: 'POST', body: formData });
+          const result = await res.json();
+          if (!res.ok) throw new Error(result.error || 'Upload failed');
+          results.push({ name: file.name, success: true, message: `注文${result.importedRows}件` });
         } else {
-          uploadTapMutation.mutate({ brandId: 0, fileContent: base64, reportMonth: month });
-          toast.success(`TAPデータをインポートしました（${month}）`);
+          results.push({ name: file.name, success: false, message: '形式判別不可' });
         }
-        setSmartUploadDialogOpen(false);
-        setSmartUploading(false);
-        return;
+      } catch (err: any) {
+        results.push({ name: file.name, success: false, message: err.message });
       }
-
-      const text = await file.text();
-      const firstLine = text.split(/\r?\n/)[0] || '';
-
-      if (firstLine.includes('Reference ID') && firstLine.includes('Payment')) {
-        // Payment CSV detected
-        const arrayBuffer = await file.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-        uploadPaymentCsvMutation.mutate({ brandId: 0, csvContent: base64 });
-        setSmartUploadDialogOpen(false);
-      } else if (firstLine.includes('サブ注文ID') || firstLine.includes('Sub Order ID') || firstLine.includes('子订单ID')) {
-        // CAP/Commission CSV detected (Japanese/English/Chinese)
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('brandId', '1');
-        const res = await fetch('/api/csv-upload', { method: 'POST', body: formData });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.error || 'Upload failed');
-        toast.success(`${result.importedRows}件インポート（${result.skippedRows}件スキップ）`);
-        summaryQuery.refetch();
-        importsQuery.refetch();
-        setSmartUploadDialogOpen(false);
-      } else {
-        toast.error('CSVの形式を判別できません。TikTokコミッションCSVまたは入金CSVをアップロードしてください。');
-      }
-    } catch (err: any) {
-      toast.error(`アップロード失敗: ${err.message}`);
-    } finally {
-      setSmartUploading(false);
-      if (smartFileInputRef.current) smartFileInputRef.current.value = '';
     }
+    
+    // Show summary
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.filter(r => !r.success).length;
+    if (failCount === 0) {
+      toast.success(`${successCount}ファイル全て正常にインポート完了`);
+    } else {
+      toast.warning(`${successCount}件成功 / ${failCount}件失敗`);
+    }
+    setSmartUploadProgress(prev => ({ ...prev, results }));
+    setSmartUploading(false);
+    // Refetch all data
+    tapSummaryQuery.refetch();
+    tapCreatorsQuery.refetch();
+    tapShopsQuery.refetch();
+    tapMonthlyQuery.refetch();
+    tapAvailableMonthsQuery.refetch();
+    capCreatorSummaryQuery.refetch();
+    capAvailableMonthsQuery.refetch();
+    summaryQuery.refetch();
+    importsQuery.refetch();
+    if (smartFileInputRef.current) smartFileInputRef.current.value = '';
   };
 
   const summary = summaryQuery.data;
@@ -4106,12 +4127,12 @@ export default function FinanceManagement() {
       </Dialog>
 
       {/* Smart CSV Upload Dialog */}
-      <Dialog open={smartUploadDialogOpen} onOpenChange={setSmartUploadDialogOpen}>
-        <DialogContent>
+      <Dialog open={smartUploadDialogOpen} onOpenChange={(open) => { if (!open && !smartUploading) { setSmartUploadDialogOpen(false); setSmartUploadProgress({ total: 0, current: 0, results: [] }); } }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>データアップロード（自動判別）</DialogTitle>
+            <DialogTitle>データアップロード（追記モード）</DialogTitle>
             <DialogDescription>
-              TikTokのCSV/XLSXファイルをアップロードしてください。ファイル形式とヘッダーから自動でデータ種別を判別します。日本語・英語・中国語のヘッダーに対応。
+              複数ファイルを同時にアップロードできます。データは追記モード（UPSERT）でインポートされ、同じレコードは上書き更新されます。
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -4119,6 +4140,7 @@ export default function FinanceManagement() {
               ref={smartFileInputRef}
               type="file"
               accept=".csv,.xlsx,.xls"
+              multiple
               onChange={handleSmartCsvUpload}
               disabled={smartUploading}
               className="w-full"
@@ -4130,13 +4152,33 @@ export default function FinanceManagement() {
               <p>• <Badge variant="outline" className="text-xs">注文</Badge> コミッションCSV: サブ注文ID/子订单ID含む</p>
               <p>• <Badge variant="outline" className="text-xs">入金</Badge> 入金CSV: Reference ID含む</p>
             </div>
+            <div className="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 p-2 rounded">
+              ✅ <strong>追記モード:</strong> 同じ月のデータを複数回アップロードしてもデータが消えません。新規データは追加、既存データは更新されます。
+            </div>
             <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 p-2 rounded">
-              💡 レポート月はファイルの日付から自動検出されます
+              💡 レポート月はファイルの日付から自動検出されます。複数ファイル選択可。
             </div>
             {smartUploading && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                アップロード中...
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  アップロード中... ({smartUploadProgress.current}/{smartUploadProgress.total})
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div className="bg-blue-600 h-2 rounded-full transition-all" style={{ width: `${(smartUploadProgress.current / smartUploadProgress.total) * 100}%` }} />
+                </div>
+              </div>
+            )}
+            {smartUploadProgress.results.length > 0 && (
+              <div className="space-y-1 max-h-40 overflow-y-auto border rounded p-2">
+                <p className="text-xs font-medium mb-1">アップロード結果:</p>
+                {smartUploadProgress.results.map((r, i) => (
+                  <div key={i} className={`text-xs flex items-center gap-1 ${r.success ? 'text-green-600' : 'text-red-600'}`}>
+                    {r.success ? <CheckCircle className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+                    <span className="truncate">{r.name}</span>
+                    <span className="text-muted-foreground ml-auto">{r.message}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>

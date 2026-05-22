@@ -20370,8 +20370,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             });
           }
           
-          // Delete existing data for this month and re-import
-          await deleteTiktokTapReportsByMonth(input.brandId, input.reportMonth);
+          // UPSERT mode: insert new records or update existing ones (no deletion)
           const insertedCount = await bulkInsertTiktokTapReports(reports);
           
           return {
@@ -20590,7 +20589,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             });
           }
 
-          await deleteCapCreatorReportsByMonth(input.brandId, input.reportMonth);
+          // UPSERT mode: insert new records or update existing ones (no deletion)
           await bulkInsertCapCreatorReports(reports);
 
           return { totalRows: reports.length, importedRows: reports.length, reportMonth: input.reportMonth };
@@ -20673,7 +20672,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             });
           }
 
-          await deleteCapProductReportsByMonth(input.brandId, input.reportMonth);
+          // UPSERT mode: insert new records or update existing ones (no deletion)
           await bulkInsertCapProductReports(reports);
 
           return { totalRows: reports.length, importedRows: reports.length, reportMonth: input.reportMonth };
@@ -20718,6 +20717,20 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({ brandId: z.number().optional().default(0) }))
       .query(async ({ input }) => {
         return getCapAvailableMonths(input.brandId);
+      }),
+
+    // CAPデータ削除（リセット用）
+    deleteCapCreatorMonth: protectedProcedure
+      .input(z.object({ brandId: z.number(), reportMonth: z.string() }))
+      .mutation(async ({ input }) => {
+        await deleteCapCreatorReportsByMonth(input.brandId, input.reportMonth);
+        return { success: true };
+      }),
+    deleteCapProductMonth: protectedProcedure
+      .input(z.object({ brandId: z.number(), reportMonth: z.string() }))
+      .mutation(async ({ input }) => {
+        await deleteCapProductReportsByMonth(input.brandId, input.reportMonth);
+        return { success: true };
       }),
 
     // CAP契約比率一覧取得（全ライバーのcapEnabled, capLcjRate, capCreatorRate）
