@@ -33,6 +33,9 @@ const DEFAULT_WIDTH = 280;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 480;
 
+// スタッフ（admin以外）がアクセス可能なパス
+const STAFF_ALLOWED_PATHS = ['/master/finance'];
+
 export default function DashboardLayout({
   children,
 }: {
@@ -58,8 +61,9 @@ export default function DashboardLayout({
     return null;
   }
 
-  // セキュリティ: admin以外のユーザーは管理ダッシュボードにアクセスできない
-  if (user.role !== 'admin') {
+  // セキュリティ: admin以外のユーザーはファイナンス管理ページのみアクセス可能
+  const currentPathname = window.location.pathname;
+  if (user.role !== 'admin' && !STAFF_ALLOWED_PATHS.some(p => currentPathname.startsWith(p))) {
     window.location.href = "/";
     return null;
   }
@@ -213,7 +217,13 @@ function DashboardLayoutContent({
           <SidebarContent className="gap-0">
             <SidebarMenu className="px-2 py-1">
               {menuItems
-                .filter(item => !item.adminOnly || user?.role === "admin")
+                .filter(item => {
+                  // admin以外はファイナンス管理のみ表示
+                  if (user?.role !== 'admin') {
+                    return STAFF_ALLOWED_PATHS.some(p => item.path.startsWith(p));
+                  }
+                  return !item.adminOnly || user?.role === "admin";
+                })
                 .map(item => {
                   const isActive = location === item.path;
                   return (

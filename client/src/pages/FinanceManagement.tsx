@@ -599,13 +599,20 @@ export default function FinanceManagement() {
           const isCapProduct = headerStr.includes('商品ID') || headerStr.includes('商品 ID') || headerStr.includes('Product ID') || headerStr.includes('商品情報') || headerStr.includes('商品信息');
           const hasShop = headerStr.includes('ショップ') || headerStr.includes('店铺') || headerStr.includes('Shop');
           const isTap = headerStr.includes('リンクGMV') || headerStr.includes('Link GMV') || headerStr.includes('決済済みGMV') || headerStr.includes('Settled GMV') || headerStr.includes('ショーケース');
+          // CustomReport形式の検出: 「联盟 GMV」ヘッダーがある場合はTAPとして処理
+          const hasAffiliateGmv = headerStr.includes('联盟 GMV') || headerStr.includes('アフィリエイトGMV') || headerStr.includes('Affiliate GMV');
+          const hasCreator = headerStr.includes('达人用户名') || headerStr.includes('クリエイター名') || headerStr.includes('Creator username') || headerStr.includes('Creator name');
           
           // Determine upload type
           let detectedType: 'tap' | 'cap-creator' | 'cap-product' = 'tap';
-          if (isCapProduct && hasShop) {
-            detectedType = 'cap-product';
-          } else if (isTap) {
+          if (isTap) {
+            // 従来のTAPレポート形式（リンクGMV等がある）
             detectedType = 'tap';
+          } else if (hasAffiliateGmv && hasCreator) {
+            // CustomReport形式（联盟GMV + クリエイター情報あり）→ TAPとして処理
+            detectedType = 'tap';
+          } else if (isCapProduct && hasShop) {
+            detectedType = 'cap-product';
           } else {
             detectedType = isCapProduct ? 'cap-product' : 'cap-creator';
           }
