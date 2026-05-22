@@ -1707,6 +1707,13 @@ export default function LiverMypage() {
                     // brandIdsがあれば全IDでマッチ（同名ブランドがマージされている場合）
                     const allBrandIds: number[] = (brand as any).brandIds || [brand.brandId];
                     // ヘッダーの回数と一致する配信のみ表示
+                    // バックエンドのgetLiverBrandDurationStatsと同じロジック:
+                    // - livestream_brandsテーブルにdurationMinutes > 0 → primary
+                    // - brand_livestreams.brandIdが一致 → fallbackだが、primaryに同ブランドが存在する場合は使わない
+                    const brandHasNewTableEntries = filteredLivestreams?.some((ls: any) =>
+                      ls.livestreamBrands && Array.isArray(ls.livestreamBrands) &&
+                      ls.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId) && lb.durationMinutes && lb.durationMinutes > 0)
+                    ) || false;
                     const brandLivestreams = isExpanded && filteredLivestreams
                       ? filteredLivestreams.filter((ls: any) => {
                           // 新テーブル: livestreamBrandsにdurationMinutes > 0のエントリがある
@@ -1716,11 +1723,9 @@ export default function LiverMypage() {
                             );
                             if (hasValidBrandDuration) return true;
                           }
-                          // 旧テーブルfallback: brandIdが一致しduration > 0
-                          if (allBrandIds.includes(ls.brandId) && ls.duration && ls.duration > 0) {
-                            const hasNewTableEntry = ls.livestreamBrands && Array.isArray(ls.livestreamBrands) &&
-                              ls.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId) && lb.durationMinutes && lb.durationMinutes > 0);
-                            if (!hasNewTableEntry) return true;
+                          // 旧テーブルfallback: このブランドがlivestreamBrandsに1件もない場合のみ使用
+                          if (!brandHasNewTableEntries && allBrandIds.includes(ls.brandId) && ls.duration && ls.duration > 0) {
+                            return true;
                           }
                           return false;
                         })
@@ -1731,7 +1736,8 @@ export default function LiverMypage() {
                           if (ls.livestreamBrands && Array.isArray(ls.livestreamBrands)) {
                             if (ls.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId) && lb.durationMinutes && lb.durationMinutes > 0)) return false;
                           }
-                          if (allBrandIds.includes(ls.brandId) && ls.duration && ls.duration > 0) return false;
+                          // 旧テーブルfallbackが有効な場合、旧テーブルでマッチする配信も除外
+                          if (!brandHasNewTableEntries && allBrandIds.includes(ls.brandId) && ls.duration && ls.duration > 0) return false;
                           if (ls.brandCsvSales && typeof ls.brandCsvSales === 'object') {
                             const csvSalesForBrand = allBrandIds.reduce((sum: number, bid: number) => sum + (ls.brandCsvSales[bid] || 0), 0);
                             if (csvSalesForBrand > 0) return true;

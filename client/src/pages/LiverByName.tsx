@@ -1044,8 +1044,14 @@ export default function LiverByName() {
                     // ブランドに属する配信一覧をフィルタリング
                     const allBrandIds: number[] = brand.brandIds || [brand.brandId];
                     // セクション1: ヘッダーの回数と一致する配信
-                    // - livestreamBrandsにdurationMinutes > 0のエントリがある配信
-                    // - OR brand_livestreams.brandIdが一致しduration > 0の配信（fallback）
+                    // バックエンドのgetLiverBrandDurationStatsと同じロジック:
+                    // - livestream_brandsテーブルにdurationMinutes > 0のエントリがある → primary
+                    // - brand_livestreams.brandIdが一致 → fallbackだが、primaryに同ブランドが存在する場合は使わない
+                    // まず、このブランドがlivestreamBrandsテーブルに1件でもdurationMinutes > 0で存在するか確認
+                    const brandHasNewTableEntries = data?.livestreams?.some((l: any) =>
+                      l.livestreamBrands && Array.isArray(l.livestreamBrands) &&
+                      l.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId) && lb.durationMinutes && lb.durationMinutes > 0)
+                    ) || false;
                     const registeredStreams = isExpanded && data?.livestreams
                       ? data.livestreams.filter((l: any) => {
                           // 新テーブル: livestreamBrandsにdurationMinutes > 0のエントリがある
@@ -1056,12 +1062,10 @@ export default function LiverByName() {
                             if (hasValidBrandDuration) return true;
                           }
                           // 旧テーブルfallback: brandIdが一致しduration > 0
-                          // ただし新テーブルに同ブランドのdurationMinutes > 0がある場合は除外（重複防止）
-                          if (allBrandIds.includes(l.brandId) && l.duration && l.duration > 0) {
-                            // 新テーブルに既にこのブランドのdurationMinutes > 0エントリがないか確認
-                            const hasNewTableEntry = l.livestreamBrands && Array.isArray(l.livestreamBrands) &&
-                              l.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId) && lb.durationMinutes && lb.durationMinutes > 0);
-                            if (!hasNewTableEntry) return true;
+                          // ただし、このブランドがlivestreamBrandsテーブルに1件でも存在する場合はfallbackを使わない
+                          // （バックエンドの if (!byIdMap.has(fb.brandId)) と同じ条件）
+                          if (!brandHasNewTableEntries && allBrandIds.includes(l.brandId) && l.duration && l.duration > 0) {
+                            return true;
                           }
                           return false;
                         })
@@ -1070,12 +1074,12 @@ export default function LiverByName() {
                     const csvOnlyStreams = isExpanded && data?.livestreams
                       ? data.livestreams.filter((l: any) => {
                           // registeredStreamsに含まれている配信は除外
-                          // 新テーブルにdurationMinutes > 0がある
+                          // 新テーブルにdurationMinutes > 0がある → 除外
                           if (l.livestreamBrands && Array.isArray(l.livestreamBrands)) {
                             if (l.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId) && lb.durationMinutes && lb.durationMinutes > 0)) return false;
                           }
-                          // 旧テーブルfallback
-                          if (allBrandIds.includes(l.brandId) && l.duration && l.duration > 0) return false;
+                          // 旧テーブルfallbackが有効な場合（brandHasNewTableEntries=false）、旧テーブルでマッチする配信も除外
+                          if (!brandHasNewTableEntries && allBrandIds.includes(l.brandId) && l.duration && l.duration > 0) return false;
                           // brandCsvSalesに該当ブランドの売上がある
                           if (l.brandCsvSales && typeof l.brandCsvSales === 'object') {
                             const csvSalesForBrand = allBrandIds.reduce((sum: number, bid: number) => sum + (l.brandCsvSales[bid] || 0), 0);
