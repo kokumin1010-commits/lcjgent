@@ -1632,7 +1632,7 @@ export default function LivestreamDetail() {
                     </div>
                   ) : (
                     <div className="mt-1 text-right">
-                      <span>{livestream.brand?.name || "-"}</span>
+                      <span className="text-white">{livestream.brand?.name || "-"}</span>
                     </div>
                   )}
                 </div>
@@ -1681,25 +1681,64 @@ export default function LivestreamDetail() {
                   
                   const totalCsvGmv = brandSales.reduce((sum, b) => sum + b.totalGmv, 0);
                   
+                  // ブランドごとの商品一覧を作成
+                  const brandProductsMap = new Map<string, Array<{ productName: string; revenue: number }>>();
+                  for (const product of products) {
+                    const productName = (product.productName || '').toLowerCase();
+                    const revenue = Number(product.directGmv || product.gmv || 0);
+                    if (!productName || revenue === 0) continue;
+                    
+                    let matchedBrandName: string | null = null;
+                    let longestMatchLen = 0;
+                    for (const brand of brands) {
+                      const brandNameLower = brand.name.toLowerCase().trim();
+                      if (brandNameLower.length > longestMatchLen && productName.includes(brandNameLower)) {
+                        matchedBrandName = brand.name;
+                        longestMatchLen = brandNameLower.length;
+                      }
+                    }
+                    if (matchedBrandName) {
+                      const key = matchedBrandName.toLowerCase().trim();
+                      if (!brandProductsMap.has(key)) brandProductsMap.set(key, []);
+                      brandProductsMap.get(key)!.push({ productName: product.productName || '', revenue });
+                    }
+                  }
+                  
                   return (
                     <div className="mt-3">
                       <span className="text-emerald-400 font-medium text-sm">CSV実績 ブランド別売上</span>
                       <div className="mt-2 space-y-1.5">
-                        {brandSales.map((bs) => (
-                          <div key={bs.brandName} className={`flex justify-between items-center rounded-lg px-3 py-2 ${bs.matched ? 'bg-gray-800/50' : 'bg-amber-900/20 border border-amber-600/30'}`}>
-                            <div className="flex items-center gap-2">
-                              <span className="text-white font-medium text-sm">{bs.brandName}</span>
-                              {!bs.matched && (
-                                <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">未入力</span>
+                        {brandSales.map((bs) => {
+                          const brandKey = bs.brandName.toLowerCase().trim();
+                          const brandProducts = brandProductsMap.get(brandKey) || [];
+                          return (
+                            <details key={bs.brandName} className="group">
+                              <summary className={`flex justify-between items-center rounded-lg px-3 py-2 cursor-pointer list-none ${bs.matched ? 'bg-gray-800/50' : 'bg-amber-900/20 border border-amber-600/30'}`}>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-white font-medium text-sm">{bs.brandName}</span>
+                                  {!bs.matched && (
+                                    <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">未入力</span>
+                                  )}
+                                  <span className="text-gray-500 text-xs">({bs.productCount}商品)</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-yellow-400 font-bold text-sm">¥{bs.totalGmv.toLocaleString()}</span>
+                                  <span className="text-gray-500 text-xs">({totalCsvGmv > 0 ? (bs.totalGmv / totalCsvGmv * 100).toFixed(1) : 0}%)</span>
+                                </div>
+                              </summary>
+                              {brandProducts.length > 0 && (
+                                <div className="ml-4 mt-1 mb-1 space-y-0.5">
+                                  {brandProducts.sort((a, b) => b.revenue - a.revenue).map((p, idx) => (
+                                    <div key={idx} className="flex justify-between items-center text-xs px-2 py-1 rounded bg-gray-900/50">
+                                      <span className="text-gray-300 truncate max-w-[70%]">{p.productName}</span>
+                                      <span className="text-yellow-400/80 font-mono">¥{p.revenue.toLocaleString()}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               )}
-                              <span className="text-gray-500 text-xs">({bs.productCount}商品)</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-yellow-400 font-bold text-sm">¥{bs.totalGmv.toLocaleString()}</span>
-                              <span className="text-gray-500 text-xs">({totalCsvGmv > 0 ? (bs.totalGmv / totalCsvGmv * 100).toFixed(1) : 0}%)</span>
-                            </div>
-                          </div>
-                        ))}
+                            </details>
+                          );
+                        })}
                       </div>
                     </div>
                   );

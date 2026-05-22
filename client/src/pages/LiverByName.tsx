@@ -1042,16 +1042,41 @@ export default function LiverByName() {
                     const colorClass = colors[idx % colors.length];
                     const isExpanded = expandedBrandId === brand.brandId;
                     // ブランドに属する配信一覧をフィルタリング
-                    // brand_livestreams.brandIdだけでなく、livestream_brandsテーブルのデータも考慮
-                    // brandIdsがあれば全IDでマッチ（同名ブランドがマージされている場合）
                     const allBrandIds: number[] = brand.brandIds || [brand.brandId];
-                    const brandLivestreams = isExpanded && data?.livestreams
+                    // セクション1: ヘッダーの回数と一致する配信
+                    // - livestreamBrandsにdurationMinutes > 0のエントリがある配信
+                    // - OR brand_livestreams.brandIdが一致しduration > 0の配信（fallback）
+                    const registeredStreams = isExpanded && data?.livestreams
                       ? data.livestreams.filter((l: any) => {
-                          if (allBrandIds.includes(l.brandId)) return true;
+                          // 新テーブル: livestreamBrandsにdurationMinutes > 0のエントリがある
                           if (l.livestreamBrands && Array.isArray(l.livestreamBrands)) {
-                            if (l.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId))) return true;
+                            const hasValidBrandDuration = l.livestreamBrands.some((lb: any) => 
+                              allBrandIds.includes(lb.brandId) && lb.durationMinutes && lb.durationMinutes > 0
+                            );
+                            if (hasValidBrandDuration) return true;
                           }
-                          // brandCsvSalesに該当ブランドの売上がある配信も含める
+                          // 旧テーブルfallback: brandIdが一致しduration > 0
+                          // ただし新テーブルに同ブランドのdurationMinutes > 0がある場合は除外（重複防止）
+                          if (allBrandIds.includes(l.brandId) && l.duration && l.duration > 0) {
+                            // 新テーブルに既にこのブランドのdurationMinutes > 0エントリがないか確認
+                            const hasNewTableEntry = l.livestreamBrands && Array.isArray(l.livestreamBrands) &&
+                              l.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId) && lb.durationMinutes && lb.durationMinutes > 0);
+                            if (!hasNewTableEntry) return true;
+                          }
+                          return false;
+                        })
+                      : [];
+                    // セクション2: CSV売上のみ（ブランド時間未入力だがCSV売上がある配信）
+                    const csvOnlyStreams = isExpanded && data?.livestreams
+                      ? data.livestreams.filter((l: any) => {
+                          // registeredStreamsに含まれている配信は除外
+                          // 新テーブルにdurationMinutes > 0がある
+                          if (l.livestreamBrands && Array.isArray(l.livestreamBrands)) {
+                            if (l.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId) && lb.durationMinutes && lb.durationMinutes > 0)) return false;
+                          }
+                          // 旧テーブルfallback
+                          if (allBrandIds.includes(l.brandId) && l.duration && l.duration > 0) return false;
+                          // brandCsvSalesに該当ブランドの売上がある
                           if (l.brandCsvSales && typeof l.brandCsvSales === 'object') {
                             const csvSalesForBrand = allBrandIds.reduce((sum: number, bid: number) => sum + (l.brandCsvSales[bid] || 0), 0);
                             if (csvSalesForBrand > 0) return true;
@@ -1059,6 +1084,7 @@ export default function LiverByName() {
                           return false;
                         })
                       : [];
+                    const brandLivestreams = registeredStreams;
                     return (
                       <div key={brand.brandId}>
                         <div
@@ -1105,16 +1131,19 @@ export default function LiverByName() {
                             />
                           </div>
                         </div>
-                        {/* ブランド配信一覧展開 */}
+                        {/* ブランド配信一覧展開 - セクション1: ブランド時間入力済み */}
                         {isExpanded && brandLivestreams.length > 0 && (
                           <div className="ml-6 mt-2 mb-1 space-y-1">
                             {brandLivestreams.map((ls: any) => {
                               // 該当ブランドの配信時間を取得
-                              const brandDuration = ls.livestreamBrands && Array.isArray(ls.livestreamBrands)
+                              // 優先1: livestreamBrandsテーブルのdurationMinutes
+                              const newTableDuration = ls.livestreamBrands && Array.isArray(ls.livestreamBrands)
                                 ? ls.livestreamBrands
                                     .filter((lb: any) => allBrandIds.includes(lb.brandId))
                                     .reduce((sum: number, lb: any) => sum + (lb.durationMinutes || 0), 0)
                                 : 0;
+                              // 優先2: 旧テーブルのduration（brand_livestreams.duration = 配信全体の時間）
+                              const brandDuration = newTableDuration > 0 ? newTableDuration : (allBrandIds.includes(ls.brandId) ? (ls.duration || 0) : 0);
                               // 該当ブランドのCSV売上を取得
                               const brandCsvSales = ls.brandCsvSales && typeof ls.brandCsvSales === 'object'
                                 ? allBrandIds.reduce((sum: number, bid: number) => sum + (ls.brandCsvSales[bid] || 0), 0)
@@ -1137,7 +1166,7 @@ export default function LiverByName() {
                                       {brandCsvSales > 0 ? formatCurrency(brandCsvSales) : <span className="text-gray-500">-</span>}
                                     </span>
                                     <span className="text-blue-400">
-                                      {brandDuration > 0 ? formatDuration(brandDuration) : formatDuration(ls.duration)}
+                                      {brandDuration > 0 ? formatDuration(brandDuration) : <span className="text-gray-500">-</span>}
                                     </span>
                                     <ChevronRight className="w-3 h-3 text-gray-500" />
                                   </div>
@@ -1146,7 +1175,40 @@ export default function LiverByName() {
                             })}
                           </div>
                         )}
-                        {isExpanded && brandLivestreams.length === 0 && (
+                        {/* セクション2: CSV売上のみ（ブランド時間未入力） */}
+                        {isExpanded && csvOnlyStreams.length > 0 && (
+                          <div className="ml-6 mt-1 mb-1 space-y-1">
+                            <div className="text-[10px] text-gray-500 px-2 pt-1">CSV売上のみ（ブランド時間未入力）</div>
+                            {csvOnlyStreams.map((ls: any) => {
+                              const brandCsvSales = ls.brandCsvSales && typeof ls.brandCsvSales === 'object'
+                                ? allBrandIds.reduce((sum: number, bid: number) => sum + (ls.brandCsvSales[bid] || 0), 0)
+                                : 0;
+                              return (
+                                <div
+                                  key={ls.id}
+                                  className="flex items-center justify-between text-xs p-2 rounded bg-gray-800/20 border border-gray-700/20 hover:border-amber-500/30 cursor-pointer transition-all opacity-70"
+                                  onClick={(e) => { e.stopPropagation(); navigate(`/livestreams/${ls.id}`); }}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Calendar className="w-3 h-3 text-gray-500" />
+                                    <span className="text-gray-300">{formatDate(ls.livestreamDate)}</span>
+                                    {formatTimeRange(ls) && (
+                                      <span className="text-gray-600">{formatTimeRange(ls)}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-yellow-400/70 font-mono">
+                                      {brandCsvSales > 0 ? formatCurrency(brandCsvSales) : <span className="text-gray-500">-</span>}
+                                    </span>
+                                    <span className="text-gray-500">-</span>
+                                    <ChevronRight className="w-3 h-3 text-gray-600" />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {isExpanded && brandLivestreams.length === 0 && csvOnlyStreams.length === 0 && (
                           <div className="ml-6 mt-2 mb-1 text-xs text-gray-500 p-2">
                             このブランドの配信データはこの月にはありません
                           </div>

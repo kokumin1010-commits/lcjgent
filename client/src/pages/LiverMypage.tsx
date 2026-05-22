@@ -1706,14 +1706,32 @@ export default function LiverMypage() {
                     const isExpanded = expandedBrandId === brand.brandId;
                     // brandIdsがあれば全IDでマッチ（同名ブランドがマージされている場合）
                     const allBrandIds: number[] = (brand as any).brandIds || [brand.brandId];
+                    // ヘッダーの回数と一致する配信のみ表示
                     const brandLivestreams = isExpanded && filteredLivestreams
                       ? filteredLivestreams.filter((ls: any) => {
-                          if (allBrandIds.includes(ls.brandId)) return true;
-                          if (ls.brandName === brand.brandName) return true;
+                          // 新テーブル: livestreamBrandsにdurationMinutes > 0のエントリがある
                           if (ls.livestreamBrands && Array.isArray(ls.livestreamBrands)) {
-                            if (ls.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId))) return true;
+                            const hasValidBrandDuration = ls.livestreamBrands.some((lb: any) => 
+                              allBrandIds.includes(lb.brandId) && lb.durationMinutes && lb.durationMinutes > 0
+                            );
+                            if (hasValidBrandDuration) return true;
                           }
-                          // brandCsvSalesに該当ブランドの売上がある配信も含める
+                          // 旧テーブルfallback: brandIdが一致しduration > 0
+                          if (allBrandIds.includes(ls.brandId) && ls.duration && ls.duration > 0) {
+                            const hasNewTableEntry = ls.livestreamBrands && Array.isArray(ls.livestreamBrands) &&
+                              ls.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId) && lb.durationMinutes && lb.durationMinutes > 0);
+                            if (!hasNewTableEntry) return true;
+                          }
+                          return false;
+                        })
+                      : [];
+                    // CSV売上のみ（ブランド時間未入力だがCSV売上がある配信）
+                    const csvOnlyStreams = isExpanded && filteredLivestreams
+                      ? filteredLivestreams.filter((ls: any) => {
+                          if (ls.livestreamBrands && Array.isArray(ls.livestreamBrands)) {
+                            if (ls.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId) && lb.durationMinutes && lb.durationMinutes > 0)) return false;
+                          }
+                          if (allBrandIds.includes(ls.brandId) && ls.duration && ls.duration > 0) return false;
                           if (ls.brandCsvSales && typeof ls.brandCsvSales === 'object') {
                             const csvSalesForBrand = allBrandIds.reduce((sum: number, bid: number) => sum + (ls.brandCsvSales[bid] || 0), 0);
                             if (csvSalesForBrand > 0) return true;
@@ -1772,15 +1790,18 @@ export default function LiverMypage() {
                               const dateStr = date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' });
                               const timeStr = date.toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' });
                               // 該当ブランドの配信時間を取得
-                              const allBrandIds: number[] = (brand as any).brandIds || [brand.brandId];
-                              const brandDuration = ls.livestreamBrands && Array.isArray(ls.livestreamBrands)
+                              const allBrandIdsInner: number[] = (brand as any).brandIds || [brand.brandId];
+                              // 優先1: 新テーブルのdurationMinutes
+                              const newTableDuration = ls.livestreamBrands && Array.isArray(ls.livestreamBrands)
                                 ? ls.livestreamBrands
-                                    .filter((lb: any) => allBrandIds.includes(lb.brandId))
+                                    .filter((lb: any) => allBrandIdsInner.includes(lb.brandId))
                                     .reduce((sum: number, lb: any) => sum + (lb.durationMinutes || 0), 0)
                                 : 0;
+                              // 優先2: 旧テーブルのduration
+                              const brandDuration = newTableDuration > 0 ? newTableDuration : (allBrandIdsInner.includes(ls.brandId) ? (ls.duration || 0) : 0);
                               // 該当ブランドのCSV売上を取得
                               const brandCsvSales = ls.brandCsvSales && typeof ls.brandCsvSales === 'object'
-                                ? allBrandIds.reduce((sum: number, bid: number) => sum + (ls.brandCsvSales[bid] || 0), 0)
+                                ? allBrandIdsInner.reduce((sum: number, bid: number) => sum + (ls.brandCsvSales[bid] || 0), 0)
                                 : 0;
                               const durationStr = brandDuration > 0
                                 ? `${Math.floor(brandDuration / 60) > 0 ? Math.floor(brandDuration / 60) + 'h' : ''}${brandDuration % 60 > 0 ? (brandDuration % 60) + 'm' : ''}`
@@ -1801,9 +1822,39 @@ export default function LiverMypage() {
                                 </div>
                               );
                             })}
+                            {/* CSV売上のみ（ブランド時間未入力） */}
+                            {csvOnlyStreams.length > 0 && (
+                              <>
+                                <div className="text-[9px] text-gray-500 pt-1">CSV売上のみ（時間未入力）</div>
+                                {csvOnlyStreams.map((ls: any) => {
+                                  const date = new Date(ls.livestreamDate);
+                                  const dateStr = date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' });
+                                  const timeStr = date.toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' });
+                                  const allBrandIdsInner: number[] = (brand as any).brandIds || [brand.brandId];
+                                  const brandCsvSales = ls.brandCsvSales && typeof ls.brandCsvSales === 'object'
+                                    ? allBrandIdsInner.reduce((sum: number, bid: number) => sum + (ls.brandCsvSales[bid] || 0), 0)
+                                    : 0;
+                                  return (
+                                    <div
+                                      key={ls.id}
+                                      className="flex items-center justify-between text-[10px] bg-gray-700/20 rounded px-2 py-1 cursor-pointer hover:bg-gray-700/40 opacity-70"
+                                      onClick={(e) => { e.stopPropagation(); navigate(`/livestreams/${ls.id}`); }}
+                                    >
+                                      <span className="text-gray-400">{dateStr} {timeStr}</span>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-orange-400/70 font-medium">
+                                          {brandCsvSales > 0 ? `¥${brandCsvSales.toLocaleString()}` : '-'}
+                                        </span>
+                                        <span className="text-gray-500">-</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </>
+                            )}
                           </div>
                         )}
-                        {isExpanded && brandLivestreams.length === 0 && (
+                        {isExpanded && brandLivestreams.length === 0 && csvOnlyStreams.length === 0 && (
                           <p className="text-[10px] text-gray-500 ml-4 mt-1">
                             {language === 'en' ? 'No streams found for this brand' : 'このブランドの配信が見つかりません'}
                           </p>
