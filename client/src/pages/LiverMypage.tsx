@@ -43,7 +43,9 @@ import {
   ShoppingBag,
   TrendingUp,
   TrendingDown,
-  MessageCircle
+  MessageCircle,
+  ShieldCheck,
+  ShieldAlert
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -164,6 +166,7 @@ export default function LiverMypage() {
   const [showStreamCountConfetti, setShowStreamCountConfetti] = useState(false);
   const [celebratedSalesGoal, setCelebratedSalesGoal] = useState<string | null>(null);
   const [celebratedStreamCountGoal, setCelebratedStreamCountGoal] = useState<string | null>(null);
+  const [showComplianceHelp, setShowComplianceHelp] = useState(false);
   
   // Track if we've successfully loaded liver info at least once
   const [hasLoadedLiver, setHasLoadedLiver] = useState(false);
@@ -261,6 +264,12 @@ export default function LiverMypage() {
 
   // ブランド別配信時間集計取得
   const { data: brandDurationStats } = trpc.liver.getBrandDurationStats.useQuery(
+    { yearMonth: selectedMonth },
+    { enabled: !!liverInfo?.id }
+  );
+
+  // スケジュール遵守率・配信ルール遵守状況取得
+  const { data: complianceStats } = trpc.liver.getComplianceStats.useQuery(
     { yearMonth: selectedMonth },
     { enabled: !!liverInfo?.id }
   );
@@ -1500,6 +1509,128 @@ export default function LiverMypage() {
           </Card>
         )}
 
+        {/* 配信ルール遵守状況 */}
+        {complianceStats && complianceStats.totalStreams > 0 && (
+          <Card className="bg-gray-800/50 border-gray-700">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2 mb-3">
+                <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                <h3 className="text-sm font-bold text-white">
+                  {language === 'en' ? 'Compliance Status' : language === 'zh-TW' ? '配信ルール遵守' : '配信ルール遵守状況'}
+                </h3>
+                <button
+                  onClick={() => setShowComplianceHelp(true)}
+                  className="ml-auto text-gray-400 hover:text-white transition-colors"
+                  title="ルール説明"
+                >
+                  <HelpCircle className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* 総合遵守率 */}
+              <div className="bg-gray-700/30 rounded-lg p-3 mb-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-gray-400">総合遵守率</span>
+                  <span className={`text-lg font-bold ${complianceStats.overallComplianceRate >= 80 ? 'text-emerald-400' : complianceStats.overallComplianceRate >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                    {complianceStats.overallComplianceRate}%
+                  </span>
+                </div>
+                <Progress 
+                  value={complianceStats.overallComplianceRate} 
+                  className="h-2 bg-gray-700" 
+                />
+                {complianceStats.overallComplianceRate < 80 && (
+                  <p className="text-xs text-yellow-400 mt-2 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    遵守率が低いと評価に影響します
+                  </p>
+                )}
+              </div>
+
+              {/* 3つの指標 */}
+              <div className="space-y-2">
+                {/* スケジュール事前登録率 */}
+                <div className="flex items-center justify-between bg-gray-700/20 rounded-lg p-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-3.5 w-3.5 text-blue-400" />
+                    <span className="text-xs text-gray-300">スケジュール事前登録</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-bold ${complianceStats.scheduleComplianceRate >= 80 ? 'text-emerald-400' : complianceStats.scheduleComplianceRate >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                      {complianceStats.scheduleComplianceRate}%
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      ({complianceStats.scheduledStreams}/{complianceStats.totalStreams})
+                    </span>
+                  </div>
+                </div>
+
+                {/* 48時間以内登録率 */}
+                <div className="flex items-center justify-between bg-gray-700/20 rounded-lg p-2">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-3.5 w-3.5 text-purple-400" />
+                    <span className="text-xs text-gray-300">48h以内記録登録</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-bold ${complianceStats.registrationComplianceRate >= 80 ? 'text-emerald-400' : complianceStats.registrationComplianceRate >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                      {complianceStats.registrationComplianceRate}%
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      ({complianceStats.onTimeRegistrations}/{complianceStats.totalStreams})
+                    </span>
+                  </div>
+                </div>
+
+                {/* ブランド配信時間入力率 */}
+                <div className="flex items-center justify-between bg-gray-700/20 rounded-lg p-2">
+                  <div className="flex items-center gap-2">
+                    <Tag className="h-3.5 w-3.5 text-cyan-400" />
+                    <span className="text-xs text-gray-300">ブランド時間入力</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-bold ${complianceStats.brandInputRate >= 80 ? 'text-emerald-400' : complianceStats.brandInputRate >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                      {complianceStats.brandInputRate}%
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      ({complianceStats.brandInputStreams}/{complianceStats.totalStreams})
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 警告リスト */}
+              {(complianceStats.unscheduledStreams > 0 || complianceStats.lateRegistrations > 0 || complianceStats.noBrandInputStreams > 0) && (
+                <div className="mt-3 space-y-1.5">
+                  {complianceStats.unscheduledStreams > 0 && (
+                    <div className="flex items-center gap-2 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5">
+                      <ShieldAlert className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                      <span className="text-red-300">
+                        スケジュール未登録配信: {complianceStats.unscheduledStreams}件 → 評価に影響します
+                      </span>
+                    </div>
+                  )}
+                  {complianceStats.lateRegistrations > 0 && (
+                    <div className="flex items-center gap-2 text-xs bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-2 py-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5 text-yellow-400 shrink-0" />
+                      <span className="text-yellow-300">
+                        48h超過登録: {complianceStats.lateRegistrations}件 → 評価に影響します
+                      </span>
+                    </div>
+                  )}
+                  {complianceStats.noBrandInputStreams > 0 && (
+                    <div className="flex items-center gap-2 text-xs bg-orange-500/10 border border-orange-500/20 rounded-lg px-2 py-1.5">
+                      <AlertCircle className="h-3.5 w-3.5 text-orange-400 shrink-0" />
+                      <span className="text-orange-300">
+                        ブランド時間未入力: {complianceStats.noBrandInputStreams}件 → 評価に影響します
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* ブランド別配信時間 */}
         {brandDurationStats && brandDurationStats.length > 0 && (
           <Card className="bg-gray-800/50 border-gray-700">
@@ -2513,6 +2644,79 @@ export default function LiverMypage() {
               className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-bold"
             >
               今すぐ登録する
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 配信ルールヘルプダイアログ */}
+      <Dialog open={showComplianceHelp} onOpenChange={setShowComplianceHelp}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <ShieldCheck className="h-5 w-5 text-emerald-400" />
+              配信ルールについて
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-sm">
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+              <h4 className="font-bold text-blue-400 mb-1 flex items-center gap-1">
+                <Calendar className="h-3.5 w-3.5" />
+                ① 事前スケジュール登録
+              </h4>
+              <ul className="text-gray-300 space-y-1 text-xs">
+                <li>• 配信前に必ずスケジュールを登録してください</li>
+                <li>• 当日でも配信開始前なら登録OK</li>
+                <li>• 未登録で配信した場合は「未登録配信」として記録されます</li>
+                <li className="text-yellow-400 font-medium">→ 評価に影響します</li>
+              </ul>
+            </div>
+
+            <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3">
+              <h4 className="font-bold text-purple-400 mb-1 flex items-center gap-1">
+                <Clock className="h-3.5 w-3.5" />
+                ② 配信記録は48時間以内に登録
+              </h4>
+              <ul className="text-gray-300 space-y-1 text-xs">
+                <li>• 配信終了後、48時間以内に配信記録を登録してください</li>
+                <li>• まとめて一気に登録する場合も、48時間ルールは適用されます</li>
+                <li className="text-yellow-400 font-medium">→ 48時間を超えると評価に影響します</li>
+              </ul>
+            </div>
+
+            <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-3">
+              <h4 className="font-bold text-cyan-400 mb-1 flex items-center gap-1">
+                <Tag className="h-3.5 w-3.5" />
+                ③ ブランド別配信時間を正確に入力
+              </h4>
+              <ul className="text-gray-300 space-y-1 text-xs">
+                <li>• 配信で扱ったブランドと時間を正確に入力してください</li>
+                <li>• CSV売上と照合して時給効率を自動計算しています</li>
+                <li>• 正確に入力することで、あなたの得意ブランド・時給が可視化されます</li>
+                <li className="text-yellow-400 font-medium">→ 未入力の場合は評価に影響します</li>
+              </ul>
+            </div>
+
+            <div className="bg-gray-700/30 rounded-lg p-3">
+              <h4 className="font-bold text-gray-200 mb-1">📊 総合遵守率について</h4>
+              <p className="text-gray-400 text-xs">
+                上記3つの遵守率の平均が総合遵守率として表示されます。
+                毎月の評価に反映されるため、常に80%以上を維持しましょう。
+              </p>
+            </div>
+
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
+              <h4 className="font-bold text-emerald-400 mb-1">💪 なぜこのルールが必要？</h4>
+              <ul className="text-gray-300 space-y-1 text-xs">
+                <li>• 配信枠の最適化・ブランドとの調整がスムーズになります</li>
+                <li>• 計画的に配信することで、準備の質が上がり売上アップにつながります</li>
+                <li>• 真面目にやっている人が正当に評価される仕組みです</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowComplianceHelp(false)} className="w-full">
+              閉じる
             </Button>
           </DialogFooter>
         </DialogContent>

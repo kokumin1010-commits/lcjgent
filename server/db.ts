@@ -24150,3 +24150,183 @@ export async function fixRemainingAmountForPastPurchases(): Promise<{ usersFixed
   console.log(`[Migration] fixRemainingAmountForPastPurchases complete: ${usersFixed} users fixed, ${totalAdjusted} total adjusted`);
   return { usersFixed, totalAdjusted };
 }
+
+
+/**
+ * ライバーの配信遵守率を計算する
+ * - スケジュール事前登録率
+ * - 48時間以内の記録登録率
+ * - ブランド配信時間入力率
+ */
+export async function getLiverComplianceStats(liverId: number, yearMonth?: string) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Build date conditions
+  let dateCondition = sql`1=1`;
+  if (yearMonth) {
+    const [year, mon] = yearMonth.split('-').map(Number);
+    const startDate = new Date(year, mon - 1, 1);
+    const endDate = new Date(year, mon, 1);
+    dateCondition = sql`${brandLivestreams.livestreamDate} >= ${startDate.toISOString().slice(0, 10)} AND ${brandLivestreams.livestreamDate} < ${endDate.toISOString().slice(0, 10)}`;
+  }
+
+  // Get all livestreams for this liver in the period
+  const livestreams = await db
+    .select({
+      id: brandLivestreams.id,
+      scheduleId: brandLivestreams.scheduleId,
+      livestreamDate: brandLivestreams.livestreamDate,
+      createdAt: brandLivestreams.createdAt,
+      salesAmount: brandLivestreams.salesAmount,
+      duration: brandLivestreams.duration,
+    })
+    .from(brandLivestreams)
+    .where(sql`${brandLivestreams.liverId} = ${liverId} AND ${brandLivestreams.deletedAt} IS NULL AND ${dateCondition}`);
+
+  if (livestreams.length === 0) {
+    return {
+      totalStreams: 0,
+      scheduledStreams: 0,
+      unscheduledStreams: 0,
+      scheduleComplianceRate: 100,
+      onTimeRegistrations: 0,
+      lateRegistrations: 0,
+      registrationComplianceRate: 100,
+      brandInputStreams: 0,
+      noBrandInputStreams: 0,
+      brandInputRate: 100,
+      overallComplianceRate: 100,
+      unscheduledList: [],
+      lateRegistrationList: [],
+      noBrandList: [],
+    };
+  }
+
+  // 1. Schedule compliance (scheduleId not null = scheduled)
+  const scheduledStreams = livestreams.filter(ls => ls.scheduleId != null);
+  const unscheduledStreams = livestreams.filter(ls => ls.scheduleId == null);
+  const scheduleComplianceRate = livestreams.length > 0
+    ? Math.round((scheduledStreams.length / livestreams.length) * 100)
+    : 100;
+
+  // 2. 48-hour registration rule
+  const onTimeRegistrations: typeof livestreams = [];
+  const lateRegistrations: typeof livestreams = [];
+  for (const ls of livestreams) {
+    if (ls.livestreamDate && ls.createdAt) {
+      const diffMs = new Date(ls.createdAt).getTime() - new Date(ls.livestreamDate).getTime();
+      const diffHours = diffMs / (1000 * 60 * 60);
+      if (diffHours <= 48) {
+        onTimeRegistrations.push(ls);
+      } else {
+        lateRegistrations.push(ls);
+      }
+    } else {
+      onTimeRegistrations.push(ls); // If no date info, assume OK
+    }
+  }
+  const registrationComplianceRate = livestreams.length > 0
+    ? Math.round((onTimeRegistrations.length / livestreams.length) * 100)
+    : 100;
+
+  // 3. Brand input rate (check if livestreamBrands has entries for each livestream)
+  const livestreamIds = livestreams.map(ls => ls.id);
+  let brandInputStreams = 0;
+  let noBrandInputStreams = 0;
+  
+  if (livestreamIds.length > 0) {
+    const brandEntries = await db
+      .select({
+        livestreamId: livestreamBrands.livestreamId,
+      })
+      .from(livestreamBrands)
+      .where(sql`${livestreamBrands.livestreamId} IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`, `)})`);
+    
+    const livestreamsWithBrands = new Set(brandEntries.map(be => be.livestreamId));
+    
+    for (const ls of livestreams) {
+      if (livestreamsWithBrands.has(ls.id)) {
+        brandInputStreams++;
+      } else {
+        noBrandInputStreams++;
+      }
+    }
+  }
+  
+  const brandInputRate = livestreams.length > 0
+    ? Math.round((brandInputStreams / livestreams.length) * 100)
+    : 100;
+
+  // Overall compliance rate (average of 3)
+  const overallComplianceRate = Math.round(
+    (scheduleComplianceRate + registrationComplianceRate + brandInputRate) / 3
+  );
+
+  // Build lists for display (most recent 5)
+  const unscheduledList = unscheduledStreams
+    .sort((a, b) => new Date(b.livestreamDate).getTime() - new Date(a.livestreamDate).getTime())
+    .slice(0, 5)
+    .map(ls => ({
+      id: ls.id,
+      date: ls.livestreamDate ? new Date(ls.livestreamDate).toISOString() : '',
+      salesAmount: Number(ls.salesAmount || 0),
+    }));
+
+  const lateRegistrationList = lateRegistrations
+    .sort((a, b) => new Date(b.livestreamDate).getTime() - new Date(a.livestreamDate).getTime())
+    .slice(0, 5)
+    .map(ls => {
+      const diffMs = new Date(ls.createdAt).getTime() - new Date(ls.livestreamDate).getTime();
+      const hoursLate = Math.round(diffMs / (1000 * 60 * 60));
+      return {
+        id: ls.id,
+        date: ls.livestreamDate ? new Date(ls.livestreamDate).toISOString() : '',
+        registeredAt: ls.createdAt ? new Date(ls.createdAt).toISOString() : '',
+        hoursLate,
+      };
+    });
+
+  const noBrandIds = livestreams
+    .filter(ls => {
+      if (livestreamIds.length === 0) return false;
+      // Check if this livestream has brand entries
+      return noBrandInputStreams > 0 && !brandInputStreams; // simplified
+    });
+  
+  // Re-check properly for noBrandList
+  const livestreamsWithBrandsSet = new Set<number>();
+  if (livestreamIds.length > 0) {
+    const brandEntries2 = await db
+      .select({ livestreamId: livestreamBrands.livestreamId })
+      .from(livestreamBrands)
+      .where(sql`${livestreamBrands.livestreamId} IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`, `)})`);
+    brandEntries2.forEach(be => livestreamsWithBrandsSet.add(be.livestreamId));
+  }
+  
+  const noBrandList = livestreams
+    .filter(ls => !livestreamsWithBrandsSet.has(ls.id))
+    .sort((a, b) => new Date(b.livestreamDate).getTime() - new Date(a.livestreamDate).getTime())
+    .slice(0, 5)
+    .map(ls => ({
+      id: ls.id,
+      date: ls.livestreamDate ? new Date(ls.livestreamDate).toISOString() : '',
+    }));
+
+  return {
+    totalStreams: livestreams.length,
+    scheduledStreams: scheduledStreams.length,
+    unscheduledStreams: unscheduledStreams.length,
+    scheduleComplianceRate,
+    onTimeRegistrations: onTimeRegistrations.length,
+    lateRegistrations: lateRegistrations.length,
+    registrationComplianceRate,
+    brandInputStreams,
+    noBrandInputStreams,
+    brandInputRate,
+    overallComplianceRate,
+    unscheduledList,
+    lateRegistrationList,
+    noBrandList,
+  };
+}

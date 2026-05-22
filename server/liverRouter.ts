@@ -29,6 +29,7 @@ import {
   isLiverAitherhubLinked,
   getLiverMonthlyProducts,
   getLiverBrandDurationStats,
+  getLiverComplianceStats,
   getLiverRecentHourlyRate,
   getMegaChannelSettings,
   getMegaChannelQualification,
@@ -735,6 +736,19 @@ export const liverRouter = router({
       const payload = await verifyLiverToken(token);
       if (!payload) throw new TRPCError({ code: "UNAUTHORIZED" });
       return await getLiverBrandDurationStats(payload.liverId, input.yearMonth);
+    }),
+
+  // スケジュール遵守率・配信ルール遵守状況を取得
+  getComplianceStats: publicProcedure
+    .input(z.object({
+      yearMonth: z.string().optional(), // "2026-04" format
+    }))
+    .query(async ({ input, ctx }) => {
+      const token = getLiverToken(ctx as any);
+      if (!token) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const payload = await verifyLiverToken(token);
+      if (!payload) throw new TRPCError({ code: "UNAUTHORIZED" });
+      return await getLiverComplianceStats(payload.liverId, input.yearMonth);
     }),
 
   // メガチャンネル: ライバー自身のステータスを取得
