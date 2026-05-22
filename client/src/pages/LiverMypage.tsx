@@ -1711,7 +1711,12 @@ export default function LiverMypage() {
                           if (allBrandIds.includes(ls.brandId)) return true;
                           if (ls.brandName === brand.brandName) return true;
                           if (ls.livestreamBrands && Array.isArray(ls.livestreamBrands)) {
-                            return ls.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId));
+                            if (ls.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId))) return true;
+                          }
+                          // brandCsvSalesに該当ブランドの売上がある配信も含める
+                          if (ls.brandCsvSales && typeof ls.brandCsvSales === 'object') {
+                            const csvSalesForBrand = allBrandIds.reduce((sum: number, bid: number) => sum + (ls.brandCsvSales[bid] || 0), 0);
+                            if (csvSalesForBrand > 0) return true;
                           }
                           return false;
                         })

@@ -1049,7 +1049,12 @@ export default function LiverByName() {
                       ? data.livestreams.filter((l: any) => {
                           if (allBrandIds.includes(l.brandId)) return true;
                           if (l.livestreamBrands && Array.isArray(l.livestreamBrands)) {
-                            return l.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId));
+                            if (l.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId))) return true;
+                          }
+                          // brandCsvSalesに該当ブランドの売上がある配信も含める
+                          if (l.brandCsvSales && typeof l.brandCsvSales === 'object') {
+                            const csvSalesForBrand = allBrandIds.reduce((sum: number, bid: number) => sum + (l.brandCsvSales[bid] || 0), 0);
+                            if (csvSalesForBrand > 0) return true;
                           }
                           return false;
                         })
