@@ -1578,6 +1578,9 @@ export default function LiverMypage() {
                     <span className="text-xs text-gray-500">
                       ({complianceStats.onTimeRegistrations}/{complianceStats.totalStreams})
                     </span>
+                    {complianceStats.consecutiveLate && complianceStats.consecutiveLate >= 2 && (
+                      <span className="text-xs text-red-400 font-bold ml-1">連続{complianceStats.consecutiveLate}回🔥</span>
+                    )}
                   </div>
                 </div>
 
@@ -1613,7 +1616,11 @@ export default function LiverMypage() {
                     <div className="flex items-center gap-2 text-xs bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-2 py-1.5">
                       <AlertTriangle className="h-3.5 w-3.5 text-yellow-400 shrink-0" />
                       <span className="text-yellow-300">
-                        48h超過登録: {complianceStats.lateRegistrations}件 → 評価に影響します
+                        48h超過登録: {complianceStats.lateRegistrations}件
+                        {complianceStats.lateRegistrationList && complianceStats.lateRegistrationList.length >= 2 && (
+                          <span className="ml-1 text-red-400 font-bold">（連続{complianceStats.lateRegistrationList.length}回 🔥）</span>
+                        )}
+                        <span className="ml-1">→ 評価に影響します</span>
                       </span>
                     </div>
                   )}

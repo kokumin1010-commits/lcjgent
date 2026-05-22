@@ -95,6 +95,20 @@ export function createCoachingMessage(
     sets?: { setName: string; setPrice: number; quantitySold: number; items: { productName: string; originalPrice: number; quantity: number }[] }[];
     livestreamDate?: string;
     brandDurations?: Record<string, number>;
+    complianceData?: {
+      isScheduled: boolean;
+      isLateRegistration: boolean;
+      hoursLate?: number;
+      hasBrandInput: boolean;
+      monthlyStats: {
+        totalStreams: number;
+        lateCount: number;
+        unscheduledCount: number;
+        noBrandCount: number;
+        consecutiveLate: number;
+        overallRate: number;
+      };
+    };
   } | null
 ): LineMessage[] {
   const messages: LineMessage[] = [];
@@ -310,6 +324,59 @@ export function createCoachingMessage(
     messages.push({ type: "text", text: formattedAdvice });
   }
   
+  // === Compliance Status Message ===
+  if (enrichedData?.complianceData) {
+    const cd = enrichedData.complianceData;
+    const ms = cd.monthlyStats;
+    let complianceText = `📋 配信ルール遵守状況\n━━━━━━━━━━━━━━\n`;
+    
+    // This stream's status
+    complianceText += cd.isScheduled 
+      ? `✅ スケジュール事前登録: OK\n`
+      : `🚨 スケジュール未登録配信\n   → 次回は必ず事前にスケジュール登録しましょう\n`;
+    
+    if (cd.isLateRegistration) {
+      complianceText += `⚠️ 48h超過登録（配信後${cd.hoursLate || '48+'}時間で登録）\n`;
+      complianceText += `   → 次回は48時間以内に登録しましょう\n`;
+    } else {
+      complianceText += `✅ 記録登録: 48h以内 OK\n`;
+    }
+    
+    complianceText += cd.hasBrandInput
+      ? `✅ ブランド時間入力: OK\n`
+      : `⚠️ ブランド時間未入力\n   → ブランド別配信時間を入力してください\n`;
+    
+    // Monthly stats
+    complianceText += `\n📊 今月の状況:\n`;
+    complianceText += `├ 総合遵守率: ${ms.overallRate}%\n`;
+    if (ms.unscheduledCount > 0) {
+      complianceText += `├ スケジュール未登録: ${ms.unscheduledCount}回 / ${ms.totalStreams}配信\n`;
+    }
+    if (ms.lateCount > 0) {
+      complianceText += `├ 48h超過登録: ${ms.lateCount}回`;
+      if (ms.consecutiveLate > 1) {
+        complianceText += `（連続${ms.consecutiveLate}回 🔥）`;
+      }
+      complianceText += `\n`;
+    }
+    if (ms.noBrandCount > 0) {
+      complianceText += `├ ブランド未入力: ${ms.noBrandCount}回\n`;
+    }
+    
+    // Warning for consecutive violations
+    if (ms.consecutiveLate >= 3) {
+      complianceText += `\n🚨 連続${ms.consecutiveLate}回の遅延登録です！\n   評価に大きく影響します。改善してください。`;
+    } else if (ms.consecutiveLate >= 2) {
+      complianceText += `\n⚠️ 連続遅延が続いています。評価に影響します。`;
+    }
+    
+    if (ms.overallRate < 60) {
+      complianceText += `\n\n⚠️ 遵守率が${ms.overallRate}%です。80%以上を目指しましょう。`;
+    }
+    
+    messages.push({ type: "text", text: complianceText.trim() });
+  }
+  
   // Add 神コーチ link as the last message
   const coachLink = enrichedData?.livestreamId 
     ? `https://lcjmall.com/liver/coach?context=post_stream&livestreamId=${enrichedData.livestreamId}`
@@ -348,6 +415,20 @@ export async function sendCoachingToLiver(
     sets?: { setName: string; setPrice: number; quantitySold: number; items: { productName: string; originalPrice: number; quantity: number }[] }[];
     livestreamDate?: string;
     brandDurations?: Record<string, number>;
+    complianceData?: {
+      isScheduled: boolean;
+      isLateRegistration: boolean;
+      hoursLate?: number;
+      hasBrandInput: boolean;
+      monthlyStats: {
+        totalStreams: number;
+        lateCount: number;
+        unscheduledCount: number;
+        noBrandCount: number;
+        consecutiveLate: number;
+        overallRate: number;
+      };
+    };
   } | null
 ): Promise<{ success: boolean; error?: string }> {
   const messages = createCoachingMessage(

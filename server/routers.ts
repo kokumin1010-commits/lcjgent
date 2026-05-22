@@ -11353,7 +11353,7 @@ ${conversationText}
             
             try {
               // Get previous livestream for comparison
-              const { getLiverPreviousLivestream, getLiverMonthlyGoalByName, getBrandById } = await import("./db");
+              const { getLiverPreviousLivestream, getLiverMonthlyGoalByName, getBrandById, getLiverComplianceStats } = await import("./db");
               const prevStream = await getLiverPreviousLivestream(input.liverId, id);
               
               // Get monthly goal progress
@@ -11374,6 +11374,51 @@ ${conversationText}
                     brandBreakdown.push({ brandName: `Brand ${brandIdStr}`, sales: revenue as number });
                   }
                 }
+              }
+              
+              // Build compliance data for LINE notification
+              let complianceData: any = undefined;
+              try {
+                const now = new Date();
+                const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                const complianceStats = await getLiverComplianceStats(input.liverId, yearMonth);
+                if (complianceStats) {
+                  // Check if this specific livestream is scheduled
+                  const isScheduled = !!input.scheduleId;
+                  // Check if this is a late registration (createdAt - livestreamDate > 48h)
+                  const livestreamDate = new Date(input.livestreamDate);
+                  const registrationTime = new Date();
+                  const diffHours = Math.round((registrationTime.getTime() - livestreamDate.getTime()) / (1000 * 60 * 60));
+                  const isLateRegistration = diffHours > 48;
+                  // Check if brand input exists (from input.brandDurations or brandSales)
+                  const hasBrandInput = !!(input.brandDurations && Object.keys(input.brandDurations).length > 0) || !!(input.brandSales && Object.keys(input.brandSales).length > 0);
+                  
+                  // Calculate consecutive late registrations
+                  let consecutiveLate = 0;
+                  if (complianceStats.lateRegistrationList && complianceStats.lateRegistrationList.length > 0) {
+                    consecutiveLate = complianceStats.lateRegistrationList.length;
+                    // If current is also late, add 1
+                    if (isLateRegistration) consecutiveLate = Math.max(consecutiveLate, 1);
+                  }
+                  if (isLateRegistration && consecutiveLate === 0) consecutiveLate = 1;
+                  
+                  complianceData = {
+                    isScheduled,
+                    isLateRegistration,
+                    hoursLate: isLateRegistration ? diffHours : undefined,
+                    hasBrandInput,
+                    monthlyStats: {
+                      totalStreams: complianceStats.totalStreams + 1, // +1 for current
+                      lateCount: complianceStats.lateRegistrations + (isLateRegistration ? 1 : 0),
+                      unscheduledCount: complianceStats.unscheduledStreams + (!isScheduled ? 1 : 0),
+                      noBrandCount: complianceStats.noBrandInputStreams + (!hasBrandInput ? 1 : 0),
+                      consecutiveLate,
+                      overallRate: complianceStats.overallComplianceRate,
+                    },
+                  };
+                }
+              } catch (compErr) {
+                console.error("[LINE Coaching] Failed to get compliance data:", compErr);
               }
               
               enrichedData = {
@@ -11399,6 +11444,7 @@ ${conversationText}
                     quantity: item.quantity || 1,
                   })),
                 })),
+                complianceData,
               };
             } catch (enrichErr) {
               console.error("[LINE Coaching] Failed to gather enriched data:", enrichErr);

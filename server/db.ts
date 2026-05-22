@@ -24313,6 +24313,25 @@ export async function getLiverComplianceStats(liverId: number, yearMonth?: strin
       date: ls.livestreamDate ? new Date(ls.livestreamDate).toISOString() : '',
     }));
 
+  // Calculate consecutive late registrations (from most recent)
+  let consecutiveLate = 0;
+  const sortedByDate = [...livestreams].sort((a, b) => 
+    new Date(b.livestreamDate).getTime() - new Date(a.livestreamDate).getTime()
+  );
+  for (const ls of sortedByDate) {
+    if (ls.livestreamDate && ls.createdAt) {
+      const diffMs = new Date(ls.createdAt).getTime() - new Date(ls.livestreamDate).getTime();
+      const diffHours = diffMs / (1000 * 60 * 60);
+      if (diffHours > 48) {
+        consecutiveLate++;
+      } else {
+        break; // Stop counting at first on-time registration
+      }
+    } else {
+      break;
+    }
+  }
+
   return {
     totalStreams: livestreams.length,
     scheduledStreams: scheduledStreams.length,
@@ -24328,5 +24347,6 @@ export async function getLiverComplianceStats(liverId: number, yearMonth?: strin
     unscheduledList,
     lateRegistrationList,
     noBrandList,
+    consecutiveLate,
   };
 }

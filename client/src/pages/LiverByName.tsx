@@ -946,6 +946,9 @@ export default function LiverByName() {
                     {complianceStats.registrationComplianceRate}%
                   </p>
                   <p className="text-xs text-gray-500">{complianceStats.onTimeRegistrations}/{complianceStats.totalStreams}</p>
+                  {complianceStats.consecutiveLate && complianceStats.consecutiveLate >= 2 && (
+                    <p className="text-xs text-red-400 font-bold">連続{complianceStats.consecutiveLate}回🔥</p>
+                  )}
                 </div>
                 <div className="bg-gray-800/50 rounded-lg p-2 text-center">
                   <Tag className="h-3.5 w-3.5 text-cyan-400 mx-auto mb-1" />
@@ -969,7 +972,13 @@ export default function LiverByName() {
                   {complianceStats.lateRegistrations > 0 && (
                     <div className="flex items-center gap-2 text-xs bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-2 py-1.5">
                       <AlertTriangle className="h-3.5 w-3.5 text-yellow-400 shrink-0" />
-                      <span className="text-yellow-300">48h超過登録: {complianceStats.lateRegistrations}件</span>
+                      <span className="text-yellow-300">
+                        48h超過登録: {complianceStats.lateRegistrations}件
+                        {complianceStats.lateRegistrationList && complianceStats.lateRegistrationList.length >= 2 && (
+                          <span className="ml-1 text-red-400 font-bold">（連続{complianceStats.lateRegistrationList.length}回 🔥）</span>
+                        )}
+                        <span className="ml-1">→ 評価に影響します</span>
+                      </span>
                     </div>
                   )}
                   {complianceStats.noBrandInputStreams > 0 && (
