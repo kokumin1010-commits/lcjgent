@@ -1071,14 +1071,13 @@ export default function LiverByName() {
                         })
                       : [];
                     // セクション2: CSV売上のみ（ブランド時間未入力だがCSV売上がある配信）
-                    const csvOnlyStreams = isExpanded && data?.livestreams
+                    // ※ 「⚠️ 未入力」ステータスのブランドのみ表示（時間入力済みブランドでは表示しない）
+                    const csvOnlyStreams = isExpanded && brand.status === 'unregistered' && data?.livestreams
                       ? data.livestreams.filter((l: any) => {
                           // registeredStreamsに含まれている配信は除外
-                          // 新テーブルにdurationMinutes > 0がある → 除外
                           if (l.livestreamBrands && Array.isArray(l.livestreamBrands)) {
                             if (l.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId) && lb.durationMinutes && lb.durationMinutes > 0)) return false;
                           }
-                          // 旧テーブルfallbackが有効な場合（brandHasNewTableEntries=false）、旧テーブルでマッチする配信も除外
                           if (!brandHasNewTableEntries && allBrandIds.includes(l.brandId) && l.duration && l.duration > 0) return false;
                           // brandCsvSalesに該当ブランドの売上がある
                           if (l.brandCsvSales && typeof l.brandCsvSales === 'object') {

@@ -1731,7 +1731,8 @@ export default function LiverMypage() {
                         })
                       : [];
                     // CSV売上のみ（ブランド時間未入力だがCSV売上がある配信）
-                    const csvOnlyStreams = isExpanded && filteredLivestreams
+                    // ※ 「⚠️ 未入力」ステータスのブランドのみ表示
+                    const csvOnlyStreams = isExpanded && (brand as any).status === 'unregistered' && filteredLivestreams
                       ? filteredLivestreams.filter((ls: any) => {
                           if (ls.livestreamBrands && Array.isArray(ls.livestreamBrands)) {
                             if (ls.livestreamBrands.some((lb: any) => allBrandIds.includes(lb.brandId) && lb.durationMinutes && lb.durationMinutes > 0)) return false;
