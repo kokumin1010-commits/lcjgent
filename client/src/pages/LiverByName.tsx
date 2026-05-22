@@ -1103,26 +1103,42 @@ export default function LiverByName() {
                         {/* ブランド配信一覧展開 */}
                         {isExpanded && brandLivestreams.length > 0 && (
                           <div className="ml-6 mt-2 mb-1 space-y-1">
-                            {brandLivestreams.map((ls: any) => (
-                              <div
-                                key={ls.id}
-                                className="flex items-center justify-between text-xs p-2 rounded bg-gray-800/40 border border-gray-700/30 hover:border-cyan-500/30 cursor-pointer transition-all"
-                                onClick={(e) => { e.stopPropagation(); navigate(`/livestreams/${ls.id}`); }}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Calendar className="w-3 h-3 text-gray-400" />
-                                  <span className="text-white">{formatDate(ls.livestreamDate)}</span>
-                                  {formatTimeRange(ls) && (
-                                    <span className="text-gray-500">{formatTimeRange(ls)}</span>
-                                  )}
+                            {brandLivestreams.map((ls: any) => {
+                              // 該当ブランドの配信時間を取得
+                              const brandDuration = ls.livestreamBrands && Array.isArray(ls.livestreamBrands)
+                                ? ls.livestreamBrands
+                                    .filter((lb: any) => allBrandIds.includes(lb.brandId))
+                                    .reduce((sum: number, lb: any) => sum + (lb.durationMinutes || 0), 0)
+                                : 0;
+                              // 該当ブランドのCSV売上を取得
+                              const brandCsvSales = ls.brandCsvSales && typeof ls.brandCsvSales === 'object'
+                                ? allBrandIds.reduce((sum: number, bid: number) => sum + (ls.brandCsvSales[bid] || 0), 0)
+                                : 0;
+                              return (
+                                <div
+                                  key={ls.id}
+                                  className="flex items-center justify-between text-xs p-2 rounded bg-gray-800/40 border border-gray-700/30 hover:border-cyan-500/30 cursor-pointer transition-all"
+                                  onClick={(e) => { e.stopPropagation(); navigate(`/livestreams/${ls.id}`); }}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Calendar className="w-3 h-3 text-gray-400" />
+                                    <span className="text-white">{formatDate(ls.livestreamDate)}</span>
+                                    {formatTimeRange(ls) && (
+                                      <span className="text-gray-500">{formatTimeRange(ls)}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-yellow-400 font-mono">
+                                      {brandCsvSales > 0 ? formatCurrency(brandCsvSales) : <span className="text-gray-500">-</span>}
+                                    </span>
+                                    <span className="text-blue-400">
+                                      {brandDuration > 0 ? formatDuration(brandDuration) : formatDuration(ls.duration)}
+                                    </span>
+                                    <ChevronRight className="w-3 h-3 text-gray-500" />
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                  <span className="text-yellow-400 font-mono">{formatCurrency(ls.salesAmount)}</span>
-                                  <span className="text-blue-400">{formatDuration(ls.duration)}</span>
-                                  <ChevronRight className="w-3 h-3 text-gray-500" />
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                         {isExpanded && brandLivestreams.length === 0 && (

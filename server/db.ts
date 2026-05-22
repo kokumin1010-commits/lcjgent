@@ -3928,12 +3928,93 @@ export async function getLivestreamsByLiverId(liverId: number, month?: string) {
     conditions.push(sql`${brandLivestreams.livestreamDate} <= ${endDate}`);
   }
   
-  return await db
+  const livestreamRows = await db
     .select()
     .from(brandLivestreams)
     .where(and(
       isNull(brandLivestreams.deletedAt),...conditions))
     .orderBy(desc(brandLivestreams.livestreamDate));
+
+  const livestreamIds = livestreamRows.map(l => l.id);
+  if (livestreamIds.length === 0) return livestreamRows;
+
+  // 各配信のブランド別配信時間を取得
+  let brandDurationMap: Record<number, Array<{ brandId: number; brandName: string; durationMinutes: number | null }>> = {};
+  const lbRows = await db
+    .select({
+      livestreamId: livestreamBrands.livestreamId,
+      brandId: livestreamBrands.brandId,
+      durationMinutes: livestreamBrands.durationMinutes,
+      brandName: brands.name,
+    })
+    .from(livestreamBrands)
+    .leftJoin(brands, eq(livestreamBrands.brandId, brands.id))
+    .where(inArray(livestreamBrands.livestreamId, livestreamIds));
+  
+  for (const row of lbRows) {
+    if (!brandDurationMap[row.livestreamId]) {
+      brandDurationMap[row.livestreamId] = [];
+    }
+    brandDurationMap[row.livestreamId].push({
+      brandId: row.brandId,
+      brandName: row.brandName || `Brand ${row.brandId}`,
+      durationMinutes: row.durationMinutes,
+    });
+  }
+
+  // 各配信のブランド別CSV売上を取得
+  let brandCsvSalesMap: Record<number, Record<number, number>> = {};
+  const allBrandsForMatch = await db
+    .select({ id: brands.id, name: brands.name })
+    .from(brands)
+    .where(isNull(brands.deletedAt));
+
+  const batchSize = 100;
+  let allProds: Array<{ livestreamId: number; productName: string; grossRevenue: number | null; gmv: number | null }> = [];
+  for (let i = 0; i < livestreamIds.length; i += batchSize) {
+    const batch = livestreamIds.slice(i, i + batchSize);
+    const prods = await db
+      .select({
+        livestreamId: livestreamProducts.livestreamId,
+        productName: livestreamProducts.productName,
+        grossRevenue: livestreamProducts.grossRevenue,
+        gmv: livestreamProducts.gmv,
+      })
+      .from(livestreamProducts)
+      .where(inArray(livestreamProducts.livestreamId, batch));
+    allProds = allProds.concat(prods);
+  }
+
+  for (const product of allProds) {
+    const productName = (product.productName || '').trim();
+    const revenue = Number(product.grossRevenue || product.gmv || 0);
+    if (!productName || revenue === 0) continue;
+
+    let matchedBrand: { id: number; name: string } | null = null;
+    const productNameLower = productName.toLowerCase();
+    let longestMatch = 0;
+    for (const brand of allBrandsForMatch) {
+      const brandNameLower = brand.name.toLowerCase().trim();
+      if (brandNameLower.length > longestMatch && productNameLower.includes(brandNameLower)) {
+        matchedBrand = brand;
+        longestMatch = brandNameLower.length;
+      }
+    }
+
+    if (matchedBrand) {
+      if (!brandCsvSalesMap[product.livestreamId]) {
+        brandCsvSalesMap[product.livestreamId] = {};
+      }
+      brandCsvSalesMap[product.livestreamId][matchedBrand.id] = 
+        (brandCsvSalesMap[product.livestreamId][matchedBrand.id] || 0) + revenue;
+    }
+  }
+
+  return livestreamRows.map(l => ({
+    ...l,
+    livestreamBrands: brandDurationMap[l.id] || [],
+    brandCsvSales: brandCsvSalesMap[l.id] || {},
+  }));
 }
 
 // Get liver statistics (monthly sales, total hours)
@@ -8599,11 +8680,65 @@ export async function getLivestreamsByStreamerName(streamerName: string, month?:
       });
     }
   }
+
+  // 各配信のブランド別CSV売上を取得（商品名からブランドを自動検出）
+  let brandCsvSalesMap: Record<number, Record<number, number>> = {}; // livestreamId -> brandId -> csvGmv
+  if (livestreamIds.length > 0) {
+    // 全ブランド名を取得
+    const allBrands = await db
+      .select({ id: brands.id, name: brands.name })
+      .from(brands)
+      .where(isNull(brands.deletedAt));
+
+    // バッチで商品データを取得
+    const batchSize = 100;
+    let allProds: Array<{ livestreamId: number; productName: string; grossRevenue: number | null; gmv: number | null }> = [];
+    for (let i = 0; i < livestreamIds.length; i += batchSize) {
+      const batch = livestreamIds.slice(i, i + batchSize);
+      const prods = await db
+        .select({
+          livestreamId: livestreamProducts.livestreamId,
+          productName: livestreamProducts.productName,
+          grossRevenue: livestreamProducts.grossRevenue,
+          gmv: livestreamProducts.gmv,
+        })
+        .from(livestreamProducts)
+        .where(inArray(livestreamProducts.livestreamId, batch));
+      allProds = allProds.concat(prods);
+    }
+
+    // 商品名からブランドを検出して配信ごと・ブランドごとに集計
+    for (const product of allProds) {
+      const productName = (product.productName || '').trim();
+      const revenue = Number(product.grossRevenue || product.gmv || 0);
+      if (!productName || revenue === 0) continue;
+
+      let matchedBrand: { id: number; name: string } | null = null;
+      const productNameLower = productName.toLowerCase();
+      let longestMatch = 0;
+      for (const brand of allBrands) {
+        const brandNameLower = brand.name.toLowerCase().trim();
+        if (brandNameLower.length > longestMatch && productNameLower.includes(brandNameLower)) {
+          matchedBrand = brand;
+          longestMatch = brandNameLower.length;
+        }
+      }
+
+      if (matchedBrand) {
+        if (!brandCsvSalesMap[product.livestreamId]) {
+          brandCsvSalesMap[product.livestreamId] = {};
+        }
+        brandCsvSalesMap[product.livestreamId][matchedBrand.id] = 
+          (brandCsvSalesMap[product.livestreamId][matchedBrand.id] || 0) + revenue;
+      }
+    }
+  }
   
   const livestreamsWithProductCount = livestreams.map(l => ({
     ...l,
     productCount: productCountMap[l.id] || 0,
     livestreamBrands: brandDurationMap[l.id] || [],
+    brandCsvSales: brandCsvSalesMap[l.id] || {},
   }));
   
   return { livestreams: livestreamsWithProductCount, totalSales, totalDuration, liverId };

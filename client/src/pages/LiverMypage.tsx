@@ -1766,6 +1766,20 @@ export default function LiverMypage() {
                               const date = new Date(ls.livestreamDate);
                               const dateStr = date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' });
                               const timeStr = date.toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' });
+                              // 該当ブランドの配信時間を取得
+                              const allBrandIds: number[] = (brand as any).brandIds || [brand.brandId];
+                              const brandDuration = ls.livestreamBrands && Array.isArray(ls.livestreamBrands)
+                                ? ls.livestreamBrands
+                                    .filter((lb: any) => allBrandIds.includes(lb.brandId))
+                                    .reduce((sum: number, lb: any) => sum + (lb.durationMinutes || 0), 0)
+                                : 0;
+                              // 該当ブランドのCSV売上を取得
+                              const brandCsvSales = ls.brandCsvSales && typeof ls.brandCsvSales === 'object'
+                                ? allBrandIds.reduce((sum: number, bid: number) => sum + (ls.brandCsvSales[bid] || 0), 0)
+                                : 0;
+                              const durationStr = brandDuration > 0
+                                ? `${Math.floor(brandDuration / 60) > 0 ? Math.floor(brandDuration / 60) + 'h' : ''}${brandDuration % 60 > 0 ? (brandDuration % 60) + 'm' : ''}`
+                                : '';
                               return (
                                 <div
                                   key={ls.id}
@@ -1773,7 +1787,12 @@ export default function LiverMypage() {
                                   onClick={(e) => { e.stopPropagation(); navigate(`/livestreams/${ls.id}`); }}
                                 >
                                   <span className="text-gray-300">{dateStr} {timeStr}</span>
-                                  <span className="text-orange-400 font-medium">¥{Number(ls.salesAmount || 0).toLocaleString()}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-orange-400 font-medium">
+                                      {brandCsvSales > 0 ? `¥${brandCsvSales.toLocaleString()}` : <span className="text-gray-500">-</span>}
+                                    </span>
+                                    {durationStr && <span className="text-cyan-400">{durationStr}</span>}
+                                  </div>
                                 </div>
                               );
                             })}
