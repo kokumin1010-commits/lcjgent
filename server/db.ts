@@ -22271,13 +22271,11 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
   const db = await getDb();
   if (!db) return [];
 
-  // Build date conditions
+  // Build date conditions using JST-aware range (consistent with getLivestreamsByStreamerName)
   let dateCondition = sql`1=1`;
   if (yearMonth) {
-    const [year, mon] = yearMonth.split('-').map(Number);
-    const startDate = new Date(year, mon - 1, 1);
-    const endDate = new Date(year, mon, 1);
-    dateCondition = sql`${brandLivestreams.livestreamDate} >= ${startDate.toISOString().slice(0, 10)} AND ${brandLivestreams.livestreamDate} < ${endDate.toISOString().slice(0, 10)}`;
+    const { startDate, endDate } = getJSTMonthRange(yearMonth);
+    dateCondition = sql`${brandLivestreams.livestreamDate} >= ${startDate.toISOString()} AND ${brandLivestreams.livestreamDate} <= ${endDate.toISOString()}`;
   }
 
   // === Correct merge: combine new table (livestream_brands) and old table (brand_livestreams) ===
@@ -22415,10 +22413,8 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
   // Step 1: 該当ライバーの該当期間の全配信IDを取得
   let livestreamDateCondition = sql`1=1`;
   if (yearMonth) {
-    const [y, m] = yearMonth.split('-').map(Number);
-    const sd = new Date(y, m - 1, 1);
-    const ed = new Date(y, m, 1);
-    livestreamDateCondition = sql`${brandLivestreams.livestreamDate} >= ${sd.toISOString().slice(0, 10)} AND ${brandLivestreams.livestreamDate} < ${ed.toISOString().slice(0, 10)}`;
+    const { startDate: csvStartDate, endDate: csvEndDate } = getJSTMonthRange(yearMonth);
+    livestreamDateCondition = sql`${brandLivestreams.livestreamDate} >= ${csvStartDate.toISOString()} AND ${brandLivestreams.livestreamDate} <= ${csvEndDate.toISOString()}`;
   }
   const liverStreams = await db
     .select({ id: brandLivestreams.id })
@@ -24341,13 +24337,11 @@ export async function getLiverComplianceStats(liverId: number, yearMonth?: strin
   const db = await getDb();
   if (!db) return null;
 
-  // Build date conditions
+  // Build date conditions using JST-aware range (consistent with getLivestreamsByStreamerName)
   let dateCondition = sql`1=1`;
   if (yearMonth) {
-    const [year, mon] = yearMonth.split('-').map(Number);
-    const startDate = new Date(year, mon - 1, 1);
-    const endDate = new Date(year, mon, 1);
-    dateCondition = sql`${brandLivestreams.livestreamDate} >= ${startDate.toISOString().slice(0, 10)} AND ${brandLivestreams.livestreamDate} < ${endDate.toISOString().slice(0, 10)}`;
+    const { startDate, endDate } = getJSTMonthRange(yearMonth);
+    dateCondition = sql`${brandLivestreams.livestreamDate} >= ${startDate.toISOString()} AND ${brandLivestreams.livestreamDate} <= ${endDate.toISOString()}`;
   }
 
   // Get all livestreams for this liver in the period
