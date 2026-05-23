@@ -11349,6 +11349,22 @@ ${conversationText}
               previousDuration?: number;
               brandBreakdown?: { brandName: string; sales: number; duration?: number }[];
               monthlyGoal?: { salesGoal: number; currentSales: number; achievementRate: number };
+              livestreamId?: number;
+              sets?: { setName: string; setPrice: number; quantitySold: number; items: { productName: string; originalPrice: number; quantity: number }[] }[];
+              complianceData?: {
+                isScheduled: boolean;
+                isLateRegistration: boolean;
+                hoursLate?: number;
+                hasBrandInput: boolean;
+                monthlyStats: {
+                  totalStreams: number;
+                  lateCount: number;
+                  unscheduledCount: number;
+                  noBrandCount: number;
+                  consecutiveLate: number;
+                  overallRate: number;
+                };
+              };
             } | null = null;
             
             try {

@@ -1737,8 +1737,8 @@ export default function LiverMypage() {
                         })
                       : [];
                     // CSV売上のみ（ブランド時間未入力だがCSV売上がある配信）
-                    // ※ 「⚠️ 未入力」ステータスのブランドのみ表示
-                    const csvOnlyStreams = isExpanded && (brand as any).status === 'unregistered' && filteredLivestreams
+                    // 全ステータスのブランドで表示（ヘッダーの売上合計と展開詳細の合計を一致させるため）
+                    const csvOnlyStreams = isExpanded && filteredLivestreams
                       ? filteredLivestreams.filter((ls: any) => {
                           // 新テーブルでカバーされている配信を除外
                           if (newTableCoveredIds.has(ls.id)) return false;
