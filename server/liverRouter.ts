@@ -241,6 +241,7 @@ export const liverRouter = router({
       lineUserId: liver.lineUserId,
       lineNotificationEnabled: liver.lineNotificationEnabled,
       language: liver.language || 'ja',
+      uid: liver.uid || null,
       aitherhubLinked,
     };
   }),

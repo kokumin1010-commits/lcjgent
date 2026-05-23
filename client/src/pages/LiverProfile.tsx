@@ -193,7 +193,7 @@ export default function LiverProfile() {
       setColor(liverInfo.color || "#FF69B4");
       setBio(liverInfo.bio || "");
       setTiktokAccount(liverInfo.tiktokAccount || "");
-      setUid((liverInfo as any).uid || "");
+      setUid(liverInfo.uid || "");
       setInstagramAccount(liverInfo.instagramAccount || "");
       setYoutubeAccount(liverInfo.youtubeAccount || "");
       setOtherAccount(liverInfo.otherAccount || "");

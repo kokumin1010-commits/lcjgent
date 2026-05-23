@@ -24402,11 +24402,84 @@ export async function getLiverComplianceStats(liverId: number, yearMonth?: strin
     };
   }
 
-  // 1. Schedule compliance (scheduleId not null = scheduled)
-  const scheduledStreams = livestreams.filter(ls => ls.scheduleId != null);
-  const unscheduledStreams = livestreams.filter(ls => ls.scheduleId == null);
+  // 1. Schedule compliance - check schedules table directly
+  // Instead of relying on scheduleId field (which is often NULL),
+  // check if the liver has schedule entries in the schedules table for each livestream date
+  let scheduledCount = 0;
+  let unscheduledCount = 0;
+  const unscheduledStreamsList: typeof livestreams = [];
+  
+  // Get all schedules for this liver in the period (category = 'live')
+  let schedulesInPeriod: { id: number; startTime: Date; liverId: number | null; liverName: string | null }[] = [];
+  try {
+    const scheduleConditions = [sql`${schedules.liverId} = ${liverId}`];
+    if (yearMonth) {
+      const { startDate, endDate } = getJSTMonthRange(yearMonth);
+      scheduleConditions.push(sql`${schedules.startTime} >= ${startDate.toISOString()}`);
+      scheduleConditions.push(sql`${schedules.startTime} <= ${endDate.toISOString()}`);
+    }
+    scheduleConditions.push(sql`${schedules.category} = 'live'`);
+    scheduleConditions.push(sql`${schedules.status} != 'cancelled'`);
+    
+    schedulesInPeriod = await db
+      .select({
+        id: schedules.id,
+        startTime: schedules.startTime,
+        liverId: schedules.liverId,
+        liverName: schedules.liverName,
+      })
+      .from(schedules)
+      .where(sql`${sql.join(scheduleConditions, sql` AND `)}`);
+  } catch (e) {
+    console.error('[getLiverComplianceStats] Failed to fetch schedules:', e);
+  }
+  
+  // Group schedules by date (JST)
+  const schedulesByDate = new Map<string, number>(); // date string -> count
+  for (const sch of schedulesInPeriod) {
+    if (sch.startTime) {
+      // Convert to JST date string
+      const jstDate = new Date(new Date(sch.startTime).getTime() + 9 * 60 * 60 * 1000);
+      const dateKey = `${jstDate.getUTCFullYear()}-${String(jstDate.getUTCMonth() + 1).padStart(2, '0')}-${String(jstDate.getUTCDate()).padStart(2, '0')}`;
+      schedulesByDate.set(dateKey, (schedulesByDate.get(dateKey) || 0) + 1);
+    }
+  }
+  
+  // Group livestreams by date (JST) and compare
+  const livestreamsByDate = new Map<string, typeof livestreams>();
+  for (const ls of livestreams) {
+    if (ls.livestreamDate) {
+      const jstDate = new Date(new Date(ls.livestreamDate).getTime() + 9 * 60 * 60 * 1000);
+      const dateKey = `${jstDate.getUTCFullYear()}-${String(jstDate.getUTCMonth() + 1).padStart(2, '0')}-${String(jstDate.getUTCDate()).padStart(2, '0')}`;
+      if (!livestreamsByDate.has(dateKey)) {
+        livestreamsByDate.set(dateKey, []);
+      }
+      livestreamsByDate.get(dateKey)!.push(ls);
+    }
+  }
+  
+  // For each date, compare schedule count vs livestream count
+  for (const [dateKey, streams] of livestreamsByDate.entries()) {
+    const scheduleCount = schedulesByDate.get(dateKey) || 0;
+    if (scheduleCount >= streams.length) {
+      // All streams on this date are considered scheduled
+      scheduledCount += streams.length;
+    } else {
+      // Some streams are scheduled, some are not
+      scheduledCount += scheduleCount;
+      unscheduledCount += streams.length - scheduleCount;
+      // Add unscheduled streams to list (the ones beyond schedule count)
+      const sortedStreams = [...streams].sort((a, b) => 
+        new Date(a.livestreamDate).getTime() - new Date(b.livestreamDate).getTime()
+      );
+      for (let i = scheduleCount; i < sortedStreams.length; i++) {
+        unscheduledStreamsList.push(sortedStreams[i]);
+      }
+    }
+  }
+  
   const scheduleComplianceRate = livestreams.length > 0
-    ? Math.round((scheduledStreams.length / livestreams.length) * 100)
+    ? Math.round((scheduledCount / livestreams.length) * 100)
     : 100;
 
   // 2. 48-hour registration rule
@@ -24463,7 +24536,7 @@ export async function getLiverComplianceStats(liverId: number, yearMonth?: strin
   );
 
   // Build lists for display (most recent 5)
-  const unscheduledList = unscheduledStreams
+  const unscheduledList = unscheduledStreamsList
     .sort((a, b) => new Date(b.livestreamDate).getTime() - new Date(a.livestreamDate).getTime())
     .slice(0, 5)
     .map(ls => ({
@@ -24533,8 +24606,8 @@ export async function getLiverComplianceStats(liverId: number, yearMonth?: strin
 
   return {
     totalStreams: livestreams.length,
-    scheduledStreams: scheduledStreams.length,
-    unscheduledStreams: unscheduledStreams.length,
+    scheduledStreams: scheduledCount,
+    unscheduledStreams: unscheduledCount,
     scheduleComplianceRate,
     onTimeRegistrations: onTimeRegistrations.length,
     lateRegistrations: lateRegistrations.length,

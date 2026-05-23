@@ -131,7 +131,7 @@ export default function LiverMypage() {
   // LINE未連携ポップアップ表示（毎回ログイン時）
   // UID未登録チェック
   useEffect(() => {
-    if (liverInfo && !(liverInfo as any).uid) {
+    if (liverInfo && !liverInfo.uid) {
       const dismissed = sessionStorage.getItem('uid_popup_dismissed');
       if (!dismissed) {
         const timer = setTimeout(() => setShowUidPopup(true), 2000);
