@@ -22423,16 +22423,16 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
   const merged = Array.from(byNameMap.values())
     .sort((a, b) => b.totalMinutes - a.totalMinutes);
 
-  // ===== CSV売上データの集計（salesAmountベースの按分方式） =====
-  // 各配信のsalesAmountをブランド別商品GMV比率で按分し、合計が月間売上合計と一致するようにする
-  // Step 1: 該当ライバーの該当期間の全配信（ID + salesAmount）を取得
+  // ===== CSV売上データの集計（商品GMVのブランド別集計 + 重複排除） =====
+  // 商品CSVのGMVをブランド名マッチングで集計（参考値）
+  // Step 1: 該当ライバーの該当期間の全配信IDを取得
   let livestreamDateCondition = sql`1=1`;
   if (yearMonth) {
     const { startDate: csvStartDate, endDate: csvEndDate } = getJSTMonthRange(yearMonth);
     livestreamDateCondition = sql`${brandLivestreams.livestreamDate} >= ${csvStartDate.toISOString()} AND ${brandLivestreams.livestreamDate} <= ${csvEndDate.toISOString()}`;
   }
   const liverStreams = await db
-    .select({ id: brandLivestreams.id, salesAmount: brandLivestreams.salesAmount })
+    .select({ id: brandLivestreams.id })
     .from(brandLivestreams)
     .where(and(
       eq(brandLivestreams.liverId, liverId),
@@ -22440,11 +22440,6 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
       livestreamDateCondition
     ));
   const livestreamIds = liverStreams.map(s => s.id);
-  // 配信IDごとのsalesAmountマップ
-  const salesAmountByLsId = new Map<number, number>();
-  for (const ls of liverStreams) {
-    salesAmountByLsId.set(ls.id, Number(ls.salesAmount || 0));
-  }
 
   // Step 2: 全ブランド名を取得（マッチング用）
   const allBrands = await db
@@ -22452,13 +22447,13 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
     .from(brands)
     .where(isNull(brands.deletedAt));
 
-  // Step 3: 配信ごとに商品データを取得し、ブランド別GMV比率でsalesAmountを按分
+  // Step 3: 全商品データを取得してブランド別に集計（重複排除付き）
   const brandSalesMap = new Map<string, { brandName: string; brandIds: number[]; totalGmv: number; productCount: number }>();
 
   if (livestreamIds.length > 0) {
-    // バッチで商品データを取得（配信IDも含める）
+    // バッチで商品データを取得
     const batchSize = 100;
-    let allProducts: { livestreamId: number; productName: string | null; gmv: number | null; grossRevenue: number | null }[] = [];
+    let allProducts: { livestreamId: number; productName: string | null; gmv: number | null; grossRevenue: number | null; livestreamDate?: string | null }[] = [];
     for (let i = 0; i < livestreamIds.length; i += batchSize) {
       const batch = livestreamIds.slice(i, i + batchSize);
       const products = await db
@@ -22473,79 +22468,51 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
       allProducts = allProducts.concat(products);
     }
 
-    // 配信ごとにグループ化
-    const productsByLsId = new Map<number, typeof allProducts>();
+    // 重複排除: 同一商品名+同一GMVの組み合わせが複数配信に存在する場合、1回だけカウント
+    const seenProducts = new Set<string>();
+    const deduplicatedProducts: typeof allProducts = [];
     for (const p of allProducts) {
-      const existing = productsByLsId.get(p.livestreamId);
-      if (existing) {
-        existing.push(p);
-      } else {
-        productsByLsId.set(p.livestreamId, [p]);
+      const key = `${(p.productName || '').trim()}|${Number(p.gmv || 0)}|${Number(p.grossRevenue || 0)}`;
+      if (!seenProducts.has(key)) {
+        seenProducts.add(key);
+        deduplicatedProducts.push(p);
       }
     }
 
-    // 各配信について、ブランド別GMV比率を計算し、salesAmountを按分
-    for (const [lsId, products] of productsByLsId.entries()) {
-      const salesAmount = salesAmountByLsId.get(lsId) || 0;
-      if (salesAmount === 0) continue;
+    // 商品名からブランドを検出して集計
+    for (const product of deduplicatedProducts) {
+      const productName = (product.productName || '').trim();
+      const revenue = Number(product.grossRevenue || product.gmv || 0);
+      if (!productName || revenue === 0) continue;
 
-      // この配信のブランド別GMVを計算
-      const brandGmvInStream = new Map<string, { brandName: string; brandId: number; gmv: number }>(); 
-      let totalProductGmv = 0;
-
-      for (const product of products) {
-        const productName = (product.productName || '').trim();
-        const revenue = Number(product.gmv || product.grossRevenue || 0);
-        if (!productName || revenue === 0) continue;
-
-        let matchedBrand: { id: number; name: string } | null = null;
-        const productNameLower = productName.toLowerCase();
-        let longestMatch = 0;
-        for (const brand of allBrands) {
-          const brandNameLower = brand.name.toLowerCase().trim();
-          if (brandNameLower.length > longestMatch && productNameLower.includes(brandNameLower)) {
-            matchedBrand = brand;
-            longestMatch = brandNameLower.length;
-          }
+      let matchedBrand: { id: number; name: string } | null = null;
+      const productNameLower = productName.toLowerCase();
+      // ブランド名で部分一致（長い名前を優先してマッチ）
+      let longestMatch = 0;
+      for (const brand of allBrands) {
+        const brandNameLower = brand.name.toLowerCase().trim();
+        if (brandNameLower.length > longestMatch && productNameLower.includes(brandNameLower)) {
+          matchedBrand = brand;
+          longestMatch = brandNameLower.length;
         }
-
-        if (matchedBrand) {
-          const normalizedName = matchedBrand.name.toLowerCase().trim().replace(/\s+/g, ' ');
-          const existing = brandGmvInStream.get(normalizedName);
-          if (existing) {
-            existing.gmv += revenue;
-          } else {
-            brandGmvInStream.set(normalizedName, {
-              brandName: matchedBrand.name,
-              brandId: matchedBrand.id,
-              gmv: revenue,
-            });
-          }
-        }
-        totalProductGmv += revenue;
       }
 
-      // salesAmountをブランド別GMV比率で按分
-      if (totalProductGmv > 0) {
-        for (const [normalizedName, brandData] of brandGmvInStream.entries()) {
-          const ratio = brandData.gmv / totalProductGmv;
-          const allocatedSales = Math.round(salesAmount * ratio);
-
-          const existing = brandSalesMap.get(normalizedName);
-          if (existing) {
-            existing.totalGmv += allocatedSales;
-            existing.productCount += 1;
-            if (!existing.brandIds.includes(brandData.brandId)) {
-              existing.brandIds.push(brandData.brandId);
-            }
-          } else {
-            brandSalesMap.set(normalizedName, {
-              brandName: brandData.brandName,
-              brandIds: [brandData.brandId],
-              totalGmv: allocatedSales,
-              productCount: 1,
-            });
+      if (matchedBrand) {
+        const normalizedName = matchedBrand.name.toLowerCase().trim().replace(/\s+/g, ' ');
+        const existing = brandSalesMap.get(normalizedName);
+        if (existing) {
+          existing.totalGmv += revenue;
+          existing.productCount += 1;
+          if (!existing.brandIds.includes(matchedBrand.id)) {
+            existing.brandIds.push(matchedBrand.id);
           }
+        } else {
+          brandSalesMap.set(normalizedName, {
+            brandName: matchedBrand.name,
+            brandIds: [matchedBrand.id],
+            totalGmv: revenue,
+            productCount: 1,
+          });
         }
       }
     }
