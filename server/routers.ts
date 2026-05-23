@@ -23785,6 +23785,7 @@ JSON配列のみを出力してください。`;
     getAllQualifications: protectedProcedure.query(async () => {
       return await getAllMegaChannelQualifications();
     }),
+  }),
   // ===== 今週の重点商品ルーター =====
   featuredProduct: router({
     // 管理側: 重点商品一覧取得
@@ -23889,9 +23890,7 @@ JSON配列のみを出力してください。`;
     // 期限切れ処理（管理側 or cron）
     processExpired: protectedProcedure.mutation(async () => {
       return await processExpiredFeaturedProducts();
-    }),
-  }),
-
+     }),
   }),
 });
 export type AppRouter = typeof appRouter;
