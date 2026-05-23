@@ -117,6 +117,7 @@ export default function LiverMypage() {
   const { data: currentMonthGoal } = trpc.liver.getGoal.useQuery(
     { yearMonth: currentMonth },
     { enabled: !!liverInfo?.id }
+  );
   // 重点商品: 未確認商品の取得
   const { data: unacknowledgedProducts } = trpc.featuredProduct.getUnacknowledged.useQuery(
     { liverId: liverInfo?.id || 0 },
@@ -129,7 +130,6 @@ export default function LiverMypage() {
   const { data: myPenaltyCount } = trpc.featuredProduct.getPenaltyCount.useQuery(
     { liverId: liverInfo?.id || 0 },
     { enabled: !!liverInfo?.id }
-  );
   );
   useEffect(() => {
     if (liverInfo && currentMonthGoal !== undefined) {
@@ -240,12 +240,12 @@ export default function LiverMypage() {
     },
   });
 
-  const logoutMutation = trpc.liver.logout.useMutation({
   const acknowledgeMutation = trpc.featuredProduct.acknowledge.useMutation({
     onSuccess: () => {
       toast.success("確認しました");
     },
   });
+  const logoutMutation = trpc.liver.logout.useMutation({
     onSuccess: () => {
       clearLiverToken();
       navigate("/liver/login");
