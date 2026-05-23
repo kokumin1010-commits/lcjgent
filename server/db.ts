@@ -23777,6 +23777,7 @@ export async function getLiverRecentHourlyRate(liverId: number, recentCount: num
     const liverName = liver[0].name;
     
     // 直近N回のライブを取得（削除されていないもの、売上と配信時間があるもの）
+    // 1時間未満（duration < 60分）の配信はメガチャンネル資格判定から除外する
     const recentLivestreams = await db
       .select({
         id: brandLivestreams.id,
@@ -23793,7 +23794,7 @@ export async function getLiverRecentHourlyRate(liverId: number, recentCount: num
           ),
           isNull(brandLivestreams.deletedAt),
           gt(brandLivestreams.salesAmount, 0),
-          gt(brandLivestreams.duration, 0)
+          sql`${brandLivestreams.duration} >= 60`
         )
       )
       .orderBy(desc(brandLivestreams.livestreamDate))
