@@ -1956,3 +1956,75 @@ async def bulk_delete_guard(
         detail="BLOCKED: Bulk deletion of brands is permanently disabled. "
                "Use /brands/merge or individual /brands/delete (soft-delete) instead."
     )
+
+
+# ─── Daily Review Stats (採点日ごとの集計) ───
+
+@router.get("/review-stats")
+async def get_review_stats(
+    days: int = Query(30, description="Number of days to look back"),
+    db: AsyncSession = Depends(get_db),
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+):
+    """
+    Get daily review/scoring statistics.
+    Returns counts of clips reviewed (brand-assigned + NG-marked) per day.
+    """
+    if not _check_admin_or_user(x_admin_key=x_admin_key):
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    try:
+        # Brand assignments per day (using widget_clip_assignments.created_at)
+        brand_sql = text("""
+            SELECT DATE(wca.created_at) as dt, COUNT(*) as cnt
+            FROM widget_clip_assignments wca
+            WHERE wca.is_active = TRUE
+                AND wca.created_at >= NOW() - INTERVAL :days_interval
+            GROUP BY DATE(wca.created_at)
+            ORDER BY dt ASC
+        """)
+        brand_result = await db.execute(brand_sql, {"days_interval": f"{days} days"})
+        brand_by_date = {str(r.dt): r.cnt for r in brand_result.fetchall()}
+
+        # NG marks per day (using video_clips.unusable_at)
+        ng_sql = text("""
+            SELECT DATE(vc.unusable_at) as dt, COUNT(*) as cnt
+            FROM video_clips vc
+            WHERE vc.status = 'completed' AND vc.clip_url IS NOT NULL
+                AND COALESCE(vc.is_unusable, FALSE) = TRUE
+                AND vc.unusable_at IS NOT NULL
+                AND vc.unusable_at >= NOW() - INTERVAL :days_interval
+            GROUP BY DATE(vc.unusable_at)
+            ORDER BY dt ASC
+        """)
+        ng_result = await db.execute(ng_sql, {"days_interval": f"{days} days"})
+        ng_by_date = {str(r.dt): r.cnt for r in ng_result.fetchall()}
+
+        # Merge into daily stats
+        all_dates = sorted(set(list(brand_by_date.keys()) + list(ng_by_date.keys())))
+        daily_stats = []
+        for dt in all_dates:
+            brand_count = brand_by_date.get(dt, 0)
+            ng_count = ng_by_date.get(dt, 0)
+            daily_stats.append({
+                "date": dt,
+                "brand_assigned": brand_count,
+                "ng_marked": ng_count,
+                "total_reviewed": brand_count + ng_count,
+            })
+
+        # Summary totals
+        total_brand = sum(brand_by_date.values())
+        total_ng = sum(ng_by_date.values())
+
+        return {
+            "daily": daily_stats,
+            "total_brand_assigned": total_brand,
+            "total_ng_marked": total_ng,
+            "total_reviewed": total_brand + total_ng,
+            "days": days,
+        }
+
+    except Exception as e:
+        logger.error(f"[clip-db] Review stats failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Review stats failed: {str(e)}")

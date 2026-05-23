@@ -750,6 +750,65 @@ function StatsOverview({ stats }) {
   );
 }
 
+// ─── Review Stats Chart (日別採点数) ───
+function ReviewStatsChart({ data }) {
+  if (!data || !data.daily || data.daily.length === 0) return null;
+  const daily = data.daily.slice(-14); // 直近14日
+  const maxTotal = Math.max(...daily.map(d => d.total_reviewed), 1);
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-bold text-gray-700 flex items-center gap-1.5">
+          <CheckCircle className="w-4 h-4 text-green-500" />
+          日別採点数（直近14日）
+        </h3>
+        <div className="flex items-center gap-3 text-xs text-gray-500">
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded-sm bg-green-500 inline-block"></span>
+            ブランド割当: <strong className="text-green-700">{data.total_brand_assigned}</strong>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded-sm bg-red-400 inline-block"></span>
+            NG: <strong className="text-red-600">{data.total_ng_marked}</strong>
+          </span>
+          <span className="font-medium text-gray-700">合計: {data.total_reviewed}</span>
+        </div>
+      </div>
+      <div className="flex items-end gap-1" style={{ height: "100px" }}>
+        {daily.map((d) => {
+          const brandH = (d.brand_assigned / maxTotal) * 100;
+          const ngH = (d.ng_marked / maxTotal) * 100;
+          const dateLabel = d.date.slice(5); // MM-DD
+          return (
+            <div key={d.date} className="flex-1 flex flex-col items-center gap-0.5">
+              <div className="w-full flex flex-col items-center justify-end" style={{ height: "80px" }}>
+                <div className="w-full flex flex-col items-stretch justify-end" style={{ height: "80px" }}>
+                  {d.ng_marked > 0 && (
+                    <div
+                      className="w-full bg-red-400 rounded-t-sm"
+                      style={{ height: `${ngH}%`, minHeight: d.ng_marked > 0 ? "2px" : "0" }}
+                      title={`NG: ${d.ng_marked}`}
+                    />
+                  )}
+                  {d.brand_assigned > 0 && (
+                    <div
+                      className="w-full bg-green-500 rounded-t-sm"
+                      style={{ height: `${brandH}%`, minHeight: d.brand_assigned > 0 ? "2px" : "0" }}
+                      title={`ブランド: ${d.brand_assigned}`}
+                    />
+                  )}
+                </div>
+              </div>
+              <span className="text-[9px] text-gray-400 mt-0.5">{dateLabel}</span>
+              <span className="text-[10px] font-medium text-gray-600">{d.total_reviewed}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Top Tags Chart ───
 function TopTagsChart({ tags }) {
   if (!tags || tags.length === 0) return null;
@@ -1295,6 +1354,7 @@ export default function AdminClipDB({ adminKey }) {
   const [enriching, setEnriching] = useState(false);
   const [enrichStatus, setEnrichStatus] = useState(null);
   const [showStats, setShowStats] = useState(true);
+  const [reviewStats, setReviewStats] = useState(null);
 
   // AI Clip generation state
   const [aiClipModalClip, setAiClipModalClip] = useState(null);
@@ -1415,6 +1475,7 @@ export default function AdminClipDB({ adminKey }) {
 
     // 2. Load stats, tags, brands, clips
     loadStats();
+    loadReviewStats();
     loadTags();
     loadBrands();
     loadClips();
@@ -1426,6 +1487,15 @@ export default function AdminClipDB({ adminKey }) {
       setStats(data);
     } catch (e) {
       console.warn("[ClipDB] Failed to load stats:", e);
+    }
+  }
+
+  async function loadReviewStats() {
+    try {
+      const data = await clipDbFetch("/review-stats", { days: 30 }, adminKey);
+      setReviewStats(data);
+    } catch (e) {
+      console.warn("[ClipDB] Failed to load review stats:", e);
     }
   }
 
@@ -1594,6 +1664,7 @@ export default function AdminClipDB({ adminKey }) {
     // Reload clips and brands after brand assignment change
     loadClips();
     loadBrands();
+    loadReviewStats();
   }, [searchQuery, selectedTag, selectedProduct, selectedLiver, selectedBrand, soldFilter, ratingFilter, unusableFilter, noBrandFilter, hasSubtitleFilter, hasTrimFilter, notDownloadedFilter, page, sortBy, sortOrder]);
 
   return (
@@ -2203,6 +2274,7 @@ export default function AdminClipDB({ adminKey }) {
 
       {/* Stats */}
       {showStats && stats && <StatsOverview stats={stats} />}
+      {showStats && reviewStats && <ReviewStatsChart data={reviewStats} />}
       {showStats && stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <TopTagsChart tags={stats.top_tags} />
