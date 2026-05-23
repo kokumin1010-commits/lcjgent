@@ -161,6 +161,10 @@ jobs:
               SHOPEE_PARTNER_KEY="${{ secrets.SHOPEE_PARTNER_KEY }}" \
               SHOPEE_ACCESS_TOKEN="${{ secrets.SHOPEE_ACCESS_TOKEN }}" \
               SHOPEE_REFRESH_TOKEN="${{ secrets.SHOPEE_REFRESH_TOKEN }}" \
+              FACE_SWAP_WORKER_URL="${{ secrets.FACE_SWAP_WORKER_URL }}" \
+              FACE_SWAP_WORKER_API_KEY="${{ secrets.FACE_SWAP_WORKER_API_KEY }}" \
+              LIVER_CLONE_WORKER_URL="${{ secrets.LIVER_CLONE_WORKER_URL }}" \
+              LIVER_CLONE_WORKER_API_KEY="${{ secrets.LIVER_CLONE_WORKER_API_KEY }}" \
             --output none
           echo "Staging slot configured."
 
@@ -297,6 +301,10 @@ jobs:
               SHOPEE_PARTNER_KEY="${{ secrets.SHOPEE_PARTNER_KEY }}" \
               SHOPEE_ACCESS_TOKEN="${{ secrets.SHOPEE_ACCESS_TOKEN }}" \
               SHOPEE_REFRESH_TOKEN="${{ secrets.SHOPEE_REFRESH_TOKEN }}" \
+              FACE_SWAP_WORKER_URL="${{ secrets.FACE_SWAP_WORKER_URL }}" \
+              FACE_SWAP_WORKER_API_KEY="${{ secrets.FACE_SWAP_WORKER_API_KEY }}" \
+              LIVER_CLONE_WORKER_URL="${{ secrets.LIVER_CLONE_WORKER_URL }}" \
+              LIVER_CLONE_WORKER_API_KEY="${{ secrets.LIVER_CLONE_WORKER_API_KEY }}" \
             --output none
 
       # ── Step 8: Configure health check & Always On ──
