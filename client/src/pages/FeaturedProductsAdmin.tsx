@@ -60,6 +60,7 @@ export default function FeaturedProductsAdmin() {
   // Fetch data
   const productsQuery = trpc.featuredProduct.getAll.useQuery();
   const rankingsQuery = trpc.featuredProduct.getRankings.useQuery();
+  const brandsQuery = trpc.brand.list.useQuery({});
 
   // Mutations
   const createMut = trpc.featuredProduct.create.useMutation({
@@ -170,7 +171,7 @@ export default function FeaturedProductsAdmin() {
             <Star className="h-6 w-6 text-yellow-400" />
             今週の重点商品管理
           </h1>
-          <p className="text-gray-400 text-sm">ライバーへの推し商品・ノルマ設定</p>
+          <p className="text-gray-300 text-sm">ライバーへの推し商品・ノルマ設定</p>
         </div>
         <div className="ml-auto flex gap-2">
           <Button
@@ -193,79 +194,83 @@ export default function FeaturedProductsAdmin() {
       {showForm && (
         <Card className="bg-gray-900 border-gray-800 mb-6">
           <CardHeader>
-            <CardTitle className="text-lg">
+            <CardTitle className="text-lg text-white">
               {editingProduct ? "重点商品を編集" : "新しい重点商品を登録"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm text-gray-400 mb-1 block">商品名 *</label>
+                <label className="text-sm text-white mb-1 block">商品名 *</label>
                 <Input
-                  className="bg-gray-800 border-gray-700"
+                  className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
                   value={form.productName}
                   onChange={(e) => setForm({ ...form, productName: e.target.value })}
                   placeholder="KYOGOKU新シャンプー"
                 />
               </div>
               <div>
-                <label className="text-sm text-gray-400 mb-1 block">ブランド名</label>
-                <Input
-                  className="bg-gray-800 border-gray-700"
+                <label className="text-sm text-white mb-1 block">ブランド名</label>
+                <select
+                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-md p-2 text-sm h-10"
                   value={form.brandName}
                   onChange={(e) => setForm({ ...form, brandName: e.target.value })}
-                  placeholder="KYOGOKU"
-                />
+                >
+                  <option value="">選択してください</option>
+                  {brandsQuery.data?.map((brand: any) => (
+                    <option key={brand.id} value={brand.name}>{brand.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
-                <label className="text-sm text-gray-400 mb-1 block">TikTok Shopリンク</label>
+                <label className="text-sm text-white mb-1 block">TikTok Shopリンク</label>
                 <Input
-                  className="bg-gray-800 border-gray-700"
+                  className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
                   value={form.tiktokShopUrl}
                   onChange={(e) => setForm({ ...form, tiktokShopUrl: e.target.value })}
                   placeholder="https://www.tiktok.com/..."
                 />
               </div>
               <div>
-                <label className="text-sm text-gray-400 mb-1 block">商品画像URL</label>
+                <label className="text-sm text-white mb-1 block">商品画像URL</label>
                 <Input
-                  className="bg-gray-800 border-gray-700"
+                  className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
                   value={form.productImageUrl}
                   onChange={(e) => setForm({ ...form, productImageUrl: e.target.value })}
                   placeholder="https://..."
                 />
               </div>
               <div>
-                <label className="text-sm text-gray-400 mb-1 block">ノルマ配信時間（分）*</label>
+                <label className="text-sm text-white mb-1 block">ノルマ配信時間（分）*</label>
                 <Input
-                  className="bg-gray-800 border-gray-700"
+                  className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
                   type="number"
                   value={form.quotaDurationMinutes}
                   onChange={(e) => setForm({ ...form, quotaDurationMinutes: parseInt(e.target.value) || 60 })}
                 />
               </div>
               <div>
-                <label className="text-sm text-gray-400 mb-1 block">優先度</label>
+                <label className="text-sm text-white mb-1 block">優先度</label>
                 <Input
-                  className="bg-gray-800 border-gray-700"
+                  className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
                   type="number"
                   value={form.priority}
                   onChange={(e) => setForm({ ...form, priority: parseInt(e.target.value) || 0 })}
                 />
               </div>
               <div>
-                <label className="text-sm text-gray-400 mb-1 block">開始日 *</label>
+                <label className="text-sm text-white mb-1 block">開始日 *</label>
                 <Input
-                  className="bg-gray-800 border-gray-700"
+                  className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
                   type="date"
                   value={form.startDate}
                   onChange={(e) => setForm({ ...form, startDate: e.target.value })}
                 />
               </div>
               <div>
-                <label className="text-sm text-gray-400 mb-1 block">終了日 *</label>
+                <label className="text-sm text-white mb-1 block">終了日 *</label>
                 <Input
-                  className="bg-gray-800 border-gray-700"
+                  className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
                   type="date"
                   value={form.endDate}
                   onChange={(e) => setForm({ ...form, endDate: e.target.value })}
@@ -274,7 +279,7 @@ export default function FeaturedProductsAdmin() {
             </div>
 
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">備考（セット組OK、割引○%OK等）</label>
+              <label className="text-sm text-white mb-1 block">備考（セット組OK、割引○%OK等）</label>
               <textarea
                 className="w-full bg-gray-800 border border-gray-700 rounded-md p-2 text-white text-sm"
                 rows={2}
@@ -285,7 +290,7 @@ export default function FeaturedProductsAdmin() {
             </div>
 
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">セット提案</label>
+              <label className="text-sm text-white mb-1 block">セット提案</label>
               <textarea
                 className="w-full bg-gray-800 border border-gray-700 rounded-md p-2 text-white text-sm"
                 rows={2}
@@ -296,7 +301,7 @@ export default function FeaturedProductsAdmin() {
             </div>
 
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">トークスクリプト</label>
+              <label className="text-sm text-white mb-1 block">トークスクリプト</label>
               <textarea
                 className="w-full bg-gray-800 border border-gray-700 rounded-md p-2 text-white text-sm"
                 rows={3}
@@ -307,7 +312,7 @@ export default function FeaturedProductsAdmin() {
             </div>
 
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">成功事例</label>
+              <label className="text-sm text-white mb-1 block">成功事例</label>
               <textarea
                 className="w-full bg-gray-800 border border-gray-700 rounded-md p-2 text-white text-sm"
                 rows={2}
@@ -336,7 +341,7 @@ export default function FeaturedProductsAdmin() {
           登録済み重点商品
         </h2>
         {productsQuery.data?.length === 0 && (
-          <p className="text-gray-500 text-sm">まだ重点商品が登録されていません</p>
+          <p className="text-gray-300 text-sm">まだ重点商品が登録されていません</p>
         )}
         {productsQuery.data?.map((product: any) => (
           <Card key={product.id} className={`bg-gray-900 border-gray-800 ${isExpired(product.endDate) ? 'opacity-60' : ''}`}>
@@ -356,7 +361,7 @@ export default function FeaturedProductsAdmin() {
                       <Badge className="bg-blue-600 text-xs">予定</Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-4 text-sm text-gray-400 mb-2">
+                  <div className="flex items-center gap-4 text-sm text-gray-200 mb-2">
                     <span className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
                       ノルマ: {product.quotaDurationMinutes}分
@@ -404,14 +409,14 @@ export default function FeaturedProductsAdmin() {
       {/* Rankings */}
       <Card className="bg-gray-900 border-gray-800">
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
+          <CardTitle className="text-lg text-white flex items-center gap-2">
             <Trophy className="h-5 w-5 text-yellow-400" />
             ノルマ達成率ランキング
           </CardTitle>
         </CardHeader>
         <CardContent>
           {rankingsQuery.data?.length === 0 && (
-            <p className="text-gray-500 text-sm">まだデータがありません</p>
+            <p className="text-gray-300 text-sm">まだデータがありません</p>
           )}
           <div className="space-y-2">
             {rankingsQuery.data?.map((item: any, idx: number) => (
@@ -427,13 +432,13 @@ export default function FeaturedProductsAdmin() {
                   </div>
                 )}
                 <div className="flex-1">
-                  <span className="text-sm font-medium">{item.liverName}</span>
+                  <span className="text-sm font-medium text-white">{item.liverName}</span>
                 </div>
                 <div className="text-right">
                   <span className={`text-sm font-bold ${item.achievementRate >= 100 ? 'text-green-400' : item.achievementRate >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
                     {item.achievementRate}%
                   </span>
-                  <span className="text-xs text-gray-500 ml-2">
+                  <span className="text-xs text-gray-400 ml-2">
                     {item.achievedMinutes}/{item.totalQuotaMinutes}分
                   </span>
                 </div>
