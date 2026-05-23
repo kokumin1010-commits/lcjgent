@@ -1973,31 +1973,34 @@ async def get_review_stats(
     if not _check_admin_or_user(x_admin_key=x_admin_key):
         raise HTTPException(status_code=403, detail="Admin only")
 
+    # Sanitize days to prevent SQL injection (must be positive int)
+    days = max(1, min(int(days), 365))
+
     try:
         # Brand assignments per day (using widget_clip_assignments.created_at)
-        brand_sql = text("""
+        brand_sql = text(f"""
             SELECT DATE(wca.created_at) as dt, COUNT(*) as cnt
             FROM widget_clip_assignments wca
             WHERE wca.is_active = TRUE
-                AND wca.created_at >= NOW() - INTERVAL :days_interval
+                AND wca.created_at >= NOW() - INTERVAL '{days} days'
             GROUP BY DATE(wca.created_at)
             ORDER BY dt ASC
         """)
-        brand_result = await db.execute(brand_sql, {"days_interval": f"{days} days"})
+        brand_result = await db.execute(brand_sql)
         brand_by_date = {str(r.dt): r.cnt for r in brand_result.fetchall()}
 
         # NG marks per day (using video_clips.unusable_at)
-        ng_sql = text("""
+        ng_sql = text(f"""
             SELECT DATE(vc.unusable_at) as dt, COUNT(*) as cnt
             FROM video_clips vc
             WHERE vc.status = 'completed' AND vc.clip_url IS NOT NULL
                 AND COALESCE(vc.is_unusable, FALSE) = TRUE
                 AND vc.unusable_at IS NOT NULL
-                AND vc.unusable_at >= NOW() - INTERVAL :days_interval
+                AND vc.unusable_at >= NOW() - INTERVAL '{days} days'
             GROUP BY DATE(vc.unusable_at)
             ORDER BY dt ASC
         """)
-        ng_result = await db.execute(ng_sql, {"days_interval": f"{days} days"})
+        ng_result = await db.execute(ng_sql)
         ng_by_date = {str(r.dt): r.cnt for r in ng_result.fetchall()}
 
         # Merge into daily stats
