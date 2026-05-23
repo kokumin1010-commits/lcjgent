@@ -973,6 +973,9 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
             </CardContent>
           </Card>
         )}
+
+        {/* 重点商品ノルマ達成率ランキング */}
+        <FeaturedProductRankingSection />
         
         {/* 目標設定状況一覧 */}
         <GoalStatusSection selectedMonth={selectedMonth} agencyId={agencyId} />
@@ -1119,3 +1122,70 @@ function GoalStatusSection({ selectedMonth, agencyId }: { selectedMonth: string;
     </Card>
   );
 }
+
+function FeaturedProductRankingSection() {
+  const rankingsQuery = trpc.featuredProduct.getRankings.useQuery();
+  const [showAll, setShowAll] = useState(false);
+  
+  if (!rankingsQuery.data || rankingsQuery.data.length === 0) return null;
+  
+  const dataToShow = showAll ? rankingsQuery.data : rankingsQuery.data.slice(0, 5);
+  
+  return (
+    <Card className="bg-gray-900/80 border-gray-800">
+      <CardContent className="p-4">
+        <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+          <Target className="w-5 h-5 text-yellow-400" />
+          重点商品ノルマ達成率ランキング
+        </h3>
+        <div className="space-y-2">
+          {dataToShow.map((item: any, idx: number) => (
+            <div key={item.liverId} className="flex items-center gap-3 p-2 rounded-lg bg-gray-800/60">
+              <span className={`text-lg font-bold w-8 text-center ${idx === 0 ? 'text-yellow-400' : idx === 1 ? 'text-gray-300' : idx === 2 ? 'text-orange-400' : 'text-gray-500'}`}>
+                {idx + 1}
+              </span>
+              {item.avatarUrl ? (
+                <img src={item.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-xs text-white">
+                  {item.liverName?.charAt(0)}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium text-white truncate block">{item.liverName}</span>
+              </div>
+              <div className="text-right flex items-center gap-2">
+                <div className="w-20 h-2 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${item.achievementRate >= 100 ? 'bg-green-500' : item.achievementRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                    style={{ width: `${Math.min(100, item.achievementRate)}%` }}
+                  />
+                </div>
+                <span className={`text-sm font-bold w-12 text-right ${item.achievementRate >= 100 ? 'text-green-400' : item.achievementRate >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {item.achievementRate}%
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+        {rankingsQuery.data.length > 5 && (
+          <div className="mt-3 text-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAll(!showAll)}
+              className="border-gray-700 text-white hover:bg-gray-800"
+            >
+              {showAll ? (
+                <>閉じる <ChevronUp className="w-4 h-4 ml-1" /></>
+              ) : (
+                <>VIEW MORE <ChevronDown className="w-4 h-4 ml-1" /></>
+              )}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+

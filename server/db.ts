@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallProductVariants, InsertMallProductVariant, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion, livestreamPromotions, InsertLivestreamPromotion, masterSetSuggestions, InsertMasterSetSuggestion, masterSetSuggestionItems, InsertMasterSetSuggestionItem, masterSetAdoptions, InsertMasterSetAdoption, masterSetFeedback, InsertMasterSetFeedback, masterSetReviews, InsertMasterSetReview, megaChannelSettings, InsertMegaChannelSetting, megaChannelQualifications, InsertMegaChannelQualification, megaChannelHistory, InsertMegaChannelHistoryRecord } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallProductVariants, InsertMallProductVariant, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion, livestreamPromotions, InsertLivestreamPromotion, masterSetSuggestions, InsertMasterSetSuggestion, masterSetSuggestionItems, InsertMasterSetSuggestionItem, masterSetAdoptions, InsertMasterSetAdoption, masterSetFeedback, InsertMasterSetFeedback, masterSetReviews, InsertMasterSetReview, megaChannelSettings, InsertMegaChannelSetting, megaChannelQualifications, InsertMegaChannelQualification, megaChannelHistory, InsertMegaChannelHistoryRecord, featuredProducts, InsertFeaturedProduct, featuredProductTargets, InsertFeaturedProductTarget, featuredProductAcknowledgements, InsertFeaturedProductAcknowledgement, featuredProductProgress, InsertFeaturedProductProgress, featuredProductPenalties, InsertFeaturedProductPenalty } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -24622,4 +24622,345 @@ export async function getLiverComplianceStats(liverId: number, yearMonth?: strin
     noBrandList,
     consecutiveLate,
   };
+}
+
+// ===== 今週の重点商品 DB関数 =====
+
+/**
+ * 重点商品を作成
+ */
+export async function createFeaturedProduct(data: InsertFeaturedProduct) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(featuredProducts).values(data);
+  return result;
+}
+
+/**
+ * 重点商品を更新
+ */
+export async function updateFeaturedProduct(id: number, data: Partial<InsertFeaturedProduct>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(featuredProducts).set(data).where(eq(featuredProducts.id, id));
+  return { success: true };
+}
+
+/**
+ * 重点商品を削除（論理削除: isActive=false）
+ */
+export async function deleteFeaturedProduct(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(featuredProducts).set({ isActive: false }).where(eq(featuredProducts.id, id));
+  return { success: true };
+}
+
+/**
+ * アクティブな重点商品一覧を取得（管理画面用）
+ */
+export async function getAllFeaturedProducts() {
+  const db = await getDb();
+  if (!db) return [];
+  const results = await db
+    .select()
+    .from(featuredProducts)
+    .where(eq(featuredProducts.isActive, true))
+    .orderBy(desc(featuredProducts.priority), desc(featuredProducts.createdAt));
+  return results;
+}
+
+/**
+ * 特定ライバーの現在有効な重点商品を取得（ポップアップ・ダッシュボード用）
+ */
+export async function getActiveFeaturedProductsForLiver(liverId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  
+  // 全員対象 OR 特定対象に含まれる商品を取得
+  const allTargetProducts = await db
+    .select()
+    .from(featuredProducts)
+    .where(
+      and(
+        eq(featuredProducts.isActive, true),
+        lte(featuredProducts.startDate, today),
+        gte(featuredProducts.endDate, today),
+        eq(featuredProducts.targetType, "all")
+      )
+    )
+    .orderBy(desc(featuredProducts.priority));
+
+  // specific対象の商品
+  const specificProducts = await db
+    .select({ product: featuredProducts })
+    .from(featuredProducts)
+    .innerJoin(featuredProductTargets, eq(featuredProducts.id, featuredProductTargets.featuredProductId))
+    .where(
+      and(
+        eq(featuredProducts.isActive, true),
+        lte(featuredProducts.startDate, today),
+        gte(featuredProducts.endDate, today),
+        eq(featuredProducts.targetType, "specific"),
+        eq(featuredProductTargets.liverId, liverId)
+      )
+    );
+
+  const products = [...allTargetProducts, ...specificProducts.map(s => s.product)];
+  
+  // 確認済み情報を取得
+  const ackRecords = await db
+    .select()
+    .from(featuredProductAcknowledgements)
+    .where(eq(featuredProductAcknowledgements.liverId, liverId));
+  
+  const acknowledgedIds = new Set(ackRecords.map(a => a.featuredProductId));
+  
+  // 進捗情報を取得
+  const progressRecords = await db
+    .select()
+    .from(featuredProductProgress)
+    .where(eq(featuredProductProgress.liverId, liverId));
+  
+  const progressMap = new Map(progressRecords.map(p => [p.featuredProductId, p]));
+  
+  return products.map(p => ({
+    ...p,
+    acknowledged: acknowledgedIds.has(p.id),
+    progress: progressMap.get(p.id) || null,
+  }));
+}
+
+/**
+ * 未確認の重点商品を取得（ポップアップ表示判定用）
+ */
+export async function getUnacknowledgedFeaturedProducts(liverId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const allProducts = await getActiveFeaturedProductsForLiver(liverId);
+  return allProducts.filter(p => !p.acknowledged);
+}
+
+/**
+ * 重点商品を確認済みにする
+ */
+export async function acknowledgeFeaturedProduct(featuredProductId: number, liverId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // UPSERT: 既に確認済みなら何もしない
+  try {
+    await db.insert(featuredProductAcknowledgements).values({
+      featuredProductId,
+      liverId,
+    });
+  } catch (e: any) {
+    // Duplicate key = already acknowledged
+    if (!e.message?.includes('Duplicate')) throw e;
+  }
+  return { success: true };
+}
+
+/**
+ * ライバーの達成率ランキングを取得
+ */
+export async function getFeaturedProductRankings() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const today = new Date().toISOString().split('T')[0];
+  
+  // 現在有効な重点商品を取得
+  const activeProducts = await db
+    .select()
+    .from(featuredProducts)
+    .where(
+      and(
+        eq(featuredProducts.isActive, true),
+        lte(featuredProducts.startDate, today),
+        gte(featuredProducts.endDate, today)
+      )
+    );
+  
+  if (activeProducts.length === 0) return [];
+  
+  const productIds = activeProducts.map(p => p.id);
+  
+  // 全ライバーの進捗を取得
+  const allProgress = await db
+    .select()
+    .from(featuredProductProgress)
+    .where(inArray(featuredProductProgress.featuredProductId, productIds));
+  
+  // ライバーごとに達成率を計算
+  const liverMap = new Map<number, { total: number; achieved: number; completed: number }>();
+  
+  for (const prog of allProgress) {
+    const existing = liverMap.get(prog.liverId) || { total: 0, achieved: 0, completed: 0 };
+    const product = activeProducts.find(p => p.id === prog.featuredProductId);
+    if (product) {
+      existing.total += product.quotaDurationMinutes;
+      existing.achieved += prog.achievedDurationMinutes;
+      if (prog.status === 'completed') existing.completed++;
+    }
+    liverMap.set(prog.liverId, existing);
+  }
+  
+  // ライバー情報を取得してランキング作成
+  const liverIds = Array.from(liverMap.keys());
+  if (liverIds.length === 0) return [];
+  
+  const liverInfos = await db
+    .select({ id: livers.id, name: livers.name, avatarUrl: livers.avatarUrl })
+    .from(livers)
+    .where(inArray(livers.id, liverIds));
+  
+  const rankings = liverInfos.map(liver => {
+    const stats = liverMap.get(liver.id) || { total: 0, achieved: 0, completed: 0 };
+    const achievementRate = stats.total > 0 ? Math.round((stats.achieved / stats.total) * 100) : 0;
+    return {
+      liverId: liver.id,
+      liverName: liver.name,
+      avatarUrl: liver.avatarUrl,
+      achievementRate,
+      achievedMinutes: stats.achieved,
+      totalQuotaMinutes: stats.total,
+      completedCount: stats.completed,
+      totalProductCount: activeProducts.length,
+    };
+  });
+  
+  return rankings.sort((a, b) => b.achievementRate - a.achievementRate);
+}
+
+/**
+ * ライバーのペナルティ数を取得
+ */
+export async function getLiverPenaltyCount(liverId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  
+  const results = await db
+    .select({ id: featuredProductPenalties.id })
+    .from(featuredProductPenalties)
+    .where(eq(featuredProductPenalties.liverId, liverId));
+  
+  return results.length;
+}
+
+/**
+ * ライバーのペナルティ履歴を取得
+ */
+export async function getLiverPenalties(liverId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(featuredProductPenalties)
+    .where(eq(featuredProductPenalties.liverId, liverId))
+    .orderBy(desc(featuredProductPenalties.createdAt));
+}
+
+/**
+ * 期限切れの重点商品に対してペナルティを生成
+ */
+export async function processExpiredFeaturedProducts() {
+  const db = await getDb();
+  if (!db) return { processed: 0 };
+  
+  const today = new Date().toISOString().split('T')[0];
+  
+  // 期限切れ（endDate < today）でまだペナルティ処理されていない商品を取得
+  const expiredProducts = await db
+    .select()
+    .from(featuredProducts)
+    .where(
+      and(
+        eq(featuredProducts.isActive, true),
+        lt(featuredProducts.endDate, today)
+      )
+    );
+  
+  let processed = 0;
+  
+  for (const product of expiredProducts) {
+    // この商品の全進捗を取得
+    const progressList = await db
+      .select()
+      .from(featuredProductProgress)
+      .where(
+        and(
+          eq(featuredProductProgress.featuredProductId, product.id),
+          eq(featuredProductProgress.status, "in_progress")
+        )
+      );
+    
+    for (const prog of progressList) {
+      const achievementRate = product.quotaDurationMinutes > 0
+        ? (prog.achievedDurationMinutes / product.quotaDurationMinutes) * 100
+        : 0;
+      
+      if (achievementRate < 100) {
+        // ペナルティ記録
+        const liverInfo = await db
+          .select({ name: livers.name })
+          .from(livers)
+          .where(eq(livers.id, prog.liverId))
+          .limit(1);
+        
+        try {
+          await db.insert(featuredProductPenalties).values({
+            featuredProductId: product.id,
+            liverId: prog.liverId,
+            liverName: liverInfo[0]?.name || "Unknown",
+            quotaDurationMinutes: product.quotaDurationMinutes,
+            achievedDurationMinutes: prog.achievedDurationMinutes,
+            achievementRate: achievementRate.toFixed(2),
+            penaltyDate: product.endDate,
+          });
+        } catch (e: any) {
+          // Ignore duplicates
+        }
+        
+        // 進捗をfailedに更新
+        await db.update(featuredProductProgress)
+          .set({ status: "failed" })
+          .where(eq(featuredProductProgress.id, prog.id));
+        
+        processed++;
+      } else {
+        // 達成 → completedに更新
+        await db.update(featuredProductProgress)
+          .set({ status: "completed", completedAt: new Date() })
+          .where(eq(featuredProductProgress.id, prog.id));
+      }
+    }
+  }
+  
+  return { processed };
+}
+
+/**
+ * 重点商品の対象ライバーを設定
+ */
+export async function setFeaturedProductTargets(featuredProductId: number, liverIds: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // 既存のターゲットを削除
+  await db.delete(featuredProductTargets)
+    .where(eq(featuredProductTargets.featuredProductId, featuredProductId));
+  
+  // 新しいターゲットを挿入
+  if (liverIds.length > 0) {
+    await db.insert(featuredProductTargets).values(
+      liverIds.map(liverId => ({ featuredProductId, liverId }))
+    );
+  }
+  
+  return { success: true };
 }

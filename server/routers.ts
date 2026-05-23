@@ -667,6 +667,18 @@ import {
   checkAndUpdateMegaChannelQualification,
   approveMegaChannelQualification,
   rejectMegaChannelQualification,
+  getAllFeaturedProducts,
+  createFeaturedProduct,
+  updateFeaturedProduct,
+  deleteFeaturedProduct,
+  getActiveFeaturedProductsForLiver,
+  getUnacknowledgedFeaturedProducts,
+  acknowledgeFeaturedProduct,
+  getFeaturedProductRankings,
+  getLiverPenalties,
+  getLiverPenaltyCount,
+  processExpiredFeaturedProducts,
+  setFeaturedProductTargets,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -23773,6 +23785,113 @@ JSON配列のみを出力してください。`;
     getAllQualifications: protectedProcedure.query(async () => {
       return await getAllMegaChannelQualifications();
     }),
+  // ===== 今週の重点商品ルーター =====
+  featuredProduct: router({
+    // 管理側: 重点商品一覧取得
+    getAll: protectedProcedure.query(async () => {
+      return await getAllFeaturedProducts();
+    }),
+    // 管理側: 重点商品作成
+    create: protectedProcedure
+      .input(z.object({
+        tiktokShopUrl: z.string().optional(),
+        productName: z.string().min(1),
+        productImageUrl: z.string().optional(),
+        brandName: z.string().optional(),
+        quotaDurationMinutes: z.number().min(1).default(60),
+        startDate: z.string(),
+        endDate: z.string(),
+        notes: z.string().optional(),
+        setProposal: z.string().optional(),
+        talkScript: z.string().optional(),
+        successCase: z.string().optional(),
+        targetType: z.enum(["all", "specific"]).default("all"),
+        priority: z.number().default(0),
+        targetLiverIds: z.array(z.number()).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { targetLiverIds, ...productData } = input;
+        const result = await createFeaturedProduct(productData as any);
+        const insertId = (result as any)[0]?.insertId || (result as any).insertId;
+        if (input.targetType === "specific" && targetLiverIds && targetLiverIds.length > 0 && insertId) {
+          await setFeaturedProductTargets(insertId, targetLiverIds);
+        }
+        return { success: true, id: insertId };
+      }),
+    // 管理側: 重点商品更新
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        tiktokShopUrl: z.string().optional(),
+        productName: z.string().optional(),
+        productImageUrl: z.string().optional(),
+        brandName: z.string().optional(),
+        quotaDurationMinutes: z.number().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        notes: z.string().optional(),
+        setProposal: z.string().optional(),
+        talkScript: z.string().optional(),
+        successCase: z.string().optional(),
+        targetType: z.enum(["all", "specific"]).optional(),
+        priority: z.number().optional(),
+        isActive: z.boolean().optional(),
+        targetLiverIds: z.array(z.number()).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, targetLiverIds, ...updateData } = input;
+        await updateFeaturedProduct(id, updateData as any);
+        if (targetLiverIds !== undefined) {
+          await setFeaturedProductTargets(id, targetLiverIds);
+        }
+        return { success: true };
+      }),
+    // 管理側: 重点商品削除
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return await deleteFeaturedProduct(input.id);
+      }),
+    // ライバー側: 自分の重点商品一覧取得
+    getForLiver: publicProcedure
+      .input(z.object({ liverId: z.number() }))
+      .query(async ({ input }) => {
+        return await getActiveFeaturedProductsForLiver(input.liverId);
+      }),
+    // ライバー側: 未確認商品取得（ポップアップ用）
+    getUnacknowledged: publicProcedure
+      .input(z.object({ liverId: z.number() }))
+      .query(async ({ input }) => {
+        return await getUnacknowledgedFeaturedProducts(input.liverId);
+      }),
+    // ライバー側: 確認済みにする
+    acknowledge: publicProcedure
+      .input(z.object({ featuredProductId: z.number(), liverId: z.number() }))
+      .mutation(async ({ input }) => {
+        return await acknowledgeFeaturedProduct(input.featuredProductId, input.liverId);
+      }),
+    // ランキング取得
+    getRankings: publicProcedure.query(async () => {
+      return await getFeaturedProductRankings();
+    }),
+    // ペナルティ取得
+    getPenalties: publicProcedure
+      .input(z.object({ liverId: z.number() }))
+      .query(async ({ input }) => {
+        return await getLiverPenalties(input.liverId);
+      }),
+    // ペナルティ数取得
+    getPenaltyCount: publicProcedure
+      .input(z.object({ liverId: z.number() }))
+      .query(async ({ input }) => {
+        return await getLiverPenaltyCount(input.liverId);
+      }),
+    // 期限切れ処理（管理側 or cron）
+    processExpired: protectedProcedure.mutation(async () => {
+      return await processExpiredFeaturedProducts();
+    }),
+  }),
+
   }),
 });
 export type AppRouter = typeof appRouter;

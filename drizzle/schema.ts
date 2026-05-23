@@ -5806,3 +5806,80 @@ export const megaChannelHistory = mysqlTable("mega_channel_history", {
 });
 export type MegaChannelHistoryRecord = typeof megaChannelHistory.$inferSelect;
 export type InsertMegaChannelHistoryRecord = typeof megaChannelHistory.$inferInsert;
+
+// ===== 今週の重点商品システム =====
+
+// 重点商品テーブル
+export const featuredProducts = mysqlTable("featured_products", {
+  id: int("id").autoincrement().primaryKey(),
+  tiktokShopUrl: varchar("tiktokShopUrl", { length: 500 }),
+  productName: varchar("productName", { length: 255 }).notNull(),
+  productImageUrl: varchar("productImageUrl", { length: 500 }),
+  brandName: varchar("brandName", { length: 255 }),
+  quotaDurationMinutes: int("quotaDurationMinutes").notNull().default(60),
+  startDate: varchar("startDate", { length: 10 }).notNull(),
+  endDate: varchar("endDate", { length: 10 }).notNull(),
+  notes: text("notes"),
+  setProposal: text("setProposal"),
+  talkScript: text("talkScript"),
+  successCase: text("successCase"),
+  targetType: mysqlEnum("targetType", ["all", "specific"]).notNull().default("all"),
+  isActive: boolean("isActive").notNull().default(true),
+  priority: int("priority").notNull().default(0),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type FeaturedProduct = typeof featuredProducts.$inferSelect;
+export type InsertFeaturedProduct = typeof featuredProducts.$inferInsert;
+
+// 重点商品の対象ライバー
+export const featuredProductTargets = mysqlTable("featured_product_targets", {
+  id: int("id").autoincrement().primaryKey(),
+  featuredProductId: int("featuredProductId").notNull(),
+  liverId: int("liverId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type FeaturedProductTarget = typeof featuredProductTargets.$inferSelect;
+export type InsertFeaturedProductTarget = typeof featuredProductTargets.$inferInsert;
+
+// ライバーの確認記録
+export const featuredProductAcknowledgements = mysqlTable("featured_product_acknowledgements", {
+  id: int("id").autoincrement().primaryKey(),
+  featuredProductId: int("featuredProductId").notNull(),
+  liverId: int("liverId").notNull(),
+  acknowledgedAt: timestamp("acknowledgedAt").defaultNow().notNull(),
+});
+export type FeaturedProductAcknowledgement = typeof featuredProductAcknowledgements.$inferSelect;
+export type InsertFeaturedProductAcknowledgement = typeof featuredProductAcknowledgements.$inferInsert;
+
+// ライバーのノルマ達成記録
+export const featuredProductProgress = mysqlTable("featured_product_progress", {
+  id: int("id").autoincrement().primaryKey(),
+  featuredProductId: int("featuredProductId").notNull(),
+  liverId: int("liverId").notNull(),
+  achievedDurationMinutes: int("achievedDurationMinutes").notNull().default(0),
+  livestreamCount: int("livestreamCount").notNull().default(0),
+  salesAmount: int("salesAmount").notNull().default(0),
+  status: mysqlEnum("status", ["in_progress", "completed", "failed"]).notNull().default("in_progress"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type FeaturedProductProgress = typeof featuredProductProgress.$inferSelect;
+export type InsertFeaturedProductProgress = typeof featuredProductProgress.$inferInsert;
+
+// 未達成ペナルティ履歴
+export const featuredProductPenalties = mysqlTable("featured_product_penalties", {
+  id: int("id").autoincrement().primaryKey(),
+  featuredProductId: int("featuredProductId").notNull(),
+  liverId: int("liverId").notNull(),
+  liverName: varchar("liverName", { length: 255 }),
+  quotaDurationMinutes: int("quotaDurationMinutes").notNull(),
+  achievedDurationMinutes: int("achievedDurationMinutes").notNull().default(0),
+  achievementRate: decimal("achievementRate", { precision: 5, scale: 2 }).notNull().default("0"),
+  penaltyDate: varchar("penaltyDate", { length: 10 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type FeaturedProductPenalty = typeof featuredProductPenalties.$inferSelect;
+export type InsertFeaturedProductPenalty = typeof featuredProductPenalties.$inferInsert;

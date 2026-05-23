@@ -89,6 +89,7 @@ export default function LiverMypage() {
   const [showGoalNudgePopup, setShowGoalNudgePopup] = useState(false);
   const [showLineLinkPopup, setShowLineLinkPopup] = useState(false);
   const [showUidPopup, setShowUidPopup] = useState(false);
+  const [showFeaturedProductPopup, setShowFeaturedProductPopup] = useState(false);
   const [lineLinkCode, setLineLinkCode] = useState<string | null>(null);
   const [lineLinkExpiresAt, setLineLinkExpiresAt] = useState<Date | null>(null);
   const [lineLinkTimeLeft, setLineLinkTimeLeft] = useState<number>(0);
@@ -116,6 +117,19 @@ export default function LiverMypage() {
   const { data: currentMonthGoal } = trpc.liver.getGoal.useQuery(
     { yearMonth: currentMonth },
     { enabled: !!liverInfo?.id }
+  // 重点商品: 未確認商品の取得
+  const { data: unacknowledgedProducts } = trpc.featuredProduct.getUnacknowledged.useQuery(
+    { liverId: liverInfo?.id || 0 },
+    { enabled: !!liverInfo?.id }
+  );
+  const { data: myFeaturedProducts } = trpc.featuredProduct.getForLiver.useQuery(
+    { liverId: liverInfo?.id || 0 },
+    { enabled: !!liverInfo?.id }
+  );
+  const { data: myPenaltyCount } = trpc.featuredProduct.getPenaltyCount.useQuery(
+    { liverId: liverInfo?.id || 0 },
+    { enabled: !!liverInfo?.id }
+  );
   );
   useEffect(() => {
     if (liverInfo && currentMonthGoal !== undefined) {
@@ -129,6 +143,13 @@ export default function LiverMypage() {
   }, [liverInfo, currentMonthGoal]);
 
   // LINE未連携ポップアップ表示（毎回ログイン時）
+  // 重点商品: 未確認商品があればポップアップ表示
+  useEffect(() => {
+    if (unacknowledgedProducts && unacknowledgedProducts.length > 0) {
+      const timer = setTimeout(() => setShowFeaturedProductPopup(true), 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [unacknowledgedProducts]);
   // UID未登録チェック
   useEffect(() => {
     if (liverInfo && !liverInfo.uid) {
@@ -220,6 +241,11 @@ export default function LiverMypage() {
   });
 
   const logoutMutation = trpc.liver.logout.useMutation({
+  const acknowledgeMutation = trpc.featuredProduct.acknowledge.useMutation({
+    onSuccess: () => {
+      toast.success("確認しました");
+    },
+  });
     onSuccess: () => {
       clearLiverToken();
       navigate("/liver/login");
@@ -1245,6 +1271,41 @@ export default function LiverMypage() {
 
         {/* Mega Channel Status */}
         <MegaChannelBanner />
+        {/* 今週の重点商品セクション */}
+        {myFeaturedProducts && myFeaturedProducts.length > 0 && (
+          <div className="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border border-yellow-700/50 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-yellow-300 flex items-center gap-2">
+                ⭐ 今週の重点商品
+              </h3>
+              {myPenaltyCount && myPenaltyCount > 0 && (
+                <span className="text-xs bg-red-600 text-white px-2 py-0.5 rounded-full">
+                  未達成: {myPenaltyCount}回
+                </span>
+              )}
+            </div>
+            <div className="space-y-2">
+              {myFeaturedProducts.map((product: any) => (
+                <div key={product.id} className="bg-gray-800/60 rounded-lg p-3 flex items-center gap-3">
+                  {product.productImageUrl && (
+                    <img src={product.productImageUrl} alt="" className="w-10 h-10 rounded object-cover" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{product.productName}</p>
+                    <p className="text-xs text-gray-400">
+                      ノルマ: {product.quotaDurationMinutes}分 | 期限: {product.endDate}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className={`text-sm font-bold ${(product.progress?.achievedDurationMinutes || 0) >= product.quotaDurationMinutes ? 'text-green-400' : 'text-yellow-400'}`}>
+                      {product.progress?.achievedDurationMinutes || 0}/{product.quotaDurationMinutes}分
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Power Dashboard Link */}
         <Link href="/liver/dashboard" className="block">
@@ -2679,6 +2740,86 @@ export default function LiverMypage() {
         </DialogContent>
       </Dialog>
 
+      {/* 重点商品ポップアップ */}
+      <Dialog open={showFeaturedProductPopup} onOpenChange={(open) => {
+        // 閉じることを許可しない（確認ボタンを押す必要がある）
+        if (!open && unacknowledgedProducts && unacknowledgedProducts.length > 0) {
+          return;
+        }
+        setShowFeaturedProductPopup(open);
+      }}>
+        <DialogContent className="max-w-lg bg-gray-900 border-gray-700 text-white max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center gap-2">
+              ⭐ 今週の重点商品
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              以下の商品を重点的に配信してください。確認後、スケジュール登録をお願いします。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            {unacknowledgedProducts?.map((product: any) => (
+              <div key={product.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div className="flex items-start gap-3">
+                  {product.productImageUrl && (
+                    <img src={product.productImageUrl} alt="" className="w-16 h-16 rounded object-cover" />
+                  )}
+                  <div className="flex-1">
+                    <h4 className="font-bold text-white">{product.productName}</h4>
+                    {product.brandName && (
+                      <span className="text-xs text-blue-400">{product.brandName}</span>
+                    )}
+                    <div className="mt-1 flex items-center gap-2 text-sm text-gray-400">
+                      <span>⏱ ノルマ: {product.quotaDurationMinutes}分</span>
+                      <span>📅 期限: {product.endDate}</span>
+                    </div>
+                  </div>
+                </div>
+                {product.notes && (
+                  <div className="mt-2 p-2 bg-yellow-900/30 border border-yellow-700/50 rounded text-sm text-yellow-300">
+                    📋 {product.notes}
+                  </div>
+                )}
+                {product.setProposal && (
+                  <div className="mt-2 p-2 bg-blue-900/30 border border-blue-700/50 rounded text-sm text-blue-300">
+                    💡 セット提案: {product.setProposal}
+                  </div>
+                )}
+                {product.talkScript && (
+                  <div className="mt-2 p-2 bg-purple-900/30 border border-purple-700/50 rounded text-sm text-purple-300">
+                    🎤 トークスクリプト: {product.talkScript}
+                  </div>
+                )}
+                {product.successCase && (
+                  <div className="mt-2 p-2 bg-green-900/30 border border-green-700/50 rounded text-sm text-green-300">
+                    🏆 成功事例: {product.successCase}
+                  </div>
+                )}
+                {product.tiktokShopUrl && (
+                  <a href={product.tiktokShopUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-blue-400 hover:underline">
+                    🔗 TikTok Shop商品ページ
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              className="w-full"
+              onClick={() => {
+                if (liverInfo?.id && unacknowledgedProducts) {
+                  unacknowledgedProducts.forEach((product: any) => {
+                    acknowledgeMutation.mutate({ featuredProductId: product.id, liverId: liverInfo.id });
+                  });
+                }
+                setShowFeaturedProductPopup(false);
+              }}
+            >
+              確認しました
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* UID未登録ポップアップ */}
       <Dialog open={showUidPopup} onOpenChange={(open) => {
         if (!open) {
