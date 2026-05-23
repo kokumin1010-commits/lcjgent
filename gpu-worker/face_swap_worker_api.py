@@ -45,8 +45,9 @@ from pathlib import Path
 from typing import Optional
 
 import uvicorn
-from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File
+from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 # ── Logging ──────────────────────────────────────────────────────────────────
@@ -1188,8 +1189,156 @@ async def inject_audio_text(text: str, auth: bool = Depends(verify_api_key)):
     return {"status": "injected", "text": text}
 
 
-# ── Main ─────────────────────────────────────────────────────────────────────
+# ── WebSocket Preview Endpoint ────────────────────────────────────────────────
 
+@app.websocket("/api/preview-stream")
+async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
+    """
+    WebSocket endpoint for real-time face swap preview.
+    
+    Protocol:
+      1. Client connects with ?api_key=xxx
+      2. Client sends JPEG frames as binary messages
+      3. Server processes each frame through FaceFusion
+      4. Server returns processed JPEG frame as binary message
+    
+    This allows browser-based preview before starting RTMP streaming.
+    """
+    # Verify API key
+    if api_key != WORKER_API_KEY:
+        await websocket.close(code=4001, reason="Invalid API key")
+        return
+    
+    await websocket.accept()
+    logger.info("[Preview] WebSocket client connected")
+    
+    frame_count = 0
+    error_count = 0
+    MAX_ERRORS = 10
+    
+    try:
+        while True:
+            # Receive frame from client (binary JPEG)
+            data = await websocket.receive_bytes()
+            frame_count += 1
+            
+            if source_face_path is None or not Path(source_face_path).exists():
+                # No source face set - return original frame with warning
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Source face not set. Upload a face image first."
+                })
+                continue
+            
+            # Process frame through FaceFusion
+            input_path = os.path.join(TEMP_DIR, f"preview_in_{frame_count % 10}.jpg")
+            output_path = os.path.join(TEMP_DIR, f"preview_out_{frame_count % 10}.jpg")
+            
+            try:
+                # Save input frame
+                with open(input_path, "wb") as f:
+                    f.write(data)
+                
+                # Run FaceFusion headless on single frame
+                cmd = build_facefusion_headless_cmd(input_path, output_path)
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,  # 10s timeout per frame
+                    cwd=FACEFUSION_DIR,
+                )
+                
+                if result.returncode != 0 or not Path(output_path).exists():
+                    error_count += 1
+                    if error_count >= MAX_ERRORS:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Too many processing errors. Check GPU Worker logs."
+                        })
+                        break
+                    # Return original frame on error
+                    await websocket.send_bytes(data)
+                    continue
+                
+                # Send processed frame back
+                with open(output_path, "rb") as f:
+                    processed = f.read()
+                await websocket.send_bytes(processed)
+                error_count = 0  # Reset error count on success
+                
+            except subprocess.TimeoutExpired:
+                error_count += 1
+                await websocket.send_bytes(data)  # Return original on timeout
+            except Exception as e:
+                error_count += 1
+                logger.error(f"[Preview] Frame processing error: {e}")
+                await websocket.send_bytes(data)
+            finally:
+                # Cleanup temp files
+                for p in (input_path, output_path):
+                    try:
+                        os.unlink(p)
+                    except (FileNotFoundError, OSError):
+                        pass
+    
+    except WebSocketDisconnect:
+        logger.info(f"[Preview] Client disconnected after {frame_count} frames")
+    except Exception as e:
+        logger.error(f"[Preview] WebSocket error: {e}")
+    finally:
+        logger.info(f"[Preview] Session ended. Frames processed: {frame_count}")
+
+
+@app.post("/api/preview-frame")
+async def preview_frame(req: SwapFrameRequest, auth: bool = Depends(verify_api_key)):
+    """
+    Process a single frame for preview (HTTP fallback for WebSocket).
+    Same as swap-frame but optimized for preview workflow.
+    Returns processed image as base64.
+    """
+    if source_face_path is None or not Path(source_face_path).exists():
+        raise HTTPException(400, "Source face not set. Call /api/set-source first.")
+    
+    input_path = os.path.join(TEMP_DIR, f"preview_{uuid.uuid4().hex[:8]}.jpg")
+    output_path = os.path.join(TEMP_DIR, f"preview_out_{uuid.uuid4().hex[:8]}.jpg")
+    
+    try:
+        content = base64.b64decode(req.image_base64)
+        with open(input_path, "wb") as f:
+            f.write(content)
+        
+        cmd = build_facefusion_headless_cmd(input_path, output_path)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=FACEFUSION_DIR,
+        )
+        
+        if result.returncode != 0:
+            raise HTTPException(500, f"FaceFusion error: {result.stderr[:300]}")
+        if not Path(output_path).exists():
+            raise HTTPException(500, "Output not generated")
+        
+        with open(output_path, "rb") as f:
+            output_base64 = base64.b64encode(f.read()).decode()
+        
+        return {
+            "status": "ok",
+            "image_base64": output_base64,
+            "processing_time_ms": 0,  # TODO: measure
+        }
+    finally:
+        for p in (input_path, output_path):
+            try:
+                os.unlink(p)
+            except (FileNotFoundError, OSError):
+                pass
+
+
+# ── Main ─────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     logger.info(f"Starting FaceFusion GPU Worker on port {PORT}")
     uvicorn.run(

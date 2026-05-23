@@ -310,3 +310,67 @@ async def health_check():
             "status": "error",
             "error": str(e),
         }
+
+
+# ============================================================
+# Preview Endpoints
+# ============================================================
+
+class PreviewFrameRequest(BaseModel):
+    """Request to process a single preview frame."""
+    image_base64: str
+
+
+@router.post("/preview/frame")
+async def preview_frame(req: PreviewFrameRequest):
+    """
+    Process a single webcam frame through face swap and return the result.
+    Used for testing face swap quality before starting a stream.
+    
+    Requires source face to be set first via session creation.
+    """
+    from app.services.liver_clone_service import get_liver_clone_service
+
+    service = get_liver_clone_service()
+    try:
+        result = await service.face_swap.preview_frame(req.image_base64)
+        return result
+    except Exception as e:
+        logger.exception("[LiverClone API] Preview frame failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/preview/ws-url")
+async def get_preview_ws_url():
+    """
+    Get the WebSocket URL for real-time preview streaming.
+    The frontend connects directly to the GPU Worker via this URL.
+    """
+    from app.services.liver_clone_service import get_liver_clone_service
+
+    service = get_liver_clone_service()
+    try:
+        ws_url = await service.face_swap.get_preview_ws_url()
+        return {"ws_url": ws_url}
+    except Exception as e:
+        logger.exception("[LiverClone API] Failed to get preview WS URL")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/preview/set-source")
+async def preview_set_source(req: PreviewFrameRequest):
+    """
+    Set the source face for preview mode.
+    This uploads the face to the GPU Worker without creating a full session.
+    """
+    from app.services.liver_clone_service import get_liver_clone_service
+
+    service = get_liver_clone_service()
+    try:
+        result = await service.face_swap.set_source_face(
+            image_base64=req.image_base64
+        )
+        return result
+    except Exception as e:
+        logger.exception("[LiverClone API] Preview set-source failed")
+        raise HTTPException(status_code=500, detail=str(e))

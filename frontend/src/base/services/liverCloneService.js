@@ -169,6 +169,48 @@ class LiverCloneService {
     );
     return res.data;
   }
+
+  // ── Preview Methods ─────────────────────────────────────────────
+
+  /**
+   * Set source face for preview (without creating a full session).
+   * @param {string} imageBase64 - Base64-encoded face image
+   * @returns {Promise<Object>}
+   */
+  async previewSetSource(imageBase64) {
+    const res = await axios.post(
+      `${this.baseURL}/api/v1/liver-clone/preview/set-source`,
+      { image_base64: imageBase64 },
+      { headers: this._headers() }
+    );
+    return res.data;
+  }
+
+  /**
+   * Process a single frame for preview.
+   * @param {string} imageBase64 - Base64-encoded webcam frame
+   * @returns {Promise<Object>} { status, image_base64 }
+   */
+  async previewFrame(imageBase64) {
+    const res = await axios.post(
+      `${this.baseURL}/api/v1/liver-clone/preview/frame`,
+      { image_base64: imageBase64 },
+      { headers: this._headers(), timeout: 30000 }
+    );
+    return res.data;
+  }
+
+  /**
+   * Get the WebSocket URL for real-time preview streaming.
+   * @returns {Promise<Object>} { ws_url }
+   */
+  async getPreviewWsUrl() {
+    const res = await axios.get(
+      `${this.baseURL}/api/v1/liver-clone/preview/ws-url`,
+      { headers: this._headers() }
+    );
+    return res.data;
+  }
 }
 
 export default new LiverCloneService();

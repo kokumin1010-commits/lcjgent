@@ -391,3 +391,26 @@ class FaceSwapService:
         """Apply a quality preset (fast/balanced/high/ultra)."""
         q = quality.value if hasattr(quality, 'value') else str(quality)
         return await self._request("POST", f"/api/apply-preset?quality={q}")
+
+    # ── Preview ───────────────────────────────────────────────────────────
+
+    async def preview_frame(self, image_base64: str) -> Dict[str, Any]:
+        """
+        Process a single frame for preview.
+        Returns processed image as base64.
+        """
+        return await self._request("POST", "/api/preview-frame", json={
+            "image_base64": image_base64,
+            "quality": "high",
+            "face_enhancer": True,
+        })
+
+    async def get_preview_ws_url(self) -> str:
+        """
+        Get the WebSocket URL for real-time preview streaming.
+        Returns the full wss:// URL with API key.
+        """
+        worker_url = await self._get_worker_url()
+        # Convert http(s) to ws(s)
+        ws_url = worker_url.replace("https://", "wss://").replace("http://", "ws://")
+        return f"{ws_url}/api/preview-stream?api_key={self.api_key}"

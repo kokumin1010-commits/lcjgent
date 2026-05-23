@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -85,6 +85,20 @@ export default function LiverClonePage() {
   // Health
   const [health, setHealth] = useState(null);
 
+  // Preview
+  const [previewActive, setPreviewActive] = useState(false);
+  const [previewFrame, setPreviewFrame] = useState(null);
+  const [previewFps, setPreviewFps] = useState(0);
+  const [previewLatency, setPreviewLatency] = useState(0);
+  const [previewError, setPreviewError] = useState(null);
+  const [isSourceUploaded, setIsSourceUploaded] = useState(false);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const previewWsRef = useRef(null);
+  const previewIntervalRef = useRef(null);
+  const frameCountRef = useRef(0);
+  const lastFpsTimeRef = useRef(Date.now());
+
   // Tabs
   const [activeTab, setActiveTab] = useState("config"); // config, comments, autopilot, metrics
 
@@ -147,9 +161,158 @@ export default function LiverClonePage() {
     if (!file) return;
     setSourceFaceFile(file);
     const reader = new FileReader();
-    reader.onload = (ev) => setSourceFacePreview(ev.target.result);
+    reader.onload = (ev) => {
+      setSourceFacePreview(ev.target.result);
+      // Auto-upload source face to GPU Worker for preview
+      const base64 = ev.target.result.split(",")[1];
+      uploadSourceFace(base64);
+    };
     reader.readAsDataURL(file);
   };
+
+  const uploadSourceFace = async (base64) => {
+    try {
+      await liverCloneService.previewSetSource(base64);
+      setIsSourceUploaded(true);
+      setPreviewError(null);
+    } catch (err) {
+      console.error("[Preview] Failed to upload source face:", err);
+      setPreviewError("ソース顔のアップロードに失敗しました");
+      setIsSourceUploaded(false);
+    }
+  };
+
+  // ── Preview Functions ──
+  const startPreview = async () => {
+    try {
+      setPreviewError(null);
+      // Get webcam access
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480, facingMode: "user" },
+        audio: false,
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      // Get WebSocket URL from backend
+      const { ws_url } = await liverCloneService.getPreviewWsUrl();
+      
+      // Connect WebSocket
+      const ws = new WebSocket(ws_url);
+      ws.binaryType = "arraybuffer";
+      previewWsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log("[Preview] WebSocket connected");
+        setPreviewActive(true);
+        // Start sending frames
+        startSendingFrames();
+      };
+
+      ws.onmessage = (event) => {
+        if (event.data instanceof ArrayBuffer) {
+          // Binary frame - display it
+          const blob = new Blob([event.data], { type: "image/jpeg" });
+          const url = URL.createObjectURL(blob);
+          setPreviewFrame((prev) => {
+            if (prev) URL.revokeObjectURL(prev);
+            return url;
+          });
+          // FPS counting
+          frameCountRef.current++;
+          const now = Date.now();
+          if (now - lastFpsTimeRef.current >= 1000) {
+            setPreviewFps(frameCountRef.current);
+            frameCountRef.current = 0;
+            lastFpsTimeRef.current = now;
+          }
+        } else {
+          // JSON message (error)
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === "error") {
+              setPreviewError(msg.message);
+            }
+          } catch (e) {}
+        }
+      };
+
+      ws.onerror = (err) => {
+        console.error("[Preview] WebSocket error:", err);
+        setPreviewError("WebSocket接続エラー");
+      };
+
+      ws.onclose = () => {
+        console.log("[Preview] WebSocket closed");
+        setPreviewActive(false);
+      };
+    } catch (err) {
+      console.error("[Preview] Start failed:", err);
+      setPreviewError(err.message || "プレビューの開始に失敗しました");
+    }
+  };
+
+  const startSendingFrames = () => {
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    if (!canvas || !video) return;
+
+    const ctx = canvas.getContext("2d");
+    canvas.width = 640;
+    canvas.height = 480;
+
+    // Send frames at ~5fps (every 200ms) to avoid overloading GPU
+    previewIntervalRef.current = setInterval(() => {
+      if (!previewWsRef.current || previewWsRef.current.readyState !== WebSocket.OPEN) return;
+      if (!video.videoWidth) return;
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => {
+          if (blob && previewWsRef.current?.readyState === WebSocket.OPEN) {
+            blob.arrayBuffer().then((buf) => {
+              previewWsRef.current.send(buf);
+            });
+          }
+        },
+        "image/jpeg",
+        0.8
+      );
+    }, 200); // 5 fps
+  };
+
+  const stopPreview = () => {
+    // Stop sending frames
+    if (previewIntervalRef.current) {
+      clearInterval(previewIntervalRef.current);
+      previewIntervalRef.current = null;
+    }
+    // Close WebSocket
+    if (previewWsRef.current) {
+      previewWsRef.current.close();
+      previewWsRef.current = null;
+    }
+    // Stop webcam
+    if (videoRef.current?.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+      videoRef.current.srcObject = null;
+    }
+    // Cleanup
+    setPreviewActive(false);
+    if (previewFrame) {
+      URL.revokeObjectURL(previewFrame);
+      setPreviewFrame(null);
+    }
+    setPreviewFps(0);
+    setPreviewLatency(0);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => stopPreview();
+  }, []);
 
   const handleCreateSession = async () => {
     setIsCreating(true);
@@ -315,19 +478,19 @@ export default function LiverClonePage() {
             {health && (
               <div
                 className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
-                  health.status === "healthy"
+                  health.status === "healthy" || health.status === "ok" || health.face_swap_worker === "ok"
                     ? "bg-green-900/50 text-green-400"
                     : "bg-red-900/50 text-red-400"
                 }`}
               >
                 <div
                   className={`w-2 h-2 rounded-full ${
-                    health.status === "healthy"
+                    health.status === "healthy" || health.status === "ok" || health.face_swap_worker === "ok"
                       ? "bg-green-400"
                       : "bg-red-400"
                   }`}
                 />
-                GPU {health.status === "healthy" ? "Ready" : "Offline"}
+                GPU {health.status === "healthy" || health.status === "ok" || health.face_swap_worker === "ok" ? "Ready" : "Offline"}
               </div>
             )}
           </div>
@@ -351,16 +514,31 @@ export default function LiverClonePage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* ── Left: Stream Status & Preview ── */}
           <div className="space-y-4">
-            {/* Stream Preview Placeholder */}
+            {/* Stream Preview */}
             <div className="bg-[#12121a] rounded-xl border border-gray-800 overflow-hidden">
-              <div className="aspect-[9/16] bg-black flex items-center justify-center relative">
-                {isStreaming ? (
+              <div className="aspect-video bg-black flex items-center justify-center relative">
+                {/* Hidden video element for webcam */}
+                <video ref={videoRef} className="hidden" muted playsInline />
+                <canvas ref={canvasRef} className="hidden" />
+                
+                {previewActive && previewFrame ? (
+                  <img
+                    src={previewFrame}
+                    alt="Preview"
+                    className="w-full h-full object-contain"
+                  />
+                ) : isStreaming ? (
                   <div className="text-center">
                     <Radio className="w-12 h-12 text-red-400 animate-pulse mx-auto mb-2" />
                     <p className="text-sm text-gray-400">配信中...</p>
                     <p className="text-xs text-gray-500 mt-1">
                       プラットフォームで確認してください
                     </p>
+                  </div>
+                ) : previewActive ? (
+                  <div className="text-center">
+                    <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-2" />
+                    <p className="text-sm text-gray-400">プレビュー接続中...</p>
                   </div>
                 ) : sourceFacePreview ? (
                   <img
@@ -382,7 +560,52 @@ export default function LiverClonePage() {
                     LIVE
                   </div>
                 )}
+                {previewActive && (
+                  <div className="absolute top-3 left-3 flex items-center gap-1 bg-cyan-600 px-2 py-0.5 rounded text-xs font-bold">
+                    <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                    PREVIEW
+                  </div>
+                )}
+                {/* Preview stats overlay */}
+                {previewActive && (
+                  <div className="absolute bottom-3 left-3 right-3 flex justify-between text-xs">
+                    <span className="bg-black/70 px-2 py-1 rounded text-green-400">
+                      {previewFps} FPS
+                    </span>
+                    <span className="bg-black/70 px-2 py-1 rounded text-yellow-400">
+                      GPU: RTX 5090
+                    </span>
+                  </div>
+                )}
               </div>
+              {/* Preview Controls */}
+              <div className="p-3 border-t border-gray-800 flex gap-2">
+                {!previewActive ? (
+                  <button
+                    onClick={startPreview}
+                    disabled={!isSourceUploaded || isStreaming}
+                    className="flex-1 flex items-center justify-center gap-2 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-sm font-medium transition"
+                  >
+                    <Camera className="w-4 h-4" />
+                    プレビュー開始
+                  </button>
+                ) : (
+                  <button
+                    onClick={stopPreview}
+                    className="flex-1 flex items-center justify-center gap-2 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition"
+                  >
+                    <Square className="w-4 h-4 text-red-400" />
+                    プレビュー停止
+                  </button>
+                )}
+              </div>
+              {/* Preview error */}
+              {previewError && (
+                <div className="p-2 bg-red-900/30 border-t border-red-800 text-xs text-red-300 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {previewError}
+                </div>
+              )}
             </div>
 
             {/* Metrics */}
