@@ -641,65 +641,78 @@ export default function AiCoachMaster() {
         </Card>
       )}
 
-      {/* 最近の自動送信メッセージ一覧 */}
-      <Card className="mb-6">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm flex items-center gap-2 cursor-pointer" onClick={() => setShowRecentMessages(!showRecentMessages)}>
-              <Send className="h-4 w-4 text-orange-500" />
-              最近の自動送信メッセージ
-              {showRecentMessages ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </CardTitle>
-            {showRecentMessages && (
-              <Select value={recentMsgTypeFilter} onValueChange={setRecentMsgTypeFilter}>
-                <SelectTrigger className="w-[160px] h-7 text-xs">
-                  <SelectValue placeholder="種類" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">すべて</SelectItem>
-                  <SelectItem value="stream_record">📊 配信記録</SelectItem>
-                  <SelectItem value="stream_suggestion">📢 配信提案</SelectItem>
-                  <SelectItem value="auto_question">🤖 AIコーチ質問</SelectItem>
-                  <SelectItem value="pre_briefing">🌅 配信前ブリーフィング</SelectItem>
-                  <SelectItem value="pre_reminder">⏰ 配信前リマインダー</SelectItem>
-                  <SelectItem value="weekly_report">📊 週次レポート</SelectItem>
-                  <SelectItem value="skill_analysis">🎯 スキル分析</SelectItem>
-                  <SelectItem value="monthly_report">📅 月次レポート</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        </CardHeader>
-        {showRecentMessages && (
-          <CardContent className="pt-0">
-            <div className="space-y-2 max-h-[500px] overflow-y-auto">
-              {recentAutoMessages && recentAutoMessages.length > 0 ? (
-                recentAutoMessages.map(msg => (
-                  <div key={msg.id} className="border rounded-lg p-3 hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <div className="h-6 w-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-[10px] font-bold">
-                          {msg.liverName.charAt(0)}
-                        </div>
-                        <span className="font-medium text-sm">{msg.liverName}</span>
-                        {getMessageTypeBadge(msg.messageType)}
+      {/* 最近の自動送信メッセージ一覧 - カード形式フィルタ */}
+      <div className="mb-6">
+        <h2 className="text-sm font-semibold flex items-center gap-2 mb-3">
+          <Send className="h-4 w-4 text-orange-500" />
+          自動送信メッセージ
+        </h2>
+        {/* メッセージタイプ カードフィルタ */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+          {[
+            { key: 'all', label: 'すべて', emoji: '📋', color: 'text-gray-600', bg: 'bg-gray-100 dark:bg-gray-800' },
+            { key: 'stream_record', label: '配信記録', emoji: '📊', color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-950' },
+            { key: 'stream_suggestion', label: '配信提案', emoji: '📢', color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-950' },
+            { key: 'auto_question', label: 'AIコーチ質問', emoji: '🤖', color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-950' },
+            { key: 'pre_briefing', label: '配信前ブリーフィング', emoji: '🌅', color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-950' },
+            { key: 'pre_reminder', label: '配信前リマインダー', emoji: '⏰', color: 'text-rose-600', bg: 'bg-rose-50 dark:bg-rose-950' },
+            { key: 'weekly_report', label: '週次レポート', emoji: '📈', color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-950' },
+            { key: 'skill_analysis', label: 'スキル分析', emoji: '🎯', color: 'text-teal-600', bg: 'bg-teal-50 dark:bg-teal-950' },
+            { key: 'monthly_report', label: '月次レポート', emoji: '📅', color: 'text-cyan-600', bg: 'bg-cyan-50 dark:bg-cyan-950' },
+          ].map(type => {
+            const typeCount = type.key === 'all'
+              ? (recentAutoMessages?.length || 0)
+              : (recentAutoMessages?.filter(m => m.messageType === type.key).length || 0);
+            const isActive = recentMsgTypeFilter === type.key;
+            return (
+              <div
+                key={type.key}
+                onClick={() => setRecentMsgTypeFilter(type.key)}
+                className={`cursor-pointer rounded-lg p-3 border transition-all ${
+                  isActive
+                    ? 'ring-2 ring-amber-500 border-amber-400 shadow-sm'
+                    : 'hover:border-muted-foreground/30 hover:shadow-sm'
+                } ${type.bg}`}
+              >
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-base">{type.emoji}</span>
+                  <span className={`text-lg font-bold ${type.color}`}>{typeCount}</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-tight">{type.label}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* メッセージ一覧 */}
+        <div className="space-y-2 max-h-[500px] overflow-y-auto">
+          {recentAutoMessages && recentAutoMessages.length > 0 ? (
+            recentAutoMessages.map(msg => (
+              <Card key={msg.id} className="hover:bg-muted/30 transition-colors">
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-[10px] font-bold">
+                        {msg.liverName.charAt(0)}
                       </div>
-                      <span className="text-[10px] text-muted-foreground">
-                        {formatDate(msg.createdAt)}
-                      </span>
+                      <span className="font-medium text-sm">{msg.liverName}</span>
+                      {getMessageTypeBadge(msg.messageType)}
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2 ml-8 whitespace-pre-wrap">
-                      {msg.content.slice(0, 150)}{msg.content.length > 150 ? '...' : ''}
-                    </p>
+                    <span className="text-[10px] text-muted-foreground">
+                      {formatDate(msg.createdAt)}
+                    </span>
                   </div>
-                ))
-              ) : (
-                <p className="text-center text-muted-foreground text-sm py-4">自動送信メッセージはまだありません</p>
-              )}
-            </div>
-          </CardContent>
-        )}
-      </Card>
+                  <p className="text-xs text-muted-foreground line-clamp-2 ml-8 whitespace-pre-wrap">
+                    {msg.content.slice(0, 150)}{msg.content.length > 150 ? '...' : ''}
+                  </p>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <p className="text-center text-muted-foreground text-sm py-4">自動送信メッセージはまだありません</p>
+          )}
+        </div>
+      </div>
 
       {/* ライバー一覧 */}
       <div className="space-y-2">
