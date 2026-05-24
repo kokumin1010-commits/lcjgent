@@ -11412,7 +11412,36 @@ ${conversationText}
                 const complianceStats = await getLiverComplianceStats(input.liverId, yearMonth);
                 if (complianceStats) {
                   // Check if this specific livestream is scheduled
-                  const isScheduled = !!input.scheduleId;
+                  // Don't just rely on input.scheduleId (often NULL even when schedule exists)
+                  // Also check if there's a schedule for this liver on the same date by liverName
+                  let isScheduled = !!input.scheduleId;
+                  if (!isScheduled && liver?.name) {
+                    try {
+                      const { getDb } = await import("./db");
+                      const dbConn = await getDb();
+                      if (dbConn) {
+                        const { schedules } = await import("../drizzle/schema");
+                        const { sql } = await import("drizzle-orm");
+                        // Convert livestreamDate to JST date for comparison
+                        const streamDateForCheck = new Date(input.livestreamDate);
+                        const jstDateForCheck = new Date(streamDateForCheck.getTime() + 9 * 60 * 60 * 1000);
+                        const dateStr = `${jstDateForCheck.getUTCFullYear()}-${String(jstDateForCheck.getUTCMonth() + 1).padStart(2, '0')}-${String(jstDateForCheck.getUTCDate()).padStart(2, '0')}`;
+                        // JST day: 00:00 JST = 15:00 UTC previous day
+                        const jstDayStartUTC = new Date(`${dateStr}T00:00:00+09:00`);
+                        const jstDayEndUTC = new Date(jstDayStartUTC.getTime() + 24 * 60 * 60 * 1000);
+                        const matchingSchedules = await dbConn
+                          .select({ id: schedules.id })
+                          .from(schedules)
+                          .where(sql`(${schedules.liverId} = ${input.liverId} OR ${schedules.liverName} = ${liver.name}) AND ${schedules.startTime} >= ${jstDayStartUTC.toISOString()} AND ${schedules.startTime} < ${jstDayEndUTC.toISOString()} AND ${schedules.status} != 'cancelled'`)
+                          .limit(1);
+                        if (matchingSchedules.length > 0) {
+                          isScheduled = true;
+                        }
+                      }
+                    } catch (schedCheckErr) {
+                      console.error('[LINE Coaching] Failed to check schedule by name:', schedCheckErr);
+                    }
+                  }
                   // Check if this is a late registration (createdAt - livestreamDate > 48h)
                   const livestreamDate = new Date(input.livestreamDate);
                   const registrationTime = new Date();
