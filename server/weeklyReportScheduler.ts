@@ -17,6 +17,7 @@ import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 import { pushMessage } from "./line";
 import { getLiverMonthlyGoalByName } from "./db";
+import { runSkillAnalysis, formatSkillAnalysisMessage } from "./liverSkillAnalysis";
 
 const LOG_PREFIX = "[Weekly Report]";
 
@@ -291,9 +292,22 @@ export async function runWeeklyReport(): Promise<void> {
         await pushMessage(targetGroup.lineGroupId, [{ type: "text", text: reportMessage }]);
       }
 
-      // Send DM
+      // Send DM with skill analysis
       if (liver.lineUserId) {
         await pushMessage(liver.lineUserId, [{ type: "text", text: reportMessage }]);
+        
+        // Send skill analysis as separate DM (personal insights)
+        try {
+          const skillAnalysis = await runSkillAnalysis(liver.name);
+          if (skillAnalysis && skillAnalysis.insights.length > 0) {
+            const skillMsg = formatSkillAnalysisMessage(skillAnalysis);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await pushMessage(liver.lineUserId, [{ type: "text", text: skillMsg }]);
+            console.log(`${LOG_PREFIX} ✅ Skill analysis sent to ${liver.name}`);
+          }
+        } catch (skillErr: any) {
+          console.error(`${LOG_PREFIX} Skill analysis error for ${liver.name}: ${skillErr.message}`);
+        }
       }
 
       sentCount++;

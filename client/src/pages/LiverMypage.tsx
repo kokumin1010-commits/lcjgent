@@ -70,6 +70,8 @@ import LiverReferralCard from "@/components/LiverReferralCard";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { createLiverT, type LiverLanguage } from "@/lib/liverI18n";
 import MegaChannelBanner from "@/components/MegaChannelBanner";
+import { LiverGrowthChart } from "@/components/LiverGrowthChart";
+import { LiverDiary } from "@/components/LiverDiary";
 
 export default function LiverMypage() {
   const [, navigate] = useLocation();
@@ -1268,6 +1270,15 @@ export default function LiverMypage() {
             </div>
           </>
         )}
+
+        {/* 成長ポートフォリオ（グラフ） */}
+        <LiverGrowthChart 
+          livestreams={livestreams as any} 
+          liverName={liverInfo?.name || ''}
+        />
+
+        {/* 配信日報＆振り返り */}
+        <LiverDiary selectedMonth={selectedMonth} />
 
         {/* Mega Channel Status */}
         <MegaChannelBanner />

@@ -27,6 +27,7 @@ import { startWeeklyReportScheduler } from "../weeklyReportScheduler";
 import { startMonthlyReportScheduler } from "../monthlyReportScheduler";
 import { startPeerBonusResetScheduler } from "../peerBonusResetScheduler";
 import { startDailyRankingScheduler } from "../dailyRankingScheduler";
+import { startPreBriefingScheduler } from "../preBriefingScheduler";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
 
@@ -2044,6 +2045,15 @@ async function startServer() {
 
     // Start daily ranking scheduler (sends daily ranking to LINE at JST 00:00)
     startDailyRankingScheduler();
+    
+    // Start weekly report scheduler (sends weekly report every Monday at JST 09:00)
+    startWeeklyReportScheduler();
+    
+    // Start monthly report scheduler (sends monthly report on 1st of each month)
+    startMonthlyReportScheduler();
+    
+    // Start pre-briefing scheduler (sends briefing 1h before and 5min before stream)
+    startPreBriefingScheduler();
     
     // Ensure schedules.brandIds column exists (multi-brand support)
     import("../db").then(({ ensureSchedulesBrandIdsColumn }) => {

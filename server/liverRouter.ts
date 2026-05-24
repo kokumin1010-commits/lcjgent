@@ -794,4 +794,83 @@ export const liverRouter = router({
       }
       return { success: true, deactivatedCount: count };
     }),
+
+  // ===== 日報＆振り返り機能 =====
+  saveDiary: publicProcedure
+    .input(z.object({
+      note: z.string().min(1).max(500),
+      mood: z.enum(['great', 'good', 'normal', 'bad', 'terrible']).optional(),
+      livestreamId: z.number().optional(),
+      diaryDate: z.string().optional(), // YYYY-MM-DD
+      salesAmount: z.number().optional(),
+      durationMinutes: z.number().optional(),
+      hourlyRate: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const token = getLiverToken(ctx as any);
+      if (!token) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const payload = await verifyLiverToken(token);
+      if (!payload) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const liver = await getLiverById(payload.liverId);
+      if (!liver) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const { saveDiaryEntry } = await import("./liverDiary");
+      const today = new Date();
+      const diaryDate = input.diaryDate || `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+      const result = await saveDiaryEntry({
+        liverId: payload.liverId,
+        liverName: liver.name || '',
+        livestreamId: input.livestreamId,
+        diaryDate,
+        note: input.note,
+        mood: input.mood,
+        salesAmount: input.salesAmount,
+        durationMinutes: input.durationMinutes,
+        hourlyRate: input.hourlyRate,
+      });
+      return { success: true, id: result?.id || 0 };
+    }),
+
+  getDiaries: publicProcedure
+    .input(z.object({ yearMonth: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const token = getLiverToken(ctx as any);
+      if (!token) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const payload = await verifyLiverToken(token);
+      if (!payload) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const liver = await getLiverById(payload.liverId);
+      if (!liver) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const { getDiaryEntries } = await import("./liverDiary");
+      return await getDiaryEntries(liver.name || '', input.yearMonth);
+    }),
+
+  getDiaryStreak: publicProcedure
+    .query(async ({ ctx }) => {
+      const token = getLiverToken(ctx as any);
+      if (!token) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const payload = await verifyLiverToken(token);
+      if (!payload) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const liver = await getLiverById(payload.liverId);
+      if (!liver) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const { getDiaryStreak } = await import("./liverDiary");
+      return await getDiaryStreak(liver.name || '');
+    }),
+
+  generateMonthlySummary: publicProcedure
+    .input(z.object({ yearMonth: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const token = getLiverToken(ctx as any);
+      if (!token) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const payload = await verifyLiverToken(token);
+      if (!payload) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const liver = await getLiverById(payload.liverId);
+      if (!liver) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const { generateMonthlySummary } = await import("./liverDiary");
+      const summary = await generateMonthlySummary(liver.name || '', input.yearMonth);
+      return { summary };
+    }),
 });
