@@ -4192,10 +4192,18 @@ async def upload_product_image(
             )
             resp.raise_for_status()
 
-        logger.info(f"[ai-clip] Product image uploaded: {filename} ({len(content)} bytes) → {blob_url}")
+        # Generate read SAS URL for the uploaded image
+        from app.services.storage_service import generate_read_sas_from_url
+        read_url = generate_read_sas_from_url(blob_url)
+        if not read_url:
+            # Fallback: return blob_url and let analyze endpoint handle it
+            read_url = blob_url
+
+        logger.info(f"[ai-clip] Product image uploaded: {filename} ({len(content)} bytes) \u2192 {blob_url}")
         return {
             "success": True,
             "blob_url": blob_url,
+            "read_url": read_url,
             "file_size": len(content),
             "filename": filename,
         }

@@ -1555,12 +1555,13 @@ function FeedbackCard({ fb, onRated, feedbacks, currentIdx, expanded, onToggle, 
         const res = await axios.post(`${baseURL}/api/v1/ai-clip/upload-product-image`, formData, {
           headers: { 'X-Admin-Key': 'aither:hub', 'Content-Type': 'multipart/form-data' },
         });
+        const readUrl = res.data.read_url || res.data.blob_url;
         setProductImages(prev => prev.map((img, idx) =>
-          img.preview === newImages[i].preview ? { ...img, uploading: false, url: res.data.blob_url } : img
+          img.preview === newImages[i].preview ? { ...img, uploading: false, url: res.data.blob_url, readUrl } : img
         ));
         // Auto-analyze first image
         if (productImages.length === 0 && i === 0) {
-          handleAnalyzeImage(res.data.blob_url);
+          handleAnalyzeImage(readUrl);
         }
       } catch (e) {
         console.error('Image upload failed:', e);
