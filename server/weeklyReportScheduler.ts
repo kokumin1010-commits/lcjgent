@@ -12,12 +12,28 @@
  * - 神コーチリンク（URLパラメータ付き）
  */
 import { getDb } from "./db";
-import { brandLivestreams, livers, lineGroups, brands } from "../drizzle/schema";
-import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
+import { brandLivestreams, livers, lineGroups, brands, aiCoachMessages, aiCoachRooms } from "../drizzle/schema";
+import { eq, and, gte, lte, sql, desc, isNull } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 import { pushMessage } from "./line";
 import { getLiverMonthlyGoalByName } from "./db";
 import { runSkillAnalysis, formatSkillAnalysisMessage } from "./liverSkillAnalysis";
+
+/** Save message to ai_coach_messages for history tracking */
+async function saveToHistory(db: any, liverId: number, content: string, messageType: string): Promise<void> {
+  try {
+    const rooms = await db.select({ id: aiCoachRooms.id }).from(aiCoachRooms)
+      .where(and(eq(aiCoachRooms.liverId, liverId), isNull(aiCoachRooms.deletedAt)))
+      .orderBy(desc(aiCoachRooms.lastMessageAt)).limit(1);
+    const roomId = rooms.length > 0 ? rooms[0].id : null;
+    await db.insert(aiCoachMessages).values({
+      liverId, roomId, role: 'ai', content, messageType, contextType: 'livestream',
+      metadata: { type: messageType },
+    });
+  } catch (e: any) {
+    console.error(`[WeeklyReport] Failed to save to history: ${e.message}`);
+  }
+}
 
 const LOG_PREFIX = "[Weekly Report]";
 
@@ -295,6 +311,8 @@ export async function runWeeklyReport(): Promise<void> {
       // Send DM with skill analysis
       if (liver.lineUserId) {
         await pushMessage(liver.lineUserId, [{ type: "text", text: reportMessage }]);
+        // Save weekly report to history
+        await saveToHistory(db, liver.id, reportMessage, 'weekly_report');
         
         // Send skill analysis as separate DM (personal insights)
         try {
@@ -303,6 +321,8 @@ export async function runWeeklyReport(): Promise<void> {
             const skillMsg = formatSkillAnalysisMessage(skillAnalysis);
             await new Promise(resolve => setTimeout(resolve, 1000));
             await pushMessage(liver.lineUserId, [{ type: "text", text: skillMsg }]);
+            // Save skill analysis to history
+            await saveToHistory(db, liver.id, skillMsg, 'skill_analysis');
             console.log(`${LOG_PREFIX} ✅ Skill analysis sent to ${liver.name}`);
           }
         } catch (skillErr: any) {

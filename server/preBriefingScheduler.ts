@@ -13,7 +13,7 @@
  */
 
 import { getDb } from "./db";
-import { schedules, livers, brandLivestreams, brands } from "../drizzle/schema";
+import { schedules, livers, brandLivestreams, brands, aiCoachMessages, aiCoachRooms } from "../drizzle/schema";
 import { and, eq, gte, lte, isNull, not, desc, sql } from "drizzle-orm";
 import { pushMessage } from "./line";
 import { getLiverMonthlySummaryV2, getLiverMonthlyGoalByName, getRecentTopProductsForLiver } from "./db";
@@ -303,6 +303,8 @@ async function checkAndSendBriefings(): Promise<void> {
         
         if (success) {
           console.log(`${LOG_PREFIX} ✅ 1h briefing sent to ${liverName}`);
+          // Save to ai_coach_messages for history tracking
+          await saveMessageToHistory(liverName, message, 'pre_briefing', { scheduleId: schedule.id, scheduledStart: schedule.startTime });
         } else {
           console.error(`${LOG_PREFIX} ❌ Failed to send 1h briefing to ${liverName}`);
         }
@@ -332,6 +334,8 @@ async function checkAndSendBriefings(): Promise<void> {
         
         if (success) {
           console.log(`${LOG_PREFIX} ✅ 5min reminder sent to ${liverName}`);
+          // Save to ai_coach_messages for history tracking
+          await saveMessageToHistory(liverName, message, 'pre_reminder', { scheduleId: schedule.id });
         } else {
           console.error(`${LOG_PREFIX} ❌ Failed to send 5min reminder to ${liverName}`);
         }
@@ -346,6 +350,33 @@ async function checkAndSendBriefings(): Promise<void> {
     }
   } catch (error) {
     console.error(`${LOG_PREFIX} Error in checkAndSendBriefings:`, error);
+  }
+}
+
+/**
+ * Save message to ai_coach_messages for history tracking
+ */
+async function saveMessageToHistory(liverName: string, content: string, messageType: string, metadata: any): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    const { liverId } = await getLiverLineUserId(liverName);
+    if (!liverId) return;
+    const rooms = await db.select({ id: aiCoachRooms.id }).from(aiCoachRooms)
+      .where(and(eq(aiCoachRooms.liverId, liverId), isNull(aiCoachRooms.deletedAt)))
+      .orderBy(desc(aiCoachRooms.lastMessageAt)).limit(1);
+    const roomId = rooms.length > 0 ? rooms[0].id : null;
+    await db.insert(aiCoachMessages).values({
+      liverId,
+      roomId,
+      role: 'ai',
+      content,
+      messageType,
+      contextType: 'livestream',
+      metadata: { ...metadata, type: messageType },
+    });
+  } catch (saveErr: any) {
+    console.error(`${LOG_PREFIX} Failed to save ${messageType} to ai_coach_messages: ${saveErr.message}`);
   }
 }
 

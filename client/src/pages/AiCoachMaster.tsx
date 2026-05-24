@@ -4,13 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Bot, User, ArrowLeft, Clock, TrendingUp, ChevronDown, ChevronUp, BarChart3, Activity, Package, DollarSign, Timer, Store } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MessageSquare, Bot, User, ArrowLeft, Clock, TrendingUp, ChevronDown, ChevronUp, BarChart3, Activity, Package, DollarSign, Timer, Store, Filter } from "lucide-react";
 
 export default function AiCoachMaster() {
   const [selectedLiverId, setSelectedLiverId] = useState<number | null>(null);
   const [expandedRoomId, setExpandedRoomId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("records");
   const [expandedStreamId, setExpandedStreamId] = useState<number | null>(null);
+  const [messageTypeFilter, setMessageTypeFilter] = useState<string>("all");
 
   const { data: usageStats, isLoading } = trpc.liverManagement.aiCoach.getAllLiverUsageStats.useQuery();
   const { data: conversations } = trpc.liverManagement.aiCoach.getLiverConversations.useQuery(
@@ -50,8 +52,17 @@ export default function AiCoachMaster() {
   // メッセージをタイプ別にフィルタリング
   const filteredMessages = useMemo(() => {
     if (!conversations?.messages) return [];
-    return conversations.messages;
-  }, [conversations]);
+    if (messageTypeFilter === "all") return conversations.messages;
+    if (messageTypeFilter === "user_replies") {
+      return conversations.messages.filter(msg => msg.role === 'user');
+    }
+    if (messageTypeFilter === "auto_sent") {
+      return conversations.messages.filter(msg => 
+        msg.role === 'assistant' && ['pre_briefing', 'pre_reminder', 'weekly_report', 'skill_analysis', 'monthly_report', 'schedule_reminder', 'stream_record', 'stream_suggestion', 'auto_question'].includes(msg.messageType || '')
+      );
+    }
+    return conversations.messages.filter(msg => msg.messageType === messageTypeFilter);
+  }, [conversations, messageTypeFilter]);
 
   // 配信記録のKPIサマリー
   const kpiSummary = useMemo(() => {
@@ -76,6 +87,18 @@ export default function AiCoachMaster() {
         return <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30 text-[10px]">🤖 AIコーチ</Badge>;
       case 'advice':
         return <Badge className="bg-purple-500/20 text-purple-600 border-purple-500/30 text-[10px]">💡 アドバイス</Badge>;
+      case 'pre_briefing':
+        return <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30 text-[10px]">🌅 配信前ブリーフィング</Badge>;
+      case 'pre_reminder':
+        return <Badge className="bg-rose-500/20 text-rose-600 border-rose-500/30 text-[10px]">⏰ 配信前リマインダー</Badge>;
+      case 'weekly_report':
+        return <Badge className="bg-indigo-500/20 text-indigo-600 border-indigo-500/30 text-[10px]">📊 週次レポート</Badge>;
+      case 'skill_analysis':
+        return <Badge className="bg-teal-500/20 text-teal-600 border-teal-500/30 text-[10px]">🎯 スキル分析</Badge>;
+      case 'monthly_report':
+        return <Badge className="bg-cyan-500/20 text-cyan-600 border-cyan-500/30 text-[10px]">📅 月次レポート</Badge>;
+      case 'schedule_reminder':
+        return <Badge className="bg-yellow-500/20 text-yellow-600 border-yellow-500/30 text-[10px]">📋 スケジュールリマインダー</Badge>;
       default:
         return <Badge className="bg-gray-500/20 text-gray-600 border-gray-500/30 text-[10px]">💬 チャット</Badge>;
     }
@@ -413,6 +436,34 @@ export default function AiCoachMaster() {
 
           {/* AI履歴タイムライン */}
           <TabsContent value="timeline">
+            {/* カテゴリフィルタ */}
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={messageTypeFilter} onValueChange={setMessageTypeFilter}>
+                <SelectTrigger className="w-[200px] h-8 text-xs">
+                  <SelectValue placeholder="カテゴリで絞り込み" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">📋 すべて表示</SelectItem>
+                  <SelectItem value="user_replies">👤 ライバー返信のみ</SelectItem>
+                  <SelectItem value="auto_sent">🤖 自動送信のみ</SelectItem>
+                  <SelectItem value="stream_record">📊 配信記録</SelectItem>
+                  <SelectItem value="stream_suggestion">📢 配信提案</SelectItem>
+                  <SelectItem value="auto_question">🤖 AIコーチ質問</SelectItem>
+                  <SelectItem value="advice">💡 アドバイス</SelectItem>
+                  <SelectItem value="pre_briefing">🌅 配信前ブリーフィング</SelectItem>
+                  <SelectItem value="pre_reminder">⏰ 配信前リマインダー</SelectItem>
+                  <SelectItem value="weekly_report">📊 週次レポート</SelectItem>
+                  <SelectItem value="skill_analysis">🎯 スキル分析</SelectItem>
+                  <SelectItem value="monthly_report">📅 月次レポート</SelectItem>
+                  <SelectItem value="schedule_reminder">📋 スケジュールリマインダー</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground">
+                {filteredMessages.length}件表示
+              </span>
+            </div>
+
             <div className="space-y-3">
               {filteredMessages.length > 0 ? (
                 filteredMessages.map(msg => (

@@ -14,10 +14,26 @@
  * - 神コーチリンク（URLパラメータ付き）
  */
 import { getDb } from "./db";
-import { brandLivestreams, livers, lineGroups, brands, liverGoals } from "../drizzle/schema";
-import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
+import { brandLivestreams, livers, lineGroups, brands, liverGoals, aiCoachMessages, aiCoachRooms } from "../drizzle/schema";
+import { eq, and, gte, lte, sql, desc, isNull } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 import { pushMessage } from "./line";
+
+/** Save message to ai_coach_messages for history tracking */
+async function saveToHistory(db: any, liverId: number, content: string, messageType: string): Promise<void> {
+  try {
+    const rooms = await db.select({ id: aiCoachRooms.id }).from(aiCoachRooms)
+      .where(and(eq(aiCoachRooms.liverId, liverId), isNull(aiCoachRooms.deletedAt)))
+      .orderBy(desc(aiCoachRooms.lastMessageAt)).limit(1);
+    const roomId = rooms.length > 0 ? rooms[0].id : null;
+    await db.insert(aiCoachMessages).values({
+      liverId, roomId, role: 'ai', content, messageType, contextType: 'livestream',
+      metadata: { type: messageType },
+    });
+  } catch (e: any) {
+    console.error(`[MonthlyReport] Failed to save to history: ${e.message}`);
+  }
+}
 
 const LOG_PREFIX = "[Monthly Report]";
 
@@ -376,11 +392,12 @@ export async function runMonthlyReport(): Promise<void> {
         await pushMessage(targetGroup.lineGroupId, [{ type: "text", text: reportMessage }]);
       }
 
-      // Send DM
+       // Send DM
       if (liver.lineUserId) {
         await pushMessage(liver.lineUserId, [{ type: "text", text: reportMessage }]);
+        // Save monthly report to history
+        await saveToHistory(db, liver.id, reportMessage, 'monthly_report');
       }
-
       sentCount++;
       console.log(`${LOG_PREFIX} ✅ Sent report for ${liver.name} (¥${monthlyData.totalSales.toLocaleString()})`);
       
