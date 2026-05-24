@@ -103,6 +103,16 @@ current_config = {
 
 source_face_path: Optional[str] = None
 
+# ── InsightFace In-Memory Engine ──────────────────────────────────────────────
+# These are loaded once at startup and reused for every frame (50-200ms vs 14-35s)
+face_analyzer = None       # insightface.app.FaceAnalysis instance
+face_swapper_model = None  # INSwapper ONNX model
+source_face_embedding = None  # Pre-computed source face object from FaceAnalysis
+INSWAPPER_MODEL_PATH = os.getenv(
+    "INSWAPPER_MODEL_PATH",
+    "/workspace/facefusion/.assets/models/inswapper_128.onnx"
+)
+
 
 # ── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -296,12 +306,63 @@ def build_facefusion_headless_cmd(input_path: str, output_path: str) -> list:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
+    global face_analyzer, face_swapper_model, source_face_embedding
+
     logger.info("FaceFusion GPU Worker starting up...")
     logger.info(f"FaceFusion directory: {FACEFUSION_DIR}")
     logger.info(f"Source face directory: {SOURCE_FACE_DIR}")
 
     gpu_info = get_gpu_info()
     logger.info(f"GPU: {gpu_info['gpu_name']} ({gpu_info['gpu_memory_total_mb']}MB)")
+
+    # ── Load InsightFace models for in-memory face swap ──────────────────────
+    try:
+        import insightface
+        from insightface.app import FaceAnalysis
+        import onnxruntime
+
+        logger.info("[InsightFace] Loading face analyzer (buffalo_l)...")
+        face_analyzer = FaceAnalysis(
+            name='buffalo_l',
+            providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
+        )
+        face_analyzer.prepare(ctx_id=0, det_size=(640, 640))
+        logger.info("[InsightFace] Face analyzer loaded successfully")
+
+        if os.path.exists(INSWAPPER_MODEL_PATH):
+            logger.info(f"[InsightFace] Loading swapper model: {INSWAPPER_MODEL_PATH}")
+            face_swapper_model = insightface.model_zoo.get_model(
+                INSWAPPER_MODEL_PATH,
+                download=False,
+                providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
+            )
+            logger.info("[InsightFace] Swapper model loaded successfully")
+        else:
+            logger.warning(f"[InsightFace] inswapper_128.onnx not found at {INSWAPPER_MODEL_PATH}")
+            logger.warning("[InsightFace] Will fall back to FaceFusion CLI for face swap")
+
+        # If a source face was previously saved, pre-compute embedding
+        existing_faces = sorted(Path(SOURCE_FACE_DIR).glob("source_face_*.jpg"), reverse=True)
+        if existing_faces and face_analyzer:
+            import cv2
+            latest_face = str(existing_faces[0])
+            img = cv2.imread(latest_face)
+            if img is not None:
+                faces = face_analyzer.get(img)
+                if faces:
+                    source_face_embedding = faces[0]
+                    logger.info(f"[InsightFace] Pre-loaded source face from {latest_face}")
+
+    except ImportError as e:
+        logger.warning(f"[InsightFace] insightface not available: {e}")
+        logger.warning("[InsightFace] Will use FaceFusion CLI fallback")
+    except Exception as e:
+        logger.error(f"[InsightFace] Failed to load models: {e}")
+        logger.warning("[InsightFace] Will use FaceFusion CLI fallback")
+
+    logger.info(f"[InsightFace] Engine status: analyzer={'OK' if face_analyzer else 'NONE'}, "
+                f"swapper={'OK' if face_swapper_model else 'NONE'}, "
+                f"source_face={'OK' if source_face_embedding else 'NONE'}")
 
     yield
 
@@ -364,6 +425,16 @@ async def health_check(auth: bool = Depends(verify_api_key)):
         "stream_status": current_session["status"],
         "session_id": current_session["id"],
         "config": current_config,
+        "insightface_engine": {
+            "face_analyzer": face_analyzer is not None,
+            "face_swapper_model": face_swapper_model is not None,
+            "source_face_embedding": source_face_embedding is not None,
+            "ready": all([
+                face_analyzer is not None,
+                face_swapper_model is not None,
+                source_face_embedding is not None,
+            ]),
+        },
     }
 
 
@@ -412,14 +483,41 @@ async def set_source(
 
     source_face_path = save_path
 
-    # Validate face detection using FaceFusion (optional quick check)
-    face_detected = True  # Assume success; full validation happens at stream start
+    # Compute source face embedding using InsightFace in-memory engine
+    global source_face_embedding
+    face_detected = False
+    num_faces = 0
+
+    if face_analyzer is not None:
+        try:
+            import cv2
+            img = cv2.imread(save_path)
+            if img is not None:
+                faces = face_analyzer.get(img)
+                num_faces = len(faces)
+                if faces:
+                    # Use specified face_index (default 0 = largest/most prominent)
+                    idx = min(face_index, len(faces) - 1)
+                    source_face_embedding = faces[idx]
+                    face_detected = True
+                    logger.info(f"[InsightFace] Source face embedding computed "
+                                f"({num_faces} faces detected, using index {idx})")
+                else:
+                    logger.warning("[InsightFace] No faces detected in source image")
+        except Exception as e:
+            logger.error(f"[InsightFace] Error computing source face embedding: {e}")
+    else:
+        # Fallback: assume face is valid, will use FaceFusion CLI
+        face_detected = True
+        logger.info("[InsightFace] Engine not loaded, skipping embedding computation")
 
     return {
         "status": "ok",
         "source_face_path": save_path,
         "face_detected": face_detected,
         "face_index": face_index,
+        "num_faces_detected": num_faces,
+        "insightface_engine": face_analyzer is not None,
     }
 
 
@@ -1203,10 +1301,11 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
     Protocol:
       1. Client connects with ?api_key=xxx
       2. Client sends JPEG frames as binary messages
-      3. Server processes each frame through FaceFusion
+      3. Server processes each frame through InsightFace in-memory engine
       4. Server returns processed JPEG frame as binary message
     
-    This allows browser-based preview before starting RTMP streaming.
+    Uses InsightFace in-memory engine (50-200ms/frame) instead of
+    FaceFusion CLI subprocess (14-35s/frame).
     """
     # Verify API key
     if api_key != WORKER_API_KEY:
@@ -1220,13 +1319,26 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
     error_count = 0
     MAX_ERRORS = 10
     
+    # Check if InsightFace engine is available
+    use_insightface = (face_analyzer is not None and 
+                       face_swapper_model is not None and 
+                       source_face_embedding is not None)
+    
+    if use_insightface:
+        logger.info("[Preview] Using InsightFace in-memory engine (fast mode)")
+    else:
+        logger.warning("[Preview] InsightFace engine not ready, using FaceFusion CLI fallback")
+    
     try:
+        import cv2
+        import numpy as np
+        
         while True:
             # Receive frame from client (binary JPEG)
             data = await websocket.receive_bytes()
             frame_count += 1
             
-            if source_face_path is None or not Path(source_face_path).exists():
+            if source_face_embedding is None and (source_face_path is None or not Path(source_face_path).exists()):
                 # No source face set - return original frame with warning
                 await websocket.send_json({
                     "type": "error",
@@ -1234,61 +1346,93 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
                 })
                 continue
             
-            # Process frame through FaceFusion
-            input_path = os.path.join(TEMP_DIR, f"preview_in_{frame_count % 10}.jpg")
-            output_path = os.path.join(TEMP_DIR, f"preview_out_{frame_count % 10}.jpg")
-            
             try:
-                # Save input frame
-                with open(input_path, "wb") as f:
-                    f.write(data)
+                start_time = time.time()
                 
-                # Run FaceFusion headless on single frame
-                cmd = build_facefusion_headless_cmd(input_path, output_path)
-                import os as _os
-                _env = _os.environ.copy()
-                _env["LD_LIBRARY_PATH"] = "/usr/lib/x86_64-linux-gnu:" + _env.get("LD_LIBRARY_PATH", "")
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,  # 30s timeout per frame (CUDA init may take longer)
-                    cwd=FACEFUSION_DIR,
-                    env=_env,
-                )
-                
-                if result.returncode != 0 or not Path(output_path).exists():
-                    error_count += 1
-                    if error_count >= MAX_ERRORS:
-                        await websocket.send_json({
-                            "type": "error",
-                            "message": "Too many processing errors. Check GPU Worker logs."
-                        })
-                        break
-                    # Return original frame on error
-                    await websocket.send_bytes(data)
-                    continue
-                
-                # Send processed frame back
-                with open(output_path, "rb") as f:
-                    processed = f.read()
-                await websocket.send_bytes(processed)
-                error_count = 0  # Reset error count on success
+                if use_insightface and source_face_embedding is not None:
+                    # ── InsightFace In-Memory Processing (50-200ms) ──────────
+                    # Decode JPEG to numpy array
+                    nparr = np.frombuffer(data, np.uint8)
+                    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                    
+                    if frame is None:
+                        error_count += 1
+                        await websocket.send_bytes(data)
+                        continue
+                    
+                    # Detect faces in target frame
+                    target_faces = face_analyzer.get(frame)
+                    
+                    if target_faces:
+                        # Swap all detected faces with source face
+                        result = frame.copy()
+                        for target_face in target_faces:
+                            result = face_swapper_model.get(
+                                result, target_face, source_face_embedding, paste_back=True
+                            )
+                        
+                        # Encode result back to JPEG
+                        _, encoded = cv2.imencode('.jpg', result, 
+                                                  [cv2.IMWRITE_JPEG_QUALITY, 85])
+                        processed = encoded.tobytes()
+                    else:
+                        # No faces detected in frame - return original
+                        processed = data
+                    
+                    elapsed_ms = int((time.time() - start_time) * 1000)
+                    if frame_count % 30 == 0:  # Log every 30 frames
+                        logger.info(f"[Preview] Frame {frame_count}: {elapsed_ms}ms "
+                                    f"({len(target_faces)} faces)")
+                    
+                    await websocket.send_bytes(processed)
+                    error_count = 0
+                    
+                else:
+                    # ── FaceFusion CLI Fallback (14-35s) ─────────────────────
+                    input_path = os.path.join(TEMP_DIR, f"preview_in_{frame_count % 10}.jpg")
+                    output_path = os.path.join(TEMP_DIR, f"preview_out_{frame_count % 10}.jpg")
+                    
+                    with open(input_path, "wb") as f:
+                        f.write(data)
+                    
+                    cmd = build_facefusion_headless_cmd(input_path, output_path)
+                    _env = os.environ.copy()
+                    _env["LD_LIBRARY_PATH"] = "/usr/lib/x86_64-linux-gnu:" + _env.get("LD_LIBRARY_PATH", "")
+                    result = subprocess.run(
+                        cmd, capture_output=True, text=True,
+                        timeout=90, cwd=FACEFUSION_DIR, env=_env,
+                    )
+                    
+                    if result.returncode == 0 and Path(output_path).exists():
+                        with open(output_path, "rb") as f:
+                            processed = f.read()
+                        await websocket.send_bytes(processed)
+                        error_count = 0
+                    else:
+                        error_count += 1
+                        await websocket.send_bytes(data)
+                    
+                    # Cleanup temp files
+                    for p in (input_path, output_path):
+                        try:
+                            os.unlink(p)
+                        except (FileNotFoundError, OSError):
+                            pass
                 
             except subprocess.TimeoutExpired:
                 error_count += 1
-                await websocket.send_bytes(data)  # Return original on timeout
+                await websocket.send_bytes(data)
             except Exception as e:
                 error_count += 1
                 logger.error(f"[Preview] Frame processing error: {e}")
                 await websocket.send_bytes(data)
-            finally:
-                # Cleanup temp files
-                for p in (input_path, output_path):
-                    try:
-                        os.unlink(p)
-                    except (FileNotFoundError, OSError):
-                        pass
+            
+            if error_count >= MAX_ERRORS:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Too many processing errors. Check GPU Worker logs."
+                })
+                break
     
     except WebSocketDisconnect:
         logger.info(f"[Preview] Client disconnected after {frame_count} frames")
@@ -1302,42 +1446,82 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
 async def preview_frame(req: SwapFrameRequest, auth: bool = Depends(verify_api_key)):
     """
     Process a single frame for preview (HTTP fallback for WebSocket).
-    Same as swap-frame but optimized for preview workflow.
+    Uses InsightFace in-memory engine when available (50-200ms),
+    falls back to FaceFusion CLI (14-35s) otherwise.
     Returns processed image as base64.
     """
     if source_face_path is None or not Path(source_face_path).exists():
         raise HTTPException(400, "Source face not set. Call /api/set-source first.")
     
+    content = base64.b64decode(req.image_base64)
+    start_time = time.time()
+    engine_used = "unknown"
+    
+    # Try InsightFace in-memory engine first
+    if (face_analyzer is not None and face_swapper_model is not None 
+            and source_face_embedding is not None):
+        try:
+            import cv2
+            import numpy as np
+            
+            nparr = np.frombuffer(content, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            
+            if frame is None:
+                raise ValueError("Failed to decode image")
+            
+            target_faces = face_analyzer.get(frame)
+            
+            if target_faces:
+                result = frame.copy()
+                for target_face in target_faces:
+                    result = face_swapper_model.get(
+                        result, target_face, source_face_embedding, paste_back=True
+                    )
+                _, encoded = cv2.imencode('.jpg', result,
+                                          [cv2.IMWRITE_JPEG_QUALITY, 90])
+                output_base64 = base64.b64encode(encoded.tobytes()).decode()
+            else:
+                # No faces detected - return original
+                output_base64 = req.image_base64
+            
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            engine_used = "insightface"
+            logger.info(f"[Preview] Frame processed in {elapsed_ms}ms "
+                        f"(InsightFace, {len(target_faces)} faces)")
+            
+            return {
+                "status": "ok",
+                "image_base64": output_base64,
+                "processing_time_ms": elapsed_ms,
+                "engine": engine_used,
+                "faces_detected": len(target_faces),
+            }
+        except Exception as e:
+            logger.warning(f"[Preview] InsightFace failed, falling back to CLI: {e}")
+    
+    # Fallback to FaceFusion CLI
     input_path = os.path.join(TEMP_DIR, f"preview_{uuid.uuid4().hex[:8]}.jpg")
     output_path = os.path.join(TEMP_DIR, f"preview_out_{uuid.uuid4().hex[:8]}.jpg")
     
     try:
-        content = base64.b64decode(req.image_base64)
         with open(input_path, "wb") as f:
             f.write(content)
         
-        # Apply quality settings temporarily
         original_enhancer = current_config["face_enhancer_enabled"]
         current_config["face_enhancer_enabled"] = req.face_enhancer
         
         cmd = build_facefusion_headless_cmd(input_path, output_path)
-        logger.info(f"[Preview] Processing frame: {' '.join(cmd[:6])}...")
+        logger.info(f"[Preview] Processing frame via CLI: {' '.join(cmd[:6])}...")
         
-        import os as _os
-        _env = _os.environ.copy()
+        _env = os.environ.copy()
         _env["LD_LIBRARY_PATH"] = "/usr/lib/x86_64-linux-gnu:" + _env.get("LD_LIBRARY_PATH", "")
-        start_time = time.time()
         result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=90,
-            cwd=FACEFUSION_DIR,
-            env=_env,
+            cmd, capture_output=True, text=True,
+            timeout=90, cwd=FACEFUSION_DIR, env=_env,
         )
         elapsed_ms = int((time.time() - start_time) * 1000)
         
-        # Restore config
         current_config["face_enhancer_enabled"] = original_enhancer
         
         if result.returncode != 0:
@@ -1349,11 +1533,13 @@ async def preview_frame(req: SwapFrameRequest, auth: bool = Depends(verify_api_k
         with open(output_path, "rb") as f:
             output_base64 = base64.b64encode(f.read()).decode()
         
-        logger.info(f"[Preview] Frame processed in {elapsed_ms}ms")
+        engine_used = "facefusion_cli"
+        logger.info(f"[Preview] Frame processed in {elapsed_ms}ms (FaceFusion CLI)")
         return {
             "status": "ok",
             "image_base64": output_base64,
             "processing_time_ms": elapsed_ms,
+            "engine": engine_used,
         }
     finally:
         for p in (input_path, output_path):
