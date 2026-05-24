@@ -1,6 +1,12 @@
 """
-train.py  –  LCJ AI 学習パイプライン v8
+train.py  –  LCJ AI 学習パイプライン v10
 ========================================
+変更点 (v10 - 学習シグナル全面強化):
+  - TikTokパフォーマンスデータ特徴量追加 (11個: views, likes, engagement_rate等)
+  - ブランド割当成功特徴量追加 (3個: is_brand_assigned, brand_assignment_count, has_brand_success)
+  - 商品説明品質特徴量追加 (10個: pd_feature, pd_usage, pd_effect, pd_quality_score等)
+  - 合計 97 + 11 + 3 + 10 = 121 特徴量
+
 変更点 (v8 - ML精度向上 7つの改善):
   - Optunaハイパーパラメータチューニング追加 (改善4)
   - 正則化強化: reg_alpha, reg_lambda, min_child_samples増加 (改善5)
@@ -139,6 +145,41 @@ AUDIO_QUALITY_FEATURES = [
     "af_energy_trend",
 ]
 
+# ── Video performance features (v9/v10) ──
+PERFORMANCE_FEATURES = [
+    "perf_views",
+    "perf_likes",
+    "perf_comments",
+    "perf_shares",
+    "perf_saves",
+    "perf_purchases",
+    "perf_revenue",
+    "perf_engagement_rate",
+    "perf_conversion_rate",
+    "perf_avg_watch_time",
+    "has_performance_data",
+]
+
+# ── Brand assignment features (v10) ──
+BRAND_FEATURES = [
+    "is_brand_assigned",
+    "brand_assignment_count",
+    "has_brand_success",
+]
+# ── Product description quality features (v10) ──
+PRODUCT_DESC_FEATURES = [
+    "pd_feature",
+    "pd_usage",
+    "pd_effect",
+    "pd_ingredient",
+    "pd_comparison",
+    "pd_target",
+    "pd_brand_story",
+    "pd_sensory",
+    "pd_category_count",
+    "pd_quality_score",
+]
+
 # ── Text embedding features (v8) ──
 EMBEDDING_DIM = 8
 EMBEDDING_FEATURES = [f"emb_{j}" for j in range(EMBEDDING_DIM)]
@@ -148,7 +189,7 @@ KNOWN_EVENT_TYPES = [
     "CTA", "OBJECTION", "SOCIAL_PROOF", "URGENCY",
     "EMPATHY", "EDUCATION", "CHAT", "TRANSITION", "CLOSING", "UNKNOWN",
 ]
-MODEL_VERSION = 9
+MODEL_VERSION = 10
 DATE_TAG = datetime.now().strftime("%Y%m%d")
 
 # ── Label definition (for manifest traceability) ──
@@ -213,6 +254,9 @@ def extract_features(records, target="click"):
     feature_names.extend(FRAME_QUALITY_FEATURES)
     feature_names.extend(AUDIO_QUALITY_FEATURES)
     feature_names.extend(EMBEDDING_FEATURES)  # v8: text embeddings
+    feature_names.extend(PERFORMANCE_FEATURES)  # v9/v10: TikTok performance
+    feature_names.extend(BRAND_FEATURES)  # v10: brand assignment signals
+    feature_names.extend(PRODUCT_DESC_FEATURES)  # v10: product description quality
     feature_names.extend([f"event_{et}" for et in KNOWN_EVENT_TYPES])
 
     X = np.zeros((len(records), len(feature_names)), dtype=np.float32)
@@ -276,6 +320,24 @@ def extract_features(records, target="click"):
 
         # Text embedding features (v8)
         for feat in EMBEDDING_FEATURES:
+            val = rec.get(feat)
+            X[i, col] = float(val) if val is not None else 0.0
+            col += 1
+
+        # Video performance features (v9/v10)
+        for feat in PERFORMANCE_FEATURES:
+            val = rec.get(feat)
+            X[i, col] = float(val) if val is not None else 0.0
+            col += 1
+
+        # Brand assignment features (v10)
+        for feat in BRAND_FEATURES:
+            val = rec.get(feat)
+            X[i, col] = float(val) if val is not None else 0.0
+            col += 1
+
+        # Product description quality features (v10)
+        for feat in PRODUCT_DESC_FEATURES:
             val = rec.get(feat)
             X[i, col] = float(val) if val is not None else 0.0
             col += 1

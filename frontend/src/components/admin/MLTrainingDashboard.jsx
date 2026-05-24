@@ -12,24 +12,30 @@ export default function MLTrainingDashboard({ adminKey }) {
   const [triggerLoading, setTriggerLoading] = useState(false);
   const [activeModel, setActiveModel] = useState("click");
   const [effectiveness, setEffectiveness] = useState(null);
+  const [autoRetrainStatus, setAutoRetrainStatus] = useState(null);
+  const [learningProgress, setLearningProgress] = useState(null);
 
   const headers = { "X-Admin-Key": adminKey };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [statusRes, runsRes, metricsRes, fiRes, effectRes] = await Promise.all([
+      const [statusRes, runsRes, metricsRes, fiRes, effectRes, autoRetrainRes, progressRes] = await Promise.all([
         axios.get(`${API}/api/v1/ml-training/status`, { headers }),
         axios.get(`${API}/api/v1/ml-training/runs?limit=20`, { headers }),
         axios.get(`${API}/api/v1/ml-training/metrics`, { headers }),
         axios.get(`${API}/api/v1/ml-training/feature-importance?target=${activeModel}`, { headers }),
         axios.get(`${API}/api/v1/ml-training/effectiveness`, { headers }).catch(() => ({ data: null })),
+        axios.get(`${API}/api/v1/ml-training/auto-retrain/status`, { headers }).catch(() => ({ data: null })),
+        axios.get(`${API}/api/v1/ml-training/learning-progress`, { headers }).catch(() => ({ data: null })),
       ]);
       setStatus(statusRes.data);
       setRuns(runsRes.data.runs || []);
       setMetrics(metricsRes.data || { click: [], order: [] });
       setFeatureImportance(fiRes.data);
       setEffectiveness(effectRes.data);
+      setAutoRetrainStatus(autoRetrainRes.data);
+      setLearningProgress(progressRes.data);
     } catch (e) {
       console.error("ML Training fetch error:", e);
     } finally {
@@ -79,6 +85,19 @@ export default function MLTrainingDashboard({ adminKey }) {
         </button>
       </div>
 
+      {/* Auto-Retrain Status Banner */}
+      {autoRetrainStatus && (
+        <AutoRetrainBanner status={autoRetrainStatus} onTrigger={async () => {
+          try {
+            await axios.post(`${API}/api/v1/ml-training/auto-retrain/trigger`, {}, { headers });
+            alert("自動再学習をトリガーしました");
+            fetchData();
+          } catch (e) {
+            alert("トリガー失敗: " + (e.response?.data?.detail || e.message));
+          }
+        }} />
+      )}
+
       {/* Data Summary */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard label="総フェーズ数" value={dataSummary.total_phases?.toLocaleString()} color="blue" />
@@ -87,6 +106,9 @@ export default function MLTrainingDashboard({ adminKey }) {
         <StatCard label="総クリップ" value={dataSummary.total_clips?.toLocaleString()} color="purple" />
         <StatCard label="売れたクリップ" value={dataSummary.sold_clips?.toLocaleString()} color="orange" />
       </div>
+
+      {/* Learning Progress & Recommendations */}
+      {learningProgress && <LearningProgressPanel progress={learningProgress} />}
 
       {/* Model Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -471,6 +493,160 @@ function TrainingHistory({ runs }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+
+// ── v10: Auto-Retrain Banner ──
+
+function AutoRetrainBanner({ status, onTrigger }) {
+  if (!status) return null;
+
+  const { should_retrain, total_new_signals, threshold, recommendation, last_train_at } = status;
+
+  return (
+    <div className={`rounded-xl border p-4 ${should_retrain ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200"}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">{should_retrain ? "⚡" : "✅"}</span>
+          <div>
+            <div className="font-semibold text-sm">
+              {should_retrain ? "再学習を推奨" : "モデルは最新"}
+            </div>
+            <div className="text-xs text-gray-600 mt-0.5">
+              新しい学習シグナル: <span className="font-bold">{total_new_signals}</span>件 / 閾値: {threshold}件
+              {last_train_at && <span className="ml-2">（前回: {new Date(last_train_at).toLocaleDateString("ja-JP")}）</span>}
+            </div>
+            <div className="text-xs text-gray-500 mt-0.5">{recommendation}</div>
+          </div>
+        </div>
+        {should_retrain && (
+          <button
+            onClick={onTrigger}
+            className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors"
+          >
+            🔄 自動再学習
+          </button>
+        )}
+      </div>
+      {/* Progress bar */}
+      <div className="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${should_retrain ? "bg-amber-500" : "bg-green-500"}`}
+          style={{ width: `${Math.min(100, (total_new_signals / threshold) * 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── v10: Learning Progress Panel ──
+
+function LearningProgressPanel({ progress }) {
+  if (!progress) return null;
+
+  const { data_signals, signal_quality, recommendations, review_trend } = progress;
+
+  const qualityColors = {
+    good: "text-green-600 bg-green-50",
+    strong: "text-green-600 bg-green-50",
+    moderate: "text-yellow-600 bg-yellow-50",
+    needs_more: "text-red-600 bg-red-50",
+    weak: "text-red-600 bg-red-50",
+  };
+
+  const qualityLabels = {
+    good: "十分",
+    strong: "強い",
+    moderate: "普通",
+    needs_more: "不足",
+    weak: "弱い",
+  };
+
+  return (
+    <div className="bg-white rounded-xl border p-6">
+      <h3 className="text-lg font-semibold mb-4">📊 学習データ進捗</h3>
+
+      {/* Signal Quality Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div className="bg-gray-50 rounded-lg p-3 text-center">
+          <div className="text-2xl font-bold text-blue-600">{data_signals?.total_ratings?.toLocaleString() || 0}</div>
+          <div className="text-xs text-gray-500 mt-1">フィードバック採点</div>
+          <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${qualityColors[signal_quality?.rating_diversity] || ""}`}>
+            {qualityLabels[signal_quality?.rating_diversity] || "—"}
+          </span>
+        </div>
+        <div className="bg-gray-50 rounded-lg p-3 text-center">
+          <div className="text-2xl font-bold text-red-600">{data_signals?.total_ng_judgments?.toLocaleString() || 0}</div>
+          <div className="text-xs text-gray-500 mt-1">NG判定</div>
+          <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${qualityColors[signal_quality?.ng_diversity] || ""}`}>
+            {qualityLabels[signal_quality?.ng_diversity] || "—"}
+          </span>
+        </div>
+        <div className="bg-gray-50 rounded-lg p-3 text-center">
+          <div className="text-2xl font-bold text-green-600">{data_signals?.total_brand_assignments?.toLocaleString() || 0}</div>
+          <div className="text-xs text-gray-500 mt-1">ブランド割当</div>
+          <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${qualityColors[signal_quality?.brand_signal_strength] || ""}`}>
+            {qualityLabels[signal_quality?.brand_signal_strength] || "—"}
+          </span>
+        </div>
+        <div className="bg-gray-50 rounded-lg p-3 text-center">
+          <div className="text-2xl font-bold text-purple-600">{data_signals?.coverage_rate || 0}%</div>
+          <div className="text-xs text-gray-500 mt-1">レビューカバレッジ</div>
+          <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${data_signals?.coverage_rate >= 30 ? "text-green-600 bg-green-50" : "text-red-600 bg-red-50"}`}>
+            {data_signals?.coverage_rate >= 30 ? "十分" : "不足"}
+          </span>
+        </div>
+      </div>
+
+      {/* Review Trend Mini Chart */}
+      {review_trend && review_trend.length > 0 && (
+        <div className="mb-4">
+          <div className="text-sm font-medium text-gray-700 mb-2">直近14日の採点トレンド</div>
+          <div className="flex items-end gap-1 h-12">
+            {review_trend.map((d, i) => {
+              const maxCount = Math.max(...review_trend.map(r => r.count));
+              const height = maxCount > 0 ? (d.count / maxCount) * 100 : 0;
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center">
+                  <div
+                    className="w-full bg-blue-400 rounded-t"
+                    style={{ height: `${height}%`, minHeight: d.count > 0 ? "2px" : "0" }}
+                    title={`${d.date}: ${d.count}件`}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-between text-xs text-gray-400 mt-1">
+            <span>{review_trend[0]?.date?.slice(5)}</span>
+            <span>{review_trend[review_trend.length - 1]?.date?.slice(5)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Recommendations */}
+      {recommendations && recommendations.length > 0 && (
+        <div className="border-t pt-3">
+          <div className="text-sm font-medium text-gray-700 mb-2">💡 推奨アクション</div>
+          <div className="space-y-2">
+            {recommendations.map((rec, i) => (
+              <div key={i} className={`flex items-start gap-2 p-2 rounded-lg text-sm ${
+                rec.priority === "high" ? "bg-red-50" : rec.priority === "medium" ? "bg-yellow-50" : "bg-gray-50"
+              }`}>
+                <span className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${
+                  rec.priority === "high" ? "bg-red-500" : rec.priority === "medium" ? "bg-yellow-500" : "bg-green-500"
+                }`} />
+                <div>
+                  <div className="font-medium">{rec.action}</div>
+                  <div className="text-xs text-gray-500">{rec.reason} → {rec.impact}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

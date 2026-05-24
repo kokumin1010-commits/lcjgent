@@ -1,4 +1,4 @@
-"""generate_dataset.py  –  AI学習用データセット生成ジョブ v8
+"""generate_dataset.py  –  AI学習用データセット生成ジョブ v10
 =====================================================
 仕様:
   ① 目的変数: y_click (click_spike窓重複), y_order (order_spike窓重複), y_strong
@@ -182,6 +182,46 @@ KEYWORD_GROUPS = [
     ("kw_quality",    [r"品質", r"成分", r"効果", r"おすすめ", r"人気", r"ランキング"]),
     ("kw_number",     [r"\d{3,}"]),  # 3桁以上の数字 = 価格っぽい
 ]
+
+# ── Product Description Quality Keywords (v10) ──
+PRODUCT_DESC_KEYWORD_GROUPS = [
+    ("pd_feature",     [r"特徴", r"機能", r"ポイント", r"違い", r"こだわり", r"技術", r"配合", r"処方"]),
+    ("pd_usage",       [r"使い方", r"使用方法", r"塗る", r"つける", r"洗う", r"浸透", r"マッサージ", r"なじませ"]),
+    ("pd_effect",      [r"効果", r"実感", r"ビフォーアフター", r"変化", r"改善", r"結果", r"仕上がり", r"ツヤツヤ"]),
+    ("pd_ingredient",  [r"成分", r"コラーゲン", r"ヒアルロン酸", r"セラミド", r"ケラチン", r"アミノ酸", r"ビタミン", r"オイル"]),
+    ("pd_comparison",  [r"他の商品", r"市販", r"ドラッグストア", r"美容院", r"サロン", r"プロ仕様", r"業務用"]),
+    ("pd_target",      [r"お悩み", r"乾燥肌", r"敷感肌", r"ダメージ", r"パサパサ", r"ボリューム", r"エイジング", r"白髪"]),
+    ("pd_brand_story", [r"ブランド", r"開発", r"研究", r"日本製", r"国産", r"美容師", r"監修", r"共同開発"]),
+    ("pd_sensory",     [r"香り", r"テクスチャー", r"手触り", r"泡立ち", r"サラサラ", r"しっとり", r"もちもち", r"ふわふわ"]),
+]
+
+
+def extract_product_desc_features(text_str: str) -> dict:
+    """v10: 商品説明の品質を判定する特徴量を抽出.
+    商品の特徴・使い方・効果・成分・比較・ターゲット・ブランドストーリー・感覚表現の8カテゴリを検出.
+    """
+    if not text_str:
+        return {
+            **{g[0]: 0 for g in PRODUCT_DESC_KEYWORD_GROUPS},
+            "pd_category_count": 0,
+            "pd_quality_score": 0.0,
+        }
+    flags = {}
+    matched_count = 0
+    for flag_name, patterns in PRODUCT_DESC_KEYWORD_GROUPS:
+        matched = 0
+        for pat in patterns:
+            if re.search(pat, text_str, re.IGNORECASE):
+                matched = 1
+                break
+        flags[flag_name] = matched
+        matched_count += matched
+    # pd_category_count: いくつのカテゴリに該当するか（多いほど商品説明が充実）
+    flags["pd_category_count"] = matched_count
+    # pd_quality_score: 0-1の品質スコア（カテゴリ数 / 全カテゴリ数）
+    flags["pd_quality_score"] = round(matched_count / len(PRODUCT_DESC_KEYWORD_GROUPS), 3)
+    return flags
+
 
 # ── NG Unusable Reason categories (for one-hot encoding) ──
 UNUSABLE_REASONS = [
@@ -487,6 +527,44 @@ _EMPTY_PERF = {
     "perf_avg_watch_time": 0.0,
     "has_performance_data": 0,
 }
+
+_EMPTY_BRAND = {
+    "is_brand_assigned": 0,
+    "brand_assignment_count": 0,
+    "has_brand_success": 0,
+}
+
+
+async def fetch_brand_assignments(session, video_ids: list) -> dict:
+    """v10: Fetch brand assignment data from widget_clip_assignments.
+    Returns {(video_id, phase_index): {is_brand_assigned, brand_assignment_count, has_brand_success}}
+    Maps clip assignments back to phases via video_clips table.
+    """
+    if not video_ids:
+        return {}
+    sql = text("""
+        SELECT vc.video_id, vc.phase_index,
+               COUNT(wca.id) as assignment_count,
+               COUNT(CASE WHEN wca.is_active = TRUE THEN 1 END) as active_count
+        FROM video_clips vc
+        JOIN widget_clip_assignments wca ON wca.clip_id = vc.id::text
+        WHERE vc.video_id = ANY(:ids)
+        GROUP BY vc.video_id, vc.phase_index
+    """)
+    try:
+        result = await session.execute(sql, {"ids": video_ids})
+        brand_data = {}
+        for r in result.fetchall():
+            key = (str(r.video_id), str(r.phase_index))
+            brand_data[key] = {
+                "is_brand_assigned": 1,
+                "brand_assignment_count": r.assignment_count or 0,
+                "has_brand_success": 1 if (r.active_count or 0) > 0 else 0,
+            }
+        return brand_data
+    except Exception as e:
+        print(f"[dataset] Warning: fetch_brand_assignments error: {e}")
+        return {}
 
 
 # ── Index Builders ──
@@ -889,6 +967,15 @@ async def generate(output_dir: str, video_id=None, user_id=None, use_embeddings=
             print(f"[dataset] Warning: Could not fetch video performance: {e}")
             perf_data = {}
 
+        # v10: Fetch brand assignment data
+        print("[dataset] Fetching brand assignment data...")
+        try:
+            brand_data = await fetch_brand_assignments(session, video_ids)
+            print(f"[dataset] Found brand assignments for {len(brand_data)} phase(s)")
+        except Exception as e:
+            print(f"[dataset] Warning: Could not fetch brand assignments: {e}")
+            brand_data = {}
+
     await engine.dispose()
 
     # Build indexes
@@ -985,6 +1072,9 @@ async def generate(output_dir: str, video_id=None, user_id=None, use_embeddings=
         # Text features (from phase description)
         text_feats = extract_text_features(desc)
 
+        # v10: Product description quality features
+        pd_feats = extract_product_desc_features(desc)
+
         # Human tag one-hot features
         htag_features = extract_human_tag_features(human_tags)
 
@@ -1024,6 +1114,9 @@ async def generate(output_dir: str, video_id=None, user_id=None, use_embeddings=
             # Keywords (from phase description)
             **kw_flags,
 
+            # v10: Product description quality
+            **pd_feats,
+
             # Product
             **product_features,
 
@@ -1053,6 +1146,9 @@ async def generate(output_dir: str, video_id=None, user_id=None, use_embeddings=
 
             # ── VIDEO PERFORMANCE FEATURES (v9) ──
             **perf_idx.get(vid, _EMPTY_PERF),
+
+            # ── BRAND ASSIGNMENT FEATURES (v10) ──
+            **brand_data.get((vid, str(r.phase_index)), _EMPTY_BRAND),
 
             # ── METADATA (not used as features in training) ──
             "tags": tags,
@@ -1143,6 +1239,17 @@ async def generate(output_dir: str, video_id=None, user_id=None, use_embeddings=
                     rec["sample_weight"] *= 2.0
                 elif 0 < rec_rating <= 2:
                     rec["sample_weight"] *= 1.5
+
+                # ── v10: ブランド割当・パフォーマンスデータによる重み付け強化 ──
+                # ブランド割当されたクリップのフェーズ → 成功パターンとして重要
+                if rec.get("brand_assigned_count", 0) > 0:
+                    rec["sample_weight"] *= 1.5  # 実際に使われたクリップ
+                # NG判定されたクリップのフェーズ → 失敗パターンとして重要
+                if rec.get("brand_ng_count", 0) > 0:
+                    rec["sample_weight"] *= 1.3  # NGデータも学習に重要
+                # パフォーマンスデータがあるフェーズ → 実績に基づく重み付け
+                if rec.get("perf_views", 0) > 0:
+                    rec["sample_weight"] *= 1.2  # 実績データを重視
 
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 

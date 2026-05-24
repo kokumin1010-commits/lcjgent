@@ -710,3 +710,326 @@ def _parse_json_safe(val):
         except (json.JSONDecodeError, TypeError):
             return []
     return []
+
+
+# ── v10: Auto-retrain trigger & learning progress ──
+
+@router.get("/auto-retrain/status")
+async def get_auto_retrain_status(
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+):
+    """v10: 自動再学習の状態を確認
+
+    新しい採点データが一定数溜まったら自動で再学習をトリガーするかどうかの判定。
+    閾値: 50件の新しい採点（前回学習以降）で自動トリガー。
+
+    Returns:
+        should_retrain: 再学習すべきかどうか
+        new_ratings_since_last_train: 前回学習以降の新しい採点数
+        new_ng_since_last_train: 前回学習以降の新しいNG判定数
+        threshold: 自動トリガー閾値
+        last_train_at: 前回学習日時
+    """
+    _check_admin(x_admin_key)
+
+    AUTO_RETRAIN_THRESHOLD = 50  # 50件の新しい採点で自動トリガー
+
+    async with get_session() as session:
+        # 前回の学習日時を取得
+        last_train_result = await session.execute(text("""
+            SELECT MAX(started_at) as last_train
+            FROM ml_training_runs
+            WHERE status IN ('completed', 'success')
+        """))
+        last_train_row = last_train_result.fetchone()
+        last_train_at = last_train_row[0] if last_train_row and last_train_row[0] else None
+
+        # 前回学習以降の新しい採点数（フィードバックタブ）
+        if last_train_at:
+            rating_result = await session.execute(text("""
+                SELECT COUNT(*) FROM video_phases
+                WHERE user_rating IS NOT NULL AND user_rating > 0
+                AND updated_at > :last_train
+            """), {"last_train": last_train_at})
+        else:
+            rating_result = await session.execute(text("""
+                SELECT COUNT(*) FROM video_phases
+                WHERE user_rating IS NOT NULL AND user_rating > 0
+            """))
+        new_ratings = rating_result.scalar() or 0
+
+        # 前回学習以降の新しいNG判定数（クリップDB）
+        if last_train_at:
+            ng_result = await session.execute(text("""
+                SELECT COUNT(*) FROM video_clips
+                WHERE unusable_at IS NOT NULL AND unusable_at > :last_train
+            """), {"last_train": last_train_at})
+        else:
+            ng_result = await session.execute(text("""
+                SELECT COUNT(*) FROM video_clips
+                WHERE unusable_at IS NOT NULL
+            """))
+        new_ngs = ng_result.scalar() or 0
+
+        # 前回学習以降の新しいブランド割当数
+        if last_train_at:
+            brand_result = await session.execute(text("""
+                SELECT COUNT(*) FROM widget_clip_assignments
+                WHERE created_at > :last_train
+            """), {"last_train": last_train_at})
+        else:
+            brand_result = await session.execute(text("""
+                SELECT COUNT(*) FROM widget_clip_assignments
+            """))
+        new_brands = brand_result.scalar() or 0
+
+    total_new_signals = new_ratings + new_ngs + new_brands
+    should_retrain = total_new_signals >= AUTO_RETRAIN_THRESHOLD
+
+    return {
+        "should_retrain": should_retrain,
+        "total_new_signals": total_new_signals,
+        "new_ratings_since_last_train": new_ratings,
+        "new_ng_since_last_train": new_ngs,
+        "new_brand_assignments_since_last_train": new_brands,
+        "threshold": AUTO_RETRAIN_THRESHOLD,
+        "last_train_at": str(last_train_at) if last_train_at else None,
+        "recommendation": "再学習を推奨します" if should_retrain else f"あと{AUTO_RETRAIN_THRESHOLD - total_new_signals}件の採点で自動トリガー",
+    }
+
+
+@router.post("/auto-retrain/trigger")
+async def auto_retrain_trigger(
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+):
+    """v10: 自動再学習トリガー
+
+    新しい採点データが閾値を超えている場合に自動で再学習を開始する。
+    """
+    _check_admin(x_admin_key)
+
+    # まず状態を確認
+    import httpx
+    import asyncio
+
+    AUTO_RETRAIN_THRESHOLD = 50
+
+    async with get_session() as session:
+        last_train_result = await session.execute(text("""
+            SELECT MAX(started_at) as last_train
+            FROM ml_training_runs
+            WHERE status IN ('completed', 'success')
+        """))
+        last_train_row = last_train_result.fetchone()
+        last_train_at = last_train_row[0] if last_train_row and last_train_row[0] else None
+
+        # 合計新シグナル数を計算
+        if last_train_at:
+            total_result = await session.execute(text("""
+                SELECT 
+                    (SELECT COUNT(*) FROM video_phases WHERE user_rating > 0 AND updated_at > :lt) +
+                    (SELECT COUNT(*) FROM video_clips WHERE unusable_at > :lt) +
+                    (SELECT COUNT(*) FROM widget_clip_assignments WHERE created_at > :lt) as total
+            """), {"lt": last_train_at})
+        else:
+            total_result = await session.execute(text("""
+                SELECT 
+                    (SELECT COUNT(*) FROM video_phases WHERE user_rating > 0) +
+                    (SELECT COUNT(*) FROM video_clips WHERE unusable_at IS NOT NULL) +
+                    (SELECT COUNT(*) FROM widget_clip_assignments) as total
+            """))
+        total_new = total_result.scalar() or 0
+
+    if total_new < AUTO_RETRAIN_THRESHOLD:
+        return {
+            "triggered": False,
+            "reason": f"新しい学習シグナルが{total_new}件（閾値: {AUTO_RETRAIN_THRESHOLD}件）",
+            "total_new_signals": total_new,
+        }
+
+    # トリガー実行
+    WORKER_HEALTH_URL = os.getenv("WORKER_HEALTH_URL", "http://52.185.188.210:8081")
+
+    run_id = f"auto_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+
+    async with get_session() as session:
+        for target in ["click", "order"]:
+            await session.execute(
+                text("""
+                    INSERT INTO ml_training_runs (run_id, target, status, started_at)
+                    VALUES (:run_id, :target, 'queued', NOW())
+                """),
+                {"run_id": f"{run_id}_{target}", "target": target},
+            )
+        await session.commit()
+
+    async def _trigger():
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(f"{WORKER_HEALTH_URL}/trigger-retrain")
+                if resp.status_code == 202:
+                    logger.info(f"[auto-retrain] Successfully triggered (run_id={run_id}, signals={total_new})")
+                else:
+                    logger.warning(f"[auto-retrain] Worker returned {resp.status_code}")
+        except Exception as e:
+            logger.error(f"[auto-retrain] Failed: {e}")
+
+    asyncio.create_task(_trigger())
+
+    return {
+        "triggered": True,
+        "run_id": run_id,
+        "total_new_signals": total_new,
+        "message": f"自動再学習をトリガーしました（新シグナル: {total_new}件）",
+    }
+
+
+@router.get("/learning-progress")
+async def get_learning_progress(
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+):
+    """v10: 学習進捗ダッシュボード - 全体の学習状態を一覧表示
+
+    Returns:
+        data_signals: 各データソースからの学習シグナル数
+        model_info: 現在のモデル情報
+        training_history: 直近の学習履歴
+        quality_metrics: 品質指標
+    """
+    _check_admin(x_admin_key)
+
+    async with get_session() as session:
+        # 各データソースの学習シグナル数
+        signals_result = await session.execute(text("""
+            SELECT 
+                (SELECT COUNT(*) FROM video_phases WHERE user_rating > 0) as total_ratings,
+                (SELECT COUNT(*) FROM video_clips WHERE is_unusable = true) as total_ng,
+                (SELECT COUNT(*) FROM widget_clip_assignments) as total_brand_assignments,
+                (SELECT COUNT(*) FROM clip_feedback) as total_clip_feedback,
+                (SELECT COUNT(*) FROM video_phases) as total_phases,
+                (SELECT COUNT(DISTINCT video_id) FROM video_phases) as total_videos
+        """))
+        signals = signals_result.fetchone()
+
+        # 直近の学習履歴
+        history_result = await session.execute(text("""
+            SELECT run_id, target, status, started_at, completed_at,
+                   metrics
+            FROM ml_training_runs
+            ORDER BY started_at DESC
+            LIMIT 10
+        """))
+        history_rows = history_result.fetchall()
+
+        # 日別の採点トレンド（直近14日）
+        trend_result = await session.execute(text("""
+            SELECT 
+                DATE(updated_at) as review_date,
+                COUNT(*) as review_count
+            FROM video_phases
+            WHERE user_rating > 0 AND updated_at > NOW() - INTERVAL '14 days'
+            GROUP BY DATE(updated_at)
+            ORDER BY review_date
+        """))
+        trend_rows = trend_result.fetchall()
+
+    # 学習履歴のフォーマット
+    training_history = []
+    for r in history_rows:
+        metrics = r[5]
+        if isinstance(metrics, str):
+            try:
+                import json
+                metrics = json.loads(metrics)
+            except Exception:
+                metrics = {}
+        training_history.append({
+            "run_id": r[0],
+            "target": r[1],
+            "status": r[2],
+            "started_at": str(r[3]) if r[3] else None,
+            "completed_at": str(r[4]) if r[4] else None,
+            "metrics": metrics or {},
+        })
+
+    # 採点トレンド
+    review_trend = [
+        {"date": str(r[0]), "count": r[1]}
+        for r in trend_rows
+    ]
+
+    total_ratings = signals[0] if signals else 0
+    total_ng = signals[1] if signals else 0
+    total_brand = signals[2] if signals else 0
+    total_feedback = signals[3] if signals else 0
+    total_phases = signals[4] if signals else 0
+    total_videos = signals[5] if signals else 0
+
+    return {
+        "data_signals": {
+            "total_ratings": total_ratings,
+            "total_ng_judgments": total_ng,
+            "total_brand_assignments": total_brand,
+            "total_clip_feedback": total_feedback,
+            "total_phases": total_phases,
+            "total_videos": total_videos,
+            "coverage_rate": round(total_ratings / max(total_phases, 1) * 100, 1),
+        },
+        "signal_quality": {
+            "rating_diversity": "good" if total_ratings > 100 else "needs_more",
+            "ng_diversity": "good" if total_ng > 50 else "needs_more",
+            "brand_signal_strength": "strong" if total_brand > 200 else "moderate" if total_brand > 50 else "weak",
+        },
+        "training_history": training_history,
+        "review_trend": review_trend,
+        "recommendations": _generate_learning_recommendations(
+            total_ratings, total_ng, total_brand, total_phases
+        ),
+    }
+
+
+def _generate_learning_recommendations(total_ratings, total_ng, total_brand, total_phases):
+    """学習改善のための推奨アクションを生成"""
+    recommendations = []
+
+    coverage = total_ratings / max(total_phases, 1) * 100
+    if coverage < 10:
+        recommendations.append({
+            "priority": "high",
+            "action": "フィードバックタブでの採点を増やす",
+            "reason": f"レビューカバレッジが{coverage:.1f}%（推奨: 30%以上）",
+            "impact": "モデル精度が大幅に向上",
+        })
+    elif coverage < 30:
+        recommendations.append({
+            "priority": "medium",
+            "action": "フィードバックタブでの採点を継続",
+            "reason": f"レビューカバレッジが{coverage:.1f}%（推奨: 30%以上）",
+            "impact": "モデル精度が向上",
+        })
+
+    if total_ng < 100:
+        recommendations.append({
+            "priority": "medium",
+            "action": "クリップDBでのNG判定を増やす",
+            "reason": f"NG判定が{total_ng}件（推奨: 100件以上）",
+            "impact": "NGパターンの学習精度が向上",
+        })
+
+    if total_brand < 200:
+        recommendations.append({
+            "priority": "medium",
+            "action": "クリップDBでのブランド割当を増やす",
+            "reason": f"ブランド割当が{total_brand}件（推奨: 200件以上）",
+            "impact": "成功パターンの学習精度が向上",
+        })
+
+    if not recommendations:
+        recommendations.append({
+            "priority": "low",
+            "action": "データ量は十分です。定期的な再学習を推奨",
+            "reason": "全指標が推奨値を超えています",
+            "impact": "継続的な精度向上",
+        })
+
+    return recommendations

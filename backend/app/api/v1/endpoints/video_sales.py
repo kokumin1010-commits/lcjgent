@@ -321,8 +321,61 @@ async def get_event_scores(
         except Exception as _e:
             logger.debug(f"Non-critical error suppressed: {_e}")
 
+        # v10: Fetch performance data for this video
+        perf_data = None
+        try:
+            perf_sql = text("""
+                SELECT views, likes, comments, shares, saves, purchases,
+                       revenue, engagement_rate, conversion_rate, avg_watch_time_seconds
+                FROM video_performance
+                WHERE video_id = :video_id
+                ORDER BY fetched_at DESC LIMIT 1
+            """)
+            perf_result = await db.execute(perf_sql, {"video_id": video_id})
+            perf_row = perf_result.fetchone()
+            if perf_row:
+                perf_data = {
+                    "views": perf_row.views,
+                    "likes": perf_row.likes,
+                    "comments": perf_row.comments,
+                    "shares": perf_row.shares,
+                    "saves": perf_row.saves,
+                    "purchases": perf_row.purchases,
+                    "revenue": perf_row.revenue,
+                    "engagement_rate": perf_row.engagement_rate,
+                    "conversion_rate": perf_row.conversion_rate,
+                    "avg_watch_time_seconds": perf_row.avg_watch_time_seconds,
+                }
+        except Exception as _e:
+            logger.debug(f"Non-critical error suppressed: {_e}")
+
+        # v10: Fetch brand assignment data for this video's phases
+        brand_data = None
+        try:
+            brand_sql = text("""
+                SELECT vc.phase_index,
+                       COUNT(wca.id) as assignment_count,
+                       COUNT(CASE WHEN wca.is_active = TRUE THEN 1 END) as active_count
+                FROM video_clips vc
+                JOIN widget_clip_assignments wca ON wca.clip_id = vc.id::text
+                WHERE vc.video_id = :video_id
+                GROUP BY vc.phase_index
+            """)
+            brand_result = await db.execute(brand_sql, {"video_id": video_id})
+            brand_rows = brand_result.fetchall()
+            if brand_rows:
+                brand_data = {}
+                for br in brand_rows:
+                    brand_data[str(br.phase_index)] = {
+                        "is_brand_assigned": 1,
+                        "brand_assignment_count": br.assignment_count or 0,
+                        "has_brand_success": 1 if (br.active_count or 0) > 0 else 0,
+                    }
+        except Exception as _e:
+            logger.debug(f"Non-critical error suppressed: {_e}")
+
         # Try model-based prediction
-        model_result = _predict_with_model_v4(phases, moments, product_names, video_duration)
+        model_result = _predict_with_model_v4(phases, moments, product_names, video_duration, perf_data=perf_data, brand_data=brand_data)
 
         if model_result is not None:
             click_scores, order_scores, model_version = model_result
@@ -425,8 +478,8 @@ _KNOWN_EVENT_TYPES = [
 ]
 
 
-def _build_feature_vector_v4(phase, product_names, video_duration):
-    """Build feature vector matching generate_dataset.py v2 / train.py v4 schema."""
+def _build_feature_vector_v4(phase, product_names, video_duration, perf_data=None, brand_data=None):
+    """Build feature vector matching generate_dataset.py v2 / train.py v10 schema."""
     import numpy as np
 
     time_start = float(phase.time_start) if phase.time_start else 0
@@ -480,12 +533,57 @@ def _build_feature_vector_v4(phase, product_names, video_duration):
     for et in _KNOWN_EVENT_TYPES:
         features[f"event_{et}"] = 1 if event_type == et else 0
 
+    # v10: Performance features (video-level)
+    if perf_data:
+        features["perf_views"] = perf_data.get("views", 0) or 0
+        features["perf_likes"] = perf_data.get("likes", 0) or 0
+        features["perf_comments"] = perf_data.get("comments", 0) or 0
+        features["perf_shares"] = perf_data.get("shares", 0) or 0
+        features["perf_saves"] = perf_data.get("saves", 0) or 0
+        features["perf_purchases"] = perf_data.get("purchases", 0) or 0
+        features["perf_revenue"] = perf_data.get("revenue", 0) or 0
+        features["perf_engagement_rate"] = perf_data.get("engagement_rate", 0) or 0
+        features["perf_conversion_rate"] = perf_data.get("conversion_rate", 0) or 0
+        features["perf_avg_watch_time"] = perf_data.get("avg_watch_time_seconds", 0) or 0
+        features["has_performance_data"] = 1
+
+    # v10: Brand assignment features (phase-level)
+    if brand_data:
+        phase_idx = str(getattr(phase, 'phase_index', ''))
+        brand_info = brand_data.get(phase_idx, {})
+        features["is_brand_assigned"] = brand_info.get("is_brand_assigned", 0)
+        features["brand_assignment_count"] = brand_info.get("brand_assignment_count", 0)
+        features["has_brand_success"] = brand_info.get("has_brand_success", 0)
+
+    # v10: Product description quality features
+    _PD_KEYWORD_GROUPS = [
+        ("pd_feature",     [r"特徴", r"機能", r"ポイント", r"違い", r"こだわり", r"技術", r"配合", r"処方"]),
+        ("pd_usage",       [r"使い方", r"使用方法", r"塗る", r"つける", r"洗う", r"浸透", r"マッサージ", r"なじませ"]),
+        ("pd_effect",      [r"効果", r"実感", r"ビフォーアフター", r"変化", r"改善", r"結果", r"仕上がり", r"ツヤツヤ"]),
+        ("pd_ingredient",  [r"成分", r"コラーゲン", r"ヒアルロン酸", r"セラミド", r"ケラチン", r"アミノ酸", r"ビタミン", r"オイル"]),
+        ("pd_comparison",  [r"他の商品", r"市販", r"ドラッグストア", r"美容院", r"サロン", r"プロ仕様", r"業務用"]),
+        ("pd_target",      [r"お悩み", r"乾燥肌", r"敷感肌", r"ダメージ", r"パサパサ", r"ボリューム", r"エイジング", r"白髪"]),
+        ("pd_brand_story", [r"ブランド", r"開発", r"研究", r"日本製", r"国産", r"美容師", r"監修", r"共同開発"]),
+        ("pd_sensory",     [r"香り", r"テクスチャー", r"手触り", r"泡立ち", r"サラサラ", r"しっとり", r"もちもち", r"ふわふわ"]),
+    ]
+    pd_matched = 0
+    for flag_name, patterns in _PD_KEYWORD_GROUPS:
+        matched = 0
+        for pat in patterns:
+            if _re.search(pat, desc, _re.IGNORECASE):
+                matched = 1
+                break
+        features[flag_name] = matched
+        pd_matched += matched
+    features["pd_category_count"] = pd_matched
+    features["pd_quality_score"] = round(pd_matched / len(_PD_KEYWORD_GROUPS), 3)
+
     return features
 
 
-def _predict_with_model_v4(phases, moments, product_names, video_duration):
+def _predict_with_model_v4(phases, moments, product_names, video_duration, perf_data=None, brand_data=None):
     """
-    Predict using trained v4 model with manifest.json for feature compatibility.
+    Predict using trained v10 model with manifest.json for feature compatibility.
     Returns (click_scores, order_scores, model_version) or None.
     """
     import os
@@ -517,7 +615,7 @@ def _predict_with_model_v4(phases, moments, product_names, video_duration):
     X = np.zeros((len(phases), len(features_used)), dtype=np.float32)
 
     for i, phase in enumerate(phases):
-        feat_dict = _build_feature_vector_v4(phase, product_names, video_duration)
+        feat_dict = _build_feature_vector_v4(phase, product_names, video_duration, perf_data=perf_data, brand_data=brand_data)
         for j, feat_name in enumerate(features_used):
             X[i, j] = float(feat_dict.get(feat_name, 0))
 
