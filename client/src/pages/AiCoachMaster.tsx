@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MessageSquare, Bot, User, ArrowLeft, Clock, TrendingUp, ChevronDown, ChevronUp, BarChart3, Activity, Package, DollarSign, Timer, Store, Filter } from "lucide-react";
+import { MessageSquare, Bot, User, ArrowLeft, Clock, TrendingUp, ChevronDown, ChevronUp, BarChart3, Activity, Package, DollarSign, Timer, Store, Filter, Send, Calendar } from "lucide-react";
 
 export default function AiCoachMaster() {
   const [selectedLiverId, setSelectedLiverId] = useState<number | null>(null);
@@ -13,6 +13,8 @@ export default function AiCoachMaster() {
   const [activeTab, setActiveTab] = useState("records");
   const [expandedStreamId, setExpandedStreamId] = useState<number | null>(null);
   const [messageTypeFilter, setMessageTypeFilter] = useState<string>("all");
+  const [showRecentMessages, setShowRecentMessages] = useState(false);
+  const [recentMsgTypeFilter, setRecentMsgTypeFilter] = useState<string>("all");
 
   const { data: usageStats, isLoading } = trpc.liverManagement.aiCoach.getAllLiverUsageStats.useQuery();
   const { data: conversations } = trpc.liverManagement.aiCoach.getLiverConversations.useQuery(
@@ -23,6 +25,10 @@ export default function AiCoachMaster() {
     { liverId: selectedLiverId!, limit: 50 },
     { enabled: !!selectedLiverId }
   );
+  const { data: recentAutoMessages } = trpc.liverManagement.aiCoach.getRecentAutoMessages.useQuery(
+    { limit: 100, messageType: recentMsgTypeFilter !== 'all' ? recentMsgTypeFilter : undefined }
+  );
+  const { data: dailySendStats } = trpc.liverManagement.aiCoach.getDailySendStats.useQuery();
 
   const formatDate = (date: string | Date | null) => {
     if (!date) return "—";
@@ -597,6 +603,103 @@ export default function AiCoachMaster() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 日別送信件数グラフ */}
+      {dailySendStats && dailySendStats.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-blue-500" />
+              日別AI送信件数（過去30日）
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-32 flex items-end gap-0.5 overflow-x-auto pb-5 relative">
+              {dailySendStats.map((day, i) => {
+                const maxCount = Math.max(...dailySendStats.map(d => d.totalSent));
+                const height = maxCount > 0 ? (day.totalSent / maxCount) * 100 : 0;
+                const dateStr = String(day.date);
+                const shortDate = dateStr.length >= 10 ? `${parseInt(dateStr.slice(5,7))}/${parseInt(dateStr.slice(8,10))}` : dateStr;
+                return (
+                  <div key={i} className="flex flex-col items-center min-w-[20px] flex-1">
+                    <span className="text-[8px] text-muted-foreground mb-0.5">{day.totalSent}</span>
+                    <div
+                      className="w-full bg-gradient-to-t from-blue-600 to-blue-300 rounded-t-sm"
+                      style={{ height: `${Math.max(height, 4)}%` }}
+                    />
+                    {i % 5 === 0 && (
+                      <span className="text-[7px] text-muted-foreground mt-0.5 whitespace-nowrap">{shortDate}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="text-right text-xs text-muted-foreground mt-1">
+              合計: {dailySendStats.reduce((sum, d) => sum + d.totalSent, 0)}件送信
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 最近の自動送信メッセージ一覧 */}
+      <Card className="mb-6">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2 cursor-pointer" onClick={() => setShowRecentMessages(!showRecentMessages)}>
+              <Send className="h-4 w-4 text-orange-500" />
+              最近の自動送信メッセージ
+              {showRecentMessages ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </CardTitle>
+            {showRecentMessages && (
+              <Select value={recentMsgTypeFilter} onValueChange={setRecentMsgTypeFilter}>
+                <SelectTrigger className="w-[160px] h-7 text-xs">
+                  <SelectValue placeholder="種類" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">すべて</SelectItem>
+                  <SelectItem value="stream_record">📊 配信記録</SelectItem>
+                  <SelectItem value="stream_suggestion">📢 配信提案</SelectItem>
+                  <SelectItem value="auto_question">🤖 AIコーチ質問</SelectItem>
+                  <SelectItem value="pre_briefing">🌅 配信前ブリーフィング</SelectItem>
+                  <SelectItem value="pre_reminder">⏰ 配信前リマインダー</SelectItem>
+                  <SelectItem value="weekly_report">📊 週次レポート</SelectItem>
+                  <SelectItem value="skill_analysis">🎯 スキル分析</SelectItem>
+                  <SelectItem value="monthly_report">📅 月次レポート</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        </CardHeader>
+        {showRecentMessages && (
+          <CardContent className="pt-0">
+            <div className="space-y-2 max-h-[500px] overflow-y-auto">
+              {recentAutoMessages && recentAutoMessages.length > 0 ? (
+                recentAutoMessages.map(msg => (
+                  <div key={msg.id} className="border rounded-lg p-3 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-[10px] font-bold">
+                          {msg.liverName.charAt(0)}
+                        </div>
+                        <span className="font-medium text-sm">{msg.liverName}</span>
+                        {getMessageTypeBadge(msg.messageType)}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">
+                        {formatDate(msg.createdAt)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2 ml-8 whitespace-pre-wrap">
+                      {msg.content.slice(0, 150)}{msg.content.length > 150 ? '...' : ''}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center text-muted-foreground text-sm py-4">自動送信メッセージはまだありません</p>
+              )}
+            </div>
+          </CardContent>
+        )}
+      </Card>
 
       {/* ライバー一覧 */}
       <div className="space-y-2">
