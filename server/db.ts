@@ -24361,6 +24361,8 @@ export async function fixRemainingAmountForPastPurchases(): Promise<{ usersFixed
  * - ブランド配信時間入力率
  */
 export async function getLiverComplianceStats(liverId: number, yearMonth?: string) {
+  // Get liver name for schedule matching (schedules often have liverName but not liverId)
+  let liverName: string | null = null;
   const db = await getDb();
   if (!db) return null;
 
@@ -24410,16 +24412,40 @@ export async function getLiverComplianceStats(liverId: number, yearMonth?: strin
   let unscheduledCount = 0;
   const unscheduledStreamsList: typeof livestreams = [];
   
-  // Get all schedules for this liver in the period (category = 'live')
+  // Get liver name for matching (many schedules only have liverName, not liverId)
+  try {
+    const liverRecord = await db
+      .select({ name: livers.name })
+      .from(livers)
+      .where(sql`${livers.id} = ${liverId}`)
+      .limit(1);
+    if (liverRecord.length > 0) {
+      liverName = liverRecord[0].name;
+    }
+  } catch (e) {
+    console.error('[getLiverComplianceStats] Failed to get liver name:', e);
+  }
+
+  // Get all schedules for this liver in the period
+  // Match by EITHER liverId OR liverName (schedules often only have liverName set)
+  // Do NOT filter by category (schedules are often registered as 'other' instead of 'live')
   let schedulesInPeriod: { id: number; startTime: Date; liverId: number | null; liverName: string | null }[] = [];
   try {
-    const scheduleConditions = [sql`${schedules.liverId} = ${liverId}`];
+    const scheduleConditions: any[] = [];
+    
+    // Match by liverId OR liverName
+    if (liverName) {
+      scheduleConditions.push(sql`(${schedules.liverId} = ${liverId} OR ${schedules.liverName} = ${liverName})`);
+    } else {
+      scheduleConditions.push(sql`${schedules.liverId} = ${liverId}`);
+    }
+    
     if (yearMonth) {
       const { startDate, endDate } = getJSTMonthRange(yearMonth);
       scheduleConditions.push(sql`${schedules.startTime} >= ${startDate.toISOString()}`);
       scheduleConditions.push(sql`${schedules.startTime} <= ${endDate.toISOString()}`);
     }
-    scheduleConditions.push(sql`${schedules.category} = 'live'`);
+    // Removed category filter - schedules are often 'other' instead of 'live'
     scheduleConditions.push(sql`${schedules.status} != 'cancelled'`);
     
     schedulesInPeriod = await db
