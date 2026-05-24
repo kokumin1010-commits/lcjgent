@@ -4220,11 +4220,20 @@ async def analyze_product_image(
     import openai
     import base64
     import httpx
+    from app.services.storage_service import generate_read_sas_from_url
 
     try:
+        # Generate SAS URL for private blob access
+        access_url = req.image_url
+        if "blob.core.windows.net" in req.image_url and "?" not in req.image_url:
+            sas_url = generate_read_sas_from_url(req.image_url)
+            if sas_url:
+                access_url = sas_url
+                logger.info(f"[ai-clip] Generated SAS URL for analysis: {req.image_url[:60]}...")
+
         # Download image and convert to base64
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(req.image_url)
+            resp = await client.get(access_url)
             resp.raise_for_status()
             image_content = resp.content
 
