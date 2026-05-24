@@ -46,7 +46,7 @@ from typing import Optional, List
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, HTTPException, Query, Header, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, Header, BackgroundTasks, UploadFile, File, Form
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
@@ -4151,3 +4151,156 @@ async def _generate_pip_video(
             return None
 
     return pip_output
+
+
+
+# ─── Product Image Upload & AI Analysis Endpoints ─────────────────────────────
+
+@router.post("/upload-product-image")
+async def upload_product_image(
+    file: UploadFile = File(...),
+    file_type: str = Form("product-image"),
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+):
+    """商品画像をAzure Blobにアップロードする（AIクリップ生成用）"""
+    verify_admin(x_admin_key)
+    from app.services.storage_service import generate_upload_sas
+    import httpx
+
+    try:
+        content = await file.read()
+        if len(content) > 20 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="画像が大きすぎます（最大20MB）")
+
+        file_id = f"ai-clip-product-{int(time.time())}-{uuid.uuid4().hex[:8]}"
+        filename = file.filename or f"product_{int(time.time())}.jpg"
+
+        vid, upload_url, blob_url, expiry = await generate_upload_sas(
+            email="ai-clip-generator@aitherhub.com",
+            video_id=file_id,
+            filename=filename,
+        )
+
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.put(
+                upload_url,
+                content=content,
+                headers={
+                    "x-ms-blob-type": "BlockBlob",
+                    "Content-Type": file.content_type or "image/jpeg",
+                },
+            )
+            resp.raise_for_status()
+
+        logger.info(f"[ai-clip] Product image uploaded: {filename} ({len(content)} bytes) → {blob_url}")
+        return {
+            "success": True,
+            "blob_url": blob_url,
+            "file_size": len(content),
+            "filename": filename,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[ai-clip] Product image upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"アップロードに失敗しました: {str(e)}")
+
+
+class AnalyzeProductImageRequest(BaseModel):
+    image_url: str = Field(..., description="分析する商品画像のURL")
+
+
+@router.post("/analyze-product-image")
+async def analyze_product_image(
+    req: AnalyzeProductImageRequest,
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+):
+    """商品画像をAI分析し、最適な演出を提案する"""
+    verify_admin(x_admin_key)
+    import openai
+    import base64
+    import httpx
+
+    try:
+        # Download image and convert to base64
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(req.image_url)
+            resp.raise_for_status()
+            image_content = resp.content
+
+        content_type = "image/jpeg"
+        if req.image_url.lower().endswith(".png"):
+            content_type = "image/png"
+        elif req.image_url.lower().endswith(".webp"):
+            content_type = "image/webp"
+
+        b64_image = base64.b64encode(image_content).decode("utf-8")
+        data_url = f"data:{content_type};base64,{b64_image}"
+
+        ai_client = openai.AsyncOpenAI()
+        response = await ai_client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "あなたは動画制作のプロフェッショナルです。商品画像を分析し、TikTok/ショート動画で使う際の最適な演出を提案してください。\n"
+                        "以下のJSON形式で返してください（マークダウンコードブロックなし）:\n"
+                        "{\n"
+                        '  "product_name": "商品名（推測）",\n'
+                        '  "image_type": "パッケージ写真/使用シーン/ビフォーアフター/テクスチャー/集合写真/モデル使用 のいずれか",\n'
+                        '  "recommended_effects": ["推奨エフェクト1", "推奨エフェクト2", "推奨エフェクト3"],\n'
+                        '  "recommended_mode": "pip または audio_only のどちらが最適か",\n'
+                        '  "color_palette": ["#hex1", "#hex2", "#hex3"],\n'
+                        '  "text_position": "テキスト配置の推奨位置（上部/下部/左/右）",\n'
+                        '  "animation_suggestion": "Ken Burns/ズームイン/パン/フェード/スプリットスクリーン等の推奨アニメーション",\n'
+                        '  "caption_color_suggestion": "#推奨テロップカラー（画像に合う色）",\n'
+                        '  "reasoning": "この提案の理由を1-2文で"\n'
+                        "}\n"
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "この商品画像を分析して、TikTok動画での最適な演出を提案してください。",
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": data_url, "detail": "high"},
+                        },
+                    ],
+                },
+            ],
+            max_tokens=800,
+            temperature=0.3,
+        )
+
+        raw_text = response.choices[0].message.content.strip()
+
+        # Parse JSON
+        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', raw_text)
+        if json_match:
+            raw_text = json_match.group(1).strip()
+
+        try:
+            analysis = json.loads(raw_text)
+        except json.JSONDecodeError:
+            # Try to extract JSON from the response
+            json_start = raw_text.find('{')
+            json_end = raw_text.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                analysis = json.loads(raw_text[json_start:json_end])
+            else:
+                analysis = {"error": "AI応答のパースに失敗しました", "raw": raw_text[:200]}
+
+        logger.info(f"[ai-clip] Product image analyzed: {analysis.get('product_name', 'unknown')}")
+        return analysis
+
+    except openai.OpenAIError as e:
+        logger.error(f"[ai-clip] OpenAI analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=f"AI分析に失敗しました: {str(e)}")
+    except Exception as e:
+        logger.error(f"[ai-clip] Product image analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=f"画像分析に失敗しました: {str(e)}")

@@ -1503,6 +1503,10 @@ function FeedbackCard({ fb, onRated, feedbacks, currentIdx, expanded, onToggle, 
   const [clipJobProgress, setClipJobProgress] = useState(0);
   const [clipJobResult, setClipJobResult] = useState(null);
   const [clipVideoMode, setClipVideoMode] = useState('original'); // original, product_overlay, audio_only
+  // Product image upload state (for PiP / audio+product modes)
+  const [productImages, setProductImages] = useState([]); // [{file, preview, uploading, url, analyzed}]
+  const [imageAnalysis, setImageAnalysis] = useState(null); // AI analysis result
+  const [analyzingImage, setAnalyzingImage] = useState(false);
 
   // Poll job status
   useEffect(() => {
@@ -1530,6 +1534,70 @@ function FeedbackCard({ fb, onRated, feedbacks, currentIdx, expanded, onToggle, 
     return () => clearInterval(interval);
   }, [clipJobId, clipJobStatus]);
 
+  // Handle product image upload
+  const handleProductImageUpload = async (files) => {
+    const baseURL = import.meta.env.VITE_API_BASE_URL;
+    const newImages = Array.from(files).map(file => ({
+      file,
+      preview: URL.createObjectURL(file),
+      uploading: true,
+      url: null,
+      analyzed: false,
+    }));
+    setProductImages(prev => [...prev, ...newImages]);
+
+    // Upload each image
+    for (let i = 0; i < newImages.length; i++) {
+      const formData = new FormData();
+      formData.append('file', newImages[i].file);
+      formData.append('file_type', 'product-image');
+      try {
+        const res = await axios.post(`${baseURL}/api/v1/ai-clip/upload-product-image`, formData, {
+          headers: { 'X-Admin-Key': 'aither:hub', 'Content-Type': 'multipart/form-data' },
+        });
+        setProductImages(prev => prev.map((img, idx) =>
+          img.preview === newImages[i].preview ? { ...img, uploading: false, url: res.data.blob_url } : img
+        ));
+        // Auto-analyze first image
+        if (productImages.length === 0 && i === 0) {
+          handleAnalyzeImage(res.data.blob_url);
+        }
+      } catch (e) {
+        console.error('Image upload failed:', e);
+        setProductImages(prev => prev.map((img) =>
+          img.preview === newImages[i].preview ? { ...img, uploading: false, url: null } : img
+        ));
+      }
+    }
+  };
+
+  // AI image analysis
+  const handleAnalyzeImage = async (imageUrl) => {
+    if (!imageUrl) return;
+    setAnalyzingImage(true);
+    setImageAnalysis(null);
+    try {
+      const baseURL = import.meta.env.VITE_API_BASE_URL;
+      const res = await axios.post(`${baseURL}/api/v1/ai-clip/analyze-product-image`, {
+        image_url: imageUrl,
+      }, {
+        headers: { 'X-Admin-Key': 'aither:hub' },
+      });
+      setImageAnalysis(res.data);
+    } catch (e) {
+      console.error('Image analysis failed:', e);
+      setImageAnalysis({ error: e.response?.data?.detail || e.message });
+    } finally {
+      setAnalyzingImage(false);
+    }
+  };
+
+  // Remove product image
+  const handleRemoveProductImage = (index) => {
+    setProductImages(prev => prev.filter((_, i) => i !== index));
+    if (productImages.length <= 1) setImageAnalysis(null);
+  };
+
   const handleGenerateAIClip = async () => {
     if (clipGenerating) return;
     const clipId = fb.clip_id;
@@ -1537,12 +1605,21 @@ function FeedbackCard({ fb, onRated, feedbacks, currentIdx, expanded, onToggle, 
       alert('このフェーズにはクリップがありません。先にクリップを生成してください。');
       return;
     }
+    // Validate: PiP/audio_only modes need product images
+    if (clipVideoMode !== 'original') {
+      const uploadedUrls = productImages.filter(img => img.url).map(img => img.url);
+      if (uploadedUrls.length === 0) {
+        alert('PiP合成/音声+商品モードでは商品画像が必要です。画像をアップロードしてください。');
+        return;
+      }
+    }
     setClipGenerating(true);
     setClipJobStatus('queued');
     setClipJobProgress(0);
     setClipJobResult(null);
     try {
       const baseURL = import.meta.env.VITE_API_BASE_URL;
+      const uploadedUrls = productImages.filter(img => img.url).map(img => img.url);
       const res = await axios.post(`${baseURL}/api/v1/ai-clip/generate-from-clip`, {
         clip_id: clipId,
         subtitle_style: 'auto',
@@ -1563,6 +1640,7 @@ function FeedbackCard({ fb, onRated, feedbacks, currentIdx, expanded, onToggle, 
         enable_keyword_highlight: true,
         enable_subtitle_animation: true,
         video_mode: clipVideoMode,
+        product_image_urls: uploadedUrls.length > 0 ? uploadedUrls : undefined,
       }, {
         headers: { "X-Admin-Key": "aither:hub" },
       });
@@ -2014,6 +2092,119 @@ function FeedbackCard({ fb, onRated, feedbacks, currentIdx, expanded, onToggle, 
                     <p className="mt-1 text-[9px] text-amber-600 bg-amber-50 px-2 py-1 rounded">
                       💡 {clipVideoMode === 'product_overlay' ? '商品画像をメイン表示し、配信者は右下ワイプに。商品が映ってない時に最適。' : '音声のみ保持し、商品画像のスライドショーを映像に。トーク力が高いが商品が映ってない時に。'}
                     </p>
+                  )}
+                  {/* Product Image Upload Area (for PiP / audio+product modes) */}
+                  {!clipJobStatus && clipVideoMode !== 'original' && (
+                    <div className="mt-2 p-2 border-2 border-dashed border-indigo-200 rounded-lg bg-indigo-50/30">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-bold text-indigo-700">📸 商品画像（必須）</span>
+                        <label className="cursor-pointer px-2 py-0.5 bg-indigo-600 text-white text-[9px] rounded hover:bg-indigo-700 transition-colors">
+                          + 画像追加
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            onChange={(e) => handleProductImageUpload(e.target.files)}
+                          />
+                        </label>
+                      </div>
+                      {productImages.length === 0 && (
+                        <div
+                          className="flex flex-col items-center justify-center py-3 text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
+                          onClick={() => document.querySelector(`#img-upload-${fb.id}`)?.click()}
+                        >
+                          <span className="text-lg">🖼️</span>
+                          <span className="text-[9px] mt-1">ここにドラッグ or クリックして商品画像をアップロード</span>
+                          <span className="text-[8px] text-gray-300 mt-0.5">複数枚OK・JPG/PNG/WebP対応</span>
+                          <input
+                            id={`img-upload-${fb.id}`}
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            onChange={(e) => handleProductImageUpload(e.target.files)}
+                          />
+                        </div>
+                      )}
+                      {/* Uploaded images preview */}
+                      {productImages.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {productImages.map((img, idx) => (
+                            <div key={idx} className="relative group">
+                              <img
+                                src={img.preview}
+                                alt={`product-${idx}`}
+                                className={`w-12 h-12 object-cover rounded border ${
+                                  img.uploading ? 'opacity-50 border-yellow-300' :
+                                  img.url ? 'border-green-300' : 'border-red-300'
+                                }`}
+                              />
+                              {img.uploading && (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <span className="text-[8px] animate-pulse">⏳</span>
+                                </div>
+                              )}
+                              {!img.uploading && img.url && (
+                                <div className="absolute top-0 right-0 bg-green-500 rounded-full w-3 h-3 flex items-center justify-center">
+                                  <span className="text-white text-[6px]">✓</span>
+                                </div>
+                              )}
+                              {!img.uploading && !img.url && (
+                                <div className="absolute top-0 right-0 bg-red-500 rounded-full w-3 h-3 flex items-center justify-center">
+                                  <span className="text-white text-[6px]">✗</span>
+                                </div>
+                              )}
+                              <button
+                                onClick={() => handleRemoveProductImage(idx)}
+                                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-3.5 h-3.5 text-[8px] hidden group-hover:flex items-center justify-center"
+                              >×</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {/* AI Analysis Result */}
+                      {analyzingImage && (
+                        <div className="mt-2 p-1.5 bg-blue-50 border border-blue-200 rounded text-[9px] text-blue-700 animate-pulse">
+                          🧠 AI画像分析中... 最適な演出を提案します
+                        </div>
+                      )}
+                      {imageAnalysis && !imageAnalysis.error && (
+                        <div className="mt-2 p-2 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg">
+                          <div className="text-[9px] font-bold text-purple-700 mb-1">🤖 AI演出提案</div>
+                          {imageAnalysis.product_name && (
+                            <div className="text-[9px] text-gray-700"><span className="font-medium">商品:</span> {imageAnalysis.product_name}</div>
+                          )}
+                          {imageAnalysis.image_type && (
+                            <div className="text-[9px] text-gray-600"><span className="font-medium">画像タイプ:</span> {imageAnalysis.image_type}</div>
+                          )}
+                          {imageAnalysis.recommended_effects && (
+                            <div className="mt-1">
+                              <div className="text-[8px] font-medium text-purple-600">推奨エフェクト:</div>
+                              <div className="flex flex-wrap gap-0.5 mt-0.5">
+                                {imageAnalysis.recommended_effects.map((effect, i) => (
+                                  <span key={i} className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[8px] rounded-full">{effect}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {imageAnalysis.color_palette && (
+                            <div className="mt-1 flex items-center gap-1">
+                              <span className="text-[8px] text-gray-500">カラー:</span>
+                              {imageAnalysis.color_palette.map((color, i) => (
+                                <div key={i} className="w-3 h-3 rounded-full border border-gray-200" style={{backgroundColor: color}} title={color} />
+                              ))}
+                            </div>
+                          )}
+                          {imageAnalysis.text_position && (
+                            <div className="text-[8px] text-gray-500 mt-0.5">テキスト推奨位置: {imageAnalysis.text_position}</div>
+                          )}
+                        </div>
+                      )}
+                      {imageAnalysis && imageAnalysis.error && (
+                        <div className="mt-1 text-[8px] text-red-500">⚠️ 分析エラー: {imageAnalysis.error}</div>
+                      )}
+                    </div>
                   )}
                   {/* Job Progress */}
                   {clipJobStatus && clipJobStatus !== 'done' && clipJobStatus !== 'failed' && (
