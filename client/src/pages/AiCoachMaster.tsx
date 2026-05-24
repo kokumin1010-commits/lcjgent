@@ -15,6 +15,7 @@ export default function AiCoachMaster() {
   const [messageTypeFilter, setMessageTypeFilter] = useState<string>("all");
   const [showRecentMessages, setShowRecentMessages] = useState(false);
   const [recentMsgTypeFilter, setRecentMsgTypeFilter] = useState<string>("all");
+  const [expandedMsgId, setExpandedMsgId] = useState<number | null>(null);
 
   const { data: usageStats, isLoading } = trpc.liverManagement.aiCoach.getAllLiverUsageStats.useQuery();
   const { data: conversations } = trpc.liverManagement.aiCoach.getLiverConversations.useQuery(
@@ -29,6 +30,7 @@ export default function AiCoachMaster() {
     { limit: 100, messageType: recentMsgTypeFilter !== 'all' ? recentMsgTypeFilter : undefined }
   );
   const { data: dailySendStats } = trpc.liverManagement.aiCoach.getDailySendStats.useQuery();
+  const { data: messageTypeCounts } = trpc.liverManagement.aiCoach.getMessageTypeCounts.useQuery();
 
   const formatDate = (date: string | Date | null) => {
     if (!date) return "—";
@@ -660,9 +662,13 @@ export default function AiCoachMaster() {
             { key: 'skill_analysis', label: 'スキル分析', emoji: '🎯', color: 'text-teal-600', bg: 'bg-teal-50 dark:bg-teal-950' },
             { key: 'monthly_report', label: '月次レポート', emoji: '📅', color: 'text-cyan-600', bg: 'bg-cyan-50 dark:bg-cyan-950' },
           ].map(type => {
-            const typeCount = type.key === 'all'
-              ? (recentAutoMessages?.length || 0)
-              : (recentAutoMessages?.filter(m => m.messageType === type.key).length || 0);
+            const countData = messageTypeCounts || [];
+            const typeTotal = type.key === 'all'
+              ? countData.reduce((sum, c) => sum + c.total, 0)
+              : (countData.find(c => c.messageType === type.key)?.total || 0);
+            const typeToday = type.key === 'all'
+              ? countData.reduce((sum, c) => sum + c.today, 0)
+              : (countData.find(c => c.messageType === type.key)?.today || 0);
             const isActive = recentMsgTypeFilter === type.key;
             return (
               <div
@@ -676,7 +682,10 @@ export default function AiCoachMaster() {
               >
                 <div className="flex items-center gap-1.5 mb-1">
                   <span className="text-base">{type.emoji}</span>
-                  <span className={`text-lg font-bold ${type.color}`}>{typeCount}</span>
+                  <span className={`text-lg font-bold ${type.color}`}>{typeTotal}</span>
+                  {typeToday > 0 && (
+                    <span className="text-xs font-semibold text-green-600">+{typeToday}</span>
+                  )}
                 </div>
                 <p className="text-[10px] text-muted-foreground leading-tight">{type.label}</p>
               </div>
@@ -687,27 +696,43 @@ export default function AiCoachMaster() {
         {/* メッセージ一覧 */}
         <div className="space-y-2 max-h-[500px] overflow-y-auto">
           {recentAutoMessages && recentAutoMessages.length > 0 ? (
-            recentAutoMessages.map(msg => (
-              <Card key={msg.id} className="hover:bg-muted/30 transition-colors">
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <div className="h-6 w-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-[10px] font-bold">
-                        {msg.liverName.charAt(0)}
+            recentAutoMessages.map(msg => {
+              const isExpanded = expandedMsgId === msg.id;
+              return (
+                <Card
+                  key={msg.id}
+                  className="cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => setExpandedMsgId(isExpanded ? null : msg.id)}
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-[10px] font-bold">
+                          {msg.liverName.charAt(0)}
+                        </div>
+                        <span className="font-medium text-sm">{msg.liverName}</span>
+                        {getMessageTypeBadge(msg.messageType)}
                       </div>
-                      <span className="font-medium text-sm">{msg.liverName}</span>
-                      {getMessageTypeBadge(msg.messageType)}
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-muted-foreground">
+                          {formatDate(msg.createdAt)}
+                        </span>
+                        {isExpanded ? <ChevronUp className="h-3 w-3 text-muted-foreground" /> : <ChevronDown className="h-3 w-3 text-muted-foreground" />}
+                      </div>
                     </div>
-                    <span className="text-[10px] text-muted-foreground">
-                      {formatDate(msg.createdAt)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground line-clamp-2 ml-8 whitespace-pre-wrap">
-                    {msg.content.slice(0, 150)}{msg.content.length > 150 ? '...' : ''}
-                  </p>
-                </CardContent>
-              </Card>
-            ))
+                    {isExpanded ? (
+                      <div className="ml-8 mt-2 p-3 bg-muted/50 rounded-lg">
+                        <p className="text-xs text-foreground whitespace-pre-wrap">{msg.content}</p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground line-clamp-1 ml-8 whitespace-pre-wrap">
+                        {msg.content.slice(0, 100)}{msg.content.length > 100 ? '...' : ''}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })
           ) : (
             <p className="text-center text-muted-foreground text-sm py-4">自動送信メッセージはまだありません</p>
           )}
