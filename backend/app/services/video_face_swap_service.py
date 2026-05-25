@@ -313,17 +313,16 @@ class VideoFaceSwapService:
             fs_job_id = f"fs-{job_id}"
             job["face_swap_job_id"] = fs_job_id
 
-            await self.face_swap.start_video_swap(
+            await self.face_swap.swap_video(
                 job_id=fs_job_id,
                 video_url=job["video_url"],
                 quality=job["quality"],
-                face_enhancer=job["face_enhancer"],
             )
 
             # Poll GPU worker for face swap progress
             while True:
                 await asyncio.sleep(3)
-                fs_status = await self.face_swap.get_video_status(fs_job_id)
+                fs_status = await self.face_swap.video_status(fs_job_id)
 
                 if fs_status["status"] == "completed":
                     job["progress"] = 70
@@ -340,7 +339,7 @@ class VideoFaceSwapService:
 
             # Download face-swapped video from GPU worker
             job["step"] = "Downloading face-swapped video"
-            download_url = await self.face_swap.get_video_download_url(fs_job_id)
+            download_url = await self.face_swap.video_download_url(fs_job_id)
 
             async with httpx.AsyncClient(
                 timeout=300,

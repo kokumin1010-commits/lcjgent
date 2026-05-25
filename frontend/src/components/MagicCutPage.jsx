@@ -30,6 +30,8 @@ import {
   Trash2,
   Eye,
   HelpCircle,
+  UserCircle2,
+  Zap,
 } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
@@ -86,6 +88,14 @@ export default function MagicCutPage() {
   const [enableSubtitles, setEnableSubtitles] = useState(true);
   const [enableEffects, setEnableEffects] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Face Swap
+  const [enableFaceSwap, setEnableFaceSwap] = useState(false);
+  const [sourceFaceUrl, setSourceFaceUrl] = useState("");
+  const [sourceFacePreview, setSourceFacePreview] = useState(null);
+  const [faceSwapQuality, setFaceSwapQuality] = useState("high");
+  const [uploadingFace, setUploadingFace] = useState(false);
+  const faceInputRef = useRef(null);
 
   // Help
   const [showHelp, setShowHelp] = useState(false);
@@ -234,6 +244,39 @@ export default function MagicCutPage() {
     }
   };
 
+  // ── Face Upload ──
+  const handleFaceUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingFace(true);
+
+    // Show preview immediately
+    const reader = new FileReader();
+    reader.onload = (ev) => setSourceFacePreview(ev.target.result);
+    reader.readAsDataURL(file);
+
+    // Upload to backend
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`${API_BASE}/api/v1/magic-cut/upload-face`, {
+        method: "POST",
+        headers: { "X-Admin-Key": ADMIN_KEY },
+        body: formData,
+      });
+      if (!res.ok) throw new Error(`Upload failed: HTTP ${res.status}`);
+      const data = await res.json();
+      setSourceFaceUrl(data.blob_url);
+    } catch (err) {
+      console.error("[MagicCut] Face upload error:", err);
+      setSourceFacePreview(null);
+      setSourceFaceUrl("");
+    } finally {
+      setUploadingFace(false);
+      if (faceInputRef.current) faceInputRef.current.value = "";
+    }
+  };
+
   // ── Generate ──
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -258,6 +301,9 @@ export default function MagicCutPage() {
         orientation,
         enable_subtitles: enableSubtitles,
         enable_effects: enableEffects,
+        enable_face_swap: enableFaceSwap,
+        source_face_url: enableFaceSwap ? sourceFaceUrl : null,
+        face_swap_quality: faceSwapQuality,
       };
 
       const res = await fetch(`${API_BASE}/api/v1/magic-cut/generate`, {
@@ -986,6 +1032,119 @@ export default function MagicCutPage() {
                     </>
                   )}
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Face Swap Section */}
+          <div className="border-t border-gray-100 p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UserCircle2 className="w-4 h-4 text-indigo-500" />
+                <span className="text-sm font-semibold text-gray-700">Face Swap</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-600 font-medium">NEW</span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={enableFaceSwap}
+                  onChange={(e) => setEnableFaceSwap(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500"></div>
+              </label>
+            </div>
+
+            {enableFaceSwap && (
+              <div className="mt-3 space-y-3">
+                <p className="text-[10px] text-gray-500">
+                  ライバーの顔を別の顔に変更して、無限にバリエーションを作成できます。
+                </p>
+
+                {/* Face Upload */}
+                <div className="flex items-center gap-3">
+                  {sourceFacePreview ? (
+                    <div className="relative">
+                      <img
+                        src={sourceFacePreview}
+                        alt="Source face"
+                        className="w-14 h-14 rounded-full object-cover border-2 border-indigo-300"
+                      />
+                      <button
+                        onClick={() => {
+                          setSourceFacePreview(null);
+                          setSourceFaceUrl("");
+                        }}
+                        className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => faceInputRef.current?.click()}
+                      disabled={uploadingFace}
+                      className="w-14 h-14 rounded-full border-2 border-dashed border-indigo-300 flex items-center justify-center hover:bg-indigo-50 transition-colors"
+                    >
+                      {uploadingFace ? (
+                        <Loader2 className="w-5 h-5 text-indigo-400 animate-spin" />
+                      ) : (
+                        <UserCircle2 className="w-6 h-6 text-indigo-400" />
+                      )}
+                    </button>
+                  )}
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-gray-700">
+                      {sourceFaceUrl ? "ソース顔アップロード済み" : "ソース顔をアップロード"}
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      {sourceFaceUrl
+                        ? "✅ 顔画像がセットされました"
+                        : "正面を向いた明るい写真を推奨"}
+                    </p>
+                  </div>
+                  <input
+                    ref={faceInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFaceUpload}
+                    className="hidden"
+                  />
+                </div>
+
+                {/* Quality Selection */}
+                <div className="flex items-center gap-2">
+                  <Zap className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="text-[10px] text-gray-500">品質:</span>
+                  <div className="flex gap-1">
+                    {[
+                      { value: "fast", label: "高速" },
+                      { value: "balanced", label: "バランス" },
+                      { value: "high", label: "高品質" },
+                      { value: "ultra", label: "最高" },
+                    ].map((q) => (
+                      <button
+                        key={q.value}
+                        onClick={() => setFaceSwapQuality(q.value)}
+                        className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${
+                          faceSwapQuality === q.value
+                            ? "bg-indigo-500 text-white"
+                            : "bg-gray-100 text-gray-500 hover:bg-indigo-50"
+                        }`}
+                      >
+                        {q.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Warning if no face uploaded */}
+                {enableFaceSwap && !sourceFaceUrl && (
+                  <div className="flex items-center gap-1.5 text-[10px] text-amber-600 bg-amber-50 px-2.5 py-1.5 rounded-md">
+                    <AlertCircle className="w-3 h-3" />
+                    <span>Face Swapを使うにはソース顔画像をアップロードしてください</span>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -115,6 +115,10 @@ class MagicCutRequest(BaseModel):
     subtitle_language: str = Field("auto", description="字幕言語")
     enable_bgm: bool = Field(False, description="BGMを付けるか")
     enable_effects: bool = Field(True, description="エフェクト（ズーム・フラッシュ等）を付けるか")
+    # Face Swap設定
+    enable_face_swap: bool = Field(False, description="Face Swapを適用するか")
+    source_face_url: Optional[str] = Field(None, description="ソース顔画像のURL（Azure Blob URL）")
+    face_swap_quality: str = Field("high", description="Face Swap品質: fast/balanced/high/ultra")
 
 class RefineRequest(BaseModel):
     """追加調整リクエスト"""
@@ -848,6 +852,18 @@ async def _process_single_output(job_id: str, index: int, total: int,
         if not os.path.exists(output_path):
             return {"index": index, "status": "error", "error": "出力ファイルが生成されませんでした"}
 
+        # ── Face Swap 後処理 ──
+        if req.enable_face_swap and req.source_face_url:
+            try:
+                await _update_job(job_id, current_step=f"動画 {index+1}/{total} Face Swap適用中...")
+                output_path = await _apply_face_swap(
+                    job_id, index, output_path, req.source_face_url, req.face_swap_quality, tmp_dir
+                )
+            except Exception as e:
+                logger.error(f"[magic-cut {job_id}] Face swap failed for output {index}: {e}", exc_info=True)
+                # Face swap失敗時は元の動画をそのまま使う（フォールバック）
+                logger.warning(f"[magic-cut {job_id}] Falling back to original video without face swap")
+
         # Get output info
         probe_cmd = ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", output_path]
         probe_result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
@@ -941,7 +957,189 @@ async def _run_magic_cut_refine(job_id: str, req: RefineRequest, parent_job: dic
         await _save_job_db(job_id, _load_job_file(job_id) or {})
 
 
-# ─── User Material Upload ─────────────────────────────────────────────────────
+# ─── # ─── Face Swap Helper ──────────────────────────────────────────────────
+
+async def _apply_face_swap(
+    job_id: str,
+    index: int,
+    input_video_path: str,
+    source_face_url: str,
+    quality: str,
+    tmp_dir: str,
+) -> str:
+    """
+    動画にFace Swapを適用する。
+    GPU Workerのswap-video APIを使用。
+    成功時は新しい出力パスを返す。
+    """
+    import httpx
+    from app.services.face_swap_service import FaceSwapService, FaceSwapQuality
+    from app.services.storage_service import (
+        generate_read_sas_from_url,
+        CONNECTION_STRING, ACCOUNT_NAME, CONTAINER_NAME,
+    )
+
+    face_swap = FaceSwapService()
+
+    # 1. ソース顔をGPU Workerにセット
+    face_url = source_face_url
+    if "aitherhub.blob.core.windows.net" in face_url and "?" not in face_url:
+        sas_url = generate_read_sas_from_url(face_url)
+        if sas_url:
+            face_url = sas_url
+    logger.info(f"[magic-cut {job_id}] Setting source face for face swap")
+    await face_swap.set_source_face(image_url=face_url)
+
+    # 2. 入力動画をAzure Blobにアップロード（GPU Workerがアクセスできるように）
+    from azure.storage.blob import BlobServiceClient, ContentSettings
+    blob_name = f"magic-cut/face-swap-input/{job_id}/{index}.mp4"
+    svc = BlobServiceClient.from_connection_string(CONNECTION_STRING)
+    bc = svc.get_blob_client(container=CONTAINER_NAME, blob=blob_name)
+
+    def _upload_input():
+        with open(input_video_path, "rb") as data:
+            bc.upload_blob(
+                data, overwrite=True,
+                content_settings=ContentSettings(content_type="video/mp4")
+            )
+
+    await asyncio.get_event_loop().run_in_executor(None, _upload_input)
+    input_blob_url = f"https://{ACCOUNT_NAME}.blob.core.windows.net/{CONTAINER_NAME}/{blob_name}"
+    input_sas_url = generate_read_sas_from_url(input_blob_url, expires_hours=2)
+    if not input_sas_url:
+        input_sas_url = input_blob_url
+
+    # 3. Face Swapジョブを開始
+    _quality_map = {
+        "fast": FaceSwapQuality.FAST,
+        "balanced": FaceSwapQuality.BALANCED,
+        "high": FaceSwapQuality.HIGH,
+        "ultra": FaceSwapQuality.ULTRA,
+        "standard": FaceSwapQuality.BALANCED,
+        "pro": FaceSwapQuality.HIGH,
+        "cinema": FaceSwapQuality.ULTRA,
+    }
+    fs_quality = _quality_map.get(quality, FaceSwapQuality.HIGH)
+    fs_job_id = f"mc-fs-{job_id[:8]}-{index}"
+
+    logger.info(f"[magic-cut {job_id}] Starting face swap job {fs_job_id} quality={fs_quality.value}")
+    await face_swap.swap_video(
+        job_id=fs_job_id,
+        video_url=input_sas_url,
+        quality=fs_quality,
+        output_video_quality=95,
+    )
+
+    # 4. ポーリングで完了を待つ
+    max_wait = 600  # 10分タイムアウト
+    waited = 0
+    while waited < max_wait:
+        await asyncio.sleep(5)
+        waited += 5
+        fs_status = await face_swap.video_status(fs_job_id)
+        status_val = fs_status.get("status", "")
+        if status_val == "completed":
+            break
+        elif status_val == "error":
+            raise RuntimeError(f"Face swap error: {fs_status.get('error', 'unknown')}")
+        # 進捗ログ
+        progress = fs_status.get("progress", 0)
+        if waited % 15 == 0:
+            logger.info(f"[magic-cut {job_id}] Face swap progress: {progress}% ({waited}s elapsed)")
+    else:
+        raise RuntimeError(f"Face swap timed out after {max_wait}s")
+
+    # 5. 結果動画をダウンロード
+    download_url = await face_swap.video_download_url(fs_job_id)
+    swapped_path = os.path.join(tmp_dir, f"swapped_{index}.mp4")
+
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(connect=30, read=300, write=30, pool=600),
+        headers={"X-Api-Key": face_swap.api_key},
+    ) as client:
+        async with client.stream("GET", download_url) as resp:
+            resp.raise_for_status()
+            with open(swapped_path, "wb") as f:
+                async for chunk in resp.aiter_bytes(chunk_size=256 * 1024):
+                    f.write(chunk)
+
+    logger.info(
+        f"[magic-cut {job_id}] Face swap complete for output {index}: "
+        f"{os.path.getsize(swapped_path) / (1024*1024):.1f} MB"
+    )
+
+    # 6. クリーンアップ: 入力用blobを削除
+    try:
+        bc.delete_blob()
+    except Exception:
+        pass
+
+    # 7. GPU Workerのジョブも削除
+    try:
+        await face_swap.delete_video_job(fs_job_id)
+    except Exception:
+        pass
+
+    return swapped_path
+
+
+# ─── Face Upload Endpoint ───────────────────────────────────────────────
+
+@router.post("/upload-face")
+async def upload_face_image(
+    file: UploadFile = File(...),
+    x_admin_key: Optional[str] = Header(None),
+):
+    """
+    Face Swap用のソース顔画像をアップロード。
+    Azure Blobに保存し、URLを返す。
+    """
+    verify_admin(x_admin_key)
+
+    file_data = await file.read()
+    if len(file_data) > 10 * 1024 * 1024:  # 10MB limit for face images
+        raise HTTPException(status_code=413, detail="ファイルサイズが大きすぎます（10MB以下）")
+
+    content_type = file.content_type or "image/jpeg"
+    if not content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="画像ファイルのみアップロード可能です")
+
+    from azure.storage.blob import BlobServiceClient, ContentSettings
+    from app.services.storage_service import (
+        CONNECTION_STRING, ACCOUNT_NAME, CONTAINER_NAME, generate_read_sas_from_url,
+    )
+    if not CONNECTION_STRING:
+        raise HTTPException(status_code=500, detail="Azure Storage not configured")
+
+    face_id = uuid.uuid4().hex[:12]
+    ext = os.path.splitext(file.filename or "face.jpg")[1] or ".jpg"
+    blob_name = f"magic-cut/face-images/{face_id}{ext}"
+
+    svc = BlobServiceClient.from_connection_string(CONNECTION_STRING)
+    bc = svc.get_blob_client(container=CONTAINER_NAME, blob=blob_name)
+
+    import io
+    bc.upload_blob(
+        io.BytesIO(file_data), overwrite=True,
+        content_settings=ContentSettings(content_type=content_type)
+    )
+
+    blob_url = f"https://{ACCOUNT_NAME}.blob.core.windows.net/{CONTAINER_NAME}/{blob_name}"
+
+    # CDN URL for preview
+    cdn_host = os.getenv("CDN_HOST", "https://cdn.aitherhub.com")
+    blob_host = f"https://{ACCOUNT_NAME}.blob.core.windows.net"
+    preview_url = blob_url.replace(blob_host, cdn_host) if cdn_host else blob_url
+
+    return {
+        "face_id": face_id,
+        "blob_url": blob_url,
+        "preview_url": preview_url,
+        "file_size": len(file_data),
+    }
+
+
+# ─── User Material Upload ─────────────────────────────────────────────
 
 @router.post("/upload-material")
 async def upload_user_material(
