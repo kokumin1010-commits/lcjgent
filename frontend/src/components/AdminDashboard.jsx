@@ -1364,6 +1364,16 @@ function FeedbackSection({ data, loading, error, includeUnrated, setIncludeUnrat
         >
           アップロード日順
         </button>
+        <button
+          onClick={() => setSortBy("ai_clip_count")}
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+            sortBy === "ai_clip_count"
+              ? "bg-green-500 text-white"
+              : "bg-green-50 text-green-600 hover:bg-green-100 border border-green-200"
+          }`}
+        >
+          🤖 AI生成順
+        </button>
       </div>
 
       {/* Pagination Info */}
@@ -1522,6 +1532,8 @@ function FeedbackCard({ fb, onRated, feedbacks, currentIdx, expanded, onToggle, 
   const [productImages, setProductImages] = useState([]); // [{file, preview, uploading, url, analyzed}]
   const [imageAnalysis, setImageAnalysis] = useState(null); // AI analysis result
   const [analyzingImage, setAnalyzingImage] = useState(false);
+  const [registeringToMaster, setRegisteringToMaster] = useState(false);
+  const [masterRegistered, setMasterRegistered] = useState(false);
   // AI Clip generation history for this clip
   const [clipHistory, setClipHistory] = useState([]); // past generation jobs
   const [clipHistoryLoading, setClipHistoryLoading] = useState(false);
@@ -2287,6 +2299,60 @@ function FeedbackCard({ fb, onRated, feedbacks, currentIdx, expanded, onToggle, 
                       )}
                       {imageAnalysis && imageAnalysis.error && (
                         <div className="mt-1 text-[8px] text-red-500">⚠️ 分析エラー: {imageAnalysis.error}</div>
+                      )}
+                      {/* Register to Product Master suggestion */}
+                      {productImages.length > 0 && productImages.some(img => img.url) && !registeringToMaster && (
+                        <div className="mt-2 p-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-[9px] font-bold text-green-700">📦 商品マスターに登録しますか？</div>
+                              <div className="text-[8px] text-green-600 mt-0.5">登録すると、同じ商品の動画で自動適用されます</div>
+                            </div>
+                            <button
+                              onClick={async () => {
+                                const name = imageAnalysis?.product_name || prompt('商品名を入力してください:');
+                                if (!name) return;
+                                setRegisteringToMaster(true);
+                                try {
+                                  const urls = productImages.filter(img => img.url).map(img => img.url);
+                                  const res = await fetch('/api/v1/ai-clip/product-master', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', 'X-Admin-Key': localStorage.getItem('adminKey') || 'aither:hub' },
+                                    body: JSON.stringify({
+                                      product_name: name,
+                                      brand_name: imageAnalysis?.brand_name || '',
+                                      image_urls: urls,
+                                      keywords: imageAnalysis?.product_name ? [imageAnalysis.product_name] : []
+                                    })
+                                  });
+                                  if (res.ok) {
+                                    setMasterRegistered(true);
+                                    setTimeout(() => setMasterRegistered(false), 5000);
+                                  } else {
+                                    alert('登録に失敗しました');
+                                  }
+                                } catch (e) {
+                                  alert('登録エラー: ' + e.message);
+                                } finally {
+                                  setRegisteringToMaster(false);
+                                }
+                              }}
+                              className="px-2 py-1 bg-green-600 text-white text-[9px] rounded-lg hover:bg-green-700 transition-colors font-medium"
+                            >
+                              📦 登録する
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {registeringToMaster && (
+                        <div className="mt-2 p-1.5 bg-green-50 border border-green-200 rounded text-[9px] text-green-700 animate-pulse">
+                          📦 商品マスターに登録中...
+                        </div>
+                      )}
+                      {masterRegistered && (
+                        <div className="mt-2 p-1.5 bg-green-100 border border-green-300 rounded text-[9px] text-green-800 font-medium">
+                          ✅ 商品マスターに登録しました！今後同じ商品の動画で自動適用されます。
+                        </div>
                       )}
                     </div>
                   )}

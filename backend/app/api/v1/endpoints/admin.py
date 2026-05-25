@@ -23,6 +23,7 @@ def _feedback_order_clause(sort_by: str, sort_order: str) -> str:
     allowed = {
         "rated_at": "vp.rated_at DESC NULLS LAST, vp.video_id, vp.phase_index",
         "video_uploaded_at": "v.created_at {dir}, vp.video_id, vp.phase_index",
+        "ai_clip_count": "COALESCE(acj.ai_clip_count, 0) DESC NULLS LAST, vp.rated_at DESC NULLS LAST, vp.video_id, vp.phase_index",
     }
     direction = "DESC" if sort_order.lower() == "desc" else "ASC"
     template = allowed.get(sort_by, allowed["rated_at"])
