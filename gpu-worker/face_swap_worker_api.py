@@ -60,7 +60,7 @@ logger = logging.getLogger("face-swap-worker")
 
 # ── Configuration ────────────────────────────────────────────────────────────
 
-WORKER_API_KEY = os.getenv("WORKER_API_KEY", "change-me-in-production")
+WORKER_API_KEY = os.getenv("WORKER_API_KEY", "aitherhub")
 FACEFUSION_DIR = os.getenv("FACEFUSION_DIR", "/workspace/facefusion")
 SOURCE_FACE_DIR = os.getenv("SOURCE_FACE_DIR", "/workspace/source_faces")
 TEMP_DIR = os.getenv("TEMP_DIR", "/workspace/tmp")
