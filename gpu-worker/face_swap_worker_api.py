@@ -69,7 +69,7 @@ WORKER_API_KEY = _raw_api_key  # Keep for WebSocket compat
 FACEFUSION_DIR = os.getenv("FACEFUSION_DIR", "/workspace/facefusion")
 SOURCE_FACE_DIR = os.getenv("SOURCE_FACE_DIR", "/workspace/source_faces")
 TEMP_DIR = os.getenv("TEMP_DIR", "/workspace/tmp")
-PORT = int(os.getenv("PORT", os.getenv("WORKER_PORT", "8000")))
+PORT = int(os.getenv("PORT", os.getenv("WORKER_PORT", "11434")))
 
 # Ensure directories exist
 Path(SOURCE_FACE_DIR).mkdir(parents=True, exist_ok=True)

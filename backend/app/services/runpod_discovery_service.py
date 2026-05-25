@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY", "")
 RUNPOD_API_BASE = "https://rest.runpod.io/v1"
 RUNPOD_POD_NAME_PATTERN = os.getenv("RUNPOD_POD_NAME_PATTERN", "")
-RUNPOD_WORKER_PORT = int(os.getenv("RUNPOD_WORKER_PORT", "8000"))
+RUNPOD_WORKER_PORT = int(os.getenv("RUNPOD_WORKER_PORT", "11434"))
 
 # Cache TTL: how long to keep a discovered URL before re-checking (seconds)
 CACHE_TTL = int(os.getenv("RUNPOD_CACHE_TTL", "300"))  # 5 minutes
