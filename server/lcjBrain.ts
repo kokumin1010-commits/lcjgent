@@ -270,6 +270,166 @@ async function getLiverPerformance(liverId?: number) {
   return await query;
 }
 
+/** ユーザーメッセージから月を検出 (e.g., "4月" -> "2026-04", "去年12月" -> "2025-12") */
+function detectMonth(message: string): string | null {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  
+  // パターン: "2026年4月", "2026-04", "2026/04"
+  const fullMatch = message.match(/(20\d{2})[年\-\/](\d{1,2})[月份]?/);
+  if (fullMatch) {
+    return `${fullMatch[1]}-${String(parseInt(fullMatch[2])).padStart(2, '0')}`;
+  }
+  
+  // パターン: "去年X月"
+  const lastYearMatch = message.match(/去年(\d{1,2})[月份]/);
+  if (lastYearMatch) {
+    return `${currentYear - 1}-${String(parseInt(lastYearMatch[1])).padStart(2, '0')}`;
+  }
+  
+  // パターン: "上个月" / "先月"
+  if (/上个月|上月|先月/.test(message)) {
+    const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+    const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+    return `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+  }
+  
+  // パターン: "X月份" / "X月"
+  const monthMatch = message.match(/(\d{1,2})[月份]/);
+  if (monthMatch) {
+    const m = parseInt(monthMatch[1]);
+    if (m >= 1 && m <= 12) {
+      // 未来の月なら去年と判断
+      const year = m > currentMonth ? currentYear - 1 : currentYear;
+      return `${year}-${String(m).padStart(2, '0')}`;
+    }
+  }
+  
+  // パターン: "今月" / "本月" / "这个月"
+  if (/今月|本月|这个月|当月/.test(message)) {
+    return `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+  }
+  
+  return null;
+}
+
+/** ユーザーメッセージからライバー名を検出 */
+async function detectLiverName(message: string): Promise<{ id: number; name: string } | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const allLivers = await db
+    .select({ id: livers.id, name: livers.name })
+    .from(livers)
+    .where(eq(livers.isActive, true));
+  
+  const lowerMsg = message.toLowerCase();
+  for (const liver of allLivers) {
+    if (lowerMsg.includes(liver.name.toLowerCase())) {
+      return liver;
+    }
+  }
+  return null;
+}
+
+/** 特定ライバーの特定月の実績を取得 */
+async function getLiverMonthlyPerformance(liverName: string, yearMonth: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [year, month] = yearMonth.split("-").map(Number);
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0, 23, 59, 59);
+  
+  const streams = await db
+    .select({
+      id: brandLivestreams.id,
+      livestreamDate: brandLivestreams.livestreamDate,
+      streamerName: brandLivestreams.streamerName,
+      salesAmount: brandLivestreams.salesAmount,
+      gmv: brandLivestreams.gmv,
+      duration: brandLivestreams.duration,
+      viewerCount: brandLivestreams.viewerCount,
+      orderCount: brandLivestreams.orderCount,
+      platform: brandLivestreams.platform,
+    })
+    .from(brandLivestreams)
+    .where(
+      and(
+        isNull(brandLivestreams.deletedAt),
+        eq(brandLivestreams.streamerName, liverName),
+        gte(brandLivestreams.livestreamDate, startDate),
+        lte(brandLivestreams.livestreamDate, endDate)
+      )
+    )
+    .orderBy(desc(brandLivestreams.livestreamDate));
+  
+  if (streams.length === 0) {
+    // streamerNameが完全一致しない場合、LIKE検索
+    const likeStreams = await db
+      .select({
+        id: brandLivestreams.id,
+        livestreamDate: brandLivestreams.livestreamDate,
+        streamerName: brandLivestreams.streamerName,
+        salesAmount: brandLivestreams.salesAmount,
+        gmv: brandLivestreams.gmv,
+        duration: brandLivestreams.duration,
+        viewerCount: brandLivestreams.viewerCount,
+        orderCount: brandLivestreams.orderCount,
+        platform: brandLivestreams.platform,
+      })
+      .from(brandLivestreams)
+      .where(
+        and(
+          isNull(brandLivestreams.deletedAt),
+          like(brandLivestreams.streamerName, `%${liverName}%`),
+          gte(brandLivestreams.livestreamDate, startDate),
+          lte(brandLivestreams.livestreamDate, endDate)
+        )
+      )
+      .orderBy(desc(brandLivestreams.livestreamDate));
+    
+    if (likeStreams.length === 0) return null;
+    
+    const totalSales = likeStreams.reduce((sum, s) => sum + (s.salesAmount || 0), 0);
+    const totalGmv = likeStreams.reduce((sum, s) => sum + (s.gmv || 0), 0);
+    const totalDuration = likeStreams.reduce((sum, s) => sum + (s.duration || 0), 0);
+    const totalViewers = likeStreams.reduce((sum, s) => sum + (s.viewerCount || 0), 0);
+    const totalOrders = likeStreams.reduce((sum, s) => sum + (s.orderCount || 0), 0);
+    
+    return {
+      liverName,
+      yearMonth,
+      totalStreams: likeStreams.length,
+      totalSales,
+      totalGmv,
+      totalDuration,
+      totalViewers,
+      totalOrders,
+      streams: likeStreams.slice(0, 10),
+    };
+  }
+  
+  const totalSales = streams.reduce((sum, s) => sum + (s.salesAmount || 0), 0);
+  const totalGmv = streams.reduce((sum, s) => sum + (s.gmv || 0), 0);
+  const totalDuration = streams.reduce((sum, s) => sum + (s.duration || 0), 0);
+  const totalViewers = streams.reduce((sum, s) => sum + (s.viewerCount || 0), 0);
+  const totalOrders = streams.reduce((sum, s) => sum + (s.orderCount || 0), 0);
+  
+  return {
+    liverName,
+    yearMonth,
+    totalStreams: streams.length,
+    totalSales,
+    totalGmv,
+    totalDuration,
+    totalViewers,
+    totalOrders,
+    streams: streams.slice(0, 10),
+  };
+}
+
 /** 全合同の進捗サマリー */
 async function getContractsSummary() {
   const db = await getDb();
@@ -303,10 +463,14 @@ async function buildContext(userMessage: string): Promise<string> {
   const contextParts: string[] = [];
   const lowerMsg = userMessage.toLowerCase();
   
+  // 月とライバー名を検出
+  const detectedMonth = detectMonth(userMessage);
+  const detectedLiver = await detectLiverName(userMessage);
+  
   // キーワードに基づいてデータを取得
   const needsBrands = /品牌|ブランド|brand|客户|顾客|合作|签约|mytrex|合同|契約/.test(lowerMsg);
-  const needsLivers = /主播|ライバー|liver|达人|KOL|配信者|直播员/.test(lowerMsg);
-  const needsLivestreams = /直播|ライブ|配信|GMV|売上|销售额|时长|実績/.test(lowerMsg);
+  const needsLivers = /主播|ライバー|liver|达人|KOL|配信者|直播员/.test(lowerMsg) || !!detectedLiver;
+  const needsLivestreams = /直播|ライブ|配信|GMV|売上|销售额|时长|実績|营业额|业绩|收入/.test(lowerMsg) || !!detectedLiver;
   const needsSchedule = /排期|スケジュール|schedule|空档|予定|今後|来週|下周/.test(lowerMsg);
   const needsVideos = /短视频|短動画|ショート|video|投稿|发布/.test(lowerMsg);
   const needsContracts = /合同|契約|contract|ノルマ|配额|进度|quota/.test(lowerMsg);
@@ -314,6 +478,36 @@ async function buildContext(userMessage: string): Promise<string> {
   
   // 全般的な質問の場合はすべて取得
   const isGeneral = !needsBrands && !needsLivers && !needsLivestreams && !needsSchedule && !needsVideos && !needsContracts && !needsBD;
+  
+  // ★ 特定ライバー + 特定月のデータを優先的に取得
+  if (detectedLiver) {
+    const targetMonth = detectedMonth || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    const liverMonthly = await getLiverMonthlyPerformance(detectedLiver.name, targetMonth);
+    if (liverMonthly) {
+      contextParts.push(`## 主播「${detectedLiver.name}」${targetMonth}月实绩数据\n- 总场次: ${liverMonthly.totalStreams}\n- 总销售额: ${liverMonthly.totalSales.toLocaleString()}円\n- 总GMV: ${liverMonthly.totalGmv.toLocaleString()}円\n- 总时长: ${liverMonthly.totalDuration}分钟\n- 总观看: ${liverMonthly.totalViewers}\n- 总订单: ${liverMonthly.totalOrders}\n\n近期配信详细:\n${JSON.stringify(liverMonthly.streams, null, 0)}`);
+    } else {
+      contextParts.push(`## 主播「${detectedLiver.name}」${targetMonth}月\n该月无配信记录。`);
+    }
+    
+    // 指定月がない場合、近〶3ヶ月のデータも追加
+    if (!detectedMonth) {
+      const liverPerf = await getLiverPerformance();
+      const thisLiverPerf = liverPerf.find((p: any) => 
+        p.streamerName && p.streamerName.toLowerCase() === detectedLiver.name.toLowerCase()
+      );
+      if (thisLiverPerf) {
+        contextParts.push(`## 主播「${detectedLiver.name}」近3个月累计\n${JSON.stringify(thisLiverPerf, null, 0)}`);
+      }
+    }
+  }
+  
+  // 特定月が指定されている場合、その月の全体データも取得
+  if (detectedMonth && !detectedLiver) {
+    const monthlySummary = await getMonthlyLivestreamSummary(detectedMonth);
+    if (monthlySummary) {
+      contextParts.push(`## ${detectedMonth}月直播实绩汇总\n- 总场次: ${monthlySummary.totalCount}\n- 总GMV: ${monthlySummary.totalGmv || 0}円\n- 总销售额: ${monthlySummary.totalSales || 0}円\n- 总时长: ${monthlySummary.totalDuration || 0}分钟\n- 总观看: ${monthlySummary.totalViewers || 0}\n- 总订单: ${monthlySummary.totalOrders || 0}`);
+    }
+  }
   
   if (needsBrands || isGeneral) {
     const brandsSummary = await getAllBrandsSummary();
@@ -326,7 +520,7 @@ async function buildContext(userMessage: string): Promise<string> {
     }
   }
 
-  if (needsLivers || isGeneral) {
+  if ((needsLivers || isGeneral) && !detectedLiver) {
     const liversSummary = await getAllLiversSummary();
     if (liversSummary.length > 0) {
       contextParts.push(`## 当前活跃主播一览（共${liversSummary.length}人）\n${JSON.stringify(liversSummary.map(l => ({
@@ -335,7 +529,7 @@ async function buildContext(userMessage: string): Promise<string> {
     }
   }
 
-  if (needsLivestreams || isGeneral) {
+  if ((needsLivestreams || isGeneral) && !detectedLiver && !detectedMonth) {
     const monthlySummary = await getMonthlyLivestreamSummary();
     if (monthlySummary) {
       contextParts.push(`## 本月直播实绩汇总\n- 总场次: ${monthlySummary.totalCount}\n- 总GMV: ${monthlySummary.totalGmv || 0}円\n- 总销售额: ${monthlySummary.totalSales || 0}円\n- 总时长: ${monthlySummary.totalDuration || 0}分钟\n- 总观看: ${monthlySummary.totalViewers || 0}\n- 总订单: ${monthlySummary.totalOrders || 0}`);
@@ -397,8 +591,10 @@ export const lcjBrainRouter = router({
       })).optional().default([]),
       context: z.enum(["general", "bd", "brand_analysis", "liver_match", "talk_script"]).optional().default("general"),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { message, history, context } = input;
+      const userName = ctx.user?.name || ctx.user?.email || "unknown";
+      const userId = ctx.user?.id || null;
 
       // 実データコンテキストを構築
       const dataContext = await buildContext(message);
@@ -476,14 +672,14 @@ ${dataContext || "（暂无相关数据）"}
           // 後続質問生成失敗は無視
         }
 
-        // チャットログをDBに保存
+        // チャットログをDBに保存（ユーザー名付き）
         const db = await getDb();
         if (db) {
           const sessionId = `session_${Date.now()}`;
           try {
             await db.insert(lcjBrainChatLogs).values([
-              { role: "user", content: message, context: context || "chat", sessionId },
-              { role: "assistant", content: responseText, context: context || "chat", sessionId, suggestedQuestions: JSON.stringify(suggestedQuestions) },
+              { role: "user", content: message, context: context || "chat", sessionId, userId, userName },
+              { role: "assistant", content: responseText, context: context || "chat", sessionId, userId, userName: "AI", suggestedQuestions: JSON.stringify(suggestedQuestions) },
             ]);
           } catch (e) {
             console.error("[LCJ Brain] Failed to save chat log:", e);
@@ -805,23 +1001,33 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
       }
     }),
 
-  /** 管理者用：チャットログ一覧取得 */
+  /** 管理者用：チャットログ一覧取得（パスワード保護 + ユーザーフィルタ） */
   getChatLogs: protectedProcedure
     .input(z.object({
       page: z.number().optional().default(1),
       limit: z.number().optional().default(50),
       search: z.string().optional(),
+      password: z.string().optional(),
+      filterUser: z.string().optional(),
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { logs: [], total: 0 };
+      if (!db) return { logs: [], total: 0, users: [], authenticated: false };
+
+      // パスワード認証（管理者パスワード: lcj2024brain）
+      if (input.password !== "lcj2024brain") {
+        return { logs: [], total: 0, users: [], authenticated: false };
+      }
 
       const offset = (input.page - 1) * input.limit;
 
       try {
-        let conditions = [];
+        let conditions: any[] = [];
         if (input.search) {
           conditions.push(like(lcjBrainChatLogs.content, `%${input.search}%`));
+        }
+        if (input.filterUser) {
+          conditions.push(eq(lcjBrainChatLogs.userName, input.filterUser));
         }
 
         const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -838,13 +1044,25 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
             .where(whereClause),
         ]);
 
+        // ユニークユーザー一覧を取得
+        const allUsers = await db
+          .select({ userName: lcjBrainChatLogs.userName })
+          .from(lcjBrainChatLogs)
+          .groupBy(lcjBrainChatLogs.userName)
+          .orderBy(lcjBrainChatLogs.userName);
+        const uniqueUsers = allUsers
+          .map(u => u.userName)
+          .filter((name): name is string => !!name && name !== "AI");
+
         return {
           logs,
           total: totalResult[0]?.count || 0,
+          users: uniqueUsers,
+          authenticated: true,
         };
       } catch (error: any) {
         console.error("[LCJ Brain] getChatLogs error:", error.message);
-        return { logs: [], total: 0 };
+        return { logs: [], total: 0, users: [], authenticated: false };
       }
     }),
 

@@ -471,13 +471,66 @@ function ChatPanel() {
 // 聊天記録管理パネル（管理者用）
 // ============================================================
 function ChatLogsPanel() {
+  const [password, setPassword] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterUser, setFilterUser] = useState("");
   const [page, setPage] = useState(1);
+  const [submittedPassword, setSubmittedPassword] = useState("");
+
   const logsQuery = trpc.lcjBrain.getChatLogs.useQuery({ 
     page, 
     limit: 50,
     search: searchQuery || undefined,
+    password: submittedPassword || undefined,
+    filterUser: filterUser || undefined,
+  }, {
+    enabled: !!submittedPassword,
   });
+
+  // 認証状態を確認
+  useEffect(() => {
+    if (logsQuery.data?.authenticated) {
+      setIsAuthenticated(true);
+    }
+  }, [logsQuery.data?.authenticated]);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmittedPassword(password);
+  };
+
+  // パスワード入力画面
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center mb-6 border border-amber-500/20">
+          <Shield className="w-8 h-8 text-amber-400" />
+        </div>
+        <h2 className="text-lg font-semibold text-white mb-2">聊天记录管理</h2>
+        <p className="text-sm text-white/50 mb-6">管理者密码を入力してください</p>
+        <form onSubmit={handleLogin} className="flex gap-2 w-full max-w-xs">
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="密码..."
+            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-violet-500/50"
+            autoFocus
+          />
+          <button
+            type="submit"
+            className="px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-500 transition-colors"
+          >
+            确认
+          </button>
+        </form>
+        {submittedPassword && !logsQuery.data?.authenticated && !logsQuery.isLoading && (
+          <p className="text-xs text-red-400 mt-3">密码错误，请重试</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -491,9 +544,21 @@ function ChatLogsPanel() {
         </p>
       </div>
 
-      {/* 搜索 */}
-      <div className="flex gap-2">
-        <div className="flex-1 relative">
+      {/* フィルタ + 検索 */}
+      <div className="flex gap-2 flex-wrap">
+        {/* ユーザーフィルタ */}
+        <select
+          value={filterUser}
+          onChange={(e) => { setFilterUser(e.target.value); setPage(1); }}
+          className="bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50 min-w-[140px]"
+        >
+          <option value="" className="bg-slate-900">全员表示</option>
+          {logsQuery.data?.users?.map((user: string) => (
+            <option key={user} value={user} className="bg-slate-900">{user}</option>
+          ))}
+        </select>
+        {/* 検索 */}
+        <div className="flex-1 relative min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
           <input
             type="text"
@@ -506,7 +571,7 @@ function ChatLogsPanel() {
       </div>
 
       {/* ログ一覧 */}
-      <div className="space-y-2 max-h-[calc(100vh-350px)] overflow-y-auto">
+      <div className="space-y-2 max-h-[calc(100vh-400px)] overflow-y-auto">
         {logsQuery.data?.logs?.map((log: any, i: number) => (
           <div
             key={log.id || i}
@@ -520,8 +585,8 @@ function ChatLogsPanel() {
               <span className={`text-xs font-medium ${
                 log.role === "user" ? "text-violet-300" : "text-emerald-300"
               }`}>
-                {log.role === "user" ? "👤 用户" : "🤖 AI"}
-                {log.userName && <span className="ml-1 text-white/40">({log.userName})</span>}
+                {log.role === "user" ? "👤" : "🤖"}
+                <span className="ml-1 font-bold">{log.userName || (log.role === "user" ? "未知用户" : "AI")}</span>
               </span>
               <span className="text-xs text-white/30">
                 {log.createdAt ? new Date(log.createdAt).toLocaleString("zh-CN") : ""}
