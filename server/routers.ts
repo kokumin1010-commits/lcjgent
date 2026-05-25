@@ -1,6 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
+import { lcjBrainRouter } from "./lcjBrain";
 import { publicProcedure, protectedProcedure, rateLimitedPublicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { nanoid } from "nanoid";
@@ -24289,6 +24290,8 @@ JSON配列のみを出力してください。`;
       return await processExpiredFeaturedProducts();
      }),
   }),
+  // LCJ Brain - AI BD引擎
+  lcjBrain: lcjBrainRouter,
 });
 export type AppRouter = typeof appRouter;
 

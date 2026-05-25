@@ -148,6 +148,7 @@ const LiveSuggestions = lazy(() => import("./pages/LiveSuggestions"));
 const AiCoachMaster = lazy(() => import("./pages/AiCoachMaster"));
 const MegaChannelAdmin = lazy(() => import("./pages/MegaChannelAdmin"));
 const FeaturedProductsAdmin = lazy(() => import("./pages/FeaturedProductsAdmin"));
+const LcjBrain = lazy(() => import("./pages/LcjBrain"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -575,6 +576,11 @@ function Router() {
         <Route path="/master/ai-coach">
           <DashboardLayout>
             <AiCoachMaster />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/lcj-brain">
+          <DashboardLayout>
+            <LcjBrain />
           </DashboardLayout>
         </Route>
 

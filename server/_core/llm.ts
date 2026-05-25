@@ -56,6 +56,7 @@ export type ToolChoice =
   | ToolChoiceExplicit;
 
 export type InvokeParams = {
+  model?: string;
   messages: Message[];
   tools?: Tool[];
   toolChoice?: ToolChoice;
@@ -375,6 +376,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   assertApiKey();
 
   const {
+    model,
     messages,
     tools,
     toolChoice,
@@ -389,7 +391,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const normalizedMessages = await Promise.all(messages.map(normalizeMessageAsync));
 
   const payload: Record<string, unknown> = {
-    model: "gpt-4.1-nano",  // コスト最適化: gpt-4o-mini → gpt-4.1-nano (2026-05-04)
+    model: model || "gpt-4.1-nano",  // カスタムモデル or デフォルト(gpt-4.1-nano)
     messages: normalizedMessages,
   };
 

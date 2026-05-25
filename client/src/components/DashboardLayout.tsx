@@ -119,6 +119,7 @@ function DashboardLayoutContent({
     { icon: Video, label: t("nav.livers"), path: "/master/livers" },
     { icon: Zap, label: t("nav.liverCommand") || "ライバー司令塔", path: "/master/livers-dashboard" },
     { icon: Bot, label: "ライバー成長ダッシュボード", path: "/master/ai-coach" },
+    { icon: Sparkles, label: "LCJ Brain（BD引擎）", path: "/master/lcj-brain" },
     { icon: Crown, label: "メガチャンネル管理", path: "/master/mega-channel" },
     { icon: Star, label: "重点商品管理", path: "/master/featured-products" },
     { icon: BarChart3, label: "広告司令塔", path: "/master/ad-dashboard" },
