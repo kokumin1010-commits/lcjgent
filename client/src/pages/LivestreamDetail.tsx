@@ -1913,7 +1913,67 @@ export default function LivestreamDetail() {
                       AIアドバイス
                     </span>
                     <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border border-yellow-600/30 rounded-lg p-4">
-                      <p className="text-gray-200 whitespace-pre-wrap">{livestream.aiAdvice}</p>
+                      {(() => {
+                        try {
+                          let jsonStr = livestream.aiAdvice;
+                          const firstBrace = livestream.aiAdvice.indexOf('{');
+                          const lastBrace = livestream.aiAdvice.lastIndexOf('}');
+                          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                            jsonStr = livestream.aiAdvice.substring(firstBrace, lastBrace + 1);
+                          }
+                          const parsed = JSON.parse(jsonStr);
+                          if (parsed && (parsed.summary || parsed.goodPoints || parsed.improvements)) {
+                            return (
+                              <div className="space-y-3">
+                                {parsed.summary && (
+                                  <p className="text-gray-200 font-medium">{parsed.summary}</p>
+                                )}
+                                {parsed.goodPoints && parsed.goodPoints.length > 0 && (
+                                  <div>
+                                    <p className="text-green-400 text-xs font-medium mb-2">✓ 良かった点</p>
+                                    <ul className="space-y-1">
+                                      {parsed.goodPoints.map((point: string, i: number) => (
+                                        <li key={i} className="text-gray-200 text-sm pl-3 border-l-2 border-green-500">{point}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {parsed.improvements && parsed.improvements.length > 0 && (
+                                  <div>
+                                    <p className="text-orange-400 text-xs font-medium mb-2">▲ 改善ポイント</p>
+                                    <ul className="space-y-1">
+                                      {parsed.improvements.map((point: string, i: number) => (
+                                        <li key={i} className="text-gray-200 text-sm pl-3 border-l-2 border-orange-500">{point}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {parsed.nextActions && parsed.nextActions.length > 0 && (
+                                  <div>
+                                    <p className="text-blue-400 text-xs font-medium mb-2">▶ 次回のアクション</p>
+                                    <div className="space-y-2">
+                                      {parsed.nextActions.map((action: any, i: number) => (
+                                        <div key={i} className="bg-blue-900/20 rounded-lg p-3">
+                                          <p className="text-gray-200 text-sm font-medium">{action.action}</p>
+                                          <p className="text-gray-300 text-xs mt-1">理由: {action.reason}</p>
+                                          <p className="text-blue-300 text-xs mt-1">⏰ {action.timing}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {parsed.targetForNextTime && (
+                                  <div className="bg-purple-900/30 rounded-lg p-3 border border-purple-500/30">
+                                    <p className="text-purple-300 text-xs font-medium">🎯 次回の目標</p>
+                                    <p className="text-gray-200 text-sm mt-1">{parsed.targetForNextTime}</p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+                        } catch (e) {}
+                        return <p className="text-gray-200 whitespace-pre-wrap">{livestream.aiAdvice}</p>;
+                      })()}
                     </div>
                   </div>
                 )}

@@ -1333,7 +1333,17 @@ export default function LineManagement() {
                             )}
                             {!advice?.summary && livestream.aiAdvice && (
                               <div className="text-sm text-muted-foreground bg-muted/50 rounded p-2 mt-2 line-clamp-2">
-                                {livestream.aiAdvice}
+                                {(() => {
+                                  try {
+                                    let jsonStr = livestream.aiAdvice;
+                                    const fb = livestream.aiAdvice.indexOf('{');
+                                    const lb = livestream.aiAdvice.lastIndexOf('}');
+                                    if (fb !== -1 && lb !== -1 && lb > fb) jsonStr = livestream.aiAdvice.substring(fb, lb + 1);
+                                    const p = JSON.parse(jsonStr);
+                                    if (p?.summary) return p.summary;
+                                  } catch (e) {}
+                                  return livestream.aiAdvice;
+                                })()}
                               </div>
                             )}
                           </CardContent>
