@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 # ── Environment Configuration ────────────────────────────────────────────────
 
 FACE_SWAP_WORKER_URL = os.getenv("FACE_SWAP_WORKER_URL", "")
-FACE_SWAP_WORKER_API_KEY = os.getenv("FACE_SWAP_WORKER_API_KEY", "change-me-in-production")
+FACE_SWAP_WORKER_API_KEY = os.getenv("FACE_SWAP_WORKER_API_KEY", "aitherhub")
 WORKER_CONNECT_TIMEOUT = float(os.getenv("FACE_SWAP_CONNECT_TIMEOUT", "10"))
 WORKER_READ_TIMEOUT = float(os.getenv("FACE_SWAP_READ_TIMEOUT", "300"))
 DEFAULT_OUTPUT_RESOLUTION = os.getenv("FACE_SWAP_RESOLUTION", "720p")
