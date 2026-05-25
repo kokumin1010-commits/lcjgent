@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "../lib/trpc";
 import { useLocation } from "wouter";
 import { 
@@ -6,13 +6,151 @@ import {
   Zap, Users, TrendingUp, FileText, Mic, StopCircle,
   ChevronRight, BarChart3, Lightbulb, Shield, GraduationCap,
   ClipboardList, Star, AlertTriangle, CheckCircle2, ArrowRight,
-  History, Search, MicOff
+  History, Search, MicOff, Volume2
 } from "lucide-react";
 
 // ============================================================
 // タブ定義
 // ============================================================
 type TabType = "chat" | "diagnosis" | "training" | "scripts" | "product_score" | "logs";
+
+// ============================================================
+// 音声入力フック（共通化）
+// ============================================================
+function useVoiceInput(onTranscript: (text: string) => void) {
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const recognitionRef = useRef<any>(null);
+  const timerRef = useRef<any>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const animFrameRef = useRef<number>(0);
+
+  const startRecording = useCallback(async () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("您的浏览器不支持语音输入，请使用Chrome或Safari");
+      return;
+    }
+
+    try {
+      // 获取麦克风权限并设置音量分析
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const audioContext = new AudioContext();
+      audioContextRef.current = audioContext;
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
+      // 开始音量监测动画
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const updateLevel = () => {
+        analyser.getByteFrequencyData(dataArray);
+        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+        setAudioLevel(Math.min(1, avg / 128));
+        animFrameRef.current = requestAnimationFrame(updateLevel);
+      };
+      updateLevel();
+    } catch (e) {
+      // 如果获取麦克风失败，继续使用Speech API（不显示波形）
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "zh-CN";
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.maxAlternatives = 1;
+
+    let finalTranscript = "";
+
+    recognition.onresult = (event: any) => {
+      let interim = "";
+      finalTranscript = "";
+      for (let i = 0; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      onTranscript(finalTranscript + interim);
+    };
+
+    recognition.onend = () => {
+      // 如果还在录音状态，自动重启（防止超时断开）
+      if (recognitionRef.current && isRecording) {
+        try { recognition.start(); } catch (e) { /* ignore */ }
+      }
+    };
+
+    recognition.onerror = (e: any) => {
+      if (e.error !== "no-speech" && e.error !== "aborted") {
+        console.error("Speech recognition error:", e.error);
+      }
+    };
+
+    recognitionRef.current = recognition;
+    setIsRecording(true);
+    setRecordingTime(0);
+    recognition.start();
+
+    // 计时器
+    timerRef.current = setInterval(() => {
+      setRecordingTime(t => t + 1);
+    }, 1000);
+  }, [onTranscript]);
+
+  const stopRecording = useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.onend = null; // 防止自动重启
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    setIsRecording(false);
+    setRecordingTime(0);
+    setAudioLevel(0);
+  }, []);
+
+  // cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) { recognitionRef.current.stop(); }
+      if (timerRef.current) { clearInterval(timerRef.current); }
+      if (animFrameRef.current) { cancelAnimationFrame(animFrameRef.current); }
+      if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); }
+      if (audioContextRef.current) { audioContextRef.current.close(); }
+    };
+  }, []);
+
+  return { isRecording, recordingTime, audioLevel, startRecording, stopRecording };
+}
+
+// 格式化录音时间
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
 
 // ============================================================
 // メインコンポーネント
@@ -51,22 +189,22 @@ export default function LcjBrain() {
               <Brain className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white tracking-tight">LCJ Brain</h1>
-              <p className="text-xs text-white/50">全自动BD引擎 · 连接LCJ所有数据</p>
+              <h1 className="text-lg font-bold text-white">LCJ Brain</h1>
+              <p className="text-xs text-white/40">全自动BD引擎 · 连接LCJ所有数据</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="border-b border-white/5 bg-black/10">
+      {/* Tabs */}
+      <div className="border-b border-white/10 bg-black/10 overflow-x-auto">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex gap-1 overflow-x-auto py-2">
+          <div className="flex gap-1 py-2">
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                   activeTab === tab.id
                     ? "bg-violet-600/20 text-violet-300 border border-violet-500/30"
                     : "text-white/50 hover:text-white/80 hover:bg-white/5"
@@ -94,17 +232,16 @@ export default function LcjBrain() {
 }
 
 // ============================================================
-// AI対話パネル（升級版：後続質問ボタン + 語音入力）
+// AI対話パネル（升級版：後続質問ボタン + 語音入力強化）
 // ============================================================
 function ChatPanel() {
   const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; suggestedQuestions?: string[] }>>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
   const chatMutation = trpc.lcjBrain.chat.useMutation();
+
+  const voice = useVoiceInput((text) => setInput(text));
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -115,18 +252,18 @@ function ChatPanel() {
   }, [messages, scrollToBottom]);
 
   const sendMessage = async (text?: string) => {
-    const msgText = text || input.trim();
-    if (!msgText || isLoading) return;
+    const msg = text || input.trim();
+    if (!msg || isLoading) return;
+    
+    // 如果正在录音，先停止
+    if (voice.isRecording) voice.stopRecording();
+    
     setInput("");
-    setMessages(prev => [...prev, { role: "user", content: msgText }]);
+    setMessages(prev => [...prev, { role: "user", content: msg }]);
     setIsLoading(true);
 
     try {
-      const result = await chatMutation.mutateAsync({
-        message: msgText,
-        history: messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
-        context: "general",
-      });
+      const result = await chatMutation.mutateAsync({ message: msg });
       setMessages(prev => [...prev, { 
         role: "assistant", 
         content: result.response,
@@ -137,50 +274,6 @@ function ChatPanel() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // 語音入力機能（Web Speech API）
-  const startRecording = async () => {
-    // まずWeb Speech APIを試す（ブラウザ内蔵）
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.lang = "zh-CN";
-      recognition.interimResults = true;
-      recognition.continuous = false;
-      
-      recognition.onresult = (event: any) => {
-        let transcript = "";
-        for (let i = 0; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
-        }
-        setInput(transcript);
-      };
-      
-      recognition.onend = () => {
-        setIsRecording(false);
-      };
-      
-      recognition.onerror = () => {
-        setIsRecording(false);
-      };
-      
-      setIsRecording(true);
-      recognition.start();
-      
-      // 保存引用以便停止
-      (window as any).__lcjBrainRecognition = recognition;
-    } else {
-      alert("您的浏览器不支持语音输入，请使用Chrome浏览器");
-    }
-  };
-
-  const stopRecording = () => {
-    const recognition = (window as any).__lcjBrainRecognition;
-    if (recognition) {
-      recognition.stop();
-    }
-    setIsRecording(false);
   };
 
   const quickQuestions = [
@@ -273,27 +366,85 @@ function ChatPanel() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
+      {/* Input Area - 升級版 */}
       <div className="border-t border-white/10 pt-4">
+        {/* 录音状态面板 */}
+        {voice.isRecording && (
+          <div className="mb-3 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center animate-pulse">
+                    <Mic className="w-5 h-5 text-white" />
+                  </div>
+                  {/* 波形环 */}
+                  <div 
+                    className="absolute inset-0 rounded-full border-2 border-red-400 animate-ping"
+                    style={{ opacity: voice.audioLevel * 0.6 }}
+                  />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-red-300">正在录音</p>
+                  <p className="text-xs text-red-400/60">{formatTime(voice.recordingTime)}</p>
+                </div>
+              </div>
+              {/* 音量指示器 */}
+              <div className="flex items-end gap-0.5 h-6">
+                {[...Array(8)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="w-1 bg-red-400 rounded-full transition-all duration-75"
+                    style={{ 
+                      height: `${Math.max(4, voice.audioLevel * 24 * (0.5 + Math.random() * 0.5))}px`,
+                      opacity: voice.audioLevel > 0.1 ? 0.8 : 0.3,
+                    }}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={() => { voice.stopRecording(); }}
+                className="px-3 py-1.5 bg-red-500 hover:bg-red-400 rounded-lg text-xs text-white font-medium transition-all"
+              >
+                停止
+              </button>
+            </div>
+            {input && (
+              <div className="mt-2 pt-2 border-t border-red-500/20">
+                <p className="text-xs text-white/60">识别中：</p>
+                <p className="text-sm text-white/90 mt-0.5">{input}</p>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex gap-2">
-          {/* 語音入力ボタン */}
+          {/* 語音入力ボタン - 大きく目立つ */}
           <button
-            onClick={isRecording ? stopRecording : startRecording}
-            className={`px-3 py-3 rounded-xl transition-all ${
-              isRecording
-                ? "bg-red-500 text-white animate-pulse"
-                : "bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10"
+            onClick={voice.isRecording ? voice.stopRecording : voice.startRecording}
+            className={`relative px-4 py-3 rounded-xl transition-all ${
+              voice.isRecording
+                ? "bg-red-500 text-white shadow-lg shadow-red-500/30"
+                : "bg-gradient-to-br from-violet-600/20 to-indigo-600/20 border border-violet-500/30 text-violet-300 hover:from-violet-600/30 hover:to-indigo-600/30 hover:text-violet-200 hover:shadow-lg hover:shadow-violet-500/10"
             }`}
-            title={isRecording ? "停止录音" : "语音输入"}
+            title={voice.isRecording ? "停止录音" : "语音输入（点击开始说话）"}
           >
-            {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            {voice.isRecording ? (
+              <StopCircle className="w-5 h-5" />
+            ) : (
+              <Mic className="w-5 h-5" />
+            )}
+            {/* 录音中的脉冲环 */}
+            {voice.isRecording && (
+              <span className="absolute inset-0 rounded-xl border-2 border-red-400 animate-ping opacity-30" />
+            )}
           </button>
+
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-            placeholder={isRecording ? "正在录音..." : "问任何关于LCJ的问题..."}
+            placeholder={voice.isRecording ? "正在听你说话..." : "问任何关于LCJ的问题..."}
             className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
           />
           <button
@@ -304,10 +455,11 @@ function ChatPanel() {
             <Send className="w-5 h-5" />
           </button>
         </div>
-        {isRecording && (
-          <p className="text-xs text-red-400 mt-2 flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
-            正在录音中... 说完后点击停止按钮
+
+        {/* 提示文字 */}
+        {!voice.isRecording && (
+          <p className="text-xs text-white/20 mt-2 text-center">
+            点击 🎤 开始语音输入，支持中文、日文
           </p>
         )}
       </div>
@@ -369,6 +521,7 @@ function ChatLogsPanel() {
                 log.role === "user" ? "text-violet-300" : "text-emerald-300"
               }`}>
                 {log.role === "user" ? "👤 用户" : "🤖 AI"}
+                {log.userName && <span className="ml-1 text-white/40">({log.userName})</span>}
               </span>
               <span className="text-xs text-white/30">
                 {log.createdAt ? new Date(log.createdAt).toLocaleString("zh-CN") : ""}
@@ -562,15 +715,16 @@ function DiagnosisPanel() {
 }
 
 // ============================================================
-// BD訓練パネル
+// BD訓練パネル（語音入力強化版）
 // ============================================================
 function TrainingPanel() {
   const [scenario, setScenario] = useState("");
   const [conversation, setConversation] = useState<Array<{ role: "client" | "bd"; content: string; score?: number | null }>>([]);
   const [bdInput, setBdInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
   const trainingMutation = trpc.lcjBrain.training.useMutation();
+
+  const voice = useVoiceInput((text) => setBdInput(text));
 
   const scenarios = [
     { id: "price_objection", label: "客户说太贵了", desc: "客户对报价有异议" },
@@ -601,6 +755,7 @@ function TrainingPanel() {
 
   const sendBdResponse = async () => {
     if (!bdInput.trim() || isLoading) return;
+    if (voice.isRecording) voice.stopRecording();
     const response = bdInput.trim();
     setBdInput("");
     setConversation(prev => [...prev, { role: "bd", content: response }]);
@@ -619,29 +774,6 @@ function TrainingPanel() {
       alert(`训练错误: ${error.message}`);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  // 語音入力
-  const toggleRecording = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) { alert("浏览器不支持语音输入"); return; }
-    if (isRecording) {
-      (window as any).__lcjTrainRecognition?.stop();
-      setIsRecording(false);
-    } else {
-      const recognition = new SpeechRecognition();
-      recognition.lang = "zh-CN";
-      recognition.interimResults = true;
-      recognition.onresult = (e: any) => {
-        let t = "";
-        for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
-        setBdInput(t);
-      };
-      recognition.onend = () => setIsRecording(false);
-      setIsRecording(true);
-      recognition.start();
-      (window as any).__lcjTrainRecognition = recognition;
     }
   };
 
@@ -710,21 +842,39 @@ function TrainingPanel() {
       </div>
 
       <div className="border-t border-white/10 pt-3">
+        {/* 录音状态 */}
+        {voice.isRecording && (
+          <div className="mb-2 flex items-center gap-2 px-2">
+            <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-xs text-red-300">录音中 {formatTime(voice.recordingTime)}</span>
+            <div className="flex items-end gap-0.5 h-4">
+              {[...Array(5)].map((_, i) => (
+                <div
+                  key={i}
+                  className="w-0.5 bg-red-400 rounded-full transition-all duration-75"
+                  style={{ height: `${Math.max(3, voice.audioLevel * 16 * (0.5 + Math.random() * 0.5))}px` }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
         <div className="flex gap-2">
           <button
-            onClick={toggleRecording}
-            className={`px-3 py-3 rounded-xl transition-all ${
-              isRecording ? "bg-red-500 text-white animate-pulse" : "bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10"
+            onClick={voice.isRecording ? voice.stopRecording : voice.startRecording}
+            className={`px-4 py-3 rounded-xl transition-all ${
+              voice.isRecording 
+                ? "bg-red-500 text-white shadow-lg shadow-red-500/30" 
+                : "bg-gradient-to-br from-amber-600/20 to-orange-600/20 border border-amber-500/30 text-amber-300 hover:from-amber-600/30 hover:to-orange-600/30"
             }`}
           >
-            {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            {voice.isRecording ? <StopCircle className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
           </button>
           <input
             type="text"
             value={bdInput}
             onChange={(e) => setBdInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && sendBdResponse()}
-            placeholder="你作为BD回复..."
+            placeholder={voice.isRecording ? "正在听你说话..." : "你作为BD回复..."}
             className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-amber-500/50"
           />
           <button
