@@ -102,6 +102,11 @@ export default function LiverClonePage() {
   const frameCountRef = useRef(0);
   const lastFpsTimeRef = useRef(Date.now());
 
+  // Audio passthrough refs
+  const audioContextRef = useRef(null);
+  const audioStreamRef = useRef(null);
+  const audioGainRef = useRef(null);
+
   // Recording (9:16 vertical video)
   const [isRecording, setIsRecording] = useState(false);
   const [recordedChunks, setRecordedChunks] = useState([]);
@@ -253,11 +258,28 @@ export default function LiverClonePage() {
       // but upscales result back to 1080p for high-quality output
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 1920 }, height: { ideal: 1080 }, facingMode: "user" },
-        audio: false,
+        audio: true,
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
+      }
+
+      // Audio passthrough: play microphone audio through speakers
+      // This lets the user hear their own voice during preview
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaStreamSource(stream);
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 1.0; // Full volume passthrough
+        source.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        audioContextRef.current = audioCtx;
+        audioStreamRef.current = stream;
+        audioGainRef.current = gainNode;
+        console.log("[Preview] Audio passthrough enabled");
+      } catch (audioErr) {
+        console.warn("[Preview] Audio passthrough failed (non-critical):", audioErr);
       }
 
       // Get WebSocket URL from backend
@@ -367,7 +389,14 @@ export default function LiverClonePage() {
       previewWsRef.current.close();
       previewWsRef.current = null;
     }
-    // Stop webcam
+    // Stop audio passthrough
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    audioStreamRef.current = null;
+    audioGainRef.current = null;
+    // Stop webcam (this also stops audio tracks)
     if (videoRef.current?.srcObject) {
       videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
       videoRef.current.srcObject = null;
@@ -394,12 +423,23 @@ export default function LiverClonePage() {
     recordedFramesRef.current = [];
     
     // Use canvas stream for MediaRecorder
-    const stream = recCanvas.captureStream(30);
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-      ? 'video/webm;codecs=vp9'
-      : 'video/webm';
+    const canvasStream = recCanvas.captureStream(30);
     
-    const recorder = new MediaRecorder(stream, {
+    // Add audio track from microphone if available
+    const combinedStream = new MediaStream();
+    canvasStream.getVideoTracks().forEach(t => combinedStream.addTrack(t));
+    if (audioStreamRef.current) {
+      const audioTracks = audioStreamRef.current.getAudioTracks();
+      audioTracks.forEach(t => combinedStream.addTrack(t));
+    }
+    
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+      ? 'video/webm;codecs=vp9,opus'
+      : MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : 'video/webm';
+    
+    const recorder = new MediaRecorder(combinedStream, {
       mimeType,
       videoBitsPerSecond: 8000000, // 8Mbps for high quality
     });
@@ -423,31 +463,45 @@ export default function LiverClonePage() {
     }, 1000);
     
     // Draw frames to recording canvas at 30fps
+    // Use a persistent reference to the canvas context for performance
+    const ctx = recCanvas.getContext('2d');
+    let lastDrawnFrame = null;
+    
     const drawFrame = () => {
       if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') return;
-      const ctx = recCanvas.getContext('2d');
-      // Find the preview image element
+      
+      // Find the preview image element (blob URL from WebSocket)
       const previewImg = document.querySelector('[data-preview-frame]');
       if (previewImg && previewImg.complete && previewImg.naturalWidth > 0) {
-        // Draw in 9:16 aspect ratio (center crop from 16:9 source)
-        const srcW = previewImg.naturalWidth;
-        const srcH = previewImg.naturalHeight;
-        // Calculate crop area for 9:16 from center
-        const targetAspect = 9 / 16;
-        const srcAspect = srcW / srcH;
-        let cropX = 0, cropY = 0, cropW = srcW, cropH = srcH;
-        if (srcAspect > targetAspect) {
-          // Source is wider - crop sides
-          cropW = srcH * targetAspect;
-          cropX = (srcW - cropW) / 2;
-        } else {
-          // Source is taller - crop top/bottom
-          cropH = srcW / targetAspect;
-          cropY = (srcH - cropH) / 2;
+        try {
+          // Draw in 9:16 aspect ratio (center crop from 16:9 source)
+          const srcW = previewImg.naturalWidth;
+          const srcH = previewImg.naturalHeight;
+          // Calculate crop area for 9:16 from center
+          const targetAspect = 9 / 16;
+          const srcAspect = srcW / srcH;
+          let cropX = 0, cropY = 0, cropW = srcW, cropH = srcH;
+          if (srcAspect > targetAspect) {
+            // Source is wider - crop sides
+            cropW = srcH * targetAspect;
+            cropX = (srcW - cropW) / 2;
+          } else {
+            // Source is taller - crop top/bottom
+            cropH = srcW / targetAspect;
+            cropY = (srcH - cropH) / 2;
+          }
+          ctx.drawImage(previewImg, cropX, cropY, cropW, cropH, 0, 0, 1080, 1920);
+          lastDrawnFrame = true;
+        } catch (drawErr) {
+          // Canvas tainted or image not ready - draw black frame
+          if (!lastDrawnFrame) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, 1080, 1920);
+          }
+          console.warn('[Recording] Draw error:', drawErr.message);
         }
-        ctx.drawImage(previewImg, cropX, cropY, cropW, cropH, 0, 0, 1080, 1920);
-      } else {
-        // Fallback: black frame with text
+      } else if (!lastDrawnFrame) {
+        // No preview image available yet - black frame
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, 1080, 1920);
       }
@@ -469,7 +523,9 @@ export default function LiverClonePage() {
 
   const downloadRecording = () => {
     if (recordedChunks.length === 0) return;
-    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+    // Use the same mimeType that was used during recording for proper playback
+    const mimeType = mediaRecorderRef.current?.mimeType || 'video/webm';
+    const blob = new Blob(recordedChunks, { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -706,7 +762,6 @@ export default function LiverClonePage() {
                     src={previewFrame}
                     alt="Preview"
                     data-preview-frame="true"
-                    crossOrigin="anonymous"
                     className="w-full h-full object-contain"
                   />
                 ) : isStreaming ? (
