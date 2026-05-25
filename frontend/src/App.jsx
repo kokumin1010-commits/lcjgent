@@ -8,6 +8,7 @@ import AiLiveCreatorPage from './components/AiLiveCreatorPage'
 import OBSOutputPage from './components/OBSOutputPage'
 import PersonaPage from './components/PersonaPage'
 import LiverClonePage from './components/LiverClonePage'
+import MagicCutPage from './components/MagicCutPage'
 import ScriptGeneratorPage from './components/ScriptGeneratorPage'
 import PrivacyPolicy from './components/PrivacyPolicy'
 import AuthPage from './pages/authPages/AuthPage'
@@ -37,6 +38,7 @@ function App() {
             <Route path="/ai-live-creator/obs" element={<OBSOutputPage />} />
             <Route path="/personas" element={<PersonaPage />} />
             <Route path="/liver-clone" element={<LiverClonePage />} />
+            <Route path="/magic-cut" element={<MagicCutPage />} />
             <Route path="/script-generator" element={<ScriptGeneratorPage />} />
             <Route path="/login" element={<AuthPage mode="login" />} />
             <Route path="/register" element={<AuthPage mode="register" />} />

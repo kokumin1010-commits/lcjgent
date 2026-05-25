@@ -759,6 +759,27 @@ async def run_all_ddl_migrations():
         except Exception as e:
             logger.warning(f"[DDL] ai_clip_download_log: {e}")
 
+        # ── magic_cut_jobs (Magic Cut job tracking) ──
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(_text("""
+                    CREATE TABLE IF NOT EXISTS magic_cut_jobs (
+                        job_id TEXT PRIMARY KEY,
+                        status TEXT NOT NULL DEFAULT 'queued',
+                        prompt TEXT,
+                        config JSONB,
+                        results JSONB,
+                        error TEXT,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """))
+                await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_mcj_status ON magic_cut_jobs(status)"))
+                await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_mcj_created ON magic_cut_jobs(created_at DESC)"))
+                logger.info("[DDL] magic_cut_jobs \u2713")
+        except Exception as e:
+            logger.warning(f"[DDL] magic_cut_jobs: {e}")
+
         elapsed = time.time() - ddl_start
         logger.info(f"[DDL] All migrations completed in {elapsed:.1f}s")
 
