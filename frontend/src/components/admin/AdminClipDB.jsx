@@ -3185,7 +3185,7 @@ function V10RegenerationModal({ clip, onClose, adminKey, generating, setGenerati
             )}
             {jobStatus.status === "done" && jobStatus.results?.[0] && (
               <div className="mt-2 p-3 bg-green-50 rounded-lg">
-                <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-4 text-sm mb-3">
                   <span className="text-gray-600">
                     旧スコア: <strong className="text-amber-600">{jobStatus.results[0].original_quality_score?.toFixed(1) || "N/A"}</strong>
                   </span>
@@ -3194,12 +3194,24 @@ function V10RegenerationModal({ clip, onClose, adminKey, generating, setGenerati
                     新スコア: <strong className="text-green-600">{jobStatus.results[0].new_quality_score?.toFixed(1) || "N/A"}</strong>
                   </span>
                 </div>
+                {/* Video Preview */}
+                {jobStatus.results[0].download_url && (
+                  <div className="mb-3">
+                    <video
+                      src={jobStatus.results[0].download_url}
+                      controls
+                      playsInline
+                      className="w-full max-h-[400px] rounded-lg bg-black"
+                      style={{ aspectRatio: '9/16', maxWidth: '240px' }}
+                    />
+                  </div>
+                )}
                 {jobStatus.results[0].download_url && (
                   <a
                     href={jobStatus.results[0].download_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition"
                   >
                     <Download className="w-3 h-3" /> ダウンロード
                   </a>
