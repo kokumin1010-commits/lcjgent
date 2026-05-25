@@ -3814,14 +3814,8 @@ async def _transcribe_clip(video_path: str, target_language: str = "auto") -> li
 
 async def _generate_hook(captions: list, clip: dict, req: GenerateRequest) -> str:
     if req.hook_text:
-        return req.hook_text
-
-    from app.services.hook_detection_service import detect_hooks, suggest_hook_placement
-
-    if captions:
-        hooks = detect_hooks(captions, max_candidates=5)
-        if hooks and hooks[0].hook_score >= 50:
-            return hooks[0].text[:50]
+        # カスタムフックが指定されている場合でも15文字以内に制限
+        return req.hook_text[:15]
 
     transcript = " ".join(c.get("text", "") for c in (captions or []))[:500]
     product_name = clip.get("product_name") or ""
@@ -3848,30 +3842,28 @@ async def _generate_hook(captions: list, clip: dict, req: GenerateRequest) -> st
             api_version=os.getenv("GPT5_API_VERSION", "2025-04-01-preview"),
         )
 
-        prompt = f"""以下の動画の内容から、TikTok/Reelsの最初3秒で視聴者のスクロールを止める
-フックテキスト（キャッチコピー）を1つ生成してください。
+        prompt = f"""TikTok/Reelsの最初3秒で視聴者のスクロールを止めるフックテキストを生成。
 
-条件:
-- 15文字以内（厳守）
-- 絵文字は使わない（フォント非対応のため）
-- 美容や髪に限定しない。動画の実際の内容に合わせる
-- 以下のパターンからランダムに選んで使う:
-  * 疑問文で好奇心を刺激（「なぜ〇〇は△△なの？」）
-  * 衝撃的な事実や数字（「99%の人が知らない」）
-  * 禁止・警告系（「絶対やめて！」「まだ〇〇してるの？」）
-  * 共感・あるある系（「これ分かる人いる？」）
-  * 対比・ギャップ（「高い vs 安い」「プロ vs 素人」）
-  * 秘密・裏技系（「誰も教えてくれない〇〇」）
-- 前回と違うパターンを使うこと
-- 商品名: {product_name or '（なし）'}
-- 動画内容: {transcript[:300]}
+【絶対ルール】
+- 最大10文字以内（厳守！それ以上は絶対ダメ）
+- 絵文字は使わない
+- 短くインパクトのある表現のみ
+- 「。」「、」は使わない
 
-フックテキストのみを出力（説明不要、括弧不要）:"""
+【パターン例】
+- 「衝撃の結果」「知らないと損」「絶対やめて」
+- 「プロが愚いた」「これマジで凄い」「差がやばい」
+- 「まだやってる？」「誰も教えない」「見ないと後悔」
+
+商品名: {product_name or '（なし）'}
+動画内容: {transcript[:200]}
+
+フックテキストのみ出力（10文字以内、説明不要）:"""
 
         response = client.responses.create(
             model=azure_model,
             input=[{"role": "user", "content": prompt}],
-            max_output_tokens=100,
+            max_output_tokens=30,
         )
 
         result = ""
@@ -3886,8 +3878,11 @@ async def _generate_hook(captions: list, clip: dict, req: GenerateRequest) -> st
             result = result.strip()
 
         if result:
-            result = result.strip('"\'「」『』').strip()
-            return result[:30]
+            result = result.strip('"\'「」『』【】').strip()
+            # 絶対に15文字以内に制限
+            if len(result) > 15:
+                result = result[:15]
+            return result
 
     except Exception as e:
         logger.warning(f"[ai-clip] Hook generation via GPT failed: {e}")
@@ -3910,7 +3905,7 @@ def _generate_simple_hook(product_name: str, transcript: str) -> str:
             f"プロが愛用する理由",
             f"驚きの変化を見て",
         ]
-        return random.choice(product_hooks)[:25]
+        return random.choice(product_hooks)[:15]
 
     # 汎用的なバズるフック（美容に限定しない）
     generic_hooks = [
@@ -3950,7 +3945,7 @@ def _generate_simple_hook(product_name: str, transcript: str) -> str:
         "見ないと後悔する",
         "最後まで見て",
     ]
-    return random.choice(generic_hooks)
+    return random.choice(generic_hooks)[:15]
 
 
 def _assign_scene_styles(captions: list, total_duration: float, base_style: str) -> list:
