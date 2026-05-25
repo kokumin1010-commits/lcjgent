@@ -1746,7 +1746,7 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
             "-c:a", "aac",
             "-b:a", "128k",
             "-movflags", "+faststart",
-            "-t", str(min(duration, getattr(req, 'max_duration', 60))),
+            "-t", str(min(duration, getattr(req, 'max_duration', 90))),
             output_path,
         ]
     elif af_chain:
@@ -1779,7 +1779,7 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
             "-c:a", "aac",
             "-b:a", "128k",
             "-movflags", "+faststart",
-            "-t", str(min(duration, getattr(req, 'max_duration', 60))),
+            "-t", str(min(duration, getattr(req, 'max_duration', 90))),
             output_path,
         ]
 
@@ -2210,7 +2210,7 @@ class GenerateRequest(BaseModel):
     hook_text: Optional[str] = Field(None, description="カスタムフックテキスト（空の場合はAI生成）")
     enable_thumbnail: bool = Field(True, description="サムネイルを自動生成するか")
     min_duration: float = Field(10.0, ge=5.0, description="最小クリップ長（秒）")
-    max_duration: float = Field(60.0, le=180.0, description="最大クリップ長（秒）")
+    max_duration: float = Field(90.0, le=180.0, description="最大クリップ長（秒）V10: 45-90秒推奨")
     min_cta_score: int = Field(0, ge=0, le=5, description="最小CTAスコア")
     min_importance: float = Field(0.0, ge=0.0, description="最小重要度スコア")
     target_language: str = Field("auto", description="字幕言語 (auto/ja/zh/zh-tw)")
@@ -3575,12 +3575,14 @@ def _compute_clip_quality_score(clip: dict) -> float:
         keyword_hits = sum(1 for kw in product_keywords if kw in transcript)
         score += min(keyword_hits * 3, 12)
 
-    # ── 5. Duration appropriateness (0-10 points) ──
-    if 15 <= duration <= 90:
-        score += 10  # 理想的な長さ
-    elif 10 <= duration < 15 or 90 < duration <= 180:
-        score += 6
-    elif duration < 10:
+    # ── 5. Duration appropriateness (0-10 points) V10: 45-120秒が理想 ──
+    if 45 <= duration <= 120:
+        score += 10  # V10理想的な長さ
+    elif 30 <= duration < 45 or 120 < duration <= 180:
+        score += 7
+    elif 15 <= duration < 30:
+        score += 5
+    elif duration < 15:
         score += 2  # 短すぎ
     else:
         score += 4  # 長すぎ
@@ -3945,7 +3947,7 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
         await _update_job(job_id, progress_pct=48, current_step=f"クリップ {idx+1}/{total}: 字幕画像生成中 (Pillow)...")
         font_path = _find_cjk_font()
         # Calculate effective clip duration (limited by max_duration)
-        clip_duration = min(duration, getattr(req, 'max_duration', 60))
+        clip_duration = min(duration, getattr(req, 'max_duration', 90))
         overlay_images = _generate_overlay_images(
             styled_captions=styled_captions,
             hook_text=hook_text,
@@ -5097,6 +5099,685 @@ async def analyze_product_image(
         logger.error(f"[ai-clip] Product image analysis failed: {e}")
         raise HTTPException(status_code=500, detail=f"画像分析に失敗しました: {str(e)}")
 
+
+
+# ─── V10: Clip Regeneration from Source ──────────────────────────────────────
+class RegenFromSourceRequest(BaseModel):
+    """V10: clip-dbの既存クリップから元動画を参照して再生成"""
+    subtitle_style: str = Field("auto", description="字幕スタイル")
+    enable_sfx: bool = Field(True, description="効果音")
+    enable_transitions: bool = Field(True, description="トランジション")
+    enable_hook: bool = Field(True, description="フックテキスト")
+    enable_cta: bool = Field(True, description="CTAテキスト")
+    enable_zoom_pulse: bool = Field(True, description="ズームパルス")
+    enable_progress_bar: bool = Field(True, description="進行バー")
+    enable_subtitle_animation: bool = Field(True, description="字幕アニメーション")
+    enable_keyword_highlight: bool = Field(True, description="キーワードハイライト")
+    position_y: float = Field(75.0, ge=0, le=100, description="字幕Y位置")
+    expand_before_sec: float = Field(10.0, ge=0, le=30, description="前方拡張秒数")
+    expand_after_sec: float = Field(20.0, ge=0, le=60, description="後方拡張秒数")
+    target_duration: float = Field(90.0, ge=30, le=180, description="目標クリップ長（秒）")
+
+class BatchRegenRequest(BaseModel):
+    """V10: 一括再生成リクエスト"""
+    clip_ids: List[str] = Field(..., min_length=1, max_length=50, description="再生成対象のclip_id一覧")
+    subtitle_style: str = Field("auto", description="字幕スタイル")
+    enable_sfx: bool = Field(True)
+    enable_transitions: bool = Field(True)
+    enable_hook: bool = Field(True)
+    enable_cta: bool = Field(True)
+    enable_zoom_pulse: bool = Field(True)
+    enable_progress_bar: bool = Field(True)
+    enable_subtitle_animation: bool = Field(True)
+    enable_keyword_highlight: bool = Field(True)
+    position_y: float = Field(75.0, ge=0, le=100)
+    expand_before_sec: float = Field(10.0, ge=0, le=30)
+    expand_after_sec: float = Field(20.0, ge=0, le=60)
+    target_duration: float = Field(90.0, ge=30, le=180)
+
+@router.post("/clips/{clip_id}/regenerate-from-source")
+async def regenerate_clip_from_source(
+    clip_id: str,
+    req: RegenFromSourceRequest,
+    background_tasks: BackgroundTasks,
+    x_admin_key: str = Header(None),
+):
+    """V10: clip-dbの既存クリップから元動画を参照し、最新AIで再生成する"""
+    verify_admin(x_admin_key)
+    # 1. Get clip info from video_clips
+    async with get_session() as session:
+        result = await session.execute(text("""
+            SELECT vc.id, vc.video_id, vc.phase_index, vc.time_start, vc.time_end,
+                   vc.duration_sec, vc.clip_url, vc.clip_url_hd, vc.transcript_text,
+                   vc.product_name, vc.cta_score, vc.importance_score, vc.captions,
+                   vc.subtitle_style, vc.liver_name, vc.tags,
+                   v.compressed_blob_url, v.user_id, v.original_filename,
+                   u.email as user_email
+            FROM video_clips vc
+            LEFT JOIN videos v ON v.id = vc.video_id
+            LEFT JOIN users u ON v.user_id = u.id
+            WHERE vc.id = CAST(:clip_id AS uuid)
+        """), {"clip_id": clip_id})
+        clip_row = result.fetchone()
+    if not clip_row:
+        raise HTTPException(status_code=404, detail="クリップが見つかりません")
+    # 2. Compute original quality score for comparison
+    original_clip_data = {
+        "transcript_text": clip_row.transcript_text,
+        "product_name": clip_row.product_name,
+        "cta_score": clip_row.cta_score,
+        "importance_score": clip_row.importance_score,
+        "duration_sec": clip_row.duration_sec,
+        "captions": clip_row.captions,
+    }
+    original_quality_score = _compute_clip_quality_score(original_clip_data)
+    # 3. Create regeneration job
+    regen_job_id = str(uuid.uuid4())
+    regen_job = {
+        "job_id": regen_job_id,
+        "status": "processing",
+        "progress_pct": 0,
+        "current_step": "V10再生成準備中...",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "config": {
+            "type": "regenerate_from_source",
+            "source_clip_id": clip_id,
+            "video_id": str(clip_row.video_id) if clip_row.video_id else None,
+            "original_time_start": clip_row.time_start,
+            "original_time_end": clip_row.time_end,
+            "expand_before_sec": req.expand_before_sec,
+            "expand_after_sec": req.expand_after_sec,
+            "target_duration": req.target_duration,
+            "subtitle_style": req.subtitle_style,
+            "original_quality_score": original_quality_score,
+        },
+        "source_clip": {
+            "clip_id": clip_id,
+            "video_id": str(clip_row.video_id) if clip_row.video_id else None,
+            "product_name": clip_row.product_name or "",
+            "liver_name": clip_row.liver_name or "",
+            "original_duration": clip_row.duration_sec,
+            "original_quality_score": original_quality_score,
+        },
+        "results": [],
+    }
+    await _save_job(regen_job_id, regen_job)
+    # 4. Start background regeneration
+    background_tasks.add_task(
+        _run_regeneration_from_source,
+        regen_job_id, clip_row, req,
+    )
+    return {
+        "job_id": regen_job_id,
+        "status": "processing",
+        "message": "V10再生成を開始しました。元動画から拡張範囲で再カット＋最新AI処理を適用します。",
+        "original_quality_score": original_quality_score,
+        "source_clip_id": clip_id,
+    }
+
+@router.post("/clips/batch-regenerate")
+async def batch_regenerate_clips(
+    req: BatchRegenRequest,
+    background_tasks: BackgroundTasks,
+    x_admin_key: str = Header(None),
+):
+    """V10: 複数クリップを一括で再生成する"""
+    verify_admin(x_admin_key)
+    # Validate all clip_ids exist
+    async with get_session() as session:
+        result = await session.execute(text("""
+            SELECT vc.id
+            FROM video_clips vc
+            WHERE vc.id = ANY(CAST(:clip_ids AS uuid[]))
+        """), {"clip_ids": req.clip_ids})
+        clips = result.fetchall()
+    if not clips:
+        raise HTTPException(status_code=404, detail="指定されたクリップが見つかりません")
+    found_ids = {str(c.id) for c in clips}
+    missing_ids = [cid for cid in req.clip_ids if cid not in found_ids]
+    # Create batch job
+    batch_job_id = str(uuid.uuid4())
+    batch_job = {
+        "job_id": batch_job_id,
+        "status": "processing",
+        "progress_pct": 0,
+        "current_step": f"一括再生成準備中... ({len(clips)}件)",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "config": {
+            "type": "batch_regenerate_from_source",
+            "clip_count": len(clips),
+            "subtitle_style": req.subtitle_style,
+            "target_duration": req.target_duration,
+        },
+        "results": [],
+    }
+    await _save_job(batch_job_id, batch_job)
+    # Start background batch processing
+    background_tasks.add_task(
+        _run_batch_regeneration,
+        batch_job_id, req,
+    )
+    return {
+        "job_id": batch_job_id,
+        "status": "processing",
+        "message": f"{len(clips)}件のクリップを一括再生成します。",
+        "total_clips": len(clips),
+        "missing_ids": missing_ids,
+    }
+
+@router.get("/clips/{clip_id}/regen-compare")
+async def get_regen_comparison(
+    clip_id: str,
+    x_admin_key: str = Header(None),
+):
+    """V10: 旧版vs新版の品質スコア比較データを取得"""
+    verify_admin(x_admin_key)
+    # Get original clip data
+    async with get_session() as session:
+        result = await session.execute(text("""
+            SELECT vc.id, vc.transcript_text, vc.product_name, vc.cta_score,
+                   vc.importance_score, vc.duration_sec, vc.captions,
+                   vc.clip_url, vc.thumbnail_url, vc.liver_name
+            FROM video_clips vc
+            WHERE vc.id = CAST(:clip_id AS uuid)
+        """), {"clip_id": clip_id})
+        original = result.fetchone()
+    if not original:
+        raise HTTPException(status_code=404, detail="クリップが見つかりません")
+    original_score = _compute_clip_quality_score({
+        "transcript_text": original.transcript_text,
+        "product_name": original.product_name,
+        "cta_score": original.cta_score,
+        "importance_score": original.importance_score,
+        "duration_sec": original.duration_sec,
+        "captions": original.captions,
+    })
+    # Find regeneration jobs for this clip
+    regen_jobs = []
+    try:
+        async with engine.connect() as conn:
+            result = await conn.execute(text("""
+                SELECT job_id, status, progress_pct, results, config, created_at
+                FROM ai_clip_jobs
+                WHERE config::text LIKE :pattern
+                ORDER BY created_at DESC
+                LIMIT 10
+            """), {"pattern": f'%"source_clip_id": "{clip_id}"%'})
+            rows = result.fetchall()
+            for row in rows:
+                job_results = row.results if isinstance(row.results, list) else json.loads(row.results or "[]")
+                job_config = row.config if isinstance(row.config, dict) else json.loads(row.config or "{}")
+                regen_jobs.append({
+                    "job_id": row.job_id,
+                    "status": row.status,
+                    "progress_pct": row.progress_pct,
+                    "created_at": str(row.created_at),
+                    "results": job_results,
+                    "new_quality_score": job_config.get("new_quality_score"),
+                })
+    except Exception as e:
+        logger.warning(f"[v10-regen] Failed to fetch regen jobs: {e}")
+    return {
+        "clip_id": clip_id,
+        "original": {
+            "clip_url": original.clip_url,
+            "thumbnail_url": original.thumbnail_url,
+            "quality_score": original_score,
+            "duration_sec": original.duration_sec,
+            "product_name": original.product_name,
+            "liver_name": original.liver_name,
+            "transcript_text": (original.transcript_text or "")[:200],
+        },
+        "regenerations": regen_jobs,
+    }
+
+async def _run_regeneration_from_source(job_id: str, clip_row, req: RegenFromSourceRequest):
+    """V10: 元動画から拡張範囲で再カット＋最新AI処理"""
+    try:
+        async with _AI_CLIP_SEMAPHORE:
+            await _run_regeneration_from_source_inner(job_id, clip_row, req)
+    except Exception as e:
+        logger.error(f"[v10-regen {job_id}] Fatal error: {e}", exc_info=True)
+        await _update_job(job_id, status="error", error=str(e)[:500])
+
+async def _run_regeneration_from_source_inner(job_id: str, clip_row, req: RegenFromSourceRequest):
+    """V10: 再生成の実際の処理"""
+    import httpx
+    clip_id = str(clip_row.id)
+    video_id = str(clip_row.video_id) if clip_row.video_id else None
+    logger.info(f"[v10-regen {job_id}] Starting regeneration for clip {clip_id} from video {video_id}")
+    await _update_job(job_id, progress_pct=5, current_step="元動画URL取得中...")
+    # ── Step 1: Get the FULL original video URL ──
+    video_url = None
+    # Strategy: Get full video from videos table via compressed_blob_url
+    if video_id:
+        try:
+            from app.services.storage_service import (
+                generate_read_sas_from_url, ACCOUNT_NAME, CONTAINER_NAME,
+            )
+            compressed_blob = getattr(clip_row, 'compressed_blob_url', None)
+            user_email = getattr(clip_row, 'user_email', None)
+            if compressed_blob:
+                # Build full URL from compressed_blob_url
+                import re as _re
+                segments = compressed_blob.split("/")
+                if "@" in segments[0] or len(segments) >= 3:
+                    blob_name = compressed_blob
+                else:
+                    if user_email:
+                        uuid_match = _re.search(
+                            r'([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})',
+                            segments[-1]
+                        )
+                        original_case_vid = uuid_match.group(1) if uuid_match else video_id
+                        blob_name = f"{user_email}/{original_case_vid}/{compressed_blob}"
+                    else:
+                        blob_name = compressed_blob
+                full_url = f"https://{ACCOUNT_NAME}.blob.core.windows.net/{CONTAINER_NAME}/{blob_name}"
+                sas_url = generate_read_sas_from_url(full_url, expires_hours=2)
+                if sas_url:
+                    video_url = sas_url
+                    logger.info(f"[v10-regen {job_id}] Got full video URL from compressed_blob_url")
+            # Fallback: generate from email/video_id/video_id.mp4
+            if not video_url and user_email:
+                blob_name = f"{user_email}/{video_id}/{video_id}.mp4"
+                full_url = f"https://{ACCOUNT_NAME}.blob.core.windows.net/{CONTAINER_NAME}/{blob_name}"
+                sas_url = generate_read_sas_from_url(full_url, expires_hours=2)
+                if sas_url:
+                    video_url = sas_url
+                    logger.info(f"[v10-regen {job_id}] Got full video URL from email/video_id path")
+        except Exception as e:
+            logger.warning(f"[v10-regen {job_id}] Failed to get full video URL: {e}")
+    # Fallback: Use the clip_url directly (already-cut segment)
+    if not video_url:
+        raw_url = getattr(clip_row, 'clip_url_hd', None) or clip_row.clip_url
+        if raw_url:
+            try:
+                from app.services.storage_service import generate_read_sas_from_url
+                if "blob.core.windows.net" in raw_url and "?" not in raw_url:
+                    sas_url = generate_read_sas_from_url(raw_url, expires_hours=2)
+                    video_url = sas_url or raw_url
+                elif "cdn.aitherhub.com" in raw_url:
+                    blob_url_conv = raw_url.replace("https://cdn.aitherhub.com", "https://aitherhub.blob.core.windows.net")
+                    sas_url = generate_read_sas_from_url(blob_url_conv, expires_hours=2)
+                    video_url = sas_url or raw_url
+                else:
+                    video_url = raw_url
+            except Exception:
+                video_url = raw_url
+            logger.warning(f"[v10-regen {job_id}] Using clip_url as fallback (cannot expand time range)")
+    if not video_url:
+        await _update_job(job_id, status="error", error="元動画のURLが取得できません")
+        return
+    # ── Step 2: Download the video ──
+    await _update_job(job_id, progress_pct=10, current_step="元動画をダウンロード中...")
+    tmp_dir = tempfile.mkdtemp(prefix="v10_regen_")
+    full_video_path = os.path.join(tmp_dir, "full_source.mp4")
+    try:
+        async with httpx.AsyncClient(timeout=300) as client:
+            async with client.stream("GET", video_url) as resp:
+                resp.raise_for_status()
+                with open(full_video_path, "wb") as f:
+                    async for chunk in resp.aiter_bytes(chunk_size=65536):
+                        f.write(chunk)
+    except Exception as e:
+        await _update_job(job_id, status="error", error=f"動画ダウンロード失敗: {str(e)[:200]}")
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return
+    # ── Step 3: Get full video duration via ffprobe ──
+    await _update_job(job_id, progress_pct=20, current_step="動画情報を取得中...")
+    probe_cmd = ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", full_video_path]
+    probe_proc = await asyncio.create_subprocess_exec(
+        *probe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
+    probe_out, _ = await probe_proc.communicate()
+    full_video_duration = 0.0
+    video_width, video_height = 1080, 1920
+    if probe_out:
+        probe_data = json.loads(probe_out)
+        for stream in probe_data.get("streams", []):
+            if stream.get("codec_type") == "video":
+                video_width = int(stream.get("width", 1080))
+                video_height = int(stream.get("height", 1920))
+                dur_str = stream.get("duration")
+                if dur_str:
+                    full_video_duration = float(dur_str)
+                break
+        if not full_video_duration:
+            fmt_dur = probe_data.get("format", {}).get("duration")
+            if fmt_dur:
+                full_video_duration = float(fmt_dur)
+    # ── Step 4: Calculate expanded time range ──
+    original_start = float(clip_row.time_start or 0)
+    original_end = float(clip_row.time_end or original_start + 30)
+    # Determine if we have the full video or just the clip segment
+    is_full_video = full_video_duration > (original_end - original_start) * 1.5
+    if is_full_video:
+        # We have the full video - expand time range
+        new_start = max(0, original_start - req.expand_before_sec)
+        new_end = min(full_video_duration, original_end + req.expand_after_sec) if full_video_duration > 0 else original_end + req.expand_after_sec
+        # Try to reach target duration
+        current_duration = new_end - new_start
+        if current_duration < req.target_duration and full_video_duration > 0:
+            deficit = req.target_duration - current_duration
+            extra_before = min(new_start, deficit / 2)
+            extra_after = min(full_video_duration - new_end, deficit / 2) if full_video_duration > new_end else 0
+            new_start = max(0, new_start - extra_before)
+            new_end = min(full_video_duration, new_end + extra_after)
+        # Cap at target_duration
+        actual_duration = min(new_end - new_start, req.target_duration)
+        new_end = new_start + actual_duration
+    else:
+        # We only have the clip segment - use full duration
+        new_start = 0
+        new_end = full_video_duration or (original_end - original_start)
+        actual_duration = new_end - new_start
+    logger.info(f"[v10-regen {job_id}] Time range: {original_start:.1f}-{original_end:.1f} → {new_start:.1f}-{new_end:.1f} (duration: {actual_duration:.1f}s, full_video={is_full_video})")
+    # ── Step 5: Cut the expanded segment from full video ──
+    await _update_job(job_id, progress_pct=30, current_step=f"拡張範囲でカット中 ({new_start:.0f}s-{new_end:.0f}s)...")
+    cut_video_path = os.path.join(tmp_dir, "cut_segment.mp4")
+    if is_full_video:
+        cut_cmd = [
+            "ffmpeg", "-y",
+            "-ss", str(new_start),
+            "-i", full_video_path,
+            "-t", str(actual_duration),
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-c:a", "aac", "-b:a", "128k",
+            "-movflags", "+faststart",
+            cut_video_path,
+        ]
+        cut_proc = await asyncio.create_subprocess_exec(
+            *cut_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        _, cut_stderr = await asyncio.wait_for(cut_proc.communicate(), timeout=120)
+        if cut_proc.returncode != 0:
+            err_msg = cut_stderr.decode()[-300:] if cut_stderr else "Unknown"
+            await _update_job(job_id, status="error", error=f"カット失敗: {err_msg}")
+            import shutil
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            return
+    else:
+        # Just use the downloaded file as-is
+        cut_video_path = full_video_path
+    # ── Step 6: Whisper transcription on the new segment ──
+    await _update_job(job_id, progress_pct=40, current_step="Whisper音声認識中...")
+    captions = []
+    try:
+        captions = await _transcribe_clip(cut_video_path, target_language="auto")
+    except Exception as e:
+        logger.warning(f"[v10-regen {job_id}] Whisper failed, using original captions: {e}")
+        # Fallback: use original captions if available
+        orig_captions = clip_row.captions
+        if orig_captions:
+            if isinstance(orig_captions, str):
+                try:
+                    captions = json.loads(orig_captions)
+                except Exception:
+                    captions = []
+            elif isinstance(orig_captions, list):
+                captions = orig_captions
+    # ── Step 7: Generate hook text and CTA ──
+    await _update_job(job_id, progress_pct=50, current_step="フック＆CTA生成中...")
+    transcript_text = " ".join(c.get("text", "") for c in captions if c.get("text"))
+    # Build a clip dict compatible with _generate_hook / _generate_cta_text
+    clip_dict = {
+        "clip_id": clip_id,
+        "product_name": clip_row.product_name or "",
+        "liver_name": clip_row.liver_name or "",
+        "transcript_text": transcript_text,
+    }
+    # Build a GenerateRequest for hook generation
+    gen_req = GenerateRequest(
+        subtitle_style=req.subtitle_style,
+        enable_sfx=req.enable_sfx,
+        enable_transitions=req.enable_transitions,
+        enable_hook=req.enable_hook,
+        enable_cta=req.enable_cta,
+        enable_zoom_pulse=req.enable_zoom_pulse,
+        enable_progress_bar=req.enable_progress_bar,
+        enable_subtitle_animation=req.enable_subtitle_animation,
+        enable_keyword_highlight=req.enable_keyword_highlight,
+        position_y=req.position_y,
+        max_duration=req.target_duration,
+        min_duration=30.0,
+    )
+    hook_text = None
+    cta_text = None
+    if req.enable_hook:
+        try:
+            hook_text = await _generate_hook(captions, clip_dict, gen_req)
+        except Exception as e:
+            logger.warning(f"[v10-regen {job_id}] Hook generation failed: {e}")
+    if req.enable_cta:
+        try:
+            cta_text = _generate_cta_text(captions, clip_dict)
+        except Exception as e:
+            logger.warning(f"[v10-regen {job_id}] CTA generation failed: {e}")
+    # ── Step 8: Apply V2 effects (subtitles, zoom, progress bar, etc.) ──
+    await _update_job(job_id, progress_pct=60, current_step="エフェクト適用中...")
+    subtitle_style = req.subtitle_style or "auto"
+    styled_captions = _assign_scene_styles(captions, actual_duration, subtitle_style)
+    font_path = _find_cjk_font()
+    overlay_images = _generate_overlay_images(
+        styled_captions=styled_captions,
+        hook_text=hook_text,
+        cta_text=cta_text,
+        video_width=video_width,
+        video_height=video_height,
+        duration=actual_duration,
+        font_path=font_path,
+        tmp_dir=tmp_dir,
+        position_y=req.position_y,
+        clip_duration=actual_duration,
+        product_name=clip_row.product_name or "",
+    )
+    logger.info(f"[v10-regen {job_id}] Generated {len(overlay_images)} overlay images")
+    # ── Step 9: Build ffmpeg command and encode ──
+    await _update_job(job_id, progress_pct=70, current_step="動画エンコード中...")
+    output_path = os.path.join(tmp_dir, "output.mp4")
+    input_args = ["-i", cut_video_path]
+    for png_path, _, _ in overlay_images:
+        input_args.extend(["-i", png_path])
+    if overlay_images:
+        fc_parts = ["[0:v]null[vfx]"]
+        current_label = "[vfx]"
+        for i, (png_path, start_t, end_t) in enumerate(overlay_images):
+            input_idx = i + 1
+            is_last = (i == len(overlay_images) - 1)
+            out_label = "[vout]" if is_last else f"[v{i}]"
+            enable_expr = f"between(t\\,{start_t:.3f}\\,{end_t:.3f})"
+            fc_parts.append(
+                f"{current_label}[{input_idx}:v]overlay=0:0:"
+                f"enable='{enable_expr}':"
+                f"format=auto{out_label}"
+            )
+            current_label = out_label
+        fc_str = ";".join(fc_parts)
+        ffmpeg_cmd = [
+            "ffmpeg", "-y",
+            *input_args,
+            "-filter_complex", fc_str,
+            "-map", "[vout]", "-map", "0:a",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-c:a", "aac", "-b:a", "128k",
+            "-movflags", "+faststart",
+            output_path,
+        ]
+    else:
+        ffmpeg_cmd = [
+            "ffmpeg", "-y", "-i", cut_video_path,
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-c:a", "aac", "-b:a", "128k",
+            "-movflags", "+faststart",
+            output_path,
+        ]
+    proc = await asyncio.create_subprocess_exec(
+        *ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
+    _, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
+    if proc.returncode != 0:
+        err_msg = stderr.decode()[-500:] if stderr else "Unknown ffmpeg error"
+        await _update_job(job_id, status="error", error=f"ffmpegエラー: {err_msg}")
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return
+    # ── Step 10: Upload to Azure Blob Storage ──
+    await _update_job(job_id, progress_pct=90, current_step="アップロード中...")
+    output_size = os.path.getsize(output_path)
+    download_url, blob_url = await _upload_to_blob(output_path, clip_id, job_id)
+    # ── Step 11: Compute new quality score ──
+    new_quality_score = _compute_clip_quality_score({
+        "transcript_text": transcript_text,
+        "product_name": clip_row.product_name or "",
+        "cta_score": clip_row.cta_score or 0,
+        "importance_score": clip_row.importance_score or 0,
+        "duration_sec": actual_duration,
+        "captions": captions,
+    })
+    original_quality_score = _compute_clip_quality_score({
+        "transcript_text": clip_row.transcript_text,
+        "product_name": clip_row.product_name,
+        "cta_score": clip_row.cta_score,
+        "importance_score": clip_row.importance_score,
+        "duration_sec": clip_row.duration_sec,
+        "captions": clip_row.captions,
+    })
+    regen_result = {
+        "clip_id": clip_id,
+        "status": "done",
+        "download_url": download_url,
+        "blob_url": blob_url,
+        "file_size": output_size,
+        "duration_sec": actual_duration,
+        "hook_text": hook_text,
+        "cta_text": cta_text,
+        "captions_count": len(captions),
+        "captions": captions,
+        "transcript_text": transcript_text[:500],
+        "original_quality_score": original_quality_score,
+        "new_quality_score": new_quality_score,
+        "source_clip_id": clip_id,
+        "expanded_time_range": {"start": new_start, "end": new_end, "duration": actual_duration},
+        "effects_applied": {
+            "v10_regenerated": True,
+            "subtitle_style": subtitle_style,
+            "overlays": len(overlay_images),
+            "is_full_video": is_full_video,
+        },
+    }
+    # Save final result
+    await _update_job(job_id, status="done", progress_pct=100, current_step="V10再生成完了")
+    job_data = _load_job(job_id)
+    if not job_data:
+        job_data = await _load_job_db(job_id)
+    if job_data:
+        job_data["results"] = [regen_result]
+        job_data["status"] = "done"
+        job_data["progress_pct"] = 100
+        job_data["config"]["new_quality_score"] = new_quality_score
+        await _save_job(job_id, job_data)
+    # Cleanup
+    import shutil
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+    logger.info(f"[v10-regen {job_id}] Complete! Score: {original_quality_score:.1f} → {new_quality_score:.1f}")
+
+async def _run_batch_regeneration(batch_job_id: str, req: BatchRegenRequest):
+    """V10: 一括再生成のバックグラウンド処理"""
+    try:
+        clip_ids = req.clip_ids
+        total = len(clip_ids)
+        completed = 0
+        results = []
+        for i, clip_id in enumerate(clip_ids):
+            try:
+                await _update_job(batch_job_id, progress_pct=int((i / total) * 100),
+                                  current_step=f"クリップ {i+1}/{total} 再生成中...")
+                # Get clip data
+                async with get_session() as session:
+                    result = await session.execute(text("""
+                        SELECT vc.id, vc.video_id, vc.phase_index, vc.time_start, vc.time_end,
+                               vc.duration_sec, vc.clip_url, vc.clip_url_hd, vc.transcript_text,
+                               vc.product_name, vc.cta_score, vc.importance_score, vc.captions,
+                               vc.subtitle_style, vc.liver_name, vc.tags,
+                               v.compressed_blob_url, v.user_id, v.original_filename,
+                               u.email as user_email
+                        FROM video_clips vc
+                        LEFT JOIN videos v ON v.id = vc.video_id
+                        LEFT JOIN users u ON v.user_id = u.id
+                        WHERE vc.id = CAST(:clip_id AS uuid)
+                    """), {"clip_id": clip_id})
+                    clip_row = result.fetchone()
+                if not clip_row:
+                    results.append({"clip_id": clip_id, "status": "error", "error": "クリップが見つかりません"})
+                    continue
+                # Create individual regen request
+                single_req = RegenFromSourceRequest(
+                    subtitle_style=req.subtitle_style,
+                    enable_sfx=req.enable_sfx,
+                    enable_transitions=req.enable_transitions,
+                    enable_hook=req.enable_hook,
+                    enable_cta=req.enable_cta,
+                    enable_zoom_pulse=req.enable_zoom_pulse,
+                    enable_progress_bar=req.enable_progress_bar,
+                    enable_subtitle_animation=req.enable_subtitle_animation,
+                    enable_keyword_highlight=req.enable_keyword_highlight,
+                    position_y=req.position_y,
+                    expand_before_sec=req.expand_before_sec,
+                    expand_after_sec=req.expand_after_sec,
+                    target_duration=req.target_duration,
+                )
+                # Run regeneration inline (sequential within batch)
+                sub_job_id = str(uuid.uuid4())
+                sub_job = {
+                    "job_id": sub_job_id,
+                    "status": "processing",
+                    "progress_pct": 0,
+                    "current_step": "処理中...",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "config": {"type": "regenerate_from_source", "source_clip_id": clip_id},
+                    "results": [],
+                }
+                await _save_job(sub_job_id, sub_job)
+                await _run_regeneration_from_source_inner(sub_job_id, clip_row, single_req)
+                # Get result
+                sub_data = _load_job(sub_job_id)
+                if not sub_data:
+                    sub_data = await _load_job_db(sub_job_id)
+                if sub_data and sub_data.get("status") == "done":
+                    sub_results = sub_data.get("results", [])
+                    results.append({
+                        "clip_id": clip_id,
+                        "status": "done",
+                        "sub_job_id": sub_job_id,
+                        "result": sub_results[0] if sub_results else None,
+                    })
+                    completed += 1
+                else:
+                    results.append({
+                        "clip_id": clip_id,
+                        "status": "error",
+                        "error": sub_data.get("error", "Unknown error") if sub_data else "Job not found",
+                    })
+            except Exception as e:
+                logger.error(f"[v10-batch {batch_job_id}] Clip {clip_id} failed: {e}")
+                results.append({"clip_id": clip_id, "status": "error", "error": str(e)[:200]})
+        # Update batch job
+        await _update_job(batch_job_id, status="done", progress_pct=100,
+                          current_step=f"一括再生成完了 ({completed}/{total}件成功)")
+        batch_data = _load_job(batch_job_id)
+        if not batch_data:
+            batch_data = await _load_job_db(batch_job_id)
+        if batch_data:
+            batch_data["results"] = results
+            batch_data["status"] = "done"
+            batch_data["progress_pct"] = 100
+            await _save_job(batch_job_id, batch_data)
+        logger.info(f"[v10-batch {batch_job_id}] Complete: {completed}/{total} succeeded")
+    except Exception as e:
+        logger.error(f"[v10-batch {batch_job_id}] Fatal error: {e}", exc_info=True)
+        await _update_job(batch_job_id, status="error", error=str(e)[:500])
 
 
 # ─── Product Master CRUD Endpoints ──────────────────────────────────────────

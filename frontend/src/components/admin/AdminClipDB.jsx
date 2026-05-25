@@ -613,6 +613,20 @@ function ClipCard({ clip, onPlay, brands, adminKey, onBrandChange }) {
           </button>
         )}
 
+        {/* V10: Regenerate from source button */}
+        {clip.clip_url && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (typeof window.__openV10RegenModal === 'function') {
+                window.__openV10RegenModal(clip);
+              }
+            }}
+            className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg text-[11px] font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" /> V10再生成
+          </button>
+        )}
         {/* TikTok tracking button */}
         <TikTokUrlRegisterButton clipId={clip.id} adminKey={adminKey} />
 
@@ -1357,15 +1371,20 @@ export default function AdminClipDB({ adminKey }) {
   const [reviewStats, setReviewStats] = useState(null);
 
   // AI Clip generation state
-  const [aiClipModalClip, setAiClipModalClip] = useState(null);
+   const [aiClipModalClip, setAiClipModalClip] = useState(null);
   const [aiClipJobId, setAiClipJobId] = useState(null);
   const [aiClipJobStatus, setAiClipJobStatus] = useState(null);
   const [aiClipGenerating, setAiClipGenerating] = useState(false);
-
+  // V10: Regeneration modal state
+  const [v10RegenClip, setV10RegenClip] = useState(null);
+  const [v10RegenJobId, setV10RegenJobId] = useState(null);
+  const [v10RegenStatus, setV10RegenStatus] = useState(null);
+  const [v10RegenGenerating, setV10RegenGenerating] = useState(false);
   // Register global callback for ClipCard AI clip button
   useEffect(() => {
     window.__openAiClipModal = (clip) => setAiClipModalClip(clip);
-    return () => { delete window.__openAiClipModal; };
+    window.__openV10RegenModal = (clip) => setV10RegenClip(clip);
+    return () => { delete window.__openAiClipModal; delete window.__openV10RegenModal; };
   }, []);
 
   // Poll AI clip job status with stall detection
@@ -2629,6 +2648,26 @@ export default function AdminClipDB({ adminKey }) {
           adminKey={adminKey}
         />
       )}
+      {/* V10 Regeneration Modal */}
+      {v10RegenClip && (
+        <V10RegenerationModal
+          clip={v10RegenClip}
+          onClose={() => {
+            setV10RegenClip(null);
+            if (!v10RegenGenerating) {
+              setV10RegenJobId(null);
+              setV10RegenStatus(null);
+            }
+          }}
+          adminKey={adminKey}
+          generating={v10RegenGenerating}
+          setGenerating={setV10RegenGenerating}
+          jobId={v10RegenJobId}
+          setJobId={setV10RegenJobId}
+          jobStatus={v10RegenStatus}
+          setJobStatus={setV10RegenStatus}
+        />
+      )}
     </div>
   );
 }
@@ -2979,6 +3018,314 @@ function SuccessResult({ resultClip, jobStatus, adminKey }) {
           <Download className="w-4 h-4" /> そのままダウンロード
         </a>
       )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════
+// ─── V10: Regeneration from Source Modal ───
+// ═══════════════════════════════════════════════
+function V10RegenerationModal({ clip, onClose, adminKey, generating, setGenerating, jobId, setJobId, jobStatus, setJobStatus }) {
+  const [options, setOptions] = useState({
+    subtitle_style: "auto",
+    enable_sfx: true,
+    enable_transitions: true,
+    enable_hook: true,
+    enable_cta: true,
+    enable_zoom_pulse: true,
+    enable_progress_bar: true,
+    enable_subtitle_animation: true,
+    enable_keyword_highlight: true,
+    position_y: 75,
+    expand_before_sec: 10,
+    expand_after_sec: 20,
+    target_duration: 90,
+  });
+  const [comparison, setComparison] = useState(null);
+  const [loadingComparison, setLoadingComparison] = useState(false);
+
+  // Fetch comparison data on mount
+  useEffect(() => {
+    const fetchComparison = async () => {
+      setLoadingComparison(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/ai-clip/clips/${clip.id || clip.clip_id}/regen-compare`, {
+          headers: { "X-Admin-Key": adminKey },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setComparison(data);
+        }
+      } catch (e) {
+        console.warn("Failed to fetch comparison:", e);
+      } finally {
+        setLoadingComparison(false);
+      }
+    };
+    fetchComparison();
+  }, [clip.id, clip.clip_id]);
+
+  // Poll job status
+  useEffect(() => {
+    if (!jobId) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/ai-clip/jobs/${jobId}`, {
+          headers: { "X-Admin-Key": adminKey },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setJobStatus(data);
+          if (data.status === "done" || data.status === "error") {
+            setGenerating(false);
+            clearInterval(interval);
+          }
+        }
+      } catch (e) {
+        console.warn("Poll failed:", e);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [jobId]);
+
+  const handleRegenerate = async () => {
+    setGenerating(true);
+    setJobStatus(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/ai-clip/clips/${clip.id || clip.clip_id}/regenerate-from-source`, {
+        method: "POST",
+        headers: { "X-Admin-Key": adminKey, "Content-Type": "application/json" },
+        body: JSON.stringify(options),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setJobId(data.job_id);
+        setJobStatus({ status: "processing", progress_pct: 0, current_step: "開始中..." });
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(`再生成エラー: ${err.detail || res.statusText}`);
+        setGenerating(false);
+      }
+    } catch (e) {
+      alert(`再生成エラー: ${e.message}`);
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+              <RefreshCw className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">V10 再生成</h3>
+              <p className="text-xs text-gray-500">元動画から拡張範囲で再カット＋最新AI処理</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 transition">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Source clip info */}
+        <div className="px-6 py-3 bg-gray-50 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            {clip.thumbnail_url && (
+              <img src={clip.thumbnail_url} alt="" className="w-16 h-24 object-cover rounded-lg" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">{clip.product_name || "商品名なし"}</p>
+              <p className="text-xs text-gray-500">{clip.liver_name || "ライバー不明"}</p>
+              <div className="flex items-center gap-3 mt-1">
+                <span className="text-xs text-gray-400">
+                  <Clock className="w-3 h-3 inline mr-0.5" />
+                  {clip.duration_sec ? `${Math.round(clip.duration_sec)}秒` : "不明"}
+                </span>
+                {comparison?.original?.quality_score != null && (
+                  <span className="text-xs text-amber-600 font-medium">
+                    <Star className="w-3 h-3 inline mr-0.5" />
+                    品質スコア: {comparison.original.quality_score.toFixed(1)}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Options */}
+        <div className="px-6 py-4 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">目標尺（秒）</label>
+              <input
+                type="number"
+                value={options.target_duration}
+                onChange={(e) => setOptions({...options, target_duration: Number(e.target.value)})}
+                min={30} max={180} step={5}
+                className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">字幕スタイル</label>
+              <select
+                value={options.subtitle_style}
+                onChange={(e) => setOptions({...options, subtitle_style: e.target.value})}
+                className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="auto">自動</option>
+                <option value="simple">シンプル</option>
+                <option value="box">ボックス</option>
+                <option value="outline">アウトライン</option>
+                <option value="pop">ポップ</option>
+                <option value="gradient">グラデーション</option>
+                <option value="karaoke">カラオケ</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">前方拡張（秒）</label>
+              <input
+                type="number"
+                value={options.expand_before_sec}
+                onChange={(e) => setOptions({...options, expand_before_sec: Number(e.target.value)})}
+                min={0} max={30} step={5}
+                className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">後方拡張（秒）</label>
+              <input
+                type="number"
+                value={options.expand_after_sec}
+                onChange={(e) => setOptions({...options, expand_after_sec: Number(e.target.value)})}
+                min={0} max={60} step={5}
+                className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          {/* Toggle options */}
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { key: "enable_hook", label: "フックテキスト" },
+              { key: "enable_cta", label: "CTAテキスト" },
+              { key: "enable_sfx", label: "効果音" },
+              { key: "enable_transitions", label: "トランジション" },
+              { key: "enable_zoom_pulse", label: "ズームパルス" },
+              { key: "enable_progress_bar", label: "進行バー" },
+              { key: "enable_subtitle_animation", label: "字幕アニメ" },
+              { key: "enable_keyword_highlight", label: "キーワード強調" },
+            ].map(({ key, label }) => (
+              <label key={key} className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={options[key]}
+                  onChange={(e) => setOptions({...options, [key]: e.target.checked})}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Job Status */}
+        {jobStatus && (
+          <div className="px-6 py-3 border-t border-gray-100">
+            <div className="flex items-center gap-2 mb-2">
+              {jobStatus.status === "processing" && <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />}
+              {jobStatus.status === "done" && <CheckCircle className="w-4 h-4 text-green-500" />}
+              {jobStatus.status === "error" && <AlertTriangle className="w-4 h-4 text-red-500" />}
+              <span className="text-sm font-medium text-gray-700">
+                {jobStatus.status === "done" ? "完了" : jobStatus.status === "error" ? "エラー" : "処理中..."}
+              </span>
+            </div>
+            {jobStatus.status === "processing" && (
+              <div className="space-y-1">
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${jobStatus.progress_pct || 0}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-500">{jobStatus.current_step || ""} ({jobStatus.progress_pct || 0}%)</p>
+              </div>
+            )}
+            {jobStatus.status === "done" && jobStatus.results?.[0] && (
+              <div className="mt-2 p-3 bg-green-50 rounded-lg">
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="text-gray-600">
+                    旧スコア: <strong className="text-amber-600">{jobStatus.results[0].original_quality_score?.toFixed(1) || "N/A"}</strong>
+                  </span>
+                  <span className="text-gray-400">→</span>
+                  <span className="text-gray-600">
+                    新スコア: <strong className="text-green-600">{jobStatus.results[0].new_quality_score?.toFixed(1) || "N/A"}</strong>
+                  </span>
+                </div>
+                {jobStatus.results[0].download_url && (
+                  <a
+                    href={jobStatus.results[0].download_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition"
+                  >
+                    <Download className="w-3 h-3" /> ダウンロード
+                  </a>
+                )}
+              </div>
+            )}
+            {jobStatus.status === "error" && (
+              <p className="text-xs text-red-500 mt-1">{jobStatus.error || "不明なエラー"}</p>
+            )}
+          </div>
+        )}
+
+        {/* Previous regenerations */}
+        {comparison?.regenerations?.length > 0 && (
+          <div className="px-6 py-3 border-t border-gray-100">
+            <h4 className="text-xs font-semibold text-gray-600 mb-2">過去の再生成履歴</h4>
+            <div className="space-y-1">
+              {comparison.regenerations.slice(0, 5).map((regen) => (
+                <div key={regen.job_id} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded-lg">
+                  <span className="text-gray-500">{new Date(regen.created_at).toLocaleString("ja-JP")}</span>
+                  <span className={`font-medium ${regen.status === "done" ? "text-green-600" : regen.status === "error" ? "text-red-500" : "text-blue-500"}`}>
+                    {regen.status === "done" ? `完了 (スコア: ${regen.new_quality_score?.toFixed(1) || "N/A"})` : regen.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition"
+          >
+            閉じる
+          </button>
+          <button
+            onClick={handleRegenerate}
+            disabled={generating}
+            className="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+          >
+            {generating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" /> 処理中...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4" /> V10再生成を実行
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
