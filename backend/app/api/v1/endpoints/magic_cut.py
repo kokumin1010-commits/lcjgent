@@ -938,3 +938,241 @@ async def _run_magic_cut_refine(job_id: str, req: RefineRequest, parent_job: dic
         logger.error(f"[magic-cut {job_id}] Refine error: {e}", exc_info=True)
         await _update_job(job_id, status="failed", error=str(e)[:500])
         await _save_job_db(job_id, _load_job_file(job_id) or {})
+
+
+# ─── User Material Upload ─────────────────────────────────────────────────────
+
+@router.post("/upload-material")
+async def upload_user_material(
+    file: UploadFile = File(...),
+    material_name: str = Form(""),
+    material_category: str = Form("video"),  # video / image / audio
+    x_admin_key: Optional[str] = Header(None),
+):
+    """
+    ユーザーが自分の素材（動画/画像/音声）をアップロード。
+    Azure Blobに保存し、magic_cut_user_materials テーブルに記録。
+    """
+    verify_admin(x_admin_key)
+
+    # Read file
+    file_data = await file.read()
+    if len(file_data) > 500 * 1024 * 1024:  # 500MB limit
+        raise HTTPException(status_code=413, detail="ファイルサイズが大きすぎます（上限500MB）")
+
+    content_type = file.content_type or "application/octet-stream"
+
+    # Upload to Azure Blob
+    from azure.storage.blob import BlobServiceClient, ContentSettings
+    from app.services.storage_service import (
+        CONNECTION_STRING, ACCOUNT_NAME, CONTAINER_NAME, generate_read_sas_from_url,
+    )
+    if not CONNECTION_STRING:
+        raise HTTPException(status_code=500, detail="Azure Storage not configured")
+
+    material_id = str(uuid.uuid4())
+    ext = os.path.splitext(file.filename or "file")[1] or (
+        ".mp4" if material_category == "video" else
+        ".jpg" if material_category == "image" else ".mp3"
+    )
+    blob_name = f"magic-cut/user-materials/{material_id}{ext}"
+
+    svc = BlobServiceClient.from_connection_string(CONNECTION_STRING)
+    bc = svc.get_blob_client(container=CONTAINER_NAME, blob=blob_name)
+
+    import io
+    bc.upload_blob(
+        io.BytesIO(file_data), overwrite=True,
+        content_settings=ContentSettings(content_type=content_type)
+    )
+
+    blob_url = f"https://{ACCOUNT_NAME}.blob.core.windows.net/{CONTAINER_NAME}/{blob_name}"
+
+    # Generate SAS URL for access
+    try:
+        sas_url = generate_read_sas_from_url(blob_url, expires_hours=720)  # 30 days
+    except Exception:
+        sas_url = blob_url
+
+    # CDN replacement
+    cdn_host = os.getenv("CDN_HOST", "https://cdn.aitherhub.com")
+    blob_host = f"https://{ACCOUNT_NAME}.blob.core.windows.net"
+    preview_url = blob_url.replace(blob_host, cdn_host) if cdn_host else blob_url
+
+    # Get duration for video/audio
+    duration_sec = None
+    if material_category in ("video", "audio"):
+        try:
+            tmp_path = f"/tmp/mc_upload_{material_id}{ext}"
+            with open(tmp_path, "wb") as f:
+                f.write(file_data)
+            probe_cmd = ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", tmp_path]
+            probe_result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
+            if probe_result.returncode == 0:
+                probe_data = json.loads(probe_result.stdout)
+                duration_sec = float(probe_data.get("format", {}).get("duration", 0))
+            os.remove(tmp_path)
+        except Exception as e:
+            logger.warning(f"[magic-cut] Failed to probe uploaded file: {e}")
+
+    # Save to DB
+    file_size = len(file_data)
+    display_name = material_name or file.filename or f"素材_{material_id[:8]}"
+    try:
+        async with get_session() as session:
+            await session.execute(text("""
+                INSERT INTO magic_cut_user_materials
+                    (id, name, category, blob_url, preview_url, sas_url,
+                     file_size, duration_sec, content_type, original_filename, created_at)
+                VALUES
+                    (:id, :name, :category, :blob_url, :preview_url, :sas_url,
+                     :file_size, :duration_sec, :content_type, :original_filename, NOW())
+            """), {
+                "id": material_id,
+                "name": display_name,
+                "category": material_category,
+                "blob_url": blob_url,
+                "preview_url": preview_url,
+                "sas_url": sas_url,
+                "file_size": file_size,
+                "duration_sec": duration_sec,
+                "content_type": content_type,
+                "original_filename": file.filename,
+            })
+    except Exception as e:
+        logger.warning(f"[magic-cut] Failed to save user material to DB: {e}")
+
+    return {
+        "id": material_id,
+        "name": display_name,
+        "category": material_category,
+        "blob_url": blob_url,
+        "preview_url": preview_url,
+        "sas_url": sas_url,
+        "file_size": file_size,
+        "duration_sec": duration_sec,
+    }
+
+
+@router.get("/user-materials")
+async def list_user_materials(
+    category: str = Query("all", description="video/image/audio/all"),
+    search: Optional[str] = Query(None),
+    limit: int = Query(30, ge=1, le=100),
+    x_admin_key: Optional[str] = Header(None),
+):
+    """アップロード済みユーザー素材一覧"""
+    verify_admin(x_admin_key)
+
+    conditions = ["1=1"]
+    params = {"limit": limit}
+    if category != "all":
+        conditions.append("category = :category")
+        params["category"] = category
+    if search:
+        conditions.append("(name ILIKE :search OR original_filename ILIKE :search)")
+        params["search"] = f"%{search}%"
+
+    where = " AND ".join(conditions)
+    async with get_session() as session:
+        result = await session.execute(text(f"""
+            SELECT id, name, category, blob_url, preview_url, sas_url,
+                   file_size, duration_sec, content_type, original_filename, created_at
+            FROM magic_cut_user_materials
+            WHERE {where}
+            ORDER BY created_at DESC
+            LIMIT :limit
+        """), params)
+        rows = result.fetchall()
+
+    return {
+        "materials": [
+            {
+                "id": str(r.id),
+                "name": r.name,
+                "category": r.category,
+                "preview_url": r.sas_url or r.preview_url or r.blob_url,
+                "file_size": r.file_size,
+                "duration_sec": r.duration_sec,
+                "content_type": r.content_type,
+                "original_filename": r.original_filename,
+                "created_at": str(r.created_at) if r.created_at else None,
+            }
+            for r in rows
+        ],
+        "total": len(rows),
+    }
+
+
+@router.delete("/user-materials/{material_id}")
+async def delete_user_material(
+    material_id: str,
+    x_admin_key: Optional[str] = Header(None),
+):
+    """ユーザー素材を削除"""
+    verify_admin(x_admin_key)
+
+    async with get_session() as session:
+        result = await session.execute(text(
+            "DELETE FROM magic_cut_user_materials WHERE id = :id RETURNING blob_url"
+        ), {"id": material_id})
+        row = result.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    # Try to delete from Azure Blob
+    try:
+        from azure.storage.blob import BlobServiceClient
+        from app.services.storage_service import CONNECTION_STRING, CONTAINER_NAME
+        if CONNECTION_STRING and row.blob_url:
+            svc = BlobServiceClient.from_connection_string(CONNECTION_STRING)
+            blob_name = row.blob_url.split(f"/{CONTAINER_NAME}/")[-1].split("?")[0]
+            bc = svc.get_blob_client(container=CONTAINER_NAME, blob=blob_name)
+            bc.delete_blob()
+    except Exception as e:
+        logger.warning(f"[magic-cut] Failed to delete blob: {e}")
+
+    return {"status": "deleted", "id": material_id}
+
+
+@router.get("/products")
+async def search_products_for_magic_cut(
+    q: str = Query("", description="検索クエリ"),
+    limit: int = Query(20, ge=1, le=50),
+    x_admin_key: Optional[str] = Header(None),
+):
+    """商品マスターから検索（Magic Cut用）"""
+    verify_admin(x_admin_key)
+
+    conditions = ["is_active = TRUE"]
+    params = {"limit": limit}
+    if q:
+        conditions.append("(product_name ILIKE :q OR brand_name ILIKE :q)")
+        params["q"] = f"%{q}%"
+
+    where = " AND ".join(conditions)
+    async with get_session() as session:
+        result = await session.execute(text(f"""
+            SELECT id, product_name, brand_name, product_image_urls, keywords, created_at
+            FROM product_master
+            WHERE {where}
+            ORDER BY updated_at DESC
+            LIMIT :limit
+        """), params)
+        rows = result.fetchall()
+
+    return {
+        "products": [
+            {
+                "id": str(r.id),
+                "product_name": r.product_name,
+                "brand_name": r.brand_name,
+                "image_urls": r.product_image_urls or [],
+                "keywords": r.keywords or [],
+                "created_at": str(r.created_at) if r.created_at else None,
+            }
+            for r in rows
+        ],
+        "total": len(rows),
+    }

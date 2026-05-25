@@ -780,6 +780,30 @@ async def run_all_ddl_migrations():
         except Exception as e:
             logger.warning(f"[DDL] magic_cut_jobs: {e}")
 
+        # ── magic_cut_user_materials (user uploaded materials for Magic Cut) ──
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(_text("""
+                    CREATE TABLE IF NOT EXISTS magic_cut_user_materials (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        name TEXT NOT NULL,
+                        category TEXT NOT NULL DEFAULT 'video',
+                        blob_url TEXT,
+                        preview_url TEXT,
+                        sas_url TEXT,
+                        file_size BIGINT,
+                        duration_sec FLOAT,
+                        content_type TEXT,
+                        original_filename TEXT,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                """))
+                await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_mcum_cat ON magic_cut_user_materials(category)"))
+                await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_mcum_created ON magic_cut_user_materials(created_at DESC)"))
+                logger.info("[DDL] magic_cut_user_materials \u2713")
+        except Exception as e:
+            logger.warning(f"[DDL] magic_cut_user_materials: {e}")
+
         elapsed = time.time() - ddl_start
         logger.info(f"[DDL] All migrations completed in {elapsed:.1f}s")
 
