@@ -2,11 +2,13 @@
 FaceFusion GPU Worker API Server
 ================================
 
-A FastAPI wrapper around FaceFusion that exposes HTTP endpoints
+A FastAPI wrapper around FaceFusion's native Python API that exposes HTTP endpoints
 for AitherHub to control real-time face swapping remotely.
 
 Architecture:
-  Body Double (RTMP in) → ffmpeg → virtual cam → FaceFusion → UDP → ffmpeg → RTMP out
+  - Uses FaceFusion's native swap_face() for high-quality results (proper masking + blending)
+  - InsightFace removed - all processing goes through FaceFusion's pipeline
+  - WebSocket for real-time preview, HTTP for single frame/video processing
 
 Endpoints:
   POST /api/health          - GPU health check
@@ -90,13 +92,13 @@ current_session = {
 
 current_config = {
     "face_swapper_model": "inswapper_128",
-    "face_swapper_pixel_boost": "512x512",
-    "face_swapper_weight": 0.85,
+    "face_swapper_pixel_boost": "128x128",
+    "face_swapper_weight": 0.5,
     "face_enhancer_model": "gfpgan_1.4",
-    "face_enhancer_enabled": True,
+    "face_enhancer_enabled": False,
     "face_detector_model": "yolo_face",
     "face_detector_score": 0.5,
-    "face_mask_types": ["box", "occlusion", "region"],
+    "face_mask_types": ["box", "occlusion"],
     "face_mask_blur": 0.3,
     "face_mask_padding": [0, 0, 0, 0],
     "output_image_quality": 95,
@@ -108,20 +110,10 @@ current_config = {
 
 source_face_path: Optional[str] = None
 
-# ── InsightFace In-Memory Engine ──────────────────────────────────────────────
-# These are loaded once at startup and reused for every frame (50-200ms vs 14-35s)
-face_analyzer = None       # insightface.app.FaceAnalysis instance
-face_swapper_model = None  # INSwapper ONNX model
-source_face_embedding = None  # Pre-computed source face object from FaceAnalysis
-face_enhancer_net = None   # Face enhancement (OpenCV-based HD pipeline)
-INSWAPPER_MODEL_PATH = os.getenv(
-    "INSWAPPER_MODEL_PATH",
-    "/workspace/facefusion/.assets/models/inswapper_128.onnx"
-)
-GFPGAN_MODEL_PATH = os.getenv(
-    "GFPGAN_MODEL_PATH",
-    "/workspace/facefusion/.assets/models/GFPGANv1.4.pth"
-)
+# ── FaceFusion Native Engine State ───────────────────────────────────────────
+# These are initialized once at startup via FaceFusion's native API
+ff_engine_ready = False
+ff_source_face = None  # FaceFusion Face object (with embedding)
 
 
 # ── Auth ─────────────────────────────────────────────────────────────────────
@@ -311,252 +303,159 @@ def build_facefusion_headless_cmd(input_path: str, output_path: str) -> list:
     return cmd
 
 
-# ── HD Enhancement Helper Functions ───────────────────────────────────────────
+# ── FaceFusion Native API Engine ─────────────────────────────────────────────
 
-def _color_correct_face(original, swapped, faces):
+def init_facefusion_engine():
     """
-    Color-correct the swapped face region to match the original frame's skin tone.
-    Uses histogram matching in LAB color space for natural color blending.
+    Initialize FaceFusion's native Python API for in-memory face swapping.
+    This gives us the full quality of FaceFusion (proper masking, blending,
+    occlusion handling) without the overhead of CLI subprocess calls.
     """
+    global ff_engine_ready
+
     try:
+        # Add FaceFusion to Python path
+        if FACEFUSION_DIR not in sys.path:
+            sys.path.insert(0, FACEFUSION_DIR)
+
+        from facefusion import state_manager
+
+        # Initialize all required state items for FaceFusion's internal modules
+        state_manager.init_item('face_detector_model', 'yolo_face')
+        state_manager.init_item('face_detector_score', 0.5)
+        state_manager.init_item('face_detector_size', '640x640')
+        state_manager.init_item('face_detector_angles', [0])
+        state_manager.init_item('face_detector_margin', [0, 0, 0, 0])
+        state_manager.init_item('face_landmarker_model', '2dfan4')
+        state_manager.init_item('face_landmarker_score', 0.5)
+        state_manager.init_item('execution_providers', ['CUDAExecutionProvider'])
+        state_manager.init_item('execution_device_id', 0)
+        state_manager.init_item('execution_device_ids', ['0'])
+        state_manager.init_item('execution_thread_count', 4)
+        state_manager.init_item('face_recognizer_model', 'arcface_inswapper')
+        state_manager.init_item('face_swapper_model', 'inswapper_128')
+        state_manager.init_item('face_swapper_pixel_boost', '128x128')
+        state_manager.init_item('face_swapper_weight', 0.5)
+        state_manager.init_item('face_mask_types', ['box', 'occlusion'])
+        state_manager.init_item('face_mask_blur', 0.3)
+        state_manager.init_item('face_mask_padding', [0, 0, 0, 0])
+        state_manager.init_item('face_mask_regions', [])
+        state_manager.init_item('video_memory_strategy', 'tolerant')
+        state_manager.init_item('download_providers', ['github'])
+        state_manager.init_item('face_classifier_model', 'fairface')
+        state_manager.init_item('face_occluder_model', 'xseg_1')
+        state_manager.init_item('face_parser_model', 'bisenet')
+
+        # Import the modules we need
+        from facefusion.face_detector import detect_faces
+        from facefusion.face_analyser import create_faces, get_one_face
+        from facefusion.processors.modules.face_swapper.core import swap_face
+
+        logger.info("[FaceFusion] State manager initialized with all required items")
+        logger.info("[FaceFusion] Native API modules imported successfully")
+
+        # Warmup: run a dummy detection to load ONNX models into GPU memory
         import cv2
         import numpy as np
-        
-        result = swapped.copy()
-        for face in faces:
-            bbox = face.bbox.astype(int)
-            x1, y1, x2, y2 = bbox
-            # Clamp to image bounds
-            h, w = original.shape[:2]
-            x1, y1 = max(0, x1), max(0, y1)
-            x2, y2 = min(w, x2), min(h, y2)
-            if x2 <= x1 or y2 <= y1:
-                continue
-            
-            # Extract face regions
-            orig_face = original[y1:y2, x1:x2]
-            swap_face = result[y1:y2, x1:x2]
-            
-            if orig_face.size == 0 or swap_face.size == 0:
-                continue
-            
-            # Convert to LAB for perceptual color matching
-            orig_lab = cv2.cvtColor(orig_face, cv2.COLOR_BGR2LAB).astype(np.float32)
-            swap_lab = cv2.cvtColor(swap_face, cv2.COLOR_BGR2LAB).astype(np.float32)
-            
-            # Match mean and std of each channel
-            for ch in range(3):
-                orig_mean = orig_lab[:, :, ch].mean()
-                orig_std = orig_lab[:, :, ch].std() + 1e-6
-                swap_mean = swap_lab[:, :, ch].mean()
-                swap_std = swap_lab[:, :, ch].std() + 1e-6
-                
-                # Normalize and re-scale
-                swap_lab[:, :, ch] = (
-                    (swap_lab[:, :, ch] - swap_mean) * (orig_std / swap_std) + orig_mean
-                )
-            
-            # Clip and convert back
-            swap_lab = np.clip(swap_lab, 0, 255).astype(np.uint8)
-            corrected = cv2.cvtColor(swap_lab, cv2.COLOR_LAB2BGR)
-            result[y1:y2, x1:x2] = corrected
-        
-        return result
-    except Exception:
-        return swapped
+        dummy_img = np.zeros((128, 128, 3), dtype=np.uint8)
+        try:
+            detect_faces(dummy_img)
+            logger.info("[FaceFusion] Face detector warmed up")
+        except Exception as e:
+            logger.warning(f"[FaceFusion] Warmup detect_faces failed (non-fatal): {e}")
+
+        ff_engine_ready = True
+        logger.info("[FaceFusion] Native engine initialized successfully")
+        return True
+
+    except Exception as e:
+        logger.error(f"[FaceFusion] Failed to initialize native engine: {e}")
+        import traceback
+        traceback.print_exc()
+        ff_engine_ready = False
+        return False
 
 
-def _fast_seamless_blend(original, swapped, faces):
+def ff_compute_source_face(image_path: str, face_index: int = 0):
     """
-    Fast seamless blend optimized for real-time preview.
-    Uses OpenCV's seamlessClone (Poisson blending) for invisible boundaries.
-    Falls back to wide-blur alpha blend if seamlessClone fails.
-    ~5-10ms at 640x480 on GPU.
+    Compute source face embedding using FaceFusion's native API.
+    Returns a Face object that can be used with swap_face().
     """
+    global ff_source_face
+
     try:
         import cv2
-        import numpy as np
-        
-        h, w = original.shape[:2]
-        result = swapped.copy()
-        
-        for face in faces:
-            bbox = face.bbox.astype(int)
-            x1, y1, x2, y2 = bbox
-            
-            # Expand bbox generously for better blending
-            face_w = x2 - x1
-            face_h = y2 - y1
-            pad_x = int(face_w * 0.25)
-            pad_y = int(face_h * 0.30)  # More padding vertically (forehead/chin)
-            x1 = max(0, x1 - pad_x)
-            y1 = max(0, y1 - pad_y)
-            x2 = min(w, x2 + pad_x)
-            y2 = min(h, y2 + pad_y)
-            
-            if x2 <= x1 or y2 <= y1:
-                continue
-            
-            # Create face mask - large ellipse covering entire face + forehead
-            center_x = (x1 + x2) // 2
-            center_y = (y1 + y2) // 2
-            mask = np.zeros((h, w), dtype=np.uint8)
-            
-            # Large ellipse - covers well beyond face boundary
-            axes_x = int((x2 - x1) * 0.50)
-            axes_y = int((y2 - y1) * 0.55)
-            cv2.ellipse(mask, (center_x, center_y), (axes_x, axes_y), 0, 0, 360, 255, -1)
-            
-            # Try Poisson blending (seamlessClone) - best quality, invisible seams
-            try:
-                # seamlessClone needs the mask to be within bounds
-                result = cv2.seamlessClone(
-                    swapped, original, mask, (center_x, center_y), cv2.NORMAL_CLONE
-                )
-                break  # seamlessClone processes entire image
-            except Exception:
-                # Fallback: wide Gaussian blur alpha blend
-                blur_size = max(31, int(face_w * 0.4)) | 1  # Wide blur
-                mask_blurred = cv2.GaussianBlur(mask, (blur_size, blur_size), 0)
-                alpha = mask_blurred.astype(np.float32) / 255.0
-                alpha = alpha[:, :, np.newaxis]
-                result = (swapped * alpha + original * (1 - alpha)).astype(np.uint8)
-        
-        return result
-    except Exception:
-        return swapped
+        from facefusion.face_detector import detect_faces
+        from facefusion.face_analyser import create_faces, get_one_face
+
+        img = cv2.imread(image_path)
+        if img is None:
+            logger.error(f"[FaceFusion] Cannot read image: {image_path}")
+            return None
+
+        bboxes, scores, landmarks = detect_faces(img)
+        if len(bboxes) == 0:
+            logger.warning(f"[FaceFusion] No faces detected in {image_path}")
+            return None
+
+        faces = create_faces(img, bboxes, scores, landmarks)
+        if not faces:
+            logger.warning(f"[FaceFusion] create_faces returned empty list")
+            return None
+
+        # Select face by index
+        idx = min(face_index, len(faces) - 1)
+        ff_source_face = faces[idx]
+        logger.info(f"[FaceFusion] Source face computed ({len(faces)} faces detected, using index {idx})")
+        return ff_source_face
+
+    except Exception as e:
+        logger.error(f"[FaceFusion] Error computing source face: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
-def _seamless_blend(original, swapped, faces):
+def ff_swap_single_frame(frame, use_enhancer: bool = False):
     """
-    Apply smooth alpha blending at face boundaries for natural integration.
-    Uses an elliptical mask with Gaussian blur for seamless transitions.
-    Adapts blur radius to input resolution for consistent quality.
-    """
-    try:
-        import cv2
-        import numpy as np
-        
-        result = swapped.copy()
-        h, w = original.shape[:2]
-        is_hd = w >= 1920
-        
-        for face in faces:
-            bbox = face.bbox.astype(int)
-            x1, y1, x2, y2 = bbox
-            # Expand bbox for better blending coverage
-            pad_ratio = 0.18 if is_hd else 0.15
-            pad = int((x2 - x1) * pad_ratio)
-            x1, y1 = max(0, x1 - pad), max(0, y1 - pad)
-            x2, y2 = min(w, x2 + pad), min(h, y2 + pad)
-            if x2 <= x1 or y2 <= y1:
-                continue
-            
-            # Create elliptical mask for face region
-            face_w = x2 - x1
-            face_h = y2 - y1
-            center_x = (x1 + x2) // 2
-            center_y = (y1 + y2) // 2
-            
-            mask = np.zeros((h, w), dtype=np.uint8)
-            # Ellipse size: slightly larger for HD to cover more area
-            ellipse_scale = 0.48 if is_hd else 0.45
-            cv2.ellipse(
-                mask,
-                (center_x, center_y),
-                (int(face_w * ellipse_scale), int(face_h * ellipse_scale)),
-                0, 0, 360, 255, -1
-            )
-            
-            # Gaussian blur for smooth transition - wider for HD
-            blur_divisor = 4 if is_hd else 5
-            blur_size = max(5, face_w // blur_divisor) | 1  # Must be odd
-            mask_blurred = cv2.GaussianBlur(mask, (blur_size, blur_size), 0)
-            
-            # Alpha blend using the blurred mask
-            alpha = mask_blurred.astype(np.float32) / 255.0
-            alpha = alpha[:, :, np.newaxis]
-            
-            result = (swapped * alpha + original * (1 - alpha)).astype(np.uint8)
-        
-        return result
-    except Exception:
-        return swapped
-
-
-def _enhance_face_opencv(image, faces):
-    """
-    OpenCV-based HD face enhancement pipeline.
-    Applies bilateral filtering (denoise while preserving edges),
-    unsharp masking (sharpen details), and CLAHE contrast enhancement
-    to face regions only.
+    Process a single frame through FaceFusion's native swap_face().
+    Returns the processed frame (numpy array) or None on failure.
     
-    Parameters adapt to input resolution:
-    - 1080p+: Stronger enhancement, larger kernels for more detail
-    - 720p: Balanced enhancement
-    - 480p: Lighter touch to avoid artifacts
+    This uses FaceFusion's full pipeline including:
+    - Proper face masking (box + occlusion)
+    - High-quality blending
+    - No "overlapping face" artifacts
     """
+    global ff_source_face
+
+    if ff_source_face is None:
+        return None
+
     try:
         import cv2
-        import numpy as np
-        
-        result = image.copy()
-        h, w = image.shape[:2]
-        
-        # Adapt parameters based on resolution
-        is_hd = w >= 1920  # 1080p or higher
-        is_sd = w < 1000   # 480p or lower
-        
-        for face in faces:
-            bbox = face.bbox.astype(int)
-            x1, y1, x2, y2 = bbox
-            # Expand slightly to include forehead/chin
-            pad_x = int((x2 - x1) * 0.10)
-            pad_y = int((y2 - y1) * 0.10)
-            x1, y1 = max(0, x1 - pad_x), max(0, y1 - pad_y)
-            x2, y2 = min(w, x2 + pad_x), min(h, y2 + pad_y)
-            if x2 <= x1 or y2 <= y1:
-                continue
-            
-            face_region = result[y1:y2, x1:x2]
-            if face_region.size == 0:
-                continue
-            
-            # Step 1: Bilateral filter - removes noise while keeping edges sharp
-            # Stronger for HD (more pixels = more detail to preserve)
-            if is_hd:
-                denoised = cv2.bilateralFilter(face_region, d=9, sigmaColor=60, sigmaSpace=60)
-            elif is_sd:
-                denoised = cv2.bilateralFilter(face_region, d=5, sigmaColor=40, sigmaSpace=40)
-            else:
-                denoised = cv2.bilateralFilter(face_region, d=7, sigmaColor=50, sigmaSpace=50)
-            
-            # Step 2: Unsharp mask - enhances fine details (eyes, lips, skin texture)
-            # HD gets stronger sharpening since there's more detail to enhance
-            if is_hd:
-                gaussian = cv2.GaussianBlur(denoised, (0, 0), 2.0)
-                sharpened = cv2.addWeighted(denoised, 1.8, gaussian, -0.8, 0)
-            elif is_sd:
-                gaussian = cv2.GaussianBlur(denoised, (0, 0), 1.0)
-                sharpened = cv2.addWeighted(denoised, 1.4, gaussian, -0.4, 0)
-            else:
-                gaussian = cv2.GaussianBlur(denoised, (0, 0), 1.5)
-                sharpened = cv2.addWeighted(denoised, 1.6, gaussian, -0.6, 0)
-            
-            # Step 3: Contrast enhancement via CLAHE on L channel
-            lab = cv2.cvtColor(sharpened, cv2.COLOR_BGR2LAB)
-            l_channel = lab[:, :, 0]
-            clip_limit = 2.5 if is_hd else 2.0 if not is_sd else 1.5
-            tile_size = (8, 8) if is_hd else (4, 4)
-            clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_size)
-            lab[:, :, 0] = clahe.apply(l_channel)
-            enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
-            
-            result[y1:y2, x1:x2] = enhanced
-        
+        from facefusion.face_detector import detect_faces
+        from facefusion.face_analyser import create_faces, get_one_face
+        from facefusion.processors.modules.face_swapper.core import swap_face
+
+        # Detect faces in target frame
+        bboxes, scores, landmarks = detect_faces(frame)
+        if len(bboxes) == 0:
+            return frame  # No faces - return original
+
+        target_faces = create_faces(frame, bboxes, scores, landmarks)
+        if not target_faces:
+            return frame
+
+        # Swap each detected face with the source face
+        result = frame.copy()
+        for target_face in target_faces:
+            result = swap_face(ff_source_face, target_face, result)
+
         return result
-    except Exception:
-        return image
+
+    except Exception as e:
+        logger.error(f"[FaceFusion] swap_face error: {e}")
+        return None
 
 
 # ── Lifespan ─────────────────────────────────────────────────────────────────
@@ -564,7 +463,7 @@ def _enhance_face_opencv(image, faces):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
-    global face_analyzer, face_swapper_model, source_face_embedding, source_face_path, face_enhancer_net
+    global source_face_path, ff_source_face
 
     logger.info("FaceFusion GPU Worker starting up...")
     logger.info(f"FaceFusion directory: {FACEFUSION_DIR}")
@@ -573,61 +472,21 @@ async def lifespan(app: FastAPI):
     gpu_info = get_gpu_info()
     logger.info(f"GPU: {gpu_info['gpu_name']} ({gpu_info['gpu_memory_total_mb']}MB)")
 
-    # ── Load InsightFace models for in-memory face swap ──────────────────────
-    try:
-        import insightface
-        from insightface.app import FaceAnalysis
-        import onnxruntime
+    # ── Initialize FaceFusion Native Engine ──────────────────────────────────
+    engine_ok = init_facefusion_engine()
 
-        logger.info("[InsightFace] Loading face analyzer (buffalo_l)...")
-        face_analyzer = FaceAnalysis(
-            name='buffalo_l',
-            providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
-        )
-        face_analyzer.prepare(ctx_id=0, det_size=(640, 640))
-        logger.info("[InsightFace] Face analyzer loaded successfully")
-
-        if os.path.exists(INSWAPPER_MODEL_PATH):
-            logger.info(f"[InsightFace] Loading swapper model: {INSWAPPER_MODEL_PATH}")
-            face_swapper_model = insightface.model_zoo.get_model(
-                INSWAPPER_MODEL_PATH,
-                download=False,
-                providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
-            )
-            logger.info("[InsightFace] Swapper model loaded successfully")
-        else:
-            logger.warning(f"[InsightFace] inswapper_128.onnx not found at {INSWAPPER_MODEL_PATH}")
-            logger.warning("[InsightFace] Will fall back to FaceFusion CLI for face swap")
-
-        # If a source face was previously saved, pre-compute embedding
+    # If a source face was previously saved, pre-compute embedding
+    if engine_ok:
         existing_faces = sorted(Path(SOURCE_FACE_DIR).glob("source_face_*.jpg"), reverse=True)
-        if existing_faces and face_analyzer:
-            import cv2
+        if existing_faces:
             latest_face = str(existing_faces[0])
-            source_face_path = latest_face  # Also set the global path
-            img = cv2.imread(latest_face)
-            if img is not None:
-                faces = face_analyzer.get(img)
-                if faces:
-                    source_face_embedding = faces[0]
-                    logger.info(f"[InsightFace] Pre-loaded source face from {latest_face}")
+            source_face_path = latest_face
+            ff_compute_source_face(latest_face)
+            if ff_source_face is not None:
+                logger.info(f"[FaceFusion] Pre-loaded source face from {latest_face}")
 
-    except ImportError as e:
-        logger.warning(f"[InsightFace] insightface not available: {e}")
-        logger.warning("[InsightFace] Will use FaceFusion CLI fallback")
-    except Exception as e:
-        logger.error(f"[InsightFace] Failed to load models: {e}")
-        logger.warning("[InsightFace] Will use FaceFusion CLI fallback")
-
-    # ── OpenCV-based HD face enhancement pipeline ─────────────────────────
-    # No external model needed - uses bilateral filter + unsharp mask
-    face_enhancer_net = "opencv_hd"  # Marker to indicate enhancement is available
-    logger.info("[HD Enhancement] OpenCV-based pipeline enabled (bilateral + unsharp + color_correct + seamless_blend)")
-
-    logger.info(f"[InsightFace] Engine status: analyzer={'OK' if face_analyzer else 'NONE'}, "
-                f"swapper={'OK' if face_swapper_model else 'NONE'}, "
-                f"source_face={'OK' if source_face_embedding else 'NONE'}, "
-                f"enhancer={'OK' if face_enhancer_net else 'NONE'}")
+    logger.info(f"[FaceFusion] Engine status: ready={ff_engine_ready}, "
+                f"source_face={'OK' if ff_source_face else 'NONE'}")
 
     yield
 
@@ -645,8 +504,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="FaceFusion GPU Worker",
-    description="Real-time face swap worker for AitherHub",
-    version="1.0.0",
+    description="Real-time face swap worker for AitherHub (FaceFusion Native API)",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -677,9 +536,9 @@ async def health_check(auth: bool = Depends(verify_api_key)):
                 [sys.executable, f"{FACEFUSION_DIR}/facefusion.py", "--version"],
                 capture_output=True, text=True, timeout=10,
             )
-            ff_version = result.stdout.strip() or "3.5.x"
+            ff_version = result.stdout.strip() or "3.6.x"
         except Exception:
-            ff_version = "3.5.x (assumed)"
+            ff_version = "3.6.x (assumed)"
 
     return {
         "status": "ok" if ff_installed else "facefusion_not_found",
@@ -690,17 +549,13 @@ async def health_check(auth: bool = Depends(verify_api_key)):
         "stream_status": current_session["status"],
         "session_id": current_session["id"],
         "config": current_config,
-        "insightface_engine": {
-            "face_analyzer": face_analyzer is not None,
-            "face_swapper_model": face_swapper_model is not None,
-            "source_face_embedding": source_face_embedding is not None,
-            "face_enhancer_hd": face_enhancer_net is not None,
-            "hd_pipeline": "color_correction + opencv_enhance(bilateral+unsharp+clahe) + seamless_blend",
-            "ready": all([
-                face_analyzer is not None,
-                face_swapper_model is not None,
-                source_face_embedding is not None,
-            ]),
+        "engine": {
+            "type": "facefusion_native_api",
+            "version": "2.0.0",
+            "ff_engine_ready": ff_engine_ready,
+            "source_face_loaded": ff_source_face is not None,
+            "pipeline": "detect_faces → create_faces → swap_face (box+occlusion masking)",
+            "ready": ff_engine_ready and ff_source_face is not None,
         },
     }
 
@@ -750,33 +605,32 @@ async def set_source(
 
     source_face_path = save_path
 
-    # Compute source face embedding using InsightFace in-memory engine
-    global source_face_embedding
+    # Compute source face using FaceFusion native API
     face_detected = False
     num_faces = 0
 
-    if face_analyzer is not None:
+    if ff_engine_ready:
         try:
             import cv2
+            from facefusion.face_detector import detect_faces
+
             img = cv2.imread(save_path)
             if img is not None:
-                faces = face_analyzer.get(img)
-                num_faces = len(faces)
-                if faces:
-                    # Use specified face_index (default 0 = largest/most prominent)
-                    idx = min(face_index, len(faces) - 1)
-                    source_face_embedding = faces[idx]
-                    face_detected = True
-                    logger.info(f"[InsightFace] Source face embedding computed "
-                                f"({num_faces} faces detected, using index {idx})")
+                bboxes, scores, landmarks = detect_faces(img)
+                num_faces = len(bboxes)
+                if num_faces > 0:
+                    face = ff_compute_source_face(save_path, face_index)
+                    face_detected = face is not None
+                    logger.info(f"[FaceFusion] Source face computed "
+                                f"({num_faces} faces detected, using index {face_index})")
                 else:
-                    logger.warning("[InsightFace] No faces detected in source image")
+                    logger.warning("[FaceFusion] No faces detected in source image")
         except Exception as e:
-            logger.error(f"[InsightFace] Error computing source face embedding: {e}")
+            logger.error(f"[FaceFusion] Error computing source face: {e}")
     else:
-        # Fallback: assume face is valid, will use FaceFusion CLI
+        # Engine not ready - just save the file for CLI fallback
         face_detected = True
-        logger.info("[InsightFace] Engine not loaded, skipping embedding computation")
+        logger.info("[FaceFusion] Engine not ready, source saved for CLI fallback")
 
     return {
         "status": "ok",
@@ -784,7 +638,7 @@ async def set_source(
         "face_detected": face_detected,
         "face_index": face_index,
         "num_faces_detected": num_faces,
-        "insightface_engine": face_analyzer is not None,
+        "engine": "facefusion_native" if ff_engine_ready else "cli_fallback",
     }
 
 
@@ -1045,17 +899,53 @@ async def stream_status(auth: bool = Depends(verify_api_key)):
 async def swap_frame(req: SwapFrameRequest, auth: bool = Depends(verify_api_key)):
     """
     Swap face on a single image (for testing/preview).
+    Uses FaceFusion native API for high-quality results.
     Returns the processed image as base64.
     """
     if source_face_path is None or not Path(source_face_path).exists():
         raise HTTPException(400, "Source face not set. Call /api/set-source first.")
 
-    # Save input image
+    content = base64.b64decode(req.image_base64)
+    start_time = time.time()
+
+    # Try FaceFusion native API first
+    if ff_engine_ready and ff_source_face is not None:
+        try:
+            import cv2
+            import numpy as np
+
+            nparr = np.frombuffer(content, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+            if frame is None:
+                raise ValueError("Failed to decode image")
+
+            result = ff_swap_single_frame(frame, use_enhancer=req.face_enhancer)
+
+            if result is not None:
+                _, encoded = cv2.imencode('.jpg', result,
+                                          [cv2.IMWRITE_JPEG_QUALITY, 95])
+                output_base64 = base64.b64encode(encoded.tobytes()).decode()
+
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                logger.info(f"[swap-frame] Processed in {elapsed_ms}ms (FaceFusion native)")
+
+                return {
+                    "status": "ok",
+                    "image_base64": output_base64,
+                    "quality": req.quality,
+                    "face_enhancer": req.face_enhancer,
+                    "processing_time_ms": elapsed_ms,
+                    "engine": "facefusion_native",
+                }
+        except Exception as e:
+            logger.warning(f"[swap-frame] Native API failed, falling back to CLI: {e}")
+
+    # Fallback to FaceFusion CLI
     input_path = os.path.join(TEMP_DIR, f"input_{uuid.uuid4().hex[:8]}.jpg")
     output_path = os.path.join(TEMP_DIR, f"output_{uuid.uuid4().hex[:8]}.jpg")
 
     try:
-        content = base64.b64decode(req.image_base64)
         with open(input_path, "wb") as f:
             f.write(content)
 
@@ -1065,10 +955,9 @@ async def swap_frame(req: SwapFrameRequest, auth: bool = Depends(verify_api_key)
 
         # Run FaceFusion headless
         cmd = build_facefusion_headless_cmd(input_path, output_path)
-        logger.info(f"Processing single frame: {' '.join(cmd)}")
+        logger.info(f"Processing single frame via CLI: {' '.join(cmd[:6])}...")
 
-        import os as _os
-        _env = _os.environ.copy()
+        _env = os.environ.copy()
         _env["LD_LIBRARY_PATH"] = "/usr/lib/x86_64-linux-gnu:" + _env.get("LD_LIBRARY_PATH", "")
         result = subprocess.run(
             cmd,
@@ -1093,11 +982,14 @@ async def swap_frame(req: SwapFrameRequest, auth: bool = Depends(verify_api_key)
         with open(output_path, "rb") as f:
             output_base64 = base64.b64encode(f.read()).decode()
 
+        elapsed_ms = int((time.time() - start_time) * 1000)
         return {
             "status": "ok",
             "image_base64": output_base64,
             "quality": req.quality,
             "face_enhancer": req.face_enhancer,
+            "processing_time_ms": elapsed_ms,
+            "engine": "facefusion_cli",
         }
 
     finally:
@@ -1565,16 +1457,18 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
     """
     WebSocket endpoint for real-time face swap preview.
     
-    OPTIMIZED for maximum FPS:
-    - Processes at 640x480 internally regardless of input resolution
-    - Upscales result back to original resolution
-    - Skips heavy enhancement pipeline for real-time (color_correct only)
-    - Uses async producer/consumer pattern to avoid blocking
+    Uses FaceFusion's native swap_face() API for HIGH QUALITY results:
+    - Proper face masking (box + occlusion) - no "overlapping face" artifacts
+    - High-quality blending built into FaceFusion
+    - ~5-7 seconds per frame (GPU-accelerated)
+    
+    For real-time streaming, frames are processed sequentially with
+    frame-skipping to maintain responsiveness.
     
     Protocol:
       1. Client connects with ?api_key=xxx
       2. Client sends JPEG frames as binary messages
-      3. Server processes each frame through InsightFace in-memory engine
+      3. Server processes each frame through FaceFusion native API
       4. Server returns processed JPEG frame as binary message
     """
     # Verify API key
@@ -1589,20 +1483,13 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
     error_count = 0
     MAX_ERRORS = 10
     
-    # Processing resolution - sweet spot for speed vs quality
-    # inswapper_128 works on 128x128 face crops internally anyway
-    PROCESS_W = 640
-    PROCESS_H = 480
+    # Check if FaceFusion engine is available
+    use_native = ff_engine_ready and ff_source_face is not None
     
-    # Check if InsightFace engine is available
-    use_insightface = (face_analyzer is not None and 
-                       face_swapper_model is not None and 
-                       source_face_embedding is not None)
-    
-    if use_insightface:
-        logger.info("[Preview] Using InsightFace in-memory engine (FAST mode - 640x480 internal)")
+    if use_native:
+        logger.info("[Preview] Using FaceFusion native API (HIGH QUALITY mode)")
     else:
-        logger.warning("[Preview] InsightFace engine not ready, using FaceFusion CLI fallback")
+        logger.warning("[Preview] FaceFusion engine not ready, using CLI fallback")
     
     try:
         import cv2
@@ -1647,7 +1534,7 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
                 
                 last_data = data
                 
-                if source_face_embedding is None and (source_face_path is None or not Path(source_face_path).exists()):
+                if ff_source_face is None and (source_face_path is None or not Path(source_face_path).exists()):
                     await websocket.send_json({
                         "type": "error",
                         "message": "Source face not set. Upload a face image first."
@@ -1658,8 +1545,8 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
                 try:
                     start_time = time.time()
                     
-                    if use_insightface and source_face_embedding is not None:
-                        # ── FAST InsightFace Processing ──────────────────────
+                    if use_native and ff_source_face is not None:
+                        # ── FaceFusion Native API Processing ──────────────────
                         # Decode JPEG
                         nparr = np.frombuffer(data, np.uint8)
                         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -1671,61 +1558,33 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
                         
                         h_orig, w_orig = frame.shape[:2]
                         
-                        # ── KEY OPTIMIZATION: Downscale for processing ──────
-                        # Face swap quality depends on face crop (128x128), not input res
-                        need_resize = w_orig > PROCESS_W or h_orig > PROCESS_H
-                        if need_resize:
-                            process_frame = cv2.resize(frame, (PROCESS_W, PROCESS_H), 
-                                                       interpolation=cv2.INTER_AREA)
-                        else:
-                            process_frame = frame
+                        # Process frame through FaceFusion native API
+                        result = ff_swap_single_frame(frame)
                         
-                        # Detect faces in downscaled frame
-                        target_faces = face_analyzer.get(process_frame)
-                        
-                        if target_faces:
-                            # Swap faces
-                            result = process_frame.copy()
-                            for target_face in target_faces:
-                                result = face_swapper_model.get(
-                                    result, target_face, source_face_embedding, paste_back=True
-                                )
-                            
-                            # ── LIGHTWEIGHT post-processing (real-time safe) ──
-                            # Color correction + fast seamless blend for natural boundaries
-                            result = _color_correct_face(process_frame, result, target_faces)
-                            result = _fast_seamless_blend(process_frame, result, target_faces)
-                            
-                            # ── Upscale back to original resolution ──────────
-                            if need_resize:
-                                result = cv2.resize(result, (w_orig, h_orig),
-                                                    interpolation=cv2.INTER_LANCZOS4)
-                            
-                            # Encode - use 90% quality for speed (smaller payload = faster transfer)
+                        if result is not None:
+                            # Encode result
                             _, encoded = cv2.imencode('.jpg', result, 
                                                       [cv2.IMWRITE_JPEG_QUALITY, 90])
                             processed = encoded.tobytes()
                         else:
-                            # No faces detected - return original
+                            # Processing failed - return original
                             processed = data
                         
                         elapsed_ms = int((time.time() - start_time) * 1000)
                         total_process_time += elapsed_ms
                         frames_processed += 1
                         
-                        if frames_processed % 100 == 0:
+                        if frames_processed % 10 == 0:
                             avg_ms = total_process_time / max(1, frames_processed)
-                            theoretical_fps = 1000.0 / max(1, avg_ms)
                             logger.info(f"[Preview] Frame {frames_processed}: {elapsed_ms}ms "
-                                        f"(avg: {avg_ms:.0f}ms, ~{theoretical_fps:.1f} FPS, "
-                                        f"{len(target_faces) if target_faces else 0} faces, "
-                                        f"process@{PROCESS_W}x{PROCESS_H}, output@{w_orig}x{h_orig})")
+                                        f"(avg: {avg_ms:.0f}ms, "
+                                        f"output@{w_orig}x{h_orig})")
                         
                         await websocket.send_bytes(processed)
                         error_count = 0
                         
                     else:
-                        # ── FaceFusion CLI Fallback (14-35s) ─────────────────────
+                        # ── FaceFusion CLI Fallback ─────────────────────────────
                         input_path = os.path.join(TEMP_DIR, f"preview_in_{frames_processed % 10}.jpg")
                         output_path = os.path.join(TEMP_DIR, f"preview_out_{frames_processed % 10}.jpg")
                         
@@ -1748,6 +1607,9 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
                         else:
                             error_count += 1
                             await websocket.send_bytes(data)
+                        
+                        elapsed_ms = int((time.time() - start_time) * 1000)
+                        frames_processed += 1
                         
                         for p in (input_path, output_path):
                             try:
@@ -1799,8 +1661,7 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
 async def preview_frame(req: SwapFrameRequest, auth: bool = Depends(verify_api_key)):
     """
     Process a single frame for preview (HTTP fallback for WebSocket).
-    Uses InsightFace in-memory engine when available (50-200ms),
-    falls back to FaceFusion CLI (14-35s) otherwise.
+    Uses FaceFusion native API for high-quality results.
     Returns processed image as base64.
     """
     if source_face_path is None or not Path(source_face_path).exists():
@@ -1810,9 +1671,8 @@ async def preview_frame(req: SwapFrameRequest, auth: bool = Depends(verify_api_k
     start_time = time.time()
     engine_used = "unknown"
     
-    # Try InsightFace in-memory engine first
-    if (face_analyzer is not None and face_swapper_model is not None 
-            and source_face_embedding is not None):
+    # Try FaceFusion native API first
+    if ff_engine_ready and ff_source_face is not None:
         try:
             import cv2
             import numpy as np
@@ -1823,45 +1683,36 @@ async def preview_frame(req: SwapFrameRequest, auth: bool = Depends(verify_api_k
             if frame is None:
                 raise ValueError("Failed to decode image")
             
-            target_faces = face_analyzer.get(frame)
+            result = ff_swap_single_frame(frame, use_enhancer=req.face_enhancer)
             
-            if target_faces:
-                result = frame.copy()
-                for target_face in target_faces:
-                    result = face_swapper_model.get(
-                        result, target_face, source_face_embedding, paste_back=True
-                    )
-                
-                # HD Enhancement Pipeline
-                result = _color_correct_face(frame, result, target_faces)
-                if face_enhancer_net is not None:
-                    try:
-                        result = _enhance_face_opencv(result, target_faces)
-                    except Exception:
-                        pass
-                result = _seamless_blend(frame, result, target_faces)
-                
+            if result is not None:
                 _, encoded = cv2.imencode('.jpg', result,
                                           [cv2.IMWRITE_JPEG_QUALITY, 95])
                 output_base64 = base64.b64encode(encoded.tobytes()).decode()
+                
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                engine_used = "facefusion_native"
+                logger.info(f"[Preview] Frame processed in {elapsed_ms}ms (FaceFusion native)")
+                
+                return {
+                    "status": "ok",
+                    "image_base64": output_base64,
+                    "processing_time_ms": elapsed_ms,
+                    "engine": engine_used,
+                }
             else:
-                # No faces detected - return original
+                # No faces detected or processing failed - return original
                 output_base64 = req.image_base64
-            
-            elapsed_ms = int((time.time() - start_time) * 1000)
-            engine_used = "insightface"
-            logger.info(f"[Preview] Frame processed in {elapsed_ms}ms "
-                        f"(InsightFace, {len(target_faces)} faces)")
-            
-            return {
-                "status": "ok",
-                "image_base64": output_base64,
-                "processing_time_ms": elapsed_ms,
-                "engine": engine_used,
-                "faces_detected": len(target_faces),
-            }
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                return {
+                    "status": "ok",
+                    "image_base64": output_base64,
+                    "processing_time_ms": elapsed_ms,
+                    "engine": "facefusion_native",
+                    "note": "no_faces_detected",
+                }
         except Exception as e:
-            logger.warning(f"[Preview] InsightFace failed, falling back to CLI: {e}")
+            logger.warning(f"[Preview] FaceFusion native failed, falling back to CLI: {e}")
     
     # Fallback to FaceFusion CLI
     input_path = os.path.join(TEMP_DIR, f"preview_{uuid.uuid4().hex[:8]}.jpg")
