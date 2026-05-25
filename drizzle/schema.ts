@@ -5885,3 +5885,38 @@ export const featuredProductPenalties = mysqlTable("featured_product_penalties",
 });
 export type FeaturedProductPenalty = typeof featuredProductPenalties.$inferSelect;
 export type InsertFeaturedProductPenalty = typeof featuredProductPenalties.$inferInsert;
+
+/**
+ * Brand Short Videos table for tracking short video posts per brand
+ * ブランド別短視頻投稿記録テーブル - 各ブランドの短視頻投稿実績を記録
+ */
+export const brandShortVideos = mysqlTable("brand_short_videos", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  liverId: int("liverId"), // References livers.id - 投稿者ライバーID
+  liverName: varchar("liverName", { length: 255 }).notNull(), // 投稿者名
+  contractId: int("contractId"), // References brand_contracts.id - 紐付く契約
+  postDate: timestamp("postDate").notNull(), // 投稿日
+  platform: varchar("platform", { length: 100 }).default("TikTok"), // プラットフォーム (TikTok, YouTube Shorts, Instagram Reels)
+  videoUrl: text("videoUrl"), // 動画URL
+  thumbnailUrl: text("thumbnailUrl"), // サムネイルURL
+  title: varchar("title", { length: 500 }), // タイトル/説明
+  productName: varchar("productName", { length: 255 }), // 紐付く商品名
+  productId: int("productId"), // References brand_products.id
+  // パフォーマンスメトリクス
+  views: int("views").default(0), // 再生数
+  likes: int("likes").default(0), // いいね数
+  comments: int("comments").default(0), // コメント数
+  shares: int("shares").default(0), // シェア数
+  saves: int("saves").default(0), // 保存数
+  // ステータス
+  status: mysqlEnum("status", ["draft", "scheduled", "posted", "failed"]).default("posted").notNull(),
+  notes: text("notes"), // メモ
+  // 作成者情報
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  deletedAt: timestamp("deletedAt"), // ソフトデリート
+});
+export type BrandShortVideo = typeof brandShortVideos.$inferSelect;
+export type InsertBrandShortVideo = typeof brandShortVideos.$inferInsert;

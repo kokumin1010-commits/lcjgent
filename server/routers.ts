@@ -684,7 +684,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos } from "../drizzle/schema";
 import { eq, and, or, not, isNotNull, isNull, desc, gt, gte, lte, like, inArray, sql as sqlTag, sum, count, max } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -8617,6 +8617,37 @@ Return ONLY valid JSON, no markdown or explanation.`,
         const kgDurationHours = Math.round(kgDurationMin / 60 * 10) / 10;
         const liverDurationHours = Math.round(liverDurationMin / 60 * 10) / 10;
 
+        // 短視頻の実績を集計（brand_short_videosテーブルから）
+        let shortVideoActualCount = 0;
+        const videoLiverMap: Record<string, { liverName: string; count: number }> = {};
+        try {
+          const shortVideos = await db
+            .select({
+              id: brandShortVideos.id,
+              liverId: brandShortVideos.liverId,
+              liverName: brandShortVideos.liverName,
+            })
+            .from(brandShortVideos)
+            .where(and(
+              eq(brandShortVideos.brandId, brandId),
+              isNull(brandShortVideos.deletedAt),
+              gte(brandShortVideos.postDate, jstStart),
+              lte(brandShortVideos.postDate, jstEnd),
+              eq(brandShortVideos.status, "posted")
+            ));
+          shortVideoActualCount = shortVideos.length;
+          for (const sv of shortVideos) {
+            const key = sv.liverId ? `liver_${sv.liverId}` : `name_${sv.liverName}`;
+            if (!videoLiverMap[key]) {
+              videoLiverMap[key] = { liverName: sv.liverName, count: 0 };
+            }
+            videoLiverMap[key].count += 1;
+          }
+        } catch (e) {
+          // テーブルがまだ存在しない場合は0を返す
+          console.warn("[getQuotaProgress] brand_short_videos query failed:", e);
+        }
+
         return {
           brandId,
           year,
@@ -8630,7 +8661,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
             kgLiveHours: kgDurationHours,
             liverLiveHours: liverDurationHours,
             totalLiveHours: Math.round(totalDurationMin / 60 * 10) / 10,
-            shortVideoCount: 0, // TODO: 短視頻データソースが確定したら実装
+            shortVideoCount: shortVideoActualCount,
           },
           liverBreakdown: liverBreakdown.sort((a, b) => b.totalDurationMin - a.totalDurationMin),
           contracts: contracts.map(c => ({
@@ -8685,7 +8716,12 @@ Return ONLY valid JSON, no markdown or explanation.`,
                 }
               }
             }
-            // TODO: 短視頻の実績データソースが確定したら actual を集計
+            // 短視頻の実績データを集計
+            for (const [, vData] of Object.entries(videoLiverMap)) {
+              if (vMap[vData.liverName]) {
+                vMap[vData.liverName].actual += vData.count;
+              }
+            }
             return Object.entries(vMap).map(([name, data]) => ({
               liverName: name,
               quotaCount: data.quota,
@@ -8791,11 +8827,27 @@ Return ONLY valid JSON, no markdown or explanation.`,
             totalGmv += (ls.gmv || ls.salesAmount || 0);
           }
 
+          // 短視頻の実績を集計
+          let videoActual = 0;
+          try {
+            const vids = await db
+              .select({ id: brandShortVideos.id })
+              .from(brandShortVideos)
+              .where(and(
+                eq(brandShortVideos.brandId, brandId),
+                isNull(brandShortVideos.deletedAt),
+                gte(brandShortVideos.postDate, jstStart),
+                lte(brandShortVideos.postDate, jstEnd),
+                eq(brandShortVideos.status, "posted")
+              ));
+            videoActual = vids.length;
+          } catch (e) { /* table may not exist yet */ }
+
           months.push({
             year: y, month: m + 1, // 1-indexed
             kgQuota: totalKgQuota, kgActual: Math.round(kgMin / 60 * 10) / 10,
             liverQuota: totalLiverQuota, liverActual: Math.round(liverMin / 60 * 10) / 10,
-            videoQuota: totalVideoQuota, videoActual: 0,
+            videoQuota: totalVideoQuota, videoActual,
             totalGmv, streamCount,
           });
         }
@@ -8901,7 +8953,22 @@ Return ONLY valid JSON, no markdown or explanation.`,
 
           const kgPct = kgQ > 0 ? Math.round((kgA / kgQ) * 100) : -1;
           const liverPct = liverQ > 0 ? Math.round((liverA / liverQ) * 100) : -1;
-          const videoPct = videoQ > 0 ? 0 : -1; // TODO: 短視頻実績
+          // 短視頻実績を集計
+          let videoActualCount = 0;
+          try {
+            const vids = await db
+              .select({ id: brandShortVideos.id })
+              .from(brandShortVideos)
+              .where(and(
+                eq(brandShortVideos.brandId, bId),
+                isNull(brandShortVideos.deletedAt),
+                gte(brandShortVideos.postDate, jstStart),
+                lte(brandShortVideos.postDate, jstEnd),
+                eq(brandShortVideos.status, "posted")
+              ));
+            videoActualCount = vids.length;
+          } catch (e) { /* table may not exist yet */ }
+          const videoPct = videoQ > 0 ? Math.round((videoActualCount / videoQ) * 100) : -1;
 
           // ペースステータス計算
           const activePcts = [kgPct, liverPct, videoPct].filter(p => p >= 0);
@@ -8916,7 +8983,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
             brandId: bId,
             kgQuota: kgQ, kgActual: kgA, kgPct,
             liverQuota: liverQ, liverActual: liverA, liverPct,
-            videoQuota: videoQ, videoActual: 0, videoPct,
+            videoQuota: videoQ, videoActual: videoActualCount, videoPct,
             totalGmv: ls.gmv, streamCount: ls.count,
             monthProgressPct,
             paceStatus,
@@ -8924,6 +8991,187 @@ Return ONLY valid JSON, no markdown or explanation.`,
         }
 
         return { year, month, day, daysInMonth, monthProgressPct, results };
+      }),
+
+    // 短視頻CRUD API
+    listShortVideos: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        year: z.number().optional(),
+        month: z.number().optional(),
+        limit: z.number().optional().default(50),
+        offset: z.number().optional().default(0),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const { brandId, year, month, limit, offset } = input;
+
+        const conditions: any[] = [
+          eq(brandShortVideos.brandId, brandId),
+          isNull(brandShortVideos.deletedAt),
+        ];
+
+        if (year && month) {
+          const jstStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0) - 9 * 60 * 60 * 1000);
+          const lastDay = new Date(year, month, 0).getDate();
+          const jstEnd = new Date(Date.UTC(year, month - 1, lastDay, 23, 59, 59) - 9 * 60 * 60 * 1000);
+          conditions.push(gte(brandShortVideos.postDate, jstStart));
+          conditions.push(lte(brandShortVideos.postDate, jstEnd));
+        }
+
+        const videos = await db
+          .select()
+          .from(brandShortVideos)
+          .where(and(...conditions))
+          .orderBy(desc(brandShortVideos.postDate))
+          .limit(limit)
+          .offset(offset);
+
+        const totalResult = await db
+          .select({ count: sqlTag`COUNT(*)` })
+          .from(brandShortVideos)
+          .where(and(...conditions));
+        const total = Number(totalResult[0]?.count || 0);
+
+        return { videos, total };
+      }),
+
+    createShortVideo: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        liverId: z.number().nullable().optional(),
+        liverName: z.string(),
+        contractId: z.number().nullable().optional(),
+        postDate: z.string(), // ISO date string
+        platform: z.string().optional().default("TikTok"),
+        videoUrl: z.string().optional(),
+        thumbnailUrl: z.string().optional(),
+        title: z.string().optional(),
+        productName: z.string().optional(),
+        productId: z.number().nullable().optional(),
+        views: z.number().optional().default(0),
+        likes: z.number().optional().default(0),
+        comments: z.number().optional().default(0),
+        shares: z.number().optional().default(0),
+        saves: z.number().optional().default(0),
+        status: z.enum(["draft", "scheduled", "posted", "failed"]).optional().default("posted"),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const userId = (ctx as any).user?.id || 0;
+
+        const result = await db.insert(brandShortVideos).values({
+          brandId: input.brandId,
+          liverId: input.liverId || null,
+          liverName: input.liverName,
+          contractId: input.contractId || null,
+          postDate: new Date(input.postDate),
+          platform: input.platform,
+          videoUrl: input.videoUrl || null,
+          thumbnailUrl: input.thumbnailUrl || null,
+          title: input.title || null,
+          productName: input.productName || null,
+          productId: input.productId || null,
+          views: input.views,
+          likes: input.likes,
+          comments: input.comments,
+          shares: input.shares,
+          saves: input.saves,
+          status: input.status,
+          notes: input.notes || null,
+          createdBy: userId,
+        });
+
+        return { success: true, id: (result as any)[0]?.insertId };
+      }),
+
+    updateShortVideo: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        liverId: z.number().nullable().optional(),
+        liverName: z.string().optional(),
+        postDate: z.string().optional(),
+        platform: z.string().optional(),
+        videoUrl: z.string().optional(),
+        thumbnailUrl: z.string().optional(),
+        title: z.string().optional(),
+        productName: z.string().optional(),
+        productId: z.number().nullable().optional(),
+        views: z.number().optional(),
+        likes: z.number().optional(),
+        comments: z.number().optional(),
+        shares: z.number().optional(),
+        saves: z.number().optional(),
+        status: z.enum(["draft", "scheduled", "posted", "failed"]).optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const { id, ...updateData } = input;
+        const setData: any = { ...updateData };
+        if (updateData.postDate) setData.postDate = new Date(updateData.postDate);
+
+        await db.update(brandShortVideos).set(setData).where(eq(brandShortVideos.id, id));
+        return { success: true };
+      }),
+
+    deleteShortVideo: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        await db.update(brandShortVideos).set({ deletedAt: new Date() }).where(eq(brandShortVideos.id, input.id));
+        return { success: true };
+      }),
+
+    // 短視頻一括登録（複数件まとめて）
+    bulkCreateShortVideos: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        videos: z.array(z.object({
+          liverName: z.string(),
+          liverId: z.number().nullable().optional(),
+          postDate: z.string(),
+          platform: z.string().optional().default("TikTok"),
+          videoUrl: z.string().optional(),
+          title: z.string().optional(),
+          productName: z.string().optional(),
+          status: z.enum(["draft", "scheduled", "posted", "failed"]).optional().default("posted"),
+        })),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const userId = (ctx as any).user?.id || 0;
+
+        const values = input.videos.map(v => ({
+          brandId: input.brandId,
+          liverId: v.liverId || null,
+          liverName: v.liverName,
+          contractId: null,
+          postDate: new Date(v.postDate),
+          platform: v.platform,
+          videoUrl: v.videoUrl || null,
+          thumbnailUrl: null,
+          title: v.title || null,
+          productName: v.productName || null,
+          productId: null,
+          views: 0,
+          likes: 0,
+          comments: 0,
+          shares: 0,
+          saves: 0,
+          status: v.status as "draft" | "scheduled" | "posted" | "failed",
+          notes: null,
+          createdBy: userId,
+        }));
+
+        await db.insert(brandShortVideos).values(values);
+        return { success: true, count: values.length };
       }),
   }),
   // AI Advice Router (日報AIアドバイス))

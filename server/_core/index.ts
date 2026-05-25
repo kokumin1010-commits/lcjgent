@@ -2164,6 +2164,11 @@ async function startServer() {
               console.error("[Migration] Mega channel tables error:", err);
             });
           });
+          import("../migrations/createBrandShortVideosTable").then(({ createBrandShortVideosTable }) => {
+            createBrandShortVideosTable(db).catch((err: unknown) => {
+              console.error("[Migration] Brand short videos table error:", err);
+            });
+          });
         }
       });
     });

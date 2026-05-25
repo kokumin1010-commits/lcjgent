@@ -849,6 +849,10 @@ export default function BrandDetail() {
   const [linkedLivestreamDetailData, setLinkedLivestreamDetailData] = useState<any[]>([]);
   const [linkedLivestreamContractInfo, setLinkedLivestreamContractInfo] = useState<any>(null);
   
+  // 短視頻管理用state
+  const [addShortVideoDialogOpen, setAddShortVideoDialogOpen] = useState(false);
+  const [newShortVideo, setNewShortVideo] = useState({ liverName: "", liverId: null as number | null, postDate: "", platform: "TikTok", videoUrl: "", title: "", productName: "", status: "posted" as "draft" | "scheduled" | "posted" | "failed" });
+
   // AI Ad Proposal states
   const [adProposalDialogOpen, setAdProposalDialogOpen] = useState(false);
   const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
@@ -978,6 +982,20 @@ export default function BrandDetail() {
     { brandId },
     { enabled: brandId > 0 }
   );
+
+  // 短視頻データ取得
+  const { data: shortVideoData, refetch: refetchShortVideos } = trpc.brandContract.listShortVideos.useQuery(
+    { brandId, year: quotaMonth.year, month: quotaMonth.month },
+    { enabled: brandId > 0 }
+  );
+  const createShortVideoMutation = trpc.brandContract.createShortVideo.useMutation({
+    onSuccess: () => { refetchShortVideos(); toast.success(language === 'ja' ? '短視頻を登録しました' : '短视频已登录'); },
+    onError: (err: any) => { toast.error(language === 'ja' ? '短視頻登録に失敗: ' + err.message : '短视频登录失败: ' + err.message); },
+  });
+  const deleteShortVideoMutation = trpc.brandContract.deleteShortVideo.useMutation({
+    onSuccess: () => { refetchShortVideos(); toast.success(language === 'ja' ? '短視頻を削除しました' : '短视频已删除'); },
+    onError: (err: any) => { toast.error(language === 'ja' ? '削除に失敗: ' + err.message : '删除失败: ' + err.message); },
+  });
 
   // MALL商品データ取得
   const { data: mallProductsList = [], refetch: refetchMallProducts } = trpc.mall.getProductsByBrandId.useQuery({ brandId }, { enabled: brandId > 0 });
@@ -3058,6 +3076,85 @@ ${proposal.proposalContent}
                   />
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* 短視頻管理セクション */}
+        <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-orange-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,165,0,0.1)]">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-white flex items-center gap-3">
+              <div className="w-1.5 h-8 bg-gradient-to-b from-orange-400 to-orange-600 rounded-full" />
+              <Video className="h-5 w-5 text-orange-400" />
+              {language === 'ja' ? '短視頻管理' : '短视频管理'}
+            </h2>
+            <Button
+              size="sm"
+              onClick={() => setAddShortVideoDialogOpen(true)}
+              className="bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              {language === 'ja' ? '短視頻登録' : '登录短视频'}
+            </Button>
+          </div>
+
+          {/* 短視頻一覧テーブル */}
+          {shortVideoData && shortVideoData.videos.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-orange-500/20">
+                    <th className="text-left p-3 text-xs font-medium text-gray-400">{language === 'ja' ? '投稿日' : '发布日'}</th>
+                    <th className="text-left p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'ライバー' : '主播'}</th>
+                    <th className="text-left p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'タイトル' : '标题'}</th>
+                    <th className="text-left p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'プラットフォーム' : '平台'}</th>
+                    <th className="text-center p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'ステータス' : '状态'}</th>
+                    <th className="text-right p-3 text-xs font-medium text-gray-400">{language === 'ja' ? '操作' : '操作'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shortVideoData.videos.map((video: any) => (
+                    <tr key={video.id} className="border-b border-gray-800/50 hover:bg-white/5">
+                      <td className="p-3 text-sm text-gray-300">
+                        {new Date(video.postDate).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
+                      </td>
+                      <td className="p-3 text-sm text-orange-300 font-medium">{video.liverName}</td>
+                      <td className="p-3 text-sm text-gray-300">
+                        {video.videoUrl ? (
+                          <a href={video.videoUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                            {video.title || video.videoUrl.substring(0, 30) + '...'}
+                          </a>
+                        ) : (video.title || '-')}
+                      </td>
+                      <td className="p-3 text-sm text-gray-400">{video.platform}</td>
+                      <td className="p-3 text-center">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${video.status === 'posted' ? 'bg-green-500/20 text-green-400' : video.status === 'scheduled' ? 'bg-blue-500/20 text-blue-400' : video.status === 'draft' ? 'bg-gray-500/20 text-gray-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {video.status === 'posted' ? (language === 'ja' ? '投稿済' : '已发布') : video.status === 'scheduled' ? (language === 'ja' ? '予約中' : '已预约') : video.status === 'draft' ? (language === 'ja' ? '下書き' : '草稿') : (language === 'ja' ? '失敗' : '失败')}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteShortVideoMutation.mutate({ id: video.id })}
+                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 w-7 p-0"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="mt-2 text-xs text-gray-500 text-right">
+                {language === 'ja' ? `合計: ${shortVideoData.total}本` : `共计: ${shortVideoData.total}条`}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Video className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">{language === 'ja' ? '当月の短視頻データはまだありません' : '本月暂无短视频数据'}</p>
+              <p className="text-xs mt-1">{language === 'ja' ? '「短視頻登録」ボタンから追加できます' : '点击“登录短视频”按钮添加'}</p>
             </div>
           )}
         </div>
@@ -5578,6 +5675,124 @@ ${proposal.proposalContent}
               {t.add}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Short Video Dialog */}
+      <Dialog open={addShortVideoDialogOpen} onOpenChange={setAddShortVideoDialogOpen}>
+        <DialogContent className="bg-black/95 border-orange-900/50 text-white max-w-lg backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-orange-400 to-orange-600 rounded-full" />
+              {language === 'ja' ? '短視頻登録' : '登录短视频'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-orange-400 text-xs">{language === 'ja' ? 'ライバー名' : '主播名'} *</Label>
+                <Input
+                  value={newShortVideo.liverName}
+                  onChange={(e) => setNewShortVideo({ ...newShortVideo, liverName: e.target.value })}
+                  className="bg-black/50 border-gray-700 text-white mt-1"
+                  placeholder={language === 'ja' ? 'ライバー名' : '主播名'}
+                />
+              </div>
+              <div>
+                <Label className="text-orange-400 text-xs">{language === 'ja' ? '投稿日' : '发布日'} *</Label>
+                <Input
+                  type="date"
+                  value={newShortVideo.postDate}
+                  onChange={(e) => setNewShortVideo({ ...newShortVideo, postDate: e.target.value })}
+                  className="bg-black/50 border-gray-700 text-white mt-1"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-orange-400 text-xs">{language === 'ja' ? 'プラットフォーム' : '平台'}</Label>
+                <select
+                  value={newShortVideo.platform}
+                  onChange={(e) => setNewShortVideo({ ...newShortVideo, platform: e.target.value })}
+                  className="w-full bg-black/50 border border-gray-700 text-white rounded-md px-3 py-2 mt-1 text-sm"
+                >
+                  <option value="TikTok">TikTok</option>
+                  <option value="YouTube Shorts">YouTube Shorts</option>
+                  <option value="Instagram Reels">Instagram Reels</option>
+                </select>
+              </div>
+              <div>
+                <Label className="text-orange-400 text-xs">{language === 'ja' ? 'ステータス' : '状态'}</Label>
+                <select
+                  value={newShortVideo.status}
+                  onChange={(e) => setNewShortVideo({ ...newShortVideo, status: e.target.value as any })}
+                  className="w-full bg-black/50 border border-gray-700 text-white rounded-md px-3 py-2 mt-1 text-sm"
+                >
+                  <option value="posted">{language === 'ja' ? '投稿済' : '已发布'}</option>
+                  <option value="scheduled">{language === 'ja' ? '予約中' : '已预约'}</option>
+                  <option value="draft">{language === 'ja' ? '下書き' : '草稿'}</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <Label className="text-orange-400 text-xs">{language === 'ja' ? '動画URL' : '视频URL'}</Label>
+              <Input
+                value={newShortVideo.videoUrl}
+                onChange={(e) => setNewShortVideo({ ...newShortVideo, videoUrl: e.target.value })}
+                className="bg-black/50 border-gray-700 text-white mt-1"
+                placeholder="https://www.tiktok.com/..."
+              />
+            </div>
+            <div>
+              <Label className="text-orange-400 text-xs">{language === 'ja' ? 'タイトル/内容' : '标题/内容'}</Label>
+              <Input
+                value={newShortVideo.title}
+                onChange={(e) => setNewShortVideo({ ...newShortVideo, title: e.target.value })}
+                className="bg-black/50 border-gray-700 text-white mt-1"
+                placeholder={language === 'ja' ? '動画のタイトル' : '视频标题'}
+              />
+            </div>
+            <div>
+              <Label className="text-orange-400 text-xs">{language === 'ja' ? '商品名' : '商品名'}</Label>
+              <Input
+                value={newShortVideo.productName}
+                onChange={(e) => setNewShortVideo({ ...newShortVideo, productName: e.target.value })}
+                className="bg-black/50 border-gray-700 text-white mt-1"
+                placeholder={language === 'ja' ? '紹介商品名' : '推荐商品名'}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setAddShortVideoDialogOpen(false)} className="border-gray-700 text-gray-300">
+              {language === 'ja' ? 'キャンセル' : '取消'}
+            </Button>
+            <Button
+              onClick={() => {
+                if (!newShortVideo.liverName || !newShortVideo.postDate) {
+                  toast.error(language === 'ja' ? 'ライバー名と投稿日は必須です' : '主播名和发布日必填');
+                  return;
+                }
+                createShortVideoMutation.mutate({
+                  brandId,
+                  liverName: newShortVideo.liverName,
+                  liverId: newShortVideo.liverId,
+                  postDate: new Date(newShortVideo.postDate).toISOString(),
+                  platform: newShortVideo.platform,
+                  videoUrl: newShortVideo.videoUrl || undefined,
+                  title: newShortVideo.title || undefined,
+                  productName: newShortVideo.productName || undefined,
+                  status: newShortVideo.status,
+                });
+                setAddShortVideoDialogOpen(false);
+                setNewShortVideo({ liverName: "", liverId: null, postDate: "", platform: "TikTok", videoUrl: "", title: "", productName: "", status: "posted" });
+              }}
+              className="bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white"
+              disabled={createShortVideoMutation.isPending}
+            >
+              {createShortVideoMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+              {language === 'ja' ? '登録' : '登录'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
