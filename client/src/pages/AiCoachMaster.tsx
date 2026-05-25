@@ -302,7 +302,44 @@ export default function AiCoachMaster() {
                             {stream.aiAdvice && (
                               <div className="mt-3 pt-2 border-t">
                                 <p className="text-sm font-medium mb-1">🤖 AIアドバイス:</p>
-                                <p className="text-xs text-muted-foreground whitespace-pre-wrap">{stream.aiAdvice}</p>
+                                {(() => {
+                                  try {
+                                    let jsonStr = stream.aiAdvice;
+                                    const firstBrace = stream.aiAdvice.indexOf('{');
+                                    const lastBrace = stream.aiAdvice.lastIndexOf('}');
+                                    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                                      jsonStr = stream.aiAdvice.substring(firstBrace, lastBrace + 1);
+                                    }
+                                    const parsed = JSON.parse(jsonStr);
+                                    if (parsed && (parsed.summary || parsed.goodPoints || parsed.improvements)) {
+                                      return (
+                                        <div className="space-y-2 text-xs">
+                                          {parsed.summary && <p className="text-muted-foreground font-medium">{parsed.summary}</p>}
+                                          {parsed.goodPoints?.length > 0 && (
+                                            <div>
+                                              <p className="text-green-600 font-medium">✓ 良かった点</p>
+                                              {parsed.goodPoints.map((p: string, i: number) => <p key={i} className="text-muted-foreground pl-2 border-l-2 border-green-500">{p}</p>)}
+                                            </div>
+                                          )}
+                                          {parsed.improvements?.length > 0 && (
+                                            <div>
+                                              <p className="text-orange-600 font-medium">▲ 改善点</p>
+                                              {parsed.improvements.map((p: string, i: number) => <p key={i} className="text-muted-foreground pl-2 border-l-2 border-orange-500">{p}</p>)}
+                                            </div>
+                                          )}
+                                          {parsed.nextActions?.length > 0 && (
+                                            <div>
+                                              <p className="text-blue-600 font-medium">▶ 次回のアクション</p>
+                                              {parsed.nextActions.map((a: any, i: number) => <p key={i} className="text-muted-foreground pl-2 border-l-2 border-blue-500">{a.action}（{a.timing}）</p>)}
+                                            </div>
+                                          )}
+                                          {parsed.targetForNextTime && <p className="text-purple-600 font-medium">🎯 {parsed.targetForNextTime}</p>}
+                                        </div>
+                                      );
+                                    }
+                                  } catch (e) {}
+                                  return <p className="text-xs text-muted-foreground whitespace-pre-wrap">{stream.aiAdvice}</p>;
+                                })()}
                               </div>
                             )}
 

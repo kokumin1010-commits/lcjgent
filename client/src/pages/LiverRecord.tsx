@@ -1170,9 +1170,72 @@ export default function LiverRecord() {
               )}
               
               {/* フォールバック: 構造化データがない場合は従来のテキスト表示 */}
-              {!structuredAdvice && advice && (
-                <p className="text-white text-sm whitespace-pre-wrap">{advice}</p>
-              )}
+              {!structuredAdvice && advice && (() => {
+                // adviceがJSON文字列の場合はパースして構造化表示を試みる
+                try {
+                  let jsonStr = advice;
+                  const firstBrace = advice.indexOf('{');
+                  const lastBrace = advice.lastIndexOf('}');
+                  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                    jsonStr = advice.substring(firstBrace, lastBrace + 1);
+                  }
+                  const parsed = JSON.parse(jsonStr);
+                  if (parsed && (parsed.summary || parsed.goodPoints || parsed.improvements)) {
+                    return (
+                      <div className="space-y-3">
+                        {parsed.summary && (
+                          <div className="bg-yellow-900/20 rounded-lg p-3">
+                            <p className="text-white text-sm font-medium">{parsed.summary}</p>
+                          </div>
+                        )}
+                        {parsed.goodPoints && parsed.goodPoints.length > 0 && (
+                          <div>
+                            <p className="text-green-400 text-xs font-medium mb-2">✓ 良かった点</p>
+                            <ul className="space-y-1">
+                              {parsed.goodPoints.map((point: string, i: number) => (
+                                <li key={i} className="text-white text-sm pl-3 border-l-2 border-green-500">{point}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {parsed.improvements && parsed.improvements.length > 0 && (
+                          <div>
+                            <p className="text-orange-400 text-xs font-medium mb-2">▲ 改善ポイント</p>
+                            <ul className="space-y-1">
+                              {parsed.improvements.map((point: string, i: number) => (
+                                <li key={i} className="text-white text-sm pl-3 border-l-2 border-orange-500">{point}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {parsed.nextActions && parsed.nextActions.length > 0 && (
+                          <div>
+                            <p className="text-blue-400 text-xs font-medium mb-2">▶ 次回のアクション</p>
+                            <div className="space-y-2">
+                              {parsed.nextActions.map((action: any, i: number) => (
+                                <div key={i} className="bg-blue-900/20 rounded-lg p-3">
+                                  <p className="text-white text-sm font-medium">{action.action}</p>
+                                  <p className="text-white text-xs mt-1">理由: {action.reason}</p>
+                                  <p className="text-blue-300 text-xs mt-1">⏰ {action.timing}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {parsed.targetForNextTime && (
+                          <div className="bg-purple-900/30 rounded-lg p-3 border border-purple-500/30">
+                            <p className="text-purple-300 text-xs font-medium">🎯 次回の目標</p>
+                            <p className="text-white text-sm mt-1">{parsed.targetForNextTime}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                } catch (e) {
+                  // JSONパース失敗時は通常テキスト表示
+                }
+                return <p className="text-white text-sm whitespace-pre-wrap">{advice}</p>;
+              })()}
               
               {/* Regenerate Advice Button */}
               <Button

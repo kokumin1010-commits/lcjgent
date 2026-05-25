@@ -12503,12 +12503,20 @@ ${metricsDescription}${historicalContext}`,
           };
         }
 
-        // JSONをパース
+        // JSONをパース（ロバスト版）
         try {
           let jsonStr = content;
+          // コードブロックで囲まれている場合
           const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
           if (jsonMatch) {
             jsonStr = jsonMatch[1].trim();
+          } else {
+            // JSONオブジェクトの開始/終了を検出
+            const firstBrace = content.indexOf('{');
+            const lastBrace = content.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+              jsonStr = content.substring(firstBrace, lastBrace + 1);
+            }
           }
           
           const structured = JSON.parse(jsonStr);
@@ -12531,9 +12539,25 @@ ${metricsDescription}${historicalContext}`,
             metrics
           };
         } catch (e) {
-          // JSONパース失敗時は従来のテキストを返す
+          // JSONパース失敗時 - テキストからJSON部分を再抽出試行
+          try {
+            const firstBrace = content.indexOf('{');
+            const lastBrace = content.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1) {
+              const structured = JSON.parse(content.substring(firstBrace, lastBrace + 1));
+              return {
+                advice: structured.summary || '次回の配信も頑張りましょう！',
+                structured,
+                metrics
+              };
+            }
+          } catch (e2) {
+            // 完全にパース失敗
+          }
+          // JSONっぽい文字列をそのまま返さず、テキストとして整形
+          const cleanContent = content.replace(/[{}"/\[\]]/g, '').replace(/,\s*/g, '\n').trim();
           return { 
-            advice: content.trim(),
+            advice: cleanContent || '次回の配信も頑張りましょう！',
             structured: null,
             metrics
           };
