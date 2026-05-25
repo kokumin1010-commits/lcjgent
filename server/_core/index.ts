@@ -2169,6 +2169,11 @@ async function startServer() {
               console.error("[Migration] Brand short videos table error:", err);
             });
           });
+          import("../migrations/createLcjBrainChatLogsTable").then(({ createLcjBrainChatLogsTable }) => {
+            createLcjBrainChatLogsTable(db).catch((err: unknown) => {
+              console.error("[Migration] LCJ Brain chat logs table error:", err);
+            });
+          });
         }
       });
     });

@@ -5920,3 +5920,19 @@ export const brandShortVideos = mysqlTable("brand_short_videos", {
 });
 export type BrandShortVideo = typeof brandShortVideos.$inferSelect;
 export type InsertBrandShortVideo = typeof brandShortVideos.$inferInsert;
+
+// ============================================================
+// LCJ Brain チャットログ
+// ============================================================
+export const lcjBrainChatLogs = mysqlTable("lcj_brain_chat_logs", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: int("userId"), // staff or user ID
+  userName: varchar("userName", { length: 100 }),
+  sessionId: varchar("sessionId", { length: 100 }), // チャットセッションID
+  role: varchar("role", { length: 20 }).notNull(), // user | assistant
+  content: text("content").notNull(),
+  context: varchar("context", { length: 50 }), // chat | diagnosis | training | scripts | scoring
+  suggestedQuestions: text("suggestedQuestions"), // JSON array of suggested follow-up questions
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type LcjBrainChatLog = typeof lcjBrainChatLogs.$inferSelect;

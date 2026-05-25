@@ -1,29 +1,44 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "../lib/trpc";
+import { useLocation } from "wouter";
 import { 
   Brain, Send, Sparkles, MessageCircle, Target, BookOpen, 
   Zap, Users, TrendingUp, FileText, Mic, StopCircle,
   ChevronRight, BarChart3, Lightbulb, Shield, GraduationCap,
-  ClipboardList, Star, AlertTriangle, CheckCircle2, ArrowRight
+  ClipboardList, Star, AlertTriangle, CheckCircle2, ArrowRight,
+  History, Search, MicOff
 } from "lucide-react";
 
 // ============================================================
 // タブ定義
 // ============================================================
-type TabType = "chat" | "diagnosis" | "training" | "scripts" | "product_score";
+type TabType = "chat" | "diagnosis" | "training" | "scripts" | "product_score" | "logs";
 
 // ============================================================
 // メインコンポーネント
 // ============================================================
 export default function LcjBrain() {
-  const [activeTab, setActiveTab] = useState<TabType>("chat");
+  // URLパラメータからタブを取得
+  const [location, setLocation] = useLocation();
+  const params = new URLSearchParams(window.location.search);
+  const tabFromUrl = params.get("tab") as TabType | null;
+  const [activeTab, setActiveTab] = useState<TabType>(tabFromUrl || "chat");
+
+  // タブ変更時にURLパラメータを更新
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", tab);
+    window.history.replaceState({}, "", url.toString());
+  };
 
   const tabs = [
-    { id: "chat" as TabType, label: "AI对话", icon: MessageCircle, desc: "问任何关于LCJ的问题" },
-    { id: "diagnosis" as TabType, label: "品牌问诊", icon: ClipboardList, desc: "10问诊断品牌" },
-    { id: "training" as TabType, label: "BD训练", icon: GraduationCap, desc: "AI模拟客户练习" },
-    { id: "scripts" as TabType, label: "话术生成", icon: BookOpen, desc: "场景化话术建议" },
-    { id: "product_score" as TabType, label: "产品评分", icon: Star, desc: "6维度适配度评分" },
+    { id: "chat" as TabType, label: "AI对话", icon: MessageCircle },
+    { id: "diagnosis" as TabType, label: "品牌问诊", icon: ClipboardList },
+    { id: "training" as TabType, label: "BD训练", icon: GraduationCap },
+    { id: "scripts" as TabType, label: "话术生成", icon: BookOpen },
+    { id: "product_score" as TabType, label: "产品评分", icon: Star },
+    { id: "logs" as TabType, label: "聊天记录", icon: History },
   ];
 
   return (
@@ -50,7 +65,7 @@ export default function LcjBrain() {
             {tabs.map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                   activeTab === tab.id
                     ? "bg-violet-600/20 text-violet-300 border border-violet-500/30"
@@ -72,19 +87,23 @@ export default function LcjBrain() {
         {activeTab === "training" && <TrainingPanel />}
         {activeTab === "scripts" && <ScriptsPanel />}
         {activeTab === "product_score" && <ProductScorePanel />}
+        {activeTab === "logs" && <ChatLogsPanel />}
       </div>
     </div>
   );
 }
 
 // ============================================================
-// AI対話パネル
+// AI対話パネル（升級版：後続質問ボタン + 語音入力）
 // ============================================================
 function ChatPanel() {
-  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; suggestedQuestions?: string[] }>>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const chatMutation = trpc.lcjBrain.chat.useMutation();
 
   const scrollToBottom = useCallback(() => {
@@ -95,25 +114,73 @@ function ChatPanel() {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
-    const userMsg = input.trim();
+  const sendMessage = async (text?: string) => {
+    const msgText = text || input.trim();
+    if (!msgText || isLoading) return;
     setInput("");
-    setMessages(prev => [...prev, { role: "user", content: userMsg }]);
+    setMessages(prev => [...prev, { role: "user", content: msgText }]);
     setIsLoading(true);
 
     try {
       const result = await chatMutation.mutateAsync({
-        message: userMsg,
-        history: messages.slice(-10),
+        message: msgText,
+        history: messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
         context: "general",
       });
-      setMessages(prev => [...prev, { role: "assistant", content: result.response }]);
+      setMessages(prev => [...prev, { 
+        role: "assistant", 
+        content: result.response,
+        suggestedQuestions: result.suggestedQuestions || [],
+      }]);
     } catch (error: any) {
       setMessages(prev => [...prev, { role: "assistant", content: `错误: ${error.message}` }]);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // 語音入力機能（Web Speech API）
+  const startRecording = async () => {
+    // まずWeb Speech APIを試す（ブラウザ内蔵）
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.lang = "zh-CN";
+      recognition.interimResults = true;
+      recognition.continuous = false;
+      
+      recognition.onresult = (event: any) => {
+        let transcript = "";
+        for (let i = 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        setInput(transcript);
+      };
+      
+      recognition.onend = () => {
+        setIsRecording(false);
+      };
+      
+      recognition.onerror = () => {
+        setIsRecording(false);
+      };
+      
+      setIsRecording(true);
+      recognition.start();
+      
+      // 保存引用以便停止
+      (window as any).__lcjBrainRecognition = recognition;
+    } else {
+      alert("您的浏览器不支持语音输入，请使用Chrome浏览器");
+    }
+  };
+
+  const stopRecording = () => {
+    const recognition = (window as any).__lcjBrainRecognition;
+    if (recognition) {
+      recognition.stop();
+    }
+    setIsRecording(false);
   };
 
   const quickQuestions = [
@@ -143,7 +210,7 @@ function ChatPanel() {
               {quickQuestions.map((q, i) => (
                 <button
                   key={i}
-                  onClick={() => { setInput(q); }}
+                  onClick={() => sendMessage(q)}
                   className="text-left px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-all"
                 >
                   {q}
@@ -154,20 +221,38 @@ function ChatPanel() {
         )}
 
         {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-              msg.role === "user"
-                ? "bg-violet-600 text-white"
-                : "bg-white/5 border border-white/10 text-white/90"
-            }`}>
-              {msg.role === "assistant" ? (
-                <div className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
-                  {msg.content}
-                </div>
-              ) : (
-                <p className="text-sm">{msg.content}</p>
-              )}
+          <div key={i}>
+            <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                msg.role === "user"
+                  ? "bg-violet-600 text-white"
+                  : "bg-white/5 border border-white/10 text-white/90"
+              }`}>
+                {msg.role === "assistant" ? (
+                  <div className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
+                    {msg.content}
+                  </div>
+                ) : (
+                  <p className="text-sm">{msg.content}</p>
+                )}
+              </div>
             </div>
+            {/* 後続質問ボタン */}
+            {msg.role === "assistant" && msg.suggestedQuestions && msg.suggestedQuestions.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2 ml-2">
+                {msg.suggestedQuestions.map((q, qi) => (
+                  <button
+                    key={qi}
+                    onClick={() => sendMessage(q)}
+                    disabled={isLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-xs text-violet-300 hover:bg-violet-500/20 hover:text-violet-200 transition-all disabled:opacity-50"
+                  >
+                    <ChevronRight className="w-3 h-3" />
+                    {q}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ))}
 
@@ -191,23 +276,141 @@ function ChatPanel() {
       {/* Input Area */}
       <div className="border-t border-white/10 pt-4">
         <div className="flex gap-2">
+          {/* 語音入力ボタン */}
+          <button
+            onClick={isRecording ? stopRecording : startRecording}
+            className={`px-3 py-3 rounded-xl transition-all ${
+              isRecording
+                ? "bg-red-500 text-white animate-pulse"
+                : "bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10"
+            }`}
+            title={isRecording ? "停止录音" : "语音输入"}
+          >
+            {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+          </button>
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-            placeholder="问任何关于LCJ的问题..."
+            placeholder={isRecording ? "正在录音..." : "问任何关于LCJ的问题..."}
             className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
           />
           <button
-            onClick={sendMessage}
+            onClick={() => sendMessage()}
             disabled={!input.trim() || isLoading}
             className="px-4 py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-white/10 disabled:text-white/30 rounded-xl text-white transition-all"
           >
             <Send className="w-5 h-5" />
           </button>
         </div>
+        {isRecording && (
+          <p className="text-xs text-red-400 mt-2 flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+            正在录音中... 说完后点击停止按钮
+          </p>
+        )}
       </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 聊天記録管理パネル（管理者用）
+// ============================================================
+function ChatLogsPanel() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const logsQuery = trpc.lcjBrain.getChatLogs.useQuery({ 
+    page, 
+    limit: 50,
+    search: searchQuery || undefined,
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <History className="w-5 h-5 text-violet-400" />
+          聊天记录管理
+        </h2>
+        <p className="text-xs text-white/40">
+          总计 {logsQuery.data?.total || 0} 条记录
+        </p>
+      </div>
+
+      {/* 搜索 */}
+      <div className="flex gap-2">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+            placeholder="搜索聊天内容..."
+            className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-violet-500/50"
+          />
+        </div>
+      </div>
+
+      {/* ログ一覧 */}
+      <div className="space-y-2 max-h-[calc(100vh-350px)] overflow-y-auto">
+        {logsQuery.data?.logs?.map((log: any, i: number) => (
+          <div
+            key={log.id || i}
+            className={`p-3 rounded-xl border ${
+              log.role === "user"
+                ? "bg-violet-500/5 border-violet-500/20"
+                : "bg-white/5 border-white/10"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className={`text-xs font-medium ${
+                log.role === "user" ? "text-violet-300" : "text-emerald-300"
+              }`}>
+                {log.role === "user" ? "👤 用户" : "🤖 AI"}
+              </span>
+              <span className="text-xs text-white/30">
+                {log.createdAt ? new Date(log.createdAt).toLocaleString("zh-CN") : ""}
+              </span>
+            </div>
+            <p className="text-sm text-white/80 line-clamp-3">{log.content}</p>
+            {log.context && (
+              <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-white/5 text-xs text-white/40">
+                {log.context}
+              </span>
+            )}
+          </div>
+        ))}
+
+        {(!logsQuery.data?.logs || logsQuery.data.logs.length === 0) && (
+          <div className="text-center py-12 text-white/30">
+            <History className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">暂无聊天记录</p>
+          </div>
+        )}
+      </div>
+
+      {/* ページネーション */}
+      {(logsQuery.data?.total || 0) > 50 && (
+        <div className="flex items-center justify-center gap-2 pt-2">
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="px-3 py-1.5 rounded-lg bg-white/5 text-xs text-white/60 hover:bg-white/10 disabled:opacity-30"
+          >
+            上一页
+          </button>
+          <span className="text-xs text-white/40">第 {page} 页</span>
+          <button
+            onClick={() => setPage(p => p + 1)}
+            disabled={(logsQuery.data?.total || 0) <= page * 50}
+            className="px-3 py-1.5 rounded-lg bg-white/5 text-xs text-white/60 hover:bg-white/10 disabled:opacity-30"
+          >
+            下一页
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -250,229 +453,108 @@ function DiagnosisPanel() {
     setIsLoading(true);
     try {
       const result = await diagnoseMutation.mutateAsync({
-        brandName,
+        brandName: brandName.trim(),
         answers,
       });
-      setDiagnosis(result.diagnosis);
+      setDiagnosis(result);
     } catch (error: any) {
-      console.error(error);
+      alert(`诊断失败: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const reset = () => {
-    setStep(0);
-    setBrandName("");
-    setAnswers({});
-    setDiagnosis(null);
-  };
-
-  // 診断結果表示
   if (diagnosis) {
     return (
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-3xl mx-auto space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">品牌诊断报告：{brandName}</h2>
-          <button onClick={reset} className="text-sm text-violet-400 hover:text-violet-300">重新诊断</button>
+          <h2 className="text-lg font-semibold text-white">📋 {brandName} 诊断报告</h2>
+          <button onClick={() => { setDiagnosis(null); setStep(0); setAnswers({}); setBrandName(""); }} className="text-xs text-violet-400 hover:text-violet-300">重新诊断</button>
         </div>
-
-        {/* 概要 */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-            <p className="text-xs text-white/50 mb-1">品牌阶段</p>
-            <p className="text-lg font-bold text-violet-300">{diagnosis.stage}</p>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-            <p className="text-xs text-white/50 mb-1">风险等级</p>
-            <p className={`text-lg font-bold ${diagnosis.riskLevel === "高" ? "text-red-400" : diagnosis.riskLevel === "中" ? "text-yellow-400" : "text-green-400"}`}>
-              {diagnosis.riskLevel}
-            </p>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-            <p className="text-xs text-white/50 mb-1">推荐模式</p>
-            <p className="text-sm font-bold text-indigo-300">{diagnosis.recommendedModel}</p>
+        <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+          <div className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
+            {diagnosis.report || diagnosis.response || JSON.stringify(diagnosis)}
           </div>
         </div>
-
-        {/* 总结 */}
-        <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl p-4">
-          <p className="text-sm text-white/90">{diagnosis.summary}</p>
-        </div>
-
-        {/* 优势 & 风险 */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-green-400 mb-3 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4" /> 优势
-            </h3>
-            <ul className="space-y-2">
-              {diagnosis.strengths?.map((s: string, i: number) => (
-                <li key={i} className="text-sm text-white/70 flex items-start gap-2">
-                  <span className="text-green-400 mt-0.5">•</span> {s}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-orange-400 mb-3 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4" /> 风险
-            </h3>
-            <ul className="space-y-2">
-              {diagnosis.risks?.map((r: string, i: number) => (
-                <li key={i} className="text-sm text-white/70 flex items-start gap-2">
-                  <span className="text-orange-400 mt-0.5">•</span> {r}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        {/* 建议 */}
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-violet-300 mb-3 flex items-center gap-2">
-            <Lightbulb className="w-4 h-4" /> 建议
-          </h3>
-          <ul className="space-y-2">
-            {diagnosis.recommendations?.map((r: string, i: number) => (
-              <li key={i} className="text-sm text-white/70">{i + 1}. {r}</li>
-            ))}
-          </ul>
-        </div>
-
-        {/* 下一步 */}
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-indigo-300 mb-3 flex items-center gap-2">
-            <ArrowRight className="w-4 h-4" /> 下一步行动
-          </h3>
-          <div className="space-y-3">
-            {diagnosis.nextSteps?.map((s: string, i: number) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-indigo-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-xs font-bold text-indigo-300">{i + 1}</span>
-                </div>
-                <p className="text-sm text-white/80">{s}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 预估周期 */}
-        {diagnosis.estimatedTimeline && (
-          <div className="text-center text-sm text-white/40">
-            预估合作周期：{diagnosis.estimatedTimeline}
-          </div>
-        )}
       </div>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div className="text-center">
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center mx-auto mb-3 border border-emerald-500/20">
+          <ClipboardList className="w-7 h-7 text-emerald-400" />
+        </div>
+        <h2 className="text-lg font-semibold text-white">品牌问诊系统</h2>
+        <p className="text-sm text-white/50">回答12个问题，AI自动生成品牌诊断报告</p>
+      </div>
+
       {/* 品牌名入力 */}
-      {step === 0 && !brandName && (
-        <div className="text-center space-y-6">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center mx-auto border border-emerald-500/20">
-            <ClipboardList className="w-8 h-8 text-emerald-400" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-white mb-2">品牌问诊系统</h2>
-            <p className="text-sm text-white/50">基于《LCJ成交宝典》的10问诊断，自动生成品牌诊断报告</p>
-          </div>
-          <div className="max-w-sm mx-auto">
-            <input
-              type="text"
-              value={brandName}
-              onChange={(e) => setBrandName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && brandName.trim()) setStep(0); }}
-              placeholder="输入品牌名称..."
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-emerald-500/50 text-center"
-            />
+      {step === 0 && !answers.hasTikTokShop && (
+        <div className="space-y-3">
+          <input
+            type="text"
+            value={brandName}
+            onChange={(e) => setBrandName(e.target.value)}
+            placeholder="请输入品牌名称..."
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-emerald-500/50"
+          />
+          {brandName.trim() && (
             <button
-              onClick={() => { if (brandName.trim()) setStep(0); }}
-              disabled={!brandName.trim()}
-              className="mt-3 w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-white/10 rounded-xl text-white font-medium transition-all"
+              onClick={() => handleAnswer("_start", "ok")}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-white font-medium transition-all"
             >
-              开始问诊
+              开始问诊 →
             </button>
-          </div>
+          )}
         </div>
       )}
 
       {/* 問診質問 */}
-      {brandName && step < questions.length && (
-        <div className="space-y-6">
-          {/* Progress */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+      {(step > 0 || answers.hasTikTokShop || answers._start) && !diagnosis && (
+        <div className="space-y-4">
+          {/* 進捗バー */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500"
-                style={{ width: `${((step + 1) / questions.length) * 100}%` }}
+                className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all"
+                style={{ width: `${(Object.keys(answers).filter(k => k !== "_start").length / questions.length) * 100}%` }}
               />
             </div>
-            <span className="text-xs text-white/50">{step + 1}/{questions.length}</span>
+            <span className="text-xs text-white/40">{Object.keys(answers).filter(k => k !== "_start").length}/{questions.length}</span>
           </div>
 
-          {/* Question */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-            <p className="text-xs text-emerald-400 mb-2">问题 {step + 1}</p>
-            <h3 className="text-lg font-semibold text-white mb-4">{questions[step].question}</h3>
-            <div className="grid gap-2">
-              {questions[step].options.map((opt, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleAnswer(questions[step].key, opt)}
-                  className="text-left px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-sm text-white/80 hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-white transition-all"
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
-            {questions[step].freeText && (
-              <div className="mt-3">
-                <input
-                  type="text"
-                  placeholder="或者自由输入..."
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-emerald-500/50"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && (e.target as HTMLInputElement).value.trim()) {
-                      handleAnswer(questions[step].key, (e.target as HTMLInputElement).value.trim());
-                    }
-                  }}
-                />
+          {/* 現在の質問 */}
+          {step < questions.length ? (
+            <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+              <p className="text-sm text-white/40 mb-1">问题 {step + 1}/{questions.length}</p>
+              <p className="text-white font-medium mb-4">{questions[step].question}</p>
+              <div className="grid grid-cols-1 gap-2">
+                {questions[step].options.map((opt, oi) => (
+                  <button
+                    key={oi}
+                    onClick={() => handleAnswer(questions[step].key, opt)}
+                    className="text-left px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80 hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-300 transition-all"
+                  >
+                    {opt}
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
-
-          {/* Skip / Back */}
-          <div className="flex justify-between">
-            <button
-              onClick={() => step > 0 && setStep(step - 1)}
-              disabled={step === 0}
-              className="text-sm text-white/40 hover:text-white/70 disabled:invisible"
-            >
-              ← 上一题
-            </button>
-            <button
-              onClick={() => handleAnswer(questions[step].key, "未回答")}
-              className="text-sm text-white/40 hover:text-white/70"
-            >
-              跳过 →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 提出ボタン */}
-      {brandName && step >= questions.length - 1 && Object.keys(answers).length > 0 && !diagnosis && (
-        <div className="text-center mt-8">
-          <button
-            onClick={submitDiagnosis}
-            disabled={isLoading}
-            className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-xl text-white font-medium shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50"
-          >
-            {isLoading ? "AI正在诊断..." : "生成诊断报告"}
-          </button>
+            </div>
+          ) : (
+            <div className="text-center space-y-4">
+              <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto" />
+              <p className="text-white font-medium">问诊完成！</p>
+              <button
+                onClick={submitDiagnosis}
+                disabled={isLoading}
+                className="px-8 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-white/10 rounded-xl text-white font-medium transition-all"
+              >
+                {isLoading ? "AI正在诊断..." : "生成诊断报告"}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -483,139 +565,136 @@ function DiagnosisPanel() {
 // BD訓練パネル
 // ============================================================
 function TrainingPanel() {
-  const [isStarted, setIsStarted] = useState(false);
   const [scenario, setScenario] = useState("");
-  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; score?: string | null }>>([]);
-  const [input, setInput] = useState("");
+  const [conversation, setConversation] = useState<Array<{ role: "client" | "bd"; content: string; score?: number | null }>>([]);
+  const [bdInput, setBdInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const trainingMutation = trpc.lcjBrain.training.useMutation();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   const scenarios = [
-    "一个中国美妆品牌想进入日本TikTok市场，月预算50万日元，但对价格很敏感",
-    "一个3C品牌已经在Amazon日本卖得不错，想试试TikTok直播，但要求纯佣",
-    "一个健康食品品牌，产品客单价很高（2万日元），不确定TikTok能不能卖",
-    "一个服装品牌，之前和其他MCN合作过但效果不好，对MCN有不信任感",
-    "一个新品牌，什么都没有（没店铺、没库存、没经验），但很想做日本市场",
+    { id: "price_objection", label: "客户说太贵了", desc: "客户对报价有异议" },
+    { id: "pure_commission", label: "客户要纯佣", desc: "客户只想纯佣金模式" },
+    { id: "doubt_effect", label: "客户质疑效果", desc: "客户对直播效果有疑虑" },
+    { id: "first_contact", label: "第一次接触", desc: "冷启动开场" },
+    { id: "competitor", label: "竞品对比", desc: "客户拿竞品来比较" },
+    { id: "hesitant", label: "客户犹豫不决", desc: "客户一直拖延不签约" },
   ];
 
-  const startTraining = async (selectedScenario: string) => {
-    setScenario(selectedScenario);
-    setIsStarted(true);
+  const startTraining = async (scenarioId: string) => {
+    setScenario(scenarioId);
+    setConversation([]);
     setIsLoading(true);
     try {
       const result = await trainingMutation.mutateAsync({
-        mode: "start",
-        scenario: selectedScenario,
+        scenario: scenarioId,
+        bdResponse: "",
         conversationHistory: [],
       });
-      setMessages([{ role: "assistant", content: result.clientResponse, score: null }]);
+      setConversation([{ role: "client", content: result.clientResponse }]);
     } catch (error: any) {
-      setMessages([{ role: "assistant", content: `错误: ${error.message}`, score: null }]);
+      alert(`训练启动失败: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const sendReply = async () => {
-    if (!input.trim() || isLoading) return;
-    const userReply = input.trim();
-    setInput("");
-    setMessages(prev => [...prev, { role: "user", content: userReply }]);
+  const sendBdResponse = async () => {
+    if (!bdInput.trim() || isLoading) return;
+    const response = bdInput.trim();
+    setBdInput("");
+    setConversation(prev => [...prev, { role: "bd", content: response }]);
     setIsLoading(true);
-
     try {
       const result = await trainingMutation.mutateAsync({
-        mode: "reply",
-        userReply,
-        conversationHistory: messages,
+        scenario,
+        bdResponse: response,
+        conversationHistory: [...conversation, { role: "bd", content: response }].map(c => ({
+          role: c.role === "client" ? "client" : "bd",
+          content: c.content,
+        })),
       });
-      setMessages(prev => [...prev, { role: "assistant", content: result.clientResponse, score: result.score }]);
+      setConversation(prev => [...prev, { role: "client", content: result.clientResponse, score: result.score }]);
     } catch (error: any) {
-      setMessages(prev => [...prev, { role: "assistant", content: `错误: ${error.message}` }]);
+      alert(`训练错误: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const reset = () => {
-    setIsStarted(false);
-    setScenario("");
-    setMessages([]);
-    setInput("");
+  // 語音入力
+  const toggleRecording = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) { alert("浏览器不支持语音输入"); return; }
+    if (isRecording) {
+      (window as any).__lcjTrainRecognition?.stop();
+      setIsRecording(false);
+    } else {
+      const recognition = new SpeechRecognition();
+      recognition.lang = "zh-CN";
+      recognition.interimResults = true;
+      recognition.onresult = (e: any) => {
+        let t = "";
+        for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+        setBdInput(t);
+      };
+      recognition.onend = () => setIsRecording(false);
+      setIsRecording(true);
+      recognition.start();
+      (window as any).__lcjTrainRecognition = recognition;
+    }
   };
 
-  if (!isStarted) {
+  if (!scenario) {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="text-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center mx-auto mb-4 border border-amber-500/20">
-            <GraduationCap className="w-8 h-8 text-amber-400" />
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center mx-auto mb-3 border border-amber-500/20">
+            <GraduationCap className="w-7 h-7 text-amber-400" />
           </div>
-          <h2 className="text-lg font-bold text-white mb-2">BD训练模式</h2>
-          <p className="text-sm text-white/50">AI扮演品牌客户，模拟真实BD谈判场景。<br/>练习医生式BD、气场管理、拉扯技巧。</p>
+          <h2 className="text-lg font-semibold text-white">BD训练模式</h2>
+          <p className="text-sm text-white/50">AI扮演品牌方客户，练习你的BD话术</p>
         </div>
-
-        <div className="space-y-3">
-          <p className="text-sm text-white/60 font-medium">选择训练场景：</p>
-          {scenarios.map((s, i) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {scenarios.map(s => (
             <button
-              key={i}
-              onClick={() => startTraining(s)}
-              className="w-full text-left px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-sm text-white/80 hover:bg-amber-500/10 hover:border-amber-500/30 transition-all"
+              key={s.id}
+              onClick={() => startTraining(s.id)}
+              className="text-left p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-amber-500/10 hover:border-amber-500/20 transition-all"
             >
-              <span className="text-amber-400 mr-2">场景{i + 1}:</span> {s}
+              <p className="text-sm font-medium text-white">{s.label}</p>
+              <p className="text-xs text-white/40 mt-1">{s.desc}</p>
             </button>
           ))}
-        </div>
-
-        {/* 自定义场景 */}
-        <div className="border-t border-white/10 pt-4">
-          <input
-            type="text"
-            value={scenario}
-            onChange={(e) => setScenario(e.target.value)}
-            placeholder="或者输入自定义场景..."
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-amber-500/50"
-            onKeyDown={(e) => { if (e.key === "Enter" && scenario.trim()) startTraining(scenario); }}
-          />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-200px)]">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
-        <div>
-          <p className="text-xs text-amber-400">训练模式 · AI扮演品牌方</p>
-          <p className="text-sm text-white/60 mt-1">{scenario}</p>
-        </div>
-        <button onClick={reset} className="text-xs text-white/40 hover:text-white/70 px-3 py-1 rounded-lg border border-white/10">
+    <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-250px)]">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-medium text-amber-300">
+          训练场景：{scenarios.find(s => s.id === scenario)?.label}
+        </h3>
+        <button onClick={() => setScenario("")} className="text-xs text-white/40 hover:text-white">
           结束训练
         </button>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-4 pb-4">
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className="max-w-[80%]">
-              <div className={`rounded-2xl px-4 py-3 ${
-                msg.role === "user"
-                  ? "bg-amber-600 text-white"
-                  : "bg-white/5 border border-white/10 text-white/90"
-              }`}>
-                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-              </div>
-              {msg.score && (
-                <div className="mt-1 px-3 py-1 bg-violet-500/10 border border-violet-500/20 rounded-lg inline-block">
-                  <p className="text-xs text-violet-300">📊 {msg.score}</p>
+      <div className="flex-1 overflow-y-auto space-y-3 pb-4">
+        {conversation.map((msg, i) => (
+          <div key={i} className={`flex ${msg.role === "bd" ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+              msg.role === "bd"
+                ? "bg-amber-600 text-white"
+                : "bg-white/5 border border-white/10 text-white/90"
+            }`}>
+              <p className="text-xs text-white/50 mb-1">{msg.role === "bd" ? "你（BD）" : "客户"}</p>
+              <p className="text-sm">{msg.content}</p>
+              {msg.score !== null && msg.score !== undefined && (
+                <div className="mt-2 pt-2 border-t border-white/10">
+                  <p className="text-xs text-amber-300">评分: {msg.score}/10</p>
                 </div>
               )}
             </div>
@@ -624,34 +703,33 @@ function TrainingPanel() {
         {isLoading && (
           <div className="flex justify-start">
             <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
-              <div className="flex items-center gap-2 text-white/50">
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: "300ms" }} />
-                </div>
-                <span className="text-xs">品牌方正在思考...</span>
-              </div>
+              <span className="text-xs text-white/50">客户正在思考...</span>
             </div>
           </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="border-t border-white/10 pt-4">
+      <div className="border-t border-white/10 pt-3">
         <div className="flex gap-2">
+          <button
+            onClick={toggleRecording}
+            className={`px-3 py-3 rounded-xl transition-all ${
+              isRecording ? "bg-red-500 text-white animate-pulse" : "bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10"
+            }`}
+          >
+            {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+          </button>
           <input
             type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendReply()}
+            value={bdInput}
+            onChange={(e) => setBdInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && sendBdResponse()}
             placeholder="你作为BD回复..."
             className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-amber-500/50"
           />
           <button
-            onClick={sendReply}
-            disabled={!input.trim() || isLoading}
+            onClick={sendBdResponse}
+            disabled={!bdInput.trim() || isLoading}
             className="px-4 py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-white/10 rounded-xl text-white transition-all"
           >
             <Send className="w-5 h-5" />
@@ -666,35 +744,34 @@ function TrainingPanel() {
 // 話術生成パネル
 // ============================================================
 function ScriptsPanel() {
-  const [scenario, setScenario] = useState("");
-  const [objection, setObjection] = useState("");
-  const [brandInfo, setBrandInfo] = useState("");
-  const [result, setResult] = useState("");
+  const [selectedScene, setSelectedScene] = useState("");
+  const [clientWords, setClientWords] = useState("");
+  const [brandContext, setBrandContext] = useState("");
+  const [generatedScript, setGeneratedScript] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const scriptMutation = trpc.lcjBrain.generateScript.useMutation();
 
-  const presetScenarios = [
-    { label: "客户说太贵了", scenario: "客户在第一次报价后说'你们太贵了'", objection: "你们太贵了，别人都便宜很多" },
-    { label: "客户要纯佣", scenario: "客户坚持要纯佣合作", objection: "我们只接受纯佣，不想出固定费用" },
-    { label: "客户质疑效果", scenario: "客户质疑直播效果", objection: "你们数据也一般啊，怎么保证效果？" },
-    { label: "客户犹豫不决", scenario: "客户说'我再考虑考虑'", objection: "让我再想想，下次再聊" },
-    { label: "第一次接触", scenario: "第一次和品牌方接触，对方还不了解LCJ", objection: "" },
-    { label: "竞品对比", scenario: "客户拿竞品来比较", objection: "XX公司也能做，而且更便宜" },
+  const scenes = [
+    { id: "price_high", label: "客户说太贵了", prefill: "你们太贵了，别人都便宜很多" },
+    { id: "pure_commission", label: "客户要纯佣", prefill: "我们只接受纯佣金合作" },
+    { id: "doubt_effect", label: "客户质疑效果", prefill: "你们能保证效果吗？" },
+    { id: "hesitant", label: "客户犹豫不决", prefill: "我再考虑考虑" },
+    { id: "first_contact", label: "第一次接触", prefill: "" },
+    { id: "competitor", label: "竞品对比", prefill: "XX公司比你们便宜" },
   ];
 
-  const generate = async (s?: string, o?: string) => {
-    const useScenario = s || scenario;
-    if (!useScenario.trim()) return;
+  const generateScript = async () => {
+    if (!selectedScene) return;
     setIsLoading(true);
     try {
-      const res = await scriptMutation.mutateAsync({
-        scenario: useScenario,
-        clientObjection: o || objection || undefined,
-        brandInfo: brandInfo || undefined,
+      const result = await scriptMutation.mutateAsync({
+        scene: selectedScene,
+        clientWords: clientWords || scenes.find(s => s.id === selectedScene)?.prefill || "",
+        brandContext: brandContext || undefined,
       });
-      setResult(res.script);
+      setGeneratedScript(result.script || result.response || "");
     } catch (error: any) {
-      setResult(`错误: ${error.message}`);
+      alert(`生成失败: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -703,63 +780,62 @@ function ScriptsPanel() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="text-center">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center mx-auto mb-4 border border-blue-500/20">
-          <BookOpen className="w-8 h-8 text-blue-400" />
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center mx-auto mb-3 border border-blue-500/20">
+          <BookOpen className="w-7 h-7 text-blue-400" />
         </div>
-        <h2 className="text-lg font-bold text-white mb-2">智能话术生成</h2>
+        <h2 className="text-lg font-semibold text-white">智能话术生成</h2>
         <p className="text-sm text-white/50">基于《LCJ成交宝典》，为不同场景生成专业话术</p>
       </div>
 
-      {/* 快速场景 */}
+      {/* 場景選択 */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-        {presetScenarios.map((p, i) => (
+        {scenes.map(s => (
           <button
-            key={i}
-            onClick={() => { setScenario(p.scenario); setObjection(p.objection); generate(p.scenario, p.objection); }}
-            className="text-left px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs text-white/70 hover:bg-blue-500/10 hover:border-blue-500/30 transition-all"
+            key={s.id}
+            onClick={() => { setSelectedScene(s.id); setClientWords(s.prefill); setGeneratedScript(""); }}
+            className={`text-left px-3 py-2.5 rounded-lg border text-sm transition-all ${
+              selectedScene === s.id
+                ? "bg-blue-500/10 border-blue-500/30 text-blue-300"
+                : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10"
+            }`}
           >
-            {p.label}
+            {s.label}
           </button>
         ))}
       </div>
 
-      {/* 自定义输入 */}
-      <div className="space-y-3 bg-white/5 border border-white/10 rounded-xl p-4">
-        <input
-          type="text"
-          value={scenario}
-          onChange={(e) => setScenario(e.target.value)}
-          placeholder="描述场景（如：客户第一次见面，对TikTok直播有兴趣）"
-          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50"
-        />
-        <input
-          type="text"
-          value={objection}
-          onChange={(e) => setObjection(e.target.value)}
-          placeholder="客户的反对意见（可选，如：'你们太贵了'）"
-          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50"
-        />
-        <input
-          type="text"
-          value={brandInfo}
-          onChange={(e) => setBrandInfo(e.target.value)}
-          placeholder="品牌背景（可选，如：美妆品牌，月销500万）"
-          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50"
-        />
-        <button
-          onClick={() => generate()}
-          disabled={!scenario.trim() || isLoading}
-          className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-white/10 rounded-lg text-white text-sm font-medium transition-all"
-        >
-          {isLoading ? "生成中..." : "生成话术"}
-        </button>
-      </div>
+      {/* 入力フォーム */}
+      {selectedScene && (
+        <div className="space-y-3">
+          <input
+            type="text"
+            value={clientWords}
+            onChange={(e) => setClientWords(e.target.value)}
+            placeholder={`客户在第一次报价后说'${scenes.find(s => s.id === selectedScene)?.prefill || "..."}'`}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50"
+          />
+          <input
+            type="text"
+            value={brandContext}
+            onChange={(e) => setBrandContext(e.target.value)}
+            placeholder="品牌背景（可选，如：美妆品牌，月销500万）"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50"
+          />
+          <button
+            onClick={generateScript}
+            disabled={isLoading}
+            className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-white/10 rounded-xl text-white font-medium transition-all"
+          >
+            {isLoading ? "生成中..." : "生成话术"}
+          </button>
+        </div>
+      )}
 
-      {/* 结果 */}
-      {result && (
+      {/* 生成結果 */}
+      {generatedScript && (
         <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-          <div className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap text-white/85">
-            {result}
+          <div className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
+            {generatedScript}
           </div>
         </div>
       )}
@@ -772,92 +848,70 @@ function ScriptsPanel() {
 // ============================================================
 function ProductScorePanel() {
   const [productName, setProductName] = useState("");
-  const [category, setCategory] = useState("");
-  const [price, setPrice] = useState("");
-  const [description, setDescription] = useState("");
+  const [productInfo, setProductInfo] = useState("");
   const [result, setResult] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const scoreMutation = trpc.lcjBrain.scoreProduct.useMutation();
 
-  const submit = async () => {
-    if (!productName.trim()) return;
+  const dimensionLabels: Record<string, { label: string; color: string }> = {
+    retention: { label: "停留率", color: "from-violet-500 to-purple-400" },
+    expression: { label: "表达力", color: "from-blue-500 to-cyan-400" },
+    unitPrice: { label: "客单价", color: "from-emerald-500 to-green-400" },
+    margin: { label: "毛利率", color: "from-amber-500 to-yellow-400" },
+    logistics: { label: "物流", color: "from-pink-500 to-rose-400" },
+    repurchase: { label: "复购率", color: "from-indigo-500 to-violet-400" },
+  };
+
+  const scoreProduct = async () => {
+    if (!productName.trim() || !productInfo.trim()) return;
     setIsLoading(true);
     try {
       const res = await scoreMutation.mutateAsync({
-        productName,
-        category: category || undefined,
-        price: price || undefined,
-        description: description || undefined,
+        productName: productName.trim(),
+        productInfo: productInfo.trim(),
       });
-      setResult(res.result);
+      setResult(res);
     } catch (error: any) {
-      console.error(error);
+      alert(`评分失败: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const dimensionLabels: Record<string, { label: string; color: string }> = {
-    retention: { label: "停留率", color: "from-pink-500 to-rose-500" },
-    expression: { label: "表达力", color: "from-violet-500 to-purple-500" },
-    pricefit: { label: "客单价", color: "from-blue-500 to-indigo-500" },
-    margin: { label: "毛利", color: "from-emerald-500 to-green-500" },
-    logistics: { label: "物流", color: "from-amber-500 to-yellow-500" },
-    repurchase: { label: "复购", color: "from-cyan-500 to-teal-500" },
-  };
-
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="text-center">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-pink-500/20 to-rose-500/20 flex items-center justify-center mx-auto mb-4 border border-pink-500/20">
-          <Star className="w-8 h-8 text-pink-400" />
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500/20 to-rose-500/20 flex items-center justify-center mx-auto mb-3 border border-pink-500/20">
+          <Star className="w-7 h-7 text-pink-400" />
         </div>
-        <h2 className="text-lg font-bold text-white mb-2">产品TikTok适配度评分</h2>
-        <p className="text-sm text-white/50">基于6个维度评估产品是否适合TikTok直播</p>
+        <h2 className="text-lg font-semibold text-white">产品TikTok适配度评分</h2>
+        <p className="text-sm text-white/50">6维度评估产品是否适合TikTok直播带货</p>
       </div>
 
-      {/* 入力フォーム */}
-      <div className="space-y-3 bg-white/5 border border-white/10 rounded-xl p-4">
+      <div className="space-y-3">
         <input
           type="text"
           value={productName}
           onChange={(e) => setProductName(e.target.value)}
-          placeholder="产品名称 *"
-          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-pink-500/50"
+          placeholder="产品名称（如：MYTREX筋膜枪）"
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-pink-500/50"
         />
-        <div className="grid grid-cols-2 gap-3">
-          <input
-            type="text"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            placeholder="产品类别（如：美妆）"
-            className="bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-pink-500/50"
-          />
-          <input
-            type="text"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            placeholder="价格（如：3980円）"
-            className="bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-pink-500/50"
-          />
-        </div>
         <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="产品描述（可选）"
-          rows={2}
-          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-pink-500/50 resize-none"
+          value={productInfo}
+          onChange={(e) => setProductInfo(e.target.value)}
+          placeholder="产品信息（价格、卖点、目标人群、竞品等）"
+          rows={4}
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-pink-500/50 resize-none"
         />
         <button
-          onClick={submit}
-          disabled={!productName.trim() || isLoading}
-          className="w-full py-2.5 bg-pink-600 hover:bg-pink-500 disabled:bg-white/10 rounded-lg text-white text-sm font-medium transition-all"
+          onClick={scoreProduct}
+          disabled={isLoading || !productName.trim() || !productInfo.trim()}
+          className="w-full py-3 bg-pink-600 hover:bg-pink-500 disabled:bg-white/10 rounded-xl text-white font-medium transition-all"
         >
-          {isLoading ? "AI评分中..." : "开始评分"}
+          {isLoading ? "评分中..." : "开始评分"}
         </button>
       </div>
 
-      {/* 結果表示 */}
       {result && (
         <div className="space-y-4">
           {/* 总分 */}

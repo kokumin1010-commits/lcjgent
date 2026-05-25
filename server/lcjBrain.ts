@@ -16,6 +16,7 @@ import {
   staff,
   schedules,
   brandProducts,
+  lcjBrainChatLogs,
 } from "../drizzle/schema";
 import { eq, desc, and, gte, lte, isNull, sql, like, or, count, sum } from "drizzle-orm";
 
@@ -444,7 +445,7 @@ ${dataContext || "（暂无相关数据）"}
 
       try {
         const result = await invokeLLM({
-          model: "gpt-4.1-mini", // LCJ Brainは高品質な回答が必要
+          model: "gpt-4.1-mini",
           messages,
         });
 
@@ -455,15 +456,51 @@ ${dataContext || "（暂无相关数据）"}
             ? aiContent.map(p => (p as any).text || "").join("") 
             : "申し訳ありません。回答を生成できませんでした。";
 
+        // 後続質問を生成
+        let suggestedQuestions: string[] = [];
+        try {
+          const suggestResult = await invokeLLM({
+            model: "gpt-4.1-nano",
+            messages: [
+              { role: "system", content: "基于用户的问题和AI的回答，生成3个相关的后续问题建议。这些问题应该帮助用户深入了解话题。只输出JSON数组格式，如[\"问题1\", \"问题2\", \"问题3\"]，不要其他文字。" },
+              { role: "user", content: `用户问：${message}\n\nAI回答：${responseText.substring(0, 500)}` },
+            ],
+          });
+          const suggestContent = typeof suggestResult.choices?.[0]?.message?.content === "string"
+            ? suggestResult.choices[0].message.content : "";
+          const jsonMatch = suggestContent.match(/\[.*\]/s);
+          if (jsonMatch) {
+            suggestedQuestions = JSON.parse(jsonMatch[0]);
+          }
+        } catch (e) {
+          // 後続質問生成失敗は無視
+        }
+
+        // チャットログをDBに保存
+        const db = await getDb();
+        if (db) {
+          const sessionId = `session_${Date.now()}`;
+          try {
+            await db.insert(lcjBrainChatLogs).values([
+              { role: "user", content: message, context: context || "chat", sessionId },
+              { role: "assistant", content: responseText, context: context || "chat", sessionId, suggestedQuestions: JSON.stringify(suggestedQuestions) },
+            ]);
+          } catch (e) {
+            console.error("[LCJ Brain] Failed to save chat log:", e);
+          }
+        }
+
         return {
           response: responseText,
           dataSourcesUsed: dataContext ? dataContext.split("##").length - 1 : 0,
+          suggestedQuestions,
         };
       } catch (error: any) {
         console.error("[LCJ Brain] AI error:", error.message);
         return {
           response: `エラーが発生しました: ${error.message}`,
           dataSourcesUsed: 0,
+          suggestedQuestions: [],
         };
       }
     }),
@@ -765,6 +802,70 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
           score: null,
           isComplete: false,
         };
+      }
+    }),
+
+  /** 管理者用：チャットログ一覧取得 */
+  getChatLogs: protectedProcedure
+    .input(z.object({
+      page: z.number().optional().default(1),
+      limit: z.number().optional().default(50),
+      search: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { logs: [], total: 0 };
+
+      const offset = (input.page - 1) * input.limit;
+
+      try {
+        let conditions = [];
+        if (input.search) {
+          conditions.push(like(lcjBrainChatLogs.content, `%${input.search}%`));
+        }
+
+        const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+        const [logs, totalResult] = await Promise.all([
+          db.select()
+            .from(lcjBrainChatLogs)
+            .where(whereClause)
+            .orderBy(desc(lcjBrainChatLogs.createdAt))
+            .limit(input.limit)
+            .offset(offset),
+          db.select({ count: count() })
+            .from(lcjBrainChatLogs)
+            .where(whereClause),
+        ]);
+
+        return {
+          logs,
+          total: totalResult[0]?.count || 0,
+        };
+      } catch (error: any) {
+        console.error("[LCJ Brain] getChatLogs error:", error.message);
+        return { logs: [], total: 0 };
+      }
+    }),
+
+  /** 管理者用：セッション別チャット履歴取得 */
+  getChatSession: protectedProcedure
+    .input(z.object({
+      sessionId: z.string(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+
+      try {
+        const logs = await db.select()
+          .from(lcjBrainChatLogs)
+          .where(eq(lcjBrainChatLogs.sessionId, input.sessionId))
+          .orderBy(lcjBrainChatLogs.createdAt);
+        return logs;
+      } catch (error: any) {
+        console.error("[LCJ Brain] getChatSession error:", error.message);
+        return [];
       }
     }),
 });
