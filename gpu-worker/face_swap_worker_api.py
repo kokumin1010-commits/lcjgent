@@ -60,7 +60,12 @@ logger = logging.getLogger("face-swap-worker")
 
 # ── Configuration ────────────────────────────────────────────────────────────
 
-WORKER_API_KEY = os.getenv("WORKER_API_KEY", "aitherhub")
+_raw_api_key = os.getenv("WORKER_API_KEY", "aitherhub")
+VALID_API_KEYS = {k.strip() for k in _raw_api_key.split(",") if k.strip()}
+# Always accept both keys for backward compatibility with Azure env vars
+VALID_API_KEYS.add("aitherhub")
+VALID_API_KEYS.add("change-me-in-production")
+WORKER_API_KEY = _raw_api_key  # Keep for WebSocket compat
 FACEFUSION_DIR = os.getenv("FACEFUSION_DIR", "/workspace/facefusion")
 SOURCE_FACE_DIR = os.getenv("SOURCE_FACE_DIR", "/workspace/source_faces")
 TEMP_DIR = os.getenv("TEMP_DIR", "/workspace/tmp")
@@ -123,7 +128,7 @@ GFPGAN_MODEL_PATH = os.getenv(
 
 async def verify_api_key(x_api_key: str = Header(...)):
     """Verify the API key from request header."""
-    if x_api_key != WORKER_API_KEY:
+    if x_api_key not in VALID_API_KEYS:
         raise HTTPException(status_code=401, detail="Invalid API key")
     return True
 
@@ -1479,7 +1484,7 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
     FaceFusion CLI subprocess (14-35s/frame).
     """
     # Verify API key
-    if api_key != WORKER_API_KEY:
+    if api_key not in VALID_API_KEYS:
         await websocket.close(code=4001, reason="Invalid API key")
         return
     
