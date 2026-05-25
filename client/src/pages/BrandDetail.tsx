@@ -929,6 +929,7 @@ export default function BrandDetail() {
   const { data: memos = [], refetch: refetchMemos } = trpc.brandMemo.listByBrand.useQuery({ brandId });
   const { data: monthlyGmvSummary = [] } = trpc.brandLivestream.monthlyGmvSummary.useQuery({ brandId });
   const { data: lcjStaff = [] } = trpc.brand.getLcjStaff.useQuery({ brandId }, { enabled: brandId > 0 });
+  const { data: hrStaffList = [] } = trpc.staff.listActive.useQuery();
   const { data: proposalHistory = [], refetch: refetchProposalHistory } = trpc.brand.getAdProposalHistory.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: adInvestmentRecords = [], refetch: refetchInvestmentRecords } = trpc.brand.getAdInvestmentRecords.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: brandAdStats } = trpc.brand.getBrandAdPerformanceStats.useQuery({ brandId }, { enabled: brandId > 0 });
@@ -2907,10 +2908,19 @@ ${proposal.proposalContent}
           <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 hover:border-red-500/50 transition-all">
             <div className="flex items-center gap-2 mb-2">
               <Users className="h-4 w-4 text-green-400" />
-              <span className="text-xs text-gray-500 uppercase tracking-wider">{t.manager}</span>
+              <span className="text-xs text-gray-500 uppercase tracking-wider">{language === 'zh' ? '商务负责人' : '商務負責人'}</span>
             </div>
             <p className="text-lg font-bold text-green-400 truncate">
-              {primaryManager}
+              {(brand as any)?.businessManagerId ? (hrStaffList.find((s: any) => s.id === (brand as any).businessManagerId)?.name || '-') : '-'}
+            </p>
+          </div>
+          <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 hover:border-red-500/50 transition-all">
+            <div className="flex items-center gap-2 mb-2">
+              <Users className="h-4 w-4 text-blue-400" />
+              <span className="text-xs text-gray-500 uppercase tracking-wider">{language === 'zh' ? '运营负责人' : '運営負責人'}</span>
+            </div>
+            <p className="text-lg font-bold text-blue-400 truncate">
+              {(brand as any)?.operationsManagerId ? (hrStaffList.find((s: any) => s.id === (brand as any).operationsManagerId)?.name || '-') : '-'}
             </p>
           </div>
         </div>

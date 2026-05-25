@@ -32,6 +32,10 @@ const translations = {
     materialCategory: "素材カテゴリ",
     email: "メールアドレス",
     contactPerson: "担当者名",
+    businessManager: "商務負責人",
+    operationsManager: "運営負責人",
+    selectStaff: "スタッフを選択",
+    noStaff: "未設定",
     adBudget: "広告費",
     salesTarget: "売上目標",
     commissionRate: "成果報酬",
@@ -69,6 +73,10 @@ const translations = {
     materialCategory: "素材类别",
     email: "邮箱地址",
     contactPerson: "负责人",
+    businessManager: "商务负责人",
+    operationsManager: "运营负责人",
+    selectStaff: "选择员工",
+    noStaff: "未设置",
     adBudget: "广告费",
     salesTarget: "销售目标",
     commissionRate: "成果报酬",
@@ -152,6 +160,8 @@ export default function BrandForm() {
     shopId: "",
     shopCode: "",
     memo: "",
+    businessManagerId: null as number | null,
+    operationsManagerId: null as number | null,
   });
 
   const [businessCards, setBusinessCards] = useState<{ url: string; key: string }[]>([]);
@@ -165,6 +175,9 @@ export default function BrandForm() {
     { id: parseInt(id || "0") },
     { enabled: isEdit }
   );
+
+  // HRスタッフ一覧を取得
+  const { data: staffList = [] } = trpc.staff.listActive.useQuery();
 
   const createMutation = trpc.brand.create.useMutation();
   const updateMutation = trpc.brand.update.useMutation();
@@ -188,6 +201,8 @@ export default function BrandForm() {
         shopId: (brand as any).shopId || "",
         shopCode: (brand as any).shopCode || "",
         memo: brand.memo || "",
+        businessManagerId: (brand as any).businessManagerId || null,
+        operationsManagerId: (brand as any).operationsManagerId || null,
       });
       
       if (brand.businessCardUrls && brand.businessCardKeys) {
@@ -264,6 +279,8 @@ export default function BrandForm() {
         commissionRate: formData.commissionRate || undefined,
         shopId: formData.shopId || undefined,
         shopCode: formData.shopCode || undefined,
+        businessManagerId: formData.businessManagerId,
+        operationsManagerId: formData.operationsManagerId,
         businessCardUrls: businessCards.map((c) => c.url),
         businessCardKeys: businessCards.map((c) => c.key),
         logoUrl: logo?.url || undefined,
@@ -403,6 +420,47 @@ export default function BrandForm() {
               </div>
             </div>
 
+            {/* 商務負責人 & 運営負責人 */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>{t.businessManager}</Label>
+                <Select
+                  value={formData.businessManagerId?.toString() || "none"}
+                  onValueChange={(val) => setFormData(prev => ({ ...prev, businessManagerId: val === "none" ? null : parseInt(val) }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t.selectStaff} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t.noStaff}</SelectItem>
+                    {staffList.map((s: any) => (
+                      <SelectItem key={s.id} value={s.id.toString()}>
+                        {s.name}{s.department ? ` (${s.department})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{t.operationsManager}</Label>
+                <Select
+                  value={formData.operationsManagerId?.toString() || "none"}
+                  onValueChange={(val) => setFormData(prev => ({ ...prev, operationsManagerId: val === "none" ? null : parseInt(val) }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t.selectStaff} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t.noStaff}</SelectItem>
+                    {staffList.map((s: any) => (
+                      <SelectItem key={s.id} value={s.id.toString()}>
+                        {s.name}{s.department ? ` (${s.department})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
             {/* Shop ID & Shop Code */}
             <div className="grid grid-cols-2 gap-4">

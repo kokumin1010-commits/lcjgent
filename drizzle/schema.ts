@@ -192,6 +192,8 @@ export const brands = mysqlTable("brands", {
   shopId: varchar("shopId", { length: 100 }), // 店舗ID
   shopCode: varchar("shopCode", { length: 100 }), // ショップコード
   memo: text("memo"), // メモ
+  businessManagerId: int("businessManagerId"), // 商務負責人 (References staff.id)
+  operationsManagerId: int("operationsManagerId"), // 運営負責人 (References staff.id)
   createdBy: int("createdBy").notNull(), // User ID who created the brand
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
