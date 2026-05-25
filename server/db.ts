@@ -24990,3 +24990,42 @@ export async function setFeaturedProductTargets(featuredProductId: number, liver
   
   return { success: true };
 }
+
+
+// Auto-migration: Add businessManagerId and operationsManagerId columns to brands table
+export async function ensureBrandsManagerColumns() {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    
+    // Check if businessManagerId column exists
+    const [bizCol] = await db.execute(sql`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_NAME = 'brands' AND COLUMN_NAME = 'businessManagerId'
+      AND TABLE_SCHEMA = DATABASE()
+    `);
+    
+    if (!(bizCol as any)?.length && !(bizCol as any)?.COLUMN_NAME) {
+      await db.execute(sql`ALTER TABLE brands ADD COLUMN businessManagerId INT DEFAULT NULL`);
+      console.log("[Migration] Added businessManagerId column to brands");
+    }
+    
+    // Check if operationsManagerId column exists
+    const [opsCol] = await db.execute(sql`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_NAME = 'brands' AND COLUMN_NAME = 'operationsManagerId'
+      AND TABLE_SCHEMA = DATABASE()
+    `);
+    
+    if (!(opsCol as any)?.length && !(opsCol as any)?.COLUMN_NAME) {
+      await db.execute(sql`ALTER TABLE brands ADD COLUMN operationsManagerId INT DEFAULT NULL`);
+      console.log("[Migration] Added operationsManagerId column to brands");
+    }
+  } catch (error: any) {
+    if (error?.code === 'ER_DUP_FIELDNAME' || error?.message?.includes('Duplicate column')) {
+      console.log("[Migration] businessManagerId/operationsManagerId columns already exist in brands");
+    } else {
+      console.error("[Migration] Error ensuring brands manager columns:", error);
+    }
+  }
+}

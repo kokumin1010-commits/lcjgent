@@ -2069,6 +2069,13 @@ async function startServer() {
       });
     });
 
+    // Ensure brands.businessManagerId and brands.operationsManagerId columns exist
+    import("../db").then(({ ensureBrandsManagerColumns }) => {
+      ensureBrandsManagerColumns().catch((err: unknown) => {
+        console.error("[Migration] Failed to ensure brands manager columns:", err);
+      });
+    });
+
     // Ensure livers.uid column exists
     import("../db").then(({ ensureLiversUidColumn }) => {
       ensureLiversUidColumn().catch((err: unknown) => {
