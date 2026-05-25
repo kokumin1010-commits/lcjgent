@@ -712,14 +712,11 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
         # Combine: warp_mask (where face was pasted) AND face_mask (landmark-based protection)
         combined_mask = warp_mask_warped * face_mask
 
-        # Step 10: Color correction for seamless blending
-        face_region = combined_mask > 0.1
-        if face_region.any():
-            face_warped = color_transfer(face_warped, result, combined_mask)
-
-        # Step 11: Alpha blend
+        # Step 10: Direct alpha blend (no color_transfer - it causes blue tint artifacts)
+        # FaceFusion's official pipeline does NOT use color_transfer for real-time swap.
+        # The GFPGAN output already has correct colors from the source face.
         mask_3ch = combined_mask[:, :, np.newaxis]
-        result = (face_warped * mask_3ch + result * (1 - mask_3ch)).astype(np.uint8)
+        result = (face_warped.astype(np.float32) * mask_3ch + result.astype(np.float32) * (1 - mask_3ch)).astype(np.uint8)
 
     return result
 
