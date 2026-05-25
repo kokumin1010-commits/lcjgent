@@ -552,13 +552,24 @@ export default function ProductManagement() {
     { enabled: !!formData.categoryId }
   );
 
+  // 3段階目カテゴリ取得（サブカテゴリが選択されている場合）
+  const { data: subSubcategories } = trpc.mall.getSubcategories.useQuery(
+    { parentId: formData.subcategoryId! },
+    { enabled: !!formData.subcategoryId }
+  );
+
   const createProduct = trpc.mall.createProduct.useMutation({
-    onSuccess: () => {
-      toast.success("商品を登録しました");
+    onSuccess: (data) => {
+      toast.success("商品を登録しました。商品説明画像を追加できます。");
       utils.mall.getProducts.invalidate();
-      setIsDialogOpen(false);
-      setEditingProduct(null);
-      setFormData(initialFormData);
+      // 新規登録後、編集モードに切り替えて図文モードを使えるようにする
+      if (data?.id) {
+        setEditingProduct(data.id);
+      } else {
+        setIsDialogOpen(false);
+        setEditingProduct(null);
+        setFormData(initialFormData);
+      }
     },
     onError: (error) => {
       toast.error(error.message || "商品の登録に失敗しました");
@@ -898,6 +909,29 @@ export default function ProductManagement() {
                     </div>
                   )}
 
+                  {/* 3段階目カテゴリ選択（サブカテゴリが選択されてかつ子がある場合のみ表示） */}
+                  {formData.subcategoryId && subSubcategories && subSubcategories.length > 0 && (
+                    <div>
+                      <label className="text-sm font-medium">詳細カテゴリ</label>
+                      <Select
+                        value={(formData as any).subSubcategoryId ? String((formData as any).subSubcategoryId) : "none"}
+                        onValueChange={(v) => setFormData({ ...formData, ...(v === "none" ? {} : {}) } as any)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="詳細カテゴリを選択" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">未設定</SelectItem>
+                          {subSubcategories.filter(c => c.isActive === "yes").map((sub) => (
+                            <SelectItem key={sub.id} value={String(sub.id)}>
+                              {sub.iconEmoji ? `${sub.iconEmoji} ` : ""}{sub.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   <div>
                     <label className="text-sm font-medium">ステータス</label>
                     <Select
@@ -1067,9 +1101,16 @@ export default function ProductManagement() {
                   </div>
                 </div>
 
-                {/* 商品説明画像（図文モード）- 編集時のみ表示 */}
+                {/* 商品説明画像（図文モード）- 商品保存後に表示 */}
                 {editingProduct && (
                   <DescImageSection productId={editingProduct} />
+                )}
+                {!editingProduct && (
+                  <div className="col-span-2 border-t pt-4 mt-2">
+                    <p className="text-xs text-muted-foreground">
+                      📝 商品説明画像（図文モード）は商品保存後に追加できます
+                    </p>
+                  </div>
                 )}
 
                 {/* バリアント管理（編集時のみ表示） */}

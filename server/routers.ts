@@ -17752,8 +17752,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         commissionRate: z.string().nullable().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        await createMallProduct(input);
-        return { success: true };
+        const result = await createMallProduct(input);
+        // MySQL insertIdを返す
+        const insertId = (result as any)?.[0]?.insertId || (result as any)?.insertId || null;
+        return { success: true, id: insertId };
       }),
 
     // 商品更新（ログインユーザー全員可）

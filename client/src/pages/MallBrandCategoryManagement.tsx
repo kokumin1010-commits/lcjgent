@@ -339,54 +339,107 @@ function CategoryManagementTab() {
             <div className="text-center py-8 text-muted-foreground">
               カテゴリがありません。「カテゴリを追加」から登録してください。
             </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-16">アイコン</TableHead>
-                  <TableHead>カテゴリ名</TableHead>
-                  <TableHead>スラッグ</TableHead>
-                  <TableHead>親カテゴリ</TableHead>
-                  <TableHead className="text-center">表示順</TableHead>
-                  <TableHead className="text-center">ステータス</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {categories.map((category) => {
-                  const parentName = category.parentId
-                    ? categories.find(c => c.id === category.parentId)?.name || "-"
-                    : "-";
+          ) : (() => {
+            // ツリー表示: 親カテゴリとその子カテゴリをグループ化
+            const parentCats = categories.filter(c => !c.parentId);
+            const getChildren = (parentId: number) => categories.filter(c => c.parentId === parentId);
+            return (
+              <div className="space-y-2">
+                {parentCats.map((parent) => {
+                  const children = getChildren(parent.id);
                   return (
-                    <TableRow key={category.id}>
-                      <TableCell className="text-2xl text-center">
-                        {category.iconEmoji || "📁"}
-                      </TableCell>
-                      <TableCell className="font-medium">{category.name}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{category.slug || "-"}</TableCell>
-                      <TableCell className="text-muted-foreground">{parentName}</TableCell>
-                      <TableCell className="text-center">{category.sortOrder}</TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant={category.isActive === "yes" ? "default" : "secondary"}>
-                          {category.isActive === "yes" ? "有効" : "無効"}
+                    <div key={parent.id} className="border rounded-lg overflow-hidden">
+                      {/* 親カテゴリ行 */}
+                      <div className="flex items-center gap-3 p-3 bg-muted/30">
+                        <span className="text-2xl">{parent.iconEmoji || "📁"}</span>
+                        <div className="flex-1">
+                          <span className="font-medium">{parent.name}</span>
+                          {parent.slug && <span className="text-xs text-muted-foreground ml-2">/{parent.slug}</span>}
+                        </div>
+                        <Badge variant={parent.isActive === "yes" ? "default" : "secondary"} className="text-xs">
+                          {parent.isActive === "yes" ? "有効" : "無効"}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(category)}>
-                            <Pencil className="h-4 w-4" />
+                        <span className="text-xs text-muted-foreground">順:{parent.sortOrder}</span>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                            setFormData({ ...initialCategoryForm, parentId: parent.id });
+                            setEditingId(null);
+                            setIsDialogOpen(true);
+                          }} title="サブカテゴリを追加">
+                            <Plus className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(category.id, category.name)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(parent)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(parent.id, parent.name)}>
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
                           </Button>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                      </div>
+                      {/* 子カテゴリ一覧 */}
+                      {children.length > 0 && (
+                        <div className="border-t">
+                          {children.map((child) => {
+                            const grandChildren = getChildren(child.id);
+                            return (
+                              <div key={child.id}>
+                                <div className="flex items-center gap-3 p-2 pl-10 hover:bg-muted/20">
+                                  <span className="text-lg">{child.iconEmoji || "📄"}</span>
+                                  <div className="flex-1">
+                                    <span className="text-sm">{child.name}</span>
+                                    {child.slug && <span className="text-xs text-muted-foreground ml-2">/{child.slug}</span>}
+                                  </div>
+                                  <Badge variant={child.isActive === "yes" ? "default" : "secondary"} className="text-xs">
+                                    {child.isActive === "yes" ? "有効" : "無効"}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground">順:{child.sortOrder}</span>
+                                  <div className="flex gap-1">
+                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => {
+                                      setFormData({ ...initialCategoryForm, parentId: child.id });
+                                      setEditingId(null);
+                                      setIsDialogOpen(true);
+                                    }} title="サブカテゴリを追加">
+                                      <Plus className="h-3 w-3" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleEdit(child)}>
+                                      <Pencil className="h-3 w-3" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDelete(child.id, child.name)}>
+                                      <Trash2 className="h-3 w-3 text-destructive" />
+                                    </Button>
+                                  </div>
+                                </div>
+                                {/* 3段階目（孫カテゴリ） */}
+                                {grandChildren.length > 0 && grandChildren.map((gc) => (
+                                  <div key={gc.id} className="flex items-center gap-3 p-2 pl-16 hover:bg-muted/10 border-t border-dashed">
+                                    <span className="text-sm">{gc.iconEmoji || "•"}</span>
+                                    <div className="flex-1">
+                                      <span className="text-xs">{gc.name}</span>
+                                    </div>
+                                    <Badge variant={gc.isActive === "yes" ? "default" : "secondary"} className="text-xs">
+                                      {gc.isActive === "yes" ? "有効" : "無効"}
+                                    </Badge>
+                                    <div className="flex gap-1">
+                                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleEdit(gc)}>
+                                        <Pencil className="h-3 w-3" />
+                                      </Button>
+                                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDelete(gc.id, gc.name)}>
+                                        <Trash2 className="h-3 w-3 text-destructive" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
-              </TableBody>
-            </Table>
-          )}
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
     </>
