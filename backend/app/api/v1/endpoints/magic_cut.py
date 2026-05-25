@@ -195,7 +195,7 @@ async def list_materials(
             result = await session.execute(text(f"""
                 SELECT vc.id as clip_id, vc.video_id, vc.duration_sec,
                        vc.transcript_text, vc.product_name, vc.thumbnail_url,
-                       vc.cta_score, vc.importance_score, vc.liver_name,
+                       vc.clip_url, vc.cta_score, vc.importance_score, vc.liver_name,
                        vc.created_at
                 FROM video_clips vc
                 WHERE {where}
@@ -213,6 +213,7 @@ async def list_materials(
                     "transcript": r.transcript_text[:100] if r.transcript_text else None,
                     "product_name": r.product_name,
                     "thumbnail_url": r.thumbnail_url,
+                    "clip_url": r.clip_url,
                     "cta_score": r.cta_score,
                     "importance_score": r.importance_score,
                     "liver_name": r.liver_name,

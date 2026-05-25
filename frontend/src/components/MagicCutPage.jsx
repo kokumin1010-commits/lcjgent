@@ -29,6 +29,7 @@ import {
   Package,
   Trash2,
   Eye,
+  HelpCircle,
 } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
@@ -85,6 +86,9 @@ export default function MagicCutPage() {
   const [enableSubtitles, setEnableSubtitles] = useState(true);
   const [enableEffects, setEnableEffects] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Help
+  const [showHelp, setShowHelp] = useState(false);
 
   // History
   const [history, setHistory] = useState([]);
@@ -373,8 +377,15 @@ export default function MagicCutPage() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-gray-900">Magic Cut</h1>
-              <p className="text-xs text-gray-500">AIプロンプトで素材を自動剪辑</p>
+              <p className="text-xs text-gray-500">AI動画量産ツール</p>
             </div>
+            <button
+              onClick={() => setShowHelp(!showHelp)}
+              className="ml-1 p-1 rounded-full hover:bg-purple-100 text-purple-400 hover:text-purple-600 transition-colors"
+              title="Magic Cutとは？"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
           </div>
           <button
             onClick={() => setShowHistory(!showHistory)}
@@ -389,6 +400,46 @@ export default function MagicCutPage() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        {/* ── Help / Concept Panel ── */}
+        {showHelp && (
+          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-200 p-5 relative">
+            <button
+              onClick={() => setShowHelp(false)}
+              className="absolute top-3 right-3 p-1 rounded-full hover:bg-purple-100 text-purple-400"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <h3 className="text-sm font-bold text-purple-800 mb-3 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" /> Magic Cut とは？
+            </h3>
+            <div className="space-y-3 text-xs text-gray-700 leading-relaxed">
+              <div className="bg-white/70 rounded-lg p-3 border border-purple-100">
+                <p className="font-semibold text-purple-700 mb-1">🎬 コンセプト</p>
+                <p>既存のライバー動画素材を使って、<span className="font-bold text-purple-700">まるでそのライバーがあなたの商品をおすすめしているかのような動画</span>をAIが自動生成します。</p>
+              </div>
+              <div className="bg-white/70 rounded-lg p-3 border border-purple-100">
+                <p className="font-semibold text-purple-700 mb-1">✨ できること</p>
+                <ul className="space-y-1 ml-1">
+                  <li>• 1本の素材から複数バリエーションを量産</li>
+                  <li>• 字幕・エフェクト・フック・ CTAをAIが自動生成</li>
+                  <li>• 同じ動画でも「別動画」に見えるように加工（TikTok BAN回避）</li>
+                  <li>• 商品情報を指定するだけで、その商品の訴求動画に変換</li>
+                </ul>
+              </div>
+              <div className="bg-white/70 rounded-lg p-3 border border-purple-100">
+                <p className="font-semibold text-purple-700 mb-1">🚀 使い方</p>
+                <ol className="space-y-1 ml-1 list-decimal list-inside">
+                  <li>ライバー素材を選択（見た目・雰囲気で選ぶ）</li>
+                  <li>商品を選択（何をプロモーションしたいか）</li>
+                  <li>プロンプトで指示（例：「この商品の売点を30秒で」）</li>
+                  <li>AIが自動で動画を生成！</li>
+                </ol>
+              </div>
+              <p className="text-[10px] text-gray-500 italic">※ 将来的にFace Swap機能で、ライバーの顔を変更して無限にバリエーションを作る機能も追加予定です</p>
+            </div>
+          </div>
+        )}
+
         {/* ── History Panel ── */}
         {showHistory && history.length > 0 && (
           <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -650,13 +701,20 @@ export default function MagicCutPage() {
                                 >
                                   {isSelected && <CheckCircle className="w-3 h-3 text-white" />}
                                 </div>
-                                {m.thumbnail_url && (
-                                  <img
-                                    src={m.thumbnail_url}
-                                    className="w-12 h-8 rounded object-cover shrink-0"
-                                    onClick={() => toggleMaterial(m)}
-                                  />
-                                )}
+                                <div
+                                  onClick={() => toggleMaterial(m)}
+                                  className="w-14 h-10 rounded overflow-hidden shrink-0 bg-gray-100 flex items-center justify-center"
+                                >
+                                  {m.thumbnail_url ? (
+                                    <img
+                                      src={m.thumbnail_url}
+                                      className="w-full h-full object-cover"
+                                      alt=""
+                                    />
+                                  ) : (
+                                    <Film className="w-4 h-4 text-gray-300" />
+                                  )}
+                                </div>
                                 <div className="flex-1 min-w-0" onClick={() => toggleMaterial(m)}>
                                   <p className="text-xs font-medium text-gray-800 truncate">{m.name}</p>
                                   <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-0.5">
@@ -684,24 +742,22 @@ export default function MagicCutPage() {
                                   </div>
                                 </div>
                                 {/* Preview Button */}
-                                {(m.preview_url || m.thumbnail_url) && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setPreviewingMaterial(
-                                        previewingMaterial?.id === m.id ? null : m
-                                      );
-                                    }}
-                                    className="p-1.5 rounded-md hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition-colors shrink-0"
-                                    title="プレビュー"
-                                  >
-                                    {previewingMaterial?.id === m.id ? (
-                                      <Pause className="w-3.5 h-3.5" />
-                                    ) : (
-                                      <Eye className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                )}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPreviewingMaterial(
+                                      previewingMaterial?.id === m.id ? null : m
+                                    );
+                                  }}
+                                  className="p-1.5 rounded-md hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition-colors shrink-0"
+                                  title="プレビュー"
+                                >
+                                  {previewingMaterial?.id === m.id ? (
+                                    <Pause className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <Eye className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
                               </div>
                             );
                           })
