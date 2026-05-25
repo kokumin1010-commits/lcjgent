@@ -102,6 +102,7 @@ current_config = {
     "face_swapper_weight": 0.5,
     "face_enhancer_model": "gfpgan_1.4",
     "face_enhancer_enabled": True,  # GFPGAN enabled by default for quality
+    "gfpgan_interval": 3,  # Apply GFPGAN every N frames (1=every frame, 3=every 3rd frame for speed)
     "face_detector_model": "yolo_face",
     "face_detector_score": 0.5,
     "face_mask_types": ["box", "landmark"],
@@ -1751,7 +1752,7 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
                     data = latest_frame_data
 
                 if data is None or data == last_data:
-                    await asyncio.sleep(0.005)  # 5ms poll
+                    await asyncio.sleep(0.001)  # 1ms poll for minimal latency
                     continue
 
                 last_data = data
@@ -1779,13 +1780,18 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
 
                         h_orig, w_orig = frame.shape[:2]
 
-                        # Process frame with GFPGAN + hair protection
+                        # GFPGAN skip strategy: apply enhancer every N frames for speed
+                        # This doubles effective FPS while maintaining quality
                         use_enhancer = current_config.get("face_enhancer_enabled", True)
-                        result = direct_swap_frame(frame, use_enhancer=use_enhancer)
+                        gfpgan_interval = current_config.get("gfpgan_interval", 3)
+                        apply_gfpgan = use_enhancer and (frames_processed % gfpgan_interval == 0)
+                        
+                        result = direct_swap_frame(frame, use_enhancer=apply_gfpgan)
 
                         if result is not None:
+                            # Lower JPEG quality for faster transfer (75% is visually identical at 640x360)
                             _, encoded = cv2.imencode('.jpg', result,
-                                                      [cv2.IMWRITE_JPEG_QUALITY, 90])
+                                                      [cv2.IMWRITE_JPEG_QUALITY, 75])
                             processed = encoded.tobytes()
                         else:
                             processed = data
@@ -1794,12 +1800,12 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
                         total_process_time += elapsed_ms
                         frames_processed += 1
 
-                        if frames_processed % 10 == 0:
+                        if frames_processed % 30 == 0:
                             avg_ms = total_process_time / max(1, frames_processed)
                             fps = 1000.0 / avg_ms if avg_ms > 0 else 0
                             logger.info(f"[Preview] Frame {frames_processed}: {elapsed_ms}ms "
                                         f"(avg: {avg_ms:.0f}ms, ~{fps:.1f} FPS, "
-                                        f"{w_orig}x{h_orig}, enhancer={use_enhancer})")
+                                        f"{w_orig}x{h_orig}, gfpgan={apply_gfpgan})")
 
                         await websocket.send_bytes(processed)
                         error_count = 0

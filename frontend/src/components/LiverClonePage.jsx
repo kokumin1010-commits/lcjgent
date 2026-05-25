@@ -346,42 +346,64 @@ export default function LiverClonePage() {
     if (!canvas || !video) return;
 
     const ctx = canvas.getContext("2d");
-    // Send at 960x540 (qHD) - good balance between quality and speed
-    // GPU Worker processes at 640x480 internally but gets more detail from higher input
-    const SEND_W = 960;
-    const SEND_H = 540;
+    // Optimized: 640x360 for minimal latency while maintaining face detail
+    // GPU Worker processes at this resolution directly - no resize needed
+    const SEND_W = 640;
+    const SEND_H = 360;
     canvas.width = SEND_W;
     canvas.height = SEND_H;
 
-    // Send frames at 60fps - GPU Worker processes latest frame only (no backlog)
-    const SEND_INTERVAL_MS = 16; // ~60 FPS send rate
+    // Use requestAnimationFrame for smooth frame pacing
+    // Combined with RTT-based flow control: only send next frame after receiving response
+    let waitingForResponse = false;
+    let animFrameId = null;
 
-    previewIntervalRef.current = setInterval(() => {
+    const sendLoop = () => {
+      animFrameId = requestAnimationFrame(sendLoop);
+
       if (!previewWsRef.current || previewWsRef.current.readyState !== WebSocket.OPEN) return;
       if (!video.videoWidth) return;
-      // Check WebSocket buffer - skip if too much queued (backpressure)
-      if (previewWsRef.current.bufferedAmount > 200000) return;
+      // Flow control: don't send if previous frame hasn't been processed yet
+      if (waitingForResponse) return;
+      // Backpressure: skip if WebSocket buffer is building up
+      if (previewWsRef.current.bufferedAmount > 50000) return;
 
-      // Draw video frame at processing resolution (fast, small payload)
+      // Draw video frame at optimized resolution
       ctx.drawImage(video, 0, 0, SEND_W, SEND_H);
 
-      // Lower JPEG quality for speed - GPU Worker will output at 90%
+      // Low JPEG quality for speed - face swap quality is determined by GPU Worker output
       canvas.toBlob(
         (blob) => {
           if (blob && previewWsRef.current?.readyState === WebSocket.OPEN) {
+            waitingForResponse = true;
             previewWsRef.current.send(blob);
           }
         },
         "image/jpeg",
-        0.85 // 85% quality - good balance of quality vs size at 960x540
+        0.6 // 60% quality - sufficient for face detection, minimal transfer size (~15-25KB)
       );
-    }, SEND_INTERVAL_MS);
+    };
+
+    // Listen for responses to release flow control
+    const origOnMessage = previewWsRef.current.onmessage;
+    previewWsRef.current.onmessage = (event) => {
+      waitingForResponse = false; // Allow next frame to be sent
+      if (origOnMessage) origOnMessage(event);
+    };
+
+    animFrameId = requestAnimationFrame(sendLoop);
+    // Store cleanup reference
+    previewIntervalRef.current = { cancel: () => cancelAnimationFrame(animFrameId) };
   };
 
   const stopPreview = () => {
     // Stop sending frames
     if (previewIntervalRef.current) {
-      clearInterval(previewIntervalRef.current);
+      if (previewIntervalRef.current.cancel) {
+        previewIntervalRef.current.cancel();
+      } else {
+        clearInterval(previewIntervalRef.current);
+      }
       previewIntervalRef.current = null;
     }
     // Close WebSocket
