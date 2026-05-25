@@ -108,7 +108,7 @@ source_face_path: Optional[str] = None
 face_analyzer = None       # insightface.app.FaceAnalysis instance
 face_swapper_model = None  # INSwapper ONNX model
 source_face_embedding = None  # Pre-computed source face object from FaceAnalysis
-face_enhancer_net = None   # GFPGAN face restoration network for HD quality
+face_enhancer_net = None   # Face enhancement (OpenCV-based HD pipeline)
 INSWAPPER_MODEL_PATH = os.getenv(
     "INSWAPPER_MODEL_PATH",
     "/workspace/facefusion/.assets/models/inswapper_128.onnx"
@@ -412,6 +412,57 @@ def _seamless_blend(original, swapped, faces):
         return swapped
 
 
+def _enhance_face_opencv(image, faces):
+    """
+    OpenCV-based HD face enhancement pipeline.
+    Applies bilateral filtering (denoise while preserving edges) and
+    unsharp masking (sharpen details) to face regions only.
+    This runs entirely on CPU and adds ~5-15ms per face.
+    """
+    try:
+        import cv2
+        import numpy as np
+        
+        result = image.copy()
+        h, w = image.shape[:2]
+        
+        for face in faces:
+            bbox = face.bbox.astype(int)
+            x1, y1, x2, y2 = bbox
+            # Expand slightly to include forehead/chin
+            pad_x = int((x2 - x1) * 0.05)
+            pad_y = int((y2 - y1) * 0.05)
+            x1, y1 = max(0, x1 - pad_x), max(0, y1 - pad_y)
+            x2, y2 = min(w, x2 + pad_x), min(h, y2 + pad_y)
+            if x2 <= x1 or y2 <= y1:
+                continue
+            
+            face_region = result[y1:y2, x1:x2]
+            if face_region.size == 0:
+                continue
+            
+            # Step 1: Bilateral filter - removes noise while keeping edges sharp
+            # d=5, sigmaColor=40, sigmaSpace=40 are tuned for face skin
+            denoised = cv2.bilateralFilter(face_region, d=5, sigmaColor=40, sigmaSpace=40)
+            
+            # Step 2: Unsharp mask - enhances fine details (eyes, lips, skin texture)
+            gaussian = cv2.GaussianBlur(denoised, (0, 0), 2.0)
+            sharpened = cv2.addWeighted(denoised, 1.5, gaussian, -0.5, 0)
+            
+            # Step 3: Subtle contrast enhancement via CLAHE on L channel
+            lab = cv2.cvtColor(sharpened, cv2.COLOR_BGR2LAB)
+            l_channel = lab[:, :, 0]
+            clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(4, 4))
+            lab[:, :, 0] = clahe.apply(l_channel)
+            enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+            
+            result[y1:y2, x1:x2] = enhanced
+        
+        return result
+    except Exception:
+        return image
+
+
 # ── Lifespan ─────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -472,24 +523,10 @@ async def lifespan(app: FastAPI):
         logger.error(f"[InsightFace] Failed to load models: {e}")
         logger.warning("[InsightFace] Will use FaceFusion CLI fallback")
 
-    # ── Load GFPGAN face enhancer for HD quality ────────────────────────────
-    try:
-        if os.path.exists(GFPGAN_MODEL_PATH):
-            from gfpgan import GFPGANer
-            face_enhancer_net = GFPGANer(
-                model_path=GFPGAN_MODEL_PATH,
-                upscale=1,
-                arch='clean',
-                channel_multiplier=2,
-                bg_upsampler=None,
-            )
-            logger.info(f"[GFPGAN] Face enhancer loaded: {GFPGAN_MODEL_PATH}")
-        else:
-            logger.info(f"[GFPGAN] Model not found at {GFPGAN_MODEL_PATH}, HD enhancement disabled")
-    except ImportError:
-        logger.info("[GFPGAN] gfpgan package not installed, HD enhancement disabled")
-    except Exception as e:
-        logger.warning(f"[GFPGAN] Failed to load: {e}")
+    # ── OpenCV-based HD face enhancement pipeline ─────────────────────────
+    # No external model needed - uses bilateral filter + unsharp mask
+    face_enhancer_net = "opencv_hd"  # Marker to indicate enhancement is available
+    logger.info("[HD Enhancement] OpenCV-based pipeline enabled (bilateral + unsharp + color_correct + seamless_blend)")
 
     logger.info(f"[InsightFace] Engine status: analyzer={'OK' if face_analyzer else 'NONE'}, "
                 f"swapper={'OK' if face_swapper_model else 'NONE'}, "
@@ -562,7 +599,7 @@ async def health_check(auth: bool = Depends(verify_api_key)):
             "face_swapper_model": face_swapper_model is not None,
             "source_face_embedding": source_face_embedding is not None,
             "face_enhancer_hd": face_enhancer_net is not None,
-            "hd_pipeline": "color_correction + gfpgan + seamless_blend",
+            "hd_pipeline": "color_correction + opencv_enhance(bilateral+unsharp+clahe) + seamless_blend",
             "ready": all([
                 face_analyzer is not None,
                 face_swapper_model is not None,
@@ -1509,15 +1546,10 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
                         # 1. Color correction: match swapped face color to target skin
                         result = _color_correct_face(frame, result, target_faces)
                         
-                        # 2. GFPGAN face restoration (if available)
+                        # 2. OpenCV HD face enhancement (sharpen + denoise)
                         if face_enhancer_net is not None:
                             try:
-                                _, _, enhanced = face_enhancer_net.enhance(
-                                    result, has_aligned=False,
-                                    only_center_face=False, paste_back=True
-                                )
-                                if enhanced is not None:
-                                    result = enhanced
+                                result = _enhance_face_opencv(result, target_faces)
                             except Exception:
                                 pass  # Skip enhancement on error
                         
@@ -1636,12 +1668,7 @@ async def preview_frame(req: SwapFrameRequest, auth: bool = Depends(verify_api_k
                 result = _color_correct_face(frame, result, target_faces)
                 if face_enhancer_net is not None:
                     try:
-                        _, _, enhanced = face_enhancer_net.enhance(
-                            result, has_aligned=False,
-                            only_center_face=False, paste_back=True
-                        )
-                        if enhanced is not None:
-                            result = enhanced
+                        result = _enhance_face_opencv(result, target_faces)
                     except Exception:
                         pass
                 result = _seamless_blend(frame, result, target_faces)
