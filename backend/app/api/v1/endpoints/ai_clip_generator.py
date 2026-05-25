@@ -1534,8 +1534,8 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
             "-map", "[vout]",
             "-map", "[aout]" if af_chain else "0:a",
             "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "22",
+            "-preset", "ultrafast",
+            "-crf", "23",
             "-c:a", "aac",
             "-b:a", "128k",
             "-movflags", "+faststart",
@@ -1551,8 +1551,8 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
             "-filter_complex", fc,
             "-map", "[vout]", "-map", "[aout]",
             "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "22",
+            "-preset", "ultrafast",
+            "-crf", "23",
             "-c:a", "aac",
             "-b:a", "128k",
             "-movflags", "+faststart",
@@ -1567,8 +1567,8 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
             *input_args,
             "-vf", vf_str,
             "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "22",
+            "-preset", "ultrafast",
+            "-crf", "23",
             "-c:a", "aac",
             "-b:a", "128k",
             "-movflags", "+faststart",
@@ -3083,7 +3083,7 @@ async def _run_regeneration(
                 *input_args,
                 "-filter_complex", fc_str,
                 "-map", "[vout]", "-map", "0:a",
-                "-c:v", "libx264", "-preset", "fast", "-crf", "22",
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
                 "-c:a", "aac", "-b:a", "128k",
                 "-movflags", "+faststart",
                 output_path,
@@ -3092,7 +3092,7 @@ async def _run_regeneration(
             # No overlays - just copy
             ffmpeg_cmd = [
                 "ffmpeg", "-y", "-i", video_path,
-                "-c:v", "libx264", "-preset", "fast", "-crf", "22",
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
                 "-c:a", "aac", "-b:a", "128k",
                 "-movflags", "+faststart",
                 output_path,
@@ -3155,7 +3155,8 @@ async def _run_ai_clip_generation_inner(job_id: str, req: GenerateRequest):
     import httpx
 
     logger.info(f"[ai-clip {job_id}] Starting V2 generation pipeline")
-    await _update_job(job_id, status="selecting", progress_pct=5, current_step="候補クリップ選定中...")
+    await _update_job(job_id, status="selecting", progress_pct=1, current_step="準備中...")
+    await _update_job(job_id, progress_pct=2, current_step="候補クリップ検索中...")
 
     candidates = await _select_candidates(req)
     if not candidates:
@@ -3163,8 +3164,8 @@ async def _run_ai_clip_generation_inner(job_id: str, req: GenerateRequest):
         return
 
     clips_total = min(len(candidates), req.max_clips)
-    await _update_job(job_id, clips_total=clips_total, progress_pct=8,
-                current_step=f"{clips_total}件のクリップを選定完了")
+    await _update_job(job_id, clips_total=clips_total, progress_pct=5,
+                current_step=f"{clips_total}件の候補クリップを選定完了")
 
     results = []
     PARALLEL_BATCH = 2  # 2クリップずつ並列処理
@@ -3285,8 +3286,8 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
     tmp_dir = tempfile.mkdtemp(prefix=f"ai_clip_{clip_id[:8]}_")
 
     try:
-        # ── 1. Download clip ── (5%)
-        await _update_job(job_id, progress_pct=5, current_step=f"クリップ {idx+1}/{total}: ダウンロード中...")
+        # ── 1. Download clip ── (3%)
+        await _update_job(job_id, progress_pct=3, current_step=f"クリップ {idx+1}/{total}: ダウンロード準備中...")
         video_path = os.path.join(tmp_dir, "input.mp4")
 
         download_url = clip_url
@@ -3300,15 +3301,27 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
                 logger.warning(f"[ai-clip {job_id}] SAS generation failed: {e}")
 
         async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.get(download_url)
-            resp.raise_for_status()
-            with open(video_path, "wb") as f:
-                f.write(resp.content)
+            async with client.stream("GET", download_url) as resp:
+                resp.raise_for_status()
+                total_bytes = int(resp.headers.get('content-length', 0))
+                downloaded = 0
+                last_dl_pct = 3
+                with open(video_path, "wb") as f:
+                    async for chunk in resp.aiter_bytes(chunk_size=65536):
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total_bytes > 0:
+                            dl_pct = 3 + int((downloaded / total_bytes) * 4)  # 3% to 7%
+                            if dl_pct > last_dl_pct:
+                                last_dl_pct = dl_pct
+                                await _update_job(job_id, progress_pct=min(dl_pct, 7),
+                                    current_step=f"\u30af\u30ea\u30c3\u30d7 {idx+1}/{total}: \u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u4e2d {downloaded//1024}KB/{total_bytes//1024}KB")
 
         file_size = os.path.getsize(video_path)
         logger.info(f"[ai-clip {job_id}] Downloaded clip: {file_size} bytes")
+        await _update_job(job_id, progress_pct=8, current_step=f"クリップ {idx+1}/{total}: ダウンロード完了 ({file_size//1024}KB)")
 
-        # ── 2. Get video info ──
+        # ── 2. Get video info ── (10%)
         probe_cmd = [
             "ffprobe", "-v", "quiet", "-print_format", "json",
             "-show_format", "-show_streams", video_path
@@ -3329,25 +3342,32 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
         if "format" in probe_data and "duration" in probe_data["format"]:
             duration = float(probe_data["format"]["duration"])
 
-        # ── 3. Audio analysis (V2: volume peaks + silence detection) ── (15%)
+        await _update_job(job_id, progress_pct=10, current_step=f"クリップ {idx+1}/{total}: 動画情報取得中...")
+
+        # ── 3. Audio analysis (V2: volume peaks + silence detection) ── (12-20%)
         volume_peaks = []
         silence_periods = []
         keep_segments = [(0, duration)]
 
         if req.enable_zoom_pulse:
-            await _update_job(job_id, progress_pct=15, current_step=f"クリップ {idx+1}/{total}: 音声分析中（ズームポイント検出）...")
+            await _update_job(job_id, progress_pct=12, current_step=f"クリップ {idx+1}/{total}: 音声分析中（ズームポイント検出）...")
             volume_peaks = _detect_volume_peaks(video_path)
+            await _update_job(job_id, progress_pct=16, current_step=f"クリップ {idx+1}/{total}: ズームポイント{len(volume_peaks)}件検出")
 
         if req.enable_silence_cut:
-            await _update_job(job_id, progress_pct=20, current_step=f"クリップ {idx+1}/{total}: 無音区間検出中...")
+            await _update_job(job_id, progress_pct=18, current_step=f"クリップ {idx+1}/{total}: 無音区間検出中...")
             silence_periods = _detect_silence_periods(
                 video_path, noise_db=req.silence_threshold_db
             )
+            await _update_job(job_id, progress_pct=20, current_step=f"クリップ {idx+1}/{total}: 無音{len(silence_periods)}区間検出")
 
-        # ── 4. Transcribe ── (25%)
+        # ── 4. Transcribe ── (22-35%)
         if not captions:
-            await _update_job(job_id, progress_pct=25, current_step=f"クリップ {idx+1}/{total}: 字幕生成中 (Whisper)...")
+            await _update_job(job_id, progress_pct=22, current_step=f"クリップ {idx+1}/{total}: 音声認識中 (Whisper)...")
             captions = await _transcribe_clip(video_path, req.target_language)
+            await _update_job(job_id, progress_pct=35, current_step=f"クリップ {idx+1}/{total}: 音声認識完了")
+        else:
+            await _update_job(job_id, progress_pct=35, current_step=f"クリップ {idx+1}/{total}: 既存字幕使用")
 
         if isinstance(captions, str):
             try:
@@ -3368,24 +3388,25 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
                 duration, volume_peaks, captions, max_zoom=req.zoom_intensity
             )
 
-        # ── 6. Hook generation ── (40%)
+        # ── 6. Hook generation ── (38%)
         hook_text = None
         if req.enable_hook:
-            await _update_job(job_id, progress_pct=40, current_step=f"クリップ {idx+1}/{total}: フック生成中...")
+            await _update_job(job_id, progress_pct=38, current_step=f"クリップ {idx+1}/{total}: フックテキスト生成中...")
             hook_text = await _generate_hook(captions, clip, req)
+            await _update_job(job_id, progress_pct=42, current_step=f"クリップ {idx+1}/{total}: フック生成完了")
 
-        # ── 7. CTA generation (V2) ── (45%)
+        # ── 7. CTA generation (V2) ── (44%)
         cta_text = None
         if req.enable_cta:
-            await _update_job(job_id, progress_pct=45, current_step=f"クリップ {idx+1}/{total}: CTA生成中...")
+            await _update_job(job_id, progress_pct=44, current_step=f"クリップ {idx+1}/{total}: CTAテキスト生成中...")
             cta_text = _generate_cta_text(captions, clip)
 
-        # ── 8. Scene classification & style assignment ── (50%)
-        await _update_job(job_id, progress_pct=50, current_step=f"クリップ {idx+1}/{total}: シーン分析中...")
+        # ── 8. Scene classification & style assignment ── (46%)
+        await _update_job(job_id, progress_pct=46, current_step=f"クリップ {idx+1}/{total}: シーン分析中...")
         styled_captions = _assign_scene_styles(captions, duration, req.subtitle_style)
 
-        # ── 9. Generate Pillow overlay images (V2.10) ── (55%)
-        await _update_job(job_id, progress_pct=55, current_step=f"クリップ {idx+1}/{total}: 字幕画像生成中 (Pillow)...")
+        # ── 9. Generate Pillow overlay images (V2.10) ── (48%)
+        await _update_job(job_id, progress_pct=48, current_step=f"クリップ {idx+1}/{total}: 字幕画像生成中 (Pillow)...")
         font_path = _find_cjk_font()
         # Calculate effective clip duration (limited by max_duration)
         clip_duration = min(duration, getattr(req, 'max_duration', 60))
@@ -3418,14 +3439,16 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
         except Exception as ass_err:
             logger.warning(f"[ai-clip {job_id}] ASS generation failed (non-fatal): {ass_err}")
 
-        # ── 10. Video mode processing & Build ffmpeg command ── (60%)
+        await _update_job(job_id, progress_pct=52, current_step=f"クリップ {idx+1}/{total}: 字幕{len(overlay_images)}枚生成完了")
+
+        # ── 10. Video mode processing & Build ffmpeg command ── (54%)
         video_mode = clip.get("video_mode", "original")
         product_imgs = clip.get("product_image_urls") or []
         output_path = os.path.join(tmp_dir, "output.mp4")
 
         if video_mode == "audio_only" and product_imgs:
             # 音声+商品スライドショーモード: 元映像の音声を保持し、商品画像のスライドショーを映像として使用
-            await _update_job(job_id, progress_pct=58, current_step=f"クリップ {idx+1}/{total}: 商品スライドショー生成中...")
+            await _update_job(job_id, progress_pct=54, current_step=f"クリップ {idx+1}/{total}: 商品スライドショー生成中...")
             slideshow_path = await _generate_product_slideshow(
                 product_imgs, duration, video_width, video_height, tmp_dir, job_id
             )
@@ -3434,8 +3457,8 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
                 logger.info(f"[ai-clip {job_id}] Using product slideshow as video source")
 
         elif video_mode == "product_overlay" and product_imgs:
-            # PiPモード: 元映像を小さくして右下に配置、商品画像をメインに
-            await _update_job(job_id, progress_pct=58, current_step=f"クリップ {idx+1}/{total}: PiP合成中（商品メイン+配信者ワイプ）...")
+            # PiPモード: 動画メイン+商品画像ポップアップ
+            await _update_job(job_id, progress_pct=54, current_step=f"クリップ {idx+1}/{total}: PiP合成中（商品ポップアップ）...")
             pip_path = await _generate_pip_video(
                 video_path, product_imgs, duration, video_width, video_height, tmp_dir, job_id
             )
@@ -3443,7 +3466,7 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
                 video_path = pip_path
                 logger.info(f"[ai-clip {job_id}] Using PiP composite as video source")
 
-        await _update_job(job_id, progress_pct=60, current_step=f"クリップ {idx+1}/{total}: エンコード中（Pillow overlay適用）...")
+        await _update_job(job_id, progress_pct=58, current_step=f"クリップ {idx+1}/{total}: エンコード準備中...")
         ffmpeg_cmd = _build_advanced_ffmpeg_command(
             video_path, ass_path, output_path,
             video_width, video_height, duration, req,
@@ -3461,13 +3484,53 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
 
         ffmpeg_cmd_str = ' '.join(ffmpeg_cmd)
         logger.info(f"[ai-clip {job_id}] ffmpeg V2 cmd: {ffmpeg_cmd_str}")
+        await _update_job(job_id, progress_pct=60, current_step=f"\u30af\u30ea\u30c3\u30d7 {idx+1}/{total}: \u30a8\u30f3\u30b3\u30fc\u30c9\u4e2d (ffmpeg)...")
+
+        # Run ffmpeg with -progress pipe:1 for structured progress output
+        ffmpeg_cmd_with_progress = ffmpeg_cmd[:1] + ["-progress", "pipe:1"] + ffmpeg_cmd[1:]
         proc = await asyncio.create_subprocess_exec(
-            *ffmpeg_cmd,
+            *ffmpeg_cmd_with_progress,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
-        ffmpeg_stderr_str = stderr.decode() if stderr else ""
+
+        # Read stdout (progress) and stderr concurrently
+        last_encode_pct = 60
+
+        async def _read_progress_stdout():
+            """Read ffmpeg -progress output from stdout (key=value format)"""
+            nonlocal last_encode_pct
+            while True:
+                line = await proc.stdout.readline()
+                if not line:
+                    break
+                line_str = line.decode(errors='replace').strip()
+                # ffmpeg -progress outputs: out_time_us=12345678
+                if line_str.startswith('out_time_us='):
+                    try:
+                        us = int(line_str.split('=')[1])
+                        elapsed = us / 1_000_000.0
+                        encode_pct = min(elapsed / max(duration, 1), 1.0)
+                        new_pct = 60 + int(encode_pct * 14)  # 60% to 74%
+                        if new_pct > last_encode_pct:
+                            last_encode_pct = new_pct
+                            await _update_job(job_id, progress_pct=new_pct,
+                                current_step=f"\u30af\u30ea\u30c3\u30d7 {idx+1}/{total}: \u30a8\u30f3\u30b3\u30fc\u30c9\u4e2d {int(encode_pct*100)}%")
+                    except (ValueError, IndexError):
+                        pass
+
+        async def _read_stderr_collect():
+            """Collect stderr for error reporting"""
+            data = await proc.stderr.read()
+            return data.decode(errors='replace') if data else ""
+
+        # Read progress and stderr concurrently, then wait for process
+        _, ffmpeg_stderr_str = await asyncio.gather(
+            _read_progress_stdout(),
+            _read_stderr_collect(),
+        )
+        await asyncio.wait_for(proc.wait(), timeout=600)
+
         logger.info(f"[ai-clip {job_id}] ffmpeg stderr (last 500): {ffmpeg_stderr_str[-500:]}")
 
         if proc.returncode != 0:
@@ -3491,18 +3554,21 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
         except Exception:
             pass
 
-        # ── 11. Enhanced thumbnail (V2) ── (85%)
+        await _update_job(job_id, progress_pct=75, current_step=f"クリップ {idx+1}/{total}: エンコード完了 ({output_size//1024}KB)")
+
+        # ── 11. Enhanced thumbnail (V2) ── (80%)
         thumbnail_url = None
         if req.enable_thumbnail:
-            await _update_job(job_id, progress_pct=85, current_step=f"クリップ {idx+1}/{total}: サムネイル生成中...")
+            await _update_job(job_id, progress_pct=80, current_step=f"クリップ {idx+1}/{total}: サムネイル生成中...")
             thumbnail_url = await _generate_enhanced_thumbnail(
                 output_path, tmp_dir, clip_id,
                 hook_text=hook_text or "", product_name=product_name,
             )
 
-        # ── 12. Upload to Azure Blob Storage ── (90%)
-        await _update_job(job_id, progress_pct=90, current_step=f"クリップ {idx+1}/{total}: アップロード中...")
+        # ── 12. Upload to Azure Blob Storage ── (85%)
+        await _update_job(job_id, progress_pct=85, current_step=f"クリップ {idx+1}/{total}: アップロード中 ({output_size//1024}KB)...")
         download_url, blob_url = await _upload_to_blob(output_path, clip_id, job_id)
+        await _update_job(job_id, progress_pct=92, current_step=f"クリップ {idx+1}/{total}: アップロード完了")
 
         # ── 13. Save to DB ── (95%)
         await _update_job(job_id, progress_pct=95, current_step=f"クリップ {idx+1}/{total}: DB保存中...")
@@ -4007,7 +4073,7 @@ async def _generate_product_slideshow(
         cmd = [
             "ffmpeg", "-y", "-loop", "1", "-i", frame_paths[0],
             "-t", str(duration), "-vf", f"scale={width}:{height}",
-            "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
+            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
             "-r", str(fps), slideshow_path
         ]
     else:
@@ -4035,7 +4101,7 @@ async def _generate_product_slideshow(
             # Fallback: single image
             cmd = [
                 "ffmpeg", "-y", "-loop", "1", "-i", frame_paths[0],
-                "-t", str(duration), "-c:v", "libx264", "-preset", "fast",
+                "-t", str(duration), "-c:v", "libx264", "-preset", "ultrafast",
                 "-pix_fmt", "yuv420p", "-r", str(fps), slideshow_path
             ]
         else:
@@ -4044,7 +4110,7 @@ async def _generate_product_slideshow(
                 "-filter_complex", filter_complex,
                 "-map", "[outv]",
                 "-t", str(duration),
-                "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
+                "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
                 "-r", str(fps), slideshow_path
             ]
 
@@ -4204,7 +4270,7 @@ async def _generate_pip_video(
         f"[0:v][1:v]overlay={overlay_x}:{overlay_y}:enable='{enable_expr}'[outv]",
         "-map", "[outv]", "-map", "0:a?",
         "-t", str(duration),
-        "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
+        "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-r", "30",
         pip_output
     ]
@@ -4226,7 +4292,7 @@ async def _generate_pip_video(
             f"[0:v][1:v]overlay={overlay_x}:{overlay_y}[outv]",
             "-map", "[outv]", "-map", "0:a?",
             "-t", str(duration),
-            "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
+            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
             "-c:a", "aac", "-r", "30",
             pip_output
         ]

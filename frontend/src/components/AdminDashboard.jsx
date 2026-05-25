@@ -1501,6 +1501,7 @@ function FeedbackCard({ fb, onRated, feedbacks, currentIdx, expanded, onToggle, 
   const [clipJobId, setClipJobId] = useState(null);
   const [clipJobStatus, setClipJobStatus] = useState(null); // null, 'queued', 'processing', 'done', 'failed'
   const [clipJobProgress, setClipJobProgress] = useState(0);
+  const [clipJobStep, setClipJobStep] = useState('');
   const [clipJobResult, setClipJobResult] = useState(null);
   const [clipVideoMode, setClipVideoMode] = useState('original'); // original, product_overlay, audio_only
   // Product image upload state (for PiP / audio+product modes)
@@ -1544,6 +1545,7 @@ function FeedbackCard({ fb, onRated, feedbacks, currentIdx, expanded, onToggle, 
         const job = res.data;
         setClipJobStatus(job.status);
         setClipJobProgress(job.progress_pct || 0);
+        setClipJobStep(job.current_step || '');
         if (job.status === 'done') {
           setClipJobResult(job.results?.[0] || null);
           clearInterval(interval);
@@ -1554,7 +1556,7 @@ function FeedbackCard({ fb, onRated, feedbacks, currentIdx, expanded, onToggle, 
       } catch (e) {
         console.error('Job poll error:', e);
       }
-    }, 3000);
+    }, 1500);
     return () => clearInterval(interval);
   }, [clipJobId, clipJobStatus]);
 
@@ -2278,13 +2280,13 @@ function FeedbackCard({ fb, onRated, feedbacks, currentIdx, expanded, onToggle, 
                   {clipJobStatus && clipJobStatus !== 'done' && clipJobStatus !== 'failed' && (
                     <div className="mt-3">
                       <div className="flex items-center justify-between text-[10px] text-indigo-600 mb-1">
-                        <span>⏳ {clipJobStatus === 'queued' ? 'キュー待ち...' : '処理中...'}</span>
+                        <span>⏳ {clipJobStep || (clipJobStatus === 'queued' ? 'キュー待ち...' : '処理中...')}</span>
                         <span className="font-bold">{clipJobProgress}%</span>
                       </div>
                       <div className="w-full bg-indigo-100 rounded-full h-2">
                         <div
-                          className="bg-indigo-600 h-2 rounded-full transition-all duration-500"
-                          style={{ width: `${clipJobProgress}%` }}
+                          className="bg-gradient-to-r from-indigo-500 to-indigo-600 h-2 rounded-full transition-all duration-300 ease-out"
+                          style={{ width: `${Math.max(clipJobProgress, 1)}%` }}
                         />
                       </div>
                     </div>
