@@ -5103,24 +5103,9 @@ async def analyze_product_image(
 
 # ─── V10: Clip Regeneration from Source ──────────────────────────────────────
 class RegenFromSourceRequest(BaseModel):
-    """V10: clip-dbの既存クリップから元動画を参照して再生成"""
-    subtitle_style: str = Field("auto", description="字幕スタイル")
-    enable_sfx: bool = Field(True, description="効果音")
-    enable_transitions: bool = Field(True, description="トランジション")
-    enable_hook: bool = Field(True, description="フックテキスト")
-    enable_cta: bool = Field(True, description="CTAテキスト")
-    enable_zoom_pulse: bool = Field(True, description="ズームパルス")
-    enable_progress_bar: bool = Field(True, description="進行バー")
-    enable_subtitle_animation: bool = Field(True, description="字幕アニメーション")
-    enable_keyword_highlight: bool = Field(True, description="キーワードハイライト")
-    position_y: float = Field(75.0, ge=0, le=100, description="字幕Y位置")
-    expand_before_sec: float = Field(10.0, ge=0, le=30, description="前方拡張秒数")
-    expand_after_sec: float = Field(20.0, ge=0, le=60, description="後方拡張秒数")
+    """V10: clip-dbの既存クリップから元動画を参照して再生成（AI自動最適化）"""
     target_duration: float = Field(90.0, ge=30, le=180, description="目標クリップ長（秒）")
-
-class BatchRegenRequest(BaseModel):
-    """V10: 一括再生成リクエスト"""
-    clip_ids: List[str] = Field(..., min_length=1, max_length=50, description="再生成対象のclip_id一覧")
+    # All other options are auto-optimized by AI
     subtitle_style: str = Field("auto", description="字幕スタイル")
     enable_sfx: bool = Field(True)
     enable_transitions: bool = Field(True)
@@ -5131,9 +5116,11 @@ class BatchRegenRequest(BaseModel):
     enable_subtitle_animation: bool = Field(True)
     enable_keyword_highlight: bool = Field(True)
     position_y: float = Field(75.0, ge=0, le=100)
-    expand_before_sec: float = Field(10.0, ge=0, le=30)
-    expand_after_sec: float = Field(20.0, ge=0, le=60)
-    target_duration: float = Field(90.0, ge=30, le=180)
+
+class BatchRegenRequest(BaseModel):
+    """V10: 一括再生成リクエスト（AI自動最適化）"""
+    clip_ids: List[str] = Field(..., min_length=1, max_length=50, description="再生成対象のclip_id一覧")
+    target_duration: float = Field(90.0, ge=30, le=180, description="目標クリップ長（秒）")
 
 @router.post("/clips/{clip_id}/regenerate-from-source")
 async def regenerate_clip_from_source(
@@ -5219,8 +5206,7 @@ async def _regenerate_clip_from_source_impl(clip_id: str, req: RegenFromSourceRe
             "video_id": clip_data["video_id"],
             "original_time_start": clip_data["time_start"],
             "original_time_end": clip_data["time_end"],
-            "expand_before_sec": req.expand_before_sec,
-            "expand_after_sec": req.expand_after_sec,
+            "expand_mode": "auto",
             "target_duration": req.target_duration,
             "subtitle_style": req.subtitle_style,
             "original_quality_score": original_quality_score,
@@ -5280,8 +5266,8 @@ async def batch_regenerate_clips(
         "config": {
             "type": "batch_regenerate_from_source",
             "clip_count": len(clips),
-            "subtitle_style": req.subtitle_style,
             "target_duration": req.target_duration,
+            "mode": "ai_auto_optimize",
         },
         "results": [],
     }
@@ -5487,20 +5473,30 @@ async def _run_regeneration_from_source_inner(job_id: str, clip_row, req: RegenF
     original_end = float((clip_row["time_end"] if isinstance(clip_row, dict) else clip_row.time_end) or original_start + 30)
     # Determine if we have the full video or just the clip segment
     is_full_video = full_video_duration > (original_end - original_start) * 1.5
+    target_dur = req.target_duration  # default 90s
     if is_full_video:
-        # We have the full video - expand time range
-        new_start = max(0, original_start - req.expand_before_sec)
-        new_end = min(full_video_duration, original_end + req.expand_after_sec) if full_video_duration > 0 else original_end + req.expand_after_sec
-        # Try to reach target duration
-        current_duration = new_end - new_start
-        if current_duration < req.target_duration and full_video_duration > 0:
-            deficit = req.target_duration - current_duration
-            extra_before = min(new_start, deficit / 2)
-            extra_after = min(full_video_duration - new_end, deficit / 2) if full_video_duration > new_end else 0
-            new_start = max(0, new_start - extra_before)
-            new_end = min(full_video_duration, new_end + extra_after)
+        # AI auto-determines optimal expand range to reach target duration
+        original_duration = original_end - original_start
+        needed_extra = max(0, target_dur - original_duration)
+        # Expand more toward the end (content continuation) than the beginning
+        auto_expand_before = min(original_start, needed_extra * 0.35)
+        auto_expand_after = min(
+            (full_video_duration - original_end) if full_video_duration > original_end else 0,
+            needed_extra * 0.65
+        )
+        # If one side can't expand enough, give the remainder to the other
+        remaining = needed_extra - auto_expand_before - auto_expand_after
+        if remaining > 0:
+            extra_before = min(original_start - auto_expand_before, remaining)
+            auto_expand_before += max(0, extra_before)
+            remaining -= max(0, extra_before)
+            if remaining > 0:
+                extra_after = min((full_video_duration - original_end - auto_expand_after) if full_video_duration > (original_end + auto_expand_after) else 0, remaining)
+                auto_expand_after += max(0, extra_after)
+        new_start = max(0, original_start - auto_expand_before)
+        new_end = min(full_video_duration, original_end + auto_expand_after) if full_video_duration > 0 else original_end + auto_expand_after
         # Cap at target_duration
-        actual_duration = min(new_end - new_start, req.target_duration)
+        actual_duration = min(new_end - new_start, target_dur)
         new_end = new_start + actual_duration
     else:
         # We only have the clip segment - use full duration
@@ -5768,20 +5764,8 @@ async def _run_batch_regeneration(batch_job_id: str, req: BatchRegenRequest):
                     "original_filename": clip_row.original_filename,
                     "user_email": clip_row.user_email,
                 }
-                # Create individual regen request
+                # Create individual regen request (AI auto-optimizes all settings)
                 single_req = RegenFromSourceRequest(
-                    subtitle_style=req.subtitle_style,
-                    enable_sfx=req.enable_sfx,
-                    enable_transitions=req.enable_transitions,
-                    enable_hook=req.enable_hook,
-                    enable_cta=req.enable_cta,
-                    enable_zoom_pulse=req.enable_zoom_pulse,
-                    enable_progress_bar=req.enable_progress_bar,
-                    enable_subtitle_animation=req.enable_subtitle_animation,
-                    enable_keyword_highlight=req.enable_keyword_highlight,
-                    position_y=req.position_y,
-                    expand_before_sec=req.expand_before_sec,
-                    expand_after_sec=req.expand_after_sec,
                     target_duration=req.target_duration,
                 )
                 # Run regeneration inline (sequential within batch)

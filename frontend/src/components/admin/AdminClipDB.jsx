@@ -624,7 +624,7 @@ function ClipCard({ clip, onPlay, brands, adminKey, onBrandChange }) {
             }}
             className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg text-[11px] font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
           >
-            <RefreshCw className="w-3 h-3" /> V10再生成
+            <Sparkles className="w-3 h-3" /> AI再生成
           </button>
         )}
         {/* TikTok tracking button */}
@@ -3027,21 +3027,6 @@ function SuccessResult({ resultClip, jobStatus, adminKey }) {
 // ─── V10: Regeneration from Source Modal ───
 // ═══════════════════════════════════════════════
 function V10RegenerationModal({ clip, onClose, adminKey, generating, setGenerating, jobId, setJobId, jobStatus, setJobStatus }) {
-  const [options, setOptions] = useState({
-    subtitle_style: "auto",
-    enable_sfx: true,
-    enable_transitions: true,
-    enable_hook: true,
-    enable_cta: true,
-    enable_zoom_pulse: true,
-    enable_progress_bar: true,
-    enable_subtitle_animation: true,
-    enable_keyword_highlight: true,
-    position_y: 75,
-    expand_before_sec: 10,
-    expand_after_sec: 20,
-    target_duration: 90,
-  });
   const [comparison, setComparison] = useState(null);
   const [loadingComparison, setLoadingComparison] = useState(false);
 
@@ -3096,7 +3081,7 @@ function V10RegenerationModal({ clip, onClose, adminKey, generating, setGenerati
       const res = await fetch(`${API_BASE}/api/v1/ai-clip/clips/${clip.id || clip.clip_id}/regenerate-from-source`, {
         method: "POST",
         headers: { "X-Admin-Key": adminKey, "Content-Type": "application/json" },
-        body: JSON.stringify(options),
+        body: JSON.stringify({}),
       });
       if (res.ok) {
         const data = await res.json();
@@ -3123,8 +3108,8 @@ function V10RegenerationModal({ clip, onClose, adminKey, generating, setGenerati
               <RefreshCw className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-gray-900">V10 再生成</h3>
-              <p className="text-xs text-gray-500">元動画から拡張範囲で再カット＋最新AI処理</p>
+              <h3 className="text-lg font-bold text-gray-900">AI 再生成</h3>
+              <p className="text-xs text-gray-500">AIが自動で最適なクリップを生成します</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 transition">
@@ -3157,79 +3142,22 @@ function V10RegenerationModal({ clip, onClose, adminKey, generating, setGenerati
           </div>
         </div>
 
-        {/* Options */}
-        <div className="px-6 py-4 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">目標尺（秒）</label>
-              <input
-                type="number"
-                value={options.target_duration}
-                onChange={(e) => setOptions({...options, target_duration: Number(e.target.value)})}
-                min={30} max={180} step={5}
-                className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+        {/* AI自動最適化説明 */}
+        <div className="px-6 py-4">
+          <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Sparkles className="w-4 h-4 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-800 mb-1">AIが自動で最適化</p>
+                <ul className="text-xs text-gray-600 space-y-1">
+                  <li>• 元動画から最適な範囲を自動判定</li>
+                  <li>• 字幕・フック・CTA・効果音を自動適用</li>
+                  <li>• 品質スコア最大化を目指して処理</li>
+                </ul>
+              </div>
             </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">字幕スタイル</label>
-              <select
-                value={options.subtitle_style}
-                onChange={(e) => setOptions({...options, subtitle_style: e.target.value})}
-                className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="auto">自動</option>
-                <option value="simple">シンプル</option>
-                <option value="box">ボックス</option>
-                <option value="outline">アウトライン</option>
-                <option value="pop">ポップ</option>
-                <option value="gradient">グラデーション</option>
-                <option value="karaoke">カラオケ</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">前方拡張（秒）</label>
-              <input
-                type="number"
-                value={options.expand_before_sec}
-                onChange={(e) => setOptions({...options, expand_before_sec: Number(e.target.value)})}
-                min={0} max={30} step={5}
-                className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">後方拡張（秒）</label>
-              <input
-                type="number"
-                value={options.expand_after_sec}
-                onChange={(e) => setOptions({...options, expand_after_sec: Number(e.target.value)})}
-                min={0} max={60} step={5}
-                className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          {/* Toggle options */}
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { key: "enable_hook", label: "フックテキスト" },
-              { key: "enable_cta", label: "CTAテキスト" },
-              { key: "enable_sfx", label: "効果音" },
-              { key: "enable_transitions", label: "トランジション" },
-              { key: "enable_zoom_pulse", label: "ズームパルス" },
-              { key: "enable_progress_bar", label: "進行バー" },
-              { key: "enable_subtitle_animation", label: "字幕アニメ" },
-              { key: "enable_keyword_highlight", label: "キーワード強調" },
-            ].map(({ key, label }) => (
-              <label key={key} className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={options[key]}
-                  onChange={(e) => setOptions({...options, [key]: e.target.checked})}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                {label}
-              </label>
-            ))}
           </div>
         </div>
 
@@ -3320,7 +3248,7 @@ function V10RegenerationModal({ clip, onClose, adminKey, generating, setGenerati
               </>
             ) : (
               <>
-                <RefreshCw className="w-4 h-4" /> V10再生成を実行
+                <Sparkles className="w-4 h-4" /> AI再生成を実行
               </>
             )}
           </button>
