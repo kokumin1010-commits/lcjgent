@@ -64,7 +64,7 @@ function useVoiceInput(onTranscript: (text: string) => void) {
     }
 
     const recognition = new SpeechRecognition();
-    recognition.lang = "zh-CN";
+    recognition.lang = "ja-JP"; // 日本語優先（中国語ユーザーはブラウザ設定で変更可能）
     recognition.interimResults = true;
     recognition.continuous = true;
     recognition.maxAlternatives = 1;
@@ -201,22 +201,23 @@ export default function LcjBrain() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-white/10 bg-black/10 overflow-x-auto">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex gap-1 py-2">
+      {/* Tabs - モバイル対応: コンパクト + 横スクロール */}
+      <div className="border-b border-white/10 bg-black/10 overflow-x-auto scrollbar-hide">
+        <div className="max-w-7xl mx-auto px-2 md:px-4">
+          <div className="flex gap-0.5 md:gap-1 py-1.5 md:py-2 min-w-max">
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+                className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium whitespace-nowrap transition-all ${
                   activeTab === tab.id
                     ? "bg-violet-600/20 text-violet-300 border border-violet-500/30"
                     : "text-white/50 hover:text-white/80 hover:bg-white/5"
                 }`}
               >
-                <tab.icon className="w-4 h-4" />
-                {tab.label}
+                <tab.icon className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="sm:hidden">{tab.label.slice(0, 3)}</span>
               </button>
             ))}
           </div>
@@ -453,14 +454,23 @@ function ChatPanel() {
       {/* Sidebar - 会話履歴 */}
       <div className={`${sidebarOpen ? "w-64" : "w-0"} transition-all duration-200 overflow-hidden border-r border-white/10 flex-shrink-0 md:relative fixed md:static top-0 left-0 md:z-0 z-30 h-full bg-[#1a1a2e]`}>
         <div className="w-64 h-full flex flex-col">
-          {/* 新しい会話ボタン */}
-          <button
-            onClick={startNewConversation}
-            className="m-2 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-violet-600/20 border border-violet-500/30 text-violet-300 hover:bg-violet-600/30 hover:text-white transition-all text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            新しい会話
-          </button>
+          {/* モバイル: サイドバー閉じるボタン + 新しい会話 */}
+          <div className="flex items-center gap-2 m-2">
+            <button
+              onClick={startNewConversation}
+              className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-violet-600/20 border border-violet-500/30 text-violet-300 hover:bg-violet-600/30 hover:text-white transition-all text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              新しい会話
+            </button>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="md:hidden p-2.5 rounded-lg bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all"
+              title="サイドバーを閉じる"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
           
           {/* 会話リスト */}
           <div className="flex-1 overflow-y-auto px-2 space-y-0.5">
