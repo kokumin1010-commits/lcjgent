@@ -750,6 +750,20 @@ ${dataContext || "（暂无相关数据）"}
         let activeConversationId = input.conversationId || null;
         if (db) {
           try {
+            // 会話IDが指定されている場合、所有権を確認
+            if (activeConversationId && userId) {
+              const [ownedConv] = await db.select({ id: lcjBrainConversations.id })
+                .from(lcjBrainConversations)
+                .where(and(
+                  eq(lcjBrainConversations.id, activeConversationId),
+                  eq(lcjBrainConversations.userId, userId)
+                ))
+                .limit(1);
+              if (!ownedConv) {
+                // 他人の会話には書き込ませない、新規会話を作成
+                activeConversationId = null;
+              }
+            }
             // 会話IDがない場合、新しい会話を作成
             if (!activeConversationId && userId) {
               const title = message.length > 50 ? message.substring(0, 50) + "..." : message;
@@ -1207,8 +1221,18 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
     .input(z.object({ conversationId: z.number() }))
     .query(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) return [];
+      if (!db || !ctx.user?.id) return [];
       try {
+        // まず会話が自分のものか確認
+        const [conv] = await db.select()
+          .from(lcjBrainConversations)
+          .where(and(
+            eq(lcjBrainConversations.id, input.conversationId),
+            eq(lcjBrainConversations.userId, ctx.user.id)
+          ))
+          .limit(1);
+        if (!conv) return []; // 他人の会話にはアクセスさせない
+        
         const messages = await db.select()
           .from(lcjBrainChatLogs)
           .where(eq(lcjBrainChatLogs.conversationId, input.conversationId))

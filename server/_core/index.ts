@@ -1988,12 +1988,12 @@ async function startServer() {
       let textContent = "";
       if (file.mimetype === "application/pdf") {
         try {
-          const pdfParse = (await import("pdf-parse")).default;
+          const pdfParse = require("pdf-parse");
           const pdfData = await pdfParse(file.buffer);
           textContent = pdfData.text;
         } catch (e: any) {
           console.error("[Knowledge Upload] PDF parse error:", e.message);
-          return res.status(400).json({ error: "PDF解析に失敗しました" });
+          return res.status(400).json({ error: "PDF解析に失敗しました: " + e.message });
         }
       } else {
         // Plain text / markdown
