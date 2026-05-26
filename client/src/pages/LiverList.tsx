@@ -397,6 +397,53 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                   </div>
                 </div>
               </div>
+
+              {/* Brand Total Duration (全ブランド合計配信時間) */}
+              {allLiverBrandDurations && (() => {
+                // Aggregate all brands across all livers
+                const brandTotals: Record<string, { brandName: string; totalMinutes: number }> = {};
+                Object.values(allLiverBrandDurations as Record<string, { brandId: number; brandName: string; durationMinutes: number }[]>).forEach((brands) => {
+                  brands.forEach((b) => {
+                    if (!brandTotals[b.brandName]) {
+                      brandTotals[b.brandName] = { brandName: b.brandName, totalMinutes: 0 };
+                    }
+                    brandTotals[b.brandName].totalMinutes += b.durationMinutes;
+                  });
+                });
+                const sortedBrands = Object.values(brandTotals).sort((a, b) => b.totalMinutes - a.totalMinutes);
+                if (sortedBrands.length === 0) return null;
+                const totalAllMinutes = sortedBrands.reduce((sum, b) => sum + b.totalMinutes, 0);
+                return (
+                  <div className="mt-5 pt-4 border-t border-white/10">
+                    <h3 className="text-sm text-white/90 flex items-center gap-1.5 mb-3">
+                      🏷️ 今月のブランド別配信時間
+                      <span className="text-[10px] text-white/40 ml-1">合計: {Math.floor(totalAllMinutes / 60)}h{totalAllMinutes % 60 > 0 ? `${totalAllMinutes % 60}m` : ''}</span>
+                    </h3>
+                    <div className="space-y-1.5">
+                      {sortedBrands.map((brand) => {
+                        const maxMinutes = sortedBrands[0].totalMinutes;
+                        const barWidth = maxMinutes > 0 ? (brand.totalMinutes / maxMinutes) * 100 : 0;
+                        const hours = Math.floor(brand.totalMinutes / 60);
+                        const mins = brand.totalMinutes % 60;
+                        return (
+                          <div key={brand.brandName} className="flex items-center gap-2">
+                            <span className="text-[11px] text-white/70 w-[100px] shrink-0 truncate">{brand.brandName}</span>
+                            <div className="flex-1 h-4 bg-white/5 rounded overflow-hidden">
+                              <div 
+                                className="h-full bg-gradient-to-r from-emerald-500 to-teal-300 rounded transition-all"
+                                style={{ width: `${barWidth}%` }}
+                              />
+                            </div>
+                            <span className="text-[11px] font-mono text-emerald-300 w-[60px] text-right shrink-0">
+                              {hours}h{mins > 0 ? `${mins}m` : ''}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
               
               {/* Daily Sales Bar Chart (Amazon Seller style) - Default visible */}
               {dailySalesTrend && dailySalesTrend.length > 0 && (
