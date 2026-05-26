@@ -9289,6 +9289,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
         saves: z.number().optional().default(0),
         status: z.enum(["draft", "scheduled", "posted", "failed"]).optional().default("posted"),
         notes: z.string().optional(),
+        deadline: z.string().optional(), // 截止日期 ISO date string
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
@@ -9314,6 +9315,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
           saves: input.saves,
           status: input.status,
           notes: input.notes || null,
+          deadline: input.deadline ? new Date(input.deadline) : null,
           createdBy: userId,
         });
 
@@ -9339,6 +9341,9 @@ Return ONLY valid JSON, no markdown or explanation.`,
         saves: z.number().optional(),
         status: z.enum(["draft", "scheduled", "posted", "failed"]).optional(),
         notes: z.string().optional(),
+        isViolation: z.number().optional(), // 0=正常, 1=違規
+        violationNote: z.string().optional(), // 違規理由
+        deadline: z.string().nullable().optional(), // 截止日期
       }))
       .mutation(async ({ input }) => {
         const db = await getDb();
@@ -9346,8 +9351,26 @@ Return ONLY valid JSON, no markdown or explanation.`,
         const { id, ...updateData } = input;
         const setData: any = { ...updateData };
         if (updateData.postDate) setData.postDate = new Date(updateData.postDate);
+        if (updateData.deadline !== undefined) setData.deadline = updateData.deadline ? new Date(updateData.deadline) : null;
 
         await db.update(brandShortVideos).set(setData).where(eq(brandShortVideos.id, id));
+        return { success: true };
+      }),
+
+    // 違規マーク専用API
+    markShortVideoViolation: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        isViolation: z.number(), // 0=解除, 1=違規
+        violationNote: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        await db.update(brandShortVideos).set({
+          isViolation: input.isViolation,
+          violationNote: input.violationNote || null,
+        }).where(eq(brandShortVideos.id, input.id));
         return { success: true };
       }),
 

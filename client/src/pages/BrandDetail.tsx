@@ -851,7 +851,7 @@ export default function BrandDetail() {
   
   // 短視頻管理用state
   const [addShortVideoDialogOpen, setAddShortVideoDialogOpen] = useState(false);
-  const [newShortVideo, setNewShortVideo] = useState({ liverName: "", liverId: null as number | null, postDate: "", platform: "TikTok", videoUrl: "", title: "", productName: "", status: "posted" as "draft" | "scheduled" | "posted" | "failed" });
+  const [newShortVideo, setNewShortVideo] = useState({ liverName: "", liverId: null as number | null, postDate: "", platform: "TikTok", videoUrl: "", title: "", productName: "", status: "posted" as "draft" | "scheduled" | "posted" | "failed", deadline: "" });
 
   // AI Ad Proposal states
   const [adProposalDialogOpen, setAdProposalDialogOpen] = useState(false);
@@ -1019,6 +1019,10 @@ export default function BrandDetail() {
   const deleteShortVideoMutation = trpc.brandContract.deleteShortVideo.useMutation({
     onSuccess: () => { refetchShortVideos(); toast.success(language === 'ja' ? '短視頻を削除しました' : '短视频已删除'); },
     onError: (err: any) => { toast.error(language === 'ja' ? '削除に失敗: ' + err.message : '删除失败: ' + err.message); },
+  });
+  const markViolationMutation = trpc.brandContract.markShortVideoViolation.useMutation({
+    onSuccess: () => { refetchShortVideos(); toast.success(language === 'ja' ? '違規ステータスを更新しました' : '违规状态已更新'); },
+    onError: (err: any) => { toast.error(language === 'ja' ? '更新に失敗: ' + err.message : '更新失败: ' + err.message); },
   });
 
   // MALL商品データ取得
@@ -3144,42 +3148,74 @@ ${proposal.proposalContent}
                     <th className="text-left p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'ライバー' : '主播'}</th>
                     <th className="text-left p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'タイトル' : '标题'}</th>
                     <th className="text-left p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'プラットフォーム' : '平台'}</th>
+                    <th className="text-center p-3 text-xs font-medium text-gray-400">{language === 'ja' ? '締切日' : '截止日'}</th>
                     <th className="text-center p-3 text-xs font-medium text-gray-400">{language === 'ja' ? 'ステータス' : '状态'}</th>
                     <th className="text-right p-3 text-xs font-medium text-gray-400">{language === 'ja' ? '操作' : '操作'}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {shortVideoData.videos.map((video: any) => (
-                    <tr key={video.id} className="border-b border-gray-800/50 hover:bg-white/5">
+                  {shortVideoData.videos.map((video: any) => {
+                    const isViolation = video.isViolation === 1;
+                    const isOverdue = video.deadline && new Date(video.deadline) < new Date() && video.status !== 'posted';
+                    return (
+                    <tr key={video.id} className={`border-b border-gray-800/50 hover:bg-white/5 ${isViolation ? 'bg-red-900/20 border-red-500/30' : ''}`}>
                       <td className="p-3 text-sm text-gray-300">
                         {new Date(video.postDate).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
                       </td>
                       <td className="p-3 text-sm text-orange-300 font-medium">{video.liverName}</td>
-                      <td className="p-3 text-sm text-gray-300">
+                      <td className="p-3 text-sm text-gray-300 max-w-[280px]">
                         {video.videoUrl ? (
-                          <a href={video.videoUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
-                            {video.title || video.videoUrl.substring(0, 30) + '...'}
+                          <a href={video.videoUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline flex items-center gap-1">
+                            <svg className="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                            <span className="truncate">{video.title || video.videoUrl.substring(0, 40) + '...'}</span>
                           </a>
                         ) : (video.title || '-')}
                       </td>
                       <td className="p-3 text-sm text-gray-400">{video.platform}</td>
+                      <td className="p-3 text-center text-xs">
+                        {video.deadline ? (
+                          <span className={`${isOverdue ? 'text-red-400 font-bold' : 'text-gray-300'}`}>
+                            {new Date(video.deadline).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
+                            {isOverdue && <span className="ml-1 text-red-500">‼</span>}
+                          </span>
+                        ) : <span className="text-gray-600">-</span>}
+                      </td>
                       <td className="p-3 text-center">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${video.status === 'posted' ? 'bg-green-500/20 text-green-400' : video.status === 'scheduled' ? 'bg-blue-500/20 text-blue-400' : video.status === 'draft' ? 'bg-gray-500/20 text-gray-400' : 'bg-red-500/20 text-red-400'}`}>
-                          {video.status === 'posted' ? (language === 'ja' ? '投稿済' : '已发布') : video.status === 'scheduled' ? (language === 'ja' ? '予約中' : '已预约') : video.status === 'draft' ? (language === 'ja' ? '下書き' : '草稿') : (language === 'ja' ? '失敗' : '失败')}
-                        </span>
+                        <div className="flex items-center justify-center gap-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${video.status === 'posted' ? 'bg-green-500/20 text-green-400' : video.status === 'scheduled' ? 'bg-blue-500/20 text-blue-400' : video.status === 'draft' ? 'bg-gray-500/20 text-gray-400' : 'bg-red-500/20 text-red-400'}`}>
+                            {video.status === 'posted' ? (language === 'ja' ? '投稿済' : '已发布') : video.status === 'scheduled' ? (language === 'ja' ? '予約中' : '已预约') : video.status === 'draft' ? (language === 'ja' ? '下書き' : '草稿') : (language === 'ja' ? '失敗' : '失败')}
+                          </span>
+                          {isViolation && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-600/30 text-red-300 border border-red-500/40 font-bold">
+                              {language === 'ja' ? '違規' : '违规'}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteShortVideoMutation.mutate({ id: video.id })}
-                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 w-7 p-0"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => markViolationMutation.mutate({ id: video.id, isViolation: isViolation ? 0 : 1 })}
+                            className={`h-7 px-2 text-xs ${isViolation ? 'text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10' : 'text-red-400 hover:text-red-300 hover:bg-red-500/10'}`}
+                            title={isViolation ? (language === 'ja' ? '違規解除' : '取消违规') : (language === 'ja' ? '違規マーク' : '标记违规')}
+                          >
+                            {isViolation ? (language === 'ja' ? '解除' : '取消') : (language === 'ja' ? '違規' : '违规')}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteShortVideoMutation.mutate({ id: video.id })}
+                            className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 w-7 p-0"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
               <div className="mt-2 text-xs text-gray-500 text-right">
@@ -5797,6 +5833,15 @@ ${proposal.proposalContent}
                 placeholder={language === 'ja' ? '紹介商品名' : '推荐商品名'}
               />
             </div>
+            <div>
+              <Label className="text-orange-400 text-xs">{language === 'ja' ? '締切日（截止日期）' : '截止日期'}</Label>
+              <Input
+                type="date"
+                value={newShortVideo.deadline}
+                onChange={(e) => setNewShortVideo({ ...newShortVideo, deadline: e.target.value })}
+                className="bg-black/50 border-gray-700 text-white mt-1"
+              />
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setAddShortVideoDialogOpen(false)} className="border-gray-700 text-gray-300">
@@ -5818,9 +5863,10 @@ ${proposal.proposalContent}
                   title: newShortVideo.title || undefined,
                   productName: newShortVideo.productName || undefined,
                   status: newShortVideo.status,
+                  deadline: newShortVideo.deadline ? new Date(newShortVideo.deadline).toISOString() : undefined,
                 });
                 setAddShortVideoDialogOpen(false);
-                setNewShortVideo({ liverName: "", liverId: null, postDate: "", platform: "TikTok", videoUrl: "", title: "", productName: "", status: "posted" });
+                setNewShortVideo({ liverName: "", liverId: null, postDate: "", platform: "TikTok", videoUrl: "", title: "", productName: "", status: "posted", deadline: "" });
               }}
               className="bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white"
               disabled={createShortVideoMutation.isPending}

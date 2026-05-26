@@ -5911,6 +5911,9 @@ export const brandShortVideos = mysqlTable("brand_short_videos", {
   saves: int("saves").default(0), // 保存数
   // ステータス
   status: mysqlEnum("status", ["draft", "scheduled", "posted", "failed"]).default("posted").notNull(),
+  isViolation: int("isViolation").default(0).notNull(), // 違規フラグ (0=正常, 1=違規)
+  violationNote: text("violationNote"), // 違規理由メモ
+  deadline: timestamp("deadline"), // 截止日期（ブランド方の投稿期限）
   notes: text("notes"), // メモ
   // 作成者情報
   createdBy: int("createdBy").notNull(),
