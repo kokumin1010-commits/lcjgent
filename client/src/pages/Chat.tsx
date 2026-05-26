@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   MessageCircle, Send, Plus, Users, Image as ImageIcon,
-  Search, X, Edit2, UserPlus, ArrowLeft, Loader2, Check
+  Search, X, Edit2, UserPlus, ArrowLeft, Loader2, Check, User
 } from "lucide-react";
 
 export default function Chat() {
@@ -29,6 +29,11 @@ export default function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 自分の情報取得
+  const { data: myInfo } = trpc.chat.getMyInfo.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Data fetching
   const { data: rooms, refetch: refetchRooms } = trpc.chat.getRooms.useQuery(undefined, {
     refetchInterval: 10000,
@@ -41,8 +46,9 @@ export default function Chat() {
     { roomId: selectedRoomId! },
     { enabled: !!selectedRoomId }
   );
+  // 新規チャット・メンバー追加時は常にユーザー一覧を取得（空文字で全件）
   const { data: searchResults } = trpc.chat.searchUsers.useQuery(
-    { query: searchQuery },
+    { query: searchQuery || "" },
     { enabled: showNewChat || showAddMembers }
   );
 
@@ -63,6 +69,7 @@ export default function Chat() {
       setNewGroupName("");
       setSearchQuery("");
       refetchRooms();
+      setMobileShowMessages(true);
       if (data.existing) {
         toast.info("既存のチャットを開きました");
       } else {
@@ -157,12 +164,22 @@ export default function Chat() {
     if (exists) {
       setSelectedMembers(selectedMembers.filter((m) => !(m.userId === user.id && m.userType === user.userType)));
     } else {
-      setSelectedMembers([...selectedMembers, {
-        userId: user.id,
-        userType: user.userType as "staff" | "liver",
-        userName: user.name || user.email || "",
-        userAvatar: user.avatarUrl || undefined,
-      }]);
+      if (chatType === "direct") {
+        // 1対1の場合は1人だけ選択
+        setSelectedMembers([{
+          userId: user.id,
+          userType: user.userType as "staff" | "liver",
+          userName: user.name || user.email || "",
+          userAvatar: user.avatarUrl || undefined,
+        }]);
+      } else {
+        setSelectedMembers([...selectedMembers, {
+          userId: user.id,
+          userType: user.userType as "staff" | "liver",
+          userName: user.name || user.email || "",
+          userAvatar: user.avatarUrl || undefined,
+        }]);
+      }
     }
   };
 
@@ -178,21 +195,79 @@ export default function Chat() {
     return `${d.getMonth() + 1}/${d.getDate()}`;
   };
 
+  // ルーム表示名を取得（1対1の場合は相手の名前を表示）
+  const getRoomDisplayName = (room: any) => {
+    if (room.name) return room.name;
+    if (room.type === "direct" && roomDetail?.members && selectedRoomId === room.id) {
+      const otherMember = roomDetail.members.find((m: any) => !(m.userId === myInfo?.id && m.userType === myInfo?.userType));
+      if (otherMember) return otherMember.userName || "ダイレクトメッセージ";
+    }
+    return "ダイレクトメッセージ";
+  };
+
   const selectedRoom = rooms?.find((r: any) => r.id === selectedRoomId);
+
+  // ユーザーリストのレンダリング（共通）
+  const renderUserList = (users: any[], userType: "staff" | "liver", label: string) => {
+    if (!users || users.length === 0) return null;
+    return (
+      <>
+        <p className="text-xs font-medium text-muted-foreground px-2 py-1.5 bg-muted/50 rounded sticky top-0">{label}（{users.length}人）</p>
+        {users.map((user: any) => {
+          const isSelected = selectedMembers.some((m) => m.userId === user.id && m.userType === userType);
+          const isSelf = myInfo && user.id === myInfo.id && userType === myInfo.userType;
+          return (
+            <button
+              key={`${userType}-${user.id}`}
+              onClick={() => !isSelf && toggleMember({ ...user, userType })}
+              className={`w-full flex items-center gap-3 p-2.5 rounded-md transition-colors ${isSelf ? "opacity-50 cursor-not-allowed" : "hover:bg-accent/50"} ${isSelected ? "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800" : ""}`}
+              disabled={isSelf}
+            >
+              <Avatar className="h-8 w-8">
+                {user.avatarUrl ? <AvatarImage src={user.avatarUrl} /> : null}
+                <AvatarFallback className="text-xs bg-muted">{(user.name || "?").charAt(0)}</AvatarFallback>
+              </Avatar>
+              <div className="flex-1 text-left min-w-0">
+                <p className="text-sm font-medium truncate">{user.name || user.email}{isSelf ? " (自分)" : ""}</p>
+                {user.email && <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>}
+              </div>
+              {isSelected && <Check className="h-4 w-4 text-green-500 shrink-0" />}
+            </button>
+          );
+        })}
+      </>
+    );
+  };
 
   return (
     <div className="flex h-[calc(100vh-4rem)] bg-background">
       {/* Left Panel - Room List */}
       <div className={`w-full md:w-80 lg:w-96 border-r flex flex-col ${mobileShowMessages ? "hidden md:flex" : "flex"}`}>
-        {/* Header */}
-        <div className="p-4 border-b flex items-center justify-between">
-          <h1 className="text-lg font-bold flex items-center gap-2">
-            <MessageCircle className="h-5 w-5 text-green-500" />
-            チャット
-          </h1>
-          <Button size="sm" onClick={() => setShowNewChat(true)} className="gap-1">
-            <Plus className="h-4 w-4" /> 新規
-          </Button>
+        {/* Header with my info */}
+        <div className="p-4 border-b">
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-lg font-bold flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-green-500" />
+              チャット
+            </h1>
+            <Button size="sm" onClick={() => { setShowNewChat(true); setSearchQuery(""); setSelectedMembers([]); }} className="gap-1">
+              <Plus className="h-4 w-4" /> 新規
+            </Button>
+          </div>
+          {/* 自分の名前表示 */}
+          {myInfo && (
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-muted/50 rounded-md">
+              <Avatar className="h-6 w-6">
+                {myInfo.avatarUrl ? <AvatarImage src={myInfo.avatarUrl} /> : null}
+                <AvatarFallback className="text-[10px]"><User className="h-3 w-3" /></AvatarFallback>
+              </Avatar>
+              <span className="text-xs text-muted-foreground">ログイン中:</span>
+              <span className="text-xs font-medium">{myInfo.name}</span>
+              <Badge variant="outline" className="text-[9px] px-1 py-0 ml-auto">
+                {myInfo.userType === "staff" ? "スタッフ" : "ライバー"}
+              </Badge>
+            </div>
+          )}
         </div>
 
         {/* Room List */}
@@ -231,7 +306,7 @@ export default function Chat() {
                     <div className="flex items-center justify-between mt-0.5">
                       <p className="text-xs text-muted-foreground truncate">
                         {room.lastMessage ? (
-                          <>{room.lastSenderName && <span className="font-medium">{room.lastSenderName}: </span>}{room.lastMessage}</>
+                          <><span className="font-medium">{room.lastSenderName}: </span>{room.lastMessage}</>
                         ) : (
                           "メッセージなし"
                         )}
@@ -269,11 +344,11 @@ export default function Chat() {
               </Button>
               <Avatar className="h-8 w-8">
                 <AvatarFallback className={selectedRoom?.type === "group" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}>
-                  {selectedRoom?.type === "group" ? <Users className="h-3 w-3" /> : (selectedRoom?.name || "?").charAt(0)}
+                  {selectedRoom?.type === "group" ? <Users className="h-3 w-3" /> : (getRoomDisplayName(selectedRoom) || "?").charAt(0)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <h2 className="font-medium text-sm truncate">{selectedRoom?.name || "ダイレクトメッセージ"}</h2>
+                <h2 className="font-medium text-sm truncate">{getRoomDisplayName(selectedRoom)}</h2>
                 <p className="text-xs text-muted-foreground">
                   {roomDetail?.members?.length || 0}人のメンバー
                 </p>
@@ -301,35 +376,40 @@ export default function Chat() {
                     <p className="text-xs mt-1">最初のメッセージを送信しましょう</p>
                   </div>
                 ) : (
-                  (messages as any[]).map((msg: any) => (
-                    <div key={msg.id} className="flex gap-2">
-                      <Avatar className="h-7 w-7 shrink-0 mt-0.5">
-                        <AvatarFallback className="text-[10px] bg-muted">
-                          {(msg.senderName || "?").charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-xs font-medium">{msg.senderName}</span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {msg.createdAt ? formatTime(msg.createdAt) : ""}
-                          </span>
-                        </div>
-                        {msg.messageType === "image" && msg.fileUrl ? (
-                          <div className="mt-1">
-                            <img
-                              src={msg.fileUrl}
-                              alt={msg.fileName || "画像"}
-                              className="max-w-xs max-h-60 rounded-lg border cursor-pointer hover:opacity-90"
-                              onClick={() => window.open(msg.fileUrl, "_blank")}
-                            />
+                  (messages as any[]).map((msg: any) => {
+                    const isMe = myInfo && msg.senderId === myInfo.id && msg.senderType === myInfo.userType;
+                    return (
+                      <div key={msg.id} className={`flex gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
+                        <Avatar className="h-7 w-7 shrink-0 mt-0.5">
+                          <AvatarFallback className="text-[10px] bg-muted">
+                            {(msg.senderName || "?").charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className={`flex-1 min-w-0 ${isMe ? "text-right" : ""}`}>
+                          <div className={`flex items-baseline gap-2 ${isMe ? "justify-end" : ""}`}>
+                            <span className="text-xs font-medium">{msg.senderName}</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {msg.createdAt ? formatTime(msg.createdAt) : ""}
+                            </span>
                           </div>
-                        ) : (
-                          <p className="text-sm whitespace-pre-wrap break-words mt-0.5">{msg.content}</p>
-                        )}
+                          {msg.messageType === "image" && msg.fileUrl ? (
+                            <div className={`mt-1 ${isMe ? "flex justify-end" : ""}`}>
+                              <img
+                                src={msg.fileUrl}
+                                alt={msg.fileName || "画像"}
+                                className="max-w-xs max-h-60 rounded-lg border cursor-pointer hover:opacity-90"
+                                onClick={() => window.open(msg.fileUrl, "_blank")}
+                              />
+                            </div>
+                          ) : (
+                            <div className={`mt-0.5 inline-block rounded-lg px-3 py-1.5 text-sm ${isMe ? "bg-green-500 text-white" : "bg-muted"}`}>
+                              <p className="whitespace-pre-wrap break-words text-left">{msg.content}</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
                 <div ref={messagesEndRef} />
               </div>
@@ -382,18 +462,15 @@ export default function Chat() {
 
       {/* New Chat Dialog */}
       <Dialog open={showNewChat} onOpenChange={setShowNewChat}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>新しいチャット</DialogTitle>
           </DialogHeader>
-          <Tabs value={chatType} onValueChange={(v) => setChatType(v as "direct" | "group")}>
+          <Tabs value={chatType} onValueChange={(v) => { setChatType(v as "direct" | "group"); setSelectedMembers([]); }}>
             <TabsList className="w-full">
               <TabsTrigger value="direct" className="flex-1">1対1</TabsTrigger>
               <TabsTrigger value="group" className="flex-1">グループ</TabsTrigger>
             </TabsList>
-            <TabsContent value="direct" className="mt-3">
-              <p className="text-xs text-muted-foreground mb-2">相手を1人選択してください</p>
-            </TabsContent>
             <TabsContent value="group" className="mt-3">
               <Input
                 value={newGroupName}
@@ -401,13 +478,13 @@ export default function Chat() {
                 placeholder="グループ名を入力"
                 className="mb-2"
               />
-              <p className="text-xs text-muted-foreground mb-2">メンバーを選択してください（複数可）</p>
             </TabsContent>
           </Tabs>
 
           {/* Selected members */}
           {selectedMembers.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-2">
+            <div className="flex flex-wrap gap-1 py-2 border-b">
+              <span className="text-xs text-muted-foreground mr-1 self-center">選択中:</span>
               {selectedMembers.map((m) => (
                 <Badge key={`${m.userType}-${m.userId}`} variant="secondary" className="gap-1 pr-1">
                   {m.userName}
@@ -419,82 +496,39 @@ export default function Chat() {
             </div>
           )}
 
-          {/* Search */}
-          <div className="relative">
+          {/* Search filter */}
+          <div className="relative mt-2">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="名前で検索..."
+              placeholder="名前で絞り込み..."
               className="pl-9"
             />
           </div>
 
-          {/* User List */}
-          <ScrollArea className="h-60 mt-2">
-            {searchResults && (
+          {/* User List - 最初から一覧表示 */}
+          <ScrollArea className="flex-1 min-h-0 mt-2" style={{ maxHeight: "40vh" }}>
+            {searchResults ? (
               <div className="space-y-1">
-                {(searchResults.staff as any[]).length > 0 && (
-                  <>
-                    <p className="text-xs font-medium text-muted-foreground px-2 py-1">スタッフ</p>
-                    {(searchResults.staff as any[]).map((user: any) => {
-                      const isSelected = selectedMembers.some((m) => m.userId === user.id && m.userType === "staff");
-                      return (
-                        <button
-                          key={`staff-${user.id}`}
-                          onClick={() => toggleMember({ ...user, userType: "staff" })}
-                          className={`w-full flex items-center gap-2 p-2 rounded-md hover:bg-accent/50 ${isSelected ? "bg-accent" : ""}`}
-                          disabled={chatType === "direct" && selectedMembers.length >= 1 && !isSelected}
-                        >
-                          <Avatar className="h-7 w-7">
-                            {user.avatarUrl ? <AvatarImage src={user.avatarUrl} /> : null}
-                            <AvatarFallback className="text-[10px]">{(user.name || "?").charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 text-left min-w-0">
-                            <p className="text-sm truncate">{user.name || user.email}</p>
-                            <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
-                          </div>
-                          {isSelected && <Check className="h-4 w-4 text-green-500" />}
-                        </button>
-                      );
-                    })}
-                  </>
+                {renderUserList(searchResults.staff as any[], "staff", "スタッフ")}
+                {renderUserList(searchResults.livers as any[], "liver", "ライバー")}
+                {(searchResults.staff as any[]).length === 0 && (searchResults.livers as any[]).length === 0 && (
+                  <p className="text-center text-sm text-muted-foreground py-4">該当するユーザーが見つかりません</p>
                 )}
-                {(searchResults.livers as any[]).length > 0 && (
-                  <>
-                    <p className="text-xs font-medium text-muted-foreground px-2 py-1 mt-2">ライバー</p>
-                    {(searchResults.livers as any[]).map((user: any) => {
-                      const isSelected = selectedMembers.some((m) => m.userId === user.id && m.userType === "liver");
-                      return (
-                        <button
-                          key={`liver-${user.id}`}
-                          onClick={() => toggleMember({ ...user, userType: "liver" })}
-                          className={`w-full flex items-center gap-2 p-2 rounded-md hover:bg-accent/50 ${isSelected ? "bg-accent" : ""}`}
-                          disabled={chatType === "direct" && selectedMembers.length >= 1 && !isSelected}
-                        >
-                          <Avatar className="h-7 w-7">
-                            {user.avatarUrl ? <AvatarImage src={user.avatarUrl} /> : null}
-                            <AvatarFallback className="text-[10px]">{(user.name || "?").charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 text-left min-w-0">
-                            <p className="text-sm truncate">{user.name || user.email}</p>
-                            <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
-                          </div>
-                          {isSelected && <Check className="h-4 w-4 text-green-500" />}
-                        </button>
-                      );
-                    })}
-                  </>
-                )}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             )}
           </ScrollArea>
 
-          <DialogFooter>
+          <DialogFooter className="mt-3">
             <Button variant="outline" onClick={() => setShowNewChat(false)}>キャンセル</Button>
             <Button onClick={handleCreateRoom} disabled={createRoom.isPending || selectedMembers.length === 0}>
               {createRoom.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-              作成
+              {chatType === "direct" ? "チャット開始" : "グループ作成"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -502,7 +536,7 @@ export default function Chat() {
 
       {/* Add Members Dialog */}
       <Dialog open={showAddMembers} onOpenChange={setShowAddMembers}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>メンバー追加</DialogTitle>
           </DialogHeader>
@@ -520,49 +554,21 @@ export default function Chat() {
           )}
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="名前で検索..." className="pl-9" />
+            <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="名前で絞り込み..." className="pl-9" />
           </div>
-          <ScrollArea className="h-60 mt-2">
-            {searchResults && (
+          <ScrollArea className="flex-1 min-h-0 mt-2" style={{ maxHeight: "40vh" }}>
+            {searchResults ? (
               <div className="space-y-1">
-                {(searchResults.staff as any[]).map((user: any) => {
-                  const isSelected = selectedMembers.some((m) => m.userId === user.id && m.userType === "staff");
-                  return (
-                    <button
-                      key={`staff-${user.id}`}
-                      onClick={() => toggleMember({ ...user, userType: "staff" })}
-                      className={`w-full flex items-center gap-2 p-2 rounded-md hover:bg-accent/50 ${isSelected ? "bg-accent" : ""}`}
-                    >
-                      <Avatar className="h-7 w-7">
-                        {user.avatarUrl ? <AvatarImage src={user.avatarUrl} /> : null}
-                        <AvatarFallback className="text-[10px]">{(user.name || "?").charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm truncate">{user.name || user.email}</span>
-                      {isSelected && <Check className="h-4 w-4 text-green-500 ml-auto" />}
-                    </button>
-                  );
-                })}
-                {(searchResults.livers as any[]).map((user: any) => {
-                  const isSelected = selectedMembers.some((m) => m.userId === user.id && m.userType === "liver");
-                  return (
-                    <button
-                      key={`liver-${user.id}`}
-                      onClick={() => toggleMember({ ...user, userType: "liver" })}
-                      className={`w-full flex items-center gap-2 p-2 rounded-md hover:bg-accent/50 ${isSelected ? "bg-accent" : ""}`}
-                    >
-                      <Avatar className="h-7 w-7">
-                        {user.avatarUrl ? <AvatarImage src={user.avatarUrl} /> : null}
-                        <AvatarFallback className="text-[10px]">{(user.name || "?").charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm truncate">{user.name || user.email}</span>
-                      {isSelected && <Check className="h-4 w-4 text-green-500 ml-auto" />}
-                    </button>
-                  );
-                })}
+                {renderUserList(searchResults.staff as any[], "staff", "スタッフ")}
+                {renderUserList(searchResults.livers as any[], "liver", "ライバー")}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             )}
           </ScrollArea>
-          <DialogFooter>
+          <DialogFooter className="mt-3">
             <Button variant="outline" onClick={() => setShowAddMembers(false)}>キャンセル</Button>
             <Button
               onClick={() => {

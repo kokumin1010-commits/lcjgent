@@ -24989,6 +24989,24 @@ JSON配列のみを出力してください。`;
         }
         return { success: true };
       }),
+    // 自分の情報取得
+    getMyInfo: protectedProcedure.query(async ({ ctx }) => {
+      const db = getDb();
+      const userId = ctx.user.id;
+      const userType = ctx.user.role === 'liver' ? 'liver' : 'staff';
+      let name = ctx.user.name || ctx.user.email || 'Unknown';
+      let avatarUrl: string | null = null;
+      if (userType === 'staff') {
+        const staffResult = await db.execute(sqlTag`SELECT name, avatarUrl FROM staff WHERE id = ${userId} LIMIT 1`);
+        const s = (staffResult as any)[0]?.[0];
+        if (s) { name = s.name || name; avatarUrl = s.avatarUrl || null; }
+      } else {
+        const liverResult = await db.execute(sqlTag`SELECT name, profileImageUrl FROM livers WHERE id = ${userId} LIMIT 1`);
+        const l = (liverResult as any)[0]?.[0];
+        if (l) { name = l.name || name; avatarUrl = l.profileImageUrl || null; }
+      }
+      return { id: userId, name, userType, avatarUrl };
+    }),
     // 未読数取得（バッジ用）
     getUnreadCount: protectedProcedure.query(async ({ ctx }) => {
       const db = getDb();
