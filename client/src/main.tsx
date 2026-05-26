@@ -77,7 +77,7 @@ queryClient.getMutationCache().subscribe(event => {
 
 // Shared fetch function for tRPC links
 const customFetch: typeof globalThis.fetch = (input, init) => {
-  // Get liver token from localStorage
+  // Get liver token from all available storages (localStorage/sessionStorage/cookie/memory)
   const liverToken = getLiverToken();
   
   // Get agency token from localStorage

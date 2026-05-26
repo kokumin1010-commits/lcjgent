@@ -87,12 +87,17 @@ export default function LiverLogin() {
       console.log('Login response received:', data);
       
       if (data.token) {
-        console.log('Token received, saving to localStorage...');
+        console.log('Token received, saving to all available storages...');
         setLiverToken(data.token);
         
-        // ライバー情報をlocalStorageに保存（role含む）
+        // ライバー情報を保存（role含む）
         if (data.liver) {
-          localStorage.setItem('liver_info', JSON.stringify(data.liver));
+          try {
+            localStorage.setItem('liver_info', JSON.stringify(data.liver));
+          } catch {
+            // LINEブラウザでlocalStorageが使えない場合は無視
+            try { sessionStorage.setItem('liver_info', JSON.stringify(data.liver)); } catch {}
+          }
         }
         
         // DBのlanguage設定を自動適用
@@ -100,20 +105,15 @@ export default function LiverLogin() {
           setLanguage(data.liver.language as LiverLanguage);
         }
         
-        // Verify token was saved
+        // Verify token was saved (multi-storage: always succeeds with cookie/memory fallback)
         const savedToken = getLiverToken();
         console.log('Token saved successfully:', savedToken ? 'Yes' : 'No');
         
-        if (savedToken) {
-          // Small delay to ensure localStorage is synced
-          await new Promise(resolve => setTimeout(resolve, 100));
-          console.log('Navigating to:', redirectUrl);
-          navigate(redirectUrl);
-        } else {
-          console.error('Failed to save token to localStorage');
-          setError(lt("login.tokenError"));
-          setIsLoggingIn(false);
-        }
+        // Always navigate - setLiverToken now uses cookie + memory fallback
+        // so even if localStorage fails, the token is still available
+        await new Promise(resolve => setTimeout(resolve, 100));
+        console.log('Navigating to:', redirectUrl);
+        navigate(redirectUrl);
       } else {
         console.error('No token in response');
         setError(lt("login.failed"));

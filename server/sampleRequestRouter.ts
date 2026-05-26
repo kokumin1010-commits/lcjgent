@@ -26,8 +26,8 @@ function getLiverTokenFromCtx(ctx: any): string | null {
   if (authHeader?.startsWith("Bearer ")) {
     return authHeader.slice(7);
   }
-  // Fallback to liver_session cookie
-  return ctx.req?.cookies?.liver_session || null;
+  // Fallback to liver_session cookie or liver_token_fallback (LINE browser)
+  return ctx.req?.cookies?.liver_session || ctx.req?.cookies?.liver_token_fallback || null;
 }
 
 // Helper: authenticate liver from ctx (supports both header and cookie)

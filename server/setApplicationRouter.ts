@@ -23,7 +23,7 @@ async function verifyLiverToken(token: string): Promise<{ liverId: number; type:
 function getLiverToken(ctx: { req: { headers: { authorization?: string }; cookies?: { liver_session?: string } } }): string | null {
   const authHeader = ctx.req.headers.authorization;
   if (authHeader?.startsWith("Bearer ")) return authHeader.slice(7);
-  return ctx.req.cookies?.liver_session || null;
+  return ctx.req.cookies?.liver_session || ctx.req.cookies?.liver_token_fallback || null;
 }
 
 // Helper: authenticate liver from context

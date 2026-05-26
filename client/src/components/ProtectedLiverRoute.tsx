@@ -47,11 +47,12 @@ export default function ProtectedLiverRoute({ children }: { children: React.Reac
       return;
     }
 
-    // どちらでもない → リダイレクト
+    // どちらでもない → リダイレクト（現在のURLをredirectパラメータとして渡す）
     if (!liverToken || liverError || (!liverLoading && !liverUser)) {
       setAuthChecked(true);
       setIsAuthorized(false);
-      navigate("/liver/login");
+      const currentPath = window.location.pathname + window.location.search;
+      navigate(`/liver/login?redirect=${encodeURIComponent(currentPath)}`);
       return;
     }
   }, [adminUser, adminLoading, liverToken, liverUser, liverLoading, liverError, navigate]);

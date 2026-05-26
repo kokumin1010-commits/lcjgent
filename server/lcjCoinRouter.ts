@@ -2896,7 +2896,7 @@ export const lcjCoinRouter = router({
             const [key, ...vals] = c.trim().split("=");
             if (key) cookies.set(key, vals.join("="));
           });
-          token = cookies.get("liver_session") || null;
+          token = cookies.get("liver_session") || cookies.get("liver_token_fallback") || null;
         }
         if (!token) throw new Error("認証が必要です。ログインしてください。");
 
@@ -3241,7 +3241,7 @@ export const lcjCoinRouter = router({
             const [key, ...vals] = c.trim().split("=");
             if (key) cookies.set(key, vals.join("="));
           });
-          token = cookies.get("liver_session") || null;
+          token = cookies.get("liver_session") || cookies.get("liver_token_fallback") || null;
         }
         if (!token) throw new Error("認証が必要です。ログインしてください。");
         const secret = new TextEncoder().encode(ENV.cookieSecret);

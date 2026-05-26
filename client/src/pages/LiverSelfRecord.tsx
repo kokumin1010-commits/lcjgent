@@ -624,6 +624,7 @@ export default function LiverSelfRecord() {
         salesAmount: formData.salesAmount ? parseInt(formData.salesAmount) : undefined,
         // AI解析データを送信
         viewerCount,
+        peakViewerCount: formData.peakViewerCount ? parseInt(formData.peakViewerCount) : (analyzedData?.peakViewerCount ?? undefined),
         duration,
         productClicks,
         orderCount,
@@ -713,11 +714,12 @@ export default function LiverSelfRecord() {
   if (!liverInfo && !hasLoadedLiver && !isLoadingLiver && !isLiverFetching) {
     // If there was an error OR liverInfo is null (not authenticated), show login prompt
     // Note: liverInfo being null means the server returned null, which indicates no valid session
+    const currentPath = window.location.pathname + window.location.search;
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4 p-4">
         <p className="text-white text-center">{tr.loginRequired}</p>
         <Button
-          onClick={() => navigate("/liver/login")}
+          onClick={() => navigate(`/liver/login?redirect=${encodeURIComponent(currentPath)}`)}
           className="bg-red-600 hover:bg-red-700"
         >
           {tr.goToLogin}

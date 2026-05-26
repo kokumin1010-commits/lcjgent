@@ -39,14 +39,15 @@ import { nanoid } from "nanoid";
 import nodemailer from "nodemailer";
 
 // Helper function to get liver token from Authorization header or cookie
-function getLiverToken(ctx: { req: { headers: { authorization?: string }; cookies?: { liver_session?: string } } }): string | null {
+function getLiverToken(ctx: { req: { headers: { authorization?: string }; cookies?: { liver_session?: string; liver_token_fallback?: string } } }): string | null {
   // First try Authorization header (for localStorage-based auth)
   const authHeader = ctx.req.headers.authorization;
   if (authHeader?.startsWith("Bearer ")) {
     return authHeader.slice(7);
   }
   // Fallback to cookie (for backward compatibility)
-  return ctx.req.cookies?.liver_session || null;
+  // Also check liver_token_fallback cookie (set by LINE browser fallback)
+  return ctx.req.cookies?.liver_session || ctx.req.cookies?.liver_token_fallback || null;
 }
 
 // Helper function to verify liver token and get liver info
