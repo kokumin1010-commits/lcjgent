@@ -1353,13 +1353,16 @@ function ProductScorePanel() {
   const [isLoading, setIsLoading] = useState(false);
   const scoreMutation = trpc.lcjBrain.scoreProduct.useMutation();
 
-  const dimensionLabels: Record<string, { label: string; color: string }> = {
-    retention: { label: "停留率", color: "from-violet-500 to-purple-400" },
-    expression: { label: "表达力", color: "from-blue-500 to-cyan-400" },
-    unitPrice: { label: "客单价", color: "from-emerald-500 to-green-400" },
-    margin: { label: "毛利率", color: "from-amber-500 to-yellow-400" },
-    logistics: { label: "物流", color: "from-pink-500 to-rose-400" },
-    repurchase: { label: "复购率", color: "from-indigo-500 to-violet-400" },
+  const [showHelp, setShowHelp] = useState(false);
+
+  const dimensionLabels: Record<string, { label: string; description: string; color: string }> = {
+    retention: { label: "停留率", description: "视觉吸引力、能否在3秒内抓住观众注意力", color: "from-violet-500 to-purple-400" },
+    expression: { label: "表达力", description: "达人是否容易讲解、演示，产品卖点是否清晰", color: "from-blue-500 to-cyan-400" },
+    unitPrice: { label: "客单价", description: "是否在TikTok冲动消费区间（¥1,000-¥10,000）", color: "from-emerald-500 to-green-400" },
+    pricefit: { label: "客单价", description: "是否在TikTok冲动消费区间（¥1,000-¥10,000）", color: "from-emerald-500 to-green-400" },
+    margin: { label: "毛利率", description: "能否cover佣金+广告+物流成本，利润空间是否充足", color: "from-amber-500 to-yellow-400" },
+    logistics: { label: "物流", description: "重量、易碎、时效等物流友好度评估", color: "from-pink-500 to-rose-400" },
+    repurchase: { label: "复购率", description: "用户是否会重复购买，复购周期是否合理", color: "from-indigo-500 to-violet-400" },
   };
 
   const scoreProduct = async () => {
@@ -1384,9 +1387,39 @@ function ProductScorePanel() {
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500/20 to-rose-500/20 flex items-center justify-center mx-auto mb-3 border border-pink-500/20">
           <Star className="w-7 h-7 text-pink-400" />
         </div>
-        <h2 className="text-lg font-semibold text-white">产品TikTok适配度评分</h2>
+        <div className="flex items-center justify-center gap-2">
+          <h2 className="text-lg font-semibold text-white">产品TikTok适配度评分</h2>
+          <button
+            onClick={() => setShowHelp(!showHelp)}
+            className="w-5 h-5 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/20 transition-all text-xs"
+            title="评分维度说明"
+          >
+            ?
+          </button>
+        </div>
         <p className="text-sm text-white/50">6维度评估产品是否适合TikTok直播带货</p>
       </div>
+
+      {/* ヘルプパネル - 6次元の説明 */}
+      {showHelp && (
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-2">
+          <h3 className="text-sm font-semibold text-white mb-3">📊 评分维度说明（每项满分10分，总分满分60分）</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {Object.entries(dimensionLabels).filter(([key]) => key !== 'pricefit').map(([key, dim]) => (
+              <div key={key} className="flex items-start gap-2 p-2 rounded-lg bg-white/5">
+                <div className={`w-2 h-2 rounded-full mt-1.5 bg-gradient-to-r ${dim.color} shrink-0`} />
+                <div>
+                  <span className="text-xs font-medium text-white">{dim.label}</span>
+                  <p className="text-xs text-white/50">{dim.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 pt-3 border-t border-white/10">
+            <p className="text-xs text-white/40">评分参考：50-60分=非常适合 | 40-49分=适合 | 30-39分=一般 | 30分以下=不太适合</p>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-3">
         <input

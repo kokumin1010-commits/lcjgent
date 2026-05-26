@@ -1002,18 +1002,20 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
   scoreProduct: protectedProcedure
     .input(z.object({
       productName: z.string(),
+      productInfo: z.string().optional(),
       category: z.string().optional(),
       price: z.string().optional(),
       description: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
+      const productDescription = input.productInfo || input.description || "无";
       const scorePrompt = `你是LCJ的产品评估专家。基于TikTok直播的6个维度，为以下产品打分（1-10分）。
 
 ## 产品信息
 - 名称：${input.productName}
 - 类别：${input.category || "未知"}
 - 价格：${input.price || "未知"}
-- 描述：${input.description || "无"}
+- 详细信息：${productDescription}
 
 ## 评分维度（每项1-10分）：
 1. 停留率（视觉吸引力、能否3秒抓住观众）
@@ -1050,11 +1052,19 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
         
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-          return { result: JSON.parse(jsonMatch[0]), raw: content };
+          const parsed = JSON.parse(jsonMatch[0]);
+          // Return flat structure for frontend compatibility
+          return {
+            totalScore: parsed.totalScore || 0,
+            scores: parsed.scores || {},
+            verdict: parsed.verdict || "",
+            recommendation: parsed.recommendation || "",
+            raw: content,
+          };
         }
-        return { result: null, raw: content };
+        return { totalScore: 0, scores: {}, verdict: "评分失败", recommendation: "", raw: content };
       } catch (error: any) {
-        return { result: null, raw: `エラー: ${error.message}` };
+        return { totalScore: 0, scores: {}, verdict: "评分失败", recommendation: `エラー: ${error.message}`, raw: "" };
       }
     }),
 
