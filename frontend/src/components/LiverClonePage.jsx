@@ -989,7 +989,15 @@ export default function LiverClonePage() {
           <div className="lg:col-span-3 space-y-4">
             {/* Stream Preview */}
             <div className="bg-[#12121a] rounded-xl border border-gray-800 overflow-hidden">
-              <div className="aspect-video bg-black flex items-center justify-center relative">
+              <div
+                className="aspect-video bg-black flex items-center justify-center relative cursor-pointer"
+                onClick={() => {
+                  // Allow clicking the preview area to upload face photo when idle
+                  if (!previewActive && !isStreaming && !sourceFacePreview) {
+                    fileInputRef.current?.click();
+                  }
+                }}
+              >
                 {/* Hidden video element for webcam */}
                 <video ref={videoRef} className="hidden" muted playsInline />
                 <canvas ref={canvasRef} className="hidden" />
@@ -1015,16 +1023,33 @@ export default function LiverClonePage() {
                     <p className="text-sm text-gray-400">プレビュー接続中...</p>
                   </div>
                 ) : sourceFacePreview ? (
-                  <img
-                    src={sourceFacePreview}
-                    alt="Source face"
-                    className="w-full h-full object-cover opacity-50"
-                  />
+                  <div
+                    className="w-full h-full relative group"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                  >
+                    <img
+                      src={sourceFacePreview}
+                      alt="Source face"
+                      className="w-full h-full object-cover opacity-50 group-hover:opacity-30 transition"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                      <div className="text-center">
+                        <Camera className="w-8 h-8 text-cyan-400 mx-auto mb-1" />
+                        <p className="text-xs text-cyan-400">クリックで変更</p>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
-                  <div className="text-center">
-                    <Camera className="w-12 h-12 text-gray-600 mx-auto mb-2" />
+                  <div className="text-center hover:scale-105 transition">
+                    <Camera className="w-12 h-12 text-gray-600 mx-auto mb-2 group-hover:text-cyan-400" />
                     <p className="text-sm text-gray-500">
                       顔写真をアップロード
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      クリックまたは右の⬆ボタン
                     </p>
                   </div>
                 )}
