@@ -197,6 +197,7 @@ export default function Chat() {
 
   // ルーム表示名を取得（1対1の場合は相手の名前を表示）
   const getRoomDisplayName = (room: any) => {
+    if (!room) return "チャット";
     if (room.name) return room.name;
     if (room.type === "direct" && roomDetail?.members && selectedRoomId === room.id) {
       const otherMember = roomDetail.members.find((m: any) => !(m.userId === myInfo?.id && m.userType === myInfo?.userType));

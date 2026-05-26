@@ -25044,6 +25044,74 @@ JSON配列のみを出力してください。`;
           UPDATE chat_room_members SET lastReadAt = NOW()
           WHERE roomId = ${input.roomId} AND userId = ${chatUser.id} AND userType = ${chatUser.userType}
         `);
+
+        // === 通知処理（非同期・エラーでもメッセージ送信は成功させる） ===
+        (async () => {
+          try {
+            // ルームの他のメンバーを取得
+            const membersResult = await db.execute(sqlTag`
+              SELECT userId, userType, userName FROM chat_room_members
+              WHERE roomId = ${input.roomId} AND NOT (userId = ${chatUser.id} AND userType = ${chatUser.userType})
+            `);
+            const otherMembers = (membersResult as any)[0] || [];
+            if (otherMembers.length === 0) return;
+
+            // ルーム名を取得
+            const roomResult = await db.execute(sqlTag`SELECT name, type FROM chat_rooms WHERE id = ${input.roomId} LIMIT 1`);
+            const room = (roomResult as any)[0]?.[0];
+            const roomName = room?.name || (room?.type === 'group' ? 'グループチャット' : 'ダイレクトメッセージ');
+
+            // メッセージのプレビュー（最大50文字）
+            const msgPreview = input.messageType === 'image' ? '[画像]' : input.messageType === 'file' ? `[ファイル] ${input.fileName || ''}` : (input.content || '').substring(0, 50);
+
+            const { sendEmail } = await import("./emailService");
+            const { pushMessage } = await import("./line");
+
+            for (const member of otherMembers) {
+              try {
+                if (member.userType === 'liver') {
+                  // ライバー: LINE通知 + メール通知
+                  const liverResult = await db.execute(sqlTag`SELECT email, lineUserId, lineNotificationEnabled, name FROM livers WHERE id = ${member.userId} LIMIT 1`);
+                  const liver = (liverResult as any)[0]?.[0];
+                  if (!liver) continue;
+
+                  // LINE通知（lineUserIdがある場合）
+                  if (liver.lineUserId && liver.lineNotificationEnabled !== false) {
+                    await pushMessage(liver.lineUserId, [{
+                      type: 'text',
+                      text: `💬 ${chatUser.name}さんからメッセージ\n[${roomName}]\n${msgPreview}\n\nhttps://lcjmall.com/liver/chat`
+                    }]);
+                  }
+
+                  // メール通知
+                  if (liver.email) {
+                    await sendEmail({
+                      to: [liver.email],
+                      subject: `【LCJ Chat】${chatUser.name}さんからメッセージ`,
+                      content: `${liver.name || member.userName}様\n\n${chatUser.name}さんから「${roomName}」にメッセージが届きました。\n\n--- メッセージ ---\n${msgPreview}\n---\n\nチャットを確認する:\nhttps://lcjmall.com/liver/chat\n\n※このメールはLCJ Chatからの自動通知です。`,
+                    });
+                  }
+                } else {
+                  // スタッフ: メール通知
+                  const staffResult = await db.execute(sqlTag`SELECT email, name FROM staff WHERE id = ${member.userId} AND isActive = 'active' LIMIT 1`);
+                  const staffMember = (staffResult as any)[0]?.[0];
+                  if (!staffMember?.email) continue;
+
+                  await sendEmail({
+                    to: [staffMember.email],
+                    subject: `【LCJ Chat】${chatUser.name}さんからメッセージ`,
+                    content: `${staffMember.name || member.userName}様\n\n${chatUser.name}さんから「${roomName}」にメッセージが届きました。\n\n--- メッセージ ---\n${msgPreview}\n---\n\nチャットを確認する:\nhttps://lcjmall.com/master/chat\n\n※このメールはLCJ Chatからの自動通知です。`,
+                  });
+                }
+              } catch (memberErr) {
+                console.error(`[Chat Notify] Failed to notify member ${member.userId}/${member.userType}:`, memberErr);
+              }
+            }
+          } catch (notifyErr) {
+            console.error('[Chat Notify] Notification error:', notifyErr);
+          }
+        })();
+
         return { success: true };
       }),
     // ルーム作成（1対1 or グループ）
