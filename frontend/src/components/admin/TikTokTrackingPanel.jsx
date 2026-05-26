@@ -739,6 +739,15 @@ export default function TikTokTrackingPanel({ adminKey }) {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <a
+                        href={`https://www.tiktok.com/@${acc.account_name}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2 py-1 text-[10px] font-medium bg-gray-900 text-white rounded-md hover:bg-gray-700 transition-colors inline-flex items-center gap-0.5"
+                      >
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.88 2.89 2.89 0 01-2.88-2.88 2.89 2.89 0 012.88-2.88c.28 0 .56.04.82.1v-3.5a6.37 6.37 0 00-.82-.05A6.34 6.34 0 003.15 15.7a6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.34-6.34V9.05a8.16 8.16 0 004.76 1.52v-3.4a4.85 4.85 0 01-1-.48z"/></svg>
+                        TikTok
+                      </a>
                       <button
                         onClick={() => { setAccountFilter(acc.account_name); setSubView("list"); }}
                         className="px-2 py-1 text-[10px] font-medium bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors"
