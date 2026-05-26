@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Megaphone, Gift, Package, Gauge, Target, CheckCircle, AlertCircle } from "lucide-react";
+import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Megaphone, Gift, Package, Gauge, Target, CheckCircle, AlertCircle, Star } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface LiverListProps {
@@ -41,6 +41,8 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
   const [showAllSales, setShowAllSales] = useState(false);
   const [showAllDuration, setShowAllDuration] = useState(false);
   const [showAllReferral, setShowAllReferral] = useState(false);
+  const [showAllSets, setShowAllSets] = useState(false);
+  const [setSortOrder, setSetSortOrder] = useState<'date' | 'revenue'>('date');
   const [selectedTrendMonth, setSelectedTrendMonth] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   
@@ -90,6 +92,12 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
 
   // All livers' brand durations for the month
   const { data: allLiverBrandDurations } = trpc.liverManagement.allLiverBrandDurations.useQuery({
+    month: selectedMonth,
+    agencyId: agencyId,
+  });
+
+  // All sets for the month (全ライバーのセット一覧)
+  const { data: allSetsData } = trpc.liverManagement.allSetsForMonth.useQuery({
     month: selectedMonth,
     agencyId: agencyId,
   });
@@ -1083,6 +1091,133 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
         
         {/* 目標設定状況一覧 */}
         <GoalStatusSection selectedMonth={selectedMonth} agencyId={agencyId} />
+
+        {/* セット一覧（全ライバー） */}
+        {allSetsData && allSetsData.sets.length > 0 && (
+          <Card className="bg-gray-900/80 border-gray-700">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold flex items-center gap-2 text-white">
+                  <Package className="w-5 h-5 text-pink-400" />
+                  セット活用情報
+                  <span className="text-sm font-normal text-pink-300 ml-2">{allSetsData.summary.totalSets}セット</span>
+                </h2>
+              </div>
+              
+              {/* サマリーカード */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                <div className="p-3 rounded-lg border border-gray-700 text-center">
+                  <p className="text-xs text-gray-400">セット数</p>
+                  <p className="text-lg font-bold text-cyan-400">{allSetsData.summary.totalSets}個</p>
+                </div>
+                <div className="p-3 rounded-lg border border-gray-700 text-center">
+                  <p className="text-xs text-gray-400">セット売上</p>
+                  <p className="text-lg font-bold text-yellow-400">{formatCurrency(allSetsData.summary.totalRevenue)}</p>
+                </div>
+                <div className="p-3 rounded-lg border border-gray-700 text-center">
+                  <p className="text-xs text-gray-400">販売数</p>
+                  <p className="text-lg font-bold text-green-400">{allSetsData.summary.totalQuantitySold}個</p>
+                </div>
+                <div className="p-3 rounded-lg border border-gray-700 text-center">
+                  <p className="text-xs text-gray-400">平均割引率</p>
+                  <p className="text-lg font-bold text-pink-400">{allSetsData.summary.avgDiscountRate}%OFF</p>
+                </div>
+              </div>
+
+              {/* 並び替え */}
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs text-gray-400">並び替え:</span>
+                <button
+                  onClick={() => setSetSortOrder('date')}
+                  className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                    setSortOrder === 'date' ? 'bg-cyan-500/30 text-cyan-300 border border-cyan-500/50' : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  新着順
+                </button>
+                <button
+                  onClick={() => setSetSortOrder('revenue')}
+                  className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                    setSortOrder === 'revenue' ? 'bg-yellow-500/30 text-yellow-300 border border-yellow-500/50' : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  売上順
+                </button>
+              </div>
+
+              {/* セットリスト */}
+              <div className="space-y-2">
+                {(() => {
+                  const sortedSets = [...allSetsData.sets].sort((a, b) => {
+                    if (setSortOrder === 'revenue') return (b.totalRevenue || 0) - (a.totalRevenue || 0);
+                    // date sort: newest first
+                    const dateA = a.livestreamDate ? new Date(a.livestreamDate).getTime() : 0;
+                    const dateB = b.livestreamDate ? new Date(b.livestreamDate).getTime() : 0;
+                    return dateB - dateA;
+                  });
+                  const setsToShow = showAllSets ? sortedSets : sortedSets.slice(0, 10);
+                  const bestSetId = allSetsData.summary.bestSetId;
+                  return setsToShow.map((set, idx) => (
+                    <div key={set.id} className="p-3 rounded-lg border border-gray-800 hover:border-gray-600 transition-colors">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <Package className="w-4 h-4 text-pink-400 shrink-0" />
+                          <span className="text-white font-semibold text-sm truncate">{set.setName}</span>
+                          {set.discountRate != null && set.discountRate > 0 && (
+                            <span className="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 text-[10px] font-bold whitespace-nowrap">
+                              {set.discountRate}%OFF
+                            </span>
+                          )}
+                          {set.id === bestSetId && (
+                            <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300 text-[10px] font-bold whitespace-nowrap">
+                              <Star className="w-3 h-3" />最高売上
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-400 whitespace-nowrap">
+                          {set.livestreamDate ? new Date(set.livestreamDate).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Tokyo' }) : ''}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 mt-1.5 text-xs flex-wrap">
+                        <span className="text-gray-400">{set.streamerName}</span>
+                        <span>
+                          <span className="text-gray-500">売値: </span>
+                          <span className="text-yellow-400 font-medium">{formatCurrency(set.setPrice)}</span>
+                        </span>
+                        <span>
+                          <span className="text-gray-500">販売数: </span>
+                          <span className="text-green-400 font-medium">{set.quantitySold}セット</span>
+                        </span>
+                        <span>
+                          <span className="text-gray-500">売上: </span>
+                          <span className="text-cyan-400 font-medium">{formatCurrency(set.totalRevenue)}</span>
+                        </span>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+
+              {/* VIEW MORE */}
+              {allSetsData.sets.length > 10 && (
+                <div className="flex justify-center mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAllSets(!showAllSets)}
+                    className="border-gray-700 text-white hover:bg-gray-800"
+                  >
+                    {showAllSets ? (
+                      <>閉じる <ChevronUp className="w-4 h-4 ml-1" /></>
+                    ) : (
+                      <>VIEW MORE ({allSetsData.sets.length}件) <ChevronDown className="w-4 h-4 ml-1" /></>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* All Livers List */}
         <Card className="bg-gray-900/80 border-gray-700">

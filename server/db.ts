@@ -25237,3 +25237,72 @@ export async function getAllLiverBrandDurations(month: string, agencyId?: number
   }
   return result;
 }
+
+
+/**
+ * Get all sets for a specific month with liver info (for /livers page set ranking)
+ * Returns sets with their revenue, discount rate, liver name, and date
+ */
+export async function getAllSetsForMonth(month: string, agencyId?: number | null) {
+  const db = await getDb();
+  if (!db) return { sets: [], summary: { totalSets: 0, totalRevenue: 0, totalQuantitySold: 0, avgDiscountRate: 0 } };
+  
+  const { startDate, endDate } = getJSTMonthRange(month);
+  
+  const agencyFilter = agencyId === null 
+    ? isNull(livers.agencyId)
+    : agencyId !== undefined 
+      ? eq(livers.agencyId, agencyId)
+      : undefined;
+  
+  const conditions: any[] = [
+    isNull(brandLivestreams.deletedAt),
+    sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+    sql`${brandLivestreams.livestreamDate} <= ${endDate}`,
+  ];
+  if (agencyFilter) conditions.push(agencyFilter);
+  
+  const sets = await db
+    .select({
+      id: livestreamSets.id,
+      setName: livestreamSets.setName,
+      setPrice: livestreamSets.setPrice,
+      quantitySold: livestreamSets.quantitySold,
+      discountRate: livestreamSets.discountRate,
+      totalRevenue: livestreamSets.totalRevenue,
+      livestreamDate: brandLivestreams.livestreamDate,
+      streamerName: brandLivestreams.streamerName,
+      liverId: brandLivestreams.liverId,
+    })
+    .from(livestreamSets)
+    .innerJoin(brandLivestreams, eq(livestreamSets.livestreamId, brandLivestreams.id))
+    .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
+    .where(and(...conditions))
+    .orderBy(desc(livestreamSets.totalRevenue));
+  
+  // Calculate summary
+  const totalSets = sets.length;
+  const totalRevenue = sets.reduce((sum, s) => sum + (Number(s.totalRevenue) || 0), 0);
+  const totalQuantitySold = sets.reduce((sum, s) => sum + (s.quantitySold || 0), 0);
+  const avgDiscountRate = totalSets > 0
+    ? Math.round(sets.reduce((sum, s) => sum + (s.discountRate || 0), 0) / totalSets)
+    : 0;
+  
+  // Find best selling set
+  const bestSet = sets.length > 0 ? sets[0] : null;
+  
+  return {
+    sets: sets.map(s => ({
+      ...s,
+      totalRevenue: Number(s.totalRevenue) || 0,
+      setPrice: Number(s.setPrice) || 0,
+    })),
+    summary: {
+      totalSets,
+      totalRevenue,
+      totalQuantitySold,
+      avgDiscountRate,
+      bestSetId: bestSet?.id || null,
+    },
+  };
+}
