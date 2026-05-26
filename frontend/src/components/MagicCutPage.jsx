@@ -1062,7 +1062,14 @@ export default function MagicCutPage() {
                 </p>
 
                 {/* Face Upload */}
-                <div className="flex items-center gap-3">
+                <div
+                  className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-indigo-50/50 transition-colors"
+                  onClick={() => {
+                    if (!sourceFacePreview && !uploadingFace) {
+                      faceInputRef.current?.click();
+                    }
+                  }}
+                >
                   {sourceFacePreview ? (
                     <div className="relative">
                       <img
@@ -1071,19 +1078,18 @@ export default function MagicCutPage() {
                         className="w-14 h-14 rounded-full object-cover border-2 border-indigo-300"
                       />
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setSourceFacePreview(null);
                           setSourceFaceUrl("");
                         }}
-                        className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center"
+                        className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 z-10"
                       >
-                        <X className="w-2.5 h-2.5" />
+                        <X className="w-3 h-3" />
                       </button>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => faceInputRef.current?.click()}
-                      disabled={uploadingFace}
+                    <div
                       className="w-14 h-14 rounded-full border-2 border-dashed border-indigo-300 flex items-center justify-center hover:bg-indigo-50 transition-colors"
                     >
                       {uploadingFace ? (
@@ -1091,7 +1097,7 @@ export default function MagicCutPage() {
                       ) : (
                         <UserCircle2 className="w-6 h-6 text-indigo-400" />
                       )}
-                    </button>
+                    </div>
                   )}
                   <div className="flex-1">
                     <p className="text-xs font-medium text-gray-700">
@@ -1100,7 +1106,7 @@ export default function MagicCutPage() {
                     <p className="text-[10px] text-gray-400 mt-0.5">
                       {sourceFaceUrl
                         ? "✅ 顔画像がセットされました"
-                        : "正面を向いた明るい写真を推奨"}
+                        : "クリックして顔写真を選択"}
                     </p>
                   </div>
                   <input
