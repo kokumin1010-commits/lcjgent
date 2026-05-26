@@ -6040,3 +6040,20 @@ export const brandAdEmailRecipients = mysqlTable("brand_ad_email_recipients", {
 });
 export type BrandAdEmailRecipient = typeof brandAdEmailRecipients.$inferSelect;
 export type InsertBrandAdEmailRecipient = typeof brandAdEmailRecipients.$inferInsert;
+
+// ============================================================
+// 月度GMV目標テーブル
+// ============================================================
+export const brandMonthlyGmvTargets = mysqlTable("brand_monthly_gmv_targets", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(),
+  year: int("year").notNull(),
+  month: int("month").notNull(),
+  gmvTarget: bigint("gmvTarget", { mode: "number" }).default(0).notNull(),
+  memo: text("memo"),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type BrandMonthlyGmvTarget = typeof brandMonthlyGmvTargets.$inferSelect;
+export type InsertBrandMonthlyGmvTarget = typeof brandMonthlyGmvTargets.$inferInsert;

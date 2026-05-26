@@ -1039,6 +1039,17 @@ export default function BrandDetail() {
     onError: (err: any) => { toast.error(language === 'ja' ? '更新に失敗: ' + err.message : '更新失败: ' + err.message); },
   });
 
+  // 月度GMV目標データ取得
+  const { data: gmvTargets = [], refetch: refetchGmvTargets } = trpc.brandContract.getMonthlyGmvTargets.useQuery(
+    { brandId, year: quotaMonth.year },
+    { enabled: brandId > 0 }
+  );
+  const setGmvTargetMutation = trpc.brandContract.setMonthlyGmvTarget.useMutation({
+    onSuccess: () => { refetchGmvTargets(); toast.success(language === 'ja' ? 'GMV目標を保存しました' : 'GMV目标已保存'); },
+    onError: (err: any) => { toast.error(language === 'ja' ? 'GMV目標の保存に失敗: ' + err.message : 'GMV目标保存失败: ' + err.message); },
+  });
+  const [editingGmvTarget, setEditingGmvTarget] = useState<{ year: number; month: number; value: string } | null>(null);
+
   // MALL商品データ取得
   const { data: mallProductsList = [], refetch: refetchMallProducts } = trpc.mall.getProductsByBrandId.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: tspContracts = [] } = trpc.tsp.listContracts.useQuery({ status: "all" });
@@ -2617,6 +2628,78 @@ ${proposal.proposalContent}
             )}
           </div>
         )}
+
+        {/* 月度GMV目標編集セクション */}
+        <div className="bg-gradient-to-br from-emerald-900/30 to-green-900/20 backdrop-blur-xl rounded-2xl border-2 border-emerald-500/40 p-4 md:p-5 shadow-[0_0_50px_rgba(16,185,129,0.15)]">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-white">
+              <div className="w-1.5 h-8 bg-gradient-to-b from-emerald-400 to-green-500 rounded-full" />
+              <Target className="h-5 w-5 text-emerald-400" />
+              {language === 'ja' ? '月度GMV目標' : '月度GMV目标'}
+            </h2>
+            <span className="text-xs text-gray-400">{quotaMonth.year}年</span>
+          </div>
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => {
+              const target = gmvTargets.find((t: any) => t.month === month);
+              const gmvVal = target?.gmvTarget || 0;
+              const isEditing = editingGmvTarget?.year === quotaMonth.year && editingGmvTarget?.month === month;
+              const isCurrentMonth = month === quotaMonth.month;
+              return (
+                <div key={month} className={`rounded-lg p-2 border ${isCurrentMonth ? 'border-emerald-500/60 bg-emerald-900/30' : 'border-gray-700/50 bg-black/30'} transition-all`}>
+                  <div className="text-[10px] text-gray-400 mb-1">{month}月</div>
+                  {isEditing ? (
+                    <div className="flex flex-col gap-1">
+                      <input
+                        type="number"
+                        className="w-full text-xs bg-black/50 border border-emerald-500/50 rounded px-1 py-0.5 text-white focus:outline-none focus:border-emerald-400"
+                        value={editingGmvTarget.value}
+                        onChange={(e) => setEditingGmvTarget({ ...editingGmvTarget, value: e.target.value })}
+                        placeholder="0"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const val = parseInt(editingGmvTarget.value) || 0;
+                            setGmvTargetMutation.mutate({ brandId, year: quotaMonth.year, month, gmvTarget: val });
+                            setEditingGmvTarget(null);
+                          } else if (e.key === 'Escape') {
+                            setEditingGmvTarget(null);
+                          }
+                        }}
+                      />
+                      <div className="flex gap-0.5">
+                        <button
+                          className="flex-1 text-[8px] bg-emerald-600 hover:bg-emerald-500 text-white rounded px-1 py-0.5"
+                          onClick={() => {
+                            const val = parseInt(editingGmvTarget.value) || 0;
+                            setGmvTargetMutation.mutate({ brandId, year: quotaMonth.year, month, gmvTarget: val });
+                            setEditingGmvTarget(null);
+                          }}
+                        >保存</button>
+                        <button
+                          className="flex-1 text-[8px] bg-gray-600 hover:bg-gray-500 text-white rounded px-1 py-0.5"
+                          onClick={() => setEditingGmvTarget(null)}
+                        >×</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="cursor-pointer hover:bg-emerald-800/30 rounded px-1 py-0.5 transition-colors"
+                      onClick={() => setEditingGmvTarget({ year: quotaMonth.year, month, value: gmvVal > 0 ? String(gmvVal) : '' })}
+                    >
+                      {gmvVal > 0 ? (
+                        <span className="text-xs font-medium text-emerald-300">¥{(gmvVal / 10000).toFixed(0)}万</span>
+                      ) : (
+                        <span className="text-xs text-gray-600">—</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-gray-500 mt-2">{language === 'ja' ? '※ クリックして各月のGMV目標を設定できます' : '※ 点击可设置每月GMV目标'}</p>
+        </div>
 
         {/* 配信スケジュールセクション - 常に表示 */}
         {(() => {

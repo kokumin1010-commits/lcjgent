@@ -2291,6 +2291,11 @@ async function startServer() {
               console.error("[Migration] Chat tables error:", err);
             });
           });
+          import("../migrations/createBrandMonthlyGmvTargets").then(({ createBrandMonthlyGmvTargets }) => {
+            createBrandMonthlyGmvTargets(db).catch((err: unknown) => {
+              console.error("[Migration] Brand monthly GMV targets table error:", err);
+            });
+          });
         }
       });
     });

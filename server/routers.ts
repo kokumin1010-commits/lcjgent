@@ -694,7 +694,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos, brandMonthlyGmvTargets } from "../drizzle/schema";
 import { eq, and, or, not, isNotNull, isNull, desc, gt, gte, lte, like, inArray, sql as sqlTag, sum, count, max } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -9574,7 +9574,70 @@ Return ONLY valid JSON, no markdown or explanation.`,
       }),
 
     // 短視頻CRUD API
-    listShortVideos: protectedProcedure
+    // 月度GMV目標 CRUD API
+    getMonthlyGmvTargets: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        year: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const { brandId, year } = input;
+        const conditions: any[] = [eq(brandMonthlyGmvTargets.brandId, brandId)];
+        if (year) conditions.push(eq(brandMonthlyGmvTargets.year, year));
+        const targets = await db
+          .select()
+          .from(brandMonthlyGmvTargets)
+          .where(and(...conditions))
+          .orderBy(brandMonthlyGmvTargets.year, brandMonthlyGmvTargets.month);
+        return targets;
+      }),
+    setMonthlyGmvTarget: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        year: z.number(),
+        month: z.number().min(1).max(12),
+        gmvTarget: z.number().min(0),
+        memo: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const { brandId, year, month, gmvTarget, memo } = input;
+        const userId = ctx.user?.id || 0;
+        // UPSERT: Insert or update
+        const existing = await db
+          .select()
+          .from(brandMonthlyGmvTargets)
+          .where(and(
+            eq(brandMonthlyGmvTargets.brandId, brandId),
+            eq(brandMonthlyGmvTargets.year, year),
+            eq(brandMonthlyGmvTargets.month, month)
+          ))
+          .limit(1);
+        if (existing.length > 0) {
+          await db
+            .update(brandMonthlyGmvTargets)
+            .set({ gmvTarget, memo: memo || null })
+            .where(eq(brandMonthlyGmvTargets.id, existing[0].id));
+          return { success: true, id: existing[0].id, action: 'updated' };
+        } else {
+          const result = await db
+            .insert(brandMonthlyGmvTargets)
+            .values({ brandId, year, month, gmvTarget, memo: memo || null, createdBy: userId });
+          return { success: true, id: (result as any)[0]?.insertId, action: 'created' };
+        }
+      }),
+    deleteMonthlyGmvTarget: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        await db.delete(brandMonthlyGmvTargets).where(eq(brandMonthlyGmvTargets.id, input.id));
+        return { success: true };
+      }),
+        listShortVideos: protectedProcedure
       .input(z.object({
         brandId: z.number(),
         year: z.number().optional(),
