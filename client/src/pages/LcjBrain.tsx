@@ -247,7 +247,7 @@ function ChatPanel() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -442,9 +442,9 @@ function ChatPanel() {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-200px)]">
+    <div className="flex h-[calc(100vh-200px)] md:h-[calc(100vh-200px)] relative">
       {/* Sidebar - 会話履歴 */}
-      <div className={`${sidebarOpen ? "w-64" : "w-0"} transition-all duration-200 overflow-hidden border-r border-white/10 flex-shrink-0`}>
+      <div className={`${sidebarOpen ? "w-64" : "w-0"} transition-all duration-200 overflow-hidden border-r border-white/10 flex-shrink-0 md:relative absolute md:z-0 z-30 h-full bg-[#1a1a2e]`}>
         <div className="w-64 h-full flex flex-col">
           {/* 新しい会話ボタン */}
           <button
@@ -510,7 +510,7 @@ function ChatPanel() {
         </div>
         
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto space-y-4 pb-4 px-4">
+        <div className="flex-1 overflow-y-auto space-y-4 pb-4 px-4 md:px-4 px-2">
           {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500/20 to-indigo-500/20 flex items-center justify-center mb-4 border border-violet-500/20">
@@ -538,7 +538,7 @@ function ChatPanel() {
         {messages.map((msg, i) => (
           <div key={i}>
             <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`relative group max-w-[80%] rounded-2xl px-4 py-3 ${
+              <div className={`relative group max-w-[90%] md:max-w-[80%] rounded-2xl px-4 py-3 ${
                 msg.role === "user"
                   ? "bg-violet-600 text-white"
                   : "bg-white/5 border border-white/10 text-white/90"
@@ -1298,7 +1298,7 @@ function TrainingPanel() {
       <div className="flex-1 overflow-y-auto space-y-3 pb-4">
         {conversation.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === "bd" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+            <div className={`max-w-[90%] md:max-w-[80%] rounded-2xl px-4 py-3 ${
               msg.role === "bd"
                 ? "bg-amber-600 text-white"
                 : "bg-white/5 border border-white/10 text-white/90"
