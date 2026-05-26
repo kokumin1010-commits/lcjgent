@@ -358,15 +358,18 @@ async function detectLiverName(message: string): Promise<{ id: number; name: str
   return null;
 }
 
-/** 特定ライバーの特定月の実績を取得 */
-async function getLiverMonthlyPerformance(liverName: string, yearMonth: string) {
+/** 特定ライバーの特定月の実績を取得（liverIdベースで正確にクエリ） */
+async function getLiverMonthlyPerformance(liverId: number, liverName: string, yearMonth: string) {
   const db = await getDb();
   if (!db) return null;
   
-  const [year, month] = yearMonth.split("-").map(Number);
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0, 23, 59, 59);
+  // JST基準の月範囲を計算（db.tsのgetJSTMonthRangeと同じロジック）
+  const [year, monthNum] = yearMonth.split("-").map(Number);
+  const startDate = new Date(Date.UTC(year, monthNum - 1, 1, 0, 0, 0) - 9 * 60 * 60 * 1000);
+  const lastDay = new Date(year, monthNum, 0).getDate();
+  const endDate = new Date(Date.UTC(year, monthNum - 1, lastDay, 23, 59, 59) - 9 * 60 * 60 * 1000);
   
+  // liverId で検索（ライバーページと同じ方法）
   const streams = await db
     .select({
       id: brandLivestreams.id,
@@ -383,58 +386,14 @@ async function getLiverMonthlyPerformance(liverName: string, yearMonth: string) 
     .where(
       and(
         isNull(brandLivestreams.deletedAt),
-        eq(brandLivestreams.streamerName, liverName),
+        eq(brandLivestreams.liverId, liverId),
         gte(brandLivestreams.livestreamDate, startDate),
         lte(brandLivestreams.livestreamDate, endDate)
       )
     )
     .orderBy(desc(brandLivestreams.livestreamDate));
   
-  if (streams.length === 0) {
-    // streamerNameが完全一致しない場合、LIKE検索
-    const likeStreams = await db
-      .select({
-        id: brandLivestreams.id,
-        livestreamDate: brandLivestreams.livestreamDate,
-        streamerName: brandLivestreams.streamerName,
-        salesAmount: brandLivestreams.salesAmount,
-        gmv: brandLivestreams.gmv,
-        duration: brandLivestreams.duration,
-        viewerCount: brandLivestreams.viewerCount,
-        orderCount: brandLivestreams.orderCount,
-        platform: brandLivestreams.platform,
-      })
-      .from(brandLivestreams)
-      .where(
-        and(
-          isNull(brandLivestreams.deletedAt),
-          like(brandLivestreams.streamerName, `%${liverName}%`),
-          gte(brandLivestreams.livestreamDate, startDate),
-          lte(brandLivestreams.livestreamDate, endDate)
-        )
-      )
-      .orderBy(desc(brandLivestreams.livestreamDate));
-    
-    if (likeStreams.length === 0) return null;
-    
-    const totalSales = likeStreams.reduce((sum, s) => sum + (s.salesAmount || 0), 0);
-    const totalGmv = likeStreams.reduce((sum, s) => sum + (s.gmv || 0), 0);
-    const totalDuration = likeStreams.reduce((sum, s) => sum + (s.duration || 0), 0);
-    const totalViewers = likeStreams.reduce((sum, s) => sum + (s.viewerCount || 0), 0);
-    const totalOrders = likeStreams.reduce((sum, s) => sum + (s.orderCount || 0), 0);
-    
-    return {
-      liverName,
-      yearMonth,
-      totalStreams: likeStreams.length,
-      totalSales,
-      totalGmv,
-      totalDuration,
-      totalViewers,
-      totalOrders,
-      streams: likeStreams.slice(0, 10),
-    };
-  }
+  if (streams.length === 0) return null;
   
   const totalSales = streams.reduce((sum, s) => sum + (s.salesAmount || 0), 0);
   const totalGmv = streams.reduce((sum, s) => sum + (s.gmv || 0), 0);
@@ -507,7 +466,7 @@ async function buildContext(userMessage: string): Promise<string> {
   // ★ 特定ライバー + 特定月のデータを優先的に取得
   if (detectedLiver) {
     const targetMonth = detectedMonth || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-    const liverMonthly = await getLiverMonthlyPerformance(detectedLiver.name, targetMonth);
+    const liverMonthly = await getLiverMonthlyPerformance(detectedLiver.id, detectedLiver.name, targetMonth);
     if (liverMonthly) {
       contextParts.push(`## 主播「${detectedLiver.name}」${targetMonth}月实绩数据\n- 总场次: ${liverMonthly.totalStreams}\n- 总销售额: ${liverMonthly.totalSales.toLocaleString()}円\n- 总GMV: ${liverMonthly.totalGmv.toLocaleString()}円\n- 总时长: ${liverMonthly.totalDuration}分钟\n- 总观看: ${liverMonthly.totalViewers}\n- 总订单: ${liverMonthly.totalOrders}\n\n近期配信详细:\n${JSON.stringify(liverMonthly.streams, null, 0)}`);
     } else {
