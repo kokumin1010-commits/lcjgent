@@ -9,13 +9,13 @@ import {
   ChevronRight, BarChart3, Lightbulb, Shield, GraduationCap,
   ClipboardList, Star, AlertTriangle, CheckCircle2, ArrowRight,
   History, Search, MicOff, Volume2, Plus, Trash2, MessageSquare, PanelLeftClose, PanelLeft,
-  Upload, FolderOpen, Calendar, Tag, Eye, X, Loader2
+  Upload, FolderOpen, Calendar, Tag, Eye, X, Loader2, Database, ExternalLink, CheckCircle, XCircle
 } from "lucide-react";
 
 // ============================================================
 // タブ定義
 // ============================================================
-type TabType = "chat" | "diagnosis" | "training" | "scripts" | "product_score" | "logs" | "knowledge";
+type TabType = "chat" | "diagnosis" | "training" | "scripts" | "product_score" | "logs" | "knowledge" | "data_sources";
 
 // ============================================================
 // 音声入力フック（共通化）
@@ -181,6 +181,7 @@ export default function LcjBrain() {
     { id: "scripts" as TabType, label: "话术生成", icon: BookOpen },
     { id: "product_score" as TabType, label: "产品评分", icon: Star },
     { id: "logs" as TabType, label: "聊天记录", icon: History },
+    { id: "data_sources" as TabType, label: "参考LCJページ", icon: Database },
   ];
 
   return (
@@ -231,6 +232,7 @@ export default function LcjBrain() {
         {activeTab === "scripts" && <ScriptsPanel />}
         {activeTab === "product_score" && <ProductScorePanel />}
         {activeTab === "logs" && <ChatLogsPanel />}
+        {activeTab === "data_sources" && <DataSourcesPanel />}
       </div>
     </div>
   );
@@ -2037,6 +2039,163 @@ function KnowledgePanel() {
 
         <p className="text-xs text-white/30 mt-2 text-center">
           录入后，AI将自动生成摘要、提取标签和参会人。之后在AI对话中提问时，AI会自动引用相关知识。
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================
+// 参考LCJページパネル（AIが接続しているデータソース一覧）
+// ============================================================
+function DataSourcesPanel() {
+  const dataSources = [
+    {
+      category: "ブランド・契約",
+      items: [
+        { name: "ブランド管理", path: "/master/brands", connected: true, description: "全ブランド一覧・詳細・ステータス" },
+        { name: "契約管理", path: "/master/brands", connected: true, description: "ブランド契約情報・ノルマ・進捗" },
+        { name: "商品マスター", path: "/master/mall?tab=products", connected: true, description: "ブランド商品一覧" },
+      ]
+    },
+    {
+      category: "ライバー・配信",
+      items: [
+        { name: "ライバー管理", path: "/master/livers-dashboard", connected: true, description: "全ライバー一覧・プロフィール・SNS" },
+        { name: "配信実績", path: "/master/sales-check", connected: true, description: "GMV・売上・時間・視聴者数" },
+        { name: "ライバー月別実績", path: "/master/livers-dashboard", connected: true, description: "ライバー別の月次パフォーマンス" },
+        { name: "業績ランキング", path: "/master/livers-dashboard", connected: true, description: "近3ヶ月のライバー業績比較" },
+      ]
+    },
+    {
+      category: "スケジュール・計画",
+      items: [
+        { name: "配信スケジュール", path: "/s", connected: true, description: "今後2週間の配信予定" },
+        { name: "配信シミュレーター", path: "/master/simulator", connected: false, description: "配信予測・GMVシミュレーション" },
+      ]
+    },
+    {
+      category: "BD・営業",
+      items: [
+        { name: "BD知識ベース", path: "/master/lcj-brain", connected: true, description: "話術・交渉テクニック・FAQ" },
+        { name: "知識庫（会議纪要）", path: "/master/lcj-brain?tab=knowledge", connected: true, description: "会議記録・RAG検索" },
+        { name: "ブランド応募", path: "/master/brand-applications", connected: false, description: "ブランド応募フォーム提出データ" },
+      ]
+    },
+    {
+      category: "タスク・日報",
+      items: [
+        { name: "タスク管理", path: "/master/tasks", connected: false, description: "スタッフタスク・進捗管理" },
+        { name: "日報", path: "/master/reports", connected: false, description: "日報データ・活動記録" },
+        { name: "スタッフ管理", path: "/master/staff", connected: false, description: "スタッフ情報・出勤" },
+      ]
+    },
+    {
+      category: "EC・MALL",
+      items: [
+        { name: "MALL管理", path: "/master/mall", connected: false, description: "注文・会員・売上データ" },
+        { name: "ポイント申請", path: "/master/point-requests", connected: false, description: "ポイント申請・承認" },
+        { name: "レシート管理", path: "/master/receipts", connected: false, description: "レシート審査データ" },
+        { name: "紹介コード", path: "/master/referral", connected: false, description: "紹介コード実績" },
+        { name: "LCJコイン", path: "/master/lcj-coin", connected: false, description: "コイン残高・取引" },
+      ]
+    },
+    {
+      category: "マーケティング",
+      items: [
+        { name: "短動画管理", path: "/master/short-video", connected: false, description: "短動画投稿・パフォーマンス" },
+        { name: "ブログ管理", path: "/master/blog", connected: false, description: "ブログ記事データ" },
+        { name: "広告ダッシュボード", path: "/master/ad-dashboard", connected: false, description: "広告パフォーマンス" },
+        { name: "ABテスト", path: "/master/ab-test", connected: false, description: "テスト結果・分析" },
+        { name: "ステップメール", path: "/master/step-email", connected: false, description: "メール配信状況" },
+      ]
+    },
+    {
+      category: "その他",
+      items: [
+        { name: "財務", path: "/master/finance", connected: false, description: "財務データ" },
+        { name: "人事", path: "/master/hr", connected: false, description: "人事データ" },
+        { name: "LINE管理", path: "/master/line", connected: false, description: "LINE連携状況" },
+        { name: "エージェンシー", path: "/master/agencies", connected: false, description: "事務所データ" },
+        { name: "名刺管理", path: "/master/business-cards", connected: false, description: "名刺スキャンデータ" },
+      ]
+    },
+  ];
+
+  const connectedCount = dataSources.reduce((acc, cat) => acc + cat.items.filter(i => i.connected).length, 0);
+  const totalCount = dataSources.reduce((acc, cat) => acc + cat.items.length, 0);
+
+  return (
+    <div className="space-y-6">
+      {/* Summary */}
+      <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <Database className="w-5 h-5 text-violet-400" />
+              LCJ Brain データ接続状況
+            </h2>
+            <p className="text-sm text-white/50 mt-1">AIが参照できるマスター管理画面のデータソース一覧</p>
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-bold text-violet-300">{connectedCount}/{totalCount}</div>
+            <div className="text-xs text-white/40">接続済み</div>
+          </div>
+        </div>
+        <div className="w-full bg-white/10 rounded-full h-2">
+          <div 
+            className="bg-gradient-to-r from-violet-500 to-indigo-500 h-2 rounded-full transition-all"
+            style={{ width: `${(connectedCount / totalCount) * 100}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Categories */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {dataSources.map(category => (
+          <div key={category.category} className="bg-white/5 border border-white/10 rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-white/80 mb-3 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-violet-400"></span>
+              {category.category}
+            </h3>
+            <div className="space-y-2">
+              {category.items.map(item => (
+                <div key={item.path + item.name} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {item.connected ? (
+                      <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-white/20 shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <div className={`text-sm font-medium truncate ${item.connected ? 'text-white' : 'text-white/40'}`}>
+                        {item.name}
+                      </div>
+                      <div className="text-xs text-white/30 truncate">{item.description}</div>
+                    </div>
+                  </div>
+                  <a 
+                    href={item.path} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-white/30 hover:text-violet-400 transition-colors shrink-0 ml-2"
+                    title={`${item.name}を開く`}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Note */}
+      <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl p-4">
+        <p className="text-sm text-violet-200/80">
+          💡 <strong>接続済み</strong>のデータは、AI対話で質問するとリアルタイムに参照されます。
+          未接続のデータは今後順次追加予定です。
         </p>
       </div>
     </div>
