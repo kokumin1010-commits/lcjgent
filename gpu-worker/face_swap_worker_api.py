@@ -684,55 +684,7 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
             enhanced = cv2.resize(enhanced, (128, 128), interpolation=cv2.INTER_AREA)
             paste_size = 128
 
-        # Step 7b: Apply mouth opening if TTS is speaking
-        if mouth_open > 0.05 and hasattr(target_face, 'landmark_2d_106') and target_face.landmark_2d_106 is not None:
-            try:
-                lm106 = target_face.landmark_2d_106.astype(np.float32)
-                # Mouth landmarks in 106-point model:
-                # Upper lip: indices 84-95, Lower lip: indices 96-103
-                # We'll shift lower lip/jaw landmarks downward based on mouth_open
-                
-                # Get mouth center and jaw area
-                upper_lip_center = lm106[90]  # Center of upper lip
-                lower_lip_center = lm106[99]  # Center of lower lip
-                mouth_center = (upper_lip_center + lower_lip_center) / 2
-                
-                # Calculate displacement for mouth opening
-                face_height = np.linalg.norm(lm106[0] - lm106[16])  # Approximate face height
-                max_displacement = face_height * 0.08  # Max 8% of face height
-                displacement = max_displacement * mouth_open
-                
-                # Create deformation: move lower part of face down
-                # Use thin-plate-spline-like approach with simple pixel shifting
-                h_frame, w_frame = result.shape[:2]
-                
-                # Define mouth region to deform
-                mouth_y = int(mouth_center[1])
-                mouth_x = int(mouth_center[0])
-                region_h = int(face_height * 0.3)
-                region_w = int(face_height * 0.4)
-                
-                y_start = max(0, mouth_y - region_h // 4)
-                y_end = min(h_frame, mouth_y + region_h)
-                x_start = max(0, mouth_x - region_w // 2)
-                x_end = min(w_frame, mouth_x + region_w // 2)
-                
-                if y_end > y_start and x_end > x_start:
-                    # Create vertical displacement map for the mouth region
-                    region = result[y_start:y_end, x_start:x_end].copy()
-                    region_height = y_end - y_start
-                    
-                    # Displacement gradient: 0 at top, max at bottom
-                    for row_idx in range(region_height):
-                        progress = row_idx / max(1, region_height - 1)
-                        # Only affect lower half of region (below mouth center)
-                        if y_start + row_idx > mouth_y:
-                            shift_amount = displacement * progress * 0.5
-                            src_row = int(row_idx - shift_amount)
-                            if 0 <= src_row < region_height:
-                                result[y_start + row_idx, x_start:x_end] = region[src_row]
-            except Exception as e:
-                pass  # Silently skip mouth animation on error
+        # Step 7b: (mouth_open processing moved to AFTER face paste - see Step 11 below)
 
         # Step 8: Create landmark-based mask (protects hair/forehead)
         h, w = result.shape[:2]
@@ -768,6 +720,67 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
         # The GFPGAN output already has correct colors from the source face.
         mask_3ch = combined_mask[:, :, np.newaxis]
         result = (face_warped.astype(np.float32) * mask_3ch + result.astype(np.float32) * (1 - mask_3ch)).astype(np.uint8)
+
+        # Step 11: Apply mouth opening AFTER face paste (critical: must be after Step 10)
+        # Previously this was in Step 7b which got overwritten by Step 10's alpha blend.
+        if mouth_open > 0.05 and hasattr(target_face, 'landmark_2d_106') and target_face.landmark_2d_106 is not None:
+            try:
+                lm106 = target_face.landmark_2d_106.astype(np.float32)
+                # Get mouth landmarks
+                upper_lip_center = lm106[90]  # Center of upper lip
+                lower_lip_center = lm106[99]  # Center of lower lip
+                mouth_center_pt = (upper_lip_center + lower_lip_center) / 2
+
+                # Calculate face height for proportional displacement
+                # Use forehead to chin distance (indices 1 and 16 in 106-point model)
+                face_height_px = np.linalg.norm(lm106[1] - lm106[16])
+                # Max displacement: 15% of face height for clearly visible mouth opening
+                max_displacement = face_height_px * 0.15
+                displacement = max_displacement * min(1.0, mouth_open)
+
+                # Define the mouth region to deform using cv2.remap for speed
+                h_frame, w_frame = result.shape[:2]
+                mouth_y = int(mouth_center_pt[1])
+                mouth_x = int(mouth_center_pt[0])
+                region_h = int(face_height_px * 0.35)
+                region_w = int(face_height_px * 0.45)
+
+                y_start = max(0, mouth_y - int(region_h * 0.2))
+                y_end = min(h_frame, mouth_y + region_h)
+                x_start = max(0, mouth_x - region_w // 2)
+                x_end = min(w_frame, mouth_x + region_w // 2)
+
+                if y_end > y_start + 4 and x_end > x_start + 4:
+                    rh = y_end - y_start
+                    rw = x_end - x_start
+
+                    # Build remap coordinates for the region
+                    # X stays the same, Y is shifted downward below mouth center
+                    map_x = np.tile(np.arange(rw, dtype=np.float32), (rh, 1))
+                    map_y = np.tile(np.arange(rh, dtype=np.float32).reshape(-1, 1), (1, rw))
+
+                    # Calculate relative position of mouth center within region
+                    mouth_rel_y = mouth_y - y_start
+
+                    # Apply displacement: smooth gradient below mouth center
+                    for row in range(rh):
+                        if row > mouth_rel_y:
+                            # Progress from mouth center to bottom of region
+                            progress = (row - mouth_rel_y) / max(1, rh - mouth_rel_y - 1)
+                            # Smooth ease-out curve for natural look
+                            shift = displacement * progress * (2.0 - progress)
+                            map_y[row, :] -= shift
+
+                    # Apply remap to the region
+                    region = result[y_start:y_end, x_start:x_end].copy()
+                    deformed = cv2.remap(
+                        region, map_x, map_y,
+                        interpolation=cv2.INTER_LINEAR,
+                        borderMode=cv2.BORDER_REPLICATE
+                    )
+                    result[y_start:y_end, x_start:x_end] = deformed
+            except Exception as e:
+                pass  # Silently skip mouth animation on error
 
     return result
 

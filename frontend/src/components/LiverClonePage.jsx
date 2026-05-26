@@ -114,6 +114,14 @@ export default function LiverClonePage() {
   const ttsAnalyserRef = useRef(null);
   const lipSyncIntervalRef = useRef(null);
 
+  // Voice ID management
+  const [savedVoiceIds, setSavedVoiceIds] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("liverClone_savedVoiceIds") || "[]");
+    } catch { return []; }
+  });
+  const [voiceIdName, setVoiceIdName] = useState("");
+
   // Recording (9:16 vertical video)
   const [isRecording, setIsRecording] = useState(false);
   const [recordedChunks, setRecordedChunks] = useState([]);
@@ -166,6 +174,9 @@ export default function LiverClonePage() {
   useEffect(() => {
     localStorage.setItem("liverClone_silenceTimeout", String(silenceTimeout));
   }, [silenceTimeout]);
+  useEffect(() => {
+    localStorage.setItem("liverClone_savedVoiceIds", JSON.stringify(savedVoiceIds));
+  }, [savedVoiceIds]);
 
   // ── Poll session status ──
   useEffect(() => {
@@ -360,20 +371,28 @@ export default function LiverClonePage() {
     canvas.width = SEND_W;
     canvas.height = SEND_H;
 
-    // Use requestAnimationFrame for smooth frame pacing
-    // Combined with RTT-based flow control: only send next frame after receiving response
-    let waitingForResponse = false;
+    // Pipeline-parallel flow control:
+    // - No waitingForResponse (removed - was limiting to ~3 FPS)
+    // - GPU Worker already keeps only the latest frame and discards old ones
+    // - We use bufferedAmount only to prevent memory buildup
+    // - Target: send at ~20 FPS, GPU processes latest frame only
     let animFrameId = null;
+    let lastSendTime = 0;
+    const MIN_SEND_INTERVAL = 50; // 50ms = max 20 FPS send rate
 
     const sendLoop = () => {
       animFrameId = requestAnimationFrame(sendLoop);
 
       if (!previewWsRef.current || previewWsRef.current.readyState !== WebSocket.OPEN) return;
       if (!video.videoWidth) return;
-      // Flow control: don't send if previous frame hasn't been processed yet
-      if (waitingForResponse) return;
-      // Backpressure: skip if WebSocket buffer is building up
-      if (previewWsRef.current.bufferedAmount > 50000) return;
+
+      // Rate limiting: don't send faster than 20 FPS
+      const now = performance.now();
+      if (now - lastSendTime < MIN_SEND_INTERVAL) return;
+
+      // Backpressure: skip if WebSocket buffer is building up (64KB threshold)
+      // GPU Worker discards old frames anyway, so this just prevents memory issues
+      if (previewWsRef.current.bufferedAmount > 65536) return;
 
       // Draw video frame at optimized resolution
       ctx.drawImage(video, 0, 0, SEND_W, SEND_H);
@@ -382,20 +401,13 @@ export default function LiverClonePage() {
       canvas.toBlob(
         (blob) => {
           if (blob && previewWsRef.current?.readyState === WebSocket.OPEN) {
-            waitingForResponse = true;
             previewWsRef.current.send(blob);
+            lastSendTime = performance.now();
           }
         },
         "image/jpeg",
         0.6 // 60% quality - sufficient for face detection, minimal transfer size (~15-25KB)
       );
-    };
-
-    // Listen for responses to release flow control
-    const origOnMessage = previewWsRef.current.onmessage;
-    previewWsRef.current.onmessage = (event) => {
-      waitingForResponse = false; // Allow next frame to be sent
-      if (origOnMessage) origOnMessage(event);
     };
 
     animFrameId = requestAnimationFrame(sendLoop);
@@ -760,13 +772,22 @@ export default function LiverClonePage() {
 
   /**
    * Play TTS audio and send lip-sync data to GPU Worker via WebSocket.
+   * Uses a SEPARATE AudioContext from the audio passthrough to avoid conflicts.
+   * MediaElementSource can only be connected once per audio element, so we create
+   * a fresh Audio element and a dedicated TTS AudioContext each time.
    */
   const playTTSAudio = (audioBase64, format) => {
     return new Promise((resolve) => {
       try {
-        // Create audio context if not exists
-        const audioCtx = audioContextRef.current || new (window.AudioContext || window.webkitAudioContext)();
-        if (!audioContextRef.current) audioContextRef.current = audioCtx;
+        // Create a DEDICATED AudioContext for TTS playback (separate from passthrough)
+        // This avoids the "MediaElementSource already connected" error
+        const ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
+        console.log("[TTS] Created dedicated AudioContext, state:", ttsCtx.state);
+
+        // Resume AudioContext if suspended (autoplay policy)
+        if (ttsCtx.state === "suspended") {
+          ttsCtx.resume().then(() => console.log("[TTS] AudioContext resumed"));
+        }
 
         // Decode base64 to audio buffer
         const audioData = atob(audioBase64);
@@ -781,37 +802,40 @@ export default function LiverClonePage() {
         const audio = new Audio(audioUrl);
         ttsAudioRef.current = audio;
 
-        // Create analyser for lip-sync
-        const source = audioCtx.createMediaElementSource(audio);
-        const analyser = audioCtx.createAnalyser();
+        // Create analyser for lip-sync using the dedicated TTS context
+        const source = ttsCtx.createMediaElementSource(audio);
+        const analyser = ttsCtx.createAnalyser();
         analyser.fftSize = 256;
         analyser.smoothingTimeConstant = 0.3;
         source.connect(analyser);
-        analyser.connect(audioCtx.destination);
+        analyser.connect(ttsCtx.destination);
         ttsAnalyserRef.current = analyser;
 
-        // Start lip-sync monitoring
+        // Start lip-sync monitoring at 20Hz
         const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        lipSyncIntervalRef.current = setInterval(() => {
+        let lipSyncActive = true;
+        const lipSyncLoop = () => {
+          if (!lipSyncActive) return;
           analyser.getByteFrequencyData(dataArray);
-          // Calculate mouth openness from low-mid frequency energy (voice range)
+          // Calculate mouth openness from low-mid frequency energy (voice range 0-2kHz)
           let sum = 0;
-          const voiceRange = Math.min(32, dataArray.length); // Focus on 0-2kHz
+          const voiceRange = Math.min(32, dataArray.length);
           for (let i = 0; i < voiceRange; i++) {
             sum += dataArray[i];
           }
           const avg = sum / voiceRange / 255; // Normalize to 0-1
-          const mouthOpen = Math.min(1.0, avg * 2.5); // Amplify for visible effect
+          const mouthOpen = Math.min(1.0, avg * 3.0); // Amplify for visible effect
 
           // Send mouth_open to GPU Worker via WebSocket
-          if (previewWsRef.current?.readyState === WebSocket.OPEN && mouthOpen > 0.05) {
+          if (previewWsRef.current?.readyState === WebSocket.OPEN) {
             const msg = JSON.stringify({ type: "mouth_open", value: mouthOpen });
             previewWsRef.current.send(msg);
           }
-        }, 50); // 20Hz lip-sync update rate
+        };
+        lipSyncIntervalRef.current = setInterval(lipSyncLoop, 50); // 20Hz
 
-        audio.onended = () => {
-          // Stop lip-sync
+        const cleanup = () => {
+          lipSyncActive = false;
           if (lipSyncIntervalRef.current) {
             clearInterval(lipSyncIntervalRef.current);
             lipSyncIntervalRef.current = null;
@@ -823,22 +847,26 @@ export default function LiverClonePage() {
           URL.revokeObjectURL(audioUrl);
           ttsAudioRef.current = null;
           ttsAnalyserRef.current = null;
+          // Close the dedicated TTS AudioContext
+          ttsCtx.close().catch(() => {});
           resolve();
+        };
+
+        audio.onended = () => {
+          console.log("[TTS] Audio playback ended");
+          cleanup();
         };
 
         audio.onerror = (e) => {
           console.error("[TTS] Audio playback error:", e);
-          if (lipSyncIntervalRef.current) {
-            clearInterval(lipSyncIntervalRef.current);
-            lipSyncIntervalRef.current = null;
-          }
-          URL.revokeObjectURL(audioUrl);
-          resolve();
+          cleanup();
         };
 
-        audio.play().catch((e) => {
-          console.error("[TTS] Audio play failed:", e);
-          resolve();
+        audio.play().then(() => {
+          console.log("[TTS] Audio playback started");
+        }).catch((e) => {
+          console.error("[TTS] Audio play failed (autoplay policy?):", e);
+          cleanup();
         });
       } catch (err) {
         console.error("[TTS] playTTSAudio error:", err);
@@ -1292,17 +1320,86 @@ export default function LiverClonePage() {
                     音声設定
                   </h3>
                   <div className="space-y-3">
+                    {/* Voice ID with save/load management */}
                     <div>
                       <label className="text-xs text-gray-400 mb-1 block">
                         Voice ID（ElevenLabs）
                       </label>
-                      <input
-                        type="text"
-                        value={voiceId}
-                        onChange={(e) => setVoiceId(e.target.value)}
-                        placeholder="ElevenLabs Voice ID"
-                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                      />
+                      {/* Saved Voice IDs dropdown */}
+                      {savedVoiceIds.length > 0 && (
+                        <select
+                          value={voiceId}
+                          onChange={(e) => setVoiceId(e.target.value)}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-purple-500"
+                        >
+                          <option value="">-- 保存済みVoice IDを選択 --</option>
+                          {savedVoiceIds.map((item, idx) => (
+                            <option key={idx} value={item.id}>
+                              {item.name} ({item.id.slice(0, 8)}...)
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {/* Voice ID input + save */}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={voiceId}
+                          onChange={(e) => setVoiceId(e.target.value)}
+                          placeholder="ElevenLabs Voice ID"
+                          className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+                      {/* Save new Voice ID */}
+                      {voiceId && (
+                        <div className="flex gap-2 mt-2">
+                          <input
+                            type="text"
+                            value={voiceIdName}
+                            onChange={(e) => setVoiceIdName(e.target.value)}
+                            placeholder="名前を付けて保存..."
+                            className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-purple-500"
+                          />
+                          <button
+                            onClick={() => {
+                              if (!voiceIdName.trim() || !voiceId.trim()) return;
+                              const exists = savedVoiceIds.some(v => v.id === voiceId);
+                              if (exists) {
+                                setSavedVoiceIds(prev => prev.map(v => v.id === voiceId ? { ...v, name: voiceIdName.trim() } : v));
+                              } else {
+                                setSavedVoiceIds(prev => [...prev, { id: voiceId.trim(), name: voiceIdName.trim() }]);
+                              }
+                              setVoiceIdName("");
+                            }}
+                            disabled={!voiceIdName.trim()}
+                            className="px-3 py-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 rounded-lg text-xs transition"
+                          >
+                            保存
+                          </button>
+                        </div>
+                      )}
+                      {/* Saved Voice IDs list with delete */}
+                      {savedVoiceIds.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {savedVoiceIds.map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-gray-900/50 rounded px-2 py-1 text-xs">
+                              <span
+                                className={`cursor-pointer hover:text-purple-300 ${voiceId === item.id ? 'text-purple-400 font-semibold' : 'text-gray-300'}`}
+                                onClick={() => setVoiceId(item.id)}
+                              >
+                                {item.name}
+                              </span>
+                              <button
+                                onClick={() => setSavedVoiceIds(prev => prev.filter((_, i) => i !== idx))}
+                                className="text-red-400 hover:text-red-300 ml-2"
+                                title="削除"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
