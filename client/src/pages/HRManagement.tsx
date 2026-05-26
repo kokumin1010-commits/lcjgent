@@ -395,6 +395,244 @@ const TIER_COLORS: Record<string, string> = {
 };
 
 // ============================================
+// Organization Overview Component
+// ============================================
+function OrganizationOverview({ staffList }: { staffList: UnifiedStaffItem[] }) {
+  // 国別集計
+  const countryStats = useMemo(() => {
+    const map: Record<string, { total: number; active: number; departments: Record<string, number>; employmentTypes: Record<string, number> }> = {};
+    staffList.forEach(s => {
+      const country = s.staffCountry || s.reportStaffCountry || "不明";
+      if (!map[country]) map[country] = { total: 0, active: 0, departments: {}, employmentTypes: {} };
+      map[country].total++;
+      if (s.reportStaffIsActive === "active") map[country].active++;
+      const dept = s.staffDepartment || "未設定";
+      map[country].departments[dept] = (map[country].departments[dept] || 0) + 1;
+      const empType = s.staffEmploymentType || "unknown";
+      map[country].employmentTypes[empType] = (map[country].employmentTypes[empType] || 0) + 1;
+    });
+    return Object.entries(map)
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([country, data]) => ({ country, ...data }));
+  }, [staffList]);
+
+  // 部門別集計
+  const departmentStats = useMemo(() => {
+    const map: Record<string, { total: number; countries: Record<string, number> }> = {};
+    staffList.forEach(s => {
+      const dept = s.staffDepartment || "未設定";
+      const country = s.staffCountry || s.reportStaffCountry || "不明";
+      if (!map[dept]) map[dept] = { total: 0, countries: {} };
+      map[dept].total++;
+      map[dept].countries[country] = (map[dept].countries[country] || 0) + 1;
+    });
+    return Object.entries(map)
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([department, data]) => ({ department, ...data }));
+  }, [staffList]);
+
+  // 雇用形態別集計
+  const employmentStats = useMemo(() => {
+    const map: Record<string, number> = {};
+    staffList.forEach(s => {
+      const type = s.staffEmploymentType || "unknown";
+      map[type] = (map[type] || 0) + 1;
+    });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]);
+  }, [staffList]);
+
+  const totalActive = staffList.filter(s => s.reportStaffIsActive === "active").length;
+  const totalInactive = staffList.filter(s => s.reportStaffIsActive !== "active").length;
+
+  const COUNTRY_FLAGS: Record<string, string> = {
+    "日本": "🇯🇵",
+    "中国": "🇨🇳",
+    "タイ": "🇹🇭",
+    "ベトナム": "🇻🇳",
+    "韓国": "🇰🇷",
+  };
+
+  const EMP_TYPE_LABELS: Record<string, string> = {
+    fulltime: "正社員",
+    parttime: "パート",
+    contract: "契約社員",
+    intern: "インターン",
+    unknown: "未設定",
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* 全体サマリー */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-3xl font-bold text-primary">{staffList.length}</p>
+            <p className="text-sm text-muted-foreground">全スタッフ</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-3xl font-bold text-emerald-600">{totalActive}</p>
+            <p className="text-sm text-muted-foreground">在籍</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-3xl font-bold text-red-500">{totalInactive}</p>
+            <p className="text-sm text-muted-foreground">退職済</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-3xl font-bold text-blue-600">{countryStats.length}</p>
+            <p className="text-sm text-muted-foreground">国・地域</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-3xl font-bold text-purple-600">{departmentStats.length}</p>
+            <p className="text-sm text-muted-foreground">部門数</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 国別分布 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Globe className="h-5 w-5" />
+            国別スタッフ分布
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {countryStats.map(cs => (
+              <Card key={cs.country} className="border-2">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-bold flex items-center gap-2">
+                      <span className="text-2xl">{COUNTRY_FLAGS[cs.country] || "🌐"}</span>
+                      {cs.country}
+                    </h3>
+                    <Badge variant="secondary" className="text-lg px-3 py-1">{cs.active}名</Badge>
+                  </div>
+                  <div className="text-sm text-muted-foreground mb-3">
+                    在籍 {cs.active}名 / 全体 {cs.total}名
+                  </div>
+                  {/* 部門内訳 */}
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">部門別</p>
+                    {Object.entries(cs.departments)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([dept, count]) => (
+                        <div key={dept} className="flex items-center justify-between text-sm">
+                          <span className="truncate">{dept}</span>
+                          <span className="font-medium ml-2">{count}名</span>
+                        </div>
+                      ))}
+                  </div>
+                  {/* 雇用形態内訳 */}
+                  <div className="mt-3 pt-3 border-t space-y-1">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">雇用形態</p>
+                    {Object.entries(cs.employmentTypes)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([type, count]) => (
+                        <div key={type} className="flex items-center justify-between text-sm">
+                          <span>{EMP_TYPE_LABELS[type] || type}</span>
+                          <span className="font-medium">{count}名</span>
+                        </div>
+                      ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 部門別分布 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Briefcase className="h-5 w-5" />
+            部門別スタッフ分布
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-3 px-4 font-semibold">部門</th>
+                  <th className="text-center py-3 px-4 font-semibold">合計</th>
+                  {countryStats.map(cs => (
+                    <th key={cs.country} className="text-center py-3 px-4 font-semibold">
+                      {COUNTRY_FLAGS[cs.country] || "🌐"} {cs.country}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {departmentStats.map(ds => (
+                  <tr key={ds.department} className="border-b hover:bg-muted/50">
+                    <td className="py-3 px-4 font-medium">{ds.department}</td>
+                    <td className="text-center py-3 px-4">
+                      <Badge variant="secondary">{ds.total}</Badge>
+                    </td>
+                    {countryStats.map(cs => (
+                      <td key={cs.country} className="text-center py-3 px-4">
+                        {ds.countries[cs.country] ? (
+                          <span className="font-medium">{ds.countries[cs.country]}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {/* 合計行 */}
+                <tr className="bg-muted/30 font-bold">
+                  <td className="py-3 px-4">合計</td>
+                  <td className="text-center py-3 px-4">
+                    <Badge>{staffList.length}</Badge>
+                  </td>
+                  {countryStats.map(cs => (
+                    <td key={cs.country} className="text-center py-3 px-4">{cs.total}</td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 雇用形態別 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Briefcase className="h-5 w-5" />
+            雇用形態別分布
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {employmentStats.map(([type, count]) => (
+              <div key={type} className="p-4 rounded-lg border text-center">
+                <p className="text-2xl font-bold">{count}</p>
+                <p className="text-sm text-muted-foreground">{EMP_TYPE_LABELS[type] || type}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  ({((count / staffList.length) * 100).toFixed(1)}%)
+                </p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ============================================
 // Tier System Tab Component
 // ============================================
 function TierSystemTab({ staffList }: { staffList: UnifiedStaffItem[] }) {
@@ -715,7 +953,7 @@ function TierSystemTab({ staffList }: { staffList: UnifiedStaffItem[] }) {
 // Main HR Management Component
 // ============================================
 export default function HRManagement() {
-  const [pageTab, setPageTab] = useState<"staff" | "tier">("staff");
+  const [pageTab, setPageTab] = useState<"overview" | "staff" | "tier">("overview");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [countryFilter, setCountryFilter] = useState("all");
@@ -1280,6 +1518,13 @@ export default function HRManagement() {
       {/* Page Tabs */}
       <div className="flex border-b">
         <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${pageTab === "overview" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          onClick={() => setPageTab("overview")}
+        >
+          <Building2 className="inline h-4 w-4 mr-1.5" />
+          組織概要
+        </button>
+        <button
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${pageTab === "staff" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
           onClick={() => setPageTab("staff")}
         >
@@ -1294,6 +1539,11 @@ export default function HRManagement() {
           Tier制度・給与基準
         </button>
       </div>
+
+      {/* 組織概要タブ */}
+      {pageTab === "overview" && (
+        <OrganizationOverview staffList={unifiedStaffList} />
+      )}
 
       {pageTab === "staff" && (<>
       {/* Statistics Cards */}
