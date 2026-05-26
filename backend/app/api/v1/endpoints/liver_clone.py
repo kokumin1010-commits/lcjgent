@@ -385,6 +385,47 @@ class PreviewSpeakRequest(BaseModel):
     language: str = "ja"
 
 
+@router.get("/preview/validate-voice")
+async def validate_voice(voice_id: str):
+    """
+    Validate a Voice ID against the ElevenLabs API.
+    Returns voice name and details if valid, or an error if not found.
+    This prevents silent failures from typos like 'I' vs 'l'.
+    """
+    from app.services.elevenlabs_tts_service import ElevenLabsTTSService, ElevenLabsError
+
+    if not voice_id or not voice_id.strip():
+        raise HTTPException(status_code=400, detail="voice_id is required")
+
+    try:
+        tts = ElevenLabsTTSService()
+        voice_info = await tts.get_voice(voice_id.strip())
+        logger.info(
+            f"[LiverClone API] Voice validated: id={voice_id[:8]}..., "
+            f"name={voice_info.get('name', 'unknown')}"
+        )
+        return {
+            "valid": True,
+            "voice_id": voice_id.strip(),
+            "name": voice_info.get("name", ""),
+            "category": voice_info.get("category", ""),
+            "labels": voice_info.get("labels", {}),
+        }
+    except ElevenLabsError as e:
+        if e.status_code == 404 or "not_found" in str(e).lower():
+            logger.warning(f"[LiverClone API] Voice not found: {voice_id}")
+            return {
+                "valid": False,
+                "voice_id": voice_id.strip(),
+                "error": f"Voice ID '{voice_id}' not found. Please check for typos (e.g., 'I' vs 'l').",
+            }
+        logger.exception(f"[LiverClone API] Voice validation failed: {voice_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.exception(f"[LiverClone API] Voice validation error: {voice_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/preview/speak")
 async def preview_speak(req: PreviewSpeakRequest):
     """

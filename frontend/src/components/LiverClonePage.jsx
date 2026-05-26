@@ -121,6 +121,7 @@ export default function LiverClonePage() {
     } catch { return []; }
   });
   const [voiceIdName, setVoiceIdName] = useState("");
+  const [voiceValidation, setVoiceValidation] = useState(null); // { valid, name, error, loading }
 
   // Recording (9:16 vertical video)
   const [isRecording, setIsRecording] = useState(false);
@@ -146,6 +147,7 @@ export default function LiverClonePage() {
   // ── Persist voice/config settings to localStorage ──
   useEffect(() => {
     localStorage.setItem("liverClone_voiceId", voiceId);
+    setVoiceValidation(null); // Reset validation when voice ID changes
   }, [voiceId]);
   useEffect(() => {
     localStorage.setItem("liverClone_mode", mode);
@@ -1344,7 +1346,7 @@ export default function LiverClonePage() {
                         <select
                           value={voiceId}
                           onChange={(e) => setVoiceId(e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-purple-500"
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono mb-2 focus:outline-none focus:border-purple-500"
                         >
                           <option value="">-- 保存済みVoice IDを選択 --</option>
                           {savedVoiceIds.map((item, idx) => (
@@ -1361,7 +1363,7 @@ export default function LiverClonePage() {
                           value={voiceId}
                           onChange={(e) => setVoiceId(e.target.value)}
                           placeholder="ElevenLabs Voice ID"
-                          className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                          className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500"
                         />
                       </div>
                       {/* Save new Voice ID */}
@@ -1375,21 +1377,47 @@ export default function LiverClonePage() {
                             className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-purple-500"
                           />
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               if (!voiceIdName.trim() || !voiceId.trim()) return;
-                              const exists = savedVoiceIds.some(v => v.id === voiceId);
-                              if (exists) {
-                                setSavedVoiceIds(prev => prev.map(v => v.id === voiceId ? { ...v, name: voiceIdName.trim() } : v));
-                              } else {
-                                setSavedVoiceIds(prev => [...prev, { id: voiceId.trim(), name: voiceIdName.trim() }]);
+                              // Validate Voice ID before saving
+                              setVoiceValidation({ loading: true });
+                              try {
+                                const result = await liverCloneService.validateVoiceId(voiceId.trim());
+                                if (result.valid) {
+                                  const exists = savedVoiceIds.some(v => v.id === voiceId);
+                                  if (exists) {
+                                    setSavedVoiceIds(prev => prev.map(v => v.id === voiceId ? { ...v, name: voiceIdName.trim() } : v));
+                                  } else {
+                                    setSavedVoiceIds(prev => [...prev, { id: voiceId.trim(), name: voiceIdName.trim() }]);
+                                  }
+                                  setVoiceIdName("");
+                                  setVoiceValidation({ valid: true, name: result.name });
+                                } else {
+                                  setVoiceValidation({ valid: false, error: result.error || "Voice ID not found" });
+                                }
+                              } catch (err) {
+                                setVoiceValidation({ valid: false, error: "Validation failed: " + (err.response?.data?.detail || err.message) });
                               }
-                              setVoiceIdName("");
                             }}
-                            disabled={!voiceIdName.trim()}
+                            disabled={!voiceIdName.trim() || voiceValidation?.loading}
                             className="px-3 py-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 rounded-lg text-xs transition"
                           >
-                            保存
+                            {voiceValidation?.loading ? "検証中..." : "保存"}
                           </button>
+                        </div>
+                      )}
+                      {/* Voice ID validation result */}
+                      {voiceValidation && !voiceValidation.loading && (
+                        <div className={`mt-2 px-3 py-2 rounded-lg text-xs flex items-center gap-2 ${
+                          voiceValidation.valid
+                            ? 'bg-green-900/30 border border-green-700 text-green-300'
+                            : 'bg-red-900/30 border border-red-700 text-red-300'
+                        }`}>
+                          {voiceValidation.valid ? (
+                            <><CheckCircle className="w-3 h-3" /> Voice ID確認済み: {voiceValidation.name}</>
+                          ) : (
+                            <><AlertCircle className="w-3 h-3" /> {voiceValidation.error}</>
+                          )}
                         </div>
                       )}
                       {/* Saved Voice IDs list with delete */}

@@ -220,6 +220,25 @@ class LiverCloneService {
    * @param {Object} options - { voice_stability, voice_similarity, language }
    * @returns {Promise<Object>} { status, audio_base64, audio_format, text }
    */
+  /**
+   * Validate a Voice ID against the ElevenLabs API.
+   * Returns { valid, voice_id, name, category } if valid,
+   * or { valid: false, error } if not found.
+   * @param {string} voiceId - ElevenLabs voice ID to validate
+   * @returns {Promise<Object>}
+   */
+  async validateVoiceId(voiceId) {
+    const res = await axios.get(
+      `${this.baseURL}/api/v1/liver-clone/preview/validate-voice`,
+      {
+        headers: this._headers(),
+        params: { voice_id: voiceId },
+        timeout: 15000,
+      }
+    );
+    return res.data;
+  }
+
   async previewSpeak(text, voiceId, options = {}) {
     const res = await axios.post(
       `${this.baseURL}/api/v1/liver-clone/preview/speak`,
