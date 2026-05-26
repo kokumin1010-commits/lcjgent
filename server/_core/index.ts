@@ -2296,6 +2296,12 @@ async function startServer() {
               console.error("[Migration] Brand monthly GMV targets table error:", err);
             });
           });
+          // Fix chat_room_members userId (users.id → staff.id migration)
+          import("../migrations/migrateChatMemberIds").then(({ migrateChatMemberIds }) => {
+            migrateChatMemberIds(db).catch((err: unknown) => {
+              console.error("[Migration] Chat member IDs migration error:", err);
+            });
+          });
         }
       });
     });

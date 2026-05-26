@@ -2597,7 +2597,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
 
 // Helper function to authenticate chat users (supports both admin/staff and liver auth)
-async function getChatUser(ctx: any): Promise<{ id: number; name: string; userType: 'staff' | 'liver'; avatarUrl: string | null } | null> {
+async function getChatUser(ctx: any): Promise<{ id: number; name: string; userType: 'staff' | 'liver'; avatarUrl: string | null; legacyId?: number } | null> {
   const db = await getDb();
   if (!db) return null;
   // First try: admin/staff user from protectedProcedure context
@@ -2609,7 +2609,8 @@ async function getChatUser(ctx: any): Promise<{ id: number; name: string; userTy
     const staffResult = await db.execute(sqlTag`SELECT id, name, avatarUrl FROM staff WHERE email = ${userEmail} AND isActive = 'active' LIMIT 1`);
     const s = (staffResult as any)[0]?.[0];
     if (s) {
-      return { id: s.id, name: s.name || name, userType: 'staff' as const, avatarUrl: s.avatarUrl || null };
+      // Return staff.id as primary, users.id as legacyId for backward compatibility
+      return { id: s.id, name: s.name || name, userType: 'staff' as const, avatarUrl: s.avatarUrl || null, legacyId: ctx.user.id !== s.id ? ctx.user.id : undefined };
     }
     // Fallback: use users.id as staff id (legacy compatibility)
     return { id: ctx.user.id, name, userType: 'staff' as const, avatarUrl: null };
@@ -24968,6 +24969,8 @@ JSON配列のみを出力してください。`;
       const chatUser = await getChatUser(ctx);
       if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
       const db = await getDb();
+      // Support both current staff.id and legacy users.id for backward compatibility
+      const legacyId = chatUser.legacyId;
       const rooms = await db.execute(sqlTag`
         SELECT cr.id, cr.name, cr.type, cr.avatarUrl, cr.createdAt,
           (SELECT content FROM chat_messages WHERE roomId = cr.id ORDER BY createdAt DESC LIMIT 1) as lastMessage,
@@ -24975,7 +24978,8 @@ JSON配列のみを出力してください。`;
           (SELECT createdAt FROM chat_messages WHERE roomId = cr.id ORDER BY createdAt DESC LIMIT 1) as lastMessageAt,
           (SELECT COUNT(*) FROM chat_messages WHERE roomId = cr.id AND createdAt > crm.lastReadAt) as unreadCount
         FROM chat_rooms cr
-        JOIN chat_room_members crm ON cr.id = crm.roomId AND crm.userId = ${chatUser.id} AND crm.userType = ${chatUser.userType}
+        JOIN chat_room_members crm ON cr.id = crm.roomId AND crm.userType = ${chatUser.userType}
+          AND (crm.userId = ${chatUser.id}${legacyId ? sqlTag` OR crm.userId = ${legacyId}` : sqlTag``})
         ORDER BY lastMessageAt DESC, cr.createdAt DESC
       `);
       return (rooms as any)[0] || [];
@@ -25015,10 +25019,11 @@ JSON配列のみを出力してください。`;
             ORDER BY createdAt DESC LIMIT ${limit}
           `);
         }
-        // 既読更新
+        // 既読更新（legacyIdも対応）
         await db.execute(sqlTag`
           UPDATE chat_room_members SET lastReadAt = NOW()
-          WHERE roomId = ${input.roomId} AND userId = ${chatUser.id} AND userType = ${chatUser.userType}
+          WHERE roomId = ${input.roomId} AND userType = ${chatUser.userType}
+            AND (userId = ${chatUser.id}${chatUser.legacyId ? sqlTag` OR userId = ${chatUser.legacyId}` : sqlTag``})
         `);
         return ((messages as any)[0] || []).reverse();
       }),
@@ -25039,10 +25044,11 @@ JSON配列のみを出力してください。`;
           INSERT INTO chat_messages (roomId, senderId, senderType, senderName, messageType, content, fileUrl, fileName)
           VALUES (${input.roomId}, ${chatUser.id}, ${chatUser.userType}, ${chatUser.name}, ${input.messageType || 'text'}, ${input.content}, ${input.fileUrl || null}, ${input.fileName || null})
         `);
-        // 自分の既読を更新
+        // 自分の既読を更新（legacyIdも対応）
         await db.execute(sqlTag`
           UPDATE chat_room_members SET lastReadAt = NOW()
-          WHERE roomId = ${input.roomId} AND userId = ${chatUser.id} AND userType = ${chatUser.userType}
+          WHERE roomId = ${input.roomId} AND userType = ${chatUser.userType}
+            AND (userId = ${chatUser.id}${chatUser.legacyId ? sqlTag` OR userId = ${chatUser.legacyId}` : sqlTag``})
         `);
 
         // === 通知処理（非同期・エラーでもメッセージ送信は成功させる） ===
@@ -25125,12 +25131,14 @@ JSON配列のみを出力してください。`;
         const chatUser = await getChatUser(ctx);
         if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
         const db = await getDb();
-        // 1対1の場合、既存のルームがあるか確認
+        // 1対1の場合、既存のルームがあるか確認（legacyIdも対応）
         if (input.type === 'direct' && input.memberIds.length === 1) {
           const target = input.memberIds[0];
+          const legacyId = chatUser.legacyId;
           const existing = await db.execute(sqlTag`
             SELECT cr.id FROM chat_rooms cr
-            JOIN chat_room_members m1 ON cr.id = m1.roomId AND m1.userId = ${chatUser.id} AND m1.userType = ${chatUser.userType}
+            JOIN chat_room_members m1 ON cr.id = m1.roomId AND m1.userType = ${chatUser.userType}
+              AND (m1.userId = ${chatUser.id}${legacyId ? sqlTag` OR m1.userId = ${legacyId}` : sqlTag``})
             JOIN chat_room_members m2 ON cr.id = m2.roomId AND m2.userId = ${target.userId} AND m2.userType = ${target.userType}
             WHERE cr.type = 'direct'
             LIMIT 1
@@ -25189,11 +25197,13 @@ JSON配列のみを出力してください。`;
       const chatUser = await getChatUser(ctx);
       if (!chatUser) return { unreadCount: 0 };
       const db = await getDb();
+      const legacyId = chatUser.legacyId;
       const result = await db.execute(sqlTag`
         SELECT COALESCE(SUM(unread), 0) as totalUnread FROM (
           SELECT (SELECT COUNT(*) FROM chat_messages WHERE roomId = crm.roomId AND createdAt > crm.lastReadAt AND NOT (senderId = ${chatUser.id} AND senderType = ${chatUser.userType})) as unread
           FROM chat_room_members crm
-          WHERE crm.userId = ${chatUser.id} AND crm.userType = ${chatUser.userType}
+          WHERE crm.userType = ${chatUser.userType}
+            AND (crm.userId = ${chatUser.id}${legacyId ? sqlTag` OR crm.userId = ${legacyId}` : sqlTag``})
         ) t
       `);
       return { unreadCount: Number((result as any)[0]?.[0]?.totalUnread || 0) };
