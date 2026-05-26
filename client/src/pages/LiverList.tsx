@@ -43,7 +43,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
   const [showAllReferral, setShowAllReferral] = useState(false);
   const [showAllSets, setShowAllSets] = useState(false);
   const [setSortOrder, setSetSortOrder] = useState<'date' | 'revenue'>('date');
-  const [selectedTrendMonth, setSelectedTrendMonth] = useState<string | null>(null);
+  const [selectedTrendMonth, setSelectedTrendMonth] = useState<string | null>(monthOptions[0].value);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   
   const { data: rankings, isLoading } = trpc.liverManagement.rankings.useQuery({
@@ -398,149 +398,218 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                 </div>
               </div>
               
-              {/* Monthly Trend Mini Chart - Interactive */}
-              {salesTrend && salesTrend.length > 0 && (
+              {/* Daily Sales Bar Chart (Amazon Seller style) - Default visible */}
+              {dailySalesTrend && dailySalesTrend.length > 0 && (
                 <div className="mt-6 pt-4 border-t border-white/10">
-                  <h3 className="text-sm text-white/90 mb-3">売上推移（過去6ヶ月）<span className="text-[10px] text-white/40 ml-2">タップで詳細</span></h3>
-                  <div className="flex items-end gap-2" style={{ height: '100px' }}>
-                    {salesTrend.map((month) => {
-                      const maxSales = Math.max(...salesTrend.map(m => m.totalSales));
-                      const heightPx = maxSales > 0 ? Math.max(Math.round((month.totalSales / maxSales) * 65), 4) : 4;
-                      const isSelected = selectedTrendMonth === month.month;
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm text-white/90 flex items-center gap-1.5">
+                      📊 {monthOptions.find(m => m.value === selectedTrendMonth)?.label || selectedMonth} の日別売上
+                    </h3>
+                    <span className="text-[10px] text-white/40">
+                      合計: ¥{(dailySalesTrend.reduce((sum: number, d: any) => sum + d.totalSales, 0)).toLocaleString()}
+                    </span>
+                  </div>
+                  
+                  {/* Vertical Bar Chart (Amazon-style) */}
+                  <div className="relative">
+                    {/* Y-axis labels */}
+                    {(() => {
+                      const maxSales = Math.max(...dailySalesTrend.map((d: any) => d.totalSales));
+                      const yLabels = maxSales > 0 ? [
+                        { value: maxSales, label: `${(maxSales / 10000).toFixed(0)}万` },
+                        { value: maxSales * 0.5, label: `${(maxSales * 0.5 / 10000).toFixed(0)}万` },
+                        { value: 0, label: '0' },
+                      ] : [];
+                      return (
+                        <div className="flex">
+                          <div className="flex flex-col justify-between h-[140px] pr-1 text-[9px] text-white/30 w-[32px] shrink-0">
+                            {yLabels.map((yl, i) => <span key={i}>{yl.label}</span>)}
+                          </div>
+                          <div className="flex-1 flex items-end gap-[2px] h-[140px] border-b border-l border-white/10 pb-0 pl-0 relative">
+                            {/* Grid lines */}
+                            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                              <div className="border-b border-white/5 w-full" />
+                              <div className="border-b border-white/5 w-full" />
+                              <div />
+                            </div>
+                            {dailySalesTrend.map((day: any) => {
+                              const heightPct = maxSales > 0 ? Math.max((day.totalSales / maxSales) * 100, 0) : 0;
+                              const dayNum = new Date(day.date + 'T00:00:00').getDate();
+                              const isSelected = selectedDay === day.date;
+                              const isZero = day.totalSales === 0;
+                              return (
+                                <div 
+                                  key={day.date} 
+                                  className="flex-1 flex flex-col items-center justify-end h-full cursor-pointer group relative"
+                                  onClick={() => !isZero && setSelectedDay(isSelected ? null : day.date)}
+                                >
+                                  {/* Tooltip on hover */}
+                                  {!isZero && (
+                                    <div className="absolute -top-5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-yellow-300 font-bold whitespace-nowrap pointer-events-none z-10">
+                                      ¥{day.totalSales >= 1000000 ? (day.totalSales / 10000).toFixed(1) + '万' : day.totalSales.toLocaleString()}
+                                    </div>
+                                  )}
+                                  <div 
+                                    className={`w-full rounded-t-sm transition-all duration-150 ${
+                                      isSelected 
+                                        ? 'bg-gradient-to-t from-orange-400 to-orange-200 ring-1 ring-orange-400/50' 
+                                        : isZero 
+                                          ? 'bg-white/5'
+                                          : 'bg-gradient-to-t from-orange-500 to-orange-300 group-hover:from-orange-400 group-hover:to-orange-200'
+                                    }`}
+                                    style={{ height: `${Math.max(heightPct, isZero ? 1 : 2)}%`, minHeight: '1px' }}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    {/* X-axis labels (show every 5th day) */}
+                    <div className="flex ml-[32px]">
+                      <div className="flex-1 flex gap-[2px]">
+                        {dailySalesTrend.map((day: any, i: number) => {
+                          const dayNum = new Date(day.date + 'T00:00:00').getDate();
+                          const showLabel = dayNum === 1 || dayNum % 5 === 0 || i === dailySalesTrend.length - 1;
+                          return (
+                            <div key={day.date} className="flex-1 text-center">
+                              {showLabel && <span className="text-[8px] text-white/40">{new Date(day.date + 'T00:00:00').getMonth() + 1}/{dayNum}</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Day detail list (tap to expand) */}
+                  <div className="mt-3 space-y-0.5 max-h-[350px] overflow-y-auto pr-1">
+                    <p className="text-[10px] text-white/40 mb-1">タップで詳細 ↓</p>
+                    {dailySalesTrend.map((day: any) => {
+                      const dayNum = new Date(day.date + 'T00:00:00').getDate();
+                      const monthNum = new Date(day.date + 'T00:00:00').getMonth() + 1;
+                      const maxDailySales = Math.max(...dailySalesTrend.map((d: any) => d.totalSales));
+                      const barWidth = maxDailySales > 0 ? Math.max((day.totalSales / maxDailySales) * 100, 0) : 0;
+                      const isZero = day.totalSales === 0;
+                      const isDaySelected = selectedDay === day.date;
+                      return (
+                        <div key={day.date}>
+                          <div 
+                            className={`flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-all ${isZero ? 'opacity-40' : isDaySelected ? 'bg-cyan-500/15 ring-1 ring-cyan-500/30' : 'hover:bg-white/5'}`}
+                            onClick={() => !isZero && setSelectedDay(isDaySelected ? null : day.date)}
+                          >
+                            <span className="text-[11px] text-white/60 w-[36px] shrink-0 font-mono">{monthNum}/{dayNum}</span>
+                            <div className="flex-1 h-4 bg-white/5 rounded overflow-hidden">
+                              <div 
+                                className={`h-full rounded transition-all ${isDaySelected ? 'bg-gradient-to-r from-cyan-400 to-cyan-200' : 'bg-gradient-to-r from-cyan-500 to-cyan-300'}`}
+                                style={{ width: `${barWidth}%` }}
+                              />
+                            </div>
+                            <span className={`text-[11px] font-mono w-[80px] text-right shrink-0 ${isZero ? 'text-white/30' : isDaySelected ? 'text-cyan-200 font-semibold' : 'text-cyan-300'}`}>
+                              {isZero ? '-' : `¥${day.totalSales >= 10000000 ? (day.totalSales / 10000).toFixed(0) + '万' : day.totalSales >= 1000000 ? (day.totalSales / 10000).toFixed(1) + '万' : day.totalSales.toLocaleString()}`}
+                            </span>
+                            {day.totalLivestreams > 0 && (
+                              <span className="text-[9px] text-white/30 w-[28px] shrink-0 text-right">{day.totalLivestreams}配信</span>
+                            )}
+                          </div>
+                          {/* Liver breakdown for selected day */}
+                          {isDaySelected && dailyLiverBreakdown && dailyLiverBreakdown.length > 0 && (
+                            <div className="ml-10 mr-2 mt-1 mb-2 p-2 bg-white/5 rounded-lg border border-white/10">
+                              <div className="text-[10px] text-white/40 mb-1.5">👥 ライバー別内訳</div>
+                              <div className="space-y-1">
+                                {dailyLiverBreakdown.map((liver: any, idx: number) => {
+                                  const maxLiverSales = dailyLiverBreakdown[0]?.totalSales || 1;
+                                  const liverBarWidth = (liver.totalSales / maxLiverSales) * 100;
+                                  return (
+                                    <div key={liver.liverId || idx} className="flex items-center gap-1.5">
+                                      {liver.avatarUrl ? (
+                                        <img src={liver.avatarUrl} className="w-4 h-4 rounded-full shrink-0" alt="" />
+                                      ) : (
+                                        <div className="w-4 h-4 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 shrink-0 flex items-center justify-center text-[7px] text-white font-bold">
+                                          {liver.liverName.charAt(0)}
+                                        </div>
+                                      )}
+                                      <span className="text-[10px] text-white/70 w-[60px] shrink-0 truncate">{liver.liverName}</span>
+                                      <div className="flex-1 h-3 bg-white/5 rounded overflow-hidden">
+                                        <div 
+                                          className="h-full bg-gradient-to-r from-purple-500 to-pink-400 rounded transition-all"
+                                          style={{ width: `${liverBarWidth}%` }}
+                                        />
+                                      </div>
+                                      <span className="text-[10px] font-mono text-purple-300 w-[70px] text-right shrink-0">
+                                        ¥{liver.totalSales >= 1000000 ? (liver.totalSales / 10000).toFixed(1) + '万' : liver.totalSales.toLocaleString()}
+                                      </span>
+                                      <span className="text-[8px] text-white/30 w-[20px] shrink-0 text-right">{liver.livestreamCount}回</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          {isDaySelected && !dailyLiverBreakdown && (
+                            <div className="ml-10 mr-2 mt-1 mb-2 p-2 bg-white/5 rounded-lg">
+                              <div className="flex items-center gap-2 text-[10px] text-white/40">
+                                <div className="animate-spin w-3 h-3 border border-white/30 border-t-white/80 rounded-full" />
+                                読み込み中...
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Top 3 days */}
+                  <div className="mt-3 pt-2 border-t border-white/5 space-y-0.5">
+                    {[...dailySalesTrend].sort((a: any, b: any) => b.totalSales - a.totalSales).slice(0, 3).map((day: any, i: number) => (
+                      <div key={day.date} className="flex items-center justify-between text-[10px]">
+                        <span className="text-white/50">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'} {new Date(day.date + 'T00:00:00').getMonth() + 1}/{new Date(day.date + 'T00:00:00').getDate()}</span>
+                        <span className="text-cyan-300 font-medium">¥{day.totalSales.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Loading state for daily trend */}
+              {selectedTrendMonth && !dailySalesTrend && (
+                <div className="mt-6 pt-4 border-t border-white/10">
+                  <div className="flex items-center gap-2 text-xs text-white/50">
+                    <div className="animate-spin w-3 h-3 border border-white/30 border-t-white/80 rounded-full" />
+                    日別売上を読み込み中...
+                  </div>
+                </div>
+              )}
+
+              {/* Monthly Trend (collapsible, moved to bottom) */}
+              {salesTrend && salesTrend.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-white/10">
+                  <h3 className="text-[11px] text-white/50 mb-2">月別推移（過去6ヶ月）</h3>
+                  <div className="flex items-end gap-2" style={{ height: '50px' }}>
+                    {salesTrend.map((month: any) => {
+                      const maxSales = Math.max(...salesTrend.map((m: any) => m.totalSales));
+                      const heightPx = maxSales > 0 ? Math.max(Math.round((month.totalSales / maxSales) * 35), 3) : 3;
+                      const isCurrentMonth = month.month === selectedTrendMonth;
                       return (
                         <div 
                           key={month.month} 
                           className="flex-1 flex flex-col items-center justify-end cursor-pointer group" 
                           style={{ height: '100%' }}
-                          onClick={() => { setSelectedDay(null); setSelectedTrendMonth(isSelected ? null : month.month); }}
+                          onClick={() => { setSelectedDay(null); setSelectedTrendMonth(month.month); }}
                         >
-                          {/* Sales amount tooltip */}
-                          {isSelected && (
-                            <div className="text-[9px] font-bold text-yellow-300 mb-1 whitespace-nowrap">
-                              ¥{(month.totalSales / 10000).toFixed(0)}万
-                            </div>
-                          )}
                           <div 
                             className={`w-full rounded-t transition-all duration-200 ${
-                              isSelected 
-                                ? 'bg-gradient-to-t from-yellow-400 to-yellow-200 ring-2 ring-yellow-400/50' 
-                                : 'bg-gradient-to-t from-yellow-500 to-yellow-300 group-hover:from-yellow-400 group-hover:to-yellow-200'
+                              isCurrentMonth 
+                                ? 'bg-gradient-to-t from-yellow-400 to-yellow-200' 
+                                : 'bg-gradient-to-t from-yellow-500/50 to-yellow-300/50 group-hover:from-yellow-400 group-hover:to-yellow-200'
                             }`}
-                            style={{ height: `${heightPx}px`, minHeight: '4px' }}
+                            style={{ height: `${heightPx}px`, minHeight: '3px' }}
                           />
-                          <span className={`text-xs mt-1 ${isSelected ? 'text-yellow-300 font-bold' : 'text-white/80'}`}>{month.label}</span>
+                          <span className={`text-[9px] mt-0.5 ${isCurrentMonth ? 'text-yellow-300 font-bold' : 'text-white/50'}`}>{month.label.replace(/\d+年/, '')}</span>
                         </div>
                       );
                     })}
                   </div>
-                  
-                  {/* Daily Sales Breakdown - shown when a month is selected */}
-                  {selectedTrendMonth && dailySalesTrend && dailySalesTrend.length > 0 && (
-                    <div className="mt-4 pt-3 border-t border-white/10">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-xs text-white/70">
-                          📅 {salesTrend.find(m => m.month === selectedTrendMonth)?.label || selectedTrendMonth} の日別売上
-                        </h4>
-                        <span className="text-[10px] text-white/40">
-                          合計: ¥{(dailySalesTrend.reduce((sum, d) => sum + d.totalSales, 0)).toLocaleString()}
-                        </span>
-                      </div>
-                      {/* Vertical list format */}
-                      <div className="space-y-0.5 max-h-[400px] overflow-y-auto pr-1">
-                        {dailySalesTrend.map((day) => {
-                          const dayNum = new Date(day.date + 'T00:00:00').getDate();
-                          const monthNum = new Date(day.date + 'T00:00:00').getMonth() + 1;
-                          const maxDailySales = Math.max(...dailySalesTrend.map(d => d.totalSales));
-                          const barWidth = maxDailySales > 0 ? Math.max((day.totalSales / maxDailySales) * 100, 0) : 0;
-                          const isZero = day.totalSales === 0;
-                          const isSelected = selectedDay === day.date;
-                          return (
-                            <div key={day.date}>
-                              <div 
-                                className={`flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-all ${isZero ? 'opacity-40' : isSelected ? 'bg-cyan-500/15 ring-1 ring-cyan-500/30' : 'hover:bg-white/5'}`}
-                                onClick={() => !isZero && setSelectedDay(isSelected ? null : day.date)}
-                              >
-                                <span className="text-[11px] text-white/60 w-[36px] shrink-0 font-mono">{monthNum}/{dayNum}</span>
-                                <div className="flex-1 h-4 bg-white/5 rounded overflow-hidden">
-                                  <div 
-                                    className={`h-full rounded transition-all ${isSelected ? 'bg-gradient-to-r from-cyan-400 to-cyan-200' : 'bg-gradient-to-r from-cyan-500 to-cyan-300'}`}
-                                    style={{ width: `${barWidth}%` }}
-                                  />
-                                </div>
-                                <span className={`text-[11px] font-mono w-[80px] text-right shrink-0 ${isZero ? 'text-white/30' : isSelected ? 'text-cyan-200 font-semibold' : 'text-cyan-300'}`}>
-                                  {isZero ? '-' : `¥${day.totalSales >= 10000000 ? (day.totalSales / 10000).toFixed(0) + '万' : day.totalSales >= 1000000 ? (day.totalSales / 10000).toFixed(1) + '万' : day.totalSales.toLocaleString()}`}
-                                </span>
-                                {day.totalLivestreams > 0 && (
-                                  <span className="text-[9px] text-white/30 w-[28px] shrink-0 text-right">{day.totalLivestreams}配信</span>
-                                )}
-                              </div>
-                              {/* Liver breakdown for selected day */}
-                              {isSelected && dailyLiverBreakdown && dailyLiverBreakdown.length > 0 && (
-                                <div className="ml-10 mr-2 mt-1 mb-2 p-2 bg-white/5 rounded-lg border border-white/10">
-                                  <div className="text-[10px] text-white/40 mb-1.5">👥 ライバー別内訳</div>
-                                  <div className="space-y-1">
-                                    {dailyLiverBreakdown.map((liver, idx) => {
-                                      const maxLiverSales = dailyLiverBreakdown[0]?.totalSales || 1;
-                                      const liverBarWidth = (liver.totalSales / maxLiverSales) * 100;
-                                      return (
-                                        <div key={liver.liverId || idx} className="flex items-center gap-1.5">
-                                          {liver.avatarUrl ? (
-                                            <img src={liver.avatarUrl} className="w-4 h-4 rounded-full shrink-0" alt="" />
-                                          ) : (
-                                            <div className="w-4 h-4 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 shrink-0 flex items-center justify-center text-[7px] text-white font-bold">
-                                              {liver.liverName.charAt(0)}
-                                            </div>
-                                          )}
-                                          <span className="text-[10px] text-white/70 w-[60px] shrink-0 truncate">{liver.liverName}</span>
-                                          <div className="flex-1 h-3 bg-white/5 rounded overflow-hidden">
-                                            <div 
-                                              className="h-full bg-gradient-to-r from-purple-500 to-pink-400 rounded transition-all"
-                                              style={{ width: `${liverBarWidth}%` }}
-                                            />
-                                          </div>
-                                          <span className="text-[10px] font-mono text-purple-300 w-[70px] text-right shrink-0">
-                                            ¥{liver.totalSales >= 1000000 ? (liver.totalSales / 10000).toFixed(1) + '万' : liver.totalSales.toLocaleString()}
-                                          </span>
-                                          <span className="text-[8px] text-white/30 w-[20px] shrink-0 text-right">{liver.livestreamCount}回</span>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-                              {isSelected && !dailyLiverBreakdown && (
-                                <div className="ml-10 mr-2 mt-1 mb-2 p-2 bg-white/5 rounded-lg">
-                                  <div className="flex items-center gap-2 text-[10px] text-white/40">
-                                    <div className="animate-spin w-3 h-3 border border-white/30 border-t-white/80 rounded-full" />
-                                    読み込み中...
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {/* Top 3 days */}
-                      <div className="mt-3 pt-2 border-t border-white/5 space-y-0.5">
-                        {[...dailySalesTrend].sort((a, b) => b.totalSales - a.totalSales).slice(0, 3).map((day, i) => (
-                          <div key={day.date} className="flex items-center justify-between text-[10px]">
-                            <span className="text-white/50">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'} {new Date(day.date + 'T00:00:00').getMonth() + 1}/{new Date(day.date + 'T00:00:00').getDate()}</span>
-                            <span className="text-cyan-300 font-medium">¥{day.totalSales.toLocaleString()}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Loading state for daily trend */}
-                  {selectedTrendMonth && !dailySalesTrend && (
-                    <div className="mt-4 pt-3 border-t border-white/10">
-                      <div className="flex items-center gap-2 text-xs text-white/50">
-                        <div className="animate-spin w-3 h-3 border border-white/30 border-t-white/80 rounded-full" />
-                        読み込み中...
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </CardContent>
