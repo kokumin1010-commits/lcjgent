@@ -1649,11 +1649,11 @@ function KnowledgePanel() {
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white/80 focus:outline-none focus:border-emerald-500/50"
+            className="px-3 py-2.5 bg-slate-800 border border-white/10 rounded-lg text-white focus:outline-none focus:border-emerald-500/50"
           >
-            <option value="">全部分类</option>
+            <option value="" className="bg-slate-800 text-white">全部分类</option>
             {categories.map(c => (
-              <option key={c.value} value={c.value}>{c.icon} {c.label}</option>
+              <option key={c.value} value={c.value} className="bg-slate-800 text-white">{c.icon} {c.label}</option>
             ))}
           </select>
         </div>
