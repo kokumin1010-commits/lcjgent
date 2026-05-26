@@ -10158,7 +10158,7 @@ ${proposal.proposalContent}
                       screenshotKey: uploadData.key,
                       memo: adReportMemo || undefined,
                     });
-                    toast.success(language === 'ja' ? 'レポートを登録しました（AI解析中...)’ : '报告已保存（AI分析中...）');
+                    toast.success(language === "ja" ? "レポートを登録しました - AI解析中..." : "报告已保存 - AI分析中...");
                     setAdReportTitle('');
                     setAdReportMemo('');
                     setAdReportPeriodStart('');
