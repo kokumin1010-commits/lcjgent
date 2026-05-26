@@ -812,19 +812,21 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
                     eye_center = (kps[0] + kps[1]) / 2
                     face_height_px = np.linalg.norm(eye_center - mouth_center_pt) * 2.5
 
-                # Max displacement: 15% of face height for clearly visible mouth opening
-                max_displacement = face_height_px * 0.15
+                # Max displacement: 22% of face height for clearly visible mouth opening
+                # (increased from 15% - needs to be dramatic enough to see at 360x640)
+                max_displacement = face_height_px * 0.22
                 displacement = max_displacement * min(1.0, mouth_open)
 
                 # Define the mouth region to deform using cv2.remap for speed
                 h_frame, w_frame = result.shape[:2]
                 mouth_y = int(mouth_center_pt[1])
                 mouth_x = int(mouth_center_pt[0])
-                region_h = int(face_height_px * 0.35)
-                region_w = int(face_height_px * 0.45)
+                region_h = int(face_height_px * 0.45)  # Larger region for more natural deformation
+                region_w = int(face_height_px * 0.50)
 
-                y_start = max(0, mouth_y - int(region_h * 0.2))
-                y_end = min(h_frame, mouth_y + region_h)
+                # Include area above mouth for upper lip movement
+                y_start = max(0, mouth_y - int(region_h * 0.3))
+                y_end = min(h_frame, mouth_y + int(region_h * 0.7))
                 x_start = max(0, mouth_x - region_w // 2)
                 x_end = min(w_frame, mouth_x + region_w // 2)
 
@@ -833,21 +835,28 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
                     rw = x_end - x_start
 
                     # Build remap coordinates for the region
-                    # X stays the same, Y is shifted downward below mouth center
                     map_x = np.tile(np.arange(rw, dtype=np.float32), (rh, 1))
                     map_y = np.tile(np.arange(rh, dtype=np.float32).reshape(-1, 1), (1, rw))
 
                     # Calculate relative position of mouth center within region
                     mouth_rel_y = mouth_y - y_start
 
-                    # Apply displacement: smooth gradient below mouth center
+                    # Apply bidirectional displacement:
+                    # - Below mouth: push down (jaw opening)
+                    # - Above mouth: push up slightly (upper lip movement)
                     for row in range(rh):
                         if row > mouth_rel_y:
-                            # Progress from mouth center to bottom of region
+                            # Below mouth: push down
                             progress = (row - mouth_rel_y) / max(1, rh - mouth_rel_y - 1)
                             # Smooth ease-out curve for natural look
                             shift = displacement * progress * (2.0 - progress)
                             map_y[row, :] -= shift
+                        elif row < mouth_rel_y:
+                            # Above mouth: slight upward pull (upper lip)
+                            progress = (mouth_rel_y - row) / max(1, mouth_rel_y)
+                            # Much smaller displacement for upper lip (30% of lower)
+                            shift = displacement * 0.3 * progress * (2.0 - progress)
+                            map_y[row, :] += shift
 
                     # Apply remap to the region
                     region = result[y_start:y_end, x_start:x_end].copy()
@@ -857,6 +866,9 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
                         borderMode=cv2.BORDER_REPLICATE
                     )
                     result[y_start:y_end, x_start:x_end] = deformed
+
+                    if mouth_open > 0.3:
+                        logger.debug(f"[LipSync] mouth_open={mouth_open:.3f}, displacement={displacement:.1f}px, face_h={face_height_px:.0f}px")
             except Exception as e:
                 logger.warning(f"[LipSync] mouth_open error: {e}")
 

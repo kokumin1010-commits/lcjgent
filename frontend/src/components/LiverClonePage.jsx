@@ -274,10 +274,10 @@ export default function LiverClonePage() {
   const startPreview = async () => {
     try {
       setPreviewError(null);
-      // Get webcam at 1080p - GPU Worker downscales internally for processing
-      // but upscales result back to 1080p for high-quality output
+      // Get webcam in 9:16 portrait mode for live commerce
+      // Request 1080x1920 (portrait) - browser will use closest available
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1920 }, height: { ideal: 1080 }, facingMode: "user" },
+        video: { width: { ideal: 1080 }, height: { ideal: 1920 }, facingMode: "user" },
         audio: true,
       });
       if (videoRef.current) {
@@ -366,10 +366,10 @@ export default function LiverClonePage() {
     if (!canvas || !video) return;
 
     const ctx = canvas.getContext("2d");
-    // Optimized: 640x360 for minimal latency while maintaining face detail
+    // 9:16 portrait for live commerce (Shopee/TikTok/YouTube Shorts)
     // GPU Worker processes at this resolution directly - no resize needed
-    const SEND_W = 640;
-    const SEND_H = 360;
+    const SEND_W = 360;
+    const SEND_H = 640;
     canvas.width = SEND_W;
     canvas.height = SEND_H;
 
@@ -396,8 +396,23 @@ export default function LiverClonePage() {
       // GPU Worker discards old frames anyway, so this just prevents memory issues
       if (previewWsRef.current.bufferedAmount > 65536) return;
 
-      // Draw video frame at optimized resolution
-      ctx.drawImage(video, 0, 0, SEND_W, SEND_H);
+      // Draw video frame in 9:16 portrait - crop center if camera is landscape
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      const targetRatio = SEND_W / SEND_H; // 9/16 = 0.5625
+      const videoRatio = vw / vh;
+
+      let sx = 0, sy = 0, sw = vw, sh = vh;
+      if (videoRatio > targetRatio) {
+        // Camera is wider than 9:16 - crop sides (center crop)
+        sw = Math.floor(vh * targetRatio);
+        sx = Math.floor((vw - sw) / 2);
+      } else if (videoRatio < targetRatio) {
+        // Camera is taller than 9:16 - crop top/bottom
+        sh = Math.floor(vw / targetRatio);
+        sy = Math.floor((vh - sh) / 2);
+      }
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, SEND_W, SEND_H);
 
       // Low JPEG quality for speed - face swap quality is determined by GPU Worker output
       canvas.toBlob(
@@ -821,6 +836,7 @@ export default function LiverClonePage() {
         const chunkSize = Math.floor(sampleRate / 20); // 20Hz analysis = 50ms chunks
         const numChunks = Math.ceil(channelData.length / chunkSize);
         const envelope = new Float32Array(numChunks);
+        let maxRms = 0;
         for (let c = 0; c < numChunks; c++) {
           let sum = 0;
           const start = c * chunkSize;
@@ -829,10 +845,19 @@ export default function LiverClonePage() {
             sum += channelData[i] * channelData[i];
           }
           const rms = Math.sqrt(sum / (end - start));
-          // Normalize: typical speech RMS is 0.01-0.15, map to 0-1
-          envelope[c] = Math.min(1.0, rms * 8.0);
+          envelope[c] = rms;
+          if (rms > maxRms) maxRms = rms;
         }
-        console.log("[TTS] Envelope computed:", numChunks, "chunks, max:", Math.max(...envelope).toFixed(3));
+        // Adaptive normalization: scale to actual max RMS for this audio
+        // This ensures mouth opens fully regardless of audio volume
+        const normFactor = maxRms > 0.001 ? (1.0 / maxRms) : 8.0;
+        for (let c = 0; c < numChunks; c++) {
+          // Apply normalization with power curve for more dramatic mouth movement
+          const normalized = Math.min(1.0, envelope[c] * normFactor);
+          // Power curve: sqrt makes small values larger = more visible mouth movement
+          envelope[c] = Math.pow(normalized, 0.6);
+        }
+        console.log("[TTS] Envelope computed:", numChunks, "chunks, maxRms:", maxRms.toFixed(4), "normFactor:", normFactor.toFixed(1), "max envelope:", Math.max(...envelope).toFixed(3));
 
         // Play audio using AudioBufferSourceNode (guaranteed to work with AudioContext)
         const sourceNode = ttsCtx.createBufferSource();
@@ -842,6 +867,7 @@ export default function LiverClonePage() {
         // Start lip-sync: send pre-computed envelope values at 20Hz
         const startTime = ttsCtx.currentTime;
         let lipSyncActive = true;
+        let lipSyncSendCount = 0;
         const lipSyncLoop = () => {
           if (!lipSyncActive) return;
           const elapsed = ttsCtx.currentTime - startTime;
@@ -855,9 +881,17 @@ export default function LiverClonePage() {
           // Send mouth_open to GPU Worker via WebSocket
           if (previewWsRef.current?.readyState === WebSocket.OPEN) {
             previewWsRef.current.send(JSON.stringify({ type: "mouth_open", value: mouthOpen }));
+            lipSyncSendCount++;
+            // Log every 10th send for debugging
+            if (lipSyncSendCount % 10 === 1) {
+              console.log(`[LipSync] Sending mouth_open=${mouthOpen.toFixed(3)} chunk=${chunkIndex}/${numChunks} elapsed=${elapsed.toFixed(2)}s`);
+            }
+          } else {
+            console.warn("[LipSync] WebSocket not open, cannot send mouth_open");
           }
         };
         lipSyncIntervalRef.current = setInterval(lipSyncLoop, 50); // 20Hz
+        console.log("[LipSync] Started lip-sync loop (20Hz interval)");
 
         const cleanup = () => {
           lipSyncActive = false;
@@ -985,12 +1019,12 @@ export default function LiverClonePage() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* ── Left: Stream Preview (larger) ── */}
-          <div className="lg:col-span-3 space-y-4">
+          {/* ── Left: Stream Preview (9:16 portrait) ── */}
+          <div className="lg:col-span-2 space-y-4">
             {/* Stream Preview */}
             <div className="bg-[#12121a] rounded-xl border border-gray-800 overflow-hidden">
               <div
-                className="aspect-video bg-black flex items-center justify-center relative cursor-pointer"
+                className="aspect-[9/16] max-h-[calc(100vh-200px)] bg-black flex items-center justify-center relative cursor-pointer"
                 onClick={() => {
                   // Allow clicking the preview area to upload face photo when idle
                   if (!previewActive && !isStreaming && !sourceFacePreview) {
@@ -1072,7 +1106,7 @@ export default function LiverClonePage() {
                       {previewFps} FPS
                     </span>
                     <span className="bg-black/70 px-2 py-1 rounded text-cyan-400">
-                      {"HD 1080p"}
+                      {"9:16 Portrait"}
                     </span>
                     <span className="bg-black/70 px-2 py-1 rounded text-yellow-400">
                       GPU: RTX 5090
@@ -1205,7 +1239,7 @@ export default function LiverClonePage() {
           </div>
 
           {/* ── Right: Configuration Panel ── */}
-          <div className="lg:col-span-2 space-y-4 max-h-[calc(100vh-140px)] overflow-y-auto">
+          <div className="lg:col-span-3 space-y-4 max-h-[calc(100vh-140px)] overflow-y-auto">
             {/* Tab Navigation */}
             <div className="flex gap-1 bg-[#12121a] rounded-xl border border-gray-800 p-1">
               {[
