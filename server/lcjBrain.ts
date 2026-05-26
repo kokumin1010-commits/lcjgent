@@ -68,6 +68,13 @@ async function ensureConversationsTable() {
   try {
     await db.execute(sql`ALTER TABLE lcj_brain_knowledge MODIFY COLUMN content LONGTEXT NOT NULL`);
   } catch (e) { /* ignore */ }
+  // Rebuild FULLTEXT index if needed (LONGTEXT compatibility)
+  try {
+    await db.execute(sql`ALTER TABLE lcj_brain_knowledge DROP INDEX idx_content`);
+  } catch (e) { /* index may not exist */ }
+  try {
+    await db.execute(sql`ALTER TABLE lcj_brain_knowledge ADD FULLTEXT INDEX idx_content (title, content)`);
+  } catch (e) { /* ignore if already exists or not supported */ }
 }
 
 
@@ -1367,20 +1374,42 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
         }
 
         // Use raw SQL insert to avoid drizzle $returningId compatibility issues
-        const meetingDateValue = input.meetingDate ? new Date(input.meetingDate) : null;
+        const meetingDateStr = input.meetingDate ? input.meetingDate.replace(/\//g, "-") : null;
         const participantsJson = autoParticipants.length > 0 ? JSON.stringify(autoParticipants) : null;
         const tagsJson = autoTags.length > 0 ? JSON.stringify(autoTags) : null;
         
-        const insertResult = await db.execute(sql`
-          INSERT INTO lcj_brain_knowledge (title, category, content, summary, participants, tags, meetingDate, sourceFileName, uploadedBy, uploadedByName)
-          VALUES (${input.title}, ${input.category}, ${input.content}, ${summary || null}, ${participantsJson}, ${tagsJson}, ${meetingDateValue}, ${input.sourceFileName || null}, ${userId}, ${userName})
-        `);
-        
-        const insertedId = (insertResult as any)[0]?.insertId || (insertResult as any).insertId || 0;
+        let insertedId = 0;
+        try {
+          const insertResult = await db.execute(sql`
+            INSERT INTO lcj_brain_knowledge (title, category, content, summary, participants, tags, meetingDate, sourceFileName, uploadedBy, uploadedByName)
+            VALUES (${input.title}, ${input.category}, ${input.content}, ${summary || null}, ${participantsJson}, ${tagsJson}, ${meetingDateStr}, ${input.sourceFileName || null}, ${userId}, ${userName})
+          `);
+          insertedId = (insertResult as any)[0]?.insertId || (insertResult as any).insertId || 0;
+        } catch (insertErr: any) {
+          // Fallback: try without meetingDate if timestamp causes issues
+          console.error("[LCJ Brain] Insert attempt 1 failed:", insertErr.message);
+          try {
+            const insertResult2 = await db.execute(sql`
+              INSERT INTO lcj_brain_knowledge (title, category, content, summary, participants, tags, sourceFileName, uploadedBy, uploadedByName)
+              VALUES (${input.title}, ${input.category}, ${input.content}, ${summary || null}, ${participantsJson}, ${tagsJson}, ${input.sourceFileName || null}, ${userId}, ${userName})
+            `);
+            insertedId = (insertResult2 as any)[0]?.insertId || (insertResult2 as any).insertId || 0;
+          } catch (insertErr2: any) {
+            console.error("[LCJ Brain] Insert attempt 2 failed:", insertErr2.message);
+            throw insertErr2;
+          }
+        }
+
+        // Update meetingDate separately if it was skipped
+        if (meetingDateStr && insertedId > 0) {
+          try {
+            await db.execute(sql`UPDATE lcj_brain_knowledge SET meetingDate = ${meetingDateStr} WHERE id = ${insertedId}`);
+          } catch (e) { /* ignore */ }
+        }
 
         return { success: true, id: insertedId, summary, tags: autoTags, participants: autoParticipants };
       } catch (error: any) {
-        console.error("[LCJ Brain] addKnowledge error:", error.message);
+        console.error("[LCJ Brain] addKnowledge error:", error.message, error.stack);
         return { success: false, error: error.message };
       }
     }),
