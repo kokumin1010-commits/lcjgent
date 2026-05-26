@@ -442,9 +442,16 @@ function ChatPanel() {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-200px)] md:h-[calc(100vh-200px)] relative">
+    <div className="flex h-[calc(100dvh-180px)] md:h-[calc(100vh-200px)] relative">
+      {/* Mobile backdrop overlay */}
+      {sidebarOpen && (
+        <div 
+          className="md:hidden fixed inset-0 bg-black/50 z-20"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
       {/* Sidebar - 会話履歴 */}
-      <div className={`${sidebarOpen ? "w-64" : "w-0"} transition-all duration-200 overflow-hidden border-r border-white/10 flex-shrink-0 md:relative absolute md:z-0 z-30 h-full bg-[#1a1a2e]`}>
+      <div className={`${sidebarOpen ? "w-64" : "w-0"} transition-all duration-200 overflow-hidden border-r border-white/10 flex-shrink-0 md:relative fixed md:static top-0 left-0 md:z-0 z-30 h-full bg-[#1a1a2e]`}>
         <div className="w-64 h-full flex flex-col">
           {/* 新しい会話ボタン */}
           <button
@@ -789,7 +796,7 @@ function ChatPanel() {
               }}
               placeholder={voice.isRecording ? "正在听你说话..." : "问任何关于LCJ的问题...（Shift+Enter换行）"}
               rows={1}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 resize-none overflow-hidden min-h-[48px] max-h-[200px]"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 resize-none overflow-hidden min-h-[40px] md:min-h-[48px] max-h-[200px]"
               style={{ height: 'auto' }}
             />
           </div>
