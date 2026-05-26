@@ -445,6 +445,9 @@ def compute_source_embedding(image_path: str, face_index: int = 0) -> bool:
         transformed = transformed / np.linalg.norm(transformed)
         source_face_embedding = transformed.astype(np.float32)
 
+        # Reset temporal smoothing when source face changes
+        _reset_temporal_state()
+
         logger.info(f"[ONNX] Source face computed ({len(faces)} faces detected, "
                     f"using index {idx}, embedding shape: {source_face_embedding.shape})")
         return True
@@ -595,12 +598,33 @@ def color_transfer(source, target, mask=None):
     return output
 
 
+# ── Temporal Smoothing State ─────────────────────────────────────────────────
+# EMA (Exponential Moving Average) for stabilizing face detection across frames.
+# This eliminates "flickering" caused by per-frame bbox/landmark jitter.
+_temporal_state = {
+    "prev_bbox": None,        # Previous smoothed bounding box [x1,y1,x2,y2]
+    "prev_kps": None,         # Previous smoothed 5-point landmarks
+    "prev_lm106": None,       # Previous smoothed 106-point landmarks
+    "frame_count": 0,         # Frame counter for adaptive smoothing
+}
+_SMOOTH_ALPHA = 0.35  # EMA alpha: lower = smoother but more lag, higher = responsive but jittery
+                      # 0.35 = good balance for 15 FPS real-time preview
+
+def _reset_temporal_state():
+    """Reset temporal smoothing state (called when source face changes or stream restarts)."""
+    _temporal_state["prev_bbox"] = None
+    _temporal_state["prev_kps"] = None
+    _temporal_state["prev_lm106"] = None
+    _temporal_state["frame_count"] = 0
+
+
 def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = True, mouth_open: float = 0.0):
     """
-    Process a single frame through the Direct ONNX Pipeline v3.1.
+    Process a single frame through the Direct ONNX Pipeline v3.1 + Temporal Smoothing.
     
     Pipeline:
       1. InsightFace detection → bbox, landmarks_5, landmark_2d_106, embedding (~14ms)
+      1b. Temporal smoothing of bbox + landmarks (EMA) (~0.1ms)
       2. Warp face to 128x128 using arcface template (~0.5ms)
       3. ONNX inswapper inference (~6ms)
       4. GFPGAN face enhancement 128→512→target_size (~11ms)
@@ -625,7 +649,51 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
 
     for target_face in faces:
         # Get 5-point landmarks from InsightFace
-        landmarks_5 = target_face.kps.astype(np.float32)
+        raw_kps = target_face.kps.astype(np.float32)
+        raw_bbox = target_face.bbox.astype(np.float32)
+
+        # Step 1b: Temporal Smoothing (EMA) to eliminate flickering
+        alpha = _SMOOTH_ALPHA
+        _temporal_state["frame_count"] += 1
+
+        if _temporal_state["prev_kps"] is None:
+            # First frame: no smoothing possible
+            _temporal_state["prev_kps"] = raw_kps.copy()
+            _temporal_state["prev_bbox"] = raw_bbox.copy()
+            landmarks_5 = raw_kps
+        else:
+            # Check for sudden large jumps (face re-detection) - reset if too far
+            kps_diff = np.linalg.norm(raw_kps - _temporal_state["prev_kps"])
+            if kps_diff > 80:  # Large jump = new face or re-detection, reset
+                _temporal_state["prev_kps"] = raw_kps.copy()
+                _temporal_state["prev_bbox"] = raw_bbox.copy()
+                landmarks_5 = raw_kps
+            else:
+                # EMA smoothing: new = alpha * current + (1-alpha) * previous
+                smoothed_kps = alpha * raw_kps + (1 - alpha) * _temporal_state["prev_kps"]
+                smoothed_bbox = alpha * raw_bbox + (1 - alpha) * _temporal_state["prev_bbox"]
+                _temporal_state["prev_kps"] = smoothed_kps.copy()
+                _temporal_state["prev_bbox"] = smoothed_bbox.copy()
+                landmarks_5 = smoothed_kps
+                # Apply smoothed bbox back to target_face for mask creation
+                target_face.bbox = smoothed_bbox
+
+        # Smooth 106-point landmarks too (for lip-sync and mask stability)
+        if hasattr(target_face, 'landmark_2d_106') and target_face.landmark_2d_106 is not None:
+            raw_lm106 = target_face.landmark_2d_106.astype(np.float32)
+            if _temporal_state["prev_lm106"] is not None and raw_lm106.shape == _temporal_state["prev_lm106"].shape:
+                lm106_diff = np.linalg.norm(raw_lm106 - _temporal_state["prev_lm106"])
+                if lm106_diff < 150:  # Not a sudden jump
+                    smoothed_lm106 = alpha * raw_lm106 + (1 - alpha) * _temporal_state["prev_lm106"]
+                    _temporal_state["prev_lm106"] = smoothed_lm106.copy()
+                    target_face.landmark_2d_106 = smoothed_lm106
+                else:
+                    _temporal_state["prev_lm106"] = raw_lm106.copy()
+            else:
+                _temporal_state["prev_lm106"] = raw_lm106.copy()
+
+        # Also update kps on the face object for consistency
+        target_face.kps = landmarks_5
 
         # Step 2: Compute affine matrix and warp face to 128x128
         affine_matrix = cv2.estimateAffinePartial2D(
@@ -1776,6 +1844,9 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
 
     await websocket.accept()
     logger.info("[Preview] WebSocket client connected")
+
+    # Reset temporal smoothing state for new connection
+    _reset_temporal_state()
 
     frame_count = 0
     error_count = 0
