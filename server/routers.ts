@@ -24842,6 +24842,195 @@ JSON配列のみを出力してください。`;
   }),
   // LCJ Brain - AI BD引擎
   lcjBrain: lcjBrainRouter,
+  // Chat - チャット機能
+  chat: router({
+    // ルーム一覧取得
+    getRooms: protectedProcedure.query(async ({ ctx }) => {
+      const db = getDb();
+      const userId = ctx.user.id;
+      const userType = ctx.user.role === 'liver' ? 'liver' : 'staff';
+      const rooms = await db.execute(sqlTag`
+        SELECT cr.id, cr.name, cr.type, cr.avatarUrl, cr.createdAt,
+          (SELECT content FROM chat_messages WHERE roomId = cr.id ORDER BY createdAt DESC LIMIT 1) as lastMessage,
+          (SELECT senderName FROM chat_messages WHERE roomId = cr.id ORDER BY createdAt DESC LIMIT 1) as lastSenderName,
+          (SELECT createdAt FROM chat_messages WHERE roomId = cr.id ORDER BY createdAt DESC LIMIT 1) as lastMessageAt,
+          (SELECT COUNT(*) FROM chat_messages WHERE roomId = cr.id AND createdAt > crm.lastReadAt) as unreadCount
+        FROM chat_rooms cr
+        JOIN chat_room_members crm ON cr.id = crm.roomId AND crm.userId = ${userId} AND crm.userType = ${userType}
+        ORDER BY lastMessageAt DESC, cr.createdAt DESC
+      `);
+      return (rooms as any)[0] || [];
+    }),
+    // ルーム詳細（メンバー一覧）
+    getRoomDetail: protectedProcedure
+      .input(z.object({ roomId: z.number() }))
+      .query(async ({ input }) => {
+        const db = getDb();
+        const members = await db.execute(sqlTag`
+          SELECT * FROM chat_room_members WHERE roomId = ${input.roomId}
+        `);
+        const room = await db.execute(sqlTag`
+          SELECT * FROM chat_rooms WHERE id = ${input.roomId}
+        `);
+        return { room: (room as any)[0]?.[0], members: (members as any)[0] || [] };
+      }),
+    // メッセージ取得
+    getMessages: protectedProcedure
+      .input(z.object({ roomId: z.number(), limit: z.number().optional(), before: z.number().optional() }))
+      .query(async ({ input, ctx }) => {
+        const db = getDb();
+        const userId = ctx.user.id;
+        const userType = ctx.user.role === 'liver' ? 'liver' : 'staff';
+        const limit = input.limit || 50;
+        let messages;
+        if (input.before) {
+          messages = await db.execute(sqlTag`
+            SELECT * FROM chat_messages WHERE roomId = ${input.roomId} AND id < ${input.before}
+            ORDER BY createdAt DESC LIMIT ${limit}
+          `);
+        } else {
+          messages = await db.execute(sqlTag`
+            SELECT * FROM chat_messages WHERE roomId = ${input.roomId}
+            ORDER BY createdAt DESC LIMIT ${limit}
+          `);
+        }
+        // 既読更新
+        await db.execute(sqlTag`
+          UPDATE chat_room_members SET lastReadAt = NOW()
+          WHERE roomId = ${input.roomId} AND userId = ${userId} AND userType = ${userType}
+        `);
+        return ((messages as any)[0] || []).reverse();
+      }),
+    // メッセージ送信
+    sendMessage: protectedProcedure
+      .input(z.object({
+        roomId: z.number(),
+        content: z.string(),
+        messageType: z.enum(['text', 'image', 'file']).optional(),
+        fileUrl: z.string().optional(),
+        fileName: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = getDb();
+        const userId = ctx.user.id;
+        const userType = ctx.user.role === 'liver' ? 'liver' : 'staff';
+        const senderName = ctx.user.name || ctx.user.email || 'Unknown';
+        await db.execute(sqlTag`
+          INSERT INTO chat_messages (roomId, senderId, senderType, senderName, messageType, content, fileUrl, fileName)
+          VALUES (${input.roomId}, ${userId}, ${userType}, ${senderName}, ${input.messageType || 'text'}, ${input.content}, ${input.fileUrl || null}, ${input.fileName || null})
+        `);
+        // 自分の既読を更新
+        await db.execute(sqlTag`
+          UPDATE chat_room_members SET lastReadAt = NOW()
+          WHERE roomId = ${input.roomId} AND userId = ${userId} AND userType = ${userType}
+        `);
+        return { success: true };
+      }),
+    // ルーム作成（1対1 or グループ）
+    createRoom: protectedProcedure
+      .input(z.object({
+        name: z.string().optional(),
+        type: z.enum(['direct', 'group']),
+        memberIds: z.array(z.object({ userId: z.number(), userType: z.enum(['staff', 'liver']), userName: z.string().optional(), userAvatar: z.string().optional() })),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = getDb();
+        const userId = ctx.user.id;
+        const userType = ctx.user.role === 'liver' ? 'liver' : 'staff';
+        const senderName = ctx.user.name || ctx.user.email || 'Unknown';
+        // 1対1の場合、既存のルームがあるか確認
+        if (input.type === 'direct' && input.memberIds.length === 1) {
+          const target = input.memberIds[0];
+          const existing = await db.execute(sqlTag`
+            SELECT cr.id FROM chat_rooms cr
+            JOIN chat_room_members m1 ON cr.id = m1.roomId AND m1.userId = ${userId} AND m1.userType = ${userType}
+            JOIN chat_room_members m2 ON cr.id = m2.roomId AND m2.userId = ${target.userId} AND m2.userType = ${target.userType}
+            WHERE cr.type = 'direct'
+            LIMIT 1
+          `);
+          const existingRoom = (existing as any)[0]?.[0];
+          if (existingRoom) {
+            return { roomId: existingRoom.id, existing: true };
+          }
+        }
+        // ルーム作成
+        const roomName = input.name || (input.type === 'direct' ? null : 'グループチャット');
+        const result = await db.execute(sqlTag`
+          INSERT INTO chat_rooms (name, type, createdBy) VALUES (${roomName}, ${input.type}, ${userId})
+        `);
+        const roomId = (result as any)[0].insertId;
+        // 自分をメンバーに追加
+        await db.execute(sqlTag`
+          INSERT INTO chat_room_members (roomId, userId, userType, userName)
+          VALUES (${roomId}, ${userId}, ${userType}, ${senderName})
+        `);
+        // 他のメンバーを追加
+        for (const member of input.memberIds) {
+          await db.execute(sqlTag`
+            INSERT INTO chat_room_members (roomId, userId, userType, userName, userAvatar)
+            VALUES (${roomId}, ${member.userId}, ${member.userType}, ${member.userName || ''}, ${member.userAvatar || null})
+          `);
+        }
+        return { roomId, existing: false };
+      }),
+    // グループにメンバー追加
+    addMembers: protectedProcedure
+      .input(z.object({
+        roomId: z.number(),
+        members: z.array(z.object({ userId: z.number(), userType: z.enum(['staff', 'liver']), userName: z.string().optional(), userAvatar: z.string().optional() })),
+      }))
+      .mutation(async ({ input }) => {
+        const db = getDb();
+        for (const member of input.members) {
+          await db.execute(sqlTag`
+            INSERT IGNORE INTO chat_room_members (roomId, userId, userType, userName, userAvatar)
+            VALUES (${input.roomId}, ${member.userId}, ${member.userType}, ${member.userName || ''}, ${member.userAvatar || null})
+          `);
+        }
+        return { success: true };
+      }),
+    // 未読数取得（バッジ用）
+    getUnreadCount: protectedProcedure.query(async ({ ctx }) => {
+      const db = getDb();
+      const userId = ctx.user.id;
+      const userType = ctx.user.role === 'liver' ? 'liver' : 'staff';
+      const result = await db.execute(sqlTag`
+        SELECT COALESCE(SUM(unread), 0) as totalUnread FROM (
+          SELECT (SELECT COUNT(*) FROM chat_messages WHERE roomId = crm.roomId AND createdAt > crm.lastReadAt AND NOT (senderId = ${userId} AND senderType = ${userType})) as unread
+          FROM chat_room_members crm
+          WHERE crm.userId = ${userId} AND crm.userType = ${userType}
+        ) t
+      `);
+      return { unreadCount: Number((result as any)[0]?.[0]?.totalUnread || 0) };
+    }),
+    // ユーザー検索（チャット開始用）
+    searchUsers: protectedProcedure
+      .input(z.object({ query: z.string().optional() }))
+      .query(async ({ input }) => {
+        const db = getDb();
+        const q = input.query ? `%${input.query}%` : '%';
+        // スタッフ一覧
+        const staffList = await db.execute(sqlTag`
+          SELECT id, name, email, avatarUrl, 'staff' as userType FROM staff WHERE isActive = true AND (name LIKE ${q} OR email LIKE ${q}) LIMIT 50
+        `);
+        // ライバー一覧
+        const liverList = await db.execute(sqlTag`
+          SELECT id, name, tiktokId as email, profileImageUrl as avatarUrl, 'liver' as userType FROM livers WHERE (name LIKE ${q} OR tiktokId LIKE ${q}) LIMIT 50
+        `);
+        return {
+          staff: (staffList as any)[0] || [],
+          livers: (liverList as any)[0] || [],
+        };
+      }),
+    // ルーム名変更
+    updateRoom: protectedProcedure
+      .input(z.object({ roomId: z.number(), name: z.string() }))
+      .mutation(async ({ input }) => {
+        const db = getDb();
+        await db.execute(sqlTag`UPDATE chat_rooms SET name = ${input.name} WHERE id = ${input.roomId}`);
+        return { success: true };
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;
 

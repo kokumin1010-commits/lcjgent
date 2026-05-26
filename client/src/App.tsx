@@ -149,6 +149,7 @@ const AiCoachMaster = lazy(() => import("./pages/AiCoachMaster"));
 const MegaChannelAdmin = lazy(() => import("./pages/MegaChannelAdmin"));
 const FeaturedProductsAdmin = lazy(() => import("./pages/FeaturedProductsAdmin"));
 const LcjBrain = lazy(() => import("./pages/LcjBrain"));
+const Chat = lazy(() => import("./pages/Chat"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -582,6 +583,18 @@ function Router() {
           <DashboardLayout>
             <LcjBrain />
           </DashboardLayout>
+        </Route>
+        <Route path="/master/chat">
+          <DashboardLayout>
+            <Chat />
+          </DashboardLayout>
+        </Route>
+
+        {/* Liver Chat */}
+        <Route path="/liver/chat">
+          <ProtectedLiverRoute>
+            <Chat />
+          </ProtectedLiverRoute>
         </Route>
 
         {/* LCJ Coin My Page */}

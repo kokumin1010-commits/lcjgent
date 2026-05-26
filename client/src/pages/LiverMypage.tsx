@@ -755,6 +755,12 @@ export default function LiverMypage() {
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <h1 className="text-lg font-bold text-white">{lt("mypage.title")}</h1>
           <div className="flex items-center gap-1">
+            <Link href="/liver/chat">
+              <Button variant="ghost" size="sm" className="text-green-400 hover:text-green-300 text-xs px-2 border border-green-500/30 bg-green-500/10">
+                <MessageCircle className="h-4 w-4 mr-1" />
+                チャット
+              </Button>
+            </Link>
             <Link href="/liver/coach">
               <Button variant="ghost" size="sm" className="text-yellow-400 hover:text-yellow-300 text-xs px-2 border border-yellow-500/30 bg-yellow-500/10">
                 <Zap className="h-4 w-4 mr-1" />

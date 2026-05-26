@@ -110,6 +110,7 @@ function DashboardLayoutContent({
     { icon: Megaphone, label: "広告申込フォーム一覧", path: "/master/ad-form-submissions", hasBadge: true, badgeType: "adForm" as const },
     { icon: CreditCard, label: t("nav.businessCards"), path: "/master/business-cards" },
     { icon: MessageSquare, label: t("nav.line"), path: "/master/line" },
+    { icon: MessageCircle, label: "チャット", path: "/master/chat", hasBadge: true, badgeType: "chat" as const },
     { icon: Calendar, label: t("nav.calendar"), path: "/s" },
     { icon: Video, label: t("nav.livers"), path: "/master/livers" },
     { icon: Zap, label: t("nav.liverCommand") || "ライバー司令塔", path: "/master/livers-dashboard" },
@@ -232,7 +233,7 @@ function DashboardLayoutContent({
                           className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
                         />
                         <span>{item.label}</span>
-                        {(item as any).hasBadge && (item as any).badgeType === "adForm" ? <AdFormBadge /> : (item as any).hasBadge ? <BrandAppBadge /> : null}
+                        {(item as any).hasBadge && (item as any).badgeType === "adForm" ? <AdFormBadge /> : (item as any).hasBadge && (item as any).badgeType === "chat" ? <ChatBadge /> : (item as any).hasBadge ? <BrandAppBadge /> : null}
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   );
@@ -364,6 +365,19 @@ function AdFormBadge() {
   return (
     <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-pink-500 px-1.5 text-[10px] font-bold text-white leading-none animate-pulse">
       {pendingCount}
+    </span>
+  );
+}
+
+function ChatBadge() {
+  const { data } = trpc.chat.getUnreadCount.useQuery(undefined, {
+    refetchInterval: 10000,
+  });
+  const unreadCount = data?.unreadCount ?? 0;
+  if (unreadCount === 0) return null;
+  return (
+    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-green-500 px-1.5 text-[10px] font-bold text-white leading-none animate-pulse">
+      {unreadCount}
     </span>
   );
 }

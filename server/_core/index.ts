@@ -2286,6 +2286,11 @@ async function startServer() {
               console.error("[Migration] Short video violation/deadline error:", err);
             });
           });
+          import("../migrations/createChatTables").then(({ createChatTables }) => {
+            createChatTables(db).catch((err: unknown) => {
+              console.error("[Migration] Chat tables error:", err);
+            });
+          });
         }
       });
     });
