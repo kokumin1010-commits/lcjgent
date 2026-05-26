@@ -1007,6 +1007,8 @@ export default function HRManagement() {
   const [isResignDialogOpen, setIsResignDialogOpen] = useState(false);
   const [resignDate, setResignDate] = useState("");
   const [resignReason, setResignReason] = useState("");
+  const [tierEditStaffId, setTierEditStaffId] = useState<number | null>(null);
+  const [tierEditValue, setTierEditValue] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
@@ -1079,6 +1081,14 @@ export default function HRManagement() {
     onError: (error) => toast.error("復職処理に失敗しました", { description: error.message }),
   });
 
+  const quickTierMutation = trpc.staff.updateTier.useMutation({
+    onSuccess: () => {
+      toast.success("Tierを更新しました");
+      utils.staff.listReportStaffUnified.invalidate();
+      setTierEditStaffId(null);
+    },
+    onError: (error) => toast.error("Tier更新に失敗しました", { description: error.message }),
+  });
   const uploadAvatarMutation = trpc.staff.uploadAvatar.useMutation({
     onSuccess: (data) => {
       toast.success("プロフィール写真を更新しました");
@@ -1486,6 +1496,22 @@ export default function HRManagement() {
 
           {/* Tags */}
           <div className="mt-3 flex flex-wrap gap-1.5">
+            {/* Tier Badge - clickable */}
+            {item.isLinked && item.staffId && (
+              <span
+                className={`inline-flex items-center gap-1 h-5 px-2 rounded-full text-[10px] font-medium cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all ${
+                  item.staffTier ? (TIER_COLORS[item.staffTier] || "bg-gray-100 text-gray-600") : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-600"
+                }`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setTierEditStaffId(item.staffId);
+                  setTierEditValue(item.staffTier || null);
+                }}
+                title="クリックしてTierを設定"
+              >
+                {item.staffTier ? item.staffTier.replace("tier", "T") : "Tier未設定"}
+              </span>
+            )}
             {item.isLinked ? (
               <span className="inline-flex items-center gap-1 h-5 px-2 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200">
                 <Link2 className="h-2.5 w-2.5" /> HR紐付済
@@ -2161,6 +2187,67 @@ export default function HRManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Quick Tier Edit Dialog */}
+      <Dialog open={tierEditStaffId !== null} onOpenChange={(open) => { if (!open) setTierEditStaffId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              Tier設定
+            </DialogTitle>
+            <DialogDescription>
+              {unifiedStaffList.find(s => s.staffId === tierEditStaffId)?.staffName || unifiedStaffList.find(s => s.staffId === tierEditStaffId)?.reportStaffName}さんのTierを設定
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-2">
+              {["tier1", "tier2", "tier3", "tier4", "tier5", "tier6"].map((t) => (
+                <button
+                  key={t}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all border-2 ${
+                    tierEditValue === t
+                      ? "border-primary ring-2 ring-primary/30 " + (TIER_COLORS[t] || "")
+                      : "border-transparent " + (TIER_COLORS[t] || "bg-gray-100")
+                  }`}
+                  onClick={() => setTierEditValue(t)}
+                >
+                  {t.replace("tier", "Tier ")}
+                </button>
+              ))}
+            </div>
+            <button
+              className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-all border-2 ${
+                tierEditValue === null
+                  ? "border-primary ring-2 ring-primary/30 bg-gray-100 dark:bg-gray-800"
+                  : "border-transparent bg-gray-100 dark:bg-gray-800 text-muted-foreground"
+              }`}
+              onClick={() => setTierEditValue(null)}
+            >
+              未設定に戻す
+            </button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTierEditStaffId(null)}>キャンセル</Button>
+            <Button
+              onClick={() => {
+                if (tierEditStaffId) {
+                  quickTierMutation.mutate({
+                    staffId: tierEditStaffId,
+                    tier: tierEditValue,
+                    evaluationScore: null,
+                    salary: null,
+                    salaryCurrency: null,
+                  });
+                }
+              }}
+              disabled={quickTierMutation.isPending}
+            >
+              {quickTierMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />保存中...</> : "保存"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
