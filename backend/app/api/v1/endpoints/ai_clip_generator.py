@@ -3914,6 +3914,9 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
                 captions = []
         if not captions:
             captions = []
+        # Always split long segments to ensure one-line-per-subtitle
+        if captions:
+            captions = _split_long_segments(captions)
 
         # ── 4b. Build silence trim segments (after captions, to protect caption regions) ──
         if req.enable_silence_cut and silence_periods:
@@ -4185,6 +4188,146 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
 
 # ─── Whisper Transcription (unchanged from V1, proven working) ───────────────
 
+
+def _split_long_segments(segments: list, max_chars: int = 18, max_duration: float = 3.5) -> list:
+    """Whisperセグメントを一文ずつに分割する（字幕多行表示問題の根本修正）。
+    
+    Whisperは1セグメントに複数文を含むことがある（5-15秒、30-100文字）。
+    これをそのまま字幕にすると画面に複数行が同時表示される。
+    
+    分割ルール:
+    1. 句読点（。、！、？、…）で分割
+    2. max_chars以上のテキストは助詞・接続詞の後で分割
+    3. 分割後の各パートに元セグメントの時間を文字数比例で配分
+    4. 短いセグメント（max_chars以下 かつ max_duration以下）はそのまま
+    """
+    import re as _re
+    
+    # 助詞・接続詞の後で分割するためのパターン
+    _PARTICLE_SPLIT_PATTERN = _re.compile(
+        r'(?<=[はがをにでもとのへよねけどして])'
+    )
+    
+    def _split_at_particles(text: str, target_len: int) -> list:
+        """max_chars以上のテキストを助詞の後で分割"""
+        if len(text) <= target_len:
+            return [text]
+        
+        # Find all possible split positions (after particles)
+        positions = [m.start() for m in _PARTICLE_SPLIT_PATTERN.finditer(text)]
+        if not positions:
+            # No particles found - force split at target_len
+            chunks = []
+            for i in range(0, len(text), target_len):
+                chunk = text[i:i+target_len]
+                if chunk:
+                    chunks.append(chunk)
+            return chunks
+        
+        # Greedy split: accumulate chars, split at the last particle position before exceeding target_len
+        chunks = []
+        last_cut = 0
+        for pos in positions:
+            segment_so_far = text[last_cut:pos]
+            if len(segment_so_far) >= target_len:
+                # Cut here
+                chunks.append(segment_so_far)
+                last_cut = pos
+        # Remaining text
+        remaining = text[last_cut:]
+        if remaining:
+            if chunks and len(remaining) < 6:  # Too short, merge with previous
+                chunks[-1] += remaining
+            else:
+                chunks.append(remaining)
+        
+        return chunks if chunks else [text]
+    
+    result = []
+    for seg in segments:
+        text = seg.get('text', '').strip()
+        start = float(seg.get('start', 0))
+        end = float(seg.get('end', 0))
+        duration = end - start
+        
+        # Short segment: keep as-is
+        if len(text) <= max_chars and duration <= max_duration:
+            result.append(seg)
+            continue
+        
+        # Step 1: Split by sentence-ending punctuation
+        parts = _re.split(r'(?<=[。！？!?…])', text)
+        
+        # Step 2: Further split on 、， if parts are still too long
+        refined_parts = []
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+            if len(part) > max_chars:
+                sub_parts = _re.split(r'(?<=[、，])', part)
+                for sp in sub_parts:
+                    sp = sp.strip()
+                    if sp:
+                        refined_parts.append(sp)
+            else:
+                refined_parts.append(part)
+        
+        # Step 3: Split remaining long parts at particle boundaries
+        final_parts = []
+        for part in refined_parts:
+            if len(part) > max_chars:
+                chunks = _split_at_particles(part, max_chars)
+                final_parts.extend(chunks)
+            else:
+                final_parts.append(part)
+        
+        # If splitting produced nothing useful, force split by character count
+        if not final_parts or (len(final_parts) == 1 and len(final_parts[0]) > max_chars):
+            # Force split at fixed intervals
+            forced = []
+            txt = final_parts[0] if final_parts else text
+            for i in range(0, len(txt), max_chars):
+                chunk = txt[i:i+max_chars]
+                if chunk:
+                    forced.append(chunk)
+            if len(forced) > 1:
+                final_parts = forced
+        
+        # If only 1 part and it's short enough, keep original
+        if len(final_parts) <= 1:
+            result.append(seg)
+            continue
+        
+        # Distribute time proportionally based on character count
+        total_chars = sum(len(p) for p in final_parts)
+        if total_chars == 0:
+            result.append(seg)
+            continue
+        
+        current_time = start
+        for pi, part_text in enumerate(final_parts):
+            char_ratio = len(part_text) / total_chars
+            part_duration = duration * char_ratio
+            # Ensure minimum 0.8s per part
+            part_duration = max(0.8, part_duration)
+            part_end = min(current_time + part_duration, end)
+            # Last part gets remaining time
+            if pi == len(final_parts) - 1:
+                part_end = end
+            
+            result.append({
+                'start': round(current_time, 3),
+                'end': round(part_end, 3),
+                'text': part_text,
+            })
+            current_time = part_end
+    
+    logger.info(f"[ai-clip] Split segments: {len(segments)} -> {len(result)} "
+                f"(avg {sum(len(s.get('text','')) for s in result)/max(len(result),1):.0f} chars/segment)")
+    return result
+
+
 async def _transcribe_clip(video_path: str, target_language: str = "auto") -> list:
     import openai
 
@@ -4293,7 +4436,9 @@ async def _transcribe_clip(video_path: str, target_language: str = "auto") -> li
                 est_dur = 30.0
             segments.append({"start": 0, "end": est_dur, "text": response.text.strip()})
 
-        logger.info(f"[ai-clip] Transcribed: {len(segments)} segments")
+        logger.info(f"[ai-clip] Transcribed: {len(segments)} segments (raw)")
+        # Split long segments into sentence-level captions (fixes multi-line subtitle issue)
+        segments = _split_long_segments(segments)
         return segments
 
     except Exception as e:
@@ -5548,6 +5693,9 @@ async def _run_regeneration_from_source_inner(job_id: str, clip_row, req: RegenF
                     captions = []
             elif isinstance(orig_captions, list):
                 captions = orig_captions
+    # Always split long segments to ensure one-line-per-subtitle
+    if captions:
+        captions = _split_long_segments(captions)
     # ── Step 7: Generate hook text and CTA ──
     await _update_job(job_id, progress_pct=50, current_step="フック＆CTA生成中...")
     transcript_text = " ".join(c.get("text", "") for c in captions if c.get("text"))
