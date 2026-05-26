@@ -49,7 +49,7 @@ async function ensureConversationsTable() {
       id INT AUTO_INCREMENT PRIMARY KEY,
       title VARCHAR(500) NOT NULL,
       category VARCHAR(50) NOT NULL DEFAULT 'meeting',
-      content TEXT NOT NULL,
+      content LONGTEXT NOT NULL,
       summary TEXT,
       participants JSON,
       tags JSON,
@@ -64,6 +64,10 @@ async function ensureConversationsTable() {
       INDEX idx_meetingDate (meetingDate)
     )`);
   } catch (e) { /* table exists */ }
+  // Ensure content is LONGTEXT (upgrade from TEXT if needed)
+  try {
+    await db.execute(sql`ALTER TABLE lcj_brain_knowledge MODIFY COLUMN content LONGTEXT NOT NULL`);
+  } catch (e) { /* ignore */ }
 }
 
 
@@ -1362,20 +1366,19 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
           } catch (e) { /* ignore */ }
         }
 
-        const [inserted] = await db.insert(lcjBrainKnowledge).values({
-          title: input.title,
-          category: input.category,
-          content: input.content,
-          summary,
-          participants: autoParticipants.length > 0 ? autoParticipants : null,
-          tags: autoTags.length > 0 ? autoTags : null,
-          meetingDate: input.meetingDate ? new Date(input.meetingDate) : null,
-          sourceFileName: input.sourceFileName || null,
-          uploadedBy: userId,
-          uploadedByName: userName,
-        }).$returningId();
+        // Use raw SQL insert to avoid drizzle $returningId compatibility issues
+        const meetingDateValue = input.meetingDate ? new Date(input.meetingDate) : null;
+        const participantsJson = autoParticipants.length > 0 ? JSON.stringify(autoParticipants) : null;
+        const tagsJson = autoTags.length > 0 ? JSON.stringify(autoTags) : null;
+        
+        const insertResult = await db.execute(sql`
+          INSERT INTO lcj_brain_knowledge (title, category, content, summary, participants, tags, meetingDate, sourceFileName, uploadedBy, uploadedByName)
+          VALUES (${input.title}, ${input.category}, ${input.content}, ${summary || null}, ${participantsJson}, ${tagsJson}, ${meetingDateValue}, ${input.sourceFileName || null}, ${userId}, ${userName})
+        `);
+        
+        const insertedId = (insertResult as any)[0]?.insertId || (insertResult as any).insertId || 0;
 
-        return { success: true, id: inserted.id, summary, tags: autoTags, participants: autoParticipants };
+        return { success: true, id: insertedId, summary, tags: autoTags, participants: autoParticipants };
       } catch (error: any) {
         console.error("[LCJ Brain] addKnowledge error:", error.message);
         return { success: false, error: error.message };
