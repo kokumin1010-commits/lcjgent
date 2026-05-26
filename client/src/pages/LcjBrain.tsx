@@ -9,7 +9,7 @@ import {
   ChevronRight, BarChart3, Lightbulb, Shield, GraduationCap,
   ClipboardList, Star, AlertTriangle, CheckCircle2, ArrowRight,
   History, Search, MicOff, Volume2, Plus, Trash2, MessageSquare, PanelLeftClose, PanelLeft,
-  Upload, FolderOpen, Calendar, Tag, Eye, X, Loader2, Database, ExternalLink, CheckCircle, XCircle
+  Upload, FolderOpen, Calendar, Tag, Eye, X, Loader2, Database, ExternalLink, CheckCircle, XCircle, Copy, Check
 } from "lucide-react";
 
 // ============================================================
@@ -538,7 +538,7 @@ function ChatPanel() {
         {messages.map((msg, i) => (
           <div key={i}>
             <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+              <div className={`relative group max-w-[80%] rounded-2xl px-4 py-3 ${
                 msg.role === "user"
                   ? "bg-violet-600 text-white"
                   : "bg-white/5 border border-white/10 text-white/90"
@@ -549,6 +549,28 @@ function ChatPanel() {
                   </div>
                 ) : (
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                )}
+                {msg.role === "assistant" && msg.content && (
+                  <div className="mt-2 pt-2 border-t border-white/10 flex justify-end">
+                    <button
+                      onClick={async (e) => {
+                        const btn = e.currentTarget;
+                        try {
+                          await navigator.clipboard.writeText(msg.content);
+                        } catch {
+                          const ta = document.createElement('textarea'); ta.value = msg.content; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+                        }
+                        btn.classList.add('!text-emerald-400');
+                        const span = btn.querySelector('span');
+                        if (span) span.textContent = 'コピーしました';
+                        setTimeout(() => { btn.classList.remove('!text-emerald-400'); if (span) span.textContent = '一键复制'; }, 2000);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-white/60 hover:text-white/90 text-xs transition-all active:scale-95"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      <span>一键复制</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
