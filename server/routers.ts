@@ -2595,6 +2595,58 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     }),
 });
 
+
+// Helper function to authenticate chat users (supports both admin/staff and liver auth)
+async function getChatUser(ctx: any): Promise<{ id: number; name: string; userType: 'staff' | 'liver'; avatarUrl: string | null } | null> {
+  const db = await getDb();
+  if (!db) return null;
+  // First try: admin/staff user from protectedProcedure context
+  if (ctx.user) {
+    const userId = ctx.user.id;
+    const userType = ctx.user.role === 'liver' ? 'liver' as const : 'staff' as const;
+    let name = ctx.user.name || ctx.user.email || 'Unknown';
+    let avatarUrl: string | null = null;
+    if (userType === 'staff') {
+      const staffResult = await db.execute(sqlTag`SELECT name, avatarUrl FROM staff WHERE id = ${userId} LIMIT 1`);
+      const s = (staffResult as any)[0]?.[0];
+      if (s) { name = s.name || name; avatarUrl = s.avatarUrl || null; }
+    } else {
+      const liverResult = await db.execute(sqlTag`SELECT name, profileImageUrl FROM livers WHERE id = ${userId} LIMIT 1`);
+      const l = (liverResult as any)[0]?.[0];
+      if (l) { name = l.name || name; avatarUrl = l.profileImageUrl || null; }
+    }
+    return { id: userId, name, userType, avatarUrl };
+  }
+  // Second try: liver JWT token from Authorization header
+  try {
+    const authHeader = ctx.req?.headers?.authorization || ctx.req?.headers?.get?.('authorization') || '';
+    const token = authHeader.replace('Bearer ', '');
+    if (!token) return null;
+    const secret = new TextEncoder().encode(ENV.cookieSecret);
+    const { payload } = await jwtVerify(token, secret);
+    if (payload.liverId) {
+      const liverId = Number(payload.liverId);
+      const liverResult = await db.execute(sqlTag`SELECT id, name, profileImageUrl FROM livers WHERE id = ${liverId} LIMIT 1`);
+      const liver = (liverResult as any)[0]?.[0];
+      if (liver) {
+        return { id: liver.id, name: liver.name || 'Unknown', userType: 'liver', avatarUrl: liver.profileImageUrl || null };
+      }
+    }
+    // Also check if it's a staff token with userId
+    if (payload.userId) {
+      const userId = Number(payload.userId);
+      const staffResult = await db.execute(sqlTag`SELECT id, name, avatarUrl FROM staff WHERE id = ${userId} LIMIT 1`);
+      const s = (staffResult as any)[0]?.[0];
+      if (s) {
+        return { id: s.id, name: s.name || 'Unknown', userType: 'staff', avatarUrl: s.avatarUrl || null };
+      }
+    }
+  } catch (e) {
+    // Token verification failed
+  }
+  return null;
+}
+
 export const appRouter = router({
   system: systemRouter,
   auth: authRouter,
@@ -24845,10 +24897,10 @@ JSON配列のみを出力してください。`;
   // Chat - チャット機能
   chat: router({
     // ルーム一覧取得
-    getRooms: protectedProcedure.query(async ({ ctx }) => {
-      const db = getDb();
-      const userId = ctx.user.id;
-      const userType = ctx.user.role === 'liver' ? 'liver' : 'staff';
+    getRooms: publicProcedure.query(async ({ ctx }) => {
+      const chatUser = await getChatUser(ctx);
+      if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+      const db = await getDb();
       const rooms = await db.execute(sqlTag`
         SELECT cr.id, cr.name, cr.type, cr.avatarUrl, cr.createdAt,
           (SELECT content FROM chat_messages WHERE roomId = cr.id ORDER BY createdAt DESC LIMIT 1) as lastMessage,
@@ -24856,16 +24908,18 @@ JSON配列のみを出力してください。`;
           (SELECT createdAt FROM chat_messages WHERE roomId = cr.id ORDER BY createdAt DESC LIMIT 1) as lastMessageAt,
           (SELECT COUNT(*) FROM chat_messages WHERE roomId = cr.id AND createdAt > crm.lastReadAt) as unreadCount
         FROM chat_rooms cr
-        JOIN chat_room_members crm ON cr.id = crm.roomId AND crm.userId = ${userId} AND crm.userType = ${userType}
+        JOIN chat_room_members crm ON cr.id = crm.roomId AND crm.userId = ${chatUser.id} AND crm.userType = ${chatUser.userType}
         ORDER BY lastMessageAt DESC, cr.createdAt DESC
       `);
       return (rooms as any)[0] || [];
     }),
     // ルーム詳細（メンバー一覧）
-    getRoomDetail: protectedProcedure
+    getRoomDetail: publicProcedure
       .input(z.object({ roomId: z.number() }))
-      .query(async ({ input }) => {
-        const db = getDb();
+      .query(async ({ ctx, input }) => {
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
         const members = await db.execute(sqlTag`
           SELECT * FROM chat_room_members WHERE roomId = ${input.roomId}
         `);
@@ -24875,12 +24929,12 @@ JSON配列のみを出力してください。`;
         return { room: (room as any)[0]?.[0], members: (members as any)[0] || [] };
       }),
     // メッセージ取得
-    getMessages: protectedProcedure
+    getMessages: publicProcedure
       .input(z.object({ roomId: z.number(), limit: z.number().optional(), before: z.number().optional() }))
       .query(async ({ input, ctx }) => {
-        const db = getDb();
-        const userId = ctx.user.id;
-        const userType = ctx.user.role === 'liver' ? 'liver' : 'staff';
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
         const limit = input.limit || 50;
         let messages;
         if (input.before) {
@@ -24897,12 +24951,12 @@ JSON配列のみを出力してください。`;
         // 既読更新
         await db.execute(sqlTag`
           UPDATE chat_room_members SET lastReadAt = NOW()
-          WHERE roomId = ${input.roomId} AND userId = ${userId} AND userType = ${userType}
+          WHERE roomId = ${input.roomId} AND userId = ${chatUser.id} AND userType = ${chatUser.userType}
         `);
         return ((messages as any)[0] || []).reverse();
       }),
     // メッセージ送信
-    sendMessage: protectedProcedure
+    sendMessage: publicProcedure
       .input(z.object({
         roomId: z.number(),
         content: z.string(),
@@ -24911,39 +24965,37 @@ JSON配列のみを出力してください。`;
         fileName: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const db = getDb();
-        const userId = ctx.user.id;
-        const userType = ctx.user.role === 'liver' ? 'liver' : 'staff';
-        const senderName = ctx.user.name || ctx.user.email || 'Unknown';
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
         await db.execute(sqlTag`
           INSERT INTO chat_messages (roomId, senderId, senderType, senderName, messageType, content, fileUrl, fileName)
-          VALUES (${input.roomId}, ${userId}, ${userType}, ${senderName}, ${input.messageType || 'text'}, ${input.content}, ${input.fileUrl || null}, ${input.fileName || null})
+          VALUES (${input.roomId}, ${chatUser.id}, ${chatUser.userType}, ${chatUser.name}, ${input.messageType || 'text'}, ${input.content}, ${input.fileUrl || null}, ${input.fileName || null})
         `);
         // 自分の既読を更新
         await db.execute(sqlTag`
           UPDATE chat_room_members SET lastReadAt = NOW()
-          WHERE roomId = ${input.roomId} AND userId = ${userId} AND userType = ${userType}
+          WHERE roomId = ${input.roomId} AND userId = ${chatUser.id} AND userType = ${chatUser.userType}
         `);
         return { success: true };
       }),
     // ルーム作成（1対1 or グループ）
-    createRoom: protectedProcedure
+    createRoom: publicProcedure
       .input(z.object({
         name: z.string().optional(),
         type: z.enum(['direct', 'group']),
         memberIds: z.array(z.object({ userId: z.number(), userType: z.enum(['staff', 'liver']), userName: z.string().optional(), userAvatar: z.string().optional() })),
       }))
       .mutation(async ({ input, ctx }) => {
-        const db = getDb();
-        const userId = ctx.user.id;
-        const userType = ctx.user.role === 'liver' ? 'liver' : 'staff';
-        const senderName = ctx.user.name || ctx.user.email || 'Unknown';
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
         // 1対1の場合、既存のルームがあるか確認
         if (input.type === 'direct' && input.memberIds.length === 1) {
           const target = input.memberIds[0];
           const existing = await db.execute(sqlTag`
             SELECT cr.id FROM chat_rooms cr
-            JOIN chat_room_members m1 ON cr.id = m1.roomId AND m1.userId = ${userId} AND m1.userType = ${userType}
+            JOIN chat_room_members m1 ON cr.id = m1.roomId AND m1.userId = ${chatUser.id} AND m1.userType = ${chatUser.userType}
             JOIN chat_room_members m2 ON cr.id = m2.roomId AND m2.userId = ${target.userId} AND m2.userType = ${target.userType}
             WHERE cr.type = 'direct'
             LIMIT 1
@@ -24956,13 +25008,13 @@ JSON配列のみを出力してください。`;
         // ルーム作成
         const roomName = input.name || (input.type === 'direct' ? null : 'グループチャット');
         const result = await db.execute(sqlTag`
-          INSERT INTO chat_rooms (name, type, createdBy) VALUES (${roomName}, ${input.type}, ${userId})
+          INSERT INTO chat_rooms (name, type, createdBy) VALUES (${roomName}, ${input.type}, ${chatUser.id})
         `);
         const roomId = (result as any)[0].insertId;
         // 自分をメンバーに追加
         await db.execute(sqlTag`
           INSERT INTO chat_room_members (roomId, userId, userType, userName)
-          VALUES (${roomId}, ${userId}, ${userType}, ${senderName})
+          VALUES (${roomId}, ${chatUser.id}, ${chatUser.userType}, ${chatUser.name})
         `);
         // 他のメンバーを追加
         for (const member of input.memberIds) {
@@ -24974,13 +25026,15 @@ JSON配列のみを出力してください。`;
         return { roomId, existing: false };
       }),
     // グループにメンバー追加
-    addMembers: protectedProcedure
+    addMembers: publicProcedure
       .input(z.object({
         roomId: z.number(),
         members: z.array(z.object({ userId: z.number(), userType: z.enum(['staff', 'liver']), userName: z.string().optional(), userAvatar: z.string().optional() })),
       }))
-      .mutation(async ({ input }) => {
-        const db = getDb();
+      .mutation(async ({ input, ctx }) => {
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
         for (const member of input.members) {
           await db.execute(sqlTag`
             INSERT IGNORE INTO chat_room_members (roomId, userId, userType, userName, userAvatar)
@@ -24990,50 +25044,40 @@ JSON配列のみを出力してください。`;
         return { success: true };
       }),
     // 自分の情報取得
-    getMyInfo: protectedProcedure.query(async ({ ctx }) => {
-      const db = getDb();
-      const userId = ctx.user.id;
-      const userType = ctx.user.role === 'liver' ? 'liver' : 'staff';
-      let name = ctx.user.name || ctx.user.email || 'Unknown';
-      let avatarUrl: string | null = null;
-      if (userType === 'staff') {
-        const staffResult = await db.execute(sqlTag`SELECT name, avatarUrl FROM staff WHERE id = ${userId} LIMIT 1`);
-        const s = (staffResult as any)[0]?.[0];
-        if (s) { name = s.name || name; avatarUrl = s.avatarUrl || null; }
-      } else {
-        const liverResult = await db.execute(sqlTag`SELECT name, profileImageUrl FROM livers WHERE id = ${userId} LIMIT 1`);
-        const l = (liverResult as any)[0]?.[0];
-        if (l) { name = l.name || name; avatarUrl = l.profileImageUrl || null; }
-      }
-      return { id: userId, name, userType, avatarUrl };
+    getMyInfo: publicProcedure.query(async ({ ctx }) => {
+      const chatUser = await getChatUser(ctx);
+      if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+      return { id: chatUser.id, name: chatUser.name, userType: chatUser.userType, avatarUrl: chatUser.avatarUrl };
     }),
     // 未読数取得（バッジ用）
-    getUnreadCount: protectedProcedure.query(async ({ ctx }) => {
-      const db = getDb();
-      const userId = ctx.user.id;
-      const userType = ctx.user.role === 'liver' ? 'liver' : 'staff';
+    getUnreadCount: publicProcedure.query(async ({ ctx }) => {
+      const chatUser = await getChatUser(ctx);
+      if (!chatUser) return { unreadCount: 0 };
+      const db = await getDb();
       const result = await db.execute(sqlTag`
         SELECT COALESCE(SUM(unread), 0) as totalUnread FROM (
-          SELECT (SELECT COUNT(*) FROM chat_messages WHERE roomId = crm.roomId AND createdAt > crm.lastReadAt AND NOT (senderId = ${userId} AND senderType = ${userType})) as unread
+          SELECT (SELECT COUNT(*) FROM chat_messages WHERE roomId = crm.roomId AND createdAt > crm.lastReadAt AND NOT (senderId = ${chatUser.id} AND senderType = ${chatUser.userType})) as unread
           FROM chat_room_members crm
-          WHERE crm.userId = ${userId} AND crm.userType = ${userType}
+          WHERE crm.userId = ${chatUser.id} AND crm.userType = ${chatUser.userType}
         ) t
       `);
       return { unreadCount: Number((result as any)[0]?.[0]?.totalUnread || 0) };
     }),
     // ユーザー検索（チャット開始用）
-    searchUsers: protectedProcedure
+    searchUsers: publicProcedure
       .input(z.object({ query: z.string().optional() }))
-      .query(async ({ input }) => {
-        const db = getDb();
+      .query(async ({ input, ctx }) => {
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
         const q = input.query ? `%${input.query}%` : '%';
         // スタッフ一覧
         const staffList = await db.execute(sqlTag`
-          SELECT id, name, email, avatarUrl, 'staff' as userType FROM staff WHERE isActive = true AND (name LIKE ${q} OR email LIKE ${q}) LIMIT 50
+          SELECT id, name, email, avatarUrl, 'staff' as userType FROM staff WHERE isActive = 'active' AND (name LIKE ${q} OR email LIKE ${q}) LIMIT 50
         `);
         // ライバー一覧
         const liverList = await db.execute(sqlTag`
-          SELECT id, name, tiktokId as email, profileImageUrl as avatarUrl, 'liver' as userType FROM livers WHERE (name LIKE ${q} OR tiktokId LIKE ${q}) LIMIT 50
+          SELECT id, name, tiktokId as email, profileImageUrl as avatarUrl, 'liver' as userType FROM livers WHERE isActive = true AND (name LIKE ${q} OR tiktokId LIKE ${q}) LIMIT 50
         `);
         return {
           staff: (staffList as any)[0] || [],
@@ -25041,10 +25085,12 @@ JSON配列のみを出力してください。`;
         };
       }),
     // ルーム名変更
-    updateRoom: protectedProcedure
+    updateRoom: publicProcedure
       .input(z.object({ roomId: z.number(), name: z.string() }))
-      .mutation(async ({ input }) => {
-        const db = getDb();
+      .mutation(async ({ input, ctx }) => {
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
         await db.execute(sqlTag`UPDATE chat_rooms SET name = ${input.name} WHERE id = ${input.roomId}`);
         return { success: true };
       }),
