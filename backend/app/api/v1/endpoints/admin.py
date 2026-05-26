@@ -268,8 +268,8 @@ async def get_all_feedbacks(
                 ORDER BY video_id, phase_index, created_at DESC
             ) vc_s ON CAST(vp.video_id AS VARCHAR) = CAST(vc_s.video_id AS VARCHAR)
                 AND vp.phase_index::text = vc_s.phase_index
-            LEFT JOIN clip_feedback cfb_s ON vp.video_id = CAST(cfb_s.video_id AS VARCHAR)
-                AND CAST(vp.phase_index AS VARCHAR) = cfb_s.phase_index
+            LEFT JOIN clip_feedback cfb_s ON CAST(vp.video_id AS VARCHAR) = CAST(cfb_s.video_id AS VARCHAR)
+                AND CAST(vp.phase_index AS VARCHAR) = CAST(cfb_s.phase_index AS VARCHAR)
             {summary_where}
         """)
         summary_result = await db.execute(summary_sql)
@@ -355,8 +355,8 @@ async def get_all_feedbacks(
             JOIN videos v ON CAST(vp.video_id AS UUID) = v.id
             LEFT JOIN users u ON v.user_id = u.id
             LEFT JOIN users rv ON vp.rated_by_reviewer_id = rv.id
-            LEFT JOIN clip_feedback cfb ON vp.video_id = CAST(cfb.video_id AS VARCHAR)
-                AND CAST(vp.phase_index AS VARCHAR) = cfb.phase_index
+            LEFT JOIN clip_feedback cfb ON CAST(vp.video_id AS VARCHAR) = CAST(cfb.video_id AS VARCHAR)
+                AND CAST(vp.phase_index AS VARCHAR) = CAST(cfb.phase_index AS VARCHAR)
             LEFT JOIN (
                 SELECT video_id, phase_index, COUNT(*) AS download_count
                 FROM clip_download_log
