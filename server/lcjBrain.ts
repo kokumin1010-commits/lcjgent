@@ -476,8 +476,11 @@ async function getContractsSummary() {
 // コンテキスト構築（質問に応じて必要なデータを取得）
 // ============================================================
 
-async function buildContext(userMessage: string): Promise<string> {
+type KnowledgeSource = { id: number; title: string; meetingDate: string | null };
+type BuildContextResult = { context: string; knowledgeSources: KnowledgeSource[] };
+async function buildContext(userMessage: string): Promise<BuildContextResult> {
   const contextParts: string[] = [];
+  const knowledgeSourcesList: KnowledgeSource[] = [];
   const lowerMsg = userMessage.toLowerCase();
   
   // 月とライバー名を検出
@@ -644,6 +647,7 @@ async function buildContext(userMessage: string): Promise<string> {
         const knowledgeContext = knowledgeResults.map(k => {
           const dateStr = k.meetingDate ? new Date(k.meetingDate).toISOString().split('T')[0] : '未知';
           const contentPreview = k.content.length > 2000 ? k.content.substring(0, 2000) + "..." : k.content;
+          knowledgeSourcesList.push({ id: k.id, title: k.title, meetingDate: dateStr });
           return `### ${k.title} (${dateStr})\n参会人: ${k.participants ? (k.participants as string[]).join(', ') : '未记录'}\n摘要: ${k.summary || '无'}\n内容: ${contentPreview}`;
         }).join("\n\n");
         contextParts.push(`## 知识库相关纪要（共${knowledgeResults.length}条）\n${knowledgeContext}`);
@@ -653,7 +657,7 @@ async function buildContext(userMessage: string): Promise<string> {
     console.error("[LCJ Brain] Knowledge RAG search error:", e);
   }
 
-  return contextParts.join("\n\n");
+  return { context: contextParts.join("\n\n"), knowledgeSources: knowledgeSourcesList };
 }
 
 // ============================================================
@@ -679,7 +683,7 @@ export const lcjBrainRouter = router({
       const userId = ctx.user?.id || null;
 
       // 実データコンテキストを構築
-      const dataContext = await buildContext(message);
+      const { context: dataContext, knowledgeSources } = await buildContext(message);
 
       // システムプロンプト構築
       const systemPrompt = `你是LCJ Brain，Live Commerce Japan（LCJ）的AI大脑。你连接着LCJ的所有数据（品牌、主播、直播实绩、合同、短视频等），能够基于实际数据给出精准的分析和建议。
@@ -807,6 +811,7 @@ ${dataContext || "（暂无相关数据）"}
           dataSourcesUsed: dataContext ? dataContext.split("##").length - 1 : 0,
           suggestedQuestions,
           conversationId: activeConversationId,
+          knowledgeSources,
         };
       } catch (error: any) {
         console.error("[LCJ Brain] AI error:", error.message);

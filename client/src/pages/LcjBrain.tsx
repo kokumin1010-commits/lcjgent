@@ -240,7 +240,7 @@ export default function LcjBrain() {
 // ============================================================
 function ChatPanel() {
   const { user } = useAuth();
-  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; suggestedQuestions?: string[] }>>([]);
+  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; suggestedQuestions?: string[]; knowledgeSources?: Array<{id: number; title: string; meetingDate: string | null}> }>>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
@@ -326,6 +326,7 @@ function ChatPanel() {
         role: "assistant", 
         content: result.response,
         suggestedQuestions: result.suggestedQuestions || [],
+        knowledgeSources: result.knowledgeSources || [],
       }]);
       // 新しい会話が作成された場合、IDを保存
       if (result.conversationId && !activeConversationId) {
@@ -472,6 +473,21 @@ function ChatPanel() {
                     <ChevronRight className="w-3 h-3" />
                     {q}
                   </button>
+                ))}
+              </div>
+            )}
+            {/* 知識庫参照リンク */}
+            {msg.role === "assistant" && msg.knowledgeSources && msg.knowledgeSources.length > 0 && (
+              <div className="mt-2 ml-2 pt-2 border-t border-white/10">
+                <p className="text-xs text-white/50 mb-1">📚 参照元知識庫:</p>
+                {msg.knowledgeSources.map((src) => (
+                  <a
+                    key={src.id}
+                    href={`/master/lcj-brain?tab=knowledge&id=${src.id}`}
+                    className="text-xs text-emerald-400 hover:underline block mb-0.5"
+                  >
+                    📄 {src.title} {src.meetingDate && `(${src.meetingDate})`}
+                  </a>
                 ))}
               </div>
             )}
