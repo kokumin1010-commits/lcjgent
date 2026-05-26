@@ -394,11 +394,18 @@ async function getTeamDailyRecord(): Promise<number> {
 
 // ========== Ranking Logic ==========
 
-function aggregateByStreamer(records: LivestreamRecord[]): RankedLiver[] {
+function aggregateByStreamer(records: LivestreamRecord[], liverNameMap?: Map<number, string>): RankedLiver[] {
   const map = new Map<string, RankedLiver>();
   
   for (const r of records) {
-    const name = r.streamerName;
+    // streamerNameが空の場合、liverIdからライバー名を解決
+    let name = r.streamerName;
+    if ((!name || name.trim() === '') && r.liverId && liverNameMap) {
+      name = liverNameMap.get(r.liverId) || '';
+    }
+    // 名前が取得できない場合はスキップ（「不明」を防ぐ）
+    if (!name || name.trim() === '') continue;
+    
     if (!map.has(name)) {
       map.set(name, {
         name,
@@ -688,8 +695,15 @@ export async function runDailyRanking(): Promise<void> {
       return;
     }
 
+    // 2.5. Build liver name map for resolving empty streamerNames
+    const allLiversForNames = await getAllActiveLivers();
+    const liverNameMap = new Map<number, string>();
+    for (const l of allLiversForNames) {
+      if (l.name && l.name.trim()) liverNameMap.set(l.id, l.name);
+    }
+
     // 3. Aggregate data
-    const todayRanked = aggregateByStreamer(todayRecords)
+    const todayRanked = aggregateByStreamer(todayRecords, liverNameMap)
       .sort((a, b) => b.totalSales - a.totalSales);
     
     const todayTotalSales = todayRanked.reduce((sum, r) => sum + r.totalSales, 0);
@@ -698,7 +712,7 @@ export async function runDailyRanking(): Promise<void> {
 
     // 4. Get weekly data
     const weekRecords = await getWeekLivestreams();
-    const weeklyAggregated = aggregateByStreamer(weekRecords)
+    const weeklyAggregated = aggregateByStreamer(weekRecords, liverNameMap)
       .sort((a, b) => b.totalSales - a.totalSales)
       .map(r => ({ name: r.name, totalSales: r.totalSales }));
 

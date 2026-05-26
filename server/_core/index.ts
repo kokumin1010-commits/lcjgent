@@ -2306,6 +2306,13 @@ async function startServer() {
       });
     });
 
+    // Backfill empty streamerName in brand_livestreams using livers table
+    import("../migrations/backfillStreamerNames").then(({ backfillStreamerNames }) => {
+      backfillStreamerNames(db).catch((err: unknown) => {
+        console.error("[Migration] Failed to backfill streamer names:", err);
+      });
+    });
+
     // One-time fix: Correct remainingAmount for past purchases where FIFO was not applied
     import("../db").then(({ fixRemainingAmountForPastPurchases }) => {
       fixRemainingAmountForPastPurchases().catch((err: unknown) => {
