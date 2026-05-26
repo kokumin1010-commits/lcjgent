@@ -5900,12 +5900,32 @@ ${proposal.proposalContent}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-orange-400 text-xs">{language === 'ja' ? 'ライバー名' : '主播名'} *</Label>
-                <Input
+                <select
                   value={newShortVideo.liverName}
-                  onChange={(e) => setNewShortVideo({ ...newShortVideo, liverName: e.target.value })}
-                  className="bg-black/50 border-gray-700 text-white mt-1"
-                  placeholder={language === 'ja' ? 'ライバー名' : '主播名'}
-                />
+                  onChange={(e) => {
+                    const selectedLiver = allLivers.find((l: any) => l.name === e.target.value);
+                    setNewShortVideo({ ...newShortVideo, liverName: e.target.value, liverId: selectedLiver?.id || null });
+                  }}
+                  className="w-full bg-black/50 border border-gray-700 text-white rounded-md px-3 py-2 mt-1 text-sm"
+                >
+                  <option value="">{language === 'ja' ? '-- ライバーを選択 --' : '-- 选择主播 --'}</option>
+                  {allLivers.map((liver: any) => (
+                    <option key={liver.id} value={liver.name} className="bg-gray-900 text-white">
+                      {liver.name}{liver.tiktokAccount ? ` (@${liver.tiktokAccount})` : ''}
+                    </option>
+                  ))}
+                  <option value="__manual__">{language === 'ja' ? '手動入力...' : '手动输入...'}</option>
+                </select>
+                {newShortVideo.liverName === '__manual__' && (
+                  <Input
+                    value=""
+                    onChange={(e) => setNewShortVideo({ ...newShortVideo, liverName: e.target.value, liverId: null })}
+                    className="bg-black/50 border-gray-700 text-white mt-1"
+                    placeholder={language === 'ja' ? 'ライバー名を入力' : '输入主播名'}
+                    autoFocus
+                  />
+                )}
+              
               </div>
               <div>
                 <Label className="text-orange-400 text-xs">{language === 'ja' ? '投稿日' : '发布日'} *</Label>
@@ -5963,12 +5983,28 @@ ${proposal.proposalContent}
             </div>
             <div>
               <Label className="text-orange-400 text-xs">{language === 'ja' ? '商品名' : '商品名'}</Label>
-              <Input
+              <select
                 value={newShortVideo.productName}
                 onChange={(e) => setNewShortVideo({ ...newShortVideo, productName: e.target.value })}
-                className="bg-black/50 border-gray-700 text-white mt-1"
-                placeholder={language === 'ja' ? '紹介商品名' : '推荐商品名'}
-              />
+                className="w-full bg-black/50 border border-gray-700 text-white rounded-md px-3 py-2 mt-1 text-sm"
+              >
+                <option value="">{language === 'ja' ? '-- 商品を選択 --' : '-- 选择商品 --'}</option>
+                {products.map((p: any) => (
+                  <option key={p.id} value={p.productName} className="bg-gray-900 text-white">
+                    {p.productName}
+                  </option>
+                ))}
+                <option value="__manual__">{language === 'ja' ? '手動入力...' : '手动输入...'}</option>
+              </select>
+              {newShortVideo.productName === '__manual__' && (
+                <Input
+                  value=""
+                  onChange={(e) => setNewShortVideo({ ...newShortVideo, productName: e.target.value })}
+                  className="bg-black/50 border-gray-700 text-white mt-1"
+                  placeholder={language === 'ja' ? '商品名を入力' : '输入商品名'}
+                  autoFocus
+                />
+              )}
             </div>
             <div>
               <Label className="text-orange-400 text-xs">{language === 'ja' ? '締切日（截止日期）' : '截止日期'}</Label>

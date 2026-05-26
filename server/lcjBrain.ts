@@ -281,7 +281,7 @@ async function getUpcomingSchedules(days: number = 14) {
       title: schedules.title,
       startTime: schedules.startTime,
       endTime: schedules.endTime,
-      type: schedules.type,
+      category: schedules.category,
       brandId: schedules.brandId,
       liverId: schedules.liverId,
     })
@@ -494,7 +494,7 @@ async function buildContext(userMessage: string): Promise<BuildContextResult> {
   const needsSchedule = /排期|スケジュール|schedule|空档|予定|今後|来週|下周/.test(lowerMsg);
   const needsVideos = /短视频|短動画|ショート|video|投稿|发布/.test(lowerMsg);
   const needsContracts = /合同|契約|contract|ノルマ|配额|进度|quota/.test(lowerMsg);
-  const needsBD = /BD|招商|话术|谈判|成交|客户|怎么谈|怎么聊|怎么回|怎么说|如何/.test(lowerMsg);
+  const needsBD = /BD|招商|话术|谈判|成交|客户|怎么谈|怎么聊|怎么回|怎么说|如何谈|如何说服|报价|纯佣/.test(lowerMsg);
   
   // 全般的な質問の場合はすべて取得
   const isGeneral = !needsBrands && !needsLivers && !needsLivestreams && !needsSchedule && !needsVideos && !needsContracts && !needsBD;
@@ -586,7 +586,7 @@ async function buildContext(userMessage: string): Promise<BuildContextResult> {
           contracts: detail.contracts.map(c => ({ type: c.serviceType, status: c.status, start: c.startDate, end: c.endDate, kgQuota: c.kgLiveHoursQuota, liverQuota: c.liverLiveHoursQuota, videoQuota: c.shortVideoCountQuota })),
           recentLivestreams: detail.recentLivestreams.slice(0, 10),
           recentVideos: detail.recentVideos.slice(0, 10),
-          products: detail.products.slice(0, 10).map(p => ({ id: p.id, name: p.name })),
+          products: detail.products.slice(0, 10).map(p => ({ id: p.id, name: p.productName })),
         }, null, 0)}`);
       }
       break; // 1ブランドのみ詳細取得
@@ -686,7 +686,16 @@ export const lcjBrainRouter = router({
       const userId = ctx.user?.id || null;
 
       // 実データコンテキストを構築
-      const { context: dataContext, knowledgeSources } = await buildContext(message);
+      let dataContext = "";
+      let knowledgeSources: KnowledgeSource[] = [];
+      try {
+        const buildResult = await buildContext(message);
+        dataContext = buildResult.context;
+        knowledgeSources = buildResult.knowledgeSources;
+      } catch (e: any) {
+        console.error("[LCJ Brain] buildContext error:", e.message);
+        // コンテキスト構築に失敗してもチャットは続行
+      }
 
       // BD関連キーワード判定
       const lowerMessage = message.toLowerCase();
@@ -724,7 +733,7 @@ ${dataContext || "（暂无相关数据）"}
 - 不要把BD话术模板中的示例数据当作真实数据引用`;
 
       // メッセージ履歴を構築
-      const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+      const messages: Array<{ role: "system" | "user" | "assistant"; content: any }> = [
         { role: "system", content: systemPrompt },
       ];
 

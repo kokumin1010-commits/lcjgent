@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Streamdown } from "streamdown";
 import { useAuth } from "../_core/hooks/useAuth";
 import { trpc } from "../lib/trpc";
 import { useLocation } from "wouter";
@@ -541,11 +542,11 @@ function ChatPanel() {
                   : "bg-white/5 border border-white/10 text-white/90"
               }`}>
                 {msg.role === "assistant" ? (
-                  <div className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
-                    {msg.content}
+                  <div className="prose prose-invert prose-sm max-w-none [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_pre]:bg-white/5 [&_pre]:rounded-lg [&_pre]:p-3 [&_code]:text-xs">
+                    <Streamdown>{msg.content}</Streamdown>
                   </div>
                 ) : (
-                  <p className="text-sm">{msg.content}</p>
+                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                 )}
               </div>
             </div>
@@ -721,6 +722,45 @@ function ChatPanel() {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   sendMessage();
+                }
+              }}
+              onPaste={(e) => {
+                const items = e.clipboardData?.items;
+                if (!items) return;
+                for (let i = 0; i < items.length; i++) {
+                  if (items[i].type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = items[i].getAsFile();
+                    if (!file) return;
+                    // Validate file size (10MB max)
+                    if (file.size > 10 * 1024 * 1024) {
+                      alert('画像サイズは10MB以下にしてください');
+                      return;
+                    }
+                    setIsUploading(true);
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    fetch('/api/chat-file-upload', {
+                      method: 'POST',
+                      body: formData,
+                      credentials: 'include',
+                    })
+                      .then(res => res.json())
+                      .then(data => {
+                        if (data.error) throw new Error(data.error);
+                        const previewUrl = URL.createObjectURL(file);
+                        setAttachedFile({
+                          type: 'image',
+                          url: data.url,
+                          fileName: data.fileName || 'pasted-image.png',
+                          mimeType: file.type,
+                          previewUrl,
+                        });
+                      })
+                      .catch(err => alert(err.message || '画像アップロードに失敗しました'))
+                      .finally(() => setIsUploading(false));
+                    break;
+                  }
                 }
               }}
               placeholder={voice.isRecording ? "正在听你说话..." : "问任何关于LCJ的问题...（Shift+Enter换行）"}
@@ -944,8 +984,12 @@ function DiagnosisPanel() {
 
   const handleAnswer = (key: string, value: string) => {
     setAnswers(prev => ({ ...prev, [key]: value }));
-    if (step < questions.length - 1) {
-      setStep(step + 1);
+    setStep(step + 1);
+  };
+
+  const handleBack = () => {
+    if (step > 0) {
+      setStep(step - 1);
     }
   };
 
@@ -973,9 +1017,58 @@ function DiagnosisPanel() {
           <button onClick={() => { setDiagnosis(null); setStep(0); setAnswers({}); setBrandName(""); }} className="text-xs text-violet-400 hover:text-violet-300">重新诊断</button>
         </div>
         <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-          <div className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
-            {diagnosis.report || diagnosis.response || JSON.stringify(diagnosis)}
-          </div>
+          {diagnosis.diagnosis ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-white/5 rounded-lg p-3 text-center">
+                  <p className="text-xs text-white/50">阶段</p>
+                  <p className="text-sm font-medium text-emerald-400">{diagnosis.diagnosis.stage}</p>
+                </div>
+                <div className="bg-white/5 rounded-lg p-3 text-center">
+                  <p className="text-xs text-white/50">风险</p>
+                  <p className="text-sm font-medium text-orange-400">{diagnosis.diagnosis.riskLevel}</p>
+                </div>
+                <div className="bg-white/5 rounded-lg p-3 text-center">
+                  <p className="text-xs text-white/50">推荐模式</p>
+                  <p className="text-sm font-medium text-violet-400">{diagnosis.diagnosis.recommendedModel}</p>
+                </div>
+              </div>
+              {diagnosis.diagnosis.summary && (
+                <div className="bg-white/5 rounded-lg p-4">
+                  <p className="text-xs text-white/50 mb-1">总结</p>
+                  <p className="text-sm text-white/80">{diagnosis.diagnosis.summary}</p>
+                </div>
+              )}
+              {diagnosis.diagnosis.strengths?.length > 0 && (
+                <div>
+                  <p className="text-xs text-white/50 mb-2">✅ 优势</p>
+                  <ul className="space-y-1">{diagnosis.diagnosis.strengths.map((s: string, i: number) => <li key={i} className="text-sm text-white/70">• {s}</li>)}</ul>
+                </div>
+              )}
+              {diagnosis.diagnosis.risks?.length > 0 && (
+                <div>
+                  <p className="text-xs text-white/50 mb-2">⚠️ 风险</p>
+                  <ul className="space-y-1">{diagnosis.diagnosis.risks.map((r: string, i: number) => <li key={i} className="text-sm text-white/70">• {r}</li>)}</ul>
+                </div>
+              )}
+              {diagnosis.diagnosis.recommendations?.length > 0 && (
+                <div>
+                  <p className="text-xs text-white/50 mb-2">💡 建议</p>
+                  <ul className="space-y-1">{diagnosis.diagnosis.recommendations.map((r: string, i: number) => <li key={i} className="text-sm text-white/70">{i+1}. {r}</li>)}</ul>
+                </div>
+              )}
+              {diagnosis.diagnosis.nextSteps?.length > 0 && (
+                <div>
+                  <p className="text-xs text-white/50 mb-2">🚀 下一步</p>
+                  <ul className="space-y-1">{diagnosis.diagnosis.nextSteps.map((s: string, i: number) => <li key={i} className="text-sm text-white/70">{i+1}. {s}</li>)}</ul>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
+              {diagnosis.raw || JSON.stringify(diagnosis)}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1029,14 +1122,28 @@ function DiagnosisPanel() {
           {/* 現在の質問 */}
           {step < questions.length ? (
             <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-              <p className="text-sm text-white/40 mb-1">问题 {step + 1}/{questions.length}</p>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-sm text-white/40">问题 {step + 1}/{questions.length}</p>
+                {step > 0 && (
+                  <button
+                    onClick={handleBack}
+                    className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1"
+                  >
+                    ← 上一题
+                  </button>
+                )}
+              </div>
               <p className="text-white font-medium mb-4">{questions[step].question}</p>
               <div className="grid grid-cols-1 gap-2">
                 {questions[step].options.map((opt, oi) => (
                   <button
                     key={oi}
                     onClick={() => handleAnswer(questions[step].key, opt)}
-                    className="text-left px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80 hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-300 transition-all"
+                    className={`text-left px-4 py-3 rounded-lg border text-sm transition-all ${
+                      answers[questions[step].key] === opt
+                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                        : 'bg-white/5 border-white/10 text-white/80 hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-300'
+                    }`}
                   >
                     {opt}
                   </button>
@@ -1067,7 +1174,7 @@ function DiagnosisPanel() {
 // ============================================================
 function TrainingPanel() {
   const [scenario, setScenario] = useState("");
-  const [conversation, setConversation] = useState<Array<{ role: "client" | "bd"; content: string; score?: number | null }>>([]);
+  const [conversation, setConversation] = useState<Array<{ role: "client" | "bd"; content: string; score?: string | null }>>([]);
   const [bdInput, setBdInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const trainingMutation = trpc.lcjBrain.training.useMutation();
@@ -1265,11 +1372,11 @@ function ScriptsPanel() {
     setIsLoading(true);
     try {
       const result = await scriptMutation.mutateAsync({
-        scene: selectedScene,
-        clientWords: clientWords || scenes.find(s => s.id === selectedScene)?.prefill || "",
-        brandContext: brandContext || undefined,
+        scenario: selectedScene,
+        clientObjection: clientWords || scenes.find(s => s.id === selectedScene)?.prefill || undefined,
+        brandInfo: brandContext || undefined,
       });
-      setGeneratedScript(result.script || result.response || "");
+      setGeneratedScript(result.script || "");
     } catch (error: any) {
       alert(`生成失败: ${error.message}`);
     } finally {
