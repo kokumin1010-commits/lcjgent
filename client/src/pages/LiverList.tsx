@@ -81,6 +81,18 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
     { date: selectedDay || '', agencyId: agencyId },
     { enabled: !!selectedDay }
   );
+
+  // All livers' daily sales for sparkline charts
+  const { data: allLiverDailySales } = trpc.liverManagement.allLiverDailySales.useQuery({
+    month: selectedMonth,
+    agencyId: agencyId,
+  });
+
+  // All livers' brand durations for the month
+  const { data: allLiverBrandDurations } = trpc.liverManagement.allLiverBrandDurations.useQuery({
+    month: selectedMonth,
+    agencyId: agencyId,
+  });
   
   // Determine display name
   const displayName = agencyName || "LCJ";
@@ -684,6 +696,52 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                             <span className="text-xs text-white/30 ml-2">{formatDuration((item as any).cumulativeDuration || 0)}h</span>
                           </div>
                         )}
+                        {/* Daily Sales Mini Chart */}
+                        {item.liverId && allLiverDailySales && (allLiverDailySales as any)[item.liverId] && (
+                          <div className="mt-2 pt-2 border-t border-white/5">
+                            <p className="text-[10px] text-white/40 mb-1">📊 今月の日別売上</p>
+                            <div className="flex items-end gap-[2px] h-8">
+                              {(() => {
+                                const dailyData = (allLiverDailySales as any)[item.liverId!] as { date: string; sales: number }[];
+                                const maxSales = Math.max(...dailyData.map(d => d.sales), 1);
+                                const [year, mon] = selectedMonth.split('-').map(Number);
+                                const daysInMonth = new Date(year, mon, 0).getDate();
+                                const salesByDay: Record<string, number> = {};
+                                dailyData.forEach(d => { salesByDay[d.date] = d.sales; });
+                                return Array.from({ length: daysInMonth }, (_, i) => {
+                                  const day = `${selectedMonth}-${String(i + 1).padStart(2, '0')}`;
+                                  const sales = salesByDay[day] || 0;
+                                  const height = sales > 0 ? Math.max(2, (sales / maxSales) * 28) : 0;
+                                  return (
+                                    <div
+                                      key={day}
+                                      className={`flex-1 rounded-sm ${sales > 0 ? 'bg-yellow-400/80' : 'bg-gray-700/30'}`}
+                                      style={{ height: `${height}px`, minWidth: '2px' }}
+                                      title={`${i + 1}日: \u00a5${sales.toLocaleString()}`}
+                                    />
+                                  );
+                                });
+                              })()}
+                            </div>
+                          </div>
+                        )}
+                        {/* Brand Duration Breakdown */}
+                        {item.liverId && allLiverBrandDurations && (allLiverBrandDurations as any)[item.liverId] && (allLiverBrandDurations as any)[item.liverId].length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-white/5">
+                            <p className="text-[10px] text-white/40 mb-1">🏷️ 今月のブランド別配信時間</p>
+                            <div className="flex flex-wrap gap-1">
+                              {((allLiverBrandDurations as any)[item.liverId!] as { brandId: number; brandName: string; durationMinutes: number }[]).map(brand => (
+                                <span
+                                  key={brand.brandId}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-900/40 border border-indigo-500/20 text-[10px]"
+                                >
+                                  <span className="text-indigo-300">{brand.brandName}</span>
+                                  <span className="text-white/60 font-medium">{brand.durationMinutes >= 60 ? `${Math.floor(brand.durationMinutes / 60)}h${brand.durationMinutes % 60 > 0 ? `${brand.durationMinutes % 60}m` : ''}` : `${brand.durationMinutes}m`}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </Link>
@@ -870,6 +928,52 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                             <span className="text-xs text-white/50">{tr.cumulative}: </span>
                             <span className="text-xs text-yellow-300/70 font-medium">{formatCurrency((item as any).cumulativeSales)}</span>
                             <span className="text-xs text-white/30 ml-2">{formatDuration((item as any).cumulativeDuration || 0)}h</span>
+                          </div>
+                        )}
+                        {/* Daily Sales Mini Chart */}
+                        {item.liverId && allLiverDailySales && (allLiverDailySales as any)[item.liverId] && (
+                          <div className="mt-2 pt-2 border-t border-white/5">
+                            <p className="text-[10px] text-white/40 mb-1">📊 今月の日別売上</p>
+                            <div className="flex items-end gap-[2px] h-8">
+                              {(() => {
+                                const dailyData = (allLiverDailySales as any)[item.liverId!] as { date: string; sales: number }[];
+                                const maxSales = Math.max(...dailyData.map(d => d.sales), 1);
+                                const [year, mon] = selectedMonth.split('-').map(Number);
+                                const daysInMonth = new Date(year, mon, 0).getDate();
+                                const salesByDay: Record<string, number> = {};
+                                dailyData.forEach(d => { salesByDay[d.date] = d.sales; });
+                                return Array.from({ length: daysInMonth }, (_, i) => {
+                                  const day = `${selectedMonth}-${String(i + 1).padStart(2, '0')}`;
+                                  const sales = salesByDay[day] || 0;
+                                  const height = sales > 0 ? Math.max(2, (sales / maxSales) * 28) : 0;
+                                  return (
+                                    <div
+                                      key={day}
+                                      className={`flex-1 rounded-sm ${sales > 0 ? 'bg-yellow-400/80' : 'bg-gray-700/30'}`}
+                                      style={{ height: `${height}px`, minWidth: '2px' }}
+                                      title={`${i + 1}日: \u00a5${sales.toLocaleString()}`}
+                                    />
+                                  );
+                                });
+                              })()}
+                            </div>
+                          </div>
+                        )}
+                        {/* Brand Duration Breakdown */}
+                        {item.liverId && allLiverBrandDurations && (allLiverBrandDurations as any)[item.liverId] && (allLiverBrandDurations as any)[item.liverId].length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-white/5">
+                            <p className="text-[10px] text-white/40 mb-1">🏷️ 今月のブランド別配信時間</p>
+                            <div className="flex flex-wrap gap-1">
+                              {((allLiverBrandDurations as any)[item.liverId!] as { brandId: number; brandName: string; durationMinutes: number }[]).map(brand => (
+                                <span
+                                  key={brand.brandId}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-900/40 border border-indigo-500/20 text-[10px]"
+                                >
+                                  <span className="text-indigo-300">{brand.brandName}</span>
+                                  <span className="text-white/60 font-medium">{brand.durationMinutes >= 60 ? `${Math.floor(brand.durationMinutes / 60)}h${brand.durationMinutes % 60 > 0 ? `${brand.durationMinutes % 60}m` : ''}` : `${brand.durationMinutes}m`}</span>
+                                </span>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>

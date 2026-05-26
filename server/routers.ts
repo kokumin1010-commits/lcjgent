@@ -218,6 +218,8 @@ import {
   getLiverRecentLivestreams,
   getLiverGrowthData,
   getLiverBrandPerformance,
+  getAllLiverDailySales,
+  getAllLiverBrandDurations,
   getTopProductsByLiver,
   getLiverCategoryAnalysis,
   getAllProductCategoryMappings,
@@ -12057,6 +12059,20 @@ ${conversationText}
       }))
       .query(async ({ input }) => {
         return await getLiverBrandPerformance(input.liverId, input.month);
+      }),
+
+    // Get all livers' daily sales for a month (全ライバーの月間日別売上)
+    allLiverDailySales: publicProcedure
+      .input(z.object({ month: z.string(), agencyId: z.number().nullable().optional() }))
+      .query(async ({ input }) => {
+        return await getAllLiverDailySales(input.month, input.agencyId);
+      }),
+
+    // Get all livers' brand durations for a month (全ライバーのブランド別配信時間)
+    allLiverBrandDurations: publicProcedure
+      .input(z.object({ month: z.string(), agencyId: z.number().nullable().optional() }))
+      .query(async ({ input }) => {
+        return await getAllLiverBrandDurations(input.month, input.agencyId);
       }),
 
     // Get top selling products by liver (ライバー別売れ筋商品ランキング)

@@ -25134,3 +25134,106 @@ export async function ensureBrandAdReportsTables() {
     }
   }
 }
+
+
+// ========== Liver Daily Sales & Brand Durations (for LiverList page) ==========
+
+/**
+ * Get all livers' daily sales for a specific month
+ * Returns: { [liverId]: [{ date: "2026-05-01", sales: 12345 }, ...] }
+ */
+export async function getAllLiverDailySales(month: string, agencyId?: number | null) {
+  const db = await getDb();
+  if (!db) return {};
+  
+  const { startDate, endDate } = getJSTMonthRange(month);
+  
+  const agencyFilter = agencyId === null 
+    ? isNull(livers.agencyId)
+    : agencyId !== undefined 
+      ? eq(livers.agencyId, agencyId)
+      : undefined;
+  
+  const conditions: any[] = [
+    isNull(brandLivestreams.deletedAt),
+    sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+    sql`${brandLivestreams.livestreamDate} <= ${endDate}`,
+    isNotNull(brandLivestreams.liverId),
+  ];
+  if (agencyFilter) conditions.push(agencyFilter);
+  
+  const rows = await db
+    .select({
+      liverId: brandLivestreams.liverId,
+      date: sql<string>`DATE(CONVERT_TZ(${brandLivestreams.livestreamDate}, '+00:00', '+09:00'))`,
+      sales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+    })
+    .from(brandLivestreams)
+    .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
+    .where(and(...conditions))
+    .groupBy(brandLivestreams.liverId, sql`DATE(CONVERT_TZ(${brandLivestreams.livestreamDate}, '+00:00', '+09:00'))`)
+    .orderBy(sql`DATE(CONVERT_TZ(${brandLivestreams.livestreamDate}, '+00:00', '+09:00'))`);
+  
+  // Group by liverId
+  const result: Record<number, { date: string; sales: number }[]> = {};
+  for (const row of rows) {
+    if (!row.liverId) continue;
+    if (!result[row.liverId]) result[row.liverId] = [];
+    result[row.liverId].push({ date: row.date, sales: Number(row.sales) });
+  }
+  return result;
+}
+
+/**
+ * Get all livers' brand durations for a specific month
+ * Returns: { [liverId]: [{ brandId: 1, brandName: "KYOGOKU", durationMinutes: 120 }, ...] }
+ */
+export async function getAllLiverBrandDurations(month: string, agencyId?: number | null) {
+  const db = await getDb();
+  if (!db) return {};
+  
+  const { startDate, endDate } = getJSTMonthRange(month);
+  
+  const agencyFilter = agencyId === null 
+    ? isNull(livers.agencyId)
+    : agencyId !== undefined 
+      ? eq(livers.agencyId, agencyId)
+      : undefined;
+  
+  const conditions: any[] = [
+    isNull(brandLivestreams.deletedAt),
+    sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+    sql`${brandLivestreams.livestreamDate} <= ${endDate}`,
+    isNotNull(brandLivestreams.liverId),
+  ];
+  if (agencyFilter) conditions.push(agencyFilter);
+  
+  // Get brand durations from livestream_brands table (joined via brandLivestreams)
+  const rows = await db
+    .select({
+      liverId: brandLivestreams.liverId,
+      brandId: livestreamBrands.brandId,
+      brandName: brands.name,
+      durationMinutes: sql<number>`COALESCE(SUM(${livestreamBrands.durationMinutes}), 0)`,
+    })
+    .from(livestreamBrands)
+    .innerJoin(brandLivestreams, eq(livestreamBrands.livestreamId, brandLivestreams.id))
+    .leftJoin(brands, eq(livestreamBrands.brandId, brands.id))
+    .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
+    .where(and(...conditions))
+    .groupBy(brandLivestreams.liverId, livestreamBrands.brandId, brands.name)
+    .orderBy(sql`SUM(${livestreamBrands.durationMinutes}) DESC`);
+  
+  // Group by liverId
+  const result: Record<number, { brandId: number; brandName: string; durationMinutes: number }[]> = {};
+  for (const row of rows) {
+    if (!row.liverId) continue;
+    if (!result[row.liverId]) result[row.liverId] = [];
+    result[row.liverId].push({
+      brandId: row.brandId,
+      brandName: row.brandName || `Brand ${row.brandId}`,
+      durationMinutes: Number(row.durationMinutes),
+    });
+  }
+  return result;
+}
