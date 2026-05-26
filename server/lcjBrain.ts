@@ -17,8 +17,33 @@ import {
   schedules,
   brandProducts,
   lcjBrainChatLogs,
+  lcjBrainConversations,
 } from "../drizzle/schema";
 import { eq, desc, and, gte, lte, isNull, sql, like, or, count, sum } from "drizzle-orm";
+
+// Auto-migration for conversations table
+let _migrated = false;
+async function ensureConversationsTable() {
+  if (_migrated) return;
+  _migrated = true;
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS lcj_brain_conversations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      userId INT NOT NULL,
+      userName VARCHAR(100),
+      title VARCHAR(255) NOT NULL,
+      context VARCHAR(50) DEFAULT 'chat',
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      INDEX idx_userId (userId),
+      INDEX idx_updatedAt (updatedAt)
+    )`);
+    await db.execute(sql`ALTER TABLE lcj_brain_chat_logs ADD COLUMN IF NOT EXISTS conversationId INT DEFAULT NULL`);
+  } catch (e) { /* table exists */ }
+}
+
 
 // ============================================================
 // 宝典知識ベース（システムプロンプトに組み込む）
@@ -590,8 +615,10 @@ export const lcjBrainRouter = router({
         content: z.string(),
       })).optional().default([]),
       context: z.enum(["general", "bd", "brand_analysis", "liver_match", "talk_script"]).optional().default("general"),
+      conversationId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      await ensureConversationsTable();
       const { message, history, context } = input;
       const userName = ctx.user?.name || ctx.user?.email || "unknown";
       const userId = ctx.user?.id || null;
@@ -672,15 +699,33 @@ ${dataContext || "（暂无相关数据）"}
           // 後続質問生成失敗は無視
         }
 
-        // チャットログをDBに保存（ユーザー名付き）
+        // チャットログをDBに保存（会話管理付き）
         const db = await getDb();
+        let activeConversationId = input.conversationId || null;
         if (db) {
-          const sessionId = `session_${Date.now()}`;
           try {
+            // 会話IDがない場合、新しい会話を作成
+            if (!activeConversationId && userId) {
+              const title = message.length > 50 ? message.substring(0, 50) + "..." : message;
+              const [newConv] = await db.insert(lcjBrainConversations).values({
+                userId,
+                userName,
+                title,
+                context: context || "chat",
+              }).$returningId();
+              activeConversationId = newConv.id;
+            }
+            const sessionId = `conv_${activeConversationId || Date.now()}`;
             await db.insert(lcjBrainChatLogs).values([
-              { role: "user", content: message, context: context || "chat", sessionId, userId, userName },
-              { role: "assistant", content: responseText, context: context || "chat", sessionId, userId, userName: "AI", suggestedQuestions: JSON.stringify(suggestedQuestions) },
+              { role: "user", content: message, context: context || "chat", sessionId, userId, userName, conversationId: activeConversationId },
+              { role: "assistant", content: responseText, context: context || "chat", sessionId, userId, userName: "AI", suggestedQuestions: JSON.stringify(suggestedQuestions), conversationId: activeConversationId },
             ]);
+            // 会話のupdatedAtを更新
+            if (activeConversationId) {
+              await db.update(lcjBrainConversations)
+                .set({ updatedAt: new Date() })
+                .where(eq(lcjBrainConversations.id, activeConversationId));
+            }
           } catch (e) {
             console.error("[LCJ Brain] Failed to save chat log:", e);
           }
@@ -690,6 +735,7 @@ ${dataContext || "（暂无相关数据）"}
           response: responseText,
           dataSourcesUsed: dataContext ? dataContext.split("##").length - 1 : 0,
           suggestedQuestions,
+          conversationId: activeConversationId,
         };
       } catch (error: any) {
         console.error("[LCJ Brain] AI error:", error.message);
@@ -1086,4 +1132,86 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
         return [];
       }
     }),
+
+  // ============================================================
+  // 会話管理API（GPTライクなサイドバー用）
+  // ============================================================
+
+  // ユーザーの会話一覧を取得
+  getMyConversations: protectedProcedure
+    .query(async ({ ctx }) => {
+      await ensureConversationsTable();
+      const db = await getDb();
+      if (!db || !ctx.user?.id) return [];
+      try {
+        const conversations = await db.select()
+          .from(lcjBrainConversations)
+          .where(eq(lcjBrainConversations.userId, ctx.user.id))
+          .orderBy(desc(lcjBrainConversations.updatedAt))
+          .limit(50);
+        return conversations;
+      } catch (error: any) {
+        console.error("[LCJ Brain] getMyConversations error:", error.message);
+        return [];
+      }
+    }),
+
+  // 特定の会話のメッセージを取得
+  getConversationMessages: protectedProcedure
+    .input(z.object({ conversationId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) return [];
+      try {
+        const messages = await db.select()
+          .from(lcjBrainChatLogs)
+          .where(eq(lcjBrainChatLogs.conversationId, input.conversationId))
+          .orderBy(lcjBrainChatLogs.createdAt);
+        return messages;
+      } catch (error: any) {
+        console.error("[LCJ Brain] getConversationMessages error:", error.message);
+        return [];
+      }
+    }),
+
+  // 会話を削除
+  deleteConversation: protectedProcedure
+    .input(z.object({ conversationId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db || !ctx.user?.id) return { success: false };
+      try {
+        await db.delete(lcjBrainChatLogs)
+          .where(eq(lcjBrainChatLogs.conversationId, input.conversationId));
+        await db.delete(lcjBrainConversations)
+          .where(and(
+            eq(lcjBrainConversations.id, input.conversationId),
+            eq(lcjBrainConversations.userId, ctx.user.id)
+          ));
+        return { success: true };
+      } catch (error: any) {
+        console.error("[LCJ Brain] deleteConversation error:", error.message);
+        return { success: false };
+      }
+    }),
+
+  // 全ユーザーの会話一覧（管理者用）
+  getAllConversations: protectedProcedure
+    .input(z.object({ password: z.string() }))
+    .query(async ({ input }) => {
+      if (input.password !== "lcj2024brain") return [];
+      const db = await getDb();
+      if (!db) return [];
+      try {
+        const conversations = await db.select()
+          .from(lcjBrainConversations)
+          .orderBy(desc(lcjBrainConversations.updatedAt))
+          .limit(200);
+        return conversations;
+      } catch (error: any) {
+        console.error("[LCJ Brain] getAllConversations error:", error.message);
+        return [];
+      }
+    }),
+
 });

@@ -5929,6 +5929,7 @@ export const lcjBrainChatLogs = mysqlTable("lcj_brain_chat_logs", {
   userId: int("userId"), // staff or user ID
   userName: varchar("userName", { length: 100 }),
   sessionId: varchar("sessionId", { length: 100 }), // チャットセッションID
+  conversationId: int("conversationId"), // 会話ID
   role: varchar("role", { length: 20 }).notNull(), // user | assistant
   content: text("content").notNull(),
   context: varchar("context", { length: 50 }), // chat | diagnosis | training | scripts | scoring
@@ -5936,3 +5937,17 @@ export const lcjBrainChatLogs = mysqlTable("lcj_brain_chat_logs", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type LcjBrainChatLog = typeof lcjBrainChatLogs.$inferSelect;
+
+// LCJ Brain 会話（GPTのような会話管理）
+// ============================================================
+export const lcjBrainConversations = mysqlTable("lcj_brain_conversations", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: int("userId").notNull(),
+  userName: varchar("userName", { length: 100 }),
+  title: varchar("title", { length: 255 }).notNull(),
+  context: varchar("context", { length: 50 }).default("chat"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type LcjBrainConversation = typeof lcjBrainConversations.$inferSelect;
+export type InsertLcjBrainConversation = typeof lcjBrainConversations.$inferInsert;

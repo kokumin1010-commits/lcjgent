@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useAuth } from "../_core/hooks/useAuth";
 import { trpc } from "../lib/trpc";
 import { useLocation } from "wouter";
 import { 
@@ -6,7 +7,7 @@ import {
   Zap, Users, TrendingUp, FileText, Mic, StopCircle,
   ChevronRight, BarChart3, Lightbulb, Shield, GraduationCap,
   ClipboardList, Star, AlertTriangle, CheckCircle2, ArrowRight,
-  History, Search, MicOff, Volume2
+  History, Search, MicOff, Volume2, Plus, Trash2, MessageSquare, PanelLeftClose, PanelLeft
 } from "lucide-react";
 
 // ============================================================
@@ -235,11 +236,39 @@ export default function LcjBrain() {
 // AI対話パネル（升級版：後続質問ボタン + 語音入力強化）
 // ============================================================
 function ChatPanel() {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; suggestedQuestions?: string[] }>>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatMutation = trpc.lcjBrain.chat.useMutation();
+  const deleteConversation = trpc.lcjBrain.deleteConversation.useMutation();
+  
+  // 会話一覧を取得
+  const { data: conversations, refetch: refetchConversations } = trpc.lcjBrain.getMyConversations.useQuery(
+    undefined,
+    { enabled: !!user }
+  );
+  
+  // 選択中の会話のメッセージを取得
+  const { data: conversationMessages } = trpc.lcjBrain.getConversationMessages.useQuery(
+    { conversationId: activeConversationId! },
+    { enabled: !!activeConversationId }
+  );
+  
+  // 会話メッセージが読み込まれたらmessagesに反映
+  useEffect(() => {
+    if (conversationMessages && activeConversationId) {
+      const msgs = conversationMessages.map(m => ({
+        role: m.role as "user" | "assistant",
+        content: m.content || "",
+        suggestedQuestions: m.suggestedQuestions ? JSON.parse(m.suggestedQuestions) : undefined,
+      }));
+      setMessages(msgs);
+    }
+  }, [conversationMessages, activeConversationId]);
 
   const voice = useVoiceInput((text) => setInput(text));
 
@@ -250,6 +279,29 @@ function ChatPanel() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
+  
+  // 新しい会話を開始
+  const startNewConversation = () => {
+    setActiveConversationId(null);
+    setMessages([]);
+    setInput("");
+  };
+  
+  // 会話を選択
+  const selectConversation = (id: number) => {
+    setActiveConversationId(id);
+  };
+  
+  // 会話を削除
+  const handleDeleteConversation = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("この会話を削除しますか？")) return;
+    await deleteConversation.mutateAsync({ conversationId: id });
+    if (activeConversationId === id) {
+      startNewConversation();
+    }
+    refetchConversations();
+  };
 
   const sendMessage = async (text?: string) => {
     const msg = text || input.trim();
@@ -263,12 +315,20 @@ function ChatPanel() {
     setIsLoading(true);
 
     try {
-      const result = await chatMutation.mutateAsync({ message: msg });
+      const result = await chatMutation.mutateAsync({ 
+        message: msg,
+        conversationId: activeConversationId || undefined,
+      });
       setMessages(prev => [...prev, { 
         role: "assistant", 
         content: result.response,
         suggestedQuestions: result.suggestedQuestions || [],
       }]);
+      // 新しい会話が作成された場合、IDを保存
+      if (result.conversationId && !activeConversationId) {
+        setActiveConversationId(result.conversationId);
+      }
+      refetchConversations();
     } catch (error: any) {
       setMessages(prev => [...prev, { role: "assistant", content: `错误: ${error.message}` }]);
     } finally {
@@ -286,10 +346,76 @@ function ChatPanel() {
   ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-200px)]">
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto space-y-4 pb-4">
-        {messages.length === 0 && (
+    <div className="flex h-[calc(100vh-200px)]">
+      {/* Sidebar - 会話履歴 */}
+      <div className={`${sidebarOpen ? "w-64" : "w-0"} transition-all duration-200 overflow-hidden border-r border-white/10 flex-shrink-0`}>
+        <div className="w-64 h-full flex flex-col">
+          {/* 新しい会話ボタン */}
+          <button
+            onClick={startNewConversation}
+            className="m-2 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-violet-600/20 border border-violet-500/30 text-violet-300 hover:bg-violet-600/30 hover:text-white transition-all text-sm font-medium"
+          >
+            <Plus className="w-4 h-4" />
+            新しい会話
+          </button>
+          
+          {/* 会話リスト */}
+          <div className="flex-1 overflow-y-auto px-2 space-y-0.5">
+            {conversations?.map((conv) => (
+              <div
+                key={conv.id}
+                onClick={() => selectConversation(conv.id)}
+                className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all text-sm ${
+                  activeConversationId === conv.id
+                    ? "bg-white/10 text-white"
+                    : "text-white/60 hover:bg-white/5 hover:text-white/80"
+                }`}
+              >
+                <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 opacity-50" />
+                <span className="flex-1 truncate">{conv.title}</span>
+                <button
+                  onClick={(e) => handleDeleteConversation(conv.id, e)}
+                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded transition-all"
+                >
+                  <Trash2 className="w-3 h-3 text-red-400" />
+                </button>
+              </div>
+            ))}
+            {(!conversations || conversations.length === 0) && (
+              <p className="text-xs text-white/30 text-center py-4">まだ会話がありません</p>
+            )}
+          </div>
+          
+          {/* ユーザー情報 */}
+          {user && (
+            <div className="p-3 border-t border-white/10">
+              <p className="text-xs text-white/40 truncate">👤 {user.name || user.email}</p>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* サイドバートグル */}
+        <div className="flex items-center gap-2 px-2 py-1 border-b border-white/5">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-1.5 rounded-lg hover:bg-white/5 text-white/40 hover:text-white/70 transition-all"
+            title={sidebarOpen ? "サイドバーを閉じる" : "サイドバーを開く"}
+          >
+            {sidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
+          </button>
+          {activeConversationId && (
+            <span className="text-xs text-white/30">
+              {conversations?.find(c => c.id === activeConversationId)?.title}
+            </span>
+          )}
+        </div>
+        
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto space-y-4 pb-4 px-4">
+          {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500/20 to-indigo-500/20 flex items-center justify-center mb-4 border border-violet-500/20">
               <Brain className="w-8 h-8 text-violet-400" />
@@ -462,6 +588,7 @@ function ChatPanel() {
             点击 🎤 开始语音输入，支持中文、日文
           </p>
         )}
+        </div>
       </div>
     </div>
   );
