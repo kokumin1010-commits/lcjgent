@@ -101,6 +101,12 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
     month: selectedMonth,
     agencyId: agencyId,
   });
+
+  // All livers' brand efficiency (全ライバーのブランド別時間単価)
+  const { data: allLiverBrandEfficiency } = trpc.liverManagement.allLiverBrandEfficiency.useQuery({
+    month: selectedMonth,
+    agencyId: agencyId,
+  });
   
   // Determine display name
   const displayName = agencyName || "LCJ";
@@ -866,6 +872,43 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                             </div>
                           </div>
                         )}
+                        {/* Brand Efficiency Badges (ブランド別時間単価バッジ) */}
+                        {item.liverId && allLiverBrandEfficiency && (allLiverBrandEfficiency as any)[item.liverId] && (allLiverBrandEfficiency as any)[item.liverId].length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-white/5">
+                            <p className="text-[10px] text-white/40 mb-1">💰 ブランド別時間単価</p>
+                            <div className="flex flex-wrap gap-1">
+                              {((allLiverBrandEfficiency as any)[item.liverId!] as { brandId: number; brandName: string; totalHours: number; csvGmv: number; hourlyRate: number }[])
+                                .filter((b: any) => b.totalHours > 0 && b.csvGmv > 0)
+                                .slice(0, 5)
+                                .map((brand: any) => {
+                                  const isHigh = brand.hourlyRate >= 50000;
+                                  const isLow = brand.hourlyRate > 0 && brand.hourlyRate < 15000;
+                                  const icon = isHigh ? '🔥' : isLow ? '⚠️' : '';
+                                  const bgClass = isHigh 
+                                    ? 'bg-orange-900/40 border-orange-500/30' 
+                                    : isLow 
+                                      ? 'bg-red-900/30 border-red-500/20' 
+                                      : 'bg-emerald-900/30 border-emerald-500/20';
+                                  const textClass = isHigh 
+                                    ? 'text-orange-300' 
+                                    : isLow 
+                                      ? 'text-red-300' 
+                                      : 'text-emerald-300';
+                                  return (
+                                    <span
+                                      key={brand.brandId}
+                                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] ${bgClass}`}
+                                      title={`${brand.brandName}: ¥${brand.hourlyRate.toLocaleString()}/h (売上¥${brand.csvGmv.toLocaleString()} / ${brand.totalHours}h)`}
+                                    >
+                                      {icon && <span>{icon}</span>}
+                                      <span className={textClass}>{brand.brandName}</span>
+                                      <span className="text-white/70 font-bold">¥{brand.hourlyRate >= 10000 ? `${Math.round(brand.hourlyRate / 10000)}万` : brand.hourlyRate.toLocaleString()}/h</span>
+                                    </span>
+                                  );
+                                })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </Link>
@@ -1100,6 +1143,43 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                             </div>
                           </div>
                         )}
+                        {/* Brand Efficiency Badges (ブランド別時間単価バッジ) */}
+                        {item.liverId && allLiverBrandEfficiency && (allLiverBrandEfficiency as any)[item.liverId] && (allLiverBrandEfficiency as any)[item.liverId].length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-white/5">
+                            <p className="text-[10px] text-white/40 mb-1">💰 ブランド別時間単価</p>
+                            <div className="flex flex-wrap gap-1">
+                              {((allLiverBrandEfficiency as any)[item.liverId!] as { brandId: number; brandName: string; totalHours: number; csvGmv: number; hourlyRate: number }[])
+                                .filter((b: any) => b.totalHours > 0 && b.csvGmv > 0)
+                                .slice(0, 5)
+                                .map((brand: any) => {
+                                  const isHigh = brand.hourlyRate >= 50000;
+                                  const isLow = brand.hourlyRate > 0 && brand.hourlyRate < 15000;
+                                  const icon = isHigh ? '🔥' : isLow ? '⚠️' : '';
+                                  const bgClass = isHigh 
+                                    ? 'bg-orange-900/40 border-orange-500/30' 
+                                    : isLow 
+                                      ? 'bg-red-900/30 border-red-500/20' 
+                                      : 'bg-emerald-900/30 border-emerald-500/20';
+                                  const textClass = isHigh 
+                                    ? 'text-orange-300' 
+                                    : isLow 
+                                      ? 'text-red-300' 
+                                      : 'text-emerald-300';
+                                  return (
+                                    <span
+                                      key={brand.brandId}
+                                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] ${bgClass}`}
+                                      title={`${brand.brandName}: ¥${brand.hourlyRate.toLocaleString()}/h (売上¥${brand.csvGmv.toLocaleString()} / ${brand.totalHours}h)`}
+                                    >
+                                      {icon && <span>{icon}</span>}
+                                      <span className={textClass}>{brand.brandName}</span>
+                                      <span className="text-white/70 font-bold">¥{brand.hourlyRate >= 10000 ? `${Math.round(brand.hourlyRate / 10000)}万` : brand.hourlyRate.toLocaleString()}/h</span>
+                                    </span>
+                                  );
+                                })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </Link>
@@ -1208,6 +1288,153 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
         {/* 目標設定状況一覧 */}
         <GoalStatusSection selectedMonth={selectedMonth} agencyId={agencyId} />
 
+
+        {/* ブランド効率アラート・レコメンデーション */}
+        {allLiverBrandEfficiency && Object.keys(allLiverBrandEfficiency).length > 0 && (
+          <Card className="bg-gray-900/80 border-gray-700">
+            <CardContent className="p-4">
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
+                <Target className="w-5 h-5 text-cyan-500" />
+                ブランド配信効率アラート（{monthOptions.find(m => m.value === selectedMonth)?.label}）
+              </h2>
+              <p className="text-xs text-white/50 mb-4">ライバーごとのブランド別時間単価を分析し、最適な配信ブランド配分を提案します。🔥=高効率（¥5万+/h） ⚠️=低効率（¥1.5万未満/h）</p>
+              
+              {(() => {
+                // Collect all brand-liver efficiency data
+                type EffEntry = { liverId: number; liverName: string; brandName: string; hourlyRate: number; totalHours: number; csvGmv: number };
+                const allEntries: EffEntry[] = [];
+                const effData = allLiverBrandEfficiency as Record<number, { brandId: number; brandName: string; totalHours: number; csvGmv: number; hourlyRate: number }[]>;
+                
+                for (const [liverIdStr, brands] of Object.entries(effData)) {
+                  const liverId = Number(liverIdStr);
+                  const liverInfo = rankings?.salesRanking?.find(r => r.liverId === liverId) || rankings?.durationRanking?.find(r => r.liverId === liverId);
+                  const liverName = (liverInfo as any)?.liverName || (liverInfo as any)?.streamerName || `Liver ${liverId}`;
+                  for (const brand of brands) {
+                    if (brand.totalHours > 0 && brand.csvGmv > 0) {
+                      allEntries.push({ liverId, liverName, brandName: brand.brandName, hourlyRate: brand.hourlyRate, totalHours: brand.totalHours, csvGmv: brand.csvGmv });
+                    }
+                  }
+                }
+
+                // Sort by hourly rate descending
+                allEntries.sort((a, b) => b.hourlyRate - a.hourlyRate);
+                
+                // Top performers (high efficiency)
+                const topPerformers = allEntries.filter(e => e.hourlyRate >= 50000).slice(0, 8);
+                // Low performers (low efficiency with significant hours)
+                const lowPerformers = allEntries.filter(e => e.hourlyRate < 15000 && e.totalHours >= 2).slice(-8).reverse();
+                
+                // Brand-level aggregation: which brands are most efficient overall
+                const brandAgg = new Map<string, { totalGmv: number; totalHours: number; liverCount: number }>();
+                for (const entry of allEntries) {
+                  const existing = brandAgg.get(entry.brandName);
+                  if (existing) {
+                    existing.totalGmv += entry.csvGmv;
+                    existing.totalHours += entry.totalHours;
+                    existing.liverCount += 1;
+                  } else {
+                    brandAgg.set(entry.brandName, { totalGmv: entry.csvGmv, totalHours: entry.totalHours, liverCount: 1 });
+                  }
+                }
+                const brandRanking = Array.from(brandAgg.entries())
+                  .map(([name, data]) => ({ name, avgRate: Math.round(data.totalGmv / data.totalHours), ...data }))
+                  .sort((a, b) => b.avgRate - a.avgRate);
+
+                // Recommendations: who should do more of which brand
+                const recommendations: { liverName: string; currentBrand: string; currentRate: number; suggestedBrand: string; suggestedRate: number }[] = [];
+                for (const entry of lowPerformers) {
+                  // Find a brand that this liver is good at (or that is generally high-efficiency)
+                  const liverBrands = allEntries.filter(e => e.liverId === entry.liverId && e.hourlyRate > entry.hourlyRate);
+                  const bestBrand = liverBrands[0] || (brandRanking.length > 0 ? { brandName: brandRanking[0].name, hourlyRate: brandRanking[0].avgRate } : null);
+                  if (bestBrand && (bestBrand as any).hourlyRate > entry.hourlyRate * 1.5) {
+                    recommendations.push({
+                      liverName: entry.liverName,
+                      currentBrand: entry.brandName,
+                      currentRate: entry.hourlyRate,
+                      suggestedBrand: (bestBrand as any).brandName,
+                      suggestedRate: (bestBrand as any).hourlyRate,
+                    });
+                  }
+                }
+
+                return (
+                  <div className="space-y-4">
+                    {/* Brand Overall Ranking */}
+                    {brandRanking.length > 0 && (
+                      <div className="p-3 rounded-lg bg-gradient-to-r from-cyan-900/20 to-blue-900/20 border border-cyan-500/20">
+                        <p className="text-xs font-bold text-cyan-300 mb-2">📊 ブランド別平均時間単価ランキング</p>
+                        <div className="flex flex-wrap gap-2">
+                          {brandRanking.slice(0, 8).map((brand, idx) => (
+                            <div key={brand.name} className="flex items-center gap-1.5 px-2 py-1 rounded bg-gray-800/60 border border-gray-600/30">
+                              <span className="text-xs font-bold text-yellow-400">#{idx + 1}</span>
+                              <span className="text-xs text-white">{brand.name}</span>
+                              <span className="text-xs font-bold text-cyan-300">¥{brand.avgRate >= 10000 ? `${Math.round(brand.avgRate / 10000)}万` : brand.avgRate.toLocaleString()}/h</span>
+                              <span className="text-[10px] text-white/40">({brand.liverCount}名)</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Top Performers */}
+                    {topPerformers.length > 0 && (
+                      <div className="p-3 rounded-lg bg-gradient-to-r from-orange-900/20 to-amber-900/20 border border-orange-500/20">
+                        <p className="text-xs font-bold text-orange-300 mb-2">🔥 高効率配信（¥5万+/h）— このブランドをもっと振るべき</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {topPerformers.map((entry, idx) => (
+                            <div key={`${entry.liverId}-${entry.brandName}-${idx}`} className="flex items-center gap-2 px-2 py-1.5 rounded bg-gray-800/40">
+                              <span className="text-xs text-white font-medium truncate max-w-[80px]">{entry.liverName}</span>
+                              <span className="text-[10px] text-orange-300">×</span>
+                              <span className="text-xs text-orange-200 font-medium">{entry.brandName}</span>
+                              <span className="text-xs font-bold text-orange-400 ml-auto">¥{Math.round(entry.hourlyRate / 10000)}万/h</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Low Performers */}
+                    {lowPerformers.length > 0 && (
+                      <div className="p-3 rounded-lg bg-gradient-to-r from-red-900/20 to-pink-900/20 border border-red-500/20">
+                        <p className="text-xs font-bold text-red-300 mb-2">⚠️ 低効率配信（¥1.5万未満/h）— 配信ブランド見直し推奨</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {lowPerformers.map((entry, idx) => (
+                            <div key={`${entry.liverId}-${entry.brandName}-${idx}`} className="flex items-center gap-2 px-2 py-1.5 rounded bg-gray-800/40">
+                              <span className="text-xs text-white font-medium truncate max-w-[80px]">{entry.liverName}</span>
+                              <span className="text-[10px] text-red-300">×</span>
+                              <span className="text-xs text-red-200 font-medium">{entry.brandName}</span>
+                              <span className="text-xs font-bold text-red-400 ml-auto">¥{entry.hourlyRate.toLocaleString()}/h</span>
+                              <span className="text-[10px] text-white/30">({entry.totalHours}h)</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Recommendations */}
+                    {recommendations.length > 0 && (
+                      <div className="p-3 rounded-lg bg-gradient-to-r from-emerald-900/20 to-teal-900/20 border border-emerald-500/20">
+                        <p className="text-xs font-bold text-emerald-300 mb-2">💡 レコメンデーション — 配信ブランド変更提案</p>
+                        <div className="space-y-2">
+                          {recommendations.slice(0, 5).map((rec, idx) => (
+                            <div key={idx} className="flex items-center gap-2 px-2 py-1.5 rounded bg-gray-800/40 text-xs">
+                              <span className="text-white font-medium truncate max-w-[80px]">{rec.liverName}</span>
+                              <span className="text-red-300 line-through">{rec.currentBrand}</span>
+                              <span className="text-red-400 text-[10px]">¥{rec.currentRate.toLocaleString()}/h</span>
+                              <span className="text-white/50">→</span>
+                              <span className="text-emerald-300 font-bold">{rec.suggestedBrand}</span>
+                              <span className="text-emerald-400 text-[10px]">¥{rec.suggestedRate >= 10000 ? `${Math.round(rec.suggestedRate / 10000)}万` : rec.suggestedRate.toLocaleString()}/h</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        )}
         {/* セット一覧（全ライバー） */}
         {allSetsData && allSetsData.sets.length > 0 && (
           <Card className="bg-gray-900/80 border-gray-700">

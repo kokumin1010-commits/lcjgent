@@ -25306,3 +25306,265 @@ export async function getAllSetsForMonth(month: string, agencyId?: number | null
     },
   };
 }
+
+
+// =====================================================
+// All Liver Brand Efficiency (全ライバーのブランド別時間単価)
+// =====================================================
+/**
+ * Get brand efficiency (hourly rate = sales / hours) for ALL livers in a given month.
+ * Used for the /livers page efficiency alerts and recommendations.
+ * Returns: Record<liverId, { brandId, brandName, totalHours, csvGmv, hourlyRate }[]>
+ */
+export async function getAllLiverBrandEfficiency(month: string, agencyId?: number | null) {
+  const db = await getDb();
+  if (!db) return {};
+  const { startDate, endDate } = getJSTMonthRange(month);
+  const agencyFilter = agencyId === null 
+    ? isNull(livers.agencyId)
+    : agencyId !== undefined 
+      ? eq(livers.agencyId, agencyId)
+      : undefined;
+
+  const conditions: any[] = [
+    isNull(brandLivestreams.deletedAt),
+    sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+    sql`${brandLivestreams.livestreamDate} <= ${endDate}`,
+    isNotNull(brandLivestreams.liverId),
+  ];
+  if (agencyFilter) conditions.push(agencyFilter);
+
+  // Step 1: Get all active liver IDs for this month
+  const activeLivers = await db
+    .select({
+      liverId: brandLivestreams.liverId,
+      liverName: sql<string>`COALESCE(${livers.name}, MAX(${brandLivestreams.streamerName}))`,
+    })
+    .from(brandLivestreams)
+    .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
+    .where(and(...conditions))
+    .groupBy(brandLivestreams.liverId, livers.name);
+
+  if (activeLivers.length === 0) return {};
+
+  // Step 2: Get brand durations per liver from livestream_brands (new table)
+  const newTableData = await db
+    .select({
+      liverId: brandLivestreams.liverId,
+      brandId: livestreamBrands.brandId,
+      brandName: brands.name,
+      livestreamId: livestreamBrands.livestreamId,
+      durationMinutes: livestreamBrands.durationMinutes,
+    })
+    .from(livestreamBrands)
+    .innerJoin(brandLivestreams, eq(livestreamBrands.livestreamId, brandLivestreams.id))
+    .leftJoin(brands, eq(livestreamBrands.brandId, brands.id))
+    .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
+    .where(and(
+      ...conditions,
+      sql`${livestreamBrands.durationMinutes} IS NOT NULL AND ${livestreamBrands.durationMinutes} > 0`
+    ));
+
+  // Step 3: Get brand durations from old table (brand_livestreams.duration)
+  const oldTableData = await db
+    .select({
+      id: brandLivestreams.id,
+      liverId: brandLivestreams.liverId,
+      brandId: brandLivestreams.brandId,
+      brandName: brands.name,
+      duration: brandLivestreams.duration,
+    })
+    .from(brandLivestreams)
+    .leftJoin(brands, eq(brandLivestreams.brandId, brands.id))
+    .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
+    .where(and(
+      ...conditions,
+      sql`${brandLivestreams.duration} IS NOT NULL AND ${brandLivestreams.duration} > 0`
+    ));
+
+  // Build per-liver, per-brand duration map (merge new + old tables, avoiding double-counting)
+  // Key: `${liverId}-${brandId}`, Value: { totalMinutes, coveredLsIds }
+  const durationMap = new Map<string, { liverId: number; brandId: number; brandName: string; totalMinutes: number; coveredLsIds: Set<number> }>();
+
+  // Add new table data
+  for (const row of newTableData) {
+    if (!row.liverId) continue;
+    const key = `${row.liverId}-${row.brandId}`;
+    const existing = durationMap.get(key);
+    if (existing) {
+      existing.totalMinutes += Number(row.durationMinutes || 0);
+      existing.coveredLsIds.add(row.livestreamId);
+    } else {
+      durationMap.set(key, {
+        liverId: row.liverId,
+        brandId: row.brandId,
+        brandName: row.brandName || '不明',
+        totalMinutes: Number(row.durationMinutes || 0),
+        coveredLsIds: new Set([row.livestreamId]),
+      });
+    }
+  }
+
+  // Add old table data (skip if livestream already covered by new table for same brand)
+  for (const row of oldTableData) {
+    if (!row.liverId) continue;
+    const key = `${row.liverId}-${row.brandId}`;
+    const existing = durationMap.get(key);
+    if (existing) {
+      // Skip if this livestream is already covered by new table
+      if (existing.coveredLsIds.has(row.id)) continue;
+      existing.totalMinutes += Number(row.duration || 0);
+    } else {
+      durationMap.set(key, {
+        liverId: row.liverId,
+        brandId: row.brandId,
+        brandName: row.brandName || '不明',
+        totalMinutes: Number(row.duration || 0),
+        coveredLsIds: new Set(),
+      });
+    }
+  }
+
+  // Step 4: Get all product sales per liver (for GMV calculation)
+  // Get all livestream IDs per liver
+  const allLiverStreams = await db
+    .select({
+      id: brandLivestreams.id,
+      liverId: brandLivestreams.liverId,
+    })
+    .from(brandLivestreams)
+    .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
+    .where(and(...conditions));
+
+  const livestreamIdsByLiver = new Map<number, number[]>();
+  for (const row of allLiverStreams) {
+    if (!row.liverId) continue;
+    if (!livestreamIdsByLiver.has(row.liverId)) livestreamIdsByLiver.set(row.liverId, []);
+    livestreamIdsByLiver.get(row.liverId)!.push(row.id);
+  }
+
+  // Get all brands for name matching
+  const allBrands = await db
+    .select({ id: brands.id, name: brands.name })
+    .from(brands)
+    .where(isNull(brands.deletedAt));
+
+  // Get all product data in bulk (all livestream IDs at once)
+  const allLsIds = Array.from(livestreamIdsByLiver.values()).flat();
+  let allProducts: { livestreamId: number; productName: string | null; gmv: number | null; grossRevenue: number | null }[] = [];
+  
+  if (allLsIds.length > 0) {
+    const batchSize = 500;
+    for (let i = 0; i < allLsIds.length; i += batchSize) {
+      const batch = allLsIds.slice(i, i + batchSize);
+      const products = await db
+        .select({
+          livestreamId: livestreamProducts.livestreamId,
+          productName: livestreamProducts.productName,
+          gmv: livestreamProducts.gmv,
+          grossRevenue: livestreamProducts.grossRevenue,
+        })
+        .from(livestreamProducts)
+        .where(inArray(livestreamProducts.livestreamId, batch));
+      allProducts = allProducts.concat(products);
+    }
+  }
+
+  // Group products by liverId
+  const productsByLiver = new Map<number, typeof allProducts>();
+  for (const product of allProducts) {
+    // Find which liver owns this livestream
+    for (const [liverId, lsIds] of livestreamIdsByLiver.entries()) {
+      if (lsIds.includes(product.livestreamId)) {
+        if (!productsByLiver.has(liverId)) productsByLiver.set(liverId, []);
+        productsByLiver.get(liverId)!.push(product);
+        break;
+      }
+    }
+  }
+
+  // Step 5: Calculate per-liver, per-brand GMV from products
+  // For each liver, match products to brands and calculate GMV
+  const gmvByLiverBrand = new Map<string, number>(); // key: `${liverId}-${normalizedBrandName}`
+
+  for (const [liverId, products] of productsByLiver.entries()) {
+    // Deduplicate products (same name + same GMV = count once)
+    const seenProducts = new Set<string>();
+    for (const p of products) {
+      const productName = (p.productName || '').trim();
+      const revenue = Number(p.grossRevenue || p.gmv || 0);
+      if (!productName || revenue === 0) continue;
+
+      const dedupeKey = `${productName}|${revenue}`;
+      if (seenProducts.has(dedupeKey)) continue;
+      seenProducts.add(dedupeKey);
+
+      // Match product to brand
+      const productNameLower = productName.toLowerCase();
+      let matchedBrand: { id: number; name: string } | null = null;
+      let longestMatch = 0;
+      for (const brand of allBrands) {
+        const brandNameLower = brand.name.toLowerCase().trim();
+        if (brandNameLower.length > longestMatch && productNameLower.includes(brandNameLower)) {
+          matchedBrand = brand;
+          longestMatch = brandNameLower.length;
+        }
+      }
+
+      if (matchedBrand) {
+        const normalizedName = matchedBrand.name.toLowerCase().trim().replace(/\s+/g, ' ');
+        const key = `${liverId}-${normalizedName}`;
+        gmvByLiverBrand.set(key, (gmvByLiverBrand.get(key) || 0) + revenue);
+      }
+    }
+  }
+
+  // Step 6: Merge duration + GMV data and calculate hourly rate per liver per brand
+  // Group by liverId
+  const result: Record<number, { brandId: number; brandName: string; totalHours: number; csvGmv: number; hourlyRate: number }[]> = {};
+
+  // First, group duration entries by liverId
+  const durationByLiver = new Map<number, { brandId: number; brandName: string; totalMinutes: number }[]>();
+  for (const entry of durationMap.values()) {
+    if (!durationByLiver.has(entry.liverId)) durationByLiver.set(entry.liverId, []);
+    durationByLiver.get(entry.liverId)!.push({
+      brandId: entry.brandId,
+      brandName: entry.brandName,
+      totalMinutes: entry.totalMinutes,
+    });
+  }
+
+  // Merge by brand name within each liver (same brand name = combine)
+  for (const [liverId, entries] of durationByLiver.entries()) {
+    const byNameMap = new Map<string, { brandId: number; brandName: string; totalMinutes: number }>();
+    for (const entry of entries) {
+      const normalizedName = entry.brandName.toLowerCase().trim().replace(/\s+/g, ' ');
+      const existing = byNameMap.get(normalizedName);
+      if (existing) {
+        existing.totalMinutes += entry.totalMinutes;
+      } else {
+        byNameMap.set(normalizedName, { ...entry });
+      }
+    }
+
+    const liverResult: { brandId: number; brandName: string; totalHours: number; csvGmv: number; hourlyRate: number }[] = [];
+    for (const [normalizedName, data] of byNameMap.entries()) {
+      const totalHours = Math.round(data.totalMinutes / 60 * 10) / 10;
+      const csvGmv = gmvByLiverBrand.get(`${liverId}-${normalizedName}`) || 0;
+      const hourlyRate = totalHours > 0 ? Math.round(csvGmv / totalHours) : 0;
+      liverResult.push({
+        brandId: data.brandId,
+        brandName: data.brandName,
+        totalHours,
+        csvGmv,
+        hourlyRate,
+      });
+    }
+
+    // Sort by hourly rate descending
+    liverResult.sort((a, b) => b.hourlyRate - a.hourlyRate);
+    result[liverId] = liverResult;
+  }
+
+  return result;
+}
