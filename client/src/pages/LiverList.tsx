@@ -1104,6 +1104,30 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                 </h2>
               </div>
               
+              {/* ライバー別セット件数 */}
+              {(() => {
+                const liverCounts: Record<string, { count: number; revenue: number }> = {};
+                allSetsData.sets.forEach((s: any) => {
+                  const name = s.streamerName || '不明';
+                  if (!liverCounts[name]) liverCounts[name] = { count: 0, revenue: 0 };
+                  liverCounts[name].count += 1;
+                  liverCounts[name].revenue += (s.totalRevenue || 0);
+                });
+                const sorted = Object.entries(liverCounts).sort((a, b) => b[1].count - a[1].count);
+                return sorted.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {sorted.map(([name, data]) => (
+                      <span key={name} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-purple-500/20 border border-purple-500/30 text-xs">
+                        <span className="text-purple-200 font-medium">{name}</span>
+                        <span className="text-purple-400 font-bold">{data.count}件</span>
+                        <span className="text-gray-500">|</span>
+                        <span className="text-yellow-400">{formatCurrency(data.revenue)}</span>
+                      </span>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
+
               {/* サマリーカード */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                 <div className="p-3 rounded-lg border border-gray-700 text-center">
