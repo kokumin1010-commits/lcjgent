@@ -2307,9 +2307,15 @@ async function startServer() {
     });
 
     // Backfill empty streamerName in brand_livestreams using livers table
-    import("../migrations/backfillStreamerNames").then(({ backfillStreamerNames }) => {
-      backfillStreamerNames(db).catch((err: unknown) => {
-        console.error("[Migration] Failed to backfill streamer names:", err);
+    import("../db").then(({ getDb: getDbForBackfill }) => {
+      getDbForBackfill().then((dbForBackfill: any) => {
+        if (dbForBackfill) {
+          import("../migrations/backfillStreamerNames").then(({ backfillStreamerNames }) => {
+            backfillStreamerNames(dbForBackfill).catch((err: unknown) => {
+              console.error("[Migration] Failed to backfill streamer names:", err);
+            });
+          });
+        }
       });
     });
 
