@@ -1529,7 +1529,10 @@ async def list_tracked_accounts(
                     COALESCE(SUM(latest.digg_count), 0) as total_diggs,
                     MIN(tv.created_at) as first_registered,
                     MAX(tv.last_fetched_at) as last_fetched,
-                    MAX(tv.posted_at) as last_posted_at
+                    MAX(tv.posted_at) as last_posted_at,
+                    COUNT(*) FILTER (WHERE tv.posted_at >= (CURRENT_DATE AT TIME ZONE 'Asia/Tokyo')) as posted_today,
+                    COUNT(*) FILTER (WHERE tv.posted_at >= ((CURRENT_DATE - INTERVAL '1 day') AT TIME ZONE 'Asia/Tokyo') AND tv.posted_at < (CURRENT_DATE AT TIME ZONE 'Asia/Tokyo')) as posted_yesterday,
+                    COUNT(*) FILTER (WHERE tv.posted_at >= ((CURRENT_DATE - INTERVAL '7 days') AT TIME ZONE 'Asia/Tokyo')) as posted_last_7days
                 FROM tiktok_tracked_videos tv
                 LEFT JOIN LATERAL (
                     SELECT ps.play_count, ps.digg_count
@@ -1539,7 +1542,7 @@ async def list_tracked_accounts(
                 ) latest ON true
                 WHERE tv.account_name IS NOT NULL AND tv.account_name != ''
                 GROUP BY tv.account_name
-                ORDER BY total_videos DESC
+                ORDER BY MAX(tv.posted_at) DESC NULLS LAST
             """)
         )
         rows = result.fetchall()

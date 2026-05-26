@@ -726,7 +726,7 @@ export default function TikTokTrackingPanel({ adminKey }) {
                           登録: {acc.first_registered ? new Date(acc.first_registered).toLocaleDateString("ja-JP") : "—"}
                           {acc.last_fetched && ` | 最終取得: ${timeAgo(acc.last_fetched)}`}
                         </div>
-                        <div className="text-[10px] text-gray-500 font-medium">
+                        <div className="text-[10px] text-gray-500 font-medium flex items-center gap-1 flex-wrap">
                           📅 最終投稿: {acc.last_posted_at ? new Date(acc.last_posted_at).toLocaleDateString("ja-JP") : "—"}
                           {acc.last_posted_at && (() => {
                             const days = Math.floor((Date.now() - new Date(acc.last_posted_at).getTime()) / 86400000);
@@ -735,6 +735,15 @@ export default function TikTokTrackingPanel({ adminKey }) {
                             if (days <= 3) return <span className="ml-1 text-yellow-500">（{days}日前）</span>;
                             return <span className="ml-1 text-red-400">（{days}日前）</span>;
                           })()}
+                          {acc.posted_today > 0 && (
+                            <span className="ml-2 px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full text-[9px] font-bold">今日 {acc.posted_today}件</span>
+                          )}
+                          {acc.posted_yesterday > 0 && (
+                            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[9px] font-bold">昨日 {acc.posted_yesterday}件</span>
+                          )}
+                          {acc.posted_last_7days > 0 && (
+                            <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full text-[9px] font-medium">7日間 {acc.posted_last_7days}件</span>
+                          )}
                         </div>
                       </div>
                     </div>
