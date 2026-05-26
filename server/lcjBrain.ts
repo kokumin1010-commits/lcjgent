@@ -66,15 +66,12 @@ async function ensureConversationsTable() {
   } catch (e) { /* table exists */ }
   // Ensure content is LONGTEXT (upgrade from TEXT if needed)
   try {
-    await db.execute(sql`ALTER TABLE lcj_brain_knowledge MODIFY COLUMN content LONGTEXT NOT NULL`);
+    await db.execute(sql`ALTER TABLE lcj_brain_knowledge MODIFY COLUMN content LONGTEXT`);
   } catch (e) { /* ignore */ }
-  // Rebuild FULLTEXT index if needed (LONGTEXT compatibility)
+  // Remove FULLTEXT index if it causes issues with LONGTEXT
   try {
     await db.execute(sql`ALTER TABLE lcj_brain_knowledge DROP INDEX idx_content`);
   } catch (e) { /* index may not exist */ }
-  try {
-    await db.execute(sql`ALTER TABLE lcj_brain_knowledge ADD FULLTEXT INDEX idx_content (title, content)`);
-  } catch (e) { /* ignore if already exists or not supported */ }
 }
 
 
@@ -1373,41 +1370,23 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
           } catch (e) { /* ignore */ }
         }
 
-        // Use raw SQL insert to avoid drizzle $returningId compatibility issues
-        const meetingDateStr = input.meetingDate ? input.meetingDate.replace(/\//g, "-") : null;
-        const participantsJson = autoParticipants.length > 0 ? JSON.stringify(autoParticipants) : null;
-        const tagsJson = autoTags.length > 0 ? JSON.stringify(autoTags) : null;
+        // Use Drizzle ORM insert (without $returningId)
+        const meetingDateValue = input.meetingDate ? new Date(input.meetingDate.replace(/\//g, "-")) : null;
         
-        let insertedId = 0;
-        try {
-          const insertResult = await db.execute(sql`
-            INSERT INTO lcj_brain_knowledge (title, category, content, summary, participants, tags, meetingDate, sourceFileName, uploadedBy, uploadedByName)
-            VALUES (${input.title}, ${input.category}, ${input.content}, ${summary || null}, ${participantsJson}, ${tagsJson}, ${meetingDateStr}, ${input.sourceFileName || null}, ${userId}, ${userName})
-          `);
-          insertedId = (insertResult as any)[0]?.insertId || (insertResult as any).insertId || 0;
-        } catch (insertErr: any) {
-          // Fallback: try without meetingDate if timestamp causes issues
-          console.error("[LCJ Brain] Insert attempt 1 failed:", insertErr.message);
-          try {
-            const insertResult2 = await db.execute(sql`
-              INSERT INTO lcj_brain_knowledge (title, category, content, summary, participants, tags, sourceFileName, uploadedBy, uploadedByName)
-              VALUES (${input.title}, ${input.category}, ${input.content}, ${summary || null}, ${participantsJson}, ${tagsJson}, ${input.sourceFileName || null}, ${userId}, ${userName})
-            `);
-            insertedId = (insertResult2 as any)[0]?.insertId || (insertResult2 as any).insertId || 0;
-          } catch (insertErr2: any) {
-            console.error("[LCJ Brain] Insert attempt 2 failed:", insertErr2.message);
-            throw insertErr2;
-          }
-        }
+        await db.insert(lcjBrainKnowledge).values({
+          title: input.title,
+          category: input.category,
+          content: input.content,
+          summary: summary || null,
+          participants: autoParticipants.length > 0 ? autoParticipants : null,
+          tags: autoTags.length > 0 ? autoTags : null,
+          meetingDate: meetingDateValue,
+          sourceFileName: input.sourceFileName || null,
+          uploadedBy: userId,
+          uploadedByName: userName,
+        });
 
-        // Update meetingDate separately if it was skipped
-        if (meetingDateStr && insertedId > 0) {
-          try {
-            await db.execute(sql`UPDATE lcj_brain_knowledge SET meetingDate = ${meetingDateStr} WHERE id = ${insertedId}`);
-          } catch (e) { /* ignore */ }
-        }
-
-        return { success: true, id: insertedId, summary, tags: autoTags, participants: autoParticipants };
+        return { success: true, id: 0, summary, tags: autoTags, participants: autoParticipants };
       } catch (error: any) {
         console.error("[LCJ Brain] addKnowledge error:", error.message, error.stack);
         return { success: false, error: error.message };
