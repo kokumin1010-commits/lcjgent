@@ -5972,3 +5972,68 @@ export const lcjBrainKnowledge = mysqlTable("lcj_brain_knowledge", {
 });
 export type LcjBrainKnowledge = typeof lcjBrainKnowledge.$inferSelect;
 export type InsertLcjBrainKnowledge = typeof lcjBrainKnowledge.$inferInsert;
+
+// ============================================================
+// Brand Ad Reports (広告実績スクショレポート)
+// ============================================================
+export const brandAdReports = mysqlTable("brand_ad_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  
+  // レポート基本情報
+  title: varchar("title", { length: 500 }), // レポートタイトル（任意）
+  periodStart: timestamp("periodStart").notNull(), // 期間開始
+  periodEnd: timestamp("periodEnd").notNull(), // 期間終了
+  
+  // スクショ画像
+  screenshotUrl: text("screenshotUrl").notNull(), // スクショ画像URL
+  screenshotKey: varchar("screenshotKey", { length: 512 }), // S3 key
+  
+  // AI OCR抽出データ
+  extractedData: json("extractedData").$type<{
+    cost?: number;
+    skuOrders?: number;
+    avgOrderCost?: number;
+    totalRevenue?: number;
+    roi?: number;
+    impressions?: number;
+    clicks?: number;
+    ctr?: number;
+    currency?: string;
+    platform?: string;
+    shopName?: string;
+    rawText?: string;
+  }>(),
+  ocrStatus: mysqlEnum("ocrStatus", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
+  
+  // メモ・コメント
+  memo: text("memo"),
+  
+  // メール送信履歴
+  lastEmailSentAt: timestamp("lastEmailSentAt"),
+  emailSentCount: int("emailSentCount").default(0),
+  
+  // 作成者
+  createdBy: int("createdBy").notNull(),
+  createdByName: varchar("createdByName", { length: 255 }),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type BrandAdReport = typeof brandAdReports.$inferSelect;
+export type InsertBrandAdReport = typeof brandAdReports.$inferInsert;
+
+// ============================================================
+// Brand Ad Email Recipients (ブランド広告レポートメール送信先)
+// ============================================================
+export const brandAdEmailRecipients = mysqlTable("brand_ad_email_recipients", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  email: varchar("email", { length: 320 }).notNull(),
+  name: varchar("name", { length: 255 }), // 担当者名
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type BrandAdEmailRecipient = typeof brandAdEmailRecipients.$inferSelect;
+export type InsertBrandAdEmailRecipient = typeof brandAdEmailRecipients.$inferInsert;

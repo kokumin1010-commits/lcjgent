@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle, FileDown, Save, BarChart3, Target, MousePointerClick, CreditCard, QrCode } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle, FileDown, Save, BarChart3, Target, MousePointerClick, CreditCard, QrCode, Mail, Camera } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend, ResponsiveContainer, LineChart, Line, Cell } from "recharts";
 import ProductCardTemplate, { ProductCardMini } from "@/components/ProductCard";
@@ -899,6 +899,21 @@ export default function BrandDetail() {
   const [adCampaignAnalysisResult, setAdCampaignAnalysisResult] = useState<any>(null);
   const adCampaignFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Ad Report (広告レポート) states
+  const [adReportDialogOpen, setAdReportDialogOpen] = useState(false);
+  const [adReportUploading, setAdReportUploading] = useState(false);
+  const [adReportPeriodStart, setAdReportPeriodStart] = useState('');
+  const [adReportPeriodEnd, setAdReportPeriodEnd] = useState('');
+  const [adReportTitle, setAdReportTitle] = useState('');
+  const [adReportMemo, setAdReportMemo] = useState('');
+  const [adReportEmailDialogOpen, setAdReportEmailDialogOpen] = useState(false);
+  const [adReportSendingEmail, setAdReportSendingEmail] = useState(false);
+  const [adReportSelectedId, setAdReportSelectedId] = useState<number | null>(null);
+  const [adReportEmailMessage, setAdReportEmailMessage] = useState('');
+  const [newRecipientEmail, setNewRecipientEmail] = useState('');
+  const [newRecipientName, setNewRecipientName] = useState('');
+  const adReportFileInputRef = useRef<HTMLInputElement>(null);
+
   // File preview state
   const [previewFileUrl, setPreviewFileUrl] = useState<string | null>(null);
   const [previewFileName, setPreviewFileName] = useState<string>('');
@@ -944,6 +959,15 @@ export default function BrandDetail() {
   const { data: reportFileHistory = [], refetch: refetchReportFileHistory } = trpc.brand.getReportFileHistory.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: campaignDetail, isLoading: campaignDetailLoading } = trpc.brand.getAdCampaignDetail.useQuery({ id: selectedCampaignId! }, { enabled: !!selectedCampaignId });
   const deleteReportFileMutation = trpc.brand.deleteReportFile.useMutation();
+
+  // Ad Report data fetching
+  const { data: adReports = [], refetch: refetchAdReports } = trpc.brand.getAdReports.useQuery({ brandId }, { enabled: brandId > 0 });
+  const { data: adEmailRecipients = [], refetch: refetchAdEmailRecipients } = trpc.brand.getAdEmailRecipients.useQuery({ brandId }, { enabled: brandId > 0 });
+  const createAdReportMutation = trpc.brand.createAdReport.useMutation({ onSuccess: () => refetchAdReports() });
+  const deleteAdReportMutation = trpc.brand.deleteAdReport.useMutation({ onSuccess: () => refetchAdReports() });
+  const addEmailRecipientMutation = trpc.brand.addAdEmailRecipient.useMutation({ onSuccess: () => refetchAdEmailRecipients() });
+  const removeEmailRecipientMutation = trpc.brand.removeAdEmailRecipient.useMutation({ onSuccess: () => refetchAdEmailRecipients() });
+  const sendAdReportEmailMutation = trpc.brand.sendAdReportEmail.useMutation();
 
   // 配信スケジュールデータ取得
   const [scheduleFilterLiver, setScheduleFilterLiver] = useState<string>('all');
@@ -2138,6 +2162,18 @@ ${proposal.proposalContent}
                 {(adInvestmentRecords.length + adCampaigns.length) > 0 && (
                   <Badge className="ml-2 bg-green-500/30 text-green-300 border border-green-400/50 text-xs">
                     {adInvestmentRecords.length + adCampaigns.length}
+                  </Badge>
+                )}
+              </Button>
+              <Button
+                onClick={() => setAdReportDialogOpen(true)}
+                className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white shadow-lg shadow-orange-500/30"
+              >
+                <Camera className="h-4 w-4 mr-2" />
+                {language === 'ja' ? '広告レポート' : '广告报告'}
+                {adReports.length > 0 && (
+                  <Badge className="ml-2 bg-orange-500/30 text-orange-300 border border-orange-400/50 text-xs">
+                    {adReports.length}
                   </Badge>
                 )}
               </Button>
@@ -10059,6 +10095,278 @@ ${proposal.proposalContent}
               )}
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 広告レポート Dialog */}
+      <Dialog open={adReportDialogOpen} onOpenChange={setAdReportDialogOpen}>
+        <DialogContent className="bg-black/95 border-orange-900/50 text-white max-w-5xl backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold flex items-center gap-3">
+              <Camera className="h-6 w-6 text-orange-400" />
+              {language === 'ja' ? '広告レポート' : '广告报告'}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Upload Section */}
+            <div className="bg-orange-950/20 border border-orange-500/30 rounded-xl p-5">
+              <h3 className="text-lg font-semibold text-orange-300 mb-4 flex items-center gap-2">
+                <Upload className="h-5 w-5" />
+                {language === 'ja' ? 'レポートアップロード' : '上传报告'}
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">{language === 'ja' ? '期間開始' : '开始日期'}</label>
+                  <input type="date" value={adReportPeriodStart} onChange={(e) => setAdReportPeriodStart(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm" />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">{language === 'ja' ? '期間終了' : '结束日期'}</label>
+                  <input type="date" value={adReportPeriodEnd} onChange={(e) => setAdReportPeriodEnd(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm" />
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className="text-sm text-gray-400 mb-1 block">{language === 'ja' ? 'タイトル（任意）' : '标题（可选）'}</label>
+                <input type="text" value={adReportTitle} onChange={(e) => setAdReportTitle(e.target.value)} placeholder={language === 'ja' ? '例: 商品GMV Max 5月前半' : '例: 商品GMV Max 5月前半'} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm" />
+              </div>
+              <div className="mb-4">
+                <label className="text-sm text-gray-400 mb-1 block">{language === 'ja' ? 'メモ（任意）' : '备注（可选）'}</label>
+                <textarea value={adReportMemo} onChange={(e) => setAdReportMemo(e.target.value)} placeholder={language === 'ja' ? 'ROIが良好なので予算増額を提案...' : 'ROI表现良好，建议增加预算...'} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm h-20 resize-none" />
+              </div>
+              <div className="border-2 border-dashed border-orange-500/50 rounded-xl p-6 text-center hover:border-orange-400/70 transition-colors cursor-pointer" onClick={() => adReportFileInputRef.current?.click()}>
+                <input ref={adReportFileInputRef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (!adReportPeriodStart || !adReportPeriodEnd) {
+                    toast.error(language === 'ja' ? '期間を指定してください' : '请指定日期范围');
+                    return;
+                  }
+                  setAdReportUploading(true);
+                  try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('brandId', String(brandId));
+                    const uploadRes = await fetch('/api/brand-file-upload', { method: 'POST', body: formData });
+                    const uploadData = await uploadRes.json();
+                    if (!uploadRes.ok) throw new Error(uploadData.error);
+                    await createAdReportMutation.mutateAsync({
+                      brandId,
+                      title: adReportTitle || undefined,
+                      periodStart: adReportPeriodStart,
+                      periodEnd: adReportPeriodEnd,
+                      screenshotUrl: uploadData.url,
+                      screenshotKey: uploadData.key,
+                      memo: adReportMemo || undefined,
+                    });
+                    toast.success(language === 'ja' ? 'レポートを登録しました（AI解析中...)’ : '报告已保存（AI分析中...）');
+                    setAdReportTitle('');
+                    setAdReportMemo('');
+                    setAdReportPeriodStart('');
+                    setAdReportPeriodEnd('');
+                  } catch (err: any) {
+                    toast.error(err.message || 'Upload failed');
+                  } finally {
+                    setAdReportUploading(false);
+                    if (adReportFileInputRef.current) adReportFileInputRef.current.value = '';
+                  }
+                }} />
+                {adReportUploading ? (
+                  <><Loader2 className="h-8 w-8 animate-spin text-orange-400 mx-auto mb-2" /><p className="text-orange-300 text-sm">{language === 'ja' ? 'アップロード中...' : '上传中...'}</p></>
+                ) : (
+                  <><Camera className="h-8 w-8 text-orange-400 mx-auto mb-2" /><p className="text-orange-300 text-sm font-medium">{language === 'ja' ? 'スクリーンショットをアップロード' : '上传截图'}</p><p className="text-gray-500 text-xs mt-1">{language === 'ja' ? 'TikTok広告管理画面のキャプチャ' : 'TikTok广告后台截图'}</p></>
+                )}
+              </div>
+            </div>
+
+            {/* Email Recipients Section */}
+            <div className="bg-blue-950/20 border border-blue-500/30 rounded-xl p-5">
+              <h3 className="text-lg font-semibold text-blue-300 mb-4 flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                {language === 'ja' ? 'メール送信先' : '邮件发送地址'}
+              </h3>
+              <div className="flex gap-2 mb-3">
+                <input type="text" value={newRecipientName} onChange={(e) => setNewRecipientName(e.target.value)} placeholder={language === 'ja' ? '担当者名' : '联系人姓名'} className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm" />
+                <input type="email" value={newRecipientEmail} onChange={(e) => setNewRecipientEmail(e.target.value)} placeholder="email@example.com" className="flex-2 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm" />
+                <Button size="sm" className="bg-blue-600 hover:bg-blue-500" onClick={async () => {
+                  if (!newRecipientEmail) return;
+                  await addEmailRecipientMutation.mutateAsync({ brandId, email: newRecipientEmail, name: newRecipientName || undefined });
+                  setNewRecipientEmail('');
+                  setNewRecipientName('');
+                  toast.success(language === 'ja' ? '送信先を追加しました' : '已添加发送地址');
+                }}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {adEmailRecipients.length > 0 && (
+                <div className="space-y-2">
+                  {adEmailRecipients.map((r: any) => (
+                    <div key={r.id} className="flex items-center justify-between bg-gray-900/50 rounded-lg px-3 py-2">
+                      <div>
+                        <span className="text-white text-sm">{r.name && `${r.name} - `}{r.email}</span>
+                      </div>
+                      <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300 h-7 w-7 p-0" onClick={() => removeEmailRecipientMutation.mutate({ id: r.id })}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {adEmailRecipients.length === 0 && (
+                <p className="text-gray-500 text-sm">{language === 'ja' ? '送信先が登録されていません' : '尚未添加发送地址'}</p>
+              )}
+            </div>
+
+            {/* Reports List */}
+            <div>
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-orange-400" />
+                {language === 'ja' ? 'レポート履歴' : '报告历史'}
+                {adReports.length > 0 && <Badge className="bg-orange-500/20 text-orange-300 border-orange-500/30 text-xs">{adReports.length}</Badge>}
+              </h3>
+              {adReports.length === 0 ? (
+                <div className="text-center py-8">
+                  <Camera className="h-10 w-10 text-gray-600 mx-auto mb-2" />
+                  <p className="text-gray-500 text-sm">{language === 'ja' ? 'まだレポートがありません' : '暂无报告'}</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {adReports.map((report: any) => {
+                    const extracted = report.extractedData;
+                    const periodStr = `${new Date(report.periodStart).toLocaleDateString('ja-JP')} 〜 ${new Date(report.periodEnd).toLocaleDateString('ja-JP')}`;
+                    return (
+                      <div key={report.id} className="bg-gray-900/50 border border-gray-700/50 rounded-xl p-4 hover:border-orange-500/30 transition-colors">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-white font-medium">{report.title || periodStr}</span>
+                              {report.ocrStatus === 'processing' && <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/30 text-xs">AI解析中</Badge>}
+                              {report.ocrStatus === 'completed' && <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-xs">解析完了</Badge>}
+                              {report.ocrStatus === 'failed' && <Badge className="bg-red-500/20 text-red-300 border-red-500/30 text-xs">解析失敗</Badge>}
+                            </div>
+                            <p className="text-gray-400 text-xs mt-1">{periodStr}</p>
+                            {report.memo && <p className="text-gray-300 text-sm mt-2">{report.memo}</p>}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" variant="ghost" className="text-blue-400 hover:text-blue-300 h-8 px-2" onClick={() => { setAdReportSelectedId(report.id); setAdReportEmailDialogOpen(true); }} disabled={adEmailRecipients.length === 0}>
+                              <Mail className="h-4 w-4 mr-1" />
+                              {language === 'ja' ? '送信' : '发送'}
+                            </Button>
+                            <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 h-8 w-8 p-0" onClick={() => { if (confirm(language === 'ja' ? '削除しますか？' : '确认删除？')) deleteAdReportMutation.mutate({ id: report.id }); }}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        {/* KPI Cards */}
+                        {extracted && report.ocrStatus === 'completed' && (
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
+                            {extracted.cost != null && (
+                              <div className="bg-blue-950/30 border border-blue-500/20 rounded-lg p-2 text-center">
+                                <div className="text-blue-300 text-[10px]">{language === 'ja' ? '広告費' : '广告费'}</div>
+                                <div className="text-white font-bold text-sm">¥{Number(extracted.cost).toLocaleString()}</div>
+                              </div>
+                            )}
+                            {extracted.skuOrders != null && (
+                              <div className="bg-green-950/30 border border-green-500/20 rounded-lg p-2 text-center">
+                                <div className="text-green-300 text-[10px]">{language === 'ja' ? '注文数' : '订单数'}</div>
+                                <div className="text-white font-bold text-sm">{Number(extracted.skuOrders).toLocaleString()}</div>
+                              </div>
+                            )}
+                            {extracted.totalRevenue != null && (
+                              <div className="bg-purple-950/30 border border-purple-500/20 rounded-lg p-2 text-center">
+                                <div className="text-purple-300 text-[10px]">{language === 'ja' ? '売上' : '收入'}</div>
+                                <div className="text-white font-bold text-sm">¥{Number(extracted.totalRevenue).toLocaleString()}</div>
+                              </div>
+                            )}
+                            {extracted.roi != null && (
+                              <div className="bg-amber-950/30 border border-amber-500/20 rounded-lg p-2 text-center">
+                                <div className="text-amber-300 text-[10px]">ROI</div>
+                                <div className="text-white font-bold text-sm">{extracted.roi}倍</div>
+                              </div>
+                            )}
+                            {extracted.avgOrderCost != null && (
+                              <div className="bg-cyan-950/30 border border-cyan-500/20 rounded-lg p-2 text-center">
+                                <div className="text-cyan-300 text-[10px]">CPA</div>
+                                <div className="text-white font-bold text-sm">¥{Number(extracted.avgOrderCost).toLocaleString()}</div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {/* Screenshot */}
+                        {report.screenshotUrl && (
+                          <div className="mt-2">
+                            <img src={report.screenshotUrl} alt="Ad Report Screenshot" className="w-full rounded-lg border border-gray-700/50 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => window.open(report.screenshotUrl, '_blank')} />
+                          </div>
+                        )}
+                        {/* Email sent info */}
+                        {report.emailSentCount > 0 && (
+                          <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                            <Mail className="h-3 w-3" />
+                            {language === 'ja' ? `${report.emailSentCount}回送信済み` : `已发送${report.emailSentCount}次`}
+                            {report.lastEmailSentAt && ` (最終: ${new Date(report.lastEmailSentAt).toLocaleDateString('ja-JP')})`}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdReportDialogOpen(false)} className="border-orange-500/50 bg-orange-950/50 text-gray-200 hover:bg-orange-900/40 hover:text-white">
+              {language === 'ja' ? '閉じる' : '关闭'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* メール送信確認 Dialog */}
+      <Dialog open={adReportEmailDialogOpen} onOpenChange={setAdReportEmailDialogOpen}>
+        <DialogContent className="bg-black/95 border-blue-900/50 text-white max-w-md backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <Mail className="h-5 w-5 text-blue-400" />
+              {language === 'ja' ? 'レポートをメール送信' : '发送报告邮件'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm text-gray-400 mb-1 block">{language === 'ja' ? '送信先' : '发送地址'}</label>
+              <div className="text-sm text-white">{adEmailRecipients.map((r: any) => r.name ? `${r.name} <${r.email}>` : r.email).join(', ')}</div>
+            </div>
+            <div>
+              <label className="text-sm text-gray-400 mb-1 block">{language === 'ja' ? 'コメント（任意）' : '备注（可选）'}</label>
+              <textarea value={adReportEmailMessage} onChange={(e) => setAdReportEmailMessage(e.target.value)} placeholder={language === 'ja' ? 'ROIが好調なので予算増額を提案したいです...' : 'ROI表现良好，建议增加预算...'} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm h-24 resize-none" />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setAdReportEmailDialogOpen(false)} className="border-gray-600 text-gray-300">
+              {language === 'ja' ? 'キャンセル' : '取消'}
+            </Button>
+            <Button className="bg-blue-600 hover:bg-blue-500" disabled={adReportSendingEmail} onClick={async () => {
+              if (!adReportSelectedId) return;
+              setAdReportSendingEmail(true);
+              try {
+                await sendAdReportEmailMutation.mutateAsync({
+                  reportId: adReportSelectedId,
+                  brandId,
+                  customMessage: adReportEmailMessage || undefined,
+                });
+                toast.success(language === 'ja' ? 'メールを送信しました' : '邮件已发送');
+                setAdReportEmailDialogOpen(false);
+                setAdReportEmailMessage('');
+                refetchAdReports();
+              } catch (err: any) {
+                toast.error(err.message || 'Failed to send email');
+              } finally {
+                setAdReportSendingEmail(false);
+              }
+            }}>
+              {adReportSendingEmail ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+              {language === 'ja' ? '送信' : '发送'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

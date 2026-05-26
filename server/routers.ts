@@ -680,6 +680,15 @@ import {
   getLiverPenaltyCount,
   processExpiredFeaturedProducts,
   setFeaturedProductTargets,
+  createBrandAdReport,
+  getBrandAdReportsByBrandId,
+  getBrandAdReportById,
+  updateBrandAdReport,
+  deleteBrandAdReport,
+  getBrandAdEmailRecipients,
+  addBrandAdEmailRecipient,
+  removeBrandAdEmailRecipient,
+  ensureBrandAdReportsTables,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -6775,6 +6784,228 @@ Respond with a JSON object.`,
       .mutation(async ({ input }) => {
         await deleteAdReportFile(input.id);
         return { success: true };
+      }),
+
+    // ============================================================
+    // Brand Ad Reports (広告実績スクショレポート)
+    // ============================================================
+
+    // 広告実績レポート一覧取得
+    getAdReports: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        await ensureBrandAdReportsTables();
+        return await getBrandAdReportsByBrandId(input.brandId);
+      }),
+
+    // 広告実績レポート詳細取得
+    getAdReportDetail: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await getBrandAdReportById(input.id);
+      }),
+
+    // 広告実績レポート作成（スクショアップロード + AI OCR）
+    createAdReport: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        title: z.string().optional(),
+        periodStart: z.string(),
+        periodEnd: z.string(),
+        screenshotUrl: z.string(),
+        screenshotKey: z.string().optional(),
+        memo: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await ensureBrandAdReportsTables();
+        const report = await createBrandAdReport({
+          brandId: input.brandId,
+          title: input.title,
+          periodStart: new Date(input.periodStart),
+          periodEnd: new Date(input.periodEnd),
+          screenshotUrl: input.screenshotUrl,
+          screenshotKey: input.screenshotKey,
+          memo: input.memo,
+          ocrStatus: "pending",
+          createdBy: ctx.user.id,
+          createdByName: ctx.user.name || ctx.user.email || "unknown",
+        });
+
+        // AI OCR抽出を非同期で実行
+        const reportId = report.id;
+        (async () => {
+          try {
+            await updateBrandAdReport(reportId, { ocrStatus: "processing" });
+            const ocrResult = await invokeLLM({
+              messages: [
+                {
+                  role: "system",
+                  content: `あなたはTikTok広告管理画面のスクリーンショットを解析するエキスパートです。
+画像から以下のKPIデータを正確に読み取ってJSON形式で返してください。
+
+抽出すべきフィールド:
+- cost: 広告費/コスト（数値、円）
+- skuOrders: SKU注文数/注文数（数値）
+- avgOrderCost: 平均下単コスト/CPA（数値、円）
+- totalRevenue: 総収入/売上/GMV（数値、円）
+- roi: ROI/ROAS/投資回報率（数値）
+- impressions: インプレッション数（数値）
+- clicks: クリック数（数値）
+- ctr: CTR/クリック率（数値、%）
+- currency: 通貨（JPY, USD等）
+- platform: プラットフォーム名
+- shopName: 店舗名/ショップ名
+
+数値が見つからない場合はnullにしてください。
+数値にカンマが含まれる場合は除去してください。
+必ずJSON形式のみで回答してください。`,
+                },
+                {
+                  role: "user",
+                  content: [
+                    { type: "text", text: "この広告管理画面のスクリーンショットからKPIデータを抽出してください。" },
+                    { type: "image_url", image_url: { url: input.screenshotUrl, detail: "high" } },
+                  ],
+                },
+              ],
+            });
+            const text = ocrResult.content || "";
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const extracted = JSON.parse(jsonMatch[0]);
+              await updateBrandAdReport(reportId, {
+                extractedData: extracted,
+                ocrStatus: "completed",
+              });
+            } else {
+              await updateBrandAdReport(reportId, { ocrStatus: "failed" });
+            }
+          } catch (err) {
+            console.error("[AdReport OCR] Error:", err);
+            await updateBrandAdReport(reportId, { ocrStatus: "failed" });
+          }
+        })();
+
+        return { id: reportId };
+      }),
+
+    // 広告実績レポート削除
+    deleteAdReport: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteBrandAdReport(input.id);
+        return { success: true };
+      }),
+
+    // 広告実績レポートのメモ更新
+    updateAdReportMemo: protectedProcedure
+      .input(z.object({ id: z.number(), memo: z.string() }))
+      .mutation(async ({ input }) => {
+        await updateBrandAdReport(input.id, { memo: input.memo });
+        return { success: true };
+      }),
+
+    // メール送信先一覧取得
+    getAdEmailRecipients: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        await ensureBrandAdReportsTables();
+        return await getBrandAdEmailRecipients(input.brandId);
+      }),
+
+    // メール送信先追加
+    addAdEmailRecipient: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        email: z.string().email(),
+        name: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        await ensureBrandAdReportsTables();
+        const result = await addBrandAdEmailRecipient({
+          brandId: input.brandId,
+          email: input.email,
+          name: input.name,
+        });
+        return result;
+      }),
+
+    // メール送信先削除
+    removeAdEmailRecipient: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await removeBrandAdEmailRecipient(input.id);
+        return { success: true };
+      }),
+
+    // 広告実績レポートをメール送信
+    sendAdReportEmail: protectedProcedure
+      .input(z.object({
+        reportId: z.number(),
+        brandId: z.number(),
+        customMessage: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const report = await getBrandAdReportById(input.reportId);
+        if (!report) throw new Error("Report not found");
+
+        const recipients = await getBrandAdEmailRecipients(input.brandId);
+        if (recipients.length === 0) throw new Error("送信先が登録されていません");
+
+        const extracted = report.extractedData as any;
+        const periodStr = `${new Date(report.periodStart).toLocaleDateString('ja-JP')} 〜 ${new Date(report.periodEnd).toLocaleDateString('ja-JP')}`;
+
+        // Build email HTML
+        const kpiHtml = extracted ? `
+          <table style="border-collapse:collapse;width:100%;margin:16px 0;">
+            <tr style="background:#f8f9fa;">
+              <th style="padding:8px 12px;border:1px solid #dee2e6;text-align:left;">指標</th>
+              <th style="padding:8px 12px;border:1px solid #dee2e6;text-align:right;">値</th>
+            </tr>
+            ${extracted.cost != null ? `<tr><td style="padding:8px 12px;border:1px solid #dee2e6;">広告費</td><td style="padding:8px 12px;border:1px solid #dee2e6;text-align:right;">¥${Number(extracted.cost).toLocaleString()}</td></tr>` : ''}
+            ${extracted.totalRevenue != null ? `<tr><td style="padding:8px 12px;border:1px solid #dee2e6;">売上</td><td style="padding:8px 12px;border:1px solid #dee2e6;text-align:right;">¥${Number(extracted.totalRevenue).toLocaleString()}</td></tr>` : ''}
+            ${extracted.roi != null ? `<tr><td style="padding:8px 12px;border:1px solid #dee2e6;">ROI</td><td style="padding:8px 12px;border:1px solid #dee2e6;text-align:right;">${extracted.roi}倍</td></tr>` : ''}
+            ${extracted.skuOrders != null ? `<tr><td style="padding:8px 12px;border:1px solid #dee2e6;">注文数</td><td style="padding:8px 12px;border:1px solid #dee2e6;text-align:right;">${Number(extracted.skuOrders).toLocaleString()}件</td></tr>` : ''}
+            ${extracted.avgOrderCost != null ? `<tr><td style="padding:8px 12px;border:1px solid #dee2e6;">平均CPA</td><td style="padding:8px 12px;border:1px solid #dee2e6;text-align:right;">¥${Number(extracted.avgOrderCost).toLocaleString()}</td></tr>` : ''}
+          </table>
+        ` : '';
+
+        const htmlContent = `
+          <div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;">
+            <div style="background:#1a1a2e;padding:24px;border-radius:8px 8px 0 0;">
+              <h1 style="color:#fff;margin:0;font-size:20px;">📊 広告運用レポート</h1>
+              <p style="color:#a0a0b0;margin:8px 0 0;">Live Commerce Japan</p>
+            </div>
+            <div style="background:#fff;padding:24px;border:1px solid #e0e0e0;border-top:none;">
+              <h2 style="color:#333;font-size:16px;margin:0 0 8px;">期間: ${periodStr}</h2>
+              ${report.title ? `<p style="color:#666;margin:0 0 16px;">キャンペーン: ${report.title}</p>` : ''}
+              ${kpiHtml}
+              ${report.screenshotUrl ? `<div style="margin:16px 0;"><img src="${report.screenshotUrl}" style="max-width:100%;border-radius:8px;border:1px solid #e0e0e0;" alt="広告実績スクリーンショット" /></div>` : ''}
+              ${input.customMessage ? `<div style="background:#f0f7ff;padding:12px 16px;border-radius:6px;margin:16px 0;"><p style="color:#333;margin:0;"><strong>コメント:</strong> ${input.customMessage}</p></div>` : ''}
+              ${report.memo ? `<div style="background:#f8f9fa;padding:12px 16px;border-radius:6px;margin:16px 0;"><p style="color:#666;margin:0;">${report.memo}</p></div>` : ''}
+            </div>
+            <div style="background:#f8f9fa;padding:16px 24px;border-radius:0 0 8px 8px;border:1px solid #e0e0e0;border-top:none;">
+              <p style="color:#999;font-size:12px;margin:0;">このメールはLive Commerce Japan広告運用チームから送信されています。</p>
+            </div>
+          </div>
+        `;
+
+        const { sendEmail } = await import("./emailService");
+        const result = await sendEmail({
+          to: recipients.map(r => r.email),
+          subject: `【広告運用レポート】${periodStr}${report.title ? ` - ${report.title}` : ''}`,
+          content: `広告運用レポート\n期間: ${periodStr}\n${extracted?.cost != null ? `広告費: ¥${Number(extracted.cost).toLocaleString()}` : ''}\n${extracted?.totalRevenue != null ? `売上: ¥${Number(extracted.totalRevenue).toLocaleString()}` : ''}\n${extracted?.roi != null ? `ROI: ${extracted.roi}倍` : ''}`,
+          html: htmlContent,
+        });
+
+        if (result.success) {
+          await updateBrandAdReport(input.reportId, {
+            lastEmailSentAt: new Date(),
+            emailSentCount: (report.emailSentCount || 0) + 1,
+          });
+        }
+
+        return result;
       }),
 
     // ブランド別配信スケジュール取得
