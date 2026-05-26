@@ -860,6 +860,19 @@ export default function BrandDetail() {
   const [proposalHistoryOpen, setProposalHistoryOpen] = useState(false);
   const [selectedHistoryProposal, setSelectedHistoryProposal] = useState<any>(null);
 
+  // Client Ad Proposal states
+  const [clientProposalDialogOpen, setClientProposalDialogOpen] = useState(false);
+  const [isGeneratingClientProposal, setIsGeneratingClientProposal] = useState(false);
+  const [clientProposalData, setClientProposalData] = useState<any>(null);
+  const [clientProposalBudget, setClientProposalBudget] = useState({
+    mode: 'custom' as 'custom' | 'split' | 'ai',
+    customBudget: 100, // 万円
+    liveAdBudget: 60, // 万円
+    clipAdBudget: 40, // 万円
+    serviceFeeRate: 10, // %
+    roiTarget: 4,
+  });
+
   // Ad Alert states
   const [adAlertDialogOpen, setAdAlertDialogOpen] = useState(false);
   const [isGeneratingAlert, setIsGeneratingAlert] = useState(false);
@@ -1077,6 +1090,39 @@ export default function BrandDetail() {
     setIsGeneratingProposal(true);
     setAdProposalData(null);
     generateAdProposalMutation.mutate({ brandId, language: language as 'ja' | 'zh' });
+  };
+
+  // Client Ad Proposal mutation
+  const generateClientAdProposalMutation = trpc.brand.generateClientAdProposal.useMutation({
+    onSuccess: (data) => {
+      setClientProposalData(data);
+      setIsGeneratingClientProposal(false);
+      toast.success(language === 'ja' ? "顧客向け提案書を生成しました" : "已生成客户提案书");
+    },
+    onError: (error) => {
+      setIsGeneratingClientProposal(false);
+      toast.error(language === 'ja' ? "提案書の生成に失敗しました" : "提案书生成失败");
+      console.error("Client proposal generation error:", error);
+    },
+  });
+
+  const handleGenerateClientProposal = () => {
+    setIsGeneratingClientProposal(true);
+    setClientProposalData(null);
+    const params: any = {
+      brandId,
+      language: language as 'ja' | 'zh',
+      serviceFeeRate: clientProposalBudget.serviceFeeRate,
+      roiTarget: clientProposalBudget.roiTarget,
+    };
+    if (clientProposalBudget.mode === 'custom') {
+      params.customBudget = clientProposalBudget.customBudget;
+    } else if (clientProposalBudget.mode === 'split') {
+      params.liveAdBudget = clientProposalBudget.liveAdBudget;
+      params.clipAdBudget = clientProposalBudget.clipAdBudget;
+    }
+    // mode === 'ai' の場合は予算を渡さず、AIが推奨
+    generateClientAdProposalMutation.mutate(params);
   };
 
   // Ad Alert mutation
@@ -2149,6 +2195,13 @@ ${proposal.proposalContent}
               >
                 <TrendingUp className="h-4 w-4 mr-2" />
                 {language === 'ja' ? '広告アラート' : '广告警报'}
+              </Button>
+              <Button
+                onClick={() => setClientProposalDialogOpen(true)}
+                className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/30"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                {language === 'ja' ? '顧客向け提案書' : '客户提案书'}
               </Button>
               <Button
                 onClick={() => window.location.href = `/master/brands/${brandId}/finance`}
@@ -10415,9 +10468,252 @@ ${proposal.proposalContent}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Client Ad Proposal Dialog */}
+      <Dialog open={clientProposalDialogOpen} onOpenChange={setClientProposalDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-gray-900 border-gray-700 text-gray-100">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+              {language === 'ja' ? '📄 顧客向け広告代投提案書' : '📄 客户广告代投提案书'}
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              {language === 'ja' ? 'ブランドの実績データに基づいて、顧客に直接提示できる広告提案書を生成します' : '基于品牌实绩数据，生成可直接展示给客户的广告提案书'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {!clientProposalData && !isGeneratingClientProposal && (
+            <div className="space-y-6 py-4">
+              {/* Budget Mode Selection */}
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-gray-300">
+                  {language === 'ja' ? '予算設定方法' : '预算设置方式'}
+                </label>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    onClick={() => setClientProposalBudget(prev => ({ ...prev, mode: 'custom' }))}
+                    className={`p-3 rounded-lg border text-center transition-all ${
+                      clientProposalBudget.mode === 'custom'
+                        ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
+                        : 'border-gray-600 bg-gray-800 text-gray-400 hover:border-gray-500'
+                    }`}
+                  >
+                    <DollarSign className="h-5 w-5 mx-auto mb-1" />
+                    <span className="text-xs">{language === 'ja' ? '総額入力' : '总额输入'}</span>
+                  </button>
+                  <button
+                    onClick={() => setClientProposalBudget(prev => ({ ...prev, mode: 'split' }))}
+                    className={`p-3 rounded-lg border text-center transition-all ${
+                      clientProposalBudget.mode === 'split'
+                        ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
+                        : 'border-gray-600 bg-gray-800 text-gray-400 hover:border-gray-500'
+                    }`}
+                  >
+                    <BarChart3 className="h-5 w-5 mx-auto mb-1" />
+                    <span className="text-xs">{language === 'ja' ? '内訳入力' : '明细输入'}</span>
+                  </button>
+                  <button
+                    onClick={() => setClientProposalBudget(prev => ({ ...prev, mode: 'ai' }))}
+                    className={`p-3 rounded-lg border text-center transition-all ${
+                      clientProposalBudget.mode === 'ai'
+                        ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
+                        : 'border-gray-600 bg-gray-800 text-gray-400 hover:border-gray-500'
+                    }`}
+                  >
+                    <Sparkles className="h-5 w-5 mx-auto mb-1" />
+                    <span className="text-xs">{language === 'ja' ? 'AI推奨' : 'AI推荐'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Budget Input Fields */}
+              {clientProposalBudget.mode === 'custom' && (
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-gray-300">
+                    {language === 'ja' ? '毎月広告予算（万円）' : '每月广告预算（万日元）'}
+                  </label>
+                  <input
+                    type="number"
+                    value={clientProposalBudget.customBudget}
+                    onChange={(e) => setClientProposalBudget(prev => ({ ...prev, customBudget: Number(e.target.value) }))}
+                    className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+                    placeholder="100"
+                  />
+                  <p className="text-xs text-gray-500">
+                    {language === 'ja' ? '※ 商品GMV広告60%、直播GMV広告40%に自動配分されます' : '※ 将自动分配为商品GMV广告60%、直播GMV广告40%'}
+                  </p>
+                </div>
+              )}
+
+              {clientProposalBudget.mode === 'split' && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm text-gray-400">
+                        {language === 'ja' ? '商品GMV広告（万円）' : '商品GMV广告（万日元）'}
+                      </label>
+                      <input
+                        type="number"
+                        value={clientProposalBudget.liveAdBudget}
+                        onChange={(e) => setClientProposalBudget(prev => ({ ...prev, liveAdBudget: Number(e.target.value) }))}
+                        className="w-full mt-1 px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-cyan-500"
+                        placeholder="60"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400">
+                        {language === 'ja' ? '直播GMV広告（万円）' : '直播GMV广告（万日元）'}
+                      </label>
+                      <input
+                        type="number"
+                        value={clientProposalBudget.clipAdBudget}
+                        onChange={(e) => setClientProposalBudget(prev => ({ ...prev, clipAdBudget: Number(e.target.value) }))}
+                        className="w-full mt-1 px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-cyan-500"
+                        placeholder="40"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {clientProposalBudget.mode === 'ai' && (
+                <div className="p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+                  <p className="text-sm text-cyan-300">
+                    <Sparkles className="h-4 w-4 inline mr-1" />
+                    {language === 'ja' ? 'AIがブランドの規模と実績に基づいて最適な予算を提案します' : 'AI将根据品牌规模和业绩推荐最优预算'}
+                  </p>
+                </div>
+              )}
+
+              {/* Service Fee & ROI Target */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-gray-400">
+                    {language === 'ja' ? '代投サービス費率（%）' : '代投服务费率（%）'}
+                  </label>
+                  <input
+                    type="number"
+                    value={clientProposalBudget.serviceFeeRate}
+                    onChange={(e) => setClientProposalBudget(prev => ({ ...prev, serviceFeeRate: Number(e.target.value) }))}
+                    className="w-full mt-1 px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-cyan-500"
+                    placeholder="10"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400">
+                    {language === 'ja' ? 'ROI目標（投産比）' : 'ROI目标（投产比）'}
+                  </label>
+                  <input
+                    type="number"
+                    value={clientProposalBudget.roiTarget}
+                    onChange={(e) => setClientProposalBudget(prev => ({ ...prev, roiTarget: Number(e.target.value) }))}
+                    className="w-full mt-1 px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-cyan-500"
+                    placeholder="4"
+                  />
+                </div>
+              </div>
+
+              {/* Summary Preview */}
+              {clientProposalBudget.mode !== 'ai' && (
+                <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg space-y-2">
+                  <p className="text-sm font-medium text-gray-300">{language === 'ja' ? '予算プレビュー' : '预算预览'}</p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <span className="text-gray-500">{language === 'ja' ? '広告予算:' : '广告预算:'}</span>
+                    <span className="text-white">
+                      ¥{((clientProposalBudget.mode === 'custom' ? clientProposalBudget.customBudget : clientProposalBudget.liveAdBudget + clientProposalBudget.clipAdBudget) * 10000).toLocaleString()}
+                    </span>
+                    <span className="text-gray-500">{language === 'ja' ? '代投サービス費:' : '代投服务费:'}</span>
+                    <span className="text-white">
+                      ¥{Math.round((clientProposalBudget.mode === 'custom' ? clientProposalBudget.customBudget : clientProposalBudget.liveAdBudget + clientProposalBudget.clipAdBudget) * 10000 * clientProposalBudget.serviceFeeRate / 100).toLocaleString()}
+                    </span>
+                    <span className="text-gray-500">{language === 'ja' ? '合計（税別）:' : '总计（不含税）:'}</span>
+                    <span className="text-cyan-300 font-bold">
+                      ¥{Math.round((clientProposalBudget.mode === 'custom' ? clientProposalBudget.customBudget : clientProposalBudget.liveAdBudget + clientProposalBudget.clipAdBudget) * 10000 * (1 + clientProposalBudget.serviceFeeRate / 100)).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Generate Button */}
+              <Button
+                onClick={handleGenerateClientProposal}
+                className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white py-3 text-lg font-bold"
+              >
+                <Sparkles className="h-5 w-5 mr-2" />
+                {language === 'ja' ? '提案書を生成' : '生成提案书'}
+              </Button>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {isGeneratingClientProposal && (
+            <div className="flex flex-col items-center justify-center py-16 space-y-4">
+              <Loader2 className="h-12 w-12 animate-spin text-cyan-400" />
+              <p className="text-gray-400 text-sm">
+                {language === 'ja' ? 'ブランドデータを分析中...提案書を生成しています' : '正在分析品牌数据...生成提案书中'}
+              </p>
+            </div>
+          )}
+
+          {/* Generated Proposal Display */}
+          {clientProposalData && !isGeneratingClientProposal && (
+            <div className="space-y-4">
+              {/* Budget Summary Card */}
+              <div className="grid grid-cols-4 gap-3">
+                <div className="p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-center">
+                  <p className="text-xs text-gray-400">{language === 'ja' ? '広告予算' : '广告预算'}</p>
+                  <p className="text-lg font-bold text-cyan-300">¥{clientProposalData.budgetBreakdown?.totalAdBudget?.toLocaleString()}</p>
+                </div>
+                <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg text-center">
+                  <p className="text-xs text-gray-400">{language === 'ja' ? 'サービス費' : '服务费'}</p>
+                  <p className="text-lg font-bold text-purple-300">¥{clientProposalData.budgetBreakdown?.serviceFee?.toLocaleString()}</p>
+                </div>
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-center">
+                  <p className="text-xs text-gray-400">{language === 'ja' ? '合計' : '总计'}</p>
+                  <p className="text-lg font-bold text-amber-300">¥{clientProposalData.budgetBreakdown?.totalCost?.toLocaleString()}</p>
+                </div>
+                <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg text-center">
+                  <p className="text-xs text-gray-400">ROI{language === 'ja' ? '目標' : '目标'}</p>
+                  <p className="text-lg font-bold text-green-300">{clientProposalData.budgetBreakdown?.roiTarget}以上</p>
+                </div>
+              </div>
+
+              {/* AI Generated Proposal Content */}
+              <div className="p-6 bg-gray-800/50 border border-gray-700 rounded-lg">
+                <div className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap leading-relaxed">
+                  {clientProposalData.proposal}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => {
+                    navigator.clipboard.writeText(clientProposalData.proposal);
+                    toast.success(language === 'ja' ? 'コピーしました' : '已复制');
+                  }}
+                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  {language === 'ja' ? 'テキストをコピー' : '复制文本'}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setClientProposalData(null);
+                  }}
+                  className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white"
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  {language === 'ja' ? '再生成' : '重新生成'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
 
 
 /* ═══════════ AitherHub Clips Section ═══════════ */

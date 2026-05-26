@@ -5218,6 +5218,302 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
         };
       }),
 
+    // Generate Client-Facing Ad Proposal (顧客向け広告代投提案書)
+    generateClientAdProposal: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        language: z.enum(['ja', 'zh']).default('zh'),
+        customBudget: z.number().optional(), // ユーザー入力の予算（万円単位）
+        liveAdBudget: z.number().optional(), // 直播広告予算（万円）
+        clipAdBudget: z.number().optional(), // 切り抜き広告予算（万円）
+        serviceFeeRate: z.number().optional().default(10), // 代投服務費率（%）
+        roiTarget: z.number().optional().default(4), // ROI目標
+      }))
+      .mutation(async ({ input }) => {
+        const lang = input.language || 'zh';
+        const isJa = lang === 'ja';
+        
+        // Get brand data
+        const brand = await getBrandById(input.brandId);
+        if (!brand) {
+          throw new Error('Brand not found');
+        }
+
+        // Get brand performance data
+        const livestreams = await getLivestreamsByBrandId(input.brandId);
+        const contracts = await getContractsByBrandId(input.brandId);
+        const products = await getProductsByBrandId(input.brandId);
+
+        // Calculate brand metrics
+        const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.salesAmount || ls.gmv || ls.productGmvTotal || 0), 0);
+        const totalImpressions = livestreams.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
+        const totalOrders = livestreams.reduce((sum, ls) => sum + (ls.orderCount || 0), 0);
+        const contractAmount = contracts.reduce((sum, c) => sum + (c.fixedFee || 0), 0);
+        
+        // Count unique livestream dates
+        const uniqueDates = new Set<string>();
+        livestreams.forEach((ls) => {
+          if (ls.livestreamDate) {
+            uniqueDates.add(new Date(ls.livestreamDate).toISOString().split('T')[0]);
+          }
+        });
+        const totalLivestreams = uniqueDates.size;
+        const avgGmvPerLive = totalLivestreams > 0 ? totalGmv / totalLivestreams : 0;
+
+        // Get top products
+        const productGmvMap = new Map<string, number>();
+        for (const ls of livestreams) {
+          const lsProducts = await getLivestreamProductsByLivestreamId(ls.id);
+          for (const p of lsProducts) {
+            const current = productGmvMap.get(p.productName) || 0;
+            productGmvMap.set(p.productName, current + (p.directGmv || p.gmv || 0));
+          }
+        }
+        const topProducts = Array.from(productGmvMap.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([name, gmv]) => ({ name, gmv }));
+
+        // Count collaborating livers
+        const liverSet = new Set<number>();
+        livestreams.forEach(ls => {
+          if (ls.liverId) liverSet.add(ls.liverId);
+        });
+        const collaboratingLivers = liverSet.size;
+
+        // Get learning data for better predictions
+        let learningStats: any = null;
+        if (db) {
+          const [stats] = await db
+            .select({
+              avgRoas: brandAdPerformanceStats.avgRoas,
+              avgCpm: brandAdPerformanceStats.avgCpm,
+              totalRecords: brandAdPerformanceStats.totalRecords,
+            })
+            .from(brandAdPerformanceStats)
+            .where(eq(brandAdPerformanceStats.brandId, input.brandId));
+          if (stats && stats.totalRecords && stats.totalRecords >= 3) {
+            learningStats = stats;
+          }
+        }
+
+        // Calculate budget allocation
+        const serviceFeeRate = (input.serviceFeeRate || 10) / 100;
+        const roiTarget = input.roiTarget || 4;
+        let liveAdBudget: number;
+        let clipAdBudget: number;
+        let totalAdBudget: number;
+
+        if (input.liveAdBudget !== undefined && input.clipAdBudget !== undefined) {
+          // User specified individual budgets
+          liveAdBudget = input.liveAdBudget * 10000; // 万円→円
+          clipAdBudget = input.clipAdBudget * 10000;
+          totalAdBudget = liveAdBudget + clipAdBudget;
+        } else if (input.customBudget !== undefined) {
+          // User specified total budget, auto-split 60:40
+          totalAdBudget = input.customBudget * 10000;
+          liveAdBudget = Math.round(totalAdBudget * 0.6);
+          clipAdBudget = totalAdBudget - liveAdBudget;
+        } else {
+          // AI recommends budget based on brand scale
+          const brandScale = Math.max(totalGmv, contractAmount);
+          if (brandScale >= 50000000) {
+            totalAdBudget = 1000000;
+          } else if (brandScale >= 20000000) {
+            totalAdBudget = 600000;
+          } else if (brandScale >= 10000000) {
+            totalAdBudget = 400000;
+          } else if (brandScale >= 5000000) {
+            totalAdBudget = 250000;
+          } else {
+            totalAdBudget = 150000;
+          }
+          liveAdBudget = Math.round(totalAdBudget * 0.6);
+          clipAdBudget = totalAdBudget - liveAdBudget;
+        }
+
+        const serviceFee = Math.round(totalAdBudget * serviceFeeRate);
+        const totalCost = totalAdBudget + serviceFee;
+
+        // Calculate projected returns
+        const learnedRoas = learningStats?.avgRoas ? parseFloat(learningStats.avgRoas) : null;
+        const effectiveRoas = learnedRoas || roiTarget;
+        const projectedGmv = totalAdBudget * effectiveRoas;
+        const projectedLiveGmv = liveAdBudget * (effectiveRoas * 1.2); // Live ads perform better
+        const projectedClipGmv = clipAdBudget * (effectiveRoas * 0.8); // Clip ads lower immediate conversion
+
+        // LCJ overall ad performance (reference data)
+        // Get recent LCJ-wide stats from ad investment records
+        let lcjOverallStats = {
+          totalAdSpend: 946429, // Default from PDF data
+          totalGmv: 37443107,
+          roi: 39.56,
+          month: '2026年5月',
+        };
+        try {
+          if (db) {
+            const recentInvestments = await db
+              .select()
+              .from(adInvestmentRecords)
+              .orderBy(desc(adInvestmentRecords.investmentDate))
+              .limit(50);
+            if (recentInvestments.length > 0) {
+              const totalSpend = recentInvestments.reduce((sum, r) => sum + (r.totalBudget || 0), 0);
+              const totalGmvAll = recentInvestments.reduce((sum, r) => sum + (r.actualGmv || 0), 0);
+              if (totalSpend > 0 && totalGmvAll > 0) {
+                lcjOverallStats = {
+                  totalAdSpend: totalSpend,
+                  totalGmv: totalGmvAll,
+                  roi: totalGmvAll / totalSpend,
+                  month: '直近実績',
+                };
+              }
+            }
+          }
+        } catch (e) {
+          // Use default stats
+        }
+
+        // Build AI prompt for client-facing proposal
+        const prompt = isJa ? `あなたはTikTokライブコマースの広告代理店「株式会社LCJ」の広告戦略コンサルタントです。
+以下のデータに基づいて、クライアント（ブランド）に直接提示する「広告代投提案書」を作成してください。
+
+## 重要な指示
+- これは顧客に直接見せる提案書です。内部向けではありません。
+- 「株式会社LCJ」が広告運用を代行する前提で書いてください。
+- 具体的な数字とROI予測を含めてください。
+- プロフェッショナルで説得力のある文章にしてください。
+
+## ブランド情報
+- ブランド名: ${brand.name} (${brand.nameJa || ''})
+- カテゴリー: ${brand.category || '美容・コスメ'}
+
+## ブランド実績データ（LCJ経由）
+- 総GMV: ¥${totalGmv.toLocaleString()}
+- 総注文数: ${totalOrders.toLocaleString()}件
+- 配信回数: ${totalLivestreams}回
+- 協力ライバー数: ${collaboratingLivers}名
+- 平均GMV/配信: ¥${Math.round(avgGmvPerLive).toLocaleString()}
+
+## 売れ筋商品TOP5
+${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).join('\n')}
+
+## LCJ全体の広告運用実績
+- 統計期間: ${lcjOverallStats.month}
+- 広告消耗: ¥${lcjOverallStats.totalAdSpend.toLocaleString()}
+- GMV: ¥${lcjOverallStats.totalGmv.toLocaleString()}
+- ROI: ${lcjOverallStats.roi.toFixed(2)}
+
+## 提案する広告代投方案
+- 商品GMV広告（ライブ広告）: ¥${liveAdBudget.toLocaleString()}（${Math.round(liveAdBudget/10000)}万円）
+- 直播GMV広告（切り抜き広告）: ¥${clipAdBudget.toLocaleString()}（${Math.round(clipAdBudget/10000)}万円）
+- 代投サービス費（${Math.round(serviceFeeRate * 100)}%）: ¥${serviceFee.toLocaleString()}
+- 合計（税別）: ¥${totalCost.toLocaleString()}
+- ROI目標: ${roiTarget}以上
+- 予測GMV: ¥${Math.round(projectedGmv).toLocaleString()}
+
+## 提案書の構成（以下の順番で書いてください）
+1. **ブランド実績サマリー** - LCJとの協業実績を簡潔にまとめる
+2. **広告投入の必要性** - なぜ今広告費を投入すべきかを説得力を持って説明
+3. **広告代投方案** - 具体的な予算内訳、運用方法、ROI目標
+4. **期待される効果** - 投資対効果の具体的なシミュレーション
+5. **運用体制** - LCJが責任を持って運用する体制の説明
+
+日本語で、プロフェッショナルな提案書として作成してください。`
+        : `你是TikTok直播电商广告代理公司「株式会社LCJ」的广告策略顾问。
+请根据以下数据，制作一份直接展示给客户（品牌方）的「广告代投提案书」。
+
+## 重要指示
+- 这是直接给客户看的提案书，不是内部文档。
+- 以「株式会社LCJ」代为运营广告的前提来写。
+- 包含具体数字和ROI预测。
+- 文章要专业且有说服力。
+
+## 品牌信息
+- 品牌名: ${brand.name} (${brand.nameJa || ''})
+- 类别: ${brand.category || '美容・化妆品'}
+
+## 品牌业绩数据（LCJ渠道）
+- 总GMV: ¥${totalGmv.toLocaleString()}
+- 总订单数: ${totalOrders.toLocaleString()}件
+- 直播次数: ${totalLivestreams}次
+- 合作达人数: ${collaboratingLivers}名
+- 平均GMV/直播: ¥${Math.round(avgGmvPerLive).toLocaleString()}
+
+## 热销商品TOP5
+${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).join('\n')}
+
+## LCJ整体广告运营实绩
+- 统计期间: ${lcjOverallStats.month}
+- 广告消耗: ¥${lcjOverallStats.totalAdSpend.toLocaleString()}
+- GMV: ¥${lcjOverallStats.totalGmv.toLocaleString()}
+- ROI: ${lcjOverallStats.roi.toFixed(2)}
+
+## 提案的广告代投方案
+- 商品GMV广告: ¥${liveAdBudget.toLocaleString()}（${Math.round(liveAdBudget/10000)}万日元）
+- 直播GMV广告: ¥${clipAdBudget.toLocaleString()}（${Math.round(clipAdBudget/10000)}万日元）
+- 代投服务费（${Math.round(serviceFeeRate * 100)}%）: ¥${serviceFee.toLocaleString()}
+- 总计（不含税）: ¥${totalCost.toLocaleString()}
+- ROI目标: ${roiTarget}以上
+- 预测GMV: ¥${Math.round(projectedGmv).toLocaleString()}
+
+## 提案书结构（请按以下顺序撰写）
+1. **品牌业绩概要** - 简要总结与LCJ的合作实绩
+2. **广告投入的必要性** - 有说服力地说明为什么现在要投入广告费
+3. **广告代投方案** - 具体的预算明细、运营方式、ROI目标
+4. **预期效果** - 投资回报的具体模拟
+5. **运营体制** - LCJ负责运营的体制说明
+
+请用中文，以专业提案书的格式撰写。`;
+
+        // Call LLM
+        const response = await invokeLLM({
+          messages: [
+            { role: 'system', content: isJa 
+              ? 'あなたは株式会社LCJの広告戦略コンサルタントです。クライアントに直接提示するプロフェッショナルな広告代投提案書を作成してください。Markdown形式で出力してください。'
+              : '你是株式会社LCJ的广告策略顾问。请制作直接展示给客户的专业广告代投提案书。请以Markdown格式输出。'
+            },
+            { role: 'user', content: prompt },
+          ],
+        });
+
+        const proposalContent = response.choices[0]?.message?.content || (isJa ? '提案書を生成できませんでした' : '无法生成提案书');
+
+        return {
+          brandId: input.brandId,
+          brandName: brand.name,
+          brandNameJa: brand.nameJa,
+          proposal: proposalContent,
+          budgetBreakdown: {
+            liveAdBudget,
+            clipAdBudget,
+            totalAdBudget,
+            serviceFee,
+            serviceFeeRate: input.serviceFeeRate || 10,
+            totalCost,
+            roiTarget,
+            projectedGmv,
+            projectedLiveGmv,
+            projectedClipGmv,
+          },
+          brandMetrics: {
+            totalGmv,
+            totalOrders,
+            totalLivestreams,
+            collaboratingLivers,
+            avgGmvPerLive,
+            topProducts,
+          },
+          lcjOverallStats,
+          learningData: learningStats ? {
+            hasData: true,
+            avgRoas: parseFloat(learningStats.avgRoas || '0'),
+            recordCount: learningStats.totalRecords,
+          } : { hasData: false, avgRoas: 0, recordCount: 0 },
+          generatedAt: new Date().toISOString(),
+        };
+      }),
+
     // Generate Ad Alert Report (Opportunity Cost Analysis)
     generateAdAlert: protectedProcedure
       .input(z.object({
