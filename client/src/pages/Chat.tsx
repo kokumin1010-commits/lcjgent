@@ -26,6 +26,7 @@ export default function Chat() {
   const [chatType, setChatType] = useState<"direct" | "group">("group");
   const [uploading, setUploading] = useState(false);
   const [mobileShowMessages, setMobileShowMessages] = useState(false);
+  const [showMemberList, setShowMemberList] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -348,10 +349,10 @@ export default function Chat() {
                   {selectedRoom?.type === "group" ? <Users className="h-3 w-3" /> : (getRoomDisplayName(selectedRoom) || "?").charAt(0)}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setShowMemberList(true)}>
                 <h2 className="font-medium text-sm truncate">{getRoomDisplayName(selectedRoom)}</h2>
-                <p className="text-xs text-muted-foreground">
-                  {roomDetail?.members?.length || 0}人のメンバー
+                <p className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                  {roomDetail?.members?.length || 0}人のメンバー ›
                 </p>
               </div>
               <div className="flex items-center gap-1">
@@ -581,6 +582,51 @@ export default function Chat() {
             >
               追加
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Member List Dialog */}
+      <Dialog open={showMemberList} onOpenChange={setShowMemberList}>
+        <DialogContent className="sm:max-w-sm max-h-[70vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              メンバー一覧
+              <Badge variant="secondary" className="ml-1">{roomDetail?.members?.length || 0}人</Badge>
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="flex-1 min-h-0" style={{ maxHeight: "50vh" }}>
+            <div className="space-y-1">
+              {roomDetail?.members?.map((member: any) => {
+                const isSelf = myInfo && member.userId === myInfo.id && member.userType === myInfo.userType;
+                return (
+                  <div
+                    key={`${member.userType}-${member.userId}`}
+                    className="flex items-center gap-3 p-2.5 rounded-md hover:bg-accent/50 transition-colors"
+                  >
+                    <Avatar className="h-9 w-9">
+                      {member.userAvatar ? <AvatarImage src={member.userAvatar} /> : null}
+                      <AvatarFallback className={`text-xs ${member.userType === 'staff' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                        {(member.userName || "?").charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {member.userName || "不明"}
+                        {isSelf && <span className="text-xs text-muted-foreground ml-1">(自分)</span>}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {member.userType === 'staff' ? 'スタッフ' : 'ライバー'}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowMemberList(false)} className="w-full">閉じる</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
