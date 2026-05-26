@@ -936,8 +936,9 @@ function TrainingPanel() {
     setIsLoading(true);
     try {
       const result = await trainingMutation.mutateAsync({
+        mode: "start",
         scenario: scenarioId,
-        bdResponse: "",
+        userReply: "",
         conversationHistory: [],
       });
       setConversation([{ role: "client", content: result.clientResponse }]);
@@ -957,10 +958,11 @@ function TrainingPanel() {
     setIsLoading(true);
     try {
       const result = await trainingMutation.mutateAsync({
+        mode: "reply",
         scenario,
-        bdResponse: response,
+        userReply: response,
         conversationHistory: [...conversation, { role: "bd", content: response }].map(c => ({
-          role: c.role === "client" ? "client" : "bd",
+          role: c.role === "client" ? "user" : "assistant",
           content: c.content,
         })),
       });
