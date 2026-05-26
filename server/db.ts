@@ -25036,13 +25036,13 @@ export async function ensureBrandsManagerColumns() {
 // ============================================================
 
 export async function createBrandAdReport(data: InsertBrandAdReport) {
-  const db = getDb();
+  const db = await getDb();
   const [result] = await db.insert(brandAdReports).values(data).$returningId();
   return result;
 }
 
 export async function getBrandAdReportsByBrandId(brandId: number) {
-  const db = getDb();
+  const db = await getDb();
   return db.select()
     .from(brandAdReports)
     .where(eq(brandAdReports.brandId, brandId))
@@ -25050,18 +25050,18 @@ export async function getBrandAdReportsByBrandId(brandId: number) {
 }
 
 export async function getBrandAdReportById(id: number) {
-  const db = getDb();
+  const db = await getDb();
   const result = await db.select().from(brandAdReports).where(eq(brandAdReports.id, id)).limit(1);
   return result[0] || null;
 }
 
 export async function updateBrandAdReport(id: number, data: Partial<InsertBrandAdReport>) {
-  const db = getDb();
+  const db = await getDb();
   await db.update(brandAdReports).set(data).where(eq(brandAdReports.id, id));
 }
 
 export async function deleteBrandAdReport(id: number) {
-  const db = getDb();
+  const db = await getDb();
   await db.delete(brandAdReports).where(eq(brandAdReports.id, id));
 }
 
@@ -25070,20 +25070,20 @@ export async function deleteBrandAdReport(id: number) {
 // ============================================================
 
 export async function getBrandAdEmailRecipients(brandId: number) {
-  const db = getDb();
+  const db = await getDb();
   return db.select()
     .from(brandAdEmailRecipients)
     .where(and(eq(brandAdEmailRecipients.brandId, brandId), eq(brandAdEmailRecipients.isActive, true)));
 }
 
 export async function addBrandAdEmailRecipient(data: InsertBrandAdEmailRecipient) {
-  const db = getDb();
+  const db = await getDb();
   const [result] = await db.insert(brandAdEmailRecipients).values(data).$returningId();
   return result;
 }
 
 export async function removeBrandAdEmailRecipient(id: number) {
-  const db = getDb();
+  const db = await getDb();
   await db.delete(brandAdEmailRecipients).where(eq(brandAdEmailRecipients.id, id));
 }
 
@@ -25092,7 +25092,7 @@ export async function removeBrandAdEmailRecipient(id: number) {
 // ============================================================
 
 export async function ensureBrandAdReportsTables() {
-  const db = getDb();
+  const db = await getDb();
   try {
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS brand_ad_reports (
