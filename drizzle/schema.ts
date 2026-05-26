@@ -5951,3 +5951,24 @@ export const lcjBrainConversations = mysqlTable("lcj_brain_conversations", {
 });
 export type LcjBrainConversation = typeof lcjBrainConversations.$inferSelect;
 export type InsertLcjBrainConversation = typeof lcjBrainConversations.$inferInsert;
+
+
+// LCJ Brain 知識庫（会議纪要・日報・SOP等）
+// ============================================================
+export const lcjBrainKnowledge = mysqlTable("lcj_brain_knowledge", {
+  id: int("id").primaryKey().autoincrement(),
+  title: varchar("title", { length: 500 }).notNull(), // 纪要タイトル
+  category: varchar("category", { length: 50 }).notNull().default("meeting"), // meeting / daily_report / sop / brand / other
+  content: text("content").notNull(), // 全文テキスト
+  summary: text("summary"), // AI生成の要約
+  participants: json("participants").$type<string[]>(), // 参加者リスト
+  tags: json("tags").$type<string[]>(), // タグ（品牌名、プロジェクト名等）
+  meetingDate: timestamp("meetingDate"), // 会議日時
+  sourceFileName: varchar("sourceFileName", { length: 500 }), // 元ファイル名
+  uploadedBy: int("uploadedBy"), // アップロードしたユーザーID
+  uploadedByName: varchar("uploadedByName", { length: 100 }), // アップロードしたユーザー名
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type LcjBrainKnowledge = typeof lcjBrainKnowledge.$inferSelect;
+export type InsertLcjBrainKnowledge = typeof lcjBrainKnowledge.$inferInsert;

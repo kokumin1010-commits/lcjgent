@@ -18,10 +18,11 @@ import {
   brandProducts,
   lcjBrainChatLogs,
   lcjBrainConversations,
+  lcjBrainKnowledge,
 } from "../drizzle/schema";
 import { eq, desc, and, gte, lte, isNull, sql, like, or, count, sum } from "drizzle-orm";
 
-// Auto-migration for conversations table
+// Auto-migration for conversations table + knowledge base table
 let _migrated = false;
 async function ensureConversationsTable() {
   if (_migrated) return;
@@ -41,6 +42,27 @@ async function ensureConversationsTable() {
       INDEX idx_updatedAt (updatedAt)
     )`);
     await db.execute(sql`ALTER TABLE lcj_brain_chat_logs ADD COLUMN IF NOT EXISTS conversationId INT DEFAULT NULL`);
+  } catch (e) { /* table exists */ }
+  // Knowledge base table
+  try {
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS lcj_brain_knowledge (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(500) NOT NULL,
+      category VARCHAR(50) NOT NULL DEFAULT 'meeting',
+      content TEXT NOT NULL,
+      summary TEXT,
+      participants JSON,
+      tags JSON,
+      meetingDate TIMESTAMP NULL,
+      sourceFileName VARCHAR(500),
+      uploadedBy INT,
+      uploadedByName VARCHAR(100),
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+      FULLTEXT INDEX idx_content (title, content),
+      INDEX idx_category (category),
+      INDEX idx_meetingDate (meetingDate)
+    )`);
   } catch (e) { /* table exists */ }
 }
 
@@ -557,6 +579,69 @@ async function buildContext(userMessage: string): Promise<string> {
     }
   }
 
+  // ★ 知識庫RAG検索：ユーザーの質問に関連する纪要を検索して追加
+  try {
+    const db = await getDb();
+    if (db) {
+      // キーワード検索（LIKE）で関連纪要を取得
+      const searchTerms = userMessage
+        .replace(/[?？。，！\s]+/g, " ")
+        .split(" ")
+        .filter(t => t.length >= 2)
+        .slice(0, 5);
+      
+      let knowledgeResults: any[] = [];
+      if (searchTerms.length > 0) {
+        const searchConditions = searchTerms.map(term => 
+          or(
+            like(lcjBrainKnowledge.title, `%${term}%`),
+            like(lcjBrainKnowledge.content, `%${term}%`)
+          )
+        );
+        knowledgeResults = await db.select({
+          id: lcjBrainKnowledge.id,
+          title: lcjBrainKnowledge.title,
+          category: lcjBrainKnowledge.category,
+          summary: lcjBrainKnowledge.summary,
+          content: lcjBrainKnowledge.content,
+          meetingDate: lcjBrainKnowledge.meetingDate,
+          participants: lcjBrainKnowledge.participants,
+        })
+          .from(lcjBrainKnowledge)
+          .where(or(...searchConditions))
+          .orderBy(desc(lcjBrainKnowledge.meetingDate))
+          .limit(5);
+      }
+
+      // 検索結果がない場合、最新5件を取得（一般的な質問対応）
+      if (knowledgeResults.length === 0 && isGeneral) {
+        knowledgeResults = await db.select({
+          id: lcjBrainKnowledge.id,
+          title: lcjBrainKnowledge.title,
+          category: lcjBrainKnowledge.category,
+          summary: lcjBrainKnowledge.summary,
+          content: lcjBrainKnowledge.content,
+          meetingDate: lcjBrainKnowledge.meetingDate,
+          participants: lcjBrainKnowledge.participants,
+        })
+          .from(lcjBrainKnowledge)
+          .orderBy(desc(lcjBrainKnowledge.meetingDate))
+          .limit(3);
+      }
+
+      if (knowledgeResults.length > 0) {
+        const knowledgeContext = knowledgeResults.map(k => {
+          const dateStr = k.meetingDate ? new Date(k.meetingDate).toISOString().split('T')[0] : '未知';
+          const contentPreview = k.content.length > 2000 ? k.content.substring(0, 2000) + "..." : k.content;
+          return `### ${k.title} (${dateStr})\n参会人: ${k.participants ? (k.participants as string[]).join(', ') : '未记录'}\n摘要: ${k.summary || '无'}\n内容: ${contentPreview}`;
+        }).join("\n\n");
+        contextParts.push(`## 知识库相关纪要（共${knowledgeResults.length}条）\n${knowledgeContext}`);
+      }
+    }
+  } catch (e) {
+    console.error("[LCJ Brain] Knowledge RAG search error:", e);
+  }
+
   return contextParts.join("\n\n");
 }
 
@@ -591,8 +676,10 @@ export const lcjBrainRouter = router({
 ## 你的角色
 - LCJ的BD智能助手，帮助BD团队做出更好的决策
 - 基于《LCJ品牌招商成交宝典》的知识体系，提供专业的BD指导
+- 你还连接着公司的「知识库」，包含历史会议纪要、日报、SOP等。当用户问到相关内容时，优先引用知识库中的信息。
 - 所有回答必须基于实际数据，不能编造数据
-- 如果数据不足，要明确说明"当前数据中没有相关信息"
+- 如果数据不足，要明确说明“当前数据中没有相关信息”
+- 当引用知识库内容时，请标注来源（例如：“根据5月21日运营&商务内部会议纪要...”）
 
 ## 回答原则
 1. 基于实际数据回答，引用具体数字
@@ -1170,6 +1257,186 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
       } catch (error: any) {
         console.error("[LCJ Brain] getAllConversations error:", error.message);
         return [];
+      }
+    }),
+
+  // ============================================================
+  // 知識庫 API
+  // ============================================================
+
+  // 知識庫に纪要を追加
+  addKnowledge: protectedProcedure
+    .input(z.object({
+      title: z.string().min(1),
+      category: z.enum(["meeting", "daily_report", "sop", "brand", "other"]).default("meeting"),
+      content: z.string().min(1),
+      participants: z.array(z.string()).optional(),
+      tags: z.array(z.string()).optional(),
+      meetingDate: z.string().optional(), // ISO date string
+      sourceFileName: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureConversationsTable();
+      const db = await getDb();
+      if (!db) return { success: false, error: "DB接続エラー" };
+      const userName = ctx.user?.name || ctx.user?.email || "unknown";
+      const userId = ctx.user?.id || null;
+
+      try {
+        // AI要約を生成
+        let summary = "";
+        try {
+          const summaryResult = await invokeLLM({
+            model: "gpt-4.1-mini",
+            messages: [
+              { role: "system", content: "你是一个会议纪要摘要助手。请用中文将以下内容总结为3-5个要点（每个要点一行，用•开头）。重点提取：关键决策、待办事项、重要数据。" },
+              { role: "user", content: input.content.substring(0, 8000) },
+            ],
+          });
+          summary = typeof summaryResult.choices?.[0]?.message?.content === "string"
+            ? summaryResult.choices[0].message.content : "";
+        } catch (e) {
+          console.error("[Knowledge] Summary generation failed:", e);
+        }
+
+        // AI自动提取标签
+        let autoTags: string[] = input.tags || [];
+        try {
+          const tagResult = await invokeLLM({
+            model: "gpt-4.1-nano",
+            messages: [
+              { role: "system", content: "从以下会议纪要中提取关键标签（品牌名、人名、项目名、主题词）。输出JSON数组格式如[\"标签1\", \"标签2\"]，最多10个标签，不要其他文字。" },
+              { role: "user", content: input.content.substring(0, 4000) },
+            ],
+          });
+          const tagContent = typeof tagResult.choices?.[0]?.message?.content === "string"
+            ? tagResult.choices[0].message.content : "";
+          const tagMatch = tagContent.match(/\[.*\]/s);
+          if (tagMatch) {
+            const parsed = JSON.parse(tagMatch[0]);
+            autoTags = [...new Set([...autoTags, ...parsed])];
+          }
+        } catch (e) { /* ignore */ }
+
+        // AI自动提取参会人
+        let autoParticipants: string[] = input.participants || [];
+        if (autoParticipants.length === 0) {
+          try {
+            const partResult = await invokeLLM({
+              model: "gpt-4.1-nano",
+              messages: [
+                { role: "system", content: "从以下会议纪要中提取所有参会人姓名。输出JSON数组格式如[\"张三\", \"李四\"]，不要其他文字。如果找不到参会人，输出[]。" },
+                { role: "user", content: input.content.substring(0, 4000) },
+              ],
+            });
+            const partContent = typeof partResult.choices?.[0]?.message?.content === "string"
+              ? partResult.choices[0].message.content : "";
+            const partMatch = partContent.match(/\[.*\]/s);
+            if (partMatch) {
+              autoParticipants = JSON.parse(partMatch[0]);
+            }
+          } catch (e) { /* ignore */ }
+        }
+
+        const [inserted] = await db.insert(lcjBrainKnowledge).values({
+          title: input.title,
+          category: input.category,
+          content: input.content,
+          summary,
+          participants: autoParticipants.length > 0 ? autoParticipants : null,
+          tags: autoTags.length > 0 ? autoTags : null,
+          meetingDate: input.meetingDate ? new Date(input.meetingDate) : null,
+          sourceFileName: input.sourceFileName || null,
+          uploadedBy: userId,
+          uploadedByName: userName,
+        }).$returningId();
+
+        return { success: true, id: inserted.id, summary, tags: autoTags, participants: autoParticipants };
+      } catch (error: any) {
+        console.error("[LCJ Brain] addKnowledge error:", error.message);
+        return { success: false, error: error.message };
+      }
+    }),
+
+  // 知識庫一覧取得
+  getKnowledgeList: protectedProcedure
+    .input(z.object({
+      category: z.string().optional(),
+      search: z.string().optional(),
+      limit: z.number().optional().default(50),
+    }))
+    .query(async ({ input }) => {
+      await ensureConversationsTable();
+      const db = await getDb();
+      if (!db) return [];
+      try {
+        const conditions: any[] = [];
+        if (input.category) {
+          conditions.push(eq(lcjBrainKnowledge.category, input.category));
+        }
+        if (input.search) {
+          conditions.push(
+            or(
+              like(lcjBrainKnowledge.title, `%${input.search}%`),
+              like(lcjBrainKnowledge.content, `%${input.search}%`)
+            )
+          );
+        }
+        const result = await db.select({
+          id: lcjBrainKnowledge.id,
+          title: lcjBrainKnowledge.title,
+          category: lcjBrainKnowledge.category,
+          summary: lcjBrainKnowledge.summary,
+          participants: lcjBrainKnowledge.participants,
+          tags: lcjBrainKnowledge.tags,
+          meetingDate: lcjBrainKnowledge.meetingDate,
+          sourceFileName: lcjBrainKnowledge.sourceFileName,
+          uploadedByName: lcjBrainKnowledge.uploadedByName,
+          createdAt: lcjBrainKnowledge.createdAt,
+        })
+          .from(lcjBrainKnowledge)
+          .where(conditions.length > 0 ? and(...conditions) : undefined)
+          .orderBy(desc(lcjBrainKnowledge.createdAt))
+          .limit(input.limit);
+        return result;
+      } catch (error: any) {
+        console.error("[LCJ Brain] getKnowledgeList error:", error.message);
+        return [];
+      }
+    }),
+
+  // 知識庫の詳細取得
+  getKnowledgeDetail: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      await ensureConversationsTable();
+      const db = await getDb();
+      if (!db) return null;
+      try {
+        const [result] = await db.select()
+          .from(lcjBrainKnowledge)
+          .where(eq(lcjBrainKnowledge.id, input.id))
+          .limit(1);
+        return result || null;
+      } catch (error: any) {
+        console.error("[LCJ Brain] getKnowledgeDetail error:", error.message);
+        return null;
+      }
+    }),
+
+  // 知識庫の削除
+  deleteKnowledge: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { success: false };
+      try {
+        await db.delete(lcjBrainKnowledge)
+          .where(eq(lcjBrainKnowledge.id, input.id));
+        return { success: true };
+      } catch (error: any) {
+        console.error("[LCJ Brain] deleteKnowledge error:", error.message);
+        return { success: false };
       }
     }),
 

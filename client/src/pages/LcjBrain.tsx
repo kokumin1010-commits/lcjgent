@@ -7,13 +7,14 @@ import {
   Zap, Users, TrendingUp, FileText, Mic, StopCircle,
   ChevronRight, BarChart3, Lightbulb, Shield, GraduationCap,
   ClipboardList, Star, AlertTriangle, CheckCircle2, ArrowRight,
-  History, Search, MicOff, Volume2, Plus, Trash2, MessageSquare, PanelLeftClose, PanelLeft
+  History, Search, MicOff, Volume2, Plus, Trash2, MessageSquare, PanelLeftClose, PanelLeft,
+  Upload, FolderOpen, Calendar, Tag, Eye, X, Loader2
 } from "lucide-react";
 
 // ============================================================
 // タブ定義
 // ============================================================
-type TabType = "chat" | "diagnosis" | "training" | "scripts" | "product_score" | "logs";
+type TabType = "chat" | "diagnosis" | "training" | "scripts" | "product_score" | "logs" | "knowledge";
 
 // ============================================================
 // 音声入力フック（共通化）
@@ -173,6 +174,7 @@ export default function LcjBrain() {
 
   const tabs = [
     { id: "chat" as TabType, label: "AI对话", icon: MessageCircle },
+    { id: "knowledge" as TabType, label: "知识库", icon: FileText },
     { id: "diagnosis" as TabType, label: "品牌问诊", icon: ClipboardList },
     { id: "training" as TabType, label: "BD训练", icon: GraduationCap },
     { id: "scripts" as TabType, label: "话术生成", icon: BookOpen },
@@ -222,6 +224,7 @@ export default function LcjBrain() {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         {activeTab === "chat" && <ChatPanel />}
+        {activeTab === "knowledge" && <KnowledgePanel />}
         {activeTab === "diagnosis" && <DiagnosisPanel />}
         {activeTab === "training" && <TrainingPanel />}
         {activeTab === "scripts" && <ScriptsPanel />}
@@ -1293,6 +1296,454 @@ function ProductScorePanel() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ============================================================
+// 知識庫パネル
+// ============================================================
+function KnowledgePanel() {
+  const [mode, setMode] = useState<"list" | "add" | "detail">("list");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [uploadMode, setUploadMode] = useState<"text" | "pdf">("text");
+  
+  // Form state
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [category, setCategory] = useState<"meeting" | "daily_report" | "sop" | "brand" | "other">("meeting");
+  const [meetingDate, setMeetingDate] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: knowledgeList, refetch } = trpc.lcjBrain.getKnowledgeList.useQuery({
+    category: categoryFilter || undefined,
+    search: searchQuery || undefined,
+    limit: 50,
+  });
+
+  const { data: knowledgeDetail } = trpc.lcjBrain.getKnowledgeDetail.useQuery(
+    { id: selectedId! },
+    { enabled: !!selectedId && mode === "detail" }
+  );
+
+  const addKnowledgeMutation = trpc.lcjBrain.addKnowledge.useMutation();
+  const deleteKnowledgeMutation = trpc.lcjBrain.deleteKnowledge.useMutation();
+
+  const categories = [
+    { value: "meeting", label: "会议纪要", icon: "📋" },
+    { value: "daily_report", label: "日报", icon: "📝" },
+    { value: "sop", label: "SOP文档", icon: "📖" },
+    { value: "brand", label: "品牌资料", icon: "🏷️" },
+    { value: "other", label: "其他", icon: "📄" },
+  ];
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsUploading(true);
+    setUploadStatus("正在解析PDF...");
+    
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      
+      const response = await fetch("/api/knowledge-upload", {
+        method: "POST",
+        body: formData,
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("lcj_admin_token") || ""}`,
+        },
+      });
+      
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "上传失败");
+      }
+      
+      const data = await response.json();
+      setContent(data.textContent);
+      setTitle(file.name.replace(/\.pdf$/i, ""));
+      setUploadStatus(`✅ PDF解析成功（${Math.round(data.textContent.length / 1000)}K字符）`);
+    } catch (err: any) {
+      setUploadStatus(`❌ ${err.message}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!title.trim() || !content.trim()) {
+      setUploadStatus("❌ 标题和内容不能为空");
+      return;
+    }
+    
+    setIsUploading(true);
+    setUploadStatus("正在录入知识库（AI分析中）...");
+    
+    try {
+      const result = await addKnowledgeMutation.mutateAsync({
+        title: title.trim(),
+        category,
+        content: content.trim(),
+        meetingDate: meetingDate || undefined,
+      });
+      
+      if (result.success) {
+        setUploadStatus(`✅ 录入成功！AI已自动生成摘要和标签。`);
+        setTitle("");
+        setContent("");
+        setMeetingDate("");
+        refetch();
+        setTimeout(() => {
+          setMode("list");
+          setUploadStatus("");
+        }, 2000);
+      } else {
+        setUploadStatus(`❌ 录入失败: ${result.error}`);
+      }
+    } catch (err: any) {
+      setUploadStatus(`❌ ${err.message}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("确定要删除这条知识吗？")) return;
+    await deleteKnowledgeMutation.mutateAsync({ id });
+    refetch();
+    if (mode === "detail") {
+      setMode("list");
+      setSelectedId(null);
+    }
+  };
+
+  // List View
+  if (mode === "list") {
+    return (
+      <div className="space-y-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <FolderOpen className="w-5 h-5 text-emerald-400" />
+              知识库
+            </h2>
+            <p className="text-sm text-white/50 mt-1">会议纪要、日报、SOP等公司知识的AI记忆库</p>
+          </div>
+          <button
+            onClick={() => setMode("add")}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            录入知识
+          </button>
+        </div>
+
+        {/* Search & Filter */}
+        <div className="flex gap-3">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+            <input
+              type="text"
+              placeholder="搜索知识库..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/30 focus:outline-none focus:border-emerald-500/50"
+            />
+          </div>
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white/80 focus:outline-none focus:border-emerald-500/50"
+          >
+            <option value="">全部分类</option>
+            {categories.map(c => (
+              <option key={c.value} value={c.value}>{c.icon} {c.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Knowledge List */}
+        <div className="space-y-2">
+          {(!knowledgeList || knowledgeList.length === 0) ? (
+            <div className="text-center py-16 text-white/40">
+              <FolderOpen className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p className="text-lg">知识库为空</p>
+              <p className="text-sm mt-1">点击「录入知识」开始添加会议纪要、日报等内容</p>
+            </div>
+          ) : (
+            knowledgeList.map((item: any) => (
+              <div
+                key={item.id}
+                className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/8 hover:border-emerald-500/30 transition-all cursor-pointer group"
+                onClick={() => { setSelectedId(item.id); setMode("detail"); }}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        {categories.find(c => c.value === item.category)?.label || item.category}
+                      </span>
+                      {item.meetingDate && (
+                        <span className="text-xs text-white/40 flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {new Date(item.meetingDate).toLocaleDateString("zh-CN")}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-white font-medium truncate">{item.title}</h3>
+                    {item.summary && (
+                      <p className="text-sm text-white/50 mt-1 line-clamp-2">{item.summary}</p>
+                    )}
+                    <div className="flex items-center gap-3 mt-2">
+                      {item.tags && (item.tags as string[]).slice(0, 4).map((tag: string, i: number) => (
+                        <span key={i} className="text-xs text-white/40 bg-white/5 px-1.5 py-0.5 rounded">
+                          #{tag}
+                        </span>
+                      ))}
+                      <span className="text-xs text-white/30 ml-auto">
+                        {item.uploadedByName} · {new Date(item.createdAt).toLocaleDateString("zh-CN")}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 text-red-400 hover:bg-red-500/20 rounded-lg transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Detail View
+  if (mode === "detail" && knowledgeDetail) {
+    return (
+      <div className="space-y-4">
+        <button
+          onClick={() => { setMode("list"); setSelectedId(null); }}
+          className="flex items-center gap-1 text-white/60 hover:text-white text-sm"
+        >
+          ← 返回列表
+        </button>
+        
+        <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              {categories.find(c => c.value === knowledgeDetail.category)?.label || knowledgeDetail.category}
+            </span>
+            {knowledgeDetail.meetingDate && (
+              <span className="text-xs text-white/40 flex items-center gap-1">
+                <Calendar className="w-3 h-3" />
+                {new Date(knowledgeDetail.meetingDate).toLocaleDateString("zh-CN")}
+              </span>
+            )}
+          </div>
+          
+          <h2 className="text-xl font-bold text-white mb-3">{knowledgeDetail.title}</h2>
+          
+          {knowledgeDetail.summary && (
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 mb-4">
+              <p className="text-xs text-emerald-300 font-medium mb-1">AI摘要</p>
+              <p className="text-sm text-white/80 whitespace-pre-line">{knowledgeDetail.summary}</p>
+            </div>
+          )}
+
+          {knowledgeDetail.participants && (knowledgeDetail.participants as string[]).length > 0 && (
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <Users className="w-4 h-4 text-white/40" />
+              {(knowledgeDetail.participants as string[]).map((p: string, i: number) => (
+                <span key={i} className="text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full">{p}</span>
+              ))}
+            </div>
+          )}
+
+          {knowledgeDetail.tags && (knowledgeDetail.tags as string[]).length > 0 && (
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <Tag className="w-4 h-4 text-white/40" />
+              {(knowledgeDetail.tags as string[]).map((tag: string, i: number) => (
+                <span key={i} className="text-xs bg-white/10 text-white/60 px-2 py-0.5 rounded">#{tag}</span>
+              ))}
+            </div>
+          )}
+
+          <div className="border-t border-white/10 pt-4">
+            <p className="text-xs text-white/40 mb-2">完整内容</p>
+            <div className="text-sm text-white/70 whitespace-pre-wrap max-h-[60vh] overflow-y-auto leading-relaxed">
+              {knowledgeDetail.content}
+            </div>
+          </div>
+
+          <div className="border-t border-white/10 pt-3 mt-4 flex items-center justify-between text-xs text-white/30">
+            <span>上传者: {knowledgeDetail.uploadedByName}</span>
+            <span>来源: {knowledgeDetail.sourceFileName || "手动录入"}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Add View
+  return (
+    <div className="space-y-4">
+      <button
+        onClick={() => { setMode("list"); setUploadStatus(""); }}
+        className="flex items-center gap-1 text-white/60 hover:text-white text-sm"
+      >
+        ← 返回列表
+      </button>
+
+      <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+        <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <Upload className="w-5 h-5 text-emerald-400" />
+          录入知识
+        </h2>
+
+        {/* Upload mode toggle */}
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => setUploadMode("pdf")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              uploadMode === "pdf"
+                ? "bg-emerald-600/20 text-emerald-300 border border-emerald-500/30"
+                : "text-white/50 hover:text-white/80 hover:bg-white/5 border border-white/10"
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            上传PDF
+          </button>
+          <button
+            onClick={() => setUploadMode("text")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              uploadMode === "text"
+                ? "bg-emerald-600/20 text-emerald-300 border border-emerald-500/30"
+                : "text-white/50 hover:text-white/80 hover:bg-white/5 border border-white/10"
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            粘贴文字
+          </button>
+        </div>
+
+        {/* PDF Upload */}
+        {uploadMode === "pdf" && (
+          <div className="mb-4">
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center cursor-pointer hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all"
+            >
+              <Upload className="w-8 h-8 text-white/40 mx-auto mb-2" />
+              <p className="text-white/60">点击上传PDF文件</p>
+              <p className="text-xs text-white/30 mt-1">支持飞书/钉钉导出的智能纪要PDF</p>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.txt,.md"
+              onChange={handlePdfUpload}
+              className="hidden"
+            />
+          </div>
+        )}
+
+        {/* Title */}
+        <div className="mb-3">
+          <label className="text-sm text-white/60 mb-1 block">标题 *</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="例：运营&商务内部会议 2026年5月21日"
+            className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/30 focus:outline-none focus:border-emerald-500/50"
+          />
+        </div>
+
+        {/* Category & Date */}
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="text-sm text-white/60 mb-1 block">分类</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as any)}
+              className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white/80 focus:outline-none focus:border-emerald-500/50"
+            >
+              {categories.map(c => (
+                <option key={c.value} value={c.value}>{c.icon} {c.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm text-white/60 mb-1 block">日期</label>
+            <input
+              type="date"
+              value={meetingDate}
+              onChange={(e) => setMeetingDate(e.target.value)}
+              className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white/80 focus:outline-none focus:border-emerald-500/50"
+            />
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="mb-4">
+          <label className="text-sm text-white/60 mb-1 block">
+            内容 * {content && <span className="text-emerald-400">({Math.round(content.length / 1000)}K字符)</span>}
+          </label>
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="粘贴会议纪要内容、日报内容、或SOP文档..."
+            rows={12}
+            className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white/80 placeholder:text-white/30 focus:outline-none focus:border-emerald-500/50 resize-y font-mono text-sm leading-relaxed"
+          />
+        </div>
+
+        {/* Status */}
+        {uploadStatus && (
+          <div className={`p-3 rounded-lg mb-4 text-sm ${
+            uploadStatus.startsWith("✅") ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20" :
+            uploadStatus.startsWith("❌") ? "bg-red-500/10 text-red-300 border border-red-500/20" :
+            "bg-blue-500/10 text-blue-300 border border-blue-500/20"
+          }`}>
+            {isUploading && <Loader2 className="w-4 h-4 inline-block animate-spin mr-2" />}
+            {uploadStatus}
+          </div>
+        )}
+
+        {/* Submit */}
+        <button
+          onClick={handleSubmit}
+          disabled={isUploading || !title.trim() || !content.trim()}
+          className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-white/10 disabled:text-white/30 text-white rounded-lg font-medium transition-all flex items-center justify-center gap-2"
+        >
+          {isUploading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              AI分析中...
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4" />
+              录入知识库（AI自动分析）
+            </>
+          )}
+        </button>
+
+        <p className="text-xs text-white/30 mt-2 text-center">
+          录入后，AI将自动生成摘要、提取标签和参会人。之后在AI对话中提问时，AI会自动引用相关知识。
+        </p>
+      </div>
     </div>
   );
 }

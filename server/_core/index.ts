@@ -1970,6 +1970,49 @@ async function startServer() {
     }
   });
 
+  // Knowledge Base PDF upload endpoint
+  app.post("/api/knowledge-upload", upload.single("file"), async (req: any, res) => {
+    try {
+      let user;
+      try {
+        user = await sdk.authenticateRequest(req);
+      } catch (e) {
+        return res.status(401).json({ error: "認証が必要です" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ error: "ファイルがアップロードされていません" });
+      }
+      const file = req.file as Express.Multer.File;
+      const decodedFileName = Buffer.from(file.originalname, 'latin1').toString('utf-8');
+
+      let textContent = "";
+      if (file.mimetype === "application/pdf") {
+        try {
+          const pdfParse = (await import("pdf-parse")).default;
+          const pdfData = await pdfParse(file.buffer);
+          textContent = pdfData.text;
+        } catch (e: any) {
+          console.error("[Knowledge Upload] PDF parse error:", e.message);
+          return res.status(400).json({ error: "PDF解析に失敗しました" });
+        }
+      } else {
+        // Plain text / markdown
+        textContent = file.buffer.toString("utf-8");
+      }
+
+      res.json({
+        success: true,
+        fileName: decodedFileName,
+        textContent,
+        uploadedBy: user.name || user.email,
+        uploadedById: user.id,
+      });
+    } catch (error: any) {
+      console.error("[Knowledge Upload] Error:", error.message);
+      res.status(500).json({ error: "ファイルアップロードに失敗しました" });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",
