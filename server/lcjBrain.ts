@@ -1060,8 +1060,8 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
       const db = await getDb();
       if (!db) return { logs: [], total: 0, users: [], authenticated: false };
 
-      // パスワード認証（管理者パスワード: lcj2024brain）
-      if (input.password !== "lcj2024brain") {
+      // パスワード認証（管理者パスワード: lcj）
+      if (input.password !== "lcj") {
         return { logs: [], total: 0, users: [], authenticated: false };
       }
 
@@ -1199,7 +1199,7 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
   getAllConversations: protectedProcedure
     .input(z.object({ password: z.string() }))
     .query(async ({ input }) => {
-      if (input.password !== "lcj2024brain") return [];
+      if (input.password !== "lcj") return [];
       const db = await getDb();
       if (!db) return [];
       try {
