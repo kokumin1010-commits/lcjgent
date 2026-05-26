@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClipboardList, Clock, CheckCircle2, Plus, AlertTriangle, FileText, ShoppingBag, Store } from "lucide-react";
+import { ClipboardList, Clock, CheckCircle2, Plus, AlertTriangle, FileText, ShoppingBag, Store, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -115,6 +115,9 @@ export default function Dashboard() {
 
       </div>
 
+      {/* Chat Section */}
+      <ChatSection />
+
       <div className="grid gap-4 md:grid-cols-1">
         {stats?.overdueTasks && stats.overdueTasks.length > 0 && (
           <Card className="border-red-500 bg-red-50 dark:bg-red-950/20">
@@ -199,4 +202,104 @@ export default function Dashboard() {
       </div>
     </div>
   );
+}
+
+function ChatSection() {
+  const [, setLocation] = useLocation();
+  const { data: unreadData } = trpc.chat.getUnreadCount.useQuery(undefined, {
+    refetchInterval: 10000,
+  });
+  const { data: rooms, isLoading } = trpc.chat.getRooms.useQuery(undefined, {
+    refetchInterval: 15000,
+  });
+
+  const unreadCount = unreadData?.unreadCount ?? 0;
+  const recentRooms = (rooms as any[])?.slice(0, 5) || [];
+
+  return (
+    <Card className={unreadCount > 0 ? "border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-950/10" : ""}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MessageCircle className="h-5 w-5 text-green-500" />
+            <CardTitle className="text-base">チャット</CardTitle>
+            {unreadCount > 0 && (
+              <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-green-500 px-2 text-xs font-bold text-white animate-pulse">
+                {unreadCount}
+              </span>
+            )}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setLocation("/master/chat")}
+          >
+            開く
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : recentRooms.length > 0 ? (
+          <div className="space-y-2">
+            {recentRooms.map((room: any) => (
+              <div
+                key={room.id}
+                className="flex items-center justify-between p-2 rounded-lg hover:bg-accent cursor-pointer transition-colors"
+                onClick={() => setLocation("/master/chat")}
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                    {room.type === 'group' ? 'G' : (room.name || '?').charAt(0)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium truncate">{room.name || 'チャット'}</div>
+                    {room.lastMessage && (
+                      <div className="text-xs text-muted-foreground truncate">
+                        {room.lastSenderName ? `${room.lastSenderName}: ` : ''}{room.lastMessage}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 ml-2">
+                  {room.lastMessageAt && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {formatChatTime(room.lastMessageAt)}
+                    </span>
+                  )}
+                  {Number(room.unreadCount) > 0 && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-green-500 px-1.5 text-[10px] font-bold text-white">
+                      {room.unreadCount}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            チャットルームがありません
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function formatChatTime(dateStr: string) {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return '今';
+  if (diffMin < 60) return `${diffMin}分前`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}時間前`;
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 7) return `${diffDay}日前`;
+  return `${date.getMonth() + 1}/${date.getDate()}`;
 }
