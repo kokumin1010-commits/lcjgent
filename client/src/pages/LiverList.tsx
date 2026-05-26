@@ -45,6 +45,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
   const [setSortOrder, setSetSortOrder] = useState<'date' | 'revenue'>('date');
   const [selectedTrendMonth, setSelectedTrendMonth] = useState<string | null>(monthOptions[0].value);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [expandedBrand, setExpandedBrand] = useState<string | null>(null);
   
   const { data: rankings, isLoading } = trpc.liverManagement.rankings.useQuery({
     month: selectedMonth,
@@ -431,18 +432,65 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                         const barWidth = maxMinutes > 0 ? (brand.totalMinutes / maxMinutes) * 100 : 0;
                         const hours = Math.floor(brand.totalMinutes / 60);
                         const mins = brand.totalMinutes % 60;
+                        const isExpanded = expandedBrand === brand.brandName;
+                        // Get per-liver breakdown for this brand
+                        const liverBreakdown: { liverId: string; liverName: string; minutes: number }[] = [];
+                        if (isExpanded) {
+                          Object.entries(allLiverBrandDurations as Record<string, { brandId: number; brandName: string; durationMinutes: number }[]>).forEach(([lid, brands]) => {
+                            const match = brands.find(b => b.brandName === brand.brandName);
+                            if (match && match.durationMinutes > 0) {
+                              const liver = livers?.find(l => l.id === Number(lid));
+                              liverBreakdown.push({
+                                liverId: lid,
+                                liverName: liver?.name || `Liver#${lid}`,
+                                minutes: match.durationMinutes,
+                              });
+                            }
+                          });
+                          liverBreakdown.sort((a, b) => b.minutes - a.minutes);
+                        }
                         return (
-                          <div key={brand.brandName} className="flex items-center gap-2">
-                            <span className="text-[11px] text-white/70 w-[100px] shrink-0 truncate">{brand.brandName}</span>
-                            <div className="flex-1 h-4 bg-white/5 rounded overflow-hidden">
-                              <div 
-                                className="h-full bg-gradient-to-r from-emerald-500 to-teal-300 rounded transition-all"
-                                style={{ width: `${barWidth}%` }}
-                              />
+                          <div key={brand.brandName}>
+                            <div 
+                              className="flex items-center gap-2 cursor-pointer hover:bg-white/5 rounded px-1 py-0.5 transition-colors"
+                              onClick={() => setExpandedBrand(isExpanded ? null : brand.brandName)}
+                            >
+                              <span className="text-[10px] text-white/40 w-[12px] shrink-0">{isExpanded ? '▼' : '▶'}</span>
+                              <span className="text-[11px] text-white/70 w-[88px] shrink-0 truncate">{brand.brandName}</span>
+                              <div className="flex-1 h-4 bg-white/5 rounded overflow-hidden">
+                                <div 
+                                  className="h-full bg-gradient-to-r from-emerald-500 to-teal-300 rounded transition-all"
+                                  style={{ width: `${barWidth}%` }}
+                                />
+                              </div>
+                              <span className="text-[11px] font-mono text-emerald-300 w-[60px] text-right shrink-0">
+                                {hours}h{mins > 0 ? `${mins}m` : ''}
+                              </span>
                             </div>
-                            <span className="text-[11px] font-mono text-emerald-300 w-[60px] text-right shrink-0">
-                              {hours}h{mins > 0 ? `${mins}m` : ''}
-                            </span>
+                            {isExpanded && liverBreakdown.length > 0 && (
+                              <div className="ml-6 mt-1 mb-2 pl-3 border-l-2 border-emerald-500/30 space-y-1">
+                                {liverBreakdown.map((liver) => {
+                                  const lHours = Math.floor(liver.minutes / 60);
+                                  const lMins = liver.minutes % 60;
+                                  const lBarWidth = brand.totalMinutes > 0 ? (liver.minutes / brand.totalMinutes) * 100 : 0;
+                                  return (
+                                    <div key={liver.liverId} className="flex items-center gap-2">
+                                      <span className="text-[10px] text-white/50 w-[70px] shrink-0 truncate">{liver.liverName}</span>
+                                      <div className="flex-1 h-2.5 bg-white/5 rounded overflow-hidden">
+                                        <div 
+                                          className="h-full bg-gradient-to-r from-teal-400/60 to-cyan-300/60 rounded transition-all"
+                                          style={{ width: `${lBarWidth}%` }}
+                                        />
+                                      </div>
+                                      <span className="text-[10px] font-mono text-teal-300/80 w-[50px] text-right shrink-0">
+                                        {lHours}h{lMins > 0 ? `${lMins}m` : ''}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                                <p className="text-[9px] text-white/30 mt-1">{liverBreakdown.length}名のライバーが配信</p>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
