@@ -1988,7 +1988,8 @@ async function startServer() {
       let textContent = "";
       if (file.mimetype === "application/pdf") {
         try {
-          const pdfParse = require("pdf-parse");
+          const pdfParseModule = await import("pdf-parse");
+          const pdfParse = pdfParseModule.default || pdfParseModule;
           const pdfData = await pdfParse(file.buffer);
           textContent = pdfData.text;
         } catch (e: any) {
