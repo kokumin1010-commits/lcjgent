@@ -2014,6 +2014,69 @@ async function startServer() {
     }
   });
 
+  // Chat file upload endpoint (for LCJ Brain AI analysis)
+  app.post("/api/chat-file-upload", upload.single("file"), async (req: any, res) => {
+    try {
+      let user;
+      try {
+        user = await sdk.authenticateRequest(req);
+      } catch (e) {
+        return res.status(401).json({ error: "認証が必要です" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      const file = req.file as Express.Multer.File;
+      const decodedFileName = Buffer.from(file.originalname, 'latin1').toString('utf-8');
+      
+      // For images, upload to storage and return URL for vision API
+      if (file.mimetype.startsWith("image/")) {
+        const fileExtension = file.originalname.split(".").pop() || "jpg";
+        const fileKey = `chat-uploads/${nanoid()}.${fileExtension}`;
+        const result = await storagePut(fileKey, file.buffer, file.mimetype);
+        return res.json({
+          type: "image",
+          url: result.url,
+          fileName: decodedFileName,
+          mimeType: file.mimetype,
+        });
+      }
+      
+      // For PDFs, extract text
+      if (file.mimetype === "application/pdf") {
+        try {
+          const pdfParseModule = await import("pdf-parse");
+          const pdfParse = pdfParseModule.default || pdfParseModule;
+          const pdfData = await pdfParse(file.buffer);
+          return res.json({
+            type: "document",
+            textContent: pdfData.text,
+            fileName: decodedFileName,
+            mimeType: file.mimetype,
+          });
+        } catch (e: any) {
+          return res.status(400).json({ error: "PDF解析に失敗しました" });
+        }
+      }
+      
+      // For text files
+      if (file.mimetype.startsWith("text/") || file.mimetype === "application/json") {
+        return res.json({
+          type: "document",
+          textContent: file.buffer.toString("utf-8"),
+          fileName: decodedFileName,
+          mimeType: file.mimetype,
+        });
+      }
+      
+      // Unsupported file type
+      res.status(400).json({ error: "サポートされていないファイル形式です。画像、PDF、テキストファイルのみ対応しています。" });
+    } catch (error: any) {
+      console.error("[Chat File Upload] Error:", error.message);
+      res.status(500).json({ error: "ファイルアップロードに失敗しました" });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

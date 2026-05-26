@@ -246,6 +246,10 @@ function ChatPanel() {
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachedFile, setAttachedFile] = useState<{ type: 'image' | 'document'; url?: string; textContent?: string; fileName: string; mimeType: string; previewUrl?: string } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const chatMutation = trpc.lcjBrain.chat.useMutation();
   const deleteConversation = trpc.lcjBrain.deleteConversation.useMutation();
   
@@ -306,22 +310,103 @@ function ChatPanel() {
     refetchConversations();
   };
 
+  // Auto-resize textarea
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+    }
+  }, []);
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [input, adjustTextareaHeight]);
+
+  // File upload handler
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Validate file size (10MB max)
+    if (file.size > 10 * 1024 * 1024) {
+      alert("ファイルサイズは10MB以下にしてください");
+      return;
+    }
+    
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/chat-file-upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'アップロード失敗');
+      }
+      
+      const data = await response.json();
+      
+      // Create preview for images
+      let previewUrl: string | undefined;
+      if (data.type === 'image') {
+        previewUrl = URL.createObjectURL(file);
+      }
+      
+      setAttachedFile({
+        type: data.type,
+        url: data.url,
+        textContent: data.textContent,
+        fileName: data.fileName,
+        mimeType: data.mimeType,
+        previewUrl,
+      });
+    } catch (error: any) {
+      alert(error.message || 'ファイルアップロードに失敗しました');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const sendMessage = async (text?: string) => {
     const msg = text || input.trim();
-    if (!msg || isLoading) return;
+    if ((!msg && !attachedFile) || isLoading) return;
     
     // 如果正在录音，先停止
     if (voice.isRecording) voice.stopRecording();
     
+    const currentFile = attachedFile;
     setInput("");
-    setMessages(prev => [...prev, { role: "user", content: msg }]);
+    setAttachedFile(null);
+    
+    // Display message with file indicator
+    const displayContent = currentFile 
+      ? `${msg || '请分析这个文件'}${currentFile.type === 'image' ? ' 🖼️' : ' 📎'}${currentFile.fileName}`
+      : msg;
+    setMessages(prev => [...prev, { role: "user", content: displayContent }]);
     setIsLoading(true);
 
     try {
-      const result = await chatMutation.mutateAsync({ 
-        message: msg,
+      const mutationParams: any = { 
+        message: msg || `请分析这个文件: ${currentFile?.fileName}`,
         conversationId: activeConversationId || undefined,
-      });
+      };
+      
+      // Attach file data
+      if (currentFile?.type === 'image' && currentFile.url) {
+        mutationParams.imageUrl = currentFile.url;
+      } else if (currentFile?.type === 'document' && currentFile.textContent) {
+        mutationParams.fileContent = currentFile.textContent;
+        mutationParams.fileName = currentFile.fileName;
+      }
+      
+      const result = await chatMutation.mutateAsync(mutationParams);
       setMessages(prev => [...prev, { 
         role: "assistant", 
         content: result.response,
@@ -337,6 +422,10 @@ function ChatPanel() {
       setMessages(prev => [...prev, { role: "assistant", content: `错误: ${error.message}` }]);
     } finally {
       setIsLoading(false);
+      // Reset textarea height
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
     }
   };
 
@@ -584,18 +673,66 @@ function ChatPanel() {
             )}
           </button>
 
+          {/* File upload button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="px-3 py-3 rounded-xl transition-all bg-gradient-to-br from-emerald-600/20 to-teal-600/20 border border-emerald-500/30 text-emerald-300 hover:from-emerald-600/30 hover:to-teal-600/30 hover:text-emerald-200 disabled:opacity-50"
+            title="图片/文件上传"
+          >
+            {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+          </button>
           <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-            placeholder={voice.isRecording ? "正在听你说话..." : "问任何关于LCJ的问题..."}
-            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,.pdf,.txt,.md,.json,.csv"
+            onChange={handleFileUpload}
+            className="hidden"
           />
+
+          {/* Textarea (auto-resize, multiline) */}
+          <div className="flex-1 relative">
+            {/* Attached file preview */}
+            {attachedFile && (
+              <div className="mb-2 p-2 bg-white/5 border border-white/10 rounded-lg flex items-center gap-2">
+                {attachedFile.type === 'image' && attachedFile.previewUrl && (
+                  <img src={attachedFile.previewUrl} alt="preview" className="w-10 h-10 rounded object-cover" />
+                )}
+                {attachedFile.type === 'document' && (
+                  <FileText className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                )}
+                <span className="text-xs text-white/70 truncate flex-1">{attachedFile.fileName}</span>
+                <button
+                  onClick={() => {
+                    if (attachedFile.previewUrl) URL.revokeObjectURL(attachedFile.previewUrl);
+                    setAttachedFile(null);
+                  }}
+                  className="text-white/40 hover:text-white/80 p-1"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
+              placeholder={voice.isRecording ? "正在听你说话..." : "问任何关于LCJ的问题...（Shift+Enter换行）"}
+              rows={1}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 resize-none overflow-hidden min-h-[48px] max-h-[200px]"
+              style={{ height: 'auto' }}
+            />
+          </div>
           <button
             onClick={() => sendMessage()}
-            disabled={!input.trim() || isLoading}
-            className="px-4 py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-white/10 disabled:text-white/30 rounded-xl text-white transition-all"
+            disabled={(!input.trim() && !attachedFile) || isLoading}
+            className="px-4 py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-white/10 disabled:text-white/30 rounded-xl text-white transition-all self-end"
           >
             <Send className="w-5 h-5" />
           </button>
@@ -604,7 +741,7 @@ function ChatPanel() {
         {/* 提示文字 */}
         {!voice.isRecording && (
           <p className="text-xs text-white/20 mt-2 text-center">
-            点击 🎤 开始语音输入，支持中文、日文
+            🎤 语音输入 · 📎 图片/文件分析 · Shift+Enter 换行
           </p>
         )}
         </div>

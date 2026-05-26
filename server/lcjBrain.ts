@@ -675,6 +675,9 @@ export const lcjBrainRouter = router({
       })).optional().default([]),
       context: z.enum(["general", "bd", "brand_analysis", "liver_match", "talk_script"]).optional().default("general"),
       conversationId: z.number().optional(),
+      imageUrl: z.string().optional(),
+      fileContent: z.string().optional(),
+      fileName: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       await ensureConversationsTable();
@@ -731,12 +734,27 @@ ${dataContext || "（暂无相关数据）"}
         messages.push({ role: msg.role, content: msg.content });
       }
 
-      // ユーザーの新しいメッセージ
-      messages.push({ role: "user", content: message });
+      // ユーザーの新しいメッセージ（画像/ファイル添付対応）
+      if (input.imageUrl) {
+        // Vision対応: 画像URLを含むマルチモーダルメッセージ
+        messages.push({
+          role: "user",
+          content: [
+            { type: "text", text: message },
+            { type: "image_url", image_url: { url: input.imageUrl, detail: "high" } },
+          ],
+        });
+      } else if (input.fileContent) {
+        // ファイル内容をテキストとして添付
+        const fileContext = `\n\n---\n📎 添付ファイル「${input.fileName || 'file'}」の内容:\n${input.fileContent.substring(0, 10000)}\n---`;
+        messages.push({ role: "user", content: message + fileContext });
+      } else {
+        messages.push({ role: "user", content: message });
+      }
 
       try {
         const result = await invokeLLM({
-          model: "gpt-4.1-mini",
+          model: input.imageUrl ? "gpt-4.1-mini" : "gpt-4.1-mini",
           messages,
         });
 
