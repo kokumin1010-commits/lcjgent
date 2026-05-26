@@ -2602,20 +2602,17 @@ async function getChatUser(ctx: any): Promise<{ id: number; name: string; userTy
   if (!db) return null;
   // First try: admin/staff user from protectedProcedure context
   if (ctx.user) {
-    const userId = ctx.user.id;
-    const userType = ctx.user.role === 'liver' ? 'liver' as const : 'staff' as const;
+    const userEmail = ctx.user.email;
     let name = ctx.user.name || ctx.user.email || 'Unknown';
     let avatarUrl: string | null = null;
-    if (userType === 'staff') {
-      const staffResult = await db.execute(sqlTag`SELECT name, avatarUrl FROM staff WHERE id = ${userId} LIMIT 1`);
-      const s = (staffResult as any)[0]?.[0];
-      if (s) { name = s.name || name; avatarUrl = s.avatarUrl || null; }
-    } else {
-      const liverResult = await db.execute(sqlTag`SELECT name, profileImageUrl FROM livers WHERE id = ${userId} LIMIT 1`);
-      const l = (liverResult as any)[0]?.[0];
-      if (l) { name = l.name || name; avatarUrl = l.profileImageUrl || null; }
+    // Look up staff by email (users.id != staff.id, so we match by email)
+    const staffResult = await db.execute(sqlTag`SELECT id, name, avatarUrl FROM staff WHERE email = ${userEmail} AND isActive = 'active' LIMIT 1`);
+    const s = (staffResult as any)[0]?.[0];
+    if (s) {
+      return { id: s.id, name: s.name || name, userType: 'staff' as const, avatarUrl: s.avatarUrl || null };
     }
-    return { id: userId, name, userType, avatarUrl };
+    // Fallback: use users.id as staff id (legacy compatibility)
+    return { id: ctx.user.id, name, userType: 'staff' as const, avatarUrl: null };
   }
   // Second try: liver JWT token from Authorization header
   try {
@@ -2626,20 +2623,27 @@ async function getChatUser(ctx: any): Promise<{ id: number; name: string; userTy
     const { payload } = await jwtVerify(token, secret);
     if (payload.liverId) {
       const liverId = Number(payload.liverId);
-      const liverResult = await db.execute(sqlTag`SELECT id, name, profileImageUrl FROM livers WHERE id = ${liverId} LIMIT 1`);
+      const liverResult = await db.execute(sqlTag`SELECT id, name, avatarUrl FROM livers WHERE id = ${liverId} LIMIT 1`);
       const liver = (liverResult as any)[0]?.[0];
       if (liver) {
-        return { id: liver.id, name: liver.name || 'Unknown', userType: 'liver', avatarUrl: liver.profileImageUrl || null };
+        return { id: liver.id, name: liver.name || 'Unknown', userType: 'liver', avatarUrl: liver.avatarUrl || null };
       }
     }
-    // Also check if it's a staff token with userId
+    // Also check if it's a staff token with userId (users table id)
     if (payload.userId) {
       const userId = Number(payload.userId);
-      const staffResult = await db.execute(sqlTag`SELECT id, name, avatarUrl FROM staff WHERE id = ${userId} LIMIT 1`);
-      const s = (staffResult as any)[0]?.[0];
-      if (s) {
-        return { id: s.id, name: s.name || 'Unknown', userType: 'staff', avatarUrl: s.avatarUrl || null };
+      // Get user email first, then find matching staff
+      const userResult = await db.execute(sqlTag`SELECT email, name FROM users WHERE id = ${userId} LIMIT 1`);
+      const u = (userResult as any)[0]?.[0];
+      if (u?.email) {
+        const staffResult = await db.execute(sqlTag`SELECT id, name, avatarUrl FROM staff WHERE email = ${u.email} AND isActive = 'active' LIMIT 1`);
+        const s = (staffResult as any)[0]?.[0];
+        if (s) {
+          return { id: s.id, name: s.name || u.name || 'Unknown', userType: 'staff', avatarUrl: s.avatarUrl || null };
+        }
       }
+      // Fallback: return with users.id
+      return { id: userId, name: u?.name || 'Unknown', userType: 'staff' as const, avatarUrl: null };
     }
   } catch (e) {
     // Token verification failed
@@ -25140,7 +25144,7 @@ JSON配列のみを出力してください。`;
         `);
         // ライバー一覧
         const liverList = await db.execute(sqlTag`
-          SELECT id, name, tiktokId as email, profileImageUrl as avatarUrl, 'liver' as userType FROM livers WHERE isActive = true AND (name LIKE ${q} OR tiktokId LIKE ${q}) LIMIT 50
+          SELECT id, name, email, avatarUrl, 'liver' as userType FROM livers WHERE isActive = 1 AND (name LIKE ${q} OR email LIKE ${q} OR tiktokAccount LIKE ${q}) LIMIT 50
         `);
         return {
           staff: (staffList as any)[0] || [],
