@@ -2218,6 +2218,11 @@ async function startServer() {
               console.error("[Migration] LCJ Brain chat logs table error:", err);
             });
           });
+          import("../migrations/addShortVideoViolationDeadline").then(({ addShortVideoViolationDeadline }) => {
+            addShortVideoViolationDeadline(db).catch((err: unknown) => {
+              console.error("[Migration] Short video violation/deadline error:", err);
+            });
+          });
         }
       });
     });
