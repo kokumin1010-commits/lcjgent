@@ -43,7 +43,7 @@ async function ensureConversationsTable() {
     )`);
     await db.execute(sql`ALTER TABLE lcj_brain_chat_logs ADD COLUMN IF NOT EXISTS conversationId INT DEFAULT NULL`);
   } catch (e) { /* table exists */ }
-  // Knowledge base table
+  // Knowledge base table (NO FULLTEXT INDEX - causes insert failures on some MySQL providers)
   try {
     await db.execute(sql`CREATE TABLE IF NOT EXISTS lcj_brain_knowledge (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -59,7 +59,6 @@ async function ensureConversationsTable() {
       uploadedByName VARCHAR(100),
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
       updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
-      FULLTEXT INDEX idx_content (title, content),
       INDEX idx_category (category),
       INDEX idx_meetingDate (meetingDate)
     )`);
@@ -68,10 +67,14 @@ async function ensureConversationsTable() {
   try {
     await db.execute(sql`ALTER TABLE lcj_brain_knowledge MODIFY COLUMN content LONGTEXT`);
   } catch (e) { /* ignore */ }
-  // Remove FULLTEXT index if it causes issues with LONGTEXT
+  // Remove FULLTEXT index if it exists (causes insert failures)
   try {
     await db.execute(sql`ALTER TABLE lcj_brain_knowledge DROP INDEX idx_content`);
   } catch (e) { /* index may not exist */ }
+  // Also try dropping the auto-generated fulltext index name
+  try {
+    await db.execute(sql`ALTER TABLE lcj_brain_knowledge DROP INDEX lcj_brain_knowledge_title_content`);
+  } catch (e) { /* ignore */ }
 }
 
 
