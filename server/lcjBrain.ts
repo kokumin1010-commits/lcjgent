@@ -682,8 +682,27 @@ export const lcjBrainRouter = router({
     .mutation(async ({ input, ctx }) => {
       await ensureConversationsTable();
       const { message, history, context } = input;
-      const userName = ctx.user?.name || ctx.user?.email || "unknown";
       const userId = ctx.user?.id || null;
+      
+      // staffテーブルからユーザー名を取得（users.nameは全員同じになる問題を回避）
+      let userName = "unknown";
+      if (ctx.user?.email) {
+        const db = await getDb();
+        if (db) {
+          const staffResult = await db.select({ name: staff.name }).from(staff)
+            .where(eq(staff.email, ctx.user.email))
+            .limit(1);
+          if (staffResult.length > 0 && staffResult[0].name) {
+            userName = staffResult[0].name;
+          } else {
+            userName = ctx.user.name || ctx.user.email;
+          }
+        } else {
+          userName = ctx.user.name || ctx.user.email;
+        }
+      } else if (ctx.user?.name) {
+        userName = ctx.user.name;
+      }
 
       // 実データコンテキストを構築
       let dataContext = "";
@@ -1363,8 +1382,22 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
       await ensureConversationsTable();
       const db = await getDb();
       if (!db) return { success: false, error: "DB接続エラー" };
-      const userName = ctx.user?.name || ctx.user?.email || "unknown";
       const userId = ctx.user?.id || null;
+      
+      // staffテーブルからユーザー名を取得
+      let userName = "unknown";
+      if (ctx.user?.email) {
+        const staffResult = await db.select({ name: staff.name }).from(staff)
+          .where(eq(staff.email, ctx.user.email))
+          .limit(1);
+        if (staffResult.length > 0 && staffResult[0].name) {
+          userName = staffResult[0].name;
+        } else {
+          userName = ctx.user.name || ctx.user.email;
+        }
+      } else if (ctx.user?.name) {
+        userName = ctx.user.name;
+      }
 
       try {
         // AI要約を生成
