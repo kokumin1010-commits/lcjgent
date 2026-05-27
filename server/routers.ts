@@ -25385,6 +25385,113 @@ JSON配列のみを出力してください。`;
         await db.execute(sqlTag`UPDATE chat_rooms SET name = ${input.name} WHERE id = ${input.roomId}`);
         return { success: true };
       }),
+    // 招待リンク経由でグループに参加
+    joinGroupByInvite: publicProcedure
+      .input(z.object({ roomId: z.number(), inviteCode: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
+        // Ensure inviteCode column exists
+        try { await db.execute(sqlTag`ALTER TABLE chat_rooms ADD COLUMN inviteCode VARCHAR(64) DEFAULT NULL`); } catch (e: any) {}
+        // Verify invite code matches room
+        const roomResult = await db.execute(sqlTag`SELECT id, name, type, inviteCode FROM chat_rooms WHERE id = ${input.roomId} AND inviteCode = ${input.inviteCode} LIMIT 1`);
+        const room = (roomResult as any)[0]?.[0];
+        if (!room) throw new TRPCError({ code: 'NOT_FOUND', message: '招待リンクが無効です' });
+        if (room.type !== 'group') throw new TRPCError({ code: 'BAD_REQUEST', message: 'グループチャットのみ招待リンクで参加できます' });
+        // Check if already a member
+        const memberCheck = await db.execute(sqlTag`SELECT 1 FROM chat_room_members WHERE roomId = ${input.roomId} AND userId = ${chatUser.id} AND userType = ${chatUser.userType} LIMIT 1`);
+        if ((memberCheck as any)[0]?.[0]) {
+          return { roomId: input.roomId, alreadyMember: true };
+        }
+        // Add to group
+        await db.execute(sqlTag`
+          INSERT IGNORE INTO chat_room_members (roomId, userId, userType, userName, userAvatar)
+          VALUES (${input.roomId}, ${chatUser.id}, ${chatUser.userType}, ${chatUser.name}, ${chatUser.avatarUrl || null})
+        `);
+        return { roomId: input.roomId, alreadyMember: false };
+      }),
+    // 個人招待リンク経由でDM作成
+    joinByPersonalInvite: publicProcedure
+      .input(z.object({ targetUserId: z.number(), targetUserType: z.enum(['staff', 'liver']) }))
+      .mutation(async ({ input, ctx }) => {
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
+        // Don't allow adding yourself
+        if (chatUser.id === input.targetUserId && chatUser.userType === input.targetUserType) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '自分自身を追加することはできません' });
+        }
+        // Get target user info
+        let targetName = '';
+        let targetAvatar: string | null = null;
+        if (input.targetUserType === 'staff') {
+          const r = await db.execute(sqlTag`SELECT name, avatarUrl FROM staff WHERE id = ${input.targetUserId} LIMIT 1`);
+          const s = (r as any)[0]?.[0];
+          if (!s) throw new TRPCError({ code: 'NOT_FOUND', message: 'ユーザーが見つかりません' });
+          targetName = s.name;
+          targetAvatar = s.avatarUrl;
+        } else {
+          const r = await db.execute(sqlTag`SELECT name, avatarUrl FROM livers WHERE id = ${input.targetUserId} LIMIT 1`);
+          const l = (r as any)[0]?.[0];
+          if (!l) throw new TRPCError({ code: 'NOT_FOUND', message: 'ユーザーが見つかりません' });
+          targetName = l.name;
+          targetAvatar = l.avatarUrl;
+        }
+        // Check if DM already exists
+        const existing = await db.execute(sqlTag`
+          SELECT cr.id FROM chat_rooms cr
+          JOIN chat_room_members m1 ON cr.id = m1.roomId AND m1.userId = ${chatUser.id} AND m1.userType = ${chatUser.userType}
+          JOIN chat_room_members m2 ON cr.id = m2.roomId AND m2.userId = ${input.targetUserId} AND m2.userType = ${input.targetUserType}
+          WHERE cr.type = 'direct'
+          LIMIT 1
+        `);
+        const existingRoom = (existing as any)[0]?.[0];
+        if (existingRoom) {
+          return { roomId: existingRoom.id, existing: true };
+        }
+        // Create new DM
+        const result = await db.execute(sqlTag`
+          INSERT INTO chat_rooms (name, type, createdBy) VALUES (NULL, 'direct', ${chatUser.id})
+        `);
+        const roomId = (result as any)[0].insertId;
+        await db.execute(sqlTag`
+          INSERT IGNORE INTO chat_room_members (roomId, userId, userType, userName, userAvatar)
+          VALUES (${roomId}, ${chatUser.id}, ${chatUser.userType}, ${chatUser.name}, ${chatUser.avatarUrl || null})
+        `);
+        await db.execute(sqlTag`
+          INSERT IGNORE INTO chat_room_members (roomId, userId, userType, userName, userAvatar)
+          VALUES (${roomId}, ${input.targetUserId}, ${input.targetUserType}, ${targetName}, ${targetAvatar})
+        `);
+        return { roomId, existing: false };
+      }),
+    // グループの招待コードを生成/取得
+    getGroupInviteCode: publicProcedure
+      .input(z.object({ roomId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
+        // Check if user is a member
+        const memberCheck = await db.execute(sqlTag`SELECT 1 FROM chat_room_members WHERE roomId = ${input.roomId} AND userId = ${chatUser.id} AND userType = ${chatUser.userType} LIMIT 1`);
+        if (!(memberCheck as any)[0]?.[0]) throw new TRPCError({ code: 'FORBIDDEN', message: 'このグループのメンバーではありません' });
+        // Ensure inviteCode column exists (auto-migration)
+        try {
+          await db.execute(sqlTag`ALTER TABLE chat_rooms ADD COLUMN inviteCode VARCHAR(64) DEFAULT NULL`);
+        } catch (e: any) {
+          // Column already exists - ignore
+        }
+        // Get or generate invite code
+        const roomResult = await db.execute(sqlTag`SELECT inviteCode FROM chat_rooms WHERE id = ${input.roomId} LIMIT 1`);
+        const room = (roomResult as any)[0]?.[0];
+        if (room?.inviteCode) {
+          return { inviteCode: room.inviteCode };
+        }
+        // Generate new invite code
+        const code = Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+        await db.execute(sqlTag`UPDATE chat_rooms SET inviteCode = ${code} WHERE id = ${input.roomId}`);
+        return { inviteCode: code };
+      }),
   }),
 });
 export type AppRouter = typeof appRouter;
