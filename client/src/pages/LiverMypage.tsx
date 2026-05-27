@@ -1239,7 +1239,7 @@ export default function LiverMypage() {
               <Card className="bg-gray-800/50 border-gray-700">
                 <CardContent className="p-2 text-center">
                   <DollarSign className="h-3 w-3 mx-auto text-white mb-1" />
-                  <p className="text-lg font-bold text-white">¥{Math.round(monthlyStats.avgSales / 1000)}k</p>
+                  <p className="text-lg font-bold text-white">¥{Math.round(monthlyStats.avgSales).toLocaleString()}</p>
                   <p className="text-[10px] text-white">{lt("mypage.average")}</p>
                 </CardContent>
               </Card>
@@ -1308,7 +1308,7 @@ export default function LiverMypage() {
                     <img src={product.productImageUrl} alt="" className="w-10 h-10 rounded object-cover" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{product.productName}</p>
+                    <p className="text-sm font-medium text-white break-words">{product.productName}</p>
                     <p className="text-xs text-gray-400">
                       ノルマ: {product.quotaDurationMinutes}分 | 期限: {product.endDate}
                     </p>
@@ -1427,7 +1427,7 @@ export default function LiverMypage() {
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <Tag className="h-3 w-3 text-amber-400 flex-shrink-0" />
-                              <p className="text-sm font-semibold text-white truncate">{set.setName}</p>
+                              <p className="text-sm font-semibold text-white break-words">{set.setName}</p>
                             </div>
                             <p className="text-[10px] text-white/40 mt-0.5 ml-5">
                               {set.livestreamDate ? new Date(set.livestreamDate).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }) : ''}
@@ -1447,7 +1447,7 @@ export default function LiverMypage() {
                           <div className="ml-5 space-y-0.5">
                             {set.items.map((item: any, idx: number) => (
                               <div key={idx} className="flex items-center justify-between text-[11px]">
-                                <span className="text-white/60 truncate flex-1">
+                                <span className="text-white/60 break-words flex-1">
                                   {item.quantity > 1 ? `${item.productName} ×${item.quantity}` : item.productName}
                                 </span>
                                 <span className="text-white/40 ml-2 flex-shrink-0">¥{Number(item.originalPrice || 0).toLocaleString()}</span>
@@ -1478,7 +1478,7 @@ export default function LiverMypage() {
                           <div key={idx} className="flex items-center justify-between text-xs bg-gray-700/20 rounded px-2 py-1">
                             <div className="flex items-center gap-2">
                               <span className="text-amber-400 font-bold w-4">{idx + 1}</span>
-                              <span className="text-white/80 truncate">{product.productName}</span>
+                              <span className="text-white/80 break-words">{product.productName}</span>
                             </div>
                             <span className="text-white/50 flex-shrink-0">{product.count}{language === 'ja' ? '回使用' : '×'}</span>
                           </div>
@@ -1837,7 +1837,7 @@ export default function LiverMypage() {
                       })()}
                     </p>
                     <p className="text-[10px] text-gray-400">
-                      {language === 'ja' ? '時給効率' : 'Hourly Rate'}
+                      {language === 'ja' ? '時間単価' : 'Hourly Rate'}
                     </p>
                   </div>
                 </div>
@@ -1932,14 +1932,14 @@ export default function LiverMypage() {
                               </span>
                             </div>
                           </div>
-                          {/* CSV売上・時給効率 */}
+                          {/* CSV売上・時間単価 */}
                           {(brand as any).csvGmv > 0 && (
                             <div className="flex items-center justify-between text-[10px] mt-0.5 px-1">
                               <span className="text-yellow-400 font-medium">
                                 売上: ¥{Number((brand as any).csvGmv).toLocaleString()}
                               </span>
                               <span className="text-emerald-400 font-medium">
-                                時給: ¥{Number((brand as any).hourlyRate || 0).toLocaleString()}/h
+                                時間単価: ¥{Number((brand as any).hourlyRate || 0).toLocaleString()}/h
                               </span>
                             </div>
                           )}
@@ -3023,8 +3023,8 @@ export default function LiverMypage() {
               </h4>
               <ul className="text-gray-300 space-y-1 text-xs">
                 <li>• 配信で扱ったブランドと時間を正確に入力してください</li>
-                <li>• CSV売上と照合して時給効率を自動計算しています</li>
-                <li>• 正確に入力することで、あなたの得意ブランド・時給が可視化されます</li>
+                <li>• CSV売上と照合して時間単価を自動計算しています</li>
+                <li>• 正確に入力することで、あなたの得意ブランド・時間単価が可視化されます</li>
                 <li className="text-yellow-400 font-medium">→ 未入力の場合は評価に影響します</li>
               </ul>
             </div>
@@ -3358,8 +3358,8 @@ function StreamPlanningSection({
                       <p className="text-[10px] text-gray-500 font-medium">推奨商品（過去実績）</p>
                       {alloc.topProducts.map((product: any, pIdx: number) => (
                         <div key={pIdx} className="flex items-center justify-between">
-                          <span className="text-[10px] text-gray-300 truncate max-w-[60%]">
-                            {product.name.length > 30 ? product.name.slice(0, 30) + '...' : product.name}
+                          <span className="text-[10px] text-gray-300 break-words">
+                            {product.name}
                           </span>
                           <span className="text-[10px] text-green-400/80">
                             ~¥{product.expectedSales.toLocaleString()}
