@@ -30,12 +30,25 @@ function isInternalPage(path: string): boolean {
     path.startsWith("/login") ||
     path.startsWith("/liver") ||
     path === "/liver" ||
+    path.startsWith("/livers") ||
     path === "/friend-challenge" ||
     path === "/spin-demo" ||
     path.startsWith("/register") ||
     path.startsWith("/chat-register") ||
-    path.startsWith("/registration-bonus")
+    path.startsWith("/registration-bonus") ||
+    path.startsWith("/mobmart")
   );
+}
+
+/** Check if user is a liver (staff) based on localStorage */
+function isLiverUser(): boolean {
+  try {
+    const liverToken = localStorage.getItem("liver_token") || localStorage.getItem("liverToken");
+    const liverData = localStorage.getItem("liver_data") || localStorage.getItem("liverData");
+    return !!(liverToken || liverData);
+  } catch {
+    return false;
+  }
 }
 
 export default function RandomSpinProvider({ children }: { children: React.ReactNode }) {
@@ -43,8 +56,8 @@ export default function RandomSpinProvider({ children }: { children: React.React
   const { showPopup, jackpotConfig, closePopup, recordPageView, recordWin } = useRandomSpinPopup();
   const prevLocationRef = useRef(location);
 
-  // Determine if current page is internal (admin/staff)
-  const isInternal = useMemo(() => isInternalPage(location), [location]);
+  // Determine if current page is internal (admin/staff) OR user is a liver
+  const isInternal = useMemo(() => isInternalPage(location) || isLiverUser(), [location]);
 
   // Track page navigation and trigger strategic timing checks
   useEffect(() => {
