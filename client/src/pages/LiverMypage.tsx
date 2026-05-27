@@ -1979,16 +1979,32 @@ export default function LiverMypage() {
                               return (
                                 <div
                                   key={ls.id}
-                                  className="flex items-center justify-between text-[10px] bg-gray-700/30 rounded px-2 py-1 cursor-pointer hover:bg-gray-700/50"
+                                  className="text-[10px] bg-gray-700/30 rounded px-2 py-1 cursor-pointer hover:bg-gray-700/50"
                                   onClick={(e) => { e.stopPropagation(); window.open(`/livestreams/${ls.id}`, '_blank'); }}
                                 >
-                                  <span className="text-gray-300">{dateStr} {timeStr}</span>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-orange-400 font-medium">
-                                      {brandCsvSales > 0 ? `¥${brandCsvSales.toLocaleString()}` : <span className="text-gray-500">-</span>}
-                                    </span>
-                                    {durationStr && <span className="text-cyan-400">{durationStr}</span>}
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-gray-300">{dateStr} {timeStr}</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-orange-400 font-medium">
+                                        {brandCsvSales > 0 ? `¥${brandCsvSales.toLocaleString()}` : <span className="text-gray-500">-</span>}
+                                      </span>
+                                      {durationStr && <span className="text-cyan-400">{durationStr}</span>}
+                                    </div>
                                   </div>
+                                  {/* 作成元タグ */}
+                                  {ls.createdByTag && ls.createdByTag !== 'self' && (
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      {ls.createdByTag === 'csv' && (
+                                        <span className="text-[8px] bg-blue-500/20 text-blue-400 px-1 py-0.5 rounded">CSV</span>
+                                      )}
+                                      {ls.createdByTag === 'admin' && (
+                                        <span className="text-[8px] bg-purple-500/20 text-purple-400 px-1 py-0.5 rounded">管理者: {ls.createdByName}</span>
+                                      )}
+                                      {ls.createdByTag === 'staff' && (
+                                        <span className="text-[8px] bg-amber-500/20 text-amber-400 px-1 py-0.5 rounded">手動登録: {ls.createdByName}</span>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -2244,6 +2260,17 @@ export default function LiverMypage() {
                         <p className="text-[10px] text-white mt-1 pl-12">
                           {ls.brandName}
                         </p>
+                      )}
+                      {/* 作成元タグ */}
+                      {(ls as any).createdByTag && (ls as any).createdByTag !== 'self' && (ls as any).createdByTag !== 'csv' && (
+                        <div className="mt-0.5 pl-12">
+                          {(ls as any).createdByTag === 'admin' && (
+                            <span className="text-[8px] bg-purple-500/20 text-purple-400 px-1 py-0.5 rounded">管理者: {(ls as any).createdByName}</span>
+                          )}
+                          {(ls as any).createdByTag === 'staff' && (
+                            <span className="text-[8px] bg-amber-500/20 text-amber-400 px-1 py-0.5 rounded">手動登録: {(ls as any).createdByName}</span>
+                          )}
+                        </div>
                       )}
                     </CardContent>
                     </Card>

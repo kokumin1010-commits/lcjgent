@@ -4010,11 +4010,37 @@ export async function getLivestreamsByLiverId(liverId: number, month?: string) {
     }
   }
 
-  return livestreamRows.map(l => ({
-    ...l,
-    livestreamBrands: brandDurationMap[l.id] || [],
-    brandCsvSales: brandCsvSalesMap[l.id] || {},
-  }));
+  // createdByからユーザー名を取得（配信の作成元タグ表示用）
+  const createdByIds = [...new Set(livestreamRows.map(l => l.createdBy).filter(id => id > 0))];
+  let createdByNameMap: Record<number, string> = {};
+  if (createdByIds.length > 0) {
+    const userRows = await db
+      .select({ id: users.id, name: users.name, email: users.email })
+      .from(users)
+      .where(inArray(users.id, createdByIds));
+    for (const u of userRows) {
+      createdByNameMap[u.id] = u.name || u.email || `User ${u.id}`;
+    }
+  }
+
+  return livestreamRows.map(l => {
+    // 作成元タグの判定: liverId一致→本人、csvImported=yes→CSV、それ以外→手動登録
+    let createdByTag: 'self' | 'csv' | 'admin' | 'staff' = 'staff';
+    if (l.csvImported === 'yes' || l.productCsvImported === 'yes') {
+      createdByTag = 'csv';
+    } else if (l.createdBy === liverId) {
+      createdByTag = 'self';
+    } else if (l.createdBy === 1) {
+      createdByTag = 'admin';
+    }
+    return {
+      ...l,
+      livestreamBrands: brandDurationMap[l.id] || [],
+      brandCsvSales: brandCsvSalesMap[l.id] || {},
+      createdByTag,
+      createdByName: createdByNameMap[l.createdBy] || (l.createdBy === 0 ? 'System' : `ID:${l.createdBy}`),
+    };
+  });
 }
 
 // Get liver statistics (monthly sales, total hours)
