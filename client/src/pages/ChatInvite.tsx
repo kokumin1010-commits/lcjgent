@@ -121,12 +121,18 @@ export default function ChatInvite() {
           {status === "login_required" && (
             <div className="flex flex-col items-center gap-3 py-4">
               <p className="text-sm text-muted-foreground">この招待リンクを使用するにはログインが必要です</p>
-              <Button onClick={() => navigate(`/login?redirect=${encodeURIComponent(window.location.pathname)}`)} className="w-full">
-                ログインして参加
+              <p className="text-xs text-muted-foreground mb-2">ご自身に該当する方を選んでください</p>
+              <Button onClick={() => navigate(`/liver/login?redirect=${encodeURIComponent(window.location.pathname)}`)} className="w-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white">
+                🎤 ライバーの方はこちら
               </Button>
-              <Button variant="outline" onClick={() => navigate("/liver/register")} className="w-full">
-                新規登録（ライバー）
+              <Button onClick={() => navigate(`/login?redirect=${encodeURIComponent(window.location.pathname)}`)} variant="outline" className="w-full">
+                🏢 本部スタッフの方はこちら
               </Button>
+              <div className="border-t pt-3 w-full mt-2">
+                <Button variant="ghost" onClick={() => navigate("/liver/register")} className="w-full text-sm text-muted-foreground">
+                  アカウントをお持ちでない方 → 新規登録
+                </Button>
+              </div>
             </div>
           )}
           {status === "error" && (
