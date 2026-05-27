@@ -1739,6 +1739,7 @@ async def admin_set_compressed_blob(
     
     Body: {"blob_url": "assembled/xxx_assembled.mp4"} or {"blob_url": "email/VIDEO_ID/chunks/chunk_0000.mp4"}
     """
+    import os
     expected_key = os.getenv("ADMIN_API_KEY", "aither:hub")
     if x_admin_key != expected_key:
         raise HTTPException(status_code=403, detail="Forbidden")
