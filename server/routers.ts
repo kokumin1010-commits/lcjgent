@@ -9441,8 +9441,51 @@ Return ONLY valid JSON, no markdown or explanation.`,
           });
         }
 
+        // フロントエンド用にデータを変換
+        const formattedMonths = months.map(m => ({
+          ...m,
+          label: `${m.year}/${m.month}`,
+          kgHours: m.kgActual,
+          liverHours: m.liverActual,
+          kgPct: m.kgQuota > 0 ? Math.round(m.kgActual / m.kgQuota * 100) : 0,
+          liverPct: m.liverQuota > 0 ? Math.round(m.liverActual / m.liverQuota * 100) : 0,
+          videoPct: m.videoQuota > 0 ? Math.round(m.videoActual / m.videoQuota * 100) : 0,
+          gmv: m.totalGmv,
+        }));
+        // 契約期間情報
+        const contractPeriod = (() => {
+          if (!earliest || !latest) return null;
+          const startStr = `${earliest.getFullYear()}/${earliest.getMonth() + 1}/${earliest.getDate()}`;
+          const endStr = `${latest.getFullYear()}/${latest.getMonth() + 1}/${latest.getDate()}`;
+          const remainingDays = Math.ceil((latest.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          return { start: startStr, end: endStr, remainingDays };
+        })();
+        // 累計進捗
+        const cumulative = (() => {
+          let kgActualTotal = 0, liverActualTotal = 0, videoActualTotal = 0;
+          for (const m of months) {
+            kgActualTotal += m.kgActual;
+            liverActualTotal += m.liverActual;
+            videoActualTotal += m.videoActual;
+          }
+          const totalMonths = months.length || 1;
+          const kgTotal = totalKgQuota * totalMonths;
+          const liverTotal = totalLiverQuota * totalMonths;
+          const videoTotal = totalVideoQuota * totalMonths;
+          return {
+            kgTotal: Math.round(kgTotal * 10) / 10,
+            kgActual: Math.round(kgActualTotal * 10) / 10,
+            kgPct: kgTotal > 0 ? Math.round(kgActualTotal / kgTotal * 100) : 0,
+            liverTotal: Math.round(liverTotal * 10) / 10,
+            liverActual: Math.round(liverActualTotal * 10) / 10,
+            liverPct: liverTotal > 0 ? Math.round(liverActualTotal / liverTotal * 100) : 0,
+            videoTotal,
+            videoActual: videoActualTotal,
+            videoPct: videoTotal > 0 ? Math.round(videoActualTotal / videoTotal * 100) : 0,
+          };
+        })();
         return {
-          months,
+          months: formattedMonths,
           contracts: contracts.map(c => ({
             id: c.id, brandName: c.brandId,
             startDate: c.startDate, endDate: c.endDate,
@@ -9450,6 +9493,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
             liverLiveHoursQuota: c.liverLiveHoursQuota,
             shortVideoCountQuota: c.shortVideoCountQuota,
           })),
+          contractPeriod,
+          cumulative,
         };
       }),
 
