@@ -3202,6 +3202,7 @@ function StreamPlanningSection({
         totalMinutes: b.totalMinutes,
         csvGmv: b.csvGmv,
         streamCount: b.streamCount,
+        topProducts: b.topProducts || [],
       }))
       .sort((a: any, b: any) => b.hourlyRate - a.hourlyRate);
   }, [brandDurationStats]);
@@ -3211,7 +3212,7 @@ function StreamPlanningSection({
     if (brandRankings.length === 0) return null;
 
     const totalMinutes = planDuration;
-    const allocations: { brandName: string; minutes: number; expectedSales: number; hourlyRate: number }[] = [];
+    const allocations: { brandName: string; minutes: number; expectedSales: number; hourlyRate: number; topProducts: { name: string; gmv: number; expectedSales: number }[] }[] = [];
     let remainingMinutes = totalMinutes;
 
     // 時間単価が高い順にブランドを配分
@@ -3233,11 +3234,19 @@ function StreamPlanningSection({
       }
 
       const expectedSales = Math.round(brand.hourlyRate * (allocMinutes / 60));
+      // Calculate expected sales per product based on GMV ratio
+      const brandTotalGmv = brand.csvGmv || 1;
+      const productExpected = (brand.topProducts || []).slice(0, 3).map((p: any) => ({
+        name: p.name,
+        gmv: p.gmv,
+        expectedSales: Math.round(expectedSales * (p.gmv / brandTotalGmv)),
+      }));
       allocations.push({
         brandName: brand.brandName,
         minutes: allocMinutes,
         expectedSales,
         hourlyRate: brand.hourlyRate,
+        topProducts: productExpected,
       });
       remainingMinutes -= allocMinutes;
     }
@@ -3318,29 +3327,47 @@ function StreamPlanningSection({
                 {language === 'ja' ? '推奨ブランド配分（時間単価順）' : 'Recommended Brand Allocation'}
               </p>
               {plan.allocations.map((alloc, idx) => (
-                <div key={idx} className="flex items-center gap-2 bg-gray-800/30 rounded-lg p-2">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${idx === 0 ? 'bg-yellow-500/30 text-yellow-400' : idx === 1 ? 'bg-gray-400/30 text-gray-300' : 'bg-orange-500/30 text-orange-400'}`}>
-                    {idx + 1}
+                <div key={idx} className="bg-gray-800/30 rounded-lg p-2">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${idx === 0 ? 'bg-yellow-500/30 text-yellow-400' : idx === 1 ? 'bg-gray-400/30 text-gray-300' : 'bg-orange-500/30 text-orange-400'}`}>
+                      {idx + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-white truncate">{alloc.brandName}</span>
+                        <span className="text-xs text-indigo-300 font-medium">
+                          {alloc.minutes >= 60 ? `${Math.floor(alloc.minutes/60)}h${alloc.minutes%60 > 0 ? alloc.minutes%60+'m' : ''}` : `${alloc.minutes}m`}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <span className="text-[10px] text-gray-400">¥{alloc.hourlyRate.toLocaleString()}/h</span>
+                        <span className="text-[10px] text-green-400">期待売上: ¥{alloc.expectedSales.toLocaleString()}</span>
+                      </div>
+                      {/* プログレスバー */}
+                      <div className="mt-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full ${idx === 0 ? 'bg-yellow-500' : idx === 1 ? 'bg-blue-500' : 'bg-orange-500'}`}
+                          style={{ width: `${(alloc.minutes / planDuration) * 100}%` }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-white truncate">{alloc.brandName}</span>
-                      <span className="text-xs text-indigo-300 font-medium">
-                        {alloc.minutes >= 60 ? `${Math.floor(alloc.minutes/60)}h${alloc.minutes%60 > 0 ? alloc.minutes%60+'m' : ''}` : `${alloc.minutes}m`}
-                      </span>
+                  {/* 推奨商品一覧 */}
+                  {alloc.topProducts && alloc.topProducts.length > 0 && (
+                    <div className="mt-2 ml-8 space-y-1 border-l-2 border-gray-700 pl-2">
+                      <p className="text-[10px] text-gray-500 font-medium">推奨商品（過去実績）</p>
+                      {alloc.topProducts.map((product: any, pIdx: number) => (
+                        <div key={pIdx} className="flex items-center justify-between">
+                          <span className="text-[10px] text-gray-300 truncate max-w-[60%]">
+                            {product.name.length > 30 ? product.name.slice(0, 30) + '...' : product.name}
+                          </span>
+                          <span className="text-[10px] text-green-400/80">
+                            ~¥{product.expectedSales.toLocaleString()}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                    <div className="flex items-center justify-between mt-0.5">
-                      <span className="text-[10px] text-gray-400">¥{alloc.hourlyRate.toLocaleString()}/h</span>
-                      <span className="text-[10px] text-green-400">期待売上: ¥{alloc.expectedSales.toLocaleString()}</span>
-                    </div>
-                    {/* プログレスバー */}
-                    <div className="mt-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full ${idx === 0 ? 'bg-yellow-500' : idx === 1 ? 'bg-blue-500' : 'bg-orange-500'}`}
-                        style={{ width: `${(alloc.minutes / planDuration) * 100}%` }}
-                      />
-                    </div>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
