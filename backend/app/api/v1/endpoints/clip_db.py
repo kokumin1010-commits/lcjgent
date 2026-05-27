@@ -219,6 +219,7 @@ async def search_clips(
     min_cta: Optional[int] = Query(None, description="Minimum CTA score"),
     rating: Optional[str] = Query(None, description="Filter by rating (good/bad)"),
     video_id: Optional[str] = Query(None, description="Filter by video ID"),
+    clip_id: Optional[str] = Query(None, description="Filter by specific clip ID (vc.id)"),
     brand: Optional[str] = Query(None, description="Filter by brand client_id"),
     is_unusable: Optional[bool] = Query(None, description="Filter by unusable status"),
     no_brand: Optional[bool] = Query(None, description="Filter clips with no brand assigned"),
@@ -304,6 +305,12 @@ async def search_clips(
     if video_id:
         conditions.append("vc.video_id = :video_id")
         params["video_id"] = video_id
+
+    # Clip ID filter (filter by specific clip, or find all clips from same video)
+    if clip_id:
+        # Find the video_id for this clip, then show all clips from that video
+        conditions.append("vc.video_id = (SELECT video_id FROM video_clips WHERE id = CAST(:clip_id AS uuid))")
+        params["clip_id"] = clip_id
 
     # Brand filter (via widget_clip_assignments)
     if brand:

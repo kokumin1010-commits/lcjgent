@@ -1417,6 +1417,10 @@ export default function AdminClipDB({ adminKey }) {
   const initSort = urlParams.get("sort_by") || "uploaded_at";
   const initOrder = urlParams.get("sort_order") || "desc";
   const initPage = parseInt(urlParams.get("clip_page") || "1", 10) || 1;
+  const initClipId = urlParams.get("clip_id") || "";
+
+  // Clip ID filter (from TikTok Performance "クリップDBで見る" button)
+  const [clipIdFilter, setClipIdFilter] = useState(initClipId);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -1574,7 +1578,7 @@ export default function AdminClipDB({ adminKey }) {
     if (searchMode === "structured" && enrichTriggered.current) {
       loadClips();
     }
-  }, [page, sortBy, sortOrder, selectedTag, soldFilter, ratingFilter, selectedBrand, unusableFilter, noBrandFilter, hasSubtitleFilter, hasTrimFilter, notDownloadedFilter, languageFilter, aiVersionFilter, selectedPlaylistFilter]);
+  }, [page, sortBy, sortOrder, selectedTag, soldFilter, ratingFilter, selectedBrand, unusableFilter, noBrandFilter, hasSubtitleFilter, hasTrimFilter, notDownloadedFilter, languageFilter, aiVersionFilter, selectedPlaylistFilter, clipIdFilter]);
 
   async function autoEnrichAndLoad() {
     // 1. Auto enrich (non-blocking for already-enriched clips)
@@ -1713,6 +1717,7 @@ export default function AdminClipDB({ adminKey }) {
       if (languageFilter) params.language = languageFilter;
       if (aiVersionFilter) params.ai_version = aiVersionFilter;
       if (selectedPlaylistFilter) params.playlist_id = selectedPlaylistFilter;
+      if (clipIdFilter) params.clip_id = clipIdFilter;
 
       const data = await clipDbFetch("/search", params, adminKey);
       setClips(data.clips || []);
@@ -1901,6 +1906,18 @@ export default function AdminClipDB({ adminKey }) {
             </button>
           )}
         </div>
+        {/* Clip ID filter badge (from TikTok Performance) */}
+        {clipIdFilter && (
+          <div className="flex items-center gap-2 mt-2 px-3 py-1.5 rounded-lg bg-orange-50 border border-orange-300">
+            <span className="text-xs font-medium text-orange-700">🎬 TikTok動画のクリップを表示中</span>
+            <button
+              onClick={() => { setClipIdFilter(""); setPage(1); const u = new URL(window.location); u.searchParams.delete("clip_id"); window.history.replaceState({}, "", u); }}
+              className="text-orange-500 hover:text-orange-700 text-xs font-bold"
+            >
+              ✕ 解除
+            </button>
+          </div>
+        )}
         {/* Playlist filter - always visible */}
         <div className="flex flex-wrap items-center gap-2 mt-2">
           <select
