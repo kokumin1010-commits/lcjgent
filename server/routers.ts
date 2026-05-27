@@ -9137,9 +9137,11 @@ Return ONLY valid JSON, no markdown or explanation.`,
           if (c.shortVideoCountQuota) totalVideoQuota += c.shortVideoCountQuota;
         }
 
-        // 当月の配信データをライバー別に集計
+        // 当月の配信データをライバー別に集計（ハイブリッド: livestream_brandsを優先、なければbrand_livestreamsにフォールバック）
+        // Step 1: brand_livestreamsから当月の全配信を取得
         const livestreams = await db
           .select({
+            id: brandLivestreams.id,
             liverId: brandLivestreams.liverId,
             streamerName: brandLivestreams.streamerName,
             duration: brandLivestreams.duration,
@@ -9154,8 +9156,33 @@ Return ONLY valid JSON, no markdown or explanation.`,
             gte(brandLivestreams.livestreamDate, jstStart),
             lte(brandLivestreams.livestreamDate, jstEnd)
           ));
-
-        // ライバー別集計
+        // Step 2: livestream_brandsから正確なブランド別時間を取得（このブランドに対する分割時間）
+        const livestreamIds = livestreams.map(ls => ls.id).filter(Boolean);
+        let accurateDurations: Map<number, number> = new Map(); // livestreamId -> durationMinutes
+        if (livestreamIds.length > 0) {
+          try {
+            const lbRows = await db
+              .select({
+                livestreamId: livestreamBrands.livestreamId,
+                durationMinutes: livestreamBrands.durationMinutes,
+              })
+              .from(livestreamBrands)
+              .where(and(
+                eq(livestreamBrands.brandId, brandId),
+                sql`${livestreamBrands.livestreamId} IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`, `)})`
+              ));
+            for (const row of lbRows) {
+              if (row.durationMinutes && row.durationMinutes > 0) {
+                const existing = accurateDurations.get(row.livestreamId) || 0;
+                accurateDurations.set(row.livestreamId, existing + Number(row.durationMinutes));
+              }
+            }
+          } catch (e) {
+            // livestream_brandsテーブルにアクセスできない場合はフォールバック
+            console.warn("[getQuotaProgress] livestream_brands query failed, using fallback:", e);
+          }
+        }
+        // Step 3: ライバー別集計（ハイブリッド: livestream_brandsにデータがあればそちらを使用）
         const liverMap: Record<string, {
           liverId: number | null;
           streamerName: string;
@@ -9163,9 +9190,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
           totalGmv: number;
           streamCount: number;
         }> = {};
-
         let totalDurationMin = 0;
-
         for (const ls of livestreams) {
           const key = ls.liverId ? `liver_${ls.liverId}` : `name_${ls.streamerName}`;
           if (!liverMap[key]) {
@@ -9177,13 +9202,14 @@ Return ONLY valid JSON, no markdown or explanation.`,
               streamCount: 0,
             };
           }
-          const dur = ls.duration || 0;
+          // ハイブリッド: livestream_brandsに正確なデータがあればそちらを使用
+          const accurateDur = accurateDurations.get(ls.id);
+          const dur = accurateDur !== undefined ? accurateDur : (ls.duration || 0);
           liverMap[key].totalDurationMin += dur;
           liverMap[key].totalGmv += (ls.gmv || ls.salesAmount || 0);
           liverMap[key].streamCount += 1;
           totalDurationMin += dur;
         }
-
         // KG老师（liverId=null or 特定のstreamerName）の判定
         // KG老师は通常streamerNameに「KG」「老师」を含む、またはliverId=nullの場合が多い
         let kgDurationMin = 0;
@@ -9395,6 +9421,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
 
           const livestreams = await db
             .select({
+              id: brandLivestreams.id,
               streamerName: brandLivestreams.streamerName,
               duration: brandLivestreams.duration,
               gmv: brandLivestreams.gmv,
@@ -9408,9 +9435,37 @@ Return ONLY valid JSON, no markdown or explanation.`,
               lte(brandLivestreams.livestreamDate, jstEnd)
             ));
 
+          // ハイブリッド: livestream_brandsから正確なブランド別時間を取得
+          const monthLsIds = livestreams.map(ls => ls.id).filter(Boolean);
+          let monthAccurateDurations: Map<number, number> = new Map();
+          if (monthLsIds.length > 0) {
+            try {
+              const lbRows = await db
+                .select({
+                  livestreamId: livestreamBrands.livestreamId,
+                  durationMinutes: livestreamBrands.durationMinutes,
+                })
+                .from(livestreamBrands)
+                .where(and(
+                  eq(livestreamBrands.brandId, brandId),
+                  sql`${livestreamBrands.livestreamId} IN (${sql.join(monthLsIds.map(id => sql`${id}`), sql`, `)})`
+                ));
+              for (const row of lbRows) {
+                if (row.durationMinutes && row.durationMinutes > 0) {
+                  const existing = monthAccurateDurations.get(row.livestreamId) || 0;
+                  monthAccurateDurations.set(row.livestreamId, existing + Number(row.durationMinutes));
+                }
+              }
+            } catch (e) {
+              // livestream_brandsテーブルにアクセスできない場合はフォールバック
+            }
+          }
+
           let kgMin = 0, liverMin = 0, totalGmv = 0, streamCount = livestreams.length;
           for (const ls of livestreams) {
-            const dur = ls.duration || 0;
+            // ハイブリッド: livestream_brandsに正確なデータがあればそちらを使用
+            const accurateDur = monthAccurateDurations.get(ls.id);
+            const dur = accurateDur !== undefined ? accurateDur : (ls.duration || 0);
             const isKg = (ls.streamerName || '').includes('KG') || (ls.streamerName || '').includes('老师') || (ls.streamerName || '').includes('kg');
             if (isKg) kgMin += dur; else liverMin += dur;
             totalGmv += (ls.gmv || ls.salesAmount || 0);
