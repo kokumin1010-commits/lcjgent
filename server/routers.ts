@@ -25385,28 +25385,6 @@ JSON配列のみを出力してください。`;
         await db.execute(sqlTag`UPDATE chat_rooms SET name = ${input.name} WHERE id = ${input.roomId}`);
         return { success: true };
       }),
-    // テキスト翻訳（チャット用）
-    translateText: publicProcedure
-      .input(z.object({ text: z.string(), targetLang: z.string().default("ja") }))
-      .mutation(async ({ input }) => {
-        const langMap: Record<string, string> = { ja: "日本語", zh: "中文", en: "English" };
-        const targetName = langMap[input.targetLang] || input.targetLang;
-        try {
-          const result = await invokeLLM({
-            messages: [
-              { role: "system", content: `You are a translator. Translate the following text to ${targetName}. Return ONLY the translated text, nothing else. Do not add any explanation.` },
-              { role: "user", content: input.text }
-            ],
-            temperature: 0.1,
-            maxTokens: 2000,
-          });
-          const translated = typeof result === "string" ? result : (result as any)?.content || "";
-          return { translated: translated.trim() };
-        } catch (e) {
-          console.error("Translation error:", e);
-          return { translated: "翻訳に失敗しました" };
-        }
-      }),
   }),
 });
 export type AppRouter = typeof appRouter;
