@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, bigint, json, boolean, decimal } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, bigint, json, boolean, decimal, tinyint } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -5632,6 +5632,7 @@ export const masterSetSuggestionItems = mysqlTable("master_set_suggestion_items"
   productName: varchar("productName", { length: 255 }).notNull(), // 商品名
   originalPrice: bigint("originalPrice", { mode: "number" }).notNull(), // 元値（定価）
   quantity: int("quantity").default(1).notNull(), // 個数
+  isFree: tinyint("isFree").default(0), // 無料ギフトフラグ（0=通常, 1=無料）
   
   // 並び順
   sortOrder: int("sortOrder").default(0),

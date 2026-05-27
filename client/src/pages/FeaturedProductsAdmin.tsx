@@ -62,6 +62,7 @@ export default function FeaturedProductsAdmin() {
   const rankingsQuery = trpc.featuredProduct.getRankings.useQuery();
   const brandsQuery = trpc.brand.list.useQuery({});
   const setSuggestionsQuery = trpc.masterSetSuggestion.list.useQuery({ status: "active" });
+  const historicalSetsQuery = trpc.featuredProduct.getHistoricalSets.useQuery();
 
   // Mutations
   const createMut = trpc.featuredProduct.create.useMutation({
@@ -233,6 +234,40 @@ export default function FeaturedProductsAdmin() {
                 ))}
               </select>
               <p className="text-xs text-gray-400 mt-1">選択すると商品名・セット提案・備考が自動入力されます</p>
+            </div>
+
+            {/* 過去のセット実績から自動入力 */}
+            <div className="bg-green-900/30 border border-green-700/50 rounded-lg p-3">
+              <label className="text-sm text-green-300 mb-1 block font-medium">📊 過去のセット実績から自動入力</label>
+              <select
+                className="w-full bg-gray-800 border border-gray-700 text-white rounded-md p-2 text-sm h-10"
+                onChange={(e) => {
+                  const selectedId = parseInt(e.target.value);
+                  if (!selectedId) return;
+                  const set = (historicalSetsQuery.data as any[])?.find((s: any) => s.id === selectedId);
+                  if (set) {
+                    const itemDetails = (set.items || []).map((i: any) => 
+                      `${i.productName} ¥${Number(i.originalPrice || 0).toLocaleString()}`
+                    ).join(" / ");
+                    setForm({
+                      ...form,
+                      productName: set.setName,
+                      setProposal: `セット内容: ${itemDetails}\n売値: ¥${Number(set.setPrice || 0).toLocaleString()} (${set.discountRate || 0}%OFF)\n過去実績: ${set.quantitySold}セット販売 / 売上¥${Number(set.totalRevenue || 0).toLocaleString()}`,
+                      notes: `過去実績セット / ${set.streamerName}さんが${set.quantitySold}セット販売 / ¥${Number(set.totalRevenue || 0).toLocaleString()}`,
+                      successCase: `${set.streamerName}さんがこのセットで${set.quantitySold}セット販売、売上¥${Number(set.totalRevenue || 0).toLocaleString()}を達成`,
+                    });
+                    toast.success(`「${set.setName}」の実績データを自動入力しました`);
+                  }
+                }}
+              >
+                <option value="">過去の売れ筋セットを選択...</option>
+                {(historicalSetsQuery.data as any[])?.map((s: any) => (
+                  <option key={s.id} value={s.id}>
+                    {s.setName} ({s.streamerName}) - ¥{Number(s.totalRevenue || 0).toLocaleString()} / {s.quantitySold}セット / {s.discountRate}%OFF
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">過去にライバーが実際に売ったセット実績から選択できます</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

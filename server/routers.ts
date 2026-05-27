@@ -24547,6 +24547,7 @@ ${topProductsContext}
           productName: z.string(),
           originalPrice: z.number(),
           quantity: z.number().default(1),
+          isFree: z.number().default(0),
         })),
       }))
       .mutation(async ({ input }) => {
@@ -24573,6 +24574,7 @@ ${topProductsContext}
               productName: item.productName,
               originalPrice: item.originalPrice,
               quantity: item.quantity,
+              isFree: item.isFree || 0,
               sortOrder: idx,
             }))
           );
@@ -24625,6 +24627,7 @@ ${topProductsContext}
           productName: z.string(),
           originalPrice: z.number(),
           quantity: z.number().default(1),
+          isFree: z.number().default(0),
           sortOrder: z.number().default(0),
         })),
         suggestedPrice: z.number().optional(),
@@ -24638,6 +24641,7 @@ ${topProductsContext}
           productName: item.productName,
           originalPrice: item.originalPrice,
           quantity: item.quantity,
+          isFree: item.isFree || 0,
           sortOrder: idx,
         })));
         // Update parent suggestion prices if provided
@@ -24669,17 +24673,44 @@ ${topProductsContext}
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
         
-        // 過去の売れ筋セットデータを取得
-        const topSets = await db.select()
+        // 過去の売れ筋セットデータを取得（TOP50に拡大）
+        const topSets = await db.select({
+            id: livestreamSets.id,
+            setName: livestreamSets.setName,
+            setPrice: livestreamSets.setPrice,
+            quantitySold: livestreamSets.quantitySold,
+            totalOriginalPrice: livestreamSets.totalOriginalPrice,
+            discountRate: livestreamSets.discountRate,
+            totalRevenue: livestreamSets.totalRevenue,
+            createdAt: livestreamSets.createdAt,
+            streamerName: brandLivestreams.streamerName,
+            livestreamDate: brandLivestreams.livestreamDate,
+          })
           .from(livestreamSets)
+          .innerJoin(brandLivestreams, eq(livestreamSets.livestreamId, brandLivestreams.id))
           .orderBy(desc(livestreamSets.totalRevenue))
-          .limit(30);
+          .limit(50);
         
         const topSetItems = await Promise.all(topSets.map(async (s) => {
           const items = await db.select().from(livestreamSetItems)
             .where(eq(livestreamSetItems.setId, s.id));
           return { ...s, items };
         }));
+        
+        // ライバー別成功パターンを取得（各ライバーのTOP3セット）
+        const liverPatterns = await db
+          .select({
+            streamerName: brandLivestreams.streamerName,
+            totalSets: sql<number>`COUNT(DISTINCT ${livestreamSets.id})`,
+            totalSetRevenue: sql<number>`COALESCE(SUM(${livestreamSets.totalRevenue}), 0)`,
+            avgDiscount: sql<number>`COALESCE(AVG(${livestreamSets.discountRate}), 0)`,
+            avgPrice: sql<number>`COALESCE(AVG(${livestreamSets.setPrice}), 0)`,
+          })
+          .from(livestreamSets)
+          .innerJoin(brandLivestreams, eq(livestreamSets.livestreamId, brandLivestreams.id))
+          .groupBy(brandLivestreams.streamerName)
+          .orderBy(desc(sql`COALESCE(SUM(${livestreamSets.totalRevenue}), 0)`))
+          .limit(10);
         
         // 商品マスターから利用可能な商品を取得
         const products = await db.select().from(productMaster).limit(50);
@@ -24709,8 +24740,11 @@ ${topProductsContext}
 ${input.category ? `## カテゴリ指定: ${input.category}` : ""}
 ${input.liverName ? `## 対象ライバー: ${input.liverName}` : "## 全ライバー向け"}
 
-## 過去の売れ筋セットTOP30:
-${topSetItems.map(s => `- ${s.setName}: 売値¥${s.setPrice}, 販売数${s.quantitySold}, 売上¥${s.totalRevenue}, 割引率${s.discountRate}%OFF\n  商品: ${s.items.map(i => `${i.productName}(¥${i.originalPrice}×${i.quantity || 1})`).join(', ')}`).join('\n')}
+## 過去の売れ筋セットTOP50:
+${topSetItems.map(s => `- ${s.setName} (${(s as any).streamerName}): 売値¥${s.setPrice}, 販売数${s.quantitySold}, 売上¥${s.totalRevenue}, 割引率${s.discountRate}%OFF\n  商品: ${s.items.map(i => `${i.productName}(¥${i.originalPrice}×${i.quantity || 1})`).join(', ')}`).join('\n')}
+
+## ライバー別成功パターン:
+${liverPatterns.map(lp => `- ${lp.streamerName}: ${lp.totalSets}セット作成, 総売上¥${Number(lp.totalSetRevenue).toLocaleString()}, 平均割引${Math.round(Number(lp.avgDiscount))}%OFF, 平均売値¥${Math.round(Number(lp.avgPrice)).toLocaleString()}`).join('\n')}
 
 ## 過去の割引率統計（実績データ）:
 - 平均割引率: ${discountStats.avg}%OFF
@@ -24741,8 +24775,9 @@ ${feedbackSummary.highRatedReviews.slice(0, 10).map(r => `- ${r.rating}★: ${r.
 2. 【最重要】割引率は必ず${Math.max(20, discountStats.p25)}%〜${Math.min(55, discountStats.p75 + 10)}%の範囲にすること。20%未満は絶対禁止。過去の実績で最も売上が高い割引率帯を参考にすること。
 3. 売値は¥3,000-¥15,000の範囲
 4. 季節に合った商品を優先
-5. 過去の売れ筋パターンを参考にする
+5. 過去の売れ筋パターンを参考にする（ライバー別成功パターンも分析すること）
 6. suggestedPriceは必ず元値合計の${100 - Math.min(55, discountStats.p75 + 10)}%〜${100 - Math.max(20, discountStats.p25)}%になるよう計算すること
+8. 【無料ギフト戦略】 3つの提案のうち1つは「無料ギフト付きセット」を含めること。例：メイン商品2点 + 無料ギフト（サンプル品や小型商品）。無料ギフト商品はoriginalPriceに定価を入れつつ、isFree: trueを追加すること。ライバーが「これ無料でつけますよ！」と言えるようにする。
 7. 【セット名のバリエーション重要】3つの提案のセット名は、それぞれ全く異なる命名パターンを使うこと。以下のパターンからランダムに組み合わせて多様性を出すこと：
    - ターゲット訴求型: 「忙しいママのための時短ケアセット」「初めてのエイジングケアスターターキット」
    - 感情・体験型: 「至福のバスタイムセット」「自分へのご褒美プレミアムBOX」「週末リセット美容セット」
@@ -24760,7 +24795,7 @@ ${feedbackSummary.highRatedReviews.slice(0, 10).map(r => `- ${r.rating}★: ${r.
     "description": "セールスポイント（1-2文）",
     "category": "季節/定番/キャンペーン",
     "suggestedPrice": 数値,
-    "items": [{"productName": "商品名", "originalPrice": 数値, "quantity": 数値}],
+    "items": [{"productName": "商品名", "originalPrice": 数値, "quantity": 数値, "isFree": false}],
     "expectedSales": 予想販売数,
     "reasoning": "提案理由（過去データに基づく）"
   }
@@ -24833,6 +24868,7 @@ JSON配列のみを出力してください。`;
                 productName: item.productName,
                 originalPrice: Number(item.originalPrice) || 0,
                 quantity: Number(item.quantity) || 1,
+                isFree: item.isFree ? 1 : 0,
                 sortOrder: idx,
               }))
             );
@@ -25279,6 +25315,37 @@ JSON配列のみを出力してください。`;
     processExpired: protectedProcedure.mutation(async () => {
       return await processExpiredFeaturedProducts();
      }),
+    // 管理側: 過去のセット実績一覧取得（重点商品登録用）
+    getHistoricalSets: protectedProcedure
+      .input(z.object({ limit: z.number().default(50) }).optional())
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const sets = await db
+          .select({
+            id: livestreamSets.id,
+            setName: livestreamSets.setName,
+            setPrice: livestreamSets.setPrice,
+            quantitySold: livestreamSets.quantitySold,
+            totalOriginalPrice: livestreamSets.totalOriginalPrice,
+            discountRate: livestreamSets.discountRate,
+            totalRevenue: livestreamSets.totalRevenue,
+            createdAt: livestreamSets.createdAt,
+            streamerName: brandLivestreams.streamerName,
+            livestreamDate: brandLivestreams.livestreamDate,
+          })
+          .from(livestreamSets)
+          .innerJoin(brandLivestreams, eq(livestreamSets.livestreamId, brandLivestreams.id))
+          .orderBy(desc(livestreamSets.totalRevenue))
+          .limit(input?.limit || 50);
+        // Get items for each set
+        const setsWithItems = await Promise.all(sets.map(async (s) => {
+          const items = await db.select().from(livestreamSetItems)
+            .where(eq(livestreamSetItems.setId, s.id));
+          return { ...s, items };
+        }));
+        return setsWithItems;
+      }),
   }),
   // LCJ Brain - AI BD引擎
   lcjBrain: lcjBrainRouter,
