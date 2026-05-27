@@ -22448,7 +22448,7 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
     .where(isNull(brands.deletedAt));
 
   // Step 3: 全商品データを取得してブランド別に集計（重複排除付き）
-  const brandSalesMap = new Map<string, { brandName: string; brandIds: number[]; totalGmv: number; productCount: number }>();
+  const brandSalesMap = new Map<string, { brandName: string; brandIds: number[]; totalGmv: number; productCount: number; topProducts: { name: string; gmv: number }[] }>();
 
   if (livestreamIds.length > 0) {
     // バッチで商品データを取得
@@ -22506,12 +22506,15 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
           if (!existing.brandIds.includes(matchedBrand.id)) {
             existing.brandIds.push(matchedBrand.id);
           }
+          // Track top products per brand
+          existing.topProducts.push({ name: productName, gmv: revenue });
         } else {
           brandSalesMap.set(normalizedName, {
             brandName: matchedBrand.name,
             brandIds: [matchedBrand.id],
             totalGmv: revenue,
             productCount: 1,
+            topProducts: [{ name: productName, gmv: revenue }],
           });
         }
       }
@@ -22526,6 +22529,22 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
     const hourlyRate = m.totalMinutes > 0 ? Math.round(csvGmv / (m.totalMinutes / 60)) : 0;
     // Remove from brandSalesMap so we can detect unmatched brands later
     if (sales) brandSalesMap.delete(normalizedName);
+    // Get top products for this brand (sorted by GMV, top 5)
+    const brandTopProducts = sales?.topProducts
+      ? sales.topProducts
+          .reduce((acc: { name: string; gmv: number }[], p) => {
+            // Aggregate same product name
+            const existing = acc.find(a => a.name === p.name);
+            if (existing) {
+              existing.gmv += p.gmv;
+            } else {
+              acc.push({ ...p });
+            }
+            return acc;
+          }, [])
+          .sort((a, b) => b.gmv - a.gmv)
+          .slice(0, 5)
+      : [];
     return {
       brandId: m.brandIds[0],
       brandIds: m.brandIds,
@@ -22535,6 +22554,7 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
       streamCount: m.streamCount,
       csvGmv,
       hourlyRate,
+      topProducts: brandTopProducts,
       status: csvGmv > 0 ? 'matched' as const : 'no_csv' as const, // matched=一致, no_csv=CSV未確認
     };
   });
@@ -22552,6 +22572,14 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
       streamCount: 0,
       csvGmv: s.totalGmv,
       hourlyRate: 0,
+      topProducts: s.topProducts
+        .reduce((acc: { name: string; gmv: number }[], p) => {
+          const existing = acc.find(a => a.name === p.name);
+          if (existing) { existing.gmv += p.gmv; } else { acc.push({ ...p }); }
+          return acc;
+        }, [])
+        .sort((a, b) => b.gmv - a.gmv)
+        .slice(0, 5),
       status: 'unregistered' as const, // CSVで売上あるが配信ブランド未入力
     }));
 
