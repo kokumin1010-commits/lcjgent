@@ -137,6 +137,18 @@ export default function Login() {
               </Link>
             </div>
           </form>
+
+          {/* Liver login redirect */}
+          <div className="mt-4 pt-4 border-t text-center">
+            <p className="text-xs text-muted-foreground mb-2">
+              {language === "ja" ? "ライバーの方はこちらからログインしてください" : "主播请从这里登录"}
+            </p>
+            <Link href={`/liver/login${window.location.search}`}>
+              <Button type="button" variant="outline" className="w-full bg-gradient-to-r from-pink-50 to-rose-50 border-pink-200 hover:from-pink-100 hover:to-rose-100 text-pink-700">
+                🎤 {language === "ja" ? "ライバーログイン" : "主播登录"}
+              </Button>
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>
