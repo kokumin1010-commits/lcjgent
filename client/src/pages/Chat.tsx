@@ -18,7 +18,7 @@ import {
   MessageCircle, Send, Plus, Users, Image as ImageIcon, Paperclip, FileText,
   Search, X, Edit2, UserPlus, ArrowLeft, Loader2, Check, User,
   Bold, Italic, Strikethrough, UnderlineIcon, List, ListOrdered,
-  Quote, Code, Link as LinkIcon, Maximize2, Minimize2, Languages
+  Quote, Code, Link as LinkIcon, Maximize2, Minimize2, Languages, Copy, Share2
 } from "lucide-react";
 
 // ===== Rich Text Editor Toolbar =====
@@ -521,9 +521,43 @@ export default function Chat() {
               </Avatar>
               <span className="text-xs text-muted-foreground">ログイン中:</span>
               <span className="text-xs font-medium">{myInfo.name}</span>
-              <Badge variant="outline" className="text-[9px] px-1 py-0 ml-auto">
-                {myInfo.userType === "staff" ? "スタッフ" : "ライバー"}
+              <Badge variant="outline" className={`text-[9px] px-1 py-0 ml-auto ${myInfo.userType === "staff" ? "border-blue-300 text-blue-700" : "border-green-300 text-green-700"}`}>
+                {myInfo.userType === "staff" ? "本部" : "ライバー"}
               </Badge>
+            </div>
+          )}
+          {/* 招待リンク */}
+          {myInfo && (
+            <div className="mt-2 space-y-1.5">
+              <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
+                <Share2 className="h-3 w-3" /> 招待リンク
+              </p>
+              <div className="flex items-center gap-1 bg-blue-50 dark:bg-blue-950/30 rounded px-2 py-1.5">
+                <Badge variant="outline" className="text-[9px] px-1 py-0 border-blue-300 text-blue-700 shrink-0">本部</Badge>
+                <span className="text-[10px] text-muted-foreground truncate flex-1">lcjmall.com/login?redirect=...</span>
+                <button
+                  className="shrink-0 p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 rounded transition-colors"
+                  onClick={() => {
+                    navigator.clipboard.writeText("https://lcjmall.com/login?redirect=%2Fmaster");
+                    toast.success("本部リンクをコピーしました");
+                  }}
+                >
+                  <Copy className="h-3 w-3 text-blue-600" />
+                </button>
+              </div>
+              <div className="flex items-center gap-1 bg-green-50 dark:bg-green-950/30 rounded px-2 py-1.5">
+                <Badge variant="outline" className="text-[9px] px-1 py-0 border-green-300 text-green-700 shrink-0">ライバー</Badge>
+                <span className="text-[10px] text-muted-foreground truncate flex-1">lcjmall.com/liver/register</span>
+                <button
+                  className="shrink-0 p-0.5 hover:bg-green-100 dark:hover:bg-green-900 rounded transition-colors"
+                  onClick={() => {
+                    navigator.clipboard.writeText("https://lcjmall.com/liver/register");
+                    toast.success("ライバーリンクをコピーしました");
+                  }}
+                >
+                  <Copy className="h-3 w-3 text-green-600" />
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -645,6 +679,11 @@ export default function Chat() {
                         <div className={`flex-1 min-w-0 ${isMe ? "text-right" : ""}`}>
                           <div className={`flex items-baseline gap-2 ${isMe ? "justify-end" : ""}`}>
                             <span className="text-xs font-medium">{msg.senderName}</span>
+                            {msg.senderType && (
+                              <Badge variant="outline" className={`text-[8px] px-1 py-0 ${msg.senderType === "staff" ? "border-blue-300 text-blue-600" : "border-green-300 text-green-600"}`}>
+                                {msg.senderType === "staff" ? "本部" : "ライバー"}
+                              </Badge>
+                            )}
                             <span className="text-[10px] text-muted-foreground">
                               {msg.createdAt ? formatTimeJST(msg.createdAt) : ""}
                             </span>
@@ -872,7 +911,7 @@ export default function Chat() {
               <ScrollArea className="h-full" style={{ maxHeight: "35vh" }}>
                 {searchResults ? (
                   <div className="space-y-1 p-2">
-                    {renderUserList(searchResults.staff as any[], "staff", "スタッフ")}
+                    {renderUserList(searchResults.staff as any[], "staff", "本部")}
                     {renderUserList(searchResults.livers as any[], "liver", "ライバー")}
                     {(searchResults.staff as any[]).length === 0 && (searchResults.livers as any[]).length === 0 && (
                       <p className="text-center text-sm text-muted-foreground py-4">該当するユーザーが見つかりません</p>
@@ -926,7 +965,7 @@ export default function Chat() {
               <ScrollArea className="h-full" style={{ maxHeight: "35vh" }}>
                 {searchResults ? (
                   <div className="space-y-1 p-2">
-                    {renderUserList(searchResults.staff as any[], "staff", "スタッフ")}
+                    {renderUserList(searchResults.staff as any[], "staff", "本部")}
                     {renderUserList(searchResults.livers as any[], "liver", "ライバー")}
                   </div>
                 ) : (
@@ -984,7 +1023,7 @@ export default function Chat() {
                         {isSelf && <span className="text-xs text-muted-foreground ml-1">(自分)</span>}
                       </p>
                       <p className="text-[10px] text-muted-foreground">
-                        {member.userType === 'staff' ? 'スタッフ' : 'ライバー'}
+                        {member.userType === 'staff' ? '本部' : 'ライバー'}
                       </p>
                     </div>
                   </div>
