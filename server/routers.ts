@@ -1553,6 +1553,29 @@ export const lineLoginRouter = router({
     return { success: true };
   }),
 
+  // Admin force password reset (protected by secret key)
+  adminForceResetPassword: publicProcedure
+    .input(z.object({
+      email: z.string().email(),
+      newPassword: z.string().min(6),
+      adminSecret: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      // Verify admin secret
+      const validSecret = process.env.ADMIN_SECRET || "lcj_admin_2024_secret";
+      if (input.adminSecret !== validSecret) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid admin secret" });
+      }
+      const user = await getLineUserByEmail(input.email);
+      if (!user) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+      const bcrypt = await import("bcryptjs");
+      const hashedPassword = await bcrypt.hash(input.newPassword, 10);
+      await updateLineUserPassword(user.id, hashedPassword);
+      return { success: true, message: `Password updated for ${input.email}` };
+    }),
+
   // Request password reset - sends email with reset link
   requestPasswordReset: publicProcedure
     .input(z.object({
@@ -1586,18 +1609,29 @@ export const lineLoginRouter = router({
       
       try {
         const nodemailer = await import("nodemailer");
+        // Use EMAIL_SMTP_HOST/EMAIL_USER/EMAIL_PASSWORD if available, fallback to SMTP_USER/SMTP_PASS
+        const smtpHost = process.env.EMAIL_SMTP_HOST || process.env.SMTP_HOST || "smtp.gmail.com";
+        const smtpUser = process.env.SMTP_USER || process.env.EMAIL_USER;
+        const smtpPass = process.env.SMTP_PASS || process.env.EMAIL_PASSWORD;
+        
+        if (!smtpUser || !smtpPass) {
+          console.error("[PasswordReset] SMTP credentials not configured. SMTP_USER/SMTP_PASS or EMAIL_USER/EMAIL_PASSWORD required.");
+          throw new Error("SMTP credentials not configured");
+        }
+        
+        const smtpPort = smtpHost.includes("gmail") ? 587 : 587;
         const transporter = nodemailer.createTransport({
-          host: "smtp.gmail.com",
-          port: 587,
+          host: smtpHost,
+          port: smtpPort,
           secure: false,
           auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS,
+            user: smtpUser,
+            pass: smtpPass,
           },
         });
         
         await transporter.sendMail({
-          from: `"LCJ MALL" <${process.env.SMTP_USER}>`,
+          from: `"LCJ MALL" <${smtpUser}>`,
           to: input.email,
           subject: "【LCJ MALL】パスワードリセットのご案内",
           html: `
@@ -1618,8 +1652,9 @@ export const lineLoginRouter = router({
             </div>
           `,
         });
-      } catch (error) {
-        console.error("Failed to send password reset email:", error);
+        console.log(`[PasswordReset] Email sent successfully to ${input.email}`);
+      } catch (error: any) {
+        console.error("[PasswordReset] Failed to send password reset email:", error?.message || error);
         // Still return success to not reveal if email exists
       }
       
