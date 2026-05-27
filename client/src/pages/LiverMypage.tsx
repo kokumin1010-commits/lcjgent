@@ -1492,6 +1492,16 @@ export default function LiverMypage() {
           </Card>
         )}
 
+        {/* 配信プランニング（シミュレーター） */}
+        {brandDurationStats && brandDurationStats.length > 0 && (
+          <StreamPlanningSection
+            brandDurationStats={brandDurationStats}
+            currentGoal={currentGoal}
+            monthlyStats={monthlyStats}
+            selectedMonth={selectedMonth}
+            language={language}
+          />
+        )}
         {/* 売れ筋ブランド / 効率改善ブランド */}
         {brandDurationStats && brandDurationStats.length >= 2 && (() => {
           // hourlyRateでソートして売れ筋と効率改善を判定
@@ -3162,3 +3172,242 @@ function MasterSetSuggestionsSection({ liverId, liverName }: { liverId: number; 
     </Card>
   );
 }
+
+// 配信プランニング（シミュレーター）セクション
+function StreamPlanningSection({ 
+  brandDurationStats, 
+  currentGoal, 
+  monthlyStats, 
+  selectedMonth,
+  language 
+}: { 
+  brandDurationStats: any[];
+  currentGoal: any;
+  monthlyStats: { sales: number; hours: number; count: number };
+  selectedMonth: string;
+  language: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [planDuration, setPlanDuration] = useState(120); // デフォルト2時間
+
+  // ブランド別時間単価データを計算
+  const brandRankings = useMemo(() => {
+    if (!brandDurationStats || brandDurationStats.length === 0) return [];
+    return brandDurationStats
+      .filter((b: any) => b.csvGmv > 0 && b.totalMinutes >= 30)
+      .map((b: any) => ({
+        brandName: b.brandName,
+        brandId: b.brandId,
+        hourlyRate: b.hourlyRate || 0,
+        totalMinutes: b.totalMinutes,
+        csvGmv: b.csvGmv,
+        streamCount: b.streamCount,
+      }))
+      .sort((a: any, b: any) => b.hourlyRate - a.hourlyRate);
+  }, [brandDurationStats]);
+
+  // 最適配信プランを生成
+  const plan = useMemo(() => {
+    if (brandRankings.length === 0) return null;
+
+    const totalMinutes = planDuration;
+    const allocations: { brandName: string; minutes: number; expectedSales: number; hourlyRate: number }[] = [];
+    let remainingMinutes = totalMinutes;
+
+    // 時間単価が高い順にブランドを配分
+    // 最低30分単位で配分、最大3ブランドまで
+    const maxBrands = Math.min(3, brandRankings.length);
+    
+    for (let i = 0; i < maxBrands && remainingMinutes >= 30; i++) {
+      const brand = brandRankings[i];
+      let allocMinutes: number;
+      
+      if (i === maxBrands - 1 || remainingMinutes <= 60) {
+        // 最後のブランドまたは残り60分以下なら全部割り当て
+        allocMinutes = remainingMinutes;
+      } else {
+        // 時間単価に比例して配分（最低30分）
+        const ratio = brand.hourlyRate / brandRankings.slice(0, maxBrands).reduce((s: number, b: any) => s + b.hourlyRate, 0);
+        allocMinutes = Math.max(30, Math.round(totalMinutes * ratio / 30) * 30); // 30分単位に丸め
+        allocMinutes = Math.min(allocMinutes, remainingMinutes);
+      }
+
+      const expectedSales = Math.round(brand.hourlyRate * (allocMinutes / 60));
+      allocations.push({
+        brandName: brand.brandName,
+        minutes: allocMinutes,
+        expectedSales,
+        hourlyRate: brand.hourlyRate,
+      });
+      remainingMinutes -= allocMinutes;
+    }
+
+    const totalExpectedSales = allocations.reduce((s, a) => s + a.expectedSales, 0);
+    
+    // 目標達成に必要な残り情報
+    let goalInfo = null;
+    if (currentGoal?.salesGoal && currentGoal.salesGoal > 0) {
+      const remaining = currentGoal.salesGoal - monthlyStats.sales;
+      const avgHourlyRate = brandRankings.length > 0 
+        ? brandRankings.reduce((s: number, b: any) => s + b.hourlyRate, 0) / brandRankings.length 
+        : 0;
+      const hoursNeeded = avgHourlyRate > 0 ? remaining / avgHourlyRate : 0;
+      const daysInMonth = new Date(parseInt(selectedMonth.split('-')[0]), parseInt(selectedMonth.split('-')[1]), 0).getDate();
+      const today = new Date();
+      const jstToday = new Date(today.getTime() + 9 * 60 * 60 * 1000);
+      const currentDay = jstToday.getDate();
+      const daysRemaining = Math.max(0, daysInMonth - currentDay);
+      
+      goalInfo = {
+        remaining: Math.max(0, remaining),
+        hoursNeeded: Math.round(hoursNeeded * 10) / 10,
+        daysRemaining,
+        dailyHoursNeeded: daysRemaining > 0 ? Math.round((hoursNeeded / daysRemaining) * 10) / 10 : 0,
+        achievementRate: Math.round((monthlyStats.sales / currentGoal.salesGoal) * 100),
+      };
+    }
+
+    return { allocations, totalExpectedSales, goalInfo };
+  }, [brandRankings, planDuration, currentGoal, monthlyStats, selectedMonth]);
+
+  if (brandRankings.length === 0) return null;
+
+  return (
+    <Card className="bg-gradient-to-br from-indigo-900/40 to-purple-900/30 border-indigo-500/30">
+      <CardContent className="p-3">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full flex items-center justify-between"
+        >
+          <div className="flex items-center gap-2">
+            <Target className="h-4 w-4 text-indigo-400" />
+            <h3 className="text-sm font-bold text-white">
+              {language === 'ja' ? '配信プランニング' : language === 'zh-TW' ? '直播規劃' : 'Stream Planning'}
+            </h3>
+            <span className="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full">
+              AI提案
+            </span>
+          </div>
+          {expanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+        </button>
+
+        {expanded && plan && (
+          <div className="mt-3 space-y-3">
+            {/* 配信時間選択 */}
+            <div className="flex items-center gap-2 bg-gray-800/50 rounded-lg p-2">
+              <Clock className="h-4 w-4 text-indigo-400" />
+              <span className="text-xs text-gray-300">
+                {language === 'ja' ? '配信予定時間:' : 'Duration:'}
+              </span>
+              <div className="flex gap-1 flex-wrap">
+                {[60, 90, 120, 180, 240].map(d => (
+                  <button
+                    key={d}
+                    onClick={(e) => { e.stopPropagation(); setPlanDuration(d); }}
+                    className={`text-xs px-2 py-1 rounded ${planDuration === d ? 'bg-indigo-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                  >
+                    {d >= 60 ? `${Math.floor(d/60)}h${d%60 > 0 ? d%60+'m' : ''}` : `${d}m`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 最適ブランド配分 */}
+            <div className="space-y-2">
+              <p className="text-xs text-gray-400 font-medium">
+                {language === 'ja' ? '推奨ブランド配分（時間単価順）' : 'Recommended Brand Allocation'}
+              </p>
+              {plan.allocations.map((alloc, idx) => (
+                <div key={idx} className="flex items-center gap-2 bg-gray-800/30 rounded-lg p-2">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${idx === 0 ? 'bg-yellow-500/30 text-yellow-400' : idx === 1 ? 'bg-gray-400/30 text-gray-300' : 'bg-orange-500/30 text-orange-400'}`}>
+                    {idx + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-white truncate">{alloc.brandName}</span>
+                      <span className="text-xs text-indigo-300 font-medium">
+                        {alloc.minutes >= 60 ? `${Math.floor(alloc.minutes/60)}h${alloc.minutes%60 > 0 ? alloc.minutes%60+'m' : ''}` : `${alloc.minutes}m`}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-0.5">
+                      <span className="text-[10px] text-gray-400">¥{alloc.hourlyRate.toLocaleString()}/h</span>
+                      <span className="text-[10px] text-green-400">期待売上: ¥{alloc.expectedSales.toLocaleString()}</span>
+                    </div>
+                    {/* プログレスバー */}
+                    <div className="mt-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full ${idx === 0 ? 'bg-yellow-500' : idx === 1 ? 'bg-blue-500' : 'bg-orange-500'}`}
+                        style={{ width: `${(alloc.minutes / planDuration) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 期待売上サマリー */}
+            <div className="bg-green-900/20 border border-green-500/20 rounded-lg p-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-green-300">
+                  {language === 'ja' ? '期待売上合計' : 'Expected Total'}
+                </span>
+                <span className="text-sm font-bold text-green-400">
+                  ¥{plan.totalExpectedSales.toLocaleString()}
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1">
+                ※ 過去の実績データに基づく予測値です
+              </p>
+            </div>
+
+            {/* 目標達成情報 */}
+            {plan.goalInfo && plan.goalInfo.remaining > 0 && (
+              <div className="bg-purple-900/20 border border-purple-500/20 rounded-lg p-2 space-y-1">
+                <div className="flex items-center gap-1">
+                  <Target className="h-3 w-3 text-purple-400" />
+                  <span className="text-xs text-purple-300 font-medium">
+                    {language === 'ja' ? '目標達成まで' : 'To Goal'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-center">
+                  <div>
+                    <p className="text-[10px] text-gray-400">残り売上</p>
+                    <p className="text-xs font-bold text-white">¥{plan.goalInfo.remaining.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400">必要時間</p>
+                    <p className="text-xs font-bold text-white">{plan.goalInfo.hoursNeeded}h</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400">残り日数</p>
+                    <p className="text-xs font-bold text-white">{plan.goalInfo.daysRemaining}日</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400">1日あたり</p>
+                    <p className="text-xs font-bold text-white">{plan.goalInfo.dailyHoursNeeded}h/日</p>
+                  </div>
+                </div>
+                {plan.goalInfo.dailyHoursNeeded <= 3 && (
+                  <p className="text-[10px] text-green-400 text-center mt-1">
+                    💪 このペースなら目標達成可能です！
+                  </p>
+                )}
+                {plan.goalInfo.dailyHoursNeeded > 3 && plan.goalInfo.dailyHoursNeeded <= 5 && (
+                  <p className="text-[10px] text-yellow-400 text-center mt-1">
+                    ⚡ ペースアップで目標達成を目指しましょう！
+                  </p>
+                )}
+                {plan.goalInfo.dailyHoursNeeded > 5 && (
+                  <p className="text-[10px] text-orange-400 text-center mt-1">
+                    🔥 高単価ブランドに集中して効率UPを！
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
