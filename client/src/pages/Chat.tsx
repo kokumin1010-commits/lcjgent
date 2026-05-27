@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,14 +8,154 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Underline from "@tiptap/extension-underline";
+import Link from "@tiptap/extension-link";
+import Placeholder from "@tiptap/extension-placeholder";
 import {
   MessageCircle, Send, Plus, Users, Image as ImageIcon, Paperclip, FileText,
-  Search, X, Edit2, UserPlus, ArrowLeft, Loader2, Check, User
+  Search, X, Edit2, UserPlus, ArrowLeft, Loader2, Check, User,
+  Bold, Italic, Strikethrough, UnderlineIcon, List, ListOrdered,
+  Quote, Code, Link as LinkIcon, Maximize2, Minimize2, Languages
 } from "lucide-react";
+
+// ===== Rich Text Editor Toolbar =====
+function EditorToolbar({ editor, isExpanded, onToggleExpand }: { editor: any; isExpanded: boolean; onToggleExpand: () => void }) {
+  if (!editor) return null;
+  const btnClass = (active: boolean) =>
+    `p-1 rounded hover:bg-accent transition-colors ${active ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`;
+
+  const addLink = () => {
+    const url = window.prompt("URLを入力してください", "https://");
+    if (url) {
+      editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-0.5 px-2 py-1 border-b bg-muted/30 flex-wrap">
+      <TooltipProvider delayDuration={300}>
+        <Tooltip><TooltipTrigger asChild>
+          <button className={btnClass(editor.isActive("bold"))} onClick={() => editor.chain().focus().toggleBold().run()}>
+            <Bold className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger><TooltipContent side="top"><p>太字</p></TooltipContent></Tooltip>
+
+        <Tooltip><TooltipTrigger asChild>
+          <button className={btnClass(editor.isActive("italic"))} onClick={() => editor.chain().focus().toggleItalic().run()}>
+            <Italic className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger><TooltipContent side="top"><p>斜体</p></TooltipContent></Tooltip>
+
+        <Tooltip><TooltipTrigger asChild>
+          <button className={btnClass(editor.isActive("underline"))} onClick={() => editor.chain().focus().toggleUnderline().run()}>
+            <UnderlineIcon className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger><TooltipContent side="top"><p>下線</p></TooltipContent></Tooltip>
+
+        <Tooltip><TooltipTrigger asChild>
+          <button className={btnClass(editor.isActive("strike"))} onClick={() => editor.chain().focus().toggleStrike().run()}>
+            <Strikethrough className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger><TooltipContent side="top"><p>取消線</p></TooltipContent></Tooltip>
+
+        <div className="w-px h-4 bg-border mx-1" />
+
+        <Tooltip><TooltipTrigger asChild>
+          <button className={btnClass(editor.isActive("bulletList"))} onClick={() => editor.chain().focus().toggleBulletList().run()}>
+            <List className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger><TooltipContent side="top"><p>箇条書き</p></TooltipContent></Tooltip>
+
+        <Tooltip><TooltipTrigger asChild>
+          <button className={btnClass(editor.isActive("orderedList"))} onClick={() => editor.chain().focus().toggleOrderedList().run()}>
+            <ListOrdered className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger><TooltipContent side="top"><p>番号付きリスト</p></TooltipContent></Tooltip>
+
+        <Tooltip><TooltipTrigger asChild>
+          <button className={btnClass(editor.isActive("blockquote"))} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
+            <Quote className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger><TooltipContent side="top"><p>引用</p></TooltipContent></Tooltip>
+
+        <Tooltip><TooltipTrigger asChild>
+          <button className={btnClass(editor.isActive("codeBlock"))} onClick={() => editor.chain().focus().toggleCodeBlock().run()}>
+            <Code className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger><TooltipContent side="top"><p>コードブロック</p></TooltipContent></Tooltip>
+
+        <Tooltip><TooltipTrigger asChild>
+          <button className={btnClass(editor.isActive("link"))} onClick={addLink}>
+            <LinkIcon className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger><TooltipContent side="top"><p>リンク</p></TooltipContent></Tooltip>
+
+        <div className="flex-1" />
+
+        <Tooltip><TooltipTrigger asChild>
+          <button className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground" onClick={onToggleExpand}>
+            {isExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </button>
+        </TooltipTrigger><TooltipContent side="top"><p>{isExpanded ? "縮小" : "拡大"}</p></TooltipContent></Tooltip>
+      </TooltipProvider>
+    </div>
+  );
+}
+
+// ===== Translation Helper (uses Google Translate free endpoint) =====
+async function translateText(text: string, targetLang: string): Promise<string> {
+  try {
+    const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`);
+    const data = await res.json();
+    return data[0]?.map((s: any) => s[0]).join("") || text;
+  } catch {
+    return text;
+  }
+}
+
+// ===== Format time with JST timezone =====
+function formatTimeJST(dateStr: string): string {
+  if (!dateStr) return "";
+  let d: Date;
+  if (dateStr.includes("T") || dateStr.includes("Z") || dateStr.includes("+")) {
+    d = new Date(dateStr);
+  } else {
+    // Format: "2026-05-27 05:31:47" - treat as JST
+    d = new Date(dateStr.replace(" ", "T") + "+09:00");
+  }
+  if (isNaN(d.getTime())) return dateStr;
+  const now = new Date();
+  const diff = now.getTime() - d.getTime();
+  if (diff < 60000) return "今";
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分前`;
+  const jstFormatter = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false });
+  const dayFormatter = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", weekday: "short" });
+  const dateFormatter = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric" });
+  if (diff < 86400000) return jstFormatter.format(d);
+  if (diff < 604800000) return dayFormatter.format(d);
+  return dateFormatter.format(d);
+}
+
+// ===== Render rich text content safely =====
+function MessageContent({ content, isMe }: { content: string; isMe: boolean }) {
+  // Check if content contains HTML tags
+  const isHtml = /<[a-z][\s\S]*>/i.test(content);
+  if (isHtml) {
+    return (
+      <div
+        className={`prose prose-sm max-w-none break-words text-left ${isMe ? "prose-invert" : ""} [&_p]:my-0.5 [&_ul]:my-0.5 [&_ol]:my-0.5 [&_blockquote]:my-0.5 [&_pre]:my-0.5 [&_a]:text-blue-400 [&_a]:underline`}
+        dangerouslySetInnerHTML={{ __html: content }}
+      />
+    );
+  }
+  return <p className="whitespace-pre-wrap break-words text-left">{content}</p>;
+}
 
 export default function Chat() {
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
-  const [messageText, setMessageText] = useState("");
   const [showNewChat, setShowNewChat] = useState(false);
   const [showAddMembers, setShowAddMembers] = useState(false);
   const [showEditName, setShowEditName] = useState(false);
@@ -27,8 +167,55 @@ export default function Chat() {
   const [uploading, setUploading] = useState(false);
   const [mobileShowMessages, setMobileShowMessages] = useState(false);
   const [showMemberList, setShowMemberList] = useState(false);
+  const [isEditorExpanded, setIsEditorExpanded] = useState(false);
+  const [liveTranslateEnabled, setLiveTranslateEnabled] = useState(false);
+  const [liveTranslation, setLiveTranslation] = useState("");
+  const [translatingMsgId, setTranslatingMsgId] = useState<number | null>(null);
+  const [translatedTexts, setTranslatedTexts] = useState<Record<number, string>>({});
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; msgId: number; content: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const liveTranslateTimer = useRef<any>(null);
+
+  // Tiptap editor
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: false,
+      }),
+      Underline,
+      Link.configure({ openOnClick: false }),
+      Placeholder.configure({ placeholder: "メッセージを入力... (Shift+Enterで改行)" }),
+    ],
+    editorProps: {
+      attributes: {
+        class: `prose prose-sm max-w-none focus:outline-none px-3 py-2 text-sm ${isEditorExpanded ? "min-h-[200px] max-h-[400px]" : "min-h-[38px] max-h-32"} overflow-y-auto`,
+      },
+      handleKeyDown: (_view, event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          handleSend();
+          return true;
+        }
+        return false;
+      },
+    },
+    onUpdate: ({ editor: ed }) => {
+      // Live translation
+      if (liveTranslateEnabled) {
+        const text = ed.getText();
+        if (liveTranslateTimer.current) clearTimeout(liveTranslateTimer.current);
+        if (text.trim()) {
+          liveTranslateTimer.current = setTimeout(async () => {
+            const translated = await translateText(text, "ja");
+            setLiveTranslation(translated);
+          }, 500);
+        } else {
+          setLiveTranslation("");
+        }
+      }
+    },
+  });
 
   // 自分の情報取得
   const { data: myInfo } = trpc.chat.getMyInfo.useQuery(undefined, {
@@ -47,7 +234,6 @@ export default function Chat() {
     { roomId: selectedRoomId! },
     { enabled: !!selectedRoomId }
   );
-  // 新規チャット・メンバー追加時は常にユーザー一覧を取得（空文字で全件）
   const { data: searchResults } = trpc.chat.searchUsers.useQuery(
     { query: searchQuery || "" },
     { enabled: showNewChat || showAddMembers }
@@ -56,7 +242,8 @@ export default function Chat() {
   // Mutations
   const sendMessage = trpc.chat.sendMessage.useMutation({
     onSuccess: () => {
-      setMessageText("");
+      editor?.commands.clearContent();
+      setLiveTranslation("");
       refetchMessages();
       refetchRooms();
     },
@@ -102,13 +289,29 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Close context menu on click elsewhere
+  useEffect(() => {
+    const handler = () => setContextMenu(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, []);
+
   // Send message handler
   const handleSend = useCallback(() => {
-    if (!messageText.trim() || !selectedRoomId) return;
-    sendMessage.mutate({ roomId: selectedRoomId, content: messageText.trim(), messageType: "text" });
-  }, [messageText, selectedRoomId, sendMessage]);
+    if (!editor || !selectedRoomId) return;
+    const html = editor.getHTML();
+    const text = editor.getText().trim();
+    if (!text) return;
+    // If content is plain text (no formatting), send as plain text for backward compatibility
+    const isPlain = html === `<p>${text}</p>` || html === `<p>${text.replace(/\n/g, "<br>")}</p>`;
+    sendMessage.mutate({
+      roomId: selectedRoomId,
+      content: isPlain ? text : html,
+      messageType: "text",
+    });
+  }, [editor, selectedRoomId, sendMessage]);
 
-  // File upload handler (images, PDF, text files)
+  // File upload handler
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedRoomId) return;
@@ -142,7 +345,6 @@ export default function Chat() {
           fileName: data.fileName,
         });
       } else {
-        // PDF or text file
         sendMessage.mutate({
           roomId: selectedRoomId,
           content: `[ファイル] ${data.fileName}`,
@@ -183,7 +385,6 @@ export default function Chat() {
       setSelectedMembers(selectedMembers.filter((m) => !(m.userId === user.id && m.userType === user.userType)));
     } else {
       if (chatType === "direct") {
-        // 1対1の場合は1人だけ選択
         setSelectedMembers([{
           userId: user.id,
           userType: user.userType as "staff" | "liver",
@@ -201,31 +402,28 @@ export default function Chat() {
     }
   };
 
-  // Format time
-  const formatTime = (dateStr: string) => {
-    if (!dateStr) return "";
-    // Server stores times in JST but without timezone info
-    let d: Date;
-    if (dateStr.includes("T") || dateStr.includes("Z") || dateStr.includes("+")) {
-      d = new Date(dateStr);
-    } else {
-      // Format: "2026-05-27 05:31:47" - treat as JST
-      d = new Date(dateStr.replace(" ", "T") + "+09:00");
+  // Translate a message
+  const handleTranslateMessage = async (msgId: number, content: string, targetLang: string) => {
+    setTranslatingMsgId(msgId);
+    try {
+      // Strip HTML tags for translation
+      const plainText = content.replace(/<[^>]+>/g, "");
+      const translated = await translateText(plainText, targetLang);
+      setTranslatedTexts(prev => ({ ...prev, [msgId]: translated }));
+    } catch {
+      toast.error("翻訳に失敗しました");
+    } finally {
+      setTranslatingMsgId(null);
     }
-    if (isNaN(d.getTime())) return dateStr;
-    const now = new Date();
-    const jstTime = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false });
-    const jstDate = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric" });
-    const jstDay = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", weekday: "short" });
-    const diff = now.getTime() - d.getTime();
-    if (diff < 60000) return "今";
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}分前`;
-    if (diff < 86400000) return jstTime.format(d);
-    if (diff < 604800000) return jstDay.format(d);
-    return jstDate.format(d);
   };
 
-  // ルーム表示名を取得（1対1の場合は相手の名前を表示）
+  // Right-click context menu handler
+  const handleMessageContextMenu = (e: React.MouseEvent, msgId: number, content: string) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, msgId, content });
+  };
+
+  // ルーム表示名を取得
   const getRoomDisplayName = (room: any) => {
     if (!room) return "チャット";
     if (room.name) return room.name;
@@ -285,7 +483,6 @@ export default function Chat() {
               <Plus className="h-4 w-4" /> 新規
             </Button>
           </div>
-          {/* 自分の名前表示 */}
           {myInfo && (
             <div className="flex items-center gap-2 px-2 py-1.5 bg-muted/50 rounded-md">
               <Avatar className="h-6 w-6">
@@ -330,14 +527,14 @@ export default function Chat() {
                       </span>
                       {room.lastMessageAt && (
                         <span className="text-xs text-muted-foreground shrink-0 ml-2">
-                          {formatTime(room.lastMessageAt)}
+                          {formatTimeJST(room.lastMessageAt)}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center justify-between mt-0.5">
                       <p className="text-xs text-muted-foreground truncate">
                         {room.lastMessage ? (
-                          <><span className="font-medium">{room.lastSenderName}: </span>{room.lastMessage}</>
+                          <><span className="font-medium">{room.lastSenderName}: </span>{room.lastMessage.replace(/<[^>]+>/g, "")}</>
                         ) : (
                           "メッセージなし"
                         )}
@@ -362,13 +559,12 @@ export default function Chat() {
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
             <div className="text-center">
               <MessageCircle className="h-16 w-16 mx-auto mb-4 opacity-20" />
-              <p className="text-lg">チャットを選択してください</p>
-              <p className="text-sm mt-1">左のリストからチャットを選択するか、新規チャットを作成してください</p>
+              <p>チャットを選択してください</p>
             </div>
           </div>
         ) : (
           <>
-            {/* Message Header */}
+            {/* Chat Header */}
             <div className="p-3 border-b flex items-center gap-3">
               <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileShowMessages(false)}>
                 <ArrowLeft className="h-4 w-4" />
@@ -420,7 +616,7 @@ export default function Chat() {
                           <div className={`flex items-baseline gap-2 ${isMe ? "justify-end" : ""}`}>
                             <span className="text-xs font-medium">{msg.senderName}</span>
                             <span className="text-[10px] text-muted-foreground">
-                              {msg.createdAt ? formatTime(msg.createdAt) : ""}
+                              {msg.createdAt ? formatTimeJST(msg.createdAt) : ""}
                             </span>
                           </div>
                           {msg.messageType === "image" && msg.fileUrl ? (
@@ -442,8 +638,37 @@ export default function Chat() {
                               </div>
                             </div>
                           ) : (
-                            <div className={`mt-0.5 inline-block rounded-lg px-3 py-1.5 text-sm ${isMe ? "bg-green-500 text-white" : "bg-muted"}`}>
-                              <p className="whitespace-pre-wrap break-words text-left">{msg.content}</p>
+                            <div
+                              className={`mt-0.5 inline-block rounded-lg px-3 py-1.5 text-sm ${isMe ? "bg-green-500 text-white" : "bg-muted"} group relative`}
+                              onContextMenu={(e) => handleMessageContextMenu(e, msg.id, msg.content)}
+                            >
+                              <MessageContent content={msg.content} isMe={isMe} />
+                              {/* Translate button on hover */}
+                              <button
+                                className="absolute -bottom-5 left-0 text-[10px] text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5"
+                                onClick={() => handleTranslateMessage(msg.id, msg.content, "ja")}
+                              >
+                                <Languages className="h-3 w-3" />
+                                翻訳
+                              </button>
+                            </div>
+                          )}
+                          {/* Translation result */}
+                          {translatingMsgId === msg.id && (
+                            <div className={`mt-1 text-xs text-muted-foreground ${isMe ? "text-right" : ""}`}>
+                              <Loader2 className="h-3 w-3 animate-spin inline mr-1" />翻訳中...
+                            </div>
+                          )}
+                          {translatedTexts[msg.id] && translatingMsgId !== msg.id && (
+                            <div className={`mt-1 inline-block rounded-lg px-2 py-1 text-xs bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 ${isMe ? "text-right" : ""}`}>
+                              <div className="flex items-center gap-1 mb-0.5">
+                                <Languages className="h-3 w-3" />
+                                <span className="font-medium">翻訳</span>
+                                <button className="ml-1 hover:text-red-500" onClick={() => setTranslatedTexts(prev => { const n = {...prev}; delete n[msg.id]; return n; })}>
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                              <p className="text-left">{translatedTexts[msg.id]}</p>
                             </div>
                           )}
                         </div>
@@ -455,9 +680,28 @@ export default function Chat() {
               </div>
             </ScrollArea>
 
-            {/* Input Area */}
-            <div className="p-3 border-t">
-              <div className="flex items-end gap-2">
+            {/* Input Area with Rich Text Editor */}
+            <div className={`border-t ${isEditorExpanded ? "flex-1 min-h-[300px]" : ""}`}>
+              {/* Live translation preview */}
+              {liveTranslateEnabled && liveTranslation && (
+                <div className="px-3 py-1.5 bg-blue-50 dark:bg-blue-950/30 border-b text-xs text-blue-700 dark:text-blue-300 flex items-center gap-1">
+                  <Languages className="h-3 w-3 shrink-0" />
+                  <span className="font-medium">日本語:</span>
+                  <span className="truncate">{liveTranslation}</span>
+                  <button className="ml-auto text-blue-500 hover:text-blue-700 text-[10px] shrink-0" onClick={() => {
+                    if (editor && liveTranslation) {
+                      editor.commands.setContent(`<p>${liveTranslation}</p>`);
+                      setLiveTranslation("");
+                    }
+                  }}>
+                    使用
+                  </button>
+                </div>
+              )}
+              {/* Toolbar */}
+              <EditorToolbar editor={editor} isExpanded={isEditorExpanded} onToggleExpand={() => setIsEditorExpanded(!isEditorExpanded)} />
+              {/* Editor + Actions */}
+              <div className="flex items-end gap-2 p-2">
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -471,34 +715,77 @@ export default function Chat() {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
                   title="ファイルを送信（画像・PDF・テキスト）"
+                  className="shrink-0"
                 >
                   {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                 </Button>
-                <textarea
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  placeholder="メッセージを入力..."
-                  className="flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm min-h-[38px] max-h-32 focus:outline-none focus:ring-2 focus:ring-ring"
-                  rows={1}
-                />
-                <Button
-                  size="icon"
-                  onClick={handleSend}
-                  disabled={!messageText.trim() || sendMessage.isPending}
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
+                <div className="flex-1 border rounded-md bg-background overflow-hidden">
+                  <EditorContent editor={editor} />
+                </div>
+                <div className="flex flex-col gap-1 shrink-0">
+                  <Button
+                    size="icon"
+                    variant={liveTranslateEnabled ? "default" : "ghost"}
+                    onClick={() => { setLiveTranslateEnabled(!liveTranslateEnabled); setLiveTranslation(""); }}
+                    title={liveTranslateEnabled ? "边写边译 ON (中→日)" : "边写边译 OFF"}
+                    className="h-8 w-8"
+                  >
+                    <Languages className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    onClick={handleSend}
+                    disabled={!editor?.getText().trim() || sendMessage.isPending}
+                    className="h-8 w-8"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           </>
         )}
       </div>
+
+      {/* Right-click Context Menu for Translation */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[160px]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2"
+            onClick={() => { handleTranslateMessage(contextMenu.msgId, contextMenu.content, "ja"); setContextMenu(null); }}
+          >
+            <Languages className="h-4 w-4" /> 日本語に翻訳
+          </button>
+          <button
+            className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2"
+            onClick={() => { handleTranslateMessage(contextMenu.msgId, contextMenu.content, "zh-CN"); setContextMenu(null); }}
+          >
+            <Languages className="h-4 w-4" /> 中文翻译
+          </button>
+          <button
+            className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2"
+            onClick={() => { handleTranslateMessage(contextMenu.msgId, contextMenu.content, "en"); setContextMenu(null); }}
+          >
+            <Languages className="h-4 w-4" /> Translate to English
+          </button>
+          <div className="border-t my-1" />
+          <button
+            className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2"
+            onClick={() => {
+              const text = contextMenu.content.replace(/<[^>]+>/g, "");
+              navigator.clipboard.writeText(text);
+              toast.success("コピーしました");
+              setContextMenu(null);
+            }}
+          >
+            📋 コピー
+          </button>
+        </div>
+      )}
 
       {/* New Chat Dialog */}
       <Dialog open={showNewChat} onOpenChange={setShowNewChat}>
@@ -521,7 +808,6 @@ export default function Chat() {
                 />
               </TabsContent>
             </Tabs>
-            {/* Selected members - with max height and scroll */}
             {selectedMembers.length > 0 && (
               <div className="shrink-0 max-h-20 overflow-y-auto border rounded-md bg-muted/30 p-2">
                 <div className="flex flex-wrap gap-1">
@@ -537,7 +823,6 @@ export default function Chat() {
                 </div>
               </div>
             )}
-            {/* Search filter */}
             <div className="relative shrink-0">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -547,7 +832,6 @@ export default function Chat() {
                 className="pl-9"
               />
             </div>
-            {/* User List - in white bordered container with scroll */}
             <div className="flex-1 min-h-0 border rounded-md bg-background overflow-hidden">
               <ScrollArea className="h-full" style={{ maxHeight: "35vh" }}>
                 {searchResults ? (
