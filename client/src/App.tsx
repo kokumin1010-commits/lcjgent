@@ -150,6 +150,7 @@ const MegaChannelAdmin = lazy(() => import("./pages/MegaChannelAdmin"));
 const FeaturedProductsAdmin = lazy(() => import("./pages/FeaturedProductsAdmin"));
 const LcjBrain = lazy(() => import("./pages/LcjBrain"));
 const Chat = lazy(() => import("./pages/Chat"));
+const ChatInvite = lazy(() => import("./pages/ChatInvite"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -584,6 +585,9 @@ function Router() {
             <LcjBrain />
           </DashboardLayout>
         </Route>
+        {/* Chat Invite Links */}
+        <Route path="/chat/invite/group/:roomId/:inviteCode" component={ChatInvite} />
+        <Route path="/chat/invite/:userType/:userId" component={ChatInvite} />
         <Route path="/master/chat">
           <DashboardLayout>
             <Chat />
