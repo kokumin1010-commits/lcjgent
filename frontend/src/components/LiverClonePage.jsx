@@ -835,8 +835,6 @@ export default function LiverClonePage() {
 
     // Track if STS is currently playing (to avoid recording during playback)
     let stsPlaying = false;
-    stsRecorderRef.current._isPlaying = () => stsPlaying;
-    stsRecorderRef.current._setPlaying = (v) => { stsPlaying = v; };
 
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) {
@@ -880,6 +878,9 @@ export default function LiverClonePage() {
     };
 
     stsRecorderRef.current = recorder;
+    // Attach playing state helpers AFTER assigning recorder to ref
+    stsRecorderRef.current._isPlaying = () => stsPlaying;
+    stsRecorderRef.current._setPlaying = (v) => { stsPlaying = v; };
 
     // Record in 1.5-second chunks for lower latency
     const CHUNK_INTERVAL = 1500;
