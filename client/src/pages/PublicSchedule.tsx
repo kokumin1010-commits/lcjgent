@@ -332,7 +332,10 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
   // Check if user can edit/delete this schedule (admin or staff can edit all)
   const canEditSchedule = (schedule: Schedule) => {
     if (adminUser) return true; // Manus OAuthログインユーザー（管理者・スタッフ）は全スケジュール編集可能
-    return user && schedule.liverName === user.name;
+    // ライバーは自分のスケジュールを編集・削除可能
+    if (liverData && schedule.liverName === liverData.name) return true;
+    if (user && schedule.liverName === user.name) return true;
+    return false;
   };
 
   // Start editing a schedule
@@ -393,7 +396,10 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
   // Delete schedule
   const handleDeleteSchedule = (schedule: Schedule) => {
     if (confirm("この予定を削除しますか？")) {
-      deleteScheduleMutation.mutate({ id: schedule.id });
+      deleteScheduleMutation.mutate({ 
+        id: schedule.id,
+        liverName: liverData?.name || user?.name || undefined,
+      });
     }
   };
 
