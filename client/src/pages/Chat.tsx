@@ -648,17 +648,19 @@ export default function Chat() {
                     </Button>
                     <Button variant="ghost" size="icon" onClick={async () => {
                       try {
-                        const result = await fetch(`/api/trpc/chat.getGroupInviteCode?input=${encodeURIComponent(JSON.stringify({ roomId: selectedRoomId }))}`).then(r => r.json());
-                        const inviteCode = result?.result?.data?.inviteCode;
+                        const result = await fetch(`/api/trpc/chat.getGroupInviteCode?input=${encodeURIComponent(JSON.stringify({ json: { roomId: selectedRoomId } }))}`, { credentials: 'include' }).then(r => r.json());
+                        const inviteCode = result?.result?.data?.json?.inviteCode || result?.result?.data?.inviteCode;
                         if (inviteCode) {
                           const link = `https://lcjmall.com/chat/invite/group/${selectedRoomId}/${inviteCode}`;
                           navigator.clipboard.writeText(link);
                           toast.success("グループ招待リンクをコピーしました");
                         } else {
+                          console.error("Invite code response:", JSON.stringify(result));
                           toast.error("招待リンクの生成に失敗しました");
                         }
-                      } catch (e) {
-                        toast.error("招待リンクの生成に失敗しました");
+                      } catch (e: any) {
+                        console.error("Invite link error:", e);
+                        toast.error("招待リンクの生成に失敗しました: " + (e.message || ""));
                       }
                     }} title="招待リンク">
                       <Link2 className="h-4 w-4" />
