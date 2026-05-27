@@ -12878,8 +12878,58 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
               }
             }
 
+            // ★ 前回配信との比較データを取得
+            let comparisonText = '';
+            try {
+              const { getLiverPreviousLivestream } = await import("./db");
+              const prevStream = await getLiverPreviousLivestream(input.liverId, id);
+              if (prevStream && prevStream.salesAmount > 0) {
+                const prevSales = prevStream.salesAmount;
+                const prevDuration = prevStream.duration || 0;
+                const prevHourlyRate = prevDuration > 0 ? Math.round(prevSales / (prevDuration / 60)) : 0;
+                
+                // 売上比較
+                const salesDiff = salesAmt - prevSales;
+                const salesPct = prevSales > 0 ? Math.round((salesDiff / prevSales) * 100) : 0;
+                const salesArrow = salesDiff >= 0 ? '↑' : '↓';
+                const salesSign = salesDiff >= 0 ? '+' : '';
+                
+                // 時間単価比較
+                const hourlyDiff = hourlyRate - prevHourlyRate;
+                const hourlyPct = prevHourlyRate > 0 ? Math.round((hourlyDiff / prevHourlyRate) * 100) : 0;
+                const hourlyArrow = hourlyDiff >= 0 ? '↑' : '↓';
+                const hourlySign = hourlyDiff >= 0 ? '+' : '';
+                
+                // 配信時間比較
+                const durationDiff = durationMin - prevDuration;
+                const durationSign = durationDiff >= 0 ? '+' : '';
+                
+                comparisonText = `\n\n📊 前回比較:`;
+                comparisonText += `\n💰 売上: ${salesSign}¥${Math.abs(salesDiff).toLocaleString()} (${salesSign}${salesPct}% ${salesArrow})`;
+                comparisonText += `\n📈 時間単価: ${hourlySign}¥${Math.abs(hourlyDiff).toLocaleString()}/h (${hourlySign}${hourlyPct}% ${hourlyArrow})`;
+                comparisonText += `\n⏰ 配信時間: ${durationSign}${durationDiff}分`;
+                
+                // ポジティブフィードバック or 改善提案
+                if (salesDiff > 0 && hourlyDiff > 0) {
+                  comparisonText += `\n\n🎉 素晴らしい！売上・時間単価ともにアップ！`;
+                } else if (salesDiff > 0) {
+                  comparisonText += `\n\n👍 売上アップ！次は時間効率も意識してみましょう`;
+                } else if (hourlyDiff > 0) {
+                  comparisonText += `\n\n💡 時間単価アップ！配信時間を延ばせばさらに売上増が期待できます`;
+                } else {
+                  // 改善提案
+                  if (durationMin < 120) {
+                    comparisonText += `\n\n💡 提案: 配信時間を2時間以上にすると売上が安定しやすくなります`;
+                  } else {
+                    comparisonText += `\n\n💡 提案: セット構成や商品紹介順を変えてみましょう`;
+                  }
+                }
+              }
+            } catch (compErr) {
+              console.error('[LINE Group Notify] Comparison data error:', compErr);
+            }
             // テキストメッセージを構築
-            const notifyText = `━━━━━━━━━━━━━━━\n📊 配信記録登録\n━━━━━━━━━━━━━━━\n👤 ${streamerName}\n📅 ${dateStr} ${timeStr}〜\n⏰ 配信時間: ${durationStr}\n💰 売上: ¥${salesAmt.toLocaleString()}\n📈 時間単価: ¥${hourlyRate.toLocaleString()}/h${brandDurationText ? '\n\n🏷️ ブランド別実績:' + brandDurationText : ''}${setDetailText}\n━━━━━━━━━━━━━━━`;
+            const notifyText = `━━━━━━━━━━━━━━━\n📊 配信記録登録\n━━━━━━━━━━━━━━━\n👤 ${streamerName}\n📅 ${dateStr} ${timeStr}〜\n⏰ 配信時間: ${durationStr}\n💰 売上: ¥${salesAmt.toLocaleString()}\n📈 時間単価: ¥${hourlyRate.toLocaleString()}/h${brandDurationText ? '\n\n🏷️ ブランド別実績:' + brandDurationText : ''}${setDetailText}${comparisonText}\n━━━━━━━━━━━━━━━`;
 
             const messages: any[] = [{ type: 'text', text: notifyText }];
 
