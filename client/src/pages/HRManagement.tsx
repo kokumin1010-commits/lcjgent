@@ -1799,12 +1799,13 @@ export default function HRManagement() {
                       {getInitials(selectedItem.reportStaffName)}
                     </AvatarFallback>
                   </Avatar>
-                  {selectedItem.isLinked && (
+                  {selectedItem.staffId && (
                     <button
-                      className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                      className="absolute -bottom-1 -right-1 bg-primary rounded-full p-1.5 shadow-md hover:bg-primary/90 transition-colors cursor-pointer"
                       onClick={() => avatarInputRef.current?.click()}
+                      title="プロフィール写真を変更"
                     >
-                      <Camera className="h-5 w-5 text-white" />
+                      <Camera className="h-3.5 w-3.5 text-white" />
                     </button>
                   )}
                   <input
