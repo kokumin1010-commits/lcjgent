@@ -25172,6 +25172,39 @@ JSON配列のみを出力してください。`;
         if (input.targetType === "specific" && targetLiverIds && targetLiverIds.length > 0 && insertId) {
           await setFeaturedProductTargets(insertId, targetLiverIds);
         }
+        // LINEグループに重点商品通知を送信
+        try {
+          const { pushMessage } = await import("./line");
+          const db = await getDb();
+          if (db) {
+            const groups = await db
+              .select({ lineGroupId: lineGroups.lineGroupId })
+              .from(lineGroups)
+              .where(and(
+                like(lineGroups.groupName, "%所属%"),
+                eq(lineGroups.isActive, true)
+              ))
+              .limit(1);
+            if (groups.length > 0) {
+              const msg = [
+                `⭐ 【今週の重点商品】`,
+                ``,
+                `📦 ${input.productName}${input.brandName ? ` (${input.brandName})` : ""}`,
+                `⏰ ノルマ: ${input.quotaDurationMinutes}分`,
+                `📅 期間: ${input.startDate} ～ ${input.endDate}`,
+                input.notes ? `\n📝 ${input.notes}` : "",
+                input.setProposal ? `\n📦 セット提案:\n${input.setProposal}` : "",
+                input.talkScript ? `\n🎤 トークスクリプト:\n${input.talkScript}` : "",
+                input.successCase ? `\n🏆 成功事例: ${input.successCase}` : "",
+                `\n→ マイページで確認してください！`,
+              ].filter(Boolean).join("\n");
+              await pushMessage(groups[0].lineGroupId, [{ type: "text", text: msg }]);
+              console.log("[FeaturedProduct] LINE notification sent to group");
+            }
+          }
+        } catch (lineErr) {
+          console.error("[FeaturedProduct] LINE notification failed:", lineErr);
+        }
         return { success: true, id: insertId };
       }),
     // 管理側: 重点商品更新
