@@ -25224,16 +25224,32 @@ export async function getAllLiverBrandDurations(month: string, agencyId?: number
     .groupBy(brandLivestreams.liverId, livestreamBrands.brandId, brands.name)
     .orderBy(sql`SUM(${livestreamBrands.durationMinutes}) DESC`);
   
-  // Group by liverId
+  // Normalize brand name helper (merge duplicates like "Dr alba" / "Dr.Alba")
+  const normBrandName = (name: string) => name.toLowerCase().replace(/[\s.\-\u3000]/g, '');
+
+  // Group by liverId, merging brands with same normalized name
   const result: Record<number, { brandId: number; brandName: string; durationMinutes: number }[]> = {};
   for (const row of rows) {
     if (!row.liverId) continue;
     if (!result[row.liverId]) result[row.liverId] = [];
-    result[row.liverId].push({
-      brandId: row.brandId,
-      brandName: row.brandName || `Brand ${row.brandId}`,
-      durationMinutes: Number(row.durationMinutes),
-    });
+    const brandName = row.brandName || `Brand ${row.brandId}`;
+    const normName = normBrandName(brandName);
+    // Check if this normalized brand already exists for this liver
+    const existing = result[row.liverId].find(b => normBrandName(b.brandName) === normName);
+    if (existing) {
+      // Merge: add duration to existing entry
+      existing.durationMinutes += Number(row.durationMinutes);
+    } else {
+      result[row.liverId].push({
+        brandId: row.brandId,
+        brandName: brandName,
+        durationMinutes: Number(row.durationMinutes),
+      });
+    }
+  }
+  // Re-sort each liver's brands by duration descending
+  for (const liverId of Object.keys(result)) {
+    result[Number(liverId)].sort((a, b) => b.durationMinutes - a.durationMinutes);
   }
   return result;
 }
