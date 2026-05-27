@@ -1609,25 +1609,47 @@ export const lineLoginRouter = router({
       
       try {
         const nodemailer = await import("nodemailer");
-        // Use EMAIL_SMTP_HOST/EMAIL_USER/EMAIL_PASSWORD if available, fallback to SMTP_USER/SMTP_PASS
-        const smtpHost = process.env.EMAIL_SMTP_HOST || process.env.SMTP_HOST || "smtp.gmail.com";
-        const smtpUser = process.env.SMTP_USER || process.env.EMAIL_USER;
-        const smtpPass = process.env.SMTP_PASS || process.env.EMAIL_PASSWORD;
+        // Determine SMTP configuration: match host with correct credentials
+        // Priority 1: SMTP_USER/SMTP_PASS with Gmail (these are Gmail app password)
+        // Priority 2: EMAIL_USER/EMAIL_PASSWORD with EMAIL_SMTP_HOST (Alibaba Cloud etc)
+        let smtpHost: string;
+        let smtpUser: string | undefined;
+        let smtpPass: string | undefined;
+        let smtpPort: number;
+        let smtpSecure: boolean;
         
-        if (!smtpUser || !smtpPass) {
+        if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+          // Gmail SMTP with app password
+          smtpHost = "smtp.gmail.com";
+          smtpUser = process.env.SMTP_USER;
+          smtpPass = process.env.SMTP_PASS;
+          smtpPort = 587;
+          smtpSecure = false;
+          console.log(`[PasswordReset] Using Gmail SMTP: ${smtpUser}`);
+        } else if (process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
+          // Alibaba Cloud or custom SMTP
+          smtpHost = process.env.EMAIL_SMTP_HOST || "smtp.gmail.com";
+          smtpUser = process.env.EMAIL_USER;
+          smtpPass = process.env.EMAIL_PASSWORD;
+          smtpPort = 465;
+          smtpSecure = true;
+          console.log(`[PasswordReset] Using custom SMTP: ${smtpHost} / ${smtpUser}`);
+        } else {
           console.error("[PasswordReset] SMTP credentials not configured. SMTP_USER/SMTP_PASS or EMAIL_USER/EMAIL_PASSWORD required.");
           throw new Error("SMTP credentials not configured");
         }
         
-        const smtpPort = smtpHost.includes("gmail") ? 587 : 587;
         const transporter = nodemailer.createTransport({
           host: smtpHost,
           port: smtpPort,
-          secure: false,
+          secure: smtpSecure,
           auth: {
             user: smtpUser,
             pass: smtpPass,
           },
+          connectionTimeout: 10000,
+          greetingTimeout: 10000,
+          socketTimeout: 15000,
         });
         
         await transporter.sendMail({
