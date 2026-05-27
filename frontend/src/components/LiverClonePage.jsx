@@ -853,16 +853,11 @@ export default function LiverClonePage() {
           return;
         }
 
-        // Skip if STS is currently playing (avoid feedback loop)
-        if (stsRecorderRef.current?._isPlaying?.()) {
-          console.log("[STS] Skipping chunk - playback in progress");
-          return;
-        }
-
-        // Only keep latest chunk if queue is building up (prevent lag accumulation)
-        if (stsQueueRef.current.length > 1) {
-          console.log(`[STS] Queue overflow (${stsQueueRef.current.length}), dropping old chunks`);
-          stsQueueRef.current = [];
+        // Allow recording during playback but limit queue to prevent lag
+        // (Don't skip during playback - this causes gaps in continuous speech)
+        if (stsQueueRef.current.length > 2) {
+          console.log(`[STS] Queue overflow (${stsQueueRef.current.length}), keeping latest only`);
+          stsQueueRef.current = [stsQueueRef.current[stsQueueRef.current.length - 1]];
         }
 
         const reader = new FileReader();
@@ -882,8 +877,8 @@ export default function LiverClonePage() {
     stsRecorderRef.current._isPlaying = () => stsPlaying;
     stsRecorderRef.current._setPlaying = (v) => { stsPlaying = v; };
 
-    // Record in 1.5-second chunks for lower latency
-    const CHUNK_INTERVAL = 1500;
+    // Record in 2.5-second chunks (longer = better quality, less overhead)
+    const CHUNK_INTERVAL = 2500;
     recorder.start();
 
     stsIntervalRef.current = setInterval(() => {
@@ -908,7 +903,8 @@ export default function LiverClonePage() {
 
   /**
    * Process the STS queue - send audio chunks to backend for conversion.
-   * Only processes one chunk at a time, drops old chunks to prevent lag.
+   * Uses pipeline approach: sends next chunk while previous is playing.
+   * This eliminates gaps between chunks for smoother continuous speech.
    */
   const processSTSQueue = async () => {
     if (stsProcessingRef.current) return;
@@ -916,19 +912,20 @@ export default function LiverClonePage() {
 
     stsProcessingRef.current = true;
 
-    // Only process the latest chunk (drop older ones to reduce lag)
-    const audioBase64 = stsQueueRef.current.pop();
-    stsQueueRef.current = []; // Clear any remaining
+    // Take the first chunk in queue (FIFO order for natural speech flow)
+    const audioBase64 = stsQueueRef.current.shift();
 
     try {
       const sizeKB = (audioBase64.length * 0.75 / 1024).toFixed(1);
-      console.log(`[STS] Sending chunk (${sizeKB}KB)`);
+      console.log(`[STS] Sending chunk (${sizeKB}KB, queue: ${stsQueueRef.current.length} remaining)`);
       const result = await liverCloneService.previewSTS(audioBase64, voiceId, {
         voice_stability: voiceStability,
         voice_similarity: voiceSimilarity,
       });
 
       if (result.status === "ok" && result.audio_base64) {
+        // Mark as playing for lip-sync purposes
+        if (stsRecorderRef.current?._setPlaying) stsRecorderRef.current._setPlaying(true);
         await playSTSAudio(result.audio_base64);
       } else if (result.status === "skipped") {
         console.log(`[STS] Skipped: ${result.reason}`);
@@ -939,7 +936,7 @@ export default function LiverClonePage() {
 
     stsProcessingRef.current = false;
 
-    // Process next chunk if available
+    // Process next chunk if available (pipeline: immediately start next)
     if (stsQueueRef.current.length > 0) {
       processSTSQueue();
     }
@@ -947,13 +944,11 @@ export default function LiverClonePage() {
 
   /**
    * Play STS-converted audio with lip-sync. Reuses shared AudioContext.
+   * Does NOT block recording - allows pipeline processing for smoother output.
    */
   const playSTSAudio = (audioBase64) => {
     return new Promise(async (resolve) => {
       try {
-        // Mark as playing to prevent recording during playback
-        if (stsRecorderRef.current?._setPlaying) stsRecorderRef.current._setPlaying(true);
-
         let ctx = stsAudioContextRef.current;
         if (!ctx || ctx.state === 'closed') {
           ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1740,7 +1735,6 @@ export default function LiverClonePage() {
                 { id: "config", label: "設定", icon: Settings },
                 { id: "comments", label: "コメント", icon: MessageSquare },
                 { id: "autopilot", label: "Auto Pilot", icon: Zap },
-                { id: "products", label: "商品", icon: ShoppingBag },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -2155,6 +2149,134 @@ export default function LiverClonePage() {
                   </div>
                 </div>
 
+                {/* ── Product Introduction Section (inside config tab) ── */}
+                <div className="bg-[#12121a] rounded-xl border border-gray-800 p-5">
+                  <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4 text-green-400" />
+                    商品紹介
+                  </h3>
+                  <div className="space-y-4">
+                    {/* Upload button */}
+                    <div>
+                      <input
+                        ref={productFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleProductImageUpload}
+                        className="hidden"
+                      />
+                      <button
+                        onClick={() => productFileInputRef.current?.click()}
+                        className="w-full flex items-center justify-center gap-2 py-3 px-4 border-2 border-dashed border-gray-600 rounded-lg text-gray-400 hover:border-green-500 hover:text-green-400 transition"
+                      >
+                        <Upload className="w-4 h-4" />
+                        商品画像をアップロード
+                      </button>
+                    </div>
+
+                    {/* Product list */}
+                    {products.map((product, idx) => (
+                      <div key={product.id} className="bg-gray-900 rounded-lg p-3 border border-gray-700">
+                        <div className="flex gap-3">
+                          <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gray-800">
+                            <img
+                              src={product.image_preview}
+                              alt="商品"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            {product.identifying ? (
+                              <div className="flex items-center gap-2 py-2">
+                                <Loader2 className="w-3 h-3 animate-spin text-green-400" />
+                                <span className="text-xs text-green-400">AIが商品を識別中...</span>
+                              </div>
+                            ) : (
+                              <>
+                                <input
+                                  type="text"
+                                  value={product.name}
+                                  onChange={(e) => setProducts(prev => prev.map((p, i) =>
+                                    i === idx ? { ...p, name: e.target.value } : p
+                                  ))}
+                                  placeholder="商品名（任意）"
+                                  className="w-full bg-transparent border-b border-gray-700 text-sm py-1 focus:outline-none focus:border-green-500 mb-1"
+                                />
+                                <input
+                                  type="text"
+                                  value={product.info}
+                                  onChange={(e) => setProducts(prev => prev.map((p, i) =>
+                                    i === idx ? { ...p, info: e.target.value } : p
+                                  ))}
+                                  placeholder="商品情報（任意：価格、特徴など）"
+                                  className="w-full bg-transparent border-b border-gray-700 text-xs text-gray-400 py-1 focus:outline-none focus:border-green-500"
+                                />
+                              </>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => removeProduct(idx)}
+                            className="text-gray-500 hover:text-red-400 p-1"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Script area */}
+                        {product.script ? (
+                          <div className="mt-3">
+                            <textarea
+                              value={product.script}
+                              onChange={(e) => setProducts(prev => prev.map((p, i) =>
+                                i === idx ? { ...p, script: e.target.value } : p
+                              ))}
+                              rows={3}
+                              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-green-500 resize-none"
+                            />
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                onClick={() => generateProductScript(idx)}
+                                disabled={productGenerating}
+                                className="flex-1 flex items-center justify-center gap-1 py-1.5 px-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-xs transition disabled:opacity-50"
+                              >
+                                <Sparkles className="w-3 h-3" />
+                                再生成
+                              </button>
+                              <button
+                                onClick={() => speakProductScript(idx)}
+                                disabled={isSpeaking || !previewActive}
+                                className="flex-1 flex items-center justify-center gap-1 py-1.5 px-3 bg-green-600 hover:bg-green-500 rounded-lg text-xs transition disabled:opacity-50"
+                              >
+                                <Volume2 className="w-3 h-3" />
+                                {product.speaking ? "読み上げ中..." : "読み上げ"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => generateProductScript(idx)}
+                            disabled={productGenerating}
+                            className="mt-3 w-full flex items-center justify-center gap-2 py-2 px-3 bg-green-600/20 hover:bg-green-600/30 border border-green-600/50 rounded-lg text-xs text-green-400 transition disabled:opacity-50"
+                          >
+                            {productGenerating ? (
+                              <><Loader2 className="w-3 h-3 animate-spin" /> スクリプト生成中...</>
+                            ) : (
+                              <><Sparkles className="w-3 h-3" /> AIスクリプトを生成</>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+
+                    {products.length === 0 && (
+                      <p className="text-xs text-gray-500 text-center py-2">
+                        商品画像をアップロードすると、AIが自動で商品紹介スクリプトを生成します。
+                      </p>
+                    )}
+                  </div>
+                </div>
+
                 {/* Action Buttons */}
                 <div className="flex gap-3">
                   {!sessionId ? (
@@ -2311,136 +2433,7 @@ export default function LiverClonePage() {
               </div>
             )}
 
-            {/* ── Products Tab ── */}
-            {activeTab === "products" && (
-              <div className="bg-[#12121a] rounded-xl border border-gray-800 p-5">
-                <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                  <ShoppingBag className="w-4 h-4 text-green-400" />
-                  商品紹介
-                </h3>
-                <div className="space-y-4">
-                  {/* Upload button */}
-                  <div>
-                    <input
-                      ref={productFileInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleProductImageUpload}
-                      className="hidden"
-                    />
-                    <button
-                      onClick={() => productFileInputRef.current?.click()}
-                      className="w-full flex items-center justify-center gap-2 py-3 px-4 border-2 border-dashed border-gray-600 rounded-lg text-gray-400 hover:border-green-500 hover:text-green-400 transition"
-                    >
-                      <Upload className="w-4 h-4" />
-                      商品画像をアップロード
-                    </button>
-                  </div>
 
-                  {/* Product list */}
-                  {products.map((product, idx) => (
-                    <div key={product.id} className="bg-gray-900 rounded-lg p-3 border border-gray-700">
-                      <div className="flex gap-3">
-                        {/* Product image thumbnail */}
-                        <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gray-800">
-                          <img
-                            src={product.image_preview}
-                            alt="商品"
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          {product.identifying ? (
-                            <div className="flex items-center gap-2 py-2">
-                              <Loader2 className="w-3 h-3 animate-spin text-green-400" />
-                              <span className="text-xs text-green-400">AIが商品を識別中...</span>
-                            </div>
-                          ) : (
-                            <>
-                              <input
-                                type="text"
-                                value={product.name}
-                                onChange={(e) => setProducts(prev => prev.map((p, i) =>
-                                  i === idx ? { ...p, name: e.target.value } : p
-                                ))}
-                                placeholder="商品名（任意）"
-                                className="w-full bg-transparent border-b border-gray-700 text-sm py-1 focus:outline-none focus:border-green-500 mb-1"
-                              />
-                              <input
-                                type="text"
-                                value={product.info}
-                                onChange={(e) => setProducts(prev => prev.map((p, i) =>
-                                  i === idx ? { ...p, info: e.target.value } : p
-                                ))}
-                                placeholder="商品情報（任意：価格、特徴など）"
-                                className="w-full bg-transparent border-b border-gray-700 text-xs text-gray-400 py-1 focus:outline-none focus:border-green-500"
-                              />
-                            </>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => removeProduct(idx)}
-                          className="text-gray-500 hover:text-red-400 p-1"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {/* Script area */}
-                      {product.script ? (
-                        <div className="mt-3">
-                          <textarea
-                            value={product.script}
-                            onChange={(e) => setProducts(prev => prev.map((p, i) =>
-                              i === idx ? { ...p, script: e.target.value } : p
-                            ))}
-                            rows={3}
-                            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-green-500 resize-none"
-                          />
-                          <div className="flex gap-2 mt-2">
-                            <button
-                              onClick={() => generateProductScript(idx)}
-                              disabled={productGenerating}
-                              className="flex-1 flex items-center justify-center gap-1 py-1.5 px-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-xs transition disabled:opacity-50"
-                            >
-                              <Sparkles className="w-3 h-3" />
-                              再生成
-                            </button>
-                            <button
-                              onClick={() => speakProductScript(idx)}
-                              disabled={isSpeaking || !previewActive}
-                              className="flex-1 flex items-center justify-center gap-1 py-1.5 px-3 bg-green-600 hover:bg-green-500 rounded-lg text-xs transition disabled:opacity-50"
-                            >
-                              <Volume2 className="w-3 h-3" />
-                              {product.speaking ? "読み上げ中..." : "読み上げ"}
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => generateProductScript(idx)}
-                          disabled={productGenerating}
-                          className="mt-3 w-full flex items-center justify-center gap-2 py-2 px-3 bg-green-600/20 hover:bg-green-600/30 border border-green-600/50 rounded-lg text-xs text-green-400 transition disabled:opacity-50"
-                        >
-                          {productGenerating ? (
-                            <><Loader2 className="w-3 h-3 animate-spin" /> スクリプト生成中...</>
-                          ) : (
-                            <><Sparkles className="w-3 h-3" /> AIスクリプトを生成</>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  ))}
-
-                  {products.length === 0 && (
-                    <p className="text-xs text-gray-500 text-center py-4">
-                      商品画像をアップロードすると、AIが自動で商品紹介スクリプトを生成します。
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
