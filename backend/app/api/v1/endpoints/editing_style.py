@@ -1299,3 +1299,26 @@ async def list_samples(
         })
 
     return {"samples": samples, "total": len(samples)}
+
+
+# ─── Video Preview URL (fresh SAS token) ─────────────────────────────────────
+
+class GetPreviewUrlRequest(BaseModel):
+    video_url: str = Field(..., description="保存済みのBlob URL（SAS期限切れの可能性あり）")
+
+
+@router.post("/get-preview-url")
+async def get_preview_url(
+    req: GetPreviewUrlRequest,
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+):
+    """動画プレビュー用のフレッシュなSAS URL を生成する"""
+    verify_admin(x_admin_key)
+    from app.services.storage_service import generate_read_sas_from_url
+    # Strip existing SAS query params to get base blob URL
+    base_url = req.video_url.split("?")[0] if "?" in req.video_url else req.video_url
+    fresh_url = generate_read_sas_from_url(base_url, expires_hours=4)
+    if not fresh_url:
+        # Fallback: return the original URL as-is
+        fresh_url = req.video_url
+    return {"preview_url": fresh_url}

@@ -3,6 +3,70 @@ import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
+// ─── Video Preview Modal ─────────────────────────────────────────────────────
+
+function VideoPreviewModal({ isOpen, onClose, videoUrl, title, adminKey }) {
+  const [freshUrl, setFreshUrl] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen || !videoUrl) {
+      setFreshUrl(null);
+      setError(null);
+      return;
+    }
+    // Get fresh SAS URL for playback
+    setLoading(true);
+    setError(null);
+    axios.post(`${API_BASE}/api/v1/editing-style/get-preview-url`, {
+      video_url: videoUrl,
+    }, { headers: { 'X-Admin-Key': adminKey } })
+      .then(res => {
+        setFreshUrl(res.data.preview_url);
+      })
+      .catch(e => {
+        // Fallback: try using the stored URL directly
+        setFreshUrl(videoUrl);
+      })
+      .finally(() => setLoading(false));
+  }, [isOpen, videoUrl, adminKey]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <h3 className="text-sm font-medium text-gray-800">{title || '動画プレビュー'}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+        </div>
+        <div className="p-4">
+          {loading && (
+            <div className="flex items-center justify-center h-64">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            </div>
+          )}
+          {error && (
+            <div className="text-center text-red-600 py-8 text-sm">{error}</div>
+          )}
+          {freshUrl && !loading && (
+            <video
+              ref={videoRef}
+              src={freshUrl}
+              controls
+              autoPlay
+              className="w-full rounded-lg max-h-[70vh]"
+              onError={() => setError('動画の読み込みに失敗しました。SASトークンが期限切れの可能性があります。')}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function EditingStylePanel({ adminKey }) {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -184,6 +248,7 @@ function PairUploadPanel({ profile, adminKey, onDelete, onRefresh }) {
   const [uploading, setUploading] = useState({});
   const [autoAnalyzing, setAutoAnalyzing] = useState(false);
   const pollRef = useRef(null);
+  const [previewVideo, setPreviewVideo] = useState({ open: false, url: null, title: '' });
 
   // Build pairs from samples
   useEffect(() => {
@@ -409,9 +474,19 @@ function PairUploadPanel({ profile, adminKey, onDelete, onRefresh }) {
               pairIndex={pair.index}
               uploading={uploading}
               onFileSelect={handleFileSelect}
+              onPreview={(url, title) => setPreviewVideo({ open: true, url, title })}
             />
           ))}
         </div>
+
+        {/* Video Preview Modal */}
+        <VideoPreviewModal
+          isOpen={previewVideo.open}
+          onClose={() => setPreviewVideo({ open: false, url: null, title: '' })}
+          videoUrl={previewVideo.url}
+          title={previewVideo.title}
+          adminKey={adminKey}
+        />
       </div>
 
       {/* Analysis Results */}
@@ -488,7 +563,7 @@ function PairUploadPanel({ profile, adminKey, onDelete, onRefresh }) {
 
 // ─── Pair Row Component ────────────────────────────────────────────────────────
 
-function PairRow({ pair, pairIndex, uploading, onFileSelect }) {
+function PairRow({ pair, pairIndex, uploading, onFileSelect, onPreview }) {
   const finishedKey = `${pairIndex}-finished`;
   const originalKey = `${pairIndex}-original`;
   const finishedUpload = uploading[finishedKey];
@@ -505,6 +580,13 @@ function PairRow({ pair, pairIndex, uploading, onFileSelect }) {
             <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">完成</span>
             <span className="text-xs text-gray-700 truncate max-w-[150px]">{pair.finished.filename}</span>
             <StatusBadge status={pair.finished.analysis_status} />
+            {pair.finished.video_url && (
+              <button
+                onClick={() => onPreview(pair.finished.video_url, `完成: ${pair.finished.filename}`)}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition"
+                title="プレビュー再生"
+              >▶</button>
+            )}
           </div>
         ) : finishedUpload ? (
           <UploadProgress upload={finishedUpload} label="完成動画" />
@@ -533,6 +615,13 @@ function PairRow({ pair, pairIndex, uploading, onFileSelect }) {
             <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">元動画</span>
             <span className="text-xs text-gray-700 truncate max-w-[150px]">{pair.original.filename}</span>
             <StatusBadge status={pair.original.analysis_status} />
+            {pair.original.video_url && (
+              <button
+                onClick={() => onPreview(pair.original.video_url, `元動画: ${pair.original.filename}`)}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 hover:bg-orange-100 transition"
+                title="プレビュー再生"
+              >▶</button>
+            )}
           </div>
         ) : originalUpload ? (
           <UploadProgress upload={originalUpload} label="元動画" />
