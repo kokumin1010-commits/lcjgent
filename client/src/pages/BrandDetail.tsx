@@ -1443,23 +1443,66 @@ export default function BrandDetail() {
   const generatePdfMutation = trpc.brand.generateAdProposalPdf.useMutation({
     onSuccess: async (data) => {
       try {
-        // Create a new window with the HTML content
-        const printWindow = window.open('', '_blank');
-        if (printWindow) {
-          printWindow.document.write(data.html);
-          printWindow.document.close();
-          
-          // Wait for fonts to load then trigger print
-          setTimeout(() => {
-            printWindow.print();
-          }, 1000);
-          
-          toast.success(language === 'ja' ? 'PDFを生成しました。印刷ダイアログからPDFとして保存してください。' : '已生成PDF。请从打印对话框保存为PDF。');
-        } else {
-          toast.error(language === 'ja' ? 'ポップアップがブロックされました' : '弹出窗口被阻止');
+        // Create a hidden container to render the HTML
+        const container = document.createElement('div');
+        container.style.position = 'fixed';
+        container.style.left = '-9999px';
+        container.style.top = '0';
+        container.style.width = '800px';
+        container.innerHTML = data.html.replace(/<!DOCTYPE[^>]*>|<html[^>]*>|<\/html>|<head>[\s\S]*?<\/head>|<body[^>]*>|<\/body>/gi, '');
+        
+        // Extract styles from HTML and apply them
+        const styleMatch = data.html.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+        if (styleMatch) {
+          const styleEl = document.createElement('style');
+          styleEl.textContent = styleMatch[1];
+          container.prepend(styleEl);
         }
+        
+        document.body.appendChild(container);
+        
+        // Use html2pdf.js loaded from CDN
+        const html2pdfScript = document.createElement('script');
+        html2pdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js';
+        
+        await new Promise<void>((resolve, reject) => {
+          html2pdfScript.onload = () => resolve();
+          html2pdfScript.onerror = () => reject(new Error('Failed to load html2pdf'));
+          document.head.appendChild(html2pdfScript);
+        });
+        
+        // Generate PDF
+        const opt = {
+          margin: 0,
+          filename: data.filename || 'ad-proposal.pdf',
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, logging: false },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        
+        await (window as any).html2pdf().set(opt).from(container).save();
+        
+        // Cleanup
+        document.body.removeChild(container);
+        document.head.removeChild(html2pdfScript);
+        
+        toast.success(language === 'ja' ? 'PDFをダウンロードしました' : '已下载PDF');
       } catch (error) {
-        toast.error(language === 'ja' ? 'PDF生成に失敗しました' : 'PDF生成失败');
+        console.error('PDF generation error:', error);
+        // Fallback: open in new window for print
+        try {
+          const printWindow = window.open('', '_blank');
+          if (printWindow) {
+            printWindow.document.write(data.html);
+            printWindow.document.close();
+            setTimeout(() => { printWindow.print(); }, 1000);
+            toast.success(language === 'ja' ? '印刷ダイアログからPDFとして保存してください' : '请从打印对话框保存为PDF');
+          } else {
+            toast.error(language === 'ja' ? 'PDF生成に失敗しました。ポップアップを許可してください。' : 'PDF生成失败。请允许弹出窗口。');
+          }
+        } catch (e2) {
+          toast.error(language === 'ja' ? 'PDF生成に失敗しました' : 'PDF生成失败');
+        }
       }
     },
     onError: () => {
