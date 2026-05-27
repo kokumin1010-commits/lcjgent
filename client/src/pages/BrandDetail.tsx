@@ -2409,7 +2409,7 @@ ${proposal.proposalContent}
                       const kolProg = quotaProgress.kolProgress?.find((a: any) => a.liverName === lb.streamerName);
                       const quotaHours = kolProg ? kolProg.quotaHours : null;
                       const kolPct = kolProg ? kolProg.progressPercent : null;
-                      return (
+                      return (<>
                         <tr key={idx} className="border-b border-gray-800/50 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setExpandedLiverBreakdown(expandedLiverBreakdown === lb.streamerName ? null : lb.streamerName)}>
                           <td className="p-3">
                             <span className="text-sm font-medium text-white flex items-center gap-1">
@@ -2485,7 +2485,7 @@ ${proposal.proposalContent}
                             </td>
                           </tr>
                         )}
-                      );
+                      </>);
                     })}
                   </tbody>
                 </table>
