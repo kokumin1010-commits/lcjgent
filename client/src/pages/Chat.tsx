@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  MessageCircle, Send, Plus, Users, Image as ImageIcon,
+  MessageCircle, Send, Plus, Users, Image as ImageIcon, Paperclip, FileText,
   Search, X, Edit2, UserPlus, ArrowLeft, Loader2, Check, User
 } from "lucide-react";
 
@@ -108,12 +108,18 @@ export default function Chat() {
     sendMessage.mutate({ roomId: selectedRoomId, content: messageText.trim(), messageType: "text" });
   }, [messageText, selectedRoomId, sendMessage]);
 
-  // Image upload handler
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // File upload handler (images, PDF, text files)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedRoomId) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("画像ファイルのみアップロードできます");
+    const allowedTypes = ["image/", "application/pdf", "text/", "application/json"];
+    const isAllowed = allowedTypes.some(t => file.type.startsWith(t));
+    if (!isAllowed) {
+      toast.error("画像、PDF、テキストファイルのみアップロードできます");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("ファイルサイズは10MB以下にしてください");
       return;
     }
     setUploading(true);
@@ -127,15 +133,26 @@ export default function Chat() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
-      sendMessage.mutate({
-        roomId: selectedRoomId,
-        content: "[画像]",
-        messageType: "image",
-        fileUrl: data.url,
-        fileName: data.fileName,
-      });
+      if (data.type === "image") {
+        sendMessage.mutate({
+          roomId: selectedRoomId,
+          content: "[画像]",
+          messageType: "image",
+          fileUrl: data.url,
+          fileName: data.fileName,
+        });
+      } else {
+        // PDF or text file
+        sendMessage.mutate({
+          roomId: selectedRoomId,
+          content: `[ファイル] ${data.fileName}`,
+          messageType: "file",
+          fileUrl: data.url || "",
+          fileName: data.fileName,
+        });
+      }
     } catch (err: any) {
-      toast.error("画像アップロード失敗: " + err.message);
+      toast.error("ファイルアップロード失敗: " + err.message);
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -403,6 +420,15 @@ export default function Chat() {
                                 onClick={() => window.open(msg.fileUrl, "_blank")}
                               />
                             </div>
+                          ) : msg.messageType === "file" && msg.fileUrl ? (
+                            <div className={`mt-0.5 inline-block rounded-lg px-3 py-2 text-sm ${isMe ? "bg-green-500 text-white" : "bg-muted"} cursor-pointer hover:opacity-80`}
+                              onClick={() => window.open(msg.fileUrl, "_blank")}
+                            >
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-4 w-4 shrink-0" />
+                                <span className="break-all">{msg.fileName || "ファイル"}</span>
+                              </div>
+                            </div>
                           ) : (
                             <div className={`mt-0.5 inline-block rounded-lg px-3 py-1.5 text-sm ${isMe ? "bg-green-500 text-white" : "bg-muted"}`}>
                               <p className="whitespace-pre-wrap break-words text-left">{msg.content}</p>
@@ -424,17 +450,17 @@ export default function Chat() {
                   type="file"
                   ref={fileInputRef}
                   className="hidden"
-                  accept="image/*"
-                  onChange={handleImageUpload}
+                  accept="image/*,.pdf,.txt,.json,.csv,.md"
+                  onChange={handleFileUpload}
                 />
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
-                  title="画像を送信"
+                  title="ファイルを送信（画像・PDF・テキスト）"
                 >
-                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                 </Button>
                 <textarea
                   value={messageText}
@@ -464,69 +490,71 @@ export default function Chat() {
 
       {/* New Chat Dialog */}
       <Dialog open={showNewChat} onOpenChange={setShowNewChat}>
-        <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle>新しいチャット</DialogTitle>
           </DialogHeader>
-          <Tabs value={chatType} onValueChange={(v) => { setChatType(v as "direct" | "group"); setSelectedMembers([]); }}>
-            <TabsList className="w-full">
-              <TabsTrigger value="direct" className="flex-1">1対1</TabsTrigger>
-              <TabsTrigger value="group" className="flex-1">グループ</TabsTrigger>
-            </TabsList>
-            <TabsContent value="group" className="mt-3">
-              <Input
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-                placeholder="グループ名を入力"
-                className="mb-2"
-              />
-            </TabsContent>
-          </Tabs>
-
-          {/* Selected members */}
-          {selectedMembers.length > 0 && (
-            <div className="flex flex-wrap gap-1 py-2 border-b">
-              <span className="text-xs text-muted-foreground mr-1 self-center">選択中:</span>
-              {selectedMembers.map((m) => (
-                <Badge key={`${m.userType}-${m.userId}`} variant="secondary" className="gap-1 pr-1">
-                  {m.userName}
-                  <button onClick={() => setSelectedMembers(selectedMembers.filter((x) => !(x.userId === m.userId && x.userType === m.userType)))}>
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          )}
-
-          {/* Search filter */}
-          <div className="relative mt-2">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="名前で絞り込み..."
-              className="pl-9"
-            />
-          </div>
-
-          {/* User List - 最初から一覧表示 */}
-          <ScrollArea className="flex-1 min-h-0 mt-2" style={{ maxHeight: "40vh" }}>
-            {searchResults ? (
-              <div className="space-y-1">
-                {renderUserList(searchResults.staff as any[], "staff", "スタッフ")}
-                {renderUserList(searchResults.livers as any[], "liver", "ライバー")}
-                {(searchResults.staff as any[]).length === 0 && (searchResults.livers as any[]).length === 0 && (
-                  <p className="text-center text-sm text-muted-foreground py-4">該当するユーザーが見つかりません</p>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <div className="flex flex-col flex-1 min-h-0 gap-2">
+            <Tabs value={chatType} onValueChange={(v) => { setChatType(v as "direct" | "group"); setSelectedMembers([]); }} className="shrink-0">
+              <TabsList className="w-full">
+                <TabsTrigger value="direct" className="flex-1">1対1</TabsTrigger>
+                <TabsTrigger value="group" className="flex-1">グループ</TabsTrigger>
+              </TabsList>
+              <TabsContent value="group" className="mt-3">
+                <Input
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  placeholder="グループ名を入力"
+                  className="mb-2"
+                />
+              </TabsContent>
+            </Tabs>
+            {/* Selected members - with max height and scroll */}
+            {selectedMembers.length > 0 && (
+              <div className="shrink-0 max-h-20 overflow-y-auto border rounded-md bg-muted/30 p-2">
+                <div className="flex flex-wrap gap-1">
+                  <span className="text-xs text-muted-foreground mr-1 self-center">選択中:</span>
+                  {selectedMembers.map((m) => (
+                    <Badge key={`${m.userType}-${m.userId}`} variant="secondary" className="gap-1 pr-1">
+                      {m.userName}
+                      <button onClick={() => setSelectedMembers(selectedMembers.filter((x) => !(x.userId === m.userId && x.userType === m.userType)))}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
               </div>
             )}
-          </ScrollArea>
-
-          <DialogFooter className="mt-3">
+            {/* Search filter */}
+            <div className="relative shrink-0">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="名前で絞り込み..."
+                className="pl-9"
+              />
+            </div>
+            {/* User List - in white bordered container with scroll */}
+            <div className="flex-1 min-h-0 border rounded-md bg-background overflow-hidden">
+              <ScrollArea className="h-full" style={{ maxHeight: "35vh" }}>
+                {searchResults ? (
+                  <div className="space-y-1 p-2">
+                    {renderUserList(searchResults.staff as any[], "staff", "スタッフ")}
+                    {renderUserList(searchResults.livers as any[], "liver", "ライバー")}
+                    {(searchResults.staff as any[]).length === 0 && (searchResults.livers as any[]).length === 0 && (
+                      <p className="text-center text-sm text-muted-foreground py-4">該当するユーザーが見つかりません</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+          </div>
+          <DialogFooter className="shrink-0 mt-3 pt-3 border-t">
             <Button variant="outline" onClick={() => setShowNewChat(false)}>キャンセル</Button>
             <Button onClick={handleCreateRoom} disabled={createRoom.isPending || selectedMembers.length === 0}>
               {createRoom.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
@@ -538,39 +566,46 @@ export default function Chat() {
 
       {/* Add Members Dialog */}
       <Dialog open={showAddMembers} onOpenChange={setShowAddMembers}>
-        <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle>メンバー追加</DialogTitle>
           </DialogHeader>
-          {selectedMembers.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-2">
-              {selectedMembers.map((m) => (
-                <Badge key={`${m.userType}-${m.userId}`} variant="secondary" className="gap-1 pr-1">
-                  {m.userName}
-                  <button onClick={() => setSelectedMembers(selectedMembers.filter((x) => !(x.userId === m.userId && x.userType === m.userType)))}>
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          )}
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="名前で絞り込み..." className="pl-9" />
-          </div>
-          <ScrollArea className="flex-1 min-h-0 mt-2" style={{ maxHeight: "40vh" }}>
-            {searchResults ? (
-              <div className="space-y-1">
-                {renderUserList(searchResults.staff as any[], "staff", "スタッフ")}
-                {renderUserList(searchResults.livers as any[], "liver", "ライバー")}
-              </div>
-            ) : (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <div className="flex flex-col flex-1 min-h-0 gap-2">
+            {selectedMembers.length > 0 && (
+              <div className="shrink-0 max-h-20 overflow-y-auto border rounded-md bg-muted/30 p-2">
+                <div className="flex flex-wrap gap-1">
+                  <span className="text-xs text-muted-foreground mr-1 self-center">選択中:</span>
+                  {selectedMembers.map((m) => (
+                    <Badge key={`${m.userType}-${m.userId}`} variant="secondary" className="gap-1 pr-1">
+                      {m.userName}
+                      <button onClick={() => setSelectedMembers(selectedMembers.filter((x) => !(x.userId === m.userId && x.userType === m.userType)))}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
               </div>
             )}
-          </ScrollArea>
-          <DialogFooter className="mt-3">
+            <div className="relative shrink-0">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="名前で絞り込み..." className="pl-9" />
+            </div>
+            <div className="flex-1 min-h-0 border rounded-md bg-background overflow-hidden">
+              <ScrollArea className="h-full" style={{ maxHeight: "35vh" }}>
+                {searchResults ? (
+                  <div className="space-y-1 p-2">
+                    {renderUserList(searchResults.staff as any[], "staff", "スタッフ")}
+                    {renderUserList(searchResults.livers as any[], "liver", "ライバー")}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+          </div>
+          <DialogFooter className="shrink-0 mt-3 pt-3 border-t">
             <Button variant="outline" onClick={() => setShowAddMembers(false)}>キャンセル</Button>
             <Button
               onClick={() => {
