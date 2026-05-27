@@ -25146,6 +25146,9 @@ JSON配列のみを出力してください。`;
 
             // メッセージのプレビュー（最大50文字）
             const msgPreview = input.messageType === 'image' ? '[画像]' : input.messageType === 'file' ? `[ファイル] ${input.fileName || ''}` : (input.content || '').substring(0, 50);
+            const fileAttachmentInfo = input.fileUrl ? `
+
+📎 添付ファイル: ${input.fileUrl}` : '';
 
             const { sendEmail } = await import("./emailService");
             const { pushMessage } = await import("./line");
@@ -25160,10 +25163,17 @@ JSON配列のみを出力してください。`;
 
                   // LINE通知（lineUserIdがある場合）
                   if (liver.lineUserId && liver.lineNotificationEnabled !== false) {
-                    await pushMessage(liver.lineUserId, [{
-                      type: 'text',
-                      text: `💬 ${chatUser.name}さんからメッセージ\n[${roomName}]\n${msgPreview}\n\nhttps://lcjmall.com/liver/chat`
-                    }]);
+                    if (input.messageType === 'image' && input.fileUrl) {
+                      await pushMessage(liver.lineUserId, [
+                        { type: 'text', text: `💬 ${chatUser.name}さんからメッセージ\n[${roomName}]` },
+                        { type: 'image', originalContentUrl: input.fileUrl, previewImageUrl: input.fileUrl }
+                      ]);
+                    } else {
+                      await pushMessage(liver.lineUserId, [{
+                        type: 'text',
+                        text: `💬 ${chatUser.name}さんからメッセージ\n[${roomName}]\n${msgPreview}\n\nhttps://lcjmall.com/liver/chat`
+                      }]);
+                    }
                   }
 
                   // メール通知
@@ -25171,7 +25181,7 @@ JSON配列のみを出力してください。`;
                     await sendEmail({
                       to: [liver.email],
                       subject: `【LCJ Chat】${chatUser.name}さんからメッセージ`,
-                      content: `${liver.name || member.userName}様\n\n${chatUser.name}さんから「${roomName}」にメッセージが届きました。\n\n--- メッセージ ---\n${msgPreview}\n---\n\nチャットを確認する:\nhttps://lcjmall.com/liver/chat\n\n※このメールはLCJ Chatからの自動通知です。`,
+                      content: `${liver.name || member.userName}様\n\n${chatUser.name}さんから「${roomName}」にメッセージが届きました。\n\n--- メッセージ ---\n${msgPreview}${fileAttachmentInfo}\n---\n\nチャットを確認する:\nhttps://lcjmall.com/liver/chat\n\n※このメールはLCJ Chatからの自動通知です。`,
                     });
                   }
                 } else {
@@ -25183,7 +25193,7 @@ JSON配列のみを出力してください。`;
                   await sendEmail({
                     to: [staffMember.email],
                     subject: `【LCJ Chat】${chatUser.name}さんからメッセージ`,
-                    content: `${staffMember.name || member.userName}様\n\n${chatUser.name}さんから「${roomName}」にメッセージが届きました。\n\n--- メッセージ ---\n${msgPreview}\n---\n\nチャットを確認する:\nhttps://lcjmall.com/master/chat\n\n※このメールはLCJ Chatからの自動通知です。`,
+                    content: `${staffMember.name || member.userName}様\n\n${chatUser.name}さんから「${roomName}」にメッセージが届きました。\n\n--- メッセージ ---\n${msgPreview}${fileAttachmentInfo}\n---\n\nチャットを確認する:\nhttps://lcjmall.com/master/chat\n\n※このメールはLCJ Chatからの自動通知です。`,
                   });
                 }
               } catch (memberErr) {
