@@ -331,13 +331,9 @@ export default function RandomSpinPopup({
 
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-40">
-        {phase === "result" ? (
-          <button onClick={handleDismiss} className="text-yellow-400/60 text-sm hover:text-yellow-400 transition">
-            ✕ 閉じる
-          </button>
-        ) : (
-          <div />
-        )}
+        <button onClick={handleDismiss} className="text-yellow-400/60 text-sm hover:text-yellow-400 transition">
+          {phase === "result" ? "✕ 閉じる" : "✕ スキップ"}
+        </button>
         <div className="text-center">
           <StaggerReveal delay={200} duration={500}>
             <h2
