@@ -61,6 +61,7 @@ export default function FeaturedProductsAdmin() {
   const productsQuery = trpc.featuredProduct.getAll.useQuery();
   const rankingsQuery = trpc.featuredProduct.getRankings.useQuery();
   const brandsQuery = trpc.brand.list.useQuery({});
+  const setSuggestionsQuery = trpc.masterSetSuggestion.list.useQuery({ status: "active" });
 
   // Mutations
   const createMut = trpc.featuredProduct.create.useMutation({
@@ -199,6 +200,41 @@ export default function FeaturedProductsAdmin() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* セット提案から自動入力 */}
+            <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-3">
+              <label className="text-sm text-blue-300 mb-1 block font-medium">📦 セット提案から自動入力</label>
+              <select
+                className="w-full bg-gray-800 border border-gray-700 text-white rounded-md p-2 text-sm h-10"
+                onChange={(e) => {
+                  const selectedId = parseInt(e.target.value);
+                  if (!selectedId) return;
+                  const suggestion = setSuggestionsQuery.data?.find((s: any) => s.id === selectedId);
+                  if (suggestion) {
+                    const itemNames = (suggestion.items || []).map((i: any) => i.productName).join(" + ");
+                    const itemDetails = (suggestion.items || []).map((i: any) => 
+                      `${i.productName} ¥${Number(i.originalPrice || 0).toLocaleString()}`
+                    ).join(" / ");
+                    setForm({
+                      ...form,
+                      productName: suggestion.title || itemNames,
+                      setProposal: `セット内容: ${itemDetails}\n売値: ¥${Number(suggestion.suggestedPrice || 0).toLocaleString()} (${suggestion.suggestedDiscountRate || 0}%OFF)\n${suggestion.description || ""}`,
+                      notes: `セット組OK / 元値¥${Number(suggestion.totalOriginalPrice || 0).toLocaleString()} → ¥${Number(suggestion.suggestedPrice || 0).toLocaleString()}`,
+                      talkScript: suggestion.description || "",
+                    });
+                    toast.success(`「${suggestion.title}」の情報を自動入力しました`);
+                  }
+                }}
+              >
+                <option value="">セット提案を選択して自動入力...</option>
+                {setSuggestionsQuery.data?.map((s: any) => (
+                  <option key={s.id} value={s.id}>
+                    {s.title} (¥{Number(s.suggestedPrice || 0).toLocaleString()} / {s.suggestedDiscountRate || 0}%OFF)
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">選択すると商品名・セット提案・備考が自動入力されます</p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm text-white mb-1 block">商品名 *</label>
