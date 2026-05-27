@@ -602,12 +602,15 @@ def color_transfer(source, target, mask=None):
 # EMA (Exponential Moving Average) for stabilizing face detection across frames.
 # This eliminates "flickering" caused by per-frame bbox/landmark jitter.
 _temporal_state = {
+    "prev_result": None,  # Cache last successful swap result to prevent flickering on detection miss
+    "miss_count": 0,       # Count consecutive detection misses
     "prev_bbox": None,        # Previous smoothed bounding box [x1,y1,x2,y2]
     "prev_kps": None,         # Previous smoothed 5-point landmarks
     "prev_lm106": None,       # Previous smoothed 106-point landmarks
     "frame_count": 0,         # Frame counter for adaptive smoothing
 }
-_SMOOTH_ALPHA = 0.2   # EMA alpha: lower = smoother but more lag, higher = responsive but jittery
+_SMOOTH_ALPHA = 0.15   # EMA alpha: lower = smoother but more lag, higher = responsive but jittery
+# Reduced from 0.2 to 0.15 for less face jitter while maintaining acceptable responsiveness
                       # 0.2 = smoother for 16 FPS, reduces jitter/flickering at cost of slight lag
 
 def _reset_temporal_state():
@@ -615,6 +618,8 @@ def _reset_temporal_state():
     _temporal_state["prev_bbox"] = None
     _temporal_state["prev_kps"] = None
     _temporal_state["prev_lm106"] = None
+    _temporal_state["prev_result"] = None
+    _temporal_state["miss_count"] = 0
     _temporal_state["frame_count"] = 0
 
 
@@ -643,7 +648,12 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
     # Step 1: Detect faces in target frame
     faces = insightface_app.get(frame)
     if not faces:
-        return frame  # No faces detected - return original
+        # No faces detected - use cached result if available (prevents flickering)
+        _temporal_state["miss_count"] += 1
+        if _temporal_state["prev_result"] is not None and _temporal_state["miss_count"] <= 5:
+            # Return last successful result for up to 5 frames to bridge detection gaps
+            return _temporal_state["prev_result"]
+        return frame  # Too many misses, fall back to original
 
     result = frame.copy()
 
@@ -889,6 +899,9 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
             except Exception as e:
                 logger.warning(f"[LipSync] mouth_open error: {e}")
 
+    # Cache successful result for flicker prevention
+    _temporal_state["prev_result"] = result.copy()
+    _temporal_state["miss_count"] = 0
     return result
 
 

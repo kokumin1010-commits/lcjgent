@@ -148,8 +148,20 @@ export default function LiverClonePage() {
   const [activeTab, setActiveTab] = useState("config"); // config, comments, autopilot, products, metrics
   const pollRef = useRef(null);
   const fileInputRef = useRef(null);
-  // Product Introduction
-  const [products, setProducts] = useState([]); // [{id, image_base64, name, info, script, speaking}]
+  // Saved Faces (localStorage persistence)
+  const [savedFaces, setSavedFaces] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("liverClone_savedFaces") || "[]");
+    } catch { return []; }
+  });
+  const [faceSaveName, setFaceSaveName] = useState("");
+
+  // Product Introduction (localStorage persistence)
+  const [products, setProducts] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("liverClone_savedProducts") || "[]");
+    } catch { return []; }
+  });
   const [productGenerating, setProductGenerating] = useState(false);
   const [activeProductIdx, setActiveProductIdx] = useState(null); // Currently displayed product PIP
   const productFileInputRef = useRef(null);
@@ -198,6 +210,14 @@ export default function LiverClonePage() {
   useEffect(() => {
     localStorage.setItem("liverClone_stsEnabled", stsEnabled ? "true" : "false");
   }, [stsEnabled]);
+  useEffect(() => {
+    // Persist products (exclude speaking state and very large data)
+    const toSave = products.map(p => ({
+      ...p,
+      speaking: false, // Don't persist speaking state
+    }));
+    localStorage.setItem("liverClone_savedProducts", JSON.stringify(toSave));
+  }, [products]);
 
   // ── Poll session status ──
   useEffect(() => {
@@ -1151,6 +1171,7 @@ export default function LiverClonePage() {
       return;
     }
 
+    console.log("[TTS] speakWithTTS called, previewWs:", previewWsRef.current?.readyState, "previewActive:", previewActive);
     setIsSpeaking(true);
     try {
       // Call backend TTS API
@@ -1972,6 +1993,73 @@ export default function LiverClonePage() {
                         </div>
                       </div>
                     </div>
+                    {/* Save Face */}
+                    {sourceFacePreview && (
+                      <div className="flex gap-2 items-center">
+                        <input
+                          type="text"
+                          value={faceSaveName}
+                          onChange={(e) => setFaceSaveName(e.target.value)}
+                          placeholder="名前をつけて保存..."
+                          className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-cyan-500"
+                        />
+                        <button
+                          onClick={() => {
+                            if (!faceSaveName.trim() || !sourceFacePreview) return;
+                            const newFace = {
+                              id: Date.now(),
+                              name: faceSaveName.trim(),
+                              preview: sourceFacePreview,
+                              url: sourceFaceUrl || "",
+                            };
+                            const updated = [...savedFaces, newFace];
+                            setSavedFaces(updated);
+                            localStorage.setItem("liverClone_savedFaces", JSON.stringify(updated));
+                            setFaceSaveName("");
+                          }}
+                          className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 rounded-lg text-xs font-medium transition"
+                        >
+                          保存
+                        </button>
+                      </div>
+                    )}
+                    {/* Saved Faces List */}
+                    {savedFaces.length > 0 && (
+                      <div className="space-y-1">
+                        <label className="text-xs text-gray-400 block">保存済み顔</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {savedFaces.map((face) => (
+                            <div
+                              key={face.id}
+                              className="relative group cursor-pointer border border-gray-700 rounded-lg overflow-hidden hover:border-cyan-500 transition"
+                              onClick={() => {
+                                setSourceFacePreview(face.preview);
+                                setSourceFaceUrl(face.url || "");
+                                // Upload to GPU Worker
+                                const base64 = face.preview.split(",")[1];
+                                uploadSourceFace(base64);
+                              }}
+                            >
+                              <img src={face.preview} alt={face.name} className="w-full h-16 object-cover" />
+                              <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-1 py-0.5 text-[10px] truncate">
+                                {face.name}
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const updated = savedFaces.filter((f) => f.id !== face.id);
+                                  setSavedFaces(updated);
+                                  localStorage.setItem("liverClone_savedFaces", JSON.stringify(updated));
+                                }}
+                                className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                              >
+                                <Trash2 className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
