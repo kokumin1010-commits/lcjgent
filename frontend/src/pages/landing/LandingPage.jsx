@@ -433,13 +433,18 @@ export default function LandingPage() {
   const goLogin = () => navigate('/login');
   
   return (
-    <div style={{
-      position: 'relative',
-      minHeight: '100vh',
+    <div className="lp-root" style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100vw',
+      height: '100vh',
       background: '#050510',
       color: '#fff',
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
       overflowX: 'hidden',
+      overflowY: 'auto',
+      zIndex: 9999,
     }}>
       <NeuralNetworkBg />
       
@@ -1134,10 +1139,10 @@ export default function LandingPage() {
           0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.2); }
           50% { box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1); }
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        html { scroll-behavior: smooth; }
+        .lp-root, .lp-root * { box-sizing: border-box; margin: 0; padding: 0; }
+        .lp-root { scroll-behavior: smooth; }
         @media (max-width: 768px) {
-          section { padding-left: 16px !important; padding-right: 16px !important; }
+          .lp-root section { padding-left: 16px !important; padding-right: 16px !important; }
         }
       `}</style>
     </div>

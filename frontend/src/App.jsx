@@ -30,9 +30,14 @@ function HomeRouter() {
     const userData = localStorage.getItem('user');
     if (userData) {
       const user = JSON.parse(userData);
-      if (user && user.access_token) {
+      if (user && (user.isLoggedIn || user.access_token)) {
         return <MainLayout />;
       }
+    }
+    // Also check token manager (app_access_token)
+    const token = localStorage.getItem('app_access_token');
+    if (token) {
+      return <MainLayout />;
     }
   } catch (e) {
     // parse error → 未ログイン扱い
