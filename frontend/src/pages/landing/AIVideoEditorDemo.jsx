@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
    ───────────────────────────────────────────── */
 
 const FACE_IMAGE_URL = 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/emNYzUzdykBRPVJF.webp';
+const VIDEO_URL = 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/mngnBKCsdWHljoWJ.mp4';
 
 // AI processing phases
 const AI_PHASES = [
@@ -220,9 +221,12 @@ export default function AIVideoEditorDemo() {
             boxShadow: '0 0 30px rgba(139, 92, 246, 0.3)',
             border: '2px solid rgba(139, 92, 246, 0.4)',
           }}>
-            <img
-              src={FACE_IMAGE_URL}
-              alt="Live commerce preview"
+            <video
+              src={VIDEO_URL}
+              autoPlay
+              loop
+              muted
+              playsInline
               style={{
                 width: '100%',
                 height: '100%',
@@ -230,6 +234,21 @@ export default function AIVideoEditorDemo() {
                 objectPosition: 'center center',
               }}
             />
+            {/* Cut flash overlay */}
+            {cutAnimation && (
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'rgba(255,255,255,0.9)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                animation: 'cutFlash 0.5s ease-out forwards',
+                zIndex: 10,
+              }}>
+                <span style={{ fontSize: '24px', fontWeight: '900', color: '#ef4444' }}>✂️ CUT</span>
+              </div>
+            )}
             {/* Subtitle overlay */}
             {showSubtitles && currentSubtitle && (
               <div style={{
