@@ -812,21 +812,20 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
                     eye_center = (kps[0] + kps[1]) / 2
                     face_height_px = np.linalg.norm(eye_center - mouth_center_pt) * 2.5
 
-                # Max displacement: 22% of face height for clearly visible mouth opening
-                # (increased from 15% - needs to be dramatic enough to see at 360x640)
-                max_displacement = face_height_px * 0.22
+                # Max displacement: 20% of face height (balanced for natural look)
+                max_displacement = face_height_px * 0.20
                 displacement = max_displacement * min(1.0, mouth_open)
 
                 # Define the mouth region to deform using cv2.remap for speed
                 h_frame, w_frame = result.shape[:2]
                 mouth_y = int(mouth_center_pt[1])
                 mouth_x = int(mouth_center_pt[0])
-                region_h = int(face_height_px * 0.45)  # Larger region for more natural deformation
-                region_w = int(face_height_px * 0.50)
+                region_h = int(face_height_px * 0.50)  # Larger region for natural falloff
+                region_w = int(face_height_px * 0.55)
 
                 # Include area above mouth for upper lip movement
-                y_start = max(0, mouth_y - int(region_h * 0.3))
-                y_end = min(h_frame, mouth_y + int(region_h * 0.7))
+                y_start = max(0, mouth_y - int(region_h * 0.35))
+                y_end = min(h_frame, mouth_y + int(region_h * 0.65))
                 x_start = max(0, mouth_x - region_w // 2)
                 x_end = min(w_frame, mouth_x + region_w // 2)
 
@@ -838,25 +837,43 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
                     map_x = np.tile(np.arange(rw, dtype=np.float32), (rh, 1))
                     map_y = np.tile(np.arange(rh, dtype=np.float32).reshape(-1, 1), (1, rw))
 
-                    # Calculate relative position of mouth center within region
+                    # Calculate relative positions
                     mouth_rel_y = mouth_y - y_start
+                    mouth_rel_x = mouth_x - x_start
 
-                    # Apply bidirectional displacement:
-                    # - Below mouth: push down (jaw opening)
+                    # Horizontal falloff: displacement is strongest at center, fades at edges
+                    # This creates a more natural oval mouth opening shape
+                    col_weights = np.zeros(rw, dtype=np.float32)
+                    for col in range(rw):
+                        dist_from_center = abs(col - mouth_rel_x) / max(1, rw / 2)
+                        # Gaussian-like falloff: strong at center, zero at edges
+                        col_weights[col] = max(0.0, 1.0 - dist_from_center ** 1.5)
+
+                    # Apply bidirectional displacement with horizontal falloff:
+                    # - Below mouth: push down (jaw opening) with gaussian falloff
                     # - Above mouth: push up slightly (upper lip movement)
+                    # - Horizontal: slight inward pull at corners (cheek movement)
                     for row in range(rh):
                         if row > mouth_rel_y:
-                            # Below mouth: push down
+                            # Below mouth: push down with ease-out curve
                             progress = (row - mouth_rel_y) / max(1, rh - mouth_rel_y - 1)
-                            # Smooth ease-out curve for natural look
+                            # Smooth ease-out curve
                             shift = displacement * progress * (2.0 - progress)
-                            map_y[row, :] -= shift
+                            map_y[row, :] -= shift * col_weights
+                            # Slight horizontal compression at jaw (cheeks pull inward)
+                            if mouth_open > 0.3:
+                                h_shift = displacement * 0.08 * progress
+                                for col in range(rw):
+                                    if col < mouth_rel_x:
+                                        map_x[row, col] += h_shift * (1.0 - col_weights[col])
+                                    elif col > mouth_rel_x:
+                                        map_x[row, col] -= h_shift * (1.0 - col_weights[col])
                         elif row < mouth_rel_y:
                             # Above mouth: slight upward pull (upper lip)
                             progress = (mouth_rel_y - row) / max(1, mouth_rel_y)
-                            # Much smaller displacement for upper lip (30% of lower)
-                            shift = displacement * 0.3 * progress * (2.0 - progress)
-                            map_y[row, :] += shift
+                            # Smaller displacement for upper lip (25% of lower)
+                            shift = displacement * 0.25 * progress * (2.0 - progress)
+                            map_y[row, :] += shift * col_weights
 
                     # Apply remap to the region
                     region = result[y_start:y_end, x_start:x_end].copy()
@@ -1886,6 +1903,8 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
         
         # Lip-sync: mouth openness value (0.0 = closed, 1.0 = fully open)
         current_mouth_open = 0.0
+        # Smoothed mouth value used for rendering (reduces jitter from network latency)
+        smoothed_mouth_open = 0.0
 
         async def receiver():
             """Continuously receive frames and control messages, keeping only the latest frame."""
@@ -1913,7 +1932,7 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
 
         async def processor():
             """Process the latest frame and send result back."""
-            nonlocal latest_frame_data, error_count, total_process_time, frames_processed
+            nonlocal latest_frame_data, error_count, total_process_time, frames_processed, smoothed_mouth_open
 
             last_data = None
 
@@ -1938,6 +1957,18 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
                 try:
                     start_time = time.time()
 
+                    # Smooth mouth_open value to reduce jitter from WebSocket latency
+                    # Fast attack (0.7) for responsive opening, slow release (0.4) for natural closing
+                    target_mouth = current_mouth_open
+                    if target_mouth > smoothed_mouth_open:
+                        alpha = 0.7  # Fast attack
+                    else:
+                        alpha = 0.4  # Slow release
+                    smoothed_mouth_open = smoothed_mouth_open + alpha * (target_mouth - smoothed_mouth_open)
+                    # Snap to zero if very small (avoid perpetual tiny mouth movements)
+                    if smoothed_mouth_open < 0.02:
+                        smoothed_mouth_open = 0.0
+
                     # Dynamically re-check use_direct each frame
                     # (source face may be uploaded after WebSocket connection)
                     can_use_direct = onnx_engine_ready and source_face_embedding is not None
@@ -1958,7 +1989,7 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
                         use_enhancer = current_config.get("face_enhancer_enabled", True)
                         apply_gfpgan = use_enhancer
                         
-                        result = direct_swap_frame(frame, use_enhancer=apply_gfpgan, mouth_open=current_mouth_open)
+                        result = direct_swap_frame(frame, use_enhancer=apply_gfpgan, mouth_open=smoothed_mouth_open)
 
                         if result is not None:
                             # Lower JPEG quality for faster transfer (75% is visually identical at 640x360)
@@ -1977,7 +2008,7 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
                             fps = 1000.0 / avg_ms if avg_ms > 0 else 0
                             logger.info(f"[Preview] Frame {frames_processed}: {elapsed_ms}ms "
                                         f"(avg: {avg_ms:.0f}ms, ~{fps:.1f} FPS, "
-                                        f"{w_orig}x{h_orig}, mouth={current_mouth_open:.2f})")
+                                        f"{w_orig}x{h_orig}, mouth={smoothed_mouth_open:.2f})")
 
                         await websocket.send_bytes(processed)
                         error_count = 0

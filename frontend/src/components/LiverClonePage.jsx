@@ -999,12 +999,13 @@ export default function LiverClonePage() {
           return;
         }
 
-        // Compute envelope for lip-sync (20 samples/sec)
+        // Compute envelope for lip-sync (30 samples/sec for smoother animation)
         const channelData = audioBuffer.getChannelData(0);
         const sampleRate = audioBuffer.sampleRate;
-        const chunkSize = Math.floor(sampleRate / 20);
+        const LIP_FPS = 30; // Higher analysis rate for smoother mouth movement
+        const chunkSize = Math.floor(sampleRate / LIP_FPS);
         const numChunks = Math.ceil(channelData.length / chunkSize);
-        const envelope = new Float32Array(numChunks);
+        const rawEnvelope = new Float32Array(numChunks);
         let maxRms = 0;
         for (let c = 0; c < numChunks; c++) {
           let sum = 0;
@@ -1012,12 +1013,22 @@ export default function LiverClonePage() {
           const end = Math.min(start + chunkSize, channelData.length);
           for (let i = start; i < end; i++) sum += channelData[i] * channelData[i];
           const rms = Math.sqrt(sum / (end - start));
-          envelope[c] = rms;
+          rawEnvelope[c] = rms;
           if (rms > maxRms) maxRms = rms;
         }
+        // Normalize
         const normFactor = maxRms > 0.001 ? (1.0 / maxRms) : 8.0;
         for (let c = 0; c < numChunks; c++) {
-          envelope[c] = Math.pow(Math.min(1.0, envelope[c] * normFactor), 0.6);
+          rawEnvelope[c] = Math.pow(Math.min(1.0, rawEnvelope[c] * normFactor), 0.6);
+        }
+        // Apply temporal smoothing (EMA) to prevent jittery mouth movement
+        const envelope = new Float32Array(numChunks);
+        const SMOOTH_UP = 0.6;   // Fast attack (mouth opens quickly)
+        const SMOOTH_DOWN = 0.3; // Slow release (mouth closes gradually)
+        envelope[0] = rawEnvelope[0];
+        for (let c = 1; c < numChunks; c++) {
+          const alpha = rawEnvelope[c] > envelope[c - 1] ? SMOOTH_UP : SMOOTH_DOWN;
+          envelope[c] = envelope[c - 1] + alpha * (rawEnvelope[c] - envelope[c - 1]);
         }
 
         // Play audio
@@ -1027,24 +1038,42 @@ export default function LiverClonePage() {
 
         const startTime = ctx.currentTime;
         let lipActive = true;
+        let prevMouthOpen = 0;
         const lipLoop = () => {
           if (!lipActive) return;
           const elapsed = ctx.currentTime - startTime;
-          const idx = Math.floor(elapsed * 20);
+          const idx = Math.floor(elapsed * LIP_FPS);
           if (idx >= numChunks) return;
-          const mouthOpen = envelope[idx];
+          // Interpolate between frames for even smoother movement
+          const frac = (elapsed * LIP_FPS) - idx;
+          const nextIdx = Math.min(idx + 1, numChunks - 1);
+          let mouthOpen = envelope[idx] * (1 - frac) + envelope[nextIdx] * frac;
+          // Additional runtime smoothing to compensate for WebSocket latency
+          mouthOpen = prevMouthOpen + 0.5 * (mouthOpen - prevMouthOpen);
+          prevMouthOpen = mouthOpen;
           if (previewWsRef.current?.readyState === WebSocket.OPEN) {
             previewWsRef.current.send(JSON.stringify({ type: "mouth_open", value: mouthOpen }));
           }
         };
-        const lipInterval = setInterval(lipLoop, 50);
+        // Send at 30Hz for smooth animation (matches LIP_FPS)
+        const lipInterval = setInterval(lipLoop, 33);
 
         sourceNode.onended = () => {
           lipActive = false;
           clearInterval(lipInterval);
-          if (previewWsRef.current?.readyState === WebSocket.OPEN) {
-            previewWsRef.current.send(JSON.stringify({ type: "mouth_open", value: 0 }));
-          }
+          // Gradually close mouth over 150ms instead of instant snap
+          let closeVal = prevMouthOpen;
+          const closeInterval = setInterval(() => {
+            closeVal *= 0.5;
+            if (closeVal < 0.02) {
+              clearInterval(closeInterval);
+              closeVal = 0;
+            }
+            if (previewWsRef.current?.readyState === WebSocket.OPEN) {
+              previewWsRef.current.send(JSON.stringify({ type: "mouth_open", value: closeVal }));
+            }
+          }, 33);
+          setTimeout(() => clearInterval(closeInterval), 200);
           if (stsRecorderRef.current?._setPlaying) stsRecorderRef.current._setPlaying(false);
           console.log(`[STS] Playback done (${audioBuffer.duration.toFixed(1)}s)`);
           resolve();
@@ -1194,12 +1223,13 @@ export default function LiverClonePage() {
           return;
         }
 
-        // Pre-compute RMS envelope for lip-sync (analyze the entire buffer upfront)
+        // Pre-compute RMS envelope for lip-sync (30Hz for smooth animation)
         const channelData = audioBuffer.getChannelData(0);
         const sampleRate = audioBuffer.sampleRate;
-        const chunkSize = Math.floor(sampleRate / 20); // 20Hz analysis = 50ms chunks
+        const LIP_FPS = 30; // 30Hz analysis for smoother mouth movement
+        const chunkSize = Math.floor(sampleRate / LIP_FPS);
         const numChunks = Math.ceil(channelData.length / chunkSize);
-        const envelope = new Float32Array(numChunks);
+        const rawEnvelope = new Float32Array(numChunks);
         let maxRms = 0;
         for (let c = 0; c < numChunks; c++) {
           let sum = 0;
@@ -1209,53 +1239,60 @@ export default function LiverClonePage() {
             sum += channelData[i] * channelData[i];
           }
           const rms = Math.sqrt(sum / (end - start));
-          envelope[c] = rms;
+          rawEnvelope[c] = rms;
           if (rms > maxRms) maxRms = rms;
         }
-        // Adaptive normalization: scale to actual max RMS for this audio
-        // This ensures mouth opens fully regardless of audio volume
+        // Adaptive normalization
         const normFactor = maxRms > 0.001 ? (1.0 / maxRms) : 8.0;
         for (let c = 0; c < numChunks; c++) {
-          // Apply normalization with power curve for more dramatic mouth movement
-          const normalized = Math.min(1.0, envelope[c] * normFactor);
-          // Power curve: sqrt makes small values larger = more visible mouth movement
-          envelope[c] = Math.pow(normalized, 0.6);
+          rawEnvelope[c] = Math.pow(Math.min(1.0, rawEnvelope[c] * normFactor), 0.6);
         }
-        console.log("[TTS] Envelope computed:", numChunks, "chunks, maxRms:", maxRms.toFixed(4), "normFactor:", normFactor.toFixed(1), "max envelope:", Math.max(...envelope).toFixed(3));
+        // Apply temporal smoothing (EMA) - fast attack, slow release for natural speech
+        const envelope = new Float32Array(numChunks);
+        const SMOOTH_UP = 0.6;   // Fast attack (mouth opens quickly)
+        const SMOOTH_DOWN = 0.3; // Slow release (mouth closes gradually)
+        envelope[0] = rawEnvelope[0];
+        for (let c = 1; c < numChunks; c++) {
+          const alpha = rawEnvelope[c] > envelope[c - 1] ? SMOOTH_UP : SMOOTH_DOWN;
+          envelope[c] = envelope[c - 1] + alpha * (rawEnvelope[c] - envelope[c - 1]);
+        }
+        console.log("[TTS] Envelope computed:", numChunks, "chunks @", LIP_FPS, "Hz, maxRms:", maxRms.toFixed(4));
 
-        // Play audio using AudioBufferSourceNode (guaranteed to work with AudioContext)
+        // Play audio using AudioBufferSourceNode
         const sourceNode = ttsCtx.createBufferSource();
         sourceNode.buffer = audioBuffer;
         sourceNode.connect(ttsCtx.destination);
 
-        // Start lip-sync: send pre-computed envelope values at 20Hz
+        // Start lip-sync: send smoothed + interpolated values at 30Hz
         const startTime = ttsCtx.currentTime;
         let lipSyncActive = true;
         let lipSyncSendCount = 0;
+        let prevMouthOpen = 0;
         const lipSyncLoop = () => {
           if (!lipSyncActive) return;
           const elapsed = ttsCtx.currentTime - startTime;
-          const chunkIndex = Math.floor(elapsed * 20); // 20Hz
-          if (chunkIndex >= numChunks) {
-            // Audio should be done
-            return;
-          }
-          const mouthOpen = envelope[chunkIndex];
+          const idx = Math.floor(elapsed * LIP_FPS);
+          if (idx >= numChunks) return;
+          // Interpolate between envelope frames for sub-frame smoothness
+          const frac = (elapsed * LIP_FPS) - idx;
+          const nextIdx = Math.min(idx + 1, numChunks - 1);
+          let mouthOpen = envelope[idx] * (1 - frac) + envelope[nextIdx] * frac;
+          // Additional runtime smoothing to compensate for WebSocket latency
+          mouthOpen = prevMouthOpen + 0.5 * (mouthOpen - prevMouthOpen);
+          prevMouthOpen = mouthOpen;
 
-          // Send mouth_open to GPU Worker via WebSocket
           if (previewWsRef.current?.readyState === WebSocket.OPEN) {
             previewWsRef.current.send(JSON.stringify({ type: "mouth_open", value: mouthOpen }));
             lipSyncSendCount++;
-            // Log every 10th send for debugging
-            if (lipSyncSendCount % 10 === 1) {
-              console.log(`[LipSync] Sending mouth_open=${mouthOpen.toFixed(3)} chunk=${chunkIndex}/${numChunks} elapsed=${elapsed.toFixed(2)}s`);
+            if (lipSyncSendCount % 15 === 1) {
+              console.log(`[LipSync] mouth_open=${mouthOpen.toFixed(3)} chunk=${idx}/${numChunks} elapsed=${elapsed.toFixed(2)}s`);
             }
           } else {
             console.warn("[LipSync] WebSocket not open, cannot send mouth_open");
           }
         };
-        lipSyncIntervalRef.current = setInterval(lipSyncLoop, 50); // 20Hz
-        console.log("[LipSync] Started lip-sync loop (20Hz interval)");
+        lipSyncIntervalRef.current = setInterval(lipSyncLoop, 33); // 30Hz
+        console.log("[LipSync] Started lip-sync loop (30Hz interval, smoothed)");
 
         const cleanup = () => {
           lipSyncActive = false;
@@ -1263,10 +1300,19 @@ export default function LiverClonePage() {
             clearInterval(lipSyncIntervalRef.current);
             lipSyncIntervalRef.current = null;
           }
-          // Send mouth closed
-          if (previewWsRef.current?.readyState === WebSocket.OPEN) {
-            previewWsRef.current.send(JSON.stringify({ type: "mouth_open", value: 0 }));
-          }
+          // Gradually close mouth over 150ms instead of instant snap
+          let closeVal = prevMouthOpen;
+          const closeInterval = setInterval(() => {
+            closeVal *= 0.5;
+            if (closeVal < 0.02) {
+              clearInterval(closeInterval);
+              closeVal = 0;
+            }
+            if (previewWsRef.current?.readyState === WebSocket.OPEN) {
+              previewWsRef.current.send(JSON.stringify({ type: "mouth_open", value: closeVal }));
+            }
+          }, 33);
+          setTimeout(() => clearInterval(closeInterval), 200);
           ttsAudioRef.current = null;
           ttsAnalyserRef.current = null;
           ttsCtx.close().catch(() => {});
@@ -1413,6 +1459,122 @@ export default function LiverClonePage() {
     setProducts(prev => prev.filter((_, i) => i !== productIdx));
     if (activeProductIdx === productIdx) setActiveProductIdx(null);
   };
+
+  // ── Auto Product Detection (Camera-based) ──
+  const [autoProductDetect, setAutoProductDetect] = useState(false);
+  const autoDetectIntervalRef = useRef(null);
+  const lastDetectedProductRef = useRef(""); // Prevent re-detecting same product
+  const autoDetectCooldownRef = useRef(false); // Cooldown after detection
+
+  const startAutoProductDetection = () => {
+    if (autoDetectIntervalRef.current) return;
+    setAutoProductDetect(true);
+    console.log("[AutoDetect] Started auto product detection (every 5s)");
+    
+    autoDetectIntervalRef.current = setInterval(async () => {
+      // Skip if cooldown active, speaking, or no preview
+      if (autoDetectCooldownRef.current || isSpeaking) return;
+      if (!videoRef.current || !videoRef.current.videoWidth) return;
+      if (!previewActive) return;
+
+      try {
+        // Capture current camera frame
+        const canvas = document.createElement('canvas');
+        const video = videoRef.current;
+        canvas.width = 320; // Low res for fast API call
+        canvas.height = 240;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, 320, 240);
+        const frameBase64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
+
+        // Send to AI for product detection
+        const result = await liverCloneService.generateProductIntro({
+          image_base64: frameBase64,
+          product_name: "",
+          product_info: "",
+          language: language,
+          style: "identify",
+          max_length: 50,
+        });
+
+        if (result.status === "ok" && result.script) {
+          // Parse identification
+          const lines = result.script.split('\n');
+          let name = "";
+          for (const line of lines) {
+            if (line.includes('商品名') || line.includes('Product')) {
+              name = line.replace(/^.*[:：]\s*/, '').trim();
+              break;
+            } else if (!name && line.trim() && line.trim().length < 50) {
+              name = line.trim();
+            }
+          }
+
+          // Check if it's a new product (not the same as last detected)
+          if (name && name !== lastDetectedProductRef.current && 
+              !name.includes('人物') && !name.includes('顔') && !name.includes('背景') &&
+              !name.includes('person') && !name.includes('face')) {
+            console.log(`[AutoDetect] New product detected: ${name}`);
+            lastDetectedProductRef.current = name;
+            
+            // Set cooldown (30s) to prevent rapid re-detection
+            autoDetectCooldownRef.current = true;
+            setTimeout(() => { autoDetectCooldownRef.current = false; }, 30000);
+
+            // Auto-generate script and speak
+            const scriptResult = await liverCloneService.generateProductIntro({
+              image_base64: frameBase64,
+              product_name: name,
+              product_info: result.script,
+              language: language,
+              style: "enthusiastic",
+              max_length: 150,
+            });
+
+            if (scriptResult.status === "ok" && scriptResult.script) {
+              // Add to products list and auto-speak
+              const newProduct = {
+                id: Date.now(),
+                image_base64: frameBase64,
+                image_preview: `data:image/jpeg;base64,${frameBase64}`,
+                name: name,
+                info: result.script,
+                script: scriptResult.script,
+                speaking: false,
+                autoDetected: true,
+              };
+              setProducts(prev => {
+                const updated = [...prev, newProduct];
+                // Auto-speak the new product
+                const newIdx = updated.length - 1;
+                setTimeout(() => speakProductScript(newIdx), 500);
+                return updated;
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[AutoDetect] Detection cycle failed:", err.message);
+      }
+    }, 5000); // Check every 5 seconds
+  };
+
+  const stopAutoProductDetection = () => {
+    if (autoDetectIntervalRef.current) {
+      clearInterval(autoDetectIntervalRef.current);
+      autoDetectIntervalRef.current = null;
+    }
+    setAutoProductDetect(false);
+    autoDetectCooldownRef.current = false;
+    console.log("[AutoDetect] Stopped auto product detection");
+  };
+
+  // Clean up auto-detect on unmount or preview stop
+  useEffect(() => {
+    if (!previewActive && autoDetectIntervalRef.current) {
+      stopAutoProductDetection();
+    }
+  }, [previewActive]);
 
   // ── Status helpers ──
   const isStreaming =
@@ -2156,6 +2318,31 @@ export default function LiverClonePage() {
                     商品紹介
                   </h3>
                   <div className="space-y-4">
+                    {/* Auto Product Detection Toggle */}
+                    {previewActive && (
+                      <div className="flex items-center justify-between p-3 bg-gray-900 rounded-lg border border-gray-700">
+                        <div>
+                          <p className="text-sm font-medium text-green-400">自動商品検出</p>
+                          <p className="text-xs text-gray-500">カメラに商品を映すと自動で紹介</p>
+                        </div>
+                        <button
+                          onClick={() => autoProductDetect ? stopAutoProductDetection() : startAutoProductDetection()}
+                          className={`relative w-11 h-6 rounded-full transition-colors ${
+                            autoProductDetect ? 'bg-green-500' : 'bg-gray-600'
+                          }`}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                            autoProductDetect ? 'translate-x-5' : ''
+                          }`} />
+                        </button>
+                      </div>
+                    )}
+                    {autoProductDetect && (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-green-900/30 rounded-lg border border-green-700/50">
+                        <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                        <span className="text-xs text-green-300">商品を検出中...</span>
+                      </div>
+                    )}
                     {/* Upload button */}
                     <div>
                       <input
