@@ -105,13 +105,37 @@ function EditorToolbar({ editor, isExpanded, onToggleExpand }: { editor: any; is
   );
 }
 
+// ===== Language Detection =====
+function detectLanguage(text: string): "zh" | "ja" | "other" {
+  const clean = text.replace(/[\s\p{P}\p{N}\p{S}]/gu, "");
+  if (!clean) return "other";
+  const jaChars = (clean.match(/[\u3040-\u309f\u30a0-\u30ff]/g) || []).length;
+  const cjkChars = (clean.match(/[\u4e00-\u9fff]/g) || []).length;
+  if (jaChars > 0) return "ja";
+  if (cjkChars > clean.length * 0.3) return "zh";
+  return "other";
+}
+
+function getAutoTargetLang(text: string): string {
+  const lang = detectLanguage(text);
+  if (lang === "zh") return "ja";
+  if (lang === "ja") return "zh-CN";
+  return "ja";
+}
+
 // ===== Translation Helper (uses Google Translate free endpoint) =====
 async function translateText(text: string, targetLang: string): Promise<string> {
+  if (!text.trim()) return text;
   try {
     const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    return data[0]?.map((s: any) => s[0]).join("") || text;
-  } catch {
+    const result = data[0]?.map((s: any) => s[0]).join("");
+    if (!result) throw new Error("Empty result");
+    return result;
+  } catch (e) {
+    console.error("Translation error:", e);
+    toast.error("翻訳に失敗しました");
     return text;
   }
 }
@@ -201,13 +225,14 @@ export default function Chat() {
       },
     },
     onUpdate: ({ editor: ed }) => {
-      // Live translation
+      // Live translation with auto language detection
       if (liveTranslateEnabled) {
         const text = ed.getText();
         if (liveTranslateTimer.current) clearTimeout(liveTranslateTimer.current);
         if (text.trim()) {
           liveTranslateTimer.current = setTimeout(async () => {
-            const translated = await translateText(text, "ja");
+            const targetLang = getAutoTargetLang(text);
+            const translated = await translateText(text, targetLang);
             setLiveTranslation(translated);
           }, 500);
         } else {
@@ -291,9 +316,14 @@ export default function Chat() {
 
   // Close context menu on click elsewhere
   useEffect(() => {
-    const handler = () => setContextMenu(null);
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-context-menu]")) {
+        setContextMenu(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   // Send message handler
@@ -646,7 +676,11 @@ export default function Chat() {
                               {/* Translate button on hover */}
                               <button
                                 className="absolute -bottom-5 left-0 text-[10px] text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5"
-                                onClick={() => handleTranslateMessage(msg.id, msg.content, "ja")}
+                                onClick={() => {
+                                  const plain = msg.content.replace(/<[^>]+>/g, "");
+                                  const target = getAutoTargetLang(plain);
+                                  handleTranslateMessage(msg.id, msg.content, target);
+                                }}
                               >
                                 <Languages className="h-3 w-3" />
                                 翻訳
@@ -686,7 +720,7 @@ export default function Chat() {
               {liveTranslateEnabled && liveTranslation && (
                 <div className="px-3 py-1.5 bg-blue-50 dark:bg-blue-950/30 border-b text-xs text-blue-700 dark:text-blue-300 flex items-center gap-1">
                   <Languages className="h-3 w-3 shrink-0" />
-                  <span className="font-medium">日本語:</span>
+                  <span className="font-medium">{detectLanguage(editor?.getText() || "") === "ja" ? "中文:" : "日本語:"}</span>
                   <span className="truncate">{liveTranslation}</span>
                   <button className="ml-auto text-blue-500 hover:text-blue-700 text-[10px] shrink-0" onClick={() => {
                     if (editor && liveTranslation) {
@@ -727,7 +761,7 @@ export default function Chat() {
                     size="icon"
                     variant={liveTranslateEnabled ? "default" : "ghost"}
                     onClick={() => { setLiveTranslateEnabled(!liveTranslateEnabled); setLiveTranslation(""); }}
-                    title={liveTranslateEnabled ? "边写边译 ON (中→日)" : "边写边译 OFF"}
+                    title={liveTranslateEnabled ? "自動翻訳 ON (言語自動検出)" : "自動翻訳 OFF"}
                     className="h-8 w-8"
                   >
                     <Languages className="h-4 w-4" />
@@ -750,8 +784,10 @@ export default function Chat() {
       {/* Right-click Context Menu for Translation */}
       {contextMenu && (
         <div
+          data-context-menu
           className="fixed z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[160px]"
           style={{ left: contextMenu.x, top: contextMenu.y }}
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
           <button
