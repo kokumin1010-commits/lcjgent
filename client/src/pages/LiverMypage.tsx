@@ -1900,7 +1900,7 @@ export default function LiverMypage() {
                                 <div
                                   key={ls.id}
                                   className="flex items-center justify-between text-[10px] bg-gray-700/30 rounded px-2 py-1 cursor-pointer hover:bg-gray-700/50"
-                                  onClick={(e) => { e.stopPropagation(); navigate(`/livestreams/${ls.id}`); }}
+                                  onClick={(e) => { e.stopPropagation(); window.open(`/livestreams/${ls.id}`, '_blank'); }}
                                 >
                                   <span className="text-gray-300">{dateStr} {timeStr}</span>
                                   <div className="flex items-center gap-2">
@@ -1928,7 +1928,7 @@ export default function LiverMypage() {
                                     <div
                                       key={ls.id}
                                       className="flex items-center justify-between text-[10px] bg-gray-700/20 rounded px-2 py-1 cursor-pointer hover:bg-gray-700/40 opacity-70"
-                                      onClick={(e) => { e.stopPropagation(); navigate(`/livestreams/${ls.id}`); }}
+                                      onClick={(e) => { e.stopPropagation(); window.open(`/livestreams/${ls.id}`, '_blank'); }}
                                     >
                                       <span className="text-gray-400">{dateStr} {timeStr}</span>
                                       <div className="flex items-center gap-2">
