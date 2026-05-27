@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
    Inspired by AitherHub's actual CLIP EDITOR UI
    ───────────────────────────────────────────── */
 
-const FACE_IMAGE_URL = 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/paaqFtiWCkPpYpMF.webp';
+const FACE_IMAGE_URL = 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/emNYzUzdykBRPVJF.webp';
 
 // AI processing phases
 const AI_PHASES = [
@@ -227,7 +227,7 @@ export default function AIVideoEditorDemo() {
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
-                objectPosition: 'center top',
+                objectPosition: 'center center',
               }}
             />
             {/* Subtitle overlay */}
