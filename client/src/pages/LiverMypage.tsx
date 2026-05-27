@@ -96,7 +96,7 @@ export default function LiverMypage() {
   const [lineLinkExpiresAt, setLineLinkExpiresAt] = useState<Date | null>(null);
   const [lineLinkTimeLeft, setLineLinkTimeLeft] = useState<number>(0);
   const [showSetsSection, setShowSetsSection] = useState(false);
-  const [showProductsSection, setShowProductsSection] = useState(true);
+  const [showProductsSection, setShowProductsSection] = useState(false);
   const [expandedBrandId, setExpandedBrandId] = useState<number | null>(null);
   const [goalSalesInput, setGoalSalesInput] = useState('');
   const [goalStreamCountInput, setGoalStreamCountInput] = useState('');
@@ -1492,6 +1492,76 @@ export default function LiverMypage() {
           </Card>
         )}
 
+        {/* 売れ筋ブランド / 効率改善ブランド */}
+        {brandDurationStats && brandDurationStats.length >= 2 && (() => {
+          // hourlyRateでソートして売れ筋と効率改善を判定
+          const brandsWithRate = brandDurationStats
+            .filter((b: any) => b.csvGmv > 0 && b.totalMinutes >= 30) // 30分以上配信かつCSV売上あり
+            .map((b: any) => ({
+              name: b.brandName,
+              hourlyRate: b.hourlyRate || 0,
+              csvGmv: b.csvGmv || 0,
+              totalMinutes: b.totalMinutes,
+            }))
+            .sort((a: any, b: any) => b.hourlyRate - a.hourlyRate);
+          
+          if (brandsWithRate.length < 2) return null;
+          
+          const topBrands = brandsWithRate.slice(0, Math.min(3, Math.ceil(brandsWithRate.length / 2)));
+          const bottomBrands = brandsWithRate.slice(-Math.min(2, Math.floor(brandsWithRate.length / 3))).filter((b: any) => b.hourlyRate < brandsWithRate[0].hourlyRate * 0.3);
+          
+          return (
+            <Card className="bg-gray-800/50 border-gray-700">
+              <CardContent className="p-3">
+                {/* 売れ筋ブランド */}
+                <div className="mb-3">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <span className="text-sm">🔥</span>
+                    <h4 className="text-xs font-bold text-emerald-400">
+                      {language === 'en' ? 'Top Performing Brands' : '売れ筋ブランド'}
+                    </h4>
+                  </div>
+                  <div className="space-y-1">
+                    {topBrands.map((b: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 rounded px-2 py-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-yellow-400">{i === 0 ? '👑' : i === 1 ? '🥈' : '🥉'}</span>
+                          <span className="text-xs font-medium text-white">{b.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-yellow-400">¥{Number(b.csvGmv).toLocaleString()}</span>
+                          <span className="text-[10px] font-bold text-emerald-400">¥{Number(b.hourlyRate).toLocaleString()}/h</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* 効率改善ブランド */}
+                {bottomBrands.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="text-sm">⚠️</span>
+                      <h4 className="text-xs font-bold text-orange-400">
+                        {language === 'en' ? 'Needs Improvement' : '効率改善が必要'}
+                      </h4>
+                    </div>
+                    <div className="space-y-1">
+                      {bottomBrands.map((b: any, i: number) => (
+                        <div key={i} className="flex items-center justify-between bg-orange-500/10 border border-orange-500/20 rounded px-2 py-1.5">
+                          <span className="text-xs text-white">{b.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-400">{Math.floor(b.totalMinutes / 60)}h{b.totalMinutes % 60 > 0 ? `${b.totalMinutes % 60}m` : ''}</span>
+                            <span className="text-[10px] font-bold text-orange-400">¥{Number(b.hourlyRate).toLocaleString()}/h</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
         {/* 月別売上商品一覧 */}
         {monthlyProducts && monthlyProducts.length > 0 && (
           <Card className="bg-gray-800/30 border-gray-700">
@@ -1958,76 +2028,6 @@ export default function LiverMypage() {
           </Card>
         )}
 
-        {/* 売れ筋ブランド / 効率改善ブランド */}
-        {brandDurationStats && brandDurationStats.length >= 2 && (() => {
-          // hourlyRateでソートして売れ筋と効率改善を判定
-          const brandsWithRate = brandDurationStats
-            .filter((b: any) => b.csvGmv > 0 && b.totalMinutes >= 30) // 30分以上配信かつCSV売上あり
-            .map((b: any) => ({
-              name: b.brandName,
-              hourlyRate: b.hourlyRate || 0,
-              csvGmv: b.csvGmv || 0,
-              totalMinutes: b.totalMinutes,
-            }))
-            .sort((a: any, b: any) => b.hourlyRate - a.hourlyRate);
-          
-          if (brandsWithRate.length < 2) return null;
-          
-          const topBrands = brandsWithRate.slice(0, Math.min(3, Math.ceil(brandsWithRate.length / 2)));
-          const bottomBrands = brandsWithRate.slice(-Math.min(2, Math.floor(brandsWithRate.length / 3))).filter((b: any) => b.hourlyRate < brandsWithRate[0].hourlyRate * 0.3);
-          
-          return (
-            <Card className="bg-gray-800/50 border-gray-700">
-              <CardContent className="p-3">
-                {/* 売れ筋ブランド */}
-                <div className="mb-3">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <span className="text-sm">🔥</span>
-                    <h4 className="text-xs font-bold text-emerald-400">
-                      {language === 'en' ? 'Top Performing Brands' : '売れ筋ブランド'}
-                    </h4>
-                  </div>
-                  <div className="space-y-1">
-                    {topBrands.map((b: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 rounded px-2 py-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-yellow-400">{i === 0 ? '👑' : i === 1 ? '🥈' : '🥉'}</span>
-                          <span className="text-xs font-medium text-white">{b.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-yellow-400">¥{Number(b.csvGmv).toLocaleString()}</span>
-                          <span className="text-[10px] font-bold text-emerald-400">¥{Number(b.hourlyRate).toLocaleString()}/h</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                {/* 効率改善ブランド */}
-                {bottomBrands.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <span className="text-sm">⚠️</span>
-                      <h4 className="text-xs font-bold text-orange-400">
-                        {language === 'en' ? 'Needs Improvement' : '効率改善が必要'}
-                      </h4>
-                    </div>
-                    <div className="space-y-1">
-                      {bottomBrands.map((b: any, i: number) => (
-                        <div key={i} className="flex items-center justify-between bg-orange-500/10 border border-orange-500/20 rounded px-2 py-1.5">
-                          <span className="text-xs text-white">{b.name}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-gray-400">{Math.floor(b.totalMinutes / 60)}h{b.totalMinutes % 60 > 0 ? `${b.totalMinutes % 60}m` : ''}</span>
-                            <span className="text-[10px] font-bold text-orange-400">¥{Number(b.hourlyRate).toLocaleString()}/h</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })()}
         {/* All-time Stats */}
         <Card className="bg-gray-800/30 border-gray-700">
           <CardContent className="p-3">
