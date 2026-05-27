@@ -1006,6 +1006,7 @@ export default function BrandDetail() {
   );
 
   // ノルマ進捗データ取得
+  const [expandedLiverBreakdown, setExpandedLiverBreakdown] = useState<string | null>(null);
   const [quotaMonth] = useState(() => {
     const now = new Date();
     // JST: UTC+9
@@ -2268,6 +2269,23 @@ ${proposal.proposalContent}
                 <Target className="h-5 w-5 text-cyan-400" />
                 {language === 'ja' ? `ノルマ進捗 (${quotaProgress.year}年${quotaProgress.month}月)` : `配额进度 (${quotaProgress.year}年${quotaProgress.month}月)`}
               </h2>
+              {contracts.length > 0 && (
+                <button
+                  onClick={() => {
+                    const activeContract = contracts.find((c: any) => c.status === '契約中');
+                    if (activeContract) {
+                      setEditingContract(activeContract);
+                      setEditContractDialogOpen(true);
+                    } else {
+                      toast.info(language === 'ja' ? 'アクティブな契約がありません' : '没有有效合同');
+                    }
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs hover:bg-cyan-500/20 transition-all"
+                >
+                  <Edit2 className="h-3 w-3" />
+                  {language === 'ja' ? 'ノルマ編集' : '编辑配额'}
+                </button>
+              )}
             </div>
 
             {/* 進捗バー */}
@@ -2392,9 +2410,12 @@ ${proposal.proposalContent}
                       const quotaHours = kolProg ? kolProg.quotaHours : null;
                       const kolPct = kolProg ? kolProg.progressPercent : null;
                       return (
-                        <tr key={idx} className="border-b border-gray-800/50 hover:bg-white/5 transition-colors">
+                        <tr key={idx} className="border-b border-gray-800/50 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setExpandedLiverBreakdown(expandedLiverBreakdown === lb.streamerName ? null : lb.streamerName)}>
                           <td className="p-3">
-                            <span className="text-sm font-medium text-white">{lb.streamerName}</span>
+                            <span className="text-sm font-medium text-white flex items-center gap-1">
+                              <ChevronDown className={`h-3 w-3 text-cyan-400 transition-transform ${expandedLiverBreakdown === lb.streamerName ? 'rotate-180' : ''}`} />
+                              {lb.streamerName}
+                            </span>
                           </td>
                           <td className="p-3">
                             <Badge variant="outline" className={lb.isKg ? 'text-red-400 border-red-500/30' : 'text-blue-400 border-blue-500/30'}>
@@ -2433,6 +2454,37 @@ ${proposal.proposalContent}
                             <span className="text-sm font-medium text-green-400">¥{lb.totalGmv.toLocaleString()}</span>
                           </td>
                         </tr>
+                        {expandedLiverBreakdown === lb.streamerName && (
+                          <tr key={`${idx}-detail`} className="bg-cyan-900/10">
+                            <td colSpan={7} className="p-3">
+                              <div className="text-xs text-gray-400 mb-2">{language === 'ja' ? '📋 配信内訳（なぜこの時間になっているか）' : '📋 直播明细（时长构成）'}</div>
+                              <div className="space-y-1">
+                                {livestreams
+                                  .filter(ls => ls.streamerName === lb.streamerName)
+                                  .sort((a, b) => (b.livestreamDate || '').localeCompare(a.livestreamDate || ''))
+                                  .slice(0, 20)
+                                  .map((ls, lsIdx) => (
+                                    <div key={lsIdx} className="flex items-center justify-between bg-black/30 rounded px-3 py-1.5 hover:bg-cyan-900/20 cursor-pointer" onClick={(e) => { e.stopPropagation(); window.open(`/livestreams/${ls.id}`, '_blank'); }}>
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-xs text-gray-500">{ls.livestreamDate ? new Date(ls.livestreamDate).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'short', day: 'numeric' }) : '-'}</span>
+                                        <span className="text-xs text-yellow-400">{(ls as any).livestreamStartTime || ''}</span>
+                                        <span className="text-xs text-gray-400">{ls.platform || ''}</span>
+                                      </div>
+                                      <div className="flex items-center gap-4">
+                                        <span className="text-xs text-cyan-300">{ls.duration ? `${ls.duration}分` : '-'}</span>
+                                        <span className="text-xs text-green-400">¥{(ls.gmv || ls.salesAmount || 0).toLocaleString()}</span>
+                                        <ExternalLink className="h-3 w-3 text-gray-500" />
+                                      </div>
+                                    </div>
+                                  ))
+                                }
+                                {livestreams.filter(ls => ls.streamerName === lb.streamerName).length === 0 && (
+                                  <div className="text-xs text-gray-600 py-2">{language === 'ja' ? 'このライバーの配信データがありません' : '该主播暂无直播数据'}</div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
                       );
                     })}
                   </tbody>
@@ -3567,7 +3619,7 @@ ${proposal.proposalContent}
                     </tr>
                   ) : (
                     filteredLivestreams.map((ls) => (
-                      <tr key={ls.id} className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors group">
+                      <tr key={ls.id} className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors group cursor-pointer" onClick={() => window.open(`/livestreams/${ls.id}`, '_blank')}>
                         <td className="py-3 px-2 text-gray-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {formatDate(ls.livestreamDate)}
                         </td>
