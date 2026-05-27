@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AIVideoEditorDemo from './AIVideoEditorDemo';
+import VideoUploadCTA from './VideoUploadCTA';
 
 /* ─────────────────────────────────────────────
    AitherHub Landing Page — Ultra Technology Edition
@@ -712,6 +713,13 @@ export default function LandingPage() {
               </p>
             </div>
             <AIVideoEditorDemo />
+          </RevealSection>
+        </section>
+        
+        {/* ═══ VIDEO UPLOAD CTA ═══ */}
+        <section style={{ padding: '80px 24px' }}>
+          <RevealSection>
+            <VideoUploadCTA />
           </RevealSection>
         </section>
         
