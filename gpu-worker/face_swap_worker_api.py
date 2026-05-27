@@ -801,7 +801,7 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
 
         # Step 11: Apply mouth opening AFTER face paste (critical: must be after Step 10)
         # Previously this was in Step 7b which got overwritten by Step 10's alpha blend.
-        if mouth_open > 0.05:
+        if mouth_open > 0.02:
             try:
                 # Determine mouth center and face height
                 # Try 106-point landmarks first, fallback to 5-point kps
@@ -822,8 +822,8 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
                     eye_center = (kps[0] + kps[1]) / 2
                     face_height_px = np.linalg.norm(eye_center - mouth_center_pt) * 2.5
 
-                # Max displacement: 20% of face height (balanced for natural look)
-                max_displacement = face_height_px * 0.20
+                # Max displacement: 25% of face height (more visible lip movement)
+                max_displacement = face_height_px * 0.25
                 displacement = max_displacement * min(1.0, mouth_open)
 
                 # Define the mouth region to deform using cv2.remap for speed
@@ -894,8 +894,8 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
                     )
                     result[y_start:y_end, x_start:x_end] = deformed
 
-                    if mouth_open > 0.3:
-                        logger.debug(f"[LipSync] mouth_open={mouth_open:.3f}, displacement={displacement:.1f}px, face_h={face_height_px:.0f}px")
+                    # Always log lip-sync activity for debugging
+                    logger.info(f"[LipSync] mouth_open={mouth_open:.3f}, displacement={displacement:.1f}px, face_h={face_height_px:.0f}px")
             except Exception as e:
                 logger.warning(f"[LipSync] mouth_open error: {e}")
 

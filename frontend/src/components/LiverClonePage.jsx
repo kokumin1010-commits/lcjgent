@@ -1284,7 +1284,18 @@ export default function LiverClonePage() {
         sourceNode.buffer = audioBuffer;
         sourceNode.connect(ttsCtx.destination);
 
-        // Start lip-sync: send smoothed + interpolated values at 30Hz
+        // Ensure AudioContext is running before starting playback
+        if (ttsCtx.state === "suspended") {
+          await ttsCtx.resume();
+          console.log("[TTS] AudioContext re-resumed before playback");
+        }
+
+        // Start playback FIRST, then start lip-sync with correct timing
+        sourceNode.start(0);
+        ttsAudioRef.current = sourceNode;
+        console.log("[TTS] Audio playback started via AudioBufferSourceNode");
+
+        // Start lip-sync AFTER sourceNode.start so currentTime is advancing
         const startTime = ttsCtx.currentTime;
         let lipSyncActive = true;
         let lipSyncSendCount = 0;
@@ -1309,11 +1320,13 @@ export default function LiverClonePage() {
               console.log(`[LipSync] mouth_open=${mouthOpen.toFixed(3)} chunk=${idx}/${numChunks} elapsed=${elapsed.toFixed(2)}s`);
             }
           } else {
-            console.warn("[LipSync] WebSocket not open, cannot send mouth_open");
+            if (lipSyncSendCount === 0) {
+              console.warn("[LipSync] WebSocket not open, cannot send mouth_open. previewActive:", previewActive);
+            }
           }
         };
         lipSyncIntervalRef.current = setInterval(lipSyncLoop, 33); // 30Hz
-        console.log("[LipSync] Started lip-sync loop (30Hz interval, smoothed)");
+        console.log(`[LipSync] Started lip-sync loop (30Hz, ${numChunks} chunks, duration=${audioBuffer.duration.toFixed(2)}s)`);
 
         const cleanup = () => {
           lipSyncActive = false;
@@ -1346,9 +1359,6 @@ export default function LiverClonePage() {
           cleanup();
         };
 
-        sourceNode.start(0);
-        ttsAudioRef.current = sourceNode;
-        console.log("[TTS] Audio playback started via AudioBufferSourceNode");
       } catch (err) {
         console.error("[TTS] playTTSAudio error:", err);
         resolve();
