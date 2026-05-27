@@ -25233,13 +25233,19 @@ JSON配列のみを出力してください。`;
         const roomId = (result as any)[0].insertId;
         // 自分をメンバーに追加
         await db.execute(sqlTag`
-          INSERT INTO chat_room_members (roomId, userId, userType, userName)
+          INSERT IGNORE INTO chat_room_members (roomId, userId, userType, userName)
           VALUES (${roomId}, ${chatUser.id}, ${chatUser.userType}, ${chatUser.name})
         `);
-        // 他のメンバーを追加
-        for (const member of input.memberIds) {
+        // 他のメンバーを追加（重複除外: 自分自身と同じuserId+userTypeの組み合わせをスキップ）
+        const uniqueMembers = input.memberIds.filter((member, index, self) =>
+          // 自分自身を除外
+          !(member.userId === chatUser.id && member.userType === chatUser.userType) &&
+          // 重複を除外（同じuserId+userTypeの最初の出現のみ保持）
+          index === self.findIndex(m => m.userId === member.userId && m.userType === member.userType)
+        );
+        for (const member of uniqueMembers) {
           await db.execute(sqlTag`
-            INSERT INTO chat_room_members (roomId, userId, userType, userName, userAvatar)
+            INSERT IGNORE INTO chat_room_members (roomId, userId, userType, userName, userAvatar)
             VALUES (${roomId}, ${member.userId}, ${member.userType}, ${member.userName || ''}, ${member.userAvatar || null})
           `);
         }
@@ -25301,9 +25307,12 @@ JSON配列のみを出力してください。`;
         const liverList = await db.execute(sqlTag`
           SELECT id, name, email, avatarUrl, 'liver' as userType FROM livers WHERE isActive = 1 AND (name LIKE ${q} OR email LIKE ${q} OR tiktokAccount LIKE ${q}) LIMIT 50
         `);
+        // 重複除外: 同じemailのユーザーがstaffとliversの両方にいる場合、staffを優先
+        const staffEmails = new Set(((staffList as any)[0] || []).map((s: any) => s.email?.toLowerCase()).filter(Boolean));
+        const filteredLivers = ((liverList as any)[0] || []).filter((l: any) => !l.email || !staffEmails.has(l.email.toLowerCase()));
         return {
           staff: (staffList as any)[0] || [],
-          livers: (liverList as any)[0] || [],
+          livers: filteredLivers,
         };
       }),
     // ルーム名変更
