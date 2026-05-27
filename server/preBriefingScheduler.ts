@@ -16,7 +16,7 @@ import { getDb } from "./db";
 import { schedules, livers, brandLivestreams, brands, aiCoachMessages, aiCoachRooms } from "../drizzle/schema";
 import { and, eq, gte, lte, isNull, not, desc, sql } from "drizzle-orm";
 import { pushMessage } from "./line";
-import { getLiverMonthlySummaryV2, getLiverMonthlyGoalByName, getRecentTopProductsForLiver } from "./db";
+import { getLiverMonthlySummaryV2, getLiverMonthlyGoalByName, getRecentTopProductsForLiver, getLiverBrandDurationStats, getLiverPreviousLivestream } from "./db";
 import { invokeLLM } from "./_core/llm";
 
 const LOG_PREFIX = "[Pre-Briefing]";
@@ -179,15 +179,21 @@ async function getLastImprovementPoint(liverName: string): Promise<string | null
  */
 async function buildBriefingMessage(
   liverName: string,
-  schedule: { startTime: Date; endTime: Date | null; title: string }
+  schedule: { startTime: Date; endTime: Date | null; title: string },
+  liverId?: number | null
 ): Promise<string> {
+  // Get current year-month in JST
+  const jstNow = getJSTNow();
+  const yearMonth = `${jstNow.getUTCFullYear()}-${String(jstNow.getUTCMonth() + 1).padStart(2, '0')}`;
+
   // Gather data
-  const [monthlySummary, monthlyGoal, topProducts, timeSlotPerf, lastImprovement] = await Promise.all([
+  const [monthlySummary, monthlyGoal, topProducts, timeSlotPerf, lastImprovement, brandStats] = await Promise.all([
     getLiverMonthlySummaryV2(liverName).catch(() => null),
     getLiverMonthlyGoalByName(liverName).catch(() => null),
     getRecentTopProductsForLiver(liverName, 7, 3).catch(() => []),
     getSameTimeSlotPerformance(liverName, new Date(schedule.startTime.getTime() + 9 * 60 * 60 * 1000).getUTCHours()).catch(() => null),
     getLastImprovementPoint(liverName).catch(() => null),
+    liverId ? getLiverBrandDurationStats(liverId, yearMonth).catch(() => []) : Promise.resolve([]),
   ]);
 
   const startTimeStr = schedule.startTime.toLocaleTimeString("ja-JP", {
@@ -256,6 +262,35 @@ async function buildBriefingMessage(
     msg += `\n💡 前回の改善ポイント:\n${lastImprovement.slice(0, 150)}\n`;
   }
 
+  // ブランド別推奨配分（時間単価順TOP3）
+  if (brandStats && brandStats.length > 0) {
+    const topBrands = brandStats
+      .filter((b: any) => b.csvGmv > 0 && b.totalMinutes >= 30 && b.hourlyRate > 0)
+      .sort((a: any, b: any) => b.hourlyRate - a.hourlyRate)
+      .slice(0, 3);
+    
+    if (topBrands.length > 0) {
+      msg += `\n🏷️ 推奨ブランド配分 (時間単価順):\n`;
+      const totalRate = topBrands.reduce((s: number, b: any) => s + b.hourlyRate, 0);
+      topBrands.forEach((b: any, i: number) => {
+        const pct = Math.round((b.hourlyRate / totalRate) * 100);
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
+        msg += `${medal} ${b.brandName}: ¥${b.hourlyRate.toLocaleString()}/h (${pct}%配分推奨)\n`;
+      });
+    }
+  }
+
+  // 前回配信からの経過日数
+  if (liverId) {
+    try {
+      const prevStream = await getLiverPreviousLivestream(liverId, 0);
+      if (prevStream) {
+        // getLiverPreviousLivestreamは currentLivestreamId=0 で最新の配信を取得
+        // 注: この関数は id != 0 の条件で最新を返す
+      }
+    } catch {}
+  }
+
   msg += `\n━━━━━━━━━━━━━━━\n`;
   msg += `💪 今日も最高の配信にしましょう！\n`;
   msg += `💬 相談 → https://lcjmall.com/liver/coach`;
@@ -289,7 +324,7 @@ async function checkAndSendBriefings(): Promise<void> {
         if (sentBriefings.has(briefingKey)) continue;
 
         const liverName = schedule.liverName || schedule.title;
-        const { lineUserId } = await getLiverLineUserId(liverName);
+        const { lineUserId, liverId: resolvedLiverId } = await getLiverLineUserId(liverName);
         
         if (!lineUserId) {
           console.log(`${LOG_PREFIX} No lineUserId for ${liverName}, skipping 1h briefing`);
@@ -298,7 +333,7 @@ async function checkAndSendBriefings(): Promise<void> {
         }
 
         console.log(`${LOG_PREFIX} Sending 1h briefing to ${liverName}...`);
-        const message = await buildBriefingMessage(liverName, schedule);
+        const message = await buildBriefingMessage(liverName, schedule, resolvedLiverId);
         const success = await pushMessage(lineUserId, [{ type: "text", text: message }]);
         
         if (success) {
