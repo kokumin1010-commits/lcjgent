@@ -18,7 +18,7 @@ import {
   MessageCircle, Send, Plus, Users, Image as ImageIcon, Paperclip, FileText,
   Search, X, Edit2, UserPlus, ArrowLeft, Loader2, Check, User,
   Bold, Italic, Strikethrough, UnderlineIcon, List, ListOrdered,
-  Quote, Code, Link as LinkIcon, Maximize2, Minimize2, Languages, Copy, Share2
+  Quote, Code, Link as LinkIcon, Maximize2, Minimize2, Languages, Copy, Share2, Link2
 } from "lucide-react";
 
 // ===== Rich Text Editor Toolbar =====
@@ -526,38 +526,31 @@ export default function Chat() {
               </Badge>
             </div>
           )}
-          {/* 招待リンク */}
+          {/* 招待リンク（友達追加） */}
           {myInfo && (
             <div className="mt-2 space-y-1.5">
               <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
-                <Share2 className="h-3 w-3" /> 招待リンク
+                <Share2 className="h-3 w-3" /> 友達追加リンク
               </p>
-              <div className="flex items-center gap-1 bg-blue-50 dark:bg-blue-950/30 rounded px-2 py-1.5">
-                <Badge variant="outline" className="text-[9px] px-1 py-0 border-blue-300 text-blue-700 shrink-0">本部</Badge>
-                <span className="text-[10px] text-muted-foreground truncate flex-1">lcjmall.com/login?redirect=...</span>
+              <div className="flex items-center gap-1 bg-purple-50 dark:bg-purple-950/30 rounded px-2 py-1.5">
+                <Badge variant="outline" className="text-[9px] px-1 py-0 border-purple-300 text-purple-700 shrink-0">
+                  {myInfo.userType === "staff" ? "本部" : "ライバー"}
+                </Badge>
+                <span className="text-[10px] text-muted-foreground truncate flex-1">
+                  lcjmall.com/chat/invite/{myInfo.userType}/{myInfo.id}
+                </span>
                 <button
-                  className="shrink-0 p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 rounded transition-colors"
+                  className="shrink-0 p-0.5 hover:bg-purple-100 dark:hover:bg-purple-900 rounded transition-colors"
                   onClick={() => {
-                    navigator.clipboard.writeText("https://lcjmall.com/login?redirect=%2Fmaster");
-                    toast.success("本部リンクをコピーしました");
+                    const link = `https://lcjmall.com/chat/invite/${myInfo.userType}/${myInfo.id}`;
+                    navigator.clipboard.writeText(link);
+                    toast.success("友達追加リンクをコピーしました");
                   }}
                 >
-                  <Copy className="h-3 w-3 text-blue-600" />
+                  <Copy className="h-3 w-3 text-purple-600" />
                 </button>
               </div>
-              <div className="flex items-center gap-1 bg-green-50 dark:bg-green-950/30 rounded px-2 py-1.5">
-                <Badge variant="outline" className="text-[9px] px-1 py-0 border-green-300 text-green-700 shrink-0">ライバー</Badge>
-                <span className="text-[10px] text-muted-foreground truncate flex-1">lcjmall.com/liver/register</span>
-                <button
-                  className="shrink-0 p-0.5 hover:bg-green-100 dark:hover:bg-green-900 rounded transition-colors"
-                  onClick={() => {
-                    navigator.clipboard.writeText("https://lcjmall.com/liver/register");
-                    toast.success("ライバーリンクをコピーしました");
-                  }}
-                >
-                  <Copy className="h-3 w-3 text-green-600" />
-                </button>
-              </div>
+              <p className="text-[9px] text-muted-foreground">このリンクを共有すると、相手があなたとDMを開始できます</p>
             </div>
           )}
         </div>
@@ -652,6 +645,23 @@ export default function Chat() {
                     </Button>
                     <Button variant="ghost" size="icon" onClick={() => { setSelectedMembers([]); setSearchQuery(""); setShowAddMembers(true); }} title="メンバー追加">
                       <UserPlus className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={async () => {
+                      try {
+                        const result = await fetch(`/api/trpc/chat.getGroupInviteCode?input=${encodeURIComponent(JSON.stringify({ roomId: selectedRoomId }))}`).then(r => r.json());
+                        const inviteCode = result?.result?.data?.inviteCode;
+                        if (inviteCode) {
+                          const link = `https://lcjmall.com/chat/invite/group/${selectedRoomId}/${inviteCode}`;
+                          navigator.clipboard.writeText(link);
+                          toast.success("グループ招待リンクをコピーしました");
+                        } else {
+                          toast.error("招待リンクの生成に失敗しました");
+                        }
+                      } catch (e) {
+                        toast.error("招待リンクの生成に失敗しました");
+                      }
+                    }} title="招待リンク">
+                      <Link2 className="h-4 w-4" />
                     </Button>
                   </>
                 )}
