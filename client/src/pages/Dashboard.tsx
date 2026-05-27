@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClipboardList, Clock, CheckCircle2, Plus, AlertTriangle, FileText, ShoppingBag, Store, MessageCircle } from "lucide-react";
+import { ClipboardList, Clock, CheckCircle2, Plus, AlertTriangle, FileText, ShoppingBag, Store, MessageCircle, Brain, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -62,58 +62,27 @@ export default function Dashboard() {
         </Button>
       </div>
 
-      <div className="grid gap-4 grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t("tasks.all")}</CardTitle>
-            <ClipboardList className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {isLoading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{taskStats.total}</div>}
-          </CardContent>
-        </Card>
-
-        <Card 
-          className="cursor-pointer hover:bg-accent transition-colors"
-          onClick={() => setLocation("/master/tasks?status=in_progress")}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t("dashboard.inProgress")}</CardTitle>
-            <Clock className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            {isLoading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold text-blue-500">{taskStats.inProgress}</div>}
-          </CardContent>
-        </Card>
-
-        <Card 
-          className="cursor-pointer hover:bg-accent transition-colors"
-          onClick={() => setLocation("/master/tasks?status=completed")}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t("dashboard.completed")}</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            {isLoading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold text-green-500">{taskStats.completed}</div>}
-          </CardContent>
-        </Card>
-
-        <Card 
-          className="cursor-pointer hover:bg-accent transition-colors border-red-200"
-          onClick={() => setLocation("/master/tasks?overdue=true")}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t("dashboard.overdue")}</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            {isLoading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold text-red-500">{stats?.overdueTasks?.length || 0}</div>}
-          </CardContent>
-        </Card>
-
-
-      </div>
+      {/* LCJ Brain ショートカット */}
+      <Card 
+        className="cursor-pointer group hover:shadow-lg transition-all duration-200 border-purple-200 dark:border-purple-800 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30"
+        onClick={() => setLocation("/master/lcj-brain")}
+      >
+        <CardContent className="flex items-center gap-4 p-4">
+          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-md group-hover:scale-105 transition-transform">
+            <Brain className="h-6 w-6 text-white" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-lg text-purple-900 dark:text-purple-100">LCJ Brain</span>
+              <Sparkles className="h-4 w-4 text-yellow-500" />
+            </div>
+            <p className="text-sm text-muted-foreground">AIアシスタントに質問・相談する</p>
+          </div>
+          <div className="text-purple-400 group-hover:translate-x-1 transition-transform">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Chat Section */}
       <ChatSection />
