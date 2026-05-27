@@ -46,6 +46,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
   const [selectedTrendMonth, setSelectedTrendMonth] = useState<string | null>(monthOptions[0].value);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [expandedBrand, setExpandedBrand] = useState<string | null>(null);
+  const [brandSectionOpen, setBrandSectionOpen] = useState(true);
   
   const { data: rankings, isLoading } = trpc.liverManagement.rankings.useQuery({
     month: selectedMonth,
@@ -422,11 +423,16 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                 const totalAllMinutes = sortedBrands.reduce((sum, b) => sum + b.totalMinutes, 0);
                 return (
                   <div className="mt-5 pt-4 border-t border-white/10">
-                    <h3 className="text-sm text-white/90 flex items-center gap-1.5 mb-3">
+                    <h3 
+                      className="text-sm text-white/90 flex items-center gap-1.5 mb-3 cursor-pointer select-none hover:text-white transition-colors"
+                      onClick={() => setBrandSectionOpen(!brandSectionOpen)}
+                    >
+                      <span className={`transition-transform duration-200 ${brandSectionOpen ? 'rotate-90' : ''}`}>▶</span>
                       🏷️ 今月のブランド別配信時間
                       <span className="text-[10px] text-white/40 ml-1">合計: {Math.floor(totalAllMinutes / 60)}h{totalAllMinutes % 60 > 0 ? `${totalAllMinutes % 60}m` : ''}</span>
+                      <span className="text-[10px] text-white/30 ml-auto">{brandSectionOpen ? 'タップで閉じる' : 'タップで開く'}</span>
                     </h3>
-                    <div className="space-y-1.5">
+                    {brandSectionOpen && <div className="space-y-1.5">
                       {sortedBrands.map((brand) => {
                         const maxMinutes = sortedBrands[0].totalMinutes;
                         const barWidth = maxMinutes > 0 ? (brand.totalMinutes / maxMinutes) * 100 : 0;
@@ -494,7 +500,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                           </div>
                         );
                       })}
-                    </div>
+                    </div>}
                   </div>
                 );
               })()}
