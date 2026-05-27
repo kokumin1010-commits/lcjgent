@@ -345,14 +345,16 @@ export default function Chat() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedRoomId) return;
-    const allowedTypes = ["image/", "application/pdf", "text/", "application/json"];
-    const isAllowed = allowedTypes.some(t => file.type.startsWith(t));
+    const allowedTypes = ["image/", "application/pdf", "text/", "application/json", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/csv", "application/zip", "application/x-zip-compressed", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "application/vnd.ms-powerpoint"];
+    const allowedExtensions = [".csv", ".xlsx", ".xls", ".pdf", ".txt", ".json", ".md", ".doc", ".docx", ".ppt", ".pptx", ".zip"];
+    const ext = "." + (file.name.split(".").pop()?.toLowerCase() || "");
+    const isAllowed = allowedTypes.some(t => file.type.startsWith(t)) || allowedExtensions.includes(ext);
     if (!isAllowed) {
-      toast.error("画像、PDF、テキストファイルのみアップロードできます");
+      toast.error("対応ファイル: 画像, PDF, CSV, Excel, Word, PowerPoint, テキスト, ZIP");
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("ファイルサイズは10MB以下にしてください");
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("ファイルサイズは50MB以下にしてください");
       return;
     }
     setUploading(true);
@@ -791,7 +793,7 @@ export default function Chat() {
                   type="file"
                   ref={fileInputRef}
                   className="hidden"
-                  accept="image/*,.pdf,.txt,.json,.csv,.md"
+                  accept="image/*,.pdf,.txt,.json,.csv,.md,.xlsx,.xls,.doc,.docx,.ppt,.pptx,.zip"
                   onChange={handleFileUpload}
                 />
                 <Button
@@ -799,7 +801,7 @@ export default function Chat() {
                   size="icon"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
-                  title="ファイルを送信（画像・PDF・テキスト）"
+                  title="ファイルを送信（画像・PDF・CSV・Excel・Word・テキスト等）"
                   className="shrink-0"
                 >
                   {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}

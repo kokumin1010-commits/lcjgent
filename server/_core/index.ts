@@ -2044,33 +2044,85 @@ async function startServer() {
       
       // For PDFs, extract text
       if (file.mimetype === "application/pdf") {
+        const pdfFileKey = `chat-uploads/${nanoid()}.pdf`;
+        const pdfUploadResult = await storagePut(pdfFileKey, file.buffer, file.mimetype);
+        let pdfText = "";
         try {
           const pdfParseModule = await import("pdf-parse");
           const pdfParse = pdfParseModule.default || pdfParseModule;
           const pdfData = await pdfParse(file.buffer);
-          return res.json({
-            type: "document",
-            textContent: pdfData.text,
-            fileName: decodedFileName,
-            mimeType: file.mimetype,
-          });
+          pdfText = pdfData.text?.slice(0, 50000) || "";
         } catch (e: any) {
-          return res.status(400).json({ error: "PDF解析に失敗しました" });
+          // PDF text extraction failed, but file is still uploaded
         }
-      }
-      
-      // For text files
-      if (file.mimetype.startsWith("text/") || file.mimetype === "application/json") {
         return res.json({
-          type: "document",
-          textContent: file.buffer.toString("utf-8"),
+          type: "file",
+          url: pdfUploadResult.url,
+          textContent: pdfText,
           fileName: decodedFileName,
           mimeType: file.mimetype,
         });
       }
       
-      // Unsupported file type
-      res.status(400).json({ error: "サポートされていないファイル形式です。画像、PDF、テキストファイルのみ対応しています。" });
+      // For CSV files - upload to storage for download + extract text for AI
+      const csvMimeTypes = ["text/csv", "application/csv", "application/vnd.ms-excel"];
+      const fileExt = (file.originalname.split(".").pop() || "").toLowerCase();
+      if (csvMimeTypes.includes(file.mimetype) || fileExt === "csv") {
+        const fileKey = `chat-uploads/${nanoid()}.csv`;
+        const result = await storagePut(fileKey, file.buffer, "text/csv");
+        return res.json({
+          type: "file",
+          url: result.url,
+          fileName: decodedFileName,
+          mimeType: "text/csv",
+          textContent: file.buffer.toString("utf-8").slice(0, 50000),
+        });
+      }
+      
+      // For text files
+      if (file.mimetype.startsWith("text/") || file.mimetype === "application/json") {
+        const fileKey = `chat-uploads/${nanoid()}.${fileExt || "txt"}`;
+        const result = await storagePut(fileKey, file.buffer, file.mimetype);
+        return res.json({
+          type: "file",
+          url: result.url,
+          fileName: decodedFileName,
+          mimeType: file.mimetype,
+          textContent: file.buffer.toString("utf-8").slice(0, 50000),
+        });
+      }
+      
+      // For Excel, Word, PowerPoint, ZIP, PDF and other binary files - upload to storage
+      const binaryFileTypes = [
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/msword",
+        "application/vnd.ms-powerpoint",
+        "application/zip",
+        "application/x-zip-compressed",
+      ];
+      const binaryExtensions = ["xlsx", "xls", "doc", "docx", "ppt", "pptx", "zip"];
+      if (binaryFileTypes.includes(file.mimetype) || binaryExtensions.includes(fileExt)) {
+        const fileKey = `chat-uploads/${nanoid()}.${fileExt || "bin"}`;
+        const result = await storagePut(fileKey, file.buffer, file.mimetype);
+        return res.json({
+          type: "file",
+          url: result.url,
+          fileName: decodedFileName,
+          mimeType: file.mimetype,
+        });
+      }
+      
+      // Unsupported file type - still try to upload to storage
+      const fallbackKey = `chat-uploads/${nanoid()}.${fileExt || "bin"}`;
+      const fallbackResult = await storagePut(fallbackKey, file.buffer, file.mimetype || "application/octet-stream");
+      res.json({
+        type: "file",
+        url: fallbackResult.url,
+        fileName: decodedFileName,
+        mimeType: file.mimetype || "application/octet-stream",
+      });
     } catch (error: any) {
       console.error("[Chat File Upload] Error:", error.message);
       res.status(500).json({ error: "ファイルアップロードに失敗しました" });
