@@ -23187,6 +23187,27 @@ export async function createMasterSetSuggestionItems(items: InsertMasterSetSugge
 }
 
 /**
+ * Update a master set suggestion item (individual product price/name/quantity)
+ */
+export async function updateMasterSetSuggestionItem(id: number, data: { productName?: string; originalPrice?: number; quantity?: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(masterSetSuggestionItems).set(data).where(eq(masterSetSuggestionItems.id, id));
+}
+
+/**
+ * Replace all items for a suggestion (delete + re-insert)
+ */
+export async function replaceMasterSetSuggestionItems(suggestionId: number, items: InsertMasterSetSuggestionItem[]) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(masterSetSuggestionItems).where(eq(masterSetSuggestionItems.suggestionId, suggestionId));
+  if (items.length > 0) {
+    await db.insert(masterSetSuggestionItems).values(items);
+  }
+}
+
+/**
  * Update a master set suggestion
  */
 export async function updateMasterSetSuggestion(id: number, data: Partial<InsertMasterSetSuggestion>) {

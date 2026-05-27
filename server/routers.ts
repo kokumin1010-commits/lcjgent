@@ -643,6 +643,8 @@ import {
   createMasterSetSuggestion,
   createMasterSetSuggestionItems,
   updateMasterSetSuggestion,
+  updateMasterSetSuggestionItem,
+  replaceMasterSetSuggestionItems,
   deleteMasterSetSuggestion,
   createMasterSetAdoption,
   getLiverAdoptions,
@@ -24600,6 +24602,52 @@ ${topProductsContext}
         if (data.validFrom !== undefined) updateData.validFrom = data.validFrom ? new Date(data.validFrom) : null;
         if (data.validUntil !== undefined) updateData.validUntil = data.validUntil ? new Date(data.validUntil) : null;
         await updateMasterSetSuggestion(id, updateData);
+        return { success: true };
+      }),
+    // 管理者: 個別アイテム更新（価格・商品名・数量）
+    updateItem: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        productName: z.string().optional(),
+        originalPrice: z.number().optional(),
+        quantity: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await updateMasterSetSuggestionItem(id, data);
+        return { success: true };
+      }),
+    // 管理者: セットのアイテム一括更新（価格変更後の再計算含む）
+    updateItems: protectedProcedure
+      .input(z.object({
+        suggestionId: z.number(),
+        items: z.array(z.object({
+          productName: z.string(),
+          originalPrice: z.number(),
+          quantity: z.number().default(1),
+          sortOrder: z.number().default(0),
+        })),
+        suggestedPrice: z.number().optional(),
+        suggestedDiscountRate: z.number().optional(),
+        totalOriginalPrice: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { suggestionId, items, suggestedPrice, suggestedDiscountRate, totalOriginalPrice } = input;
+        await replaceMasterSetSuggestionItems(suggestionId, items.map((item, idx) => ({
+          suggestionId,
+          productName: item.productName,
+          originalPrice: item.originalPrice,
+          quantity: item.quantity,
+          sortOrder: idx,
+        })));
+        // Update parent suggestion prices if provided
+        const updateData: any = {};
+        if (suggestedPrice !== undefined) updateData.suggestedPrice = suggestedPrice;
+        if (suggestedDiscountRate !== undefined) updateData.suggestedDiscountRate = suggestedDiscountRate;
+        if (totalOriginalPrice !== undefined) updateData.totalOriginalPrice = totalOriginalPrice;
+        if (Object.keys(updateData).length > 0) {
+          await updateMasterSetSuggestion(suggestionId, updateData);
+        }
         return { success: true };
       }),
     // 管理者: 提案削除

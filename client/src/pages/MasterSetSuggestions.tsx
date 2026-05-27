@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Sparkles, Plus, Trash2, Archive, CheckCircle, Package, TrendingUp, Users, ChevronDown, ChevronUp, ArrowRight, Calendar, Search, ThumbsUp, ThumbsDown, Star, MessageSquare, BarChart3, Brain, X } from "lucide-react";
+import { Sparkles, Plus, Trash2, Archive, CheckCircle, Package, TrendingUp, Users, ChevronDown, ChevronUp, ArrowRight, Calendar, Search, ThumbsUp, ThumbsDown, Star, MessageSquare, BarChart3, Brain, X, Pencil, Save } from "lucide-react";
 
 export default function MasterSetSuggestions() {
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -118,6 +118,21 @@ export default function MasterSetSuggestions() {
     },
     onError: (e) => toast.error(e.message),
   });
+  
+  const updateItemsMutation = trpc.masterSetSuggestion.updateItems.useMutation({
+    onSuccess: () => {
+      toast.success("商品価格を更新しました");
+      suggestionsQuery.refetch();
+      setEditingSetId(null);
+      setEditingItems([]);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  
+  // インライン編集state
+  const [editingSetId, setEditingSetId] = useState<number | null>(null);
+  const [editingItems, setEditingItems] = useState<{productName: string; originalPrice: string; quantity: string}[]>([]);
+  const [editingSuggestedPrice, setEditingSuggestedPrice] = useState("");
   
   const aiGenerateMutation = trpc.masterSetSuggestion.aiGenerate.useMutation({
     onSuccess: (data) => {
@@ -705,15 +720,138 @@ export default function MasterSetSuggestions() {
                     );
                   })()}
                   
-                  {/* Items */}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {(s.items || []).map((item: any, idx: number) => (
-                      <span key={idx} className="px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded font-medium">
-                        {item.productName} ¥{Number(item.originalPrice || 0).toLocaleString()}
-                        {item.quantity > 1 && ` ×${item.quantity}`}
-                      </span>
-                    ))}
-                  </div>
+                  {/* Items - インライン編集対応 */}
+                  {editingSetId === s.id ? (
+                    <div className="mt-3 space-y-2 bg-slate-900/50 border border-blue-500/30 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-blue-300 font-medium">編集中</span>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              const totalOriginal = editingItems.reduce((sum, i) => sum + (Number(i.originalPrice) || 0) * (Number(i.quantity) || 1), 0);
+                              const price = Number(editingSuggestedPrice) || Number(s.suggestedPrice);
+                              const discountRate = totalOriginal > 0 ? Math.round((1 - price / totalOriginal) * 100) : 0;
+                              updateItemsMutation.mutate({
+                                suggestionId: s.id,
+                                items: editingItems.map((item, idx) => ({
+                                  productName: item.productName,
+                                  originalPrice: Number(item.originalPrice) || 0,
+                                  quantity: Number(item.quantity) || 1,
+                                  sortOrder: idx,
+                                })),
+                                suggestedPrice: price,
+                                suggestedDiscountRate: discountRate,
+                                totalOriginalPrice: totalOriginal,
+                              });
+                            }}
+                            disabled={updateItemsMutation.isPending}
+                            className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-500 flex items-center gap-1"
+                          >
+                            <Save className="w-3 h-3" /> 保存
+                          </button>
+                          <button
+                            onClick={() => { setEditingSetId(null); setEditingItems([]); }}
+                            className="px-2 py-1 bg-slate-600 text-white text-xs rounded hover:bg-slate-500"
+                          >
+                            キャンセル
+                          </button>
+                        </div>
+                      </div>
+                      {editingItems.map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={item.productName}
+                            onChange={(e) => {
+                              const newItems = [...editingItems];
+                              newItems[idx].productName = e.target.value;
+                              setEditingItems(newItems);
+                            }}
+                            className="flex-1 px-2 py-1 bg-slate-800 border border-slate-600 rounded text-sm text-white"
+                            placeholder="商品名"
+                          />
+                          <input
+                            type="number"
+                            value={item.originalPrice}
+                            onChange={(e) => {
+                              const newItems = [...editingItems];
+                              newItems[idx].originalPrice = e.target.value;
+                              setEditingItems(newItems);
+                            }}
+                            className="w-24 px-2 py-1 bg-slate-800 border border-slate-600 rounded text-sm text-white"
+                            placeholder="価格"
+                          />
+                          <input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const newItems = [...editingItems];
+                              newItems[idx].quantity = e.target.value;
+                              setEditingItems(newItems);
+                            }}
+                            className="w-14 px-2 py-1 bg-slate-800 border border-slate-600 rounded text-sm text-white"
+                            placeholder="数"
+                          />
+                          <button
+                            onClick={() => {
+                              const newItems = editingItems.filter((_, i) => i !== idx);
+                              setEditingItems(newItems);
+                            }}
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => setEditingItems([...editingItems, { productName: "", originalPrice: "", quantity: "1" }])}
+                        className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" /> 商品追加
+                      </button>
+                      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-700">
+                        <span className="text-xs text-slate-400">売値:</span>
+                        <input
+                          type="number"
+                          value={editingSuggestedPrice}
+                          onChange={(e) => setEditingSuggestedPrice(e.target.value)}
+                          className="w-24 px-2 py-1 bg-slate-800 border border-slate-600 rounded text-sm text-cyan-300"
+                        />
+                        <span className="text-xs text-slate-400">
+                          元値合計: ¥{editingItems.reduce((sum, i) => sum + (Number(i.originalPrice) || 0) * (Number(i.quantity) || 1), 0).toLocaleString()}
+                          {" | "}割引: {(() => {
+                            const total = editingItems.reduce((sum, i) => sum + (Number(i.originalPrice) || 0) * (Number(i.quantity) || 1), 0);
+                            const price = Number(editingSuggestedPrice) || 0;
+                            return total > 0 ? Math.round((1 - price / total) * 100) : 0;
+                          })()}%OFF
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-3 flex flex-wrap gap-2 items-center">
+                      {(s.items || []).map((item: any, idx: number) => (
+                        <span key={idx} className="px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded font-medium">
+                          {item.productName} ¥{Number(item.originalPrice || 0).toLocaleString()}
+                          {item.quantity > 1 && ` ×${item.quantity}`}
+                        </span>
+                      ))}
+                      <button
+                        onClick={() => {
+                          setEditingSetId(s.id);
+                          setEditingItems((s.items || []).map((item: any) => ({
+                            productName: item.productName || "",
+                            originalPrice: String(item.originalPrice || ""),
+                            quantity: String(item.quantity || "1"),
+                          })));
+                          setEditingSuggestedPrice(String(s.suggestedPrice || ""));
+                        }}
+                        className="p-1 text-slate-400 hover:text-blue-400 transition"
+                        title="商品・価格を編集"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                   
                   {s.aiReasoning && (
                     <div className="mt-2 text-xs text-slate-400 border-t border-slate-600 pt-2">
