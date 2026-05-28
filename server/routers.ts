@@ -9100,6 +9100,58 @@ Return ONLY valid JSON, no markdown or explanation.`,
         await migrateBusinessCardsCrmColumns();
         return { success: true, message: "CRM migration completed" };
       }),
+    // ===== 営業メール: リードへのテンプレート一斉送信 =====
+    sendEmailToLeads: protectedProcedure
+      .input(z.object({
+        emails: z.array(z.object({ email: z.string(), displayName: z.string() })),
+        subject: z.string().min(1),
+        content: z.string().min(1),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { sendEmail } = await import("./emailService");
+        let sentCount = 0;
+        const errors: string[] = [];
+
+        // バッチ送信（10件ずつ）
+        for (let i = 0; i < input.emails.length; i += 10) {
+          const batch = input.emails.slice(i, i + 10);
+          for (const lead of batch) {
+            try {
+              const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, lead.displayName || "ご担当者様");
+              const personalizedContent = `${lead.displayName || "ご担当者"}様\n\n${input.content}\n\n---\nKYOGOKU PROFESSIONAL\n大久保\ninfo@kyogokupro.com`;
+              await sendEmail({
+                to: [lead.email],
+                subject: personalizedSubject,
+                content: personalizedContent,
+              });
+              sentCount++;
+            } catch (e: any) {
+              errors.push(`${lead.email}: ${e.message}`);
+            }
+          }
+          // レートリミット対策: 10件ごとに1秒待機
+          if (i + 10 < input.emails.length) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+
+        // Activity log
+        await createActivityLog({
+          userId: ctx.user.id,
+          actionType: "lead_bulk_email",
+          actionLabel: "リード一斉メール送信",
+          targetType: "lead",
+          targetName: `${sentCount}件に送信`,
+          metadata: {
+            totalAttempted: input.emails.length,
+            sentCount,
+            errorCount: errors.length,
+            subject: input.subject,
+          },
+        });
+
+        return { success: true, sentCount, errors: errors.slice(0, 5) };
+      }),
   }),
   // Activity Log Router
   activityLog: router({

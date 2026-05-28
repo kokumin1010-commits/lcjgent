@@ -2388,6 +2388,19 @@ async function startServer() {
       });
     });
 
+    // CRM tables migration (call_logs, sales_activities, business_cards CRM columns)
+    import("../db").then(({ migrateCallLogsTable, migrateSalesActivitiesTable, migrateBusinessCardsCrmColumns }) => {
+      migrateCallLogsTable().catch((err: unknown) => {
+        console.error("[Migration] call_logs table error:", err);
+      });
+      migrateSalesActivitiesTable().catch((err: unknown) => {
+        console.error("[Migration] sales_activities table error:", err);
+      });
+      migrateBusinessCardsCrmColumns().catch((err: unknown) => {
+        console.error("[Migration] business_cards CRM columns error:", err);
+      });
+    });
+
     // Seed popup variants on startup (idempotent - only inserts if table is empty)
     import("../db").then(({ seedPopupVariants }) => {
       seedPopupVariants().then((result: { seeded: boolean; count: number }) => {

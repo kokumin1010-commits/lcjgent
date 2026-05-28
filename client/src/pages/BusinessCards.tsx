@@ -426,9 +426,9 @@ export default function BusinessCards() {
   const [csvResult, setCsvResult] = useState<{ imported: number; skipped: number; duplicates: string[] } | null>(null);
 
   // Email state
-  const [emailSubject, setEmailSubject] = useState("");
-  const [emailContent, setEmailContent] = useState("");
-
+    const [emailSubject, setEmailSubject] = useState("{{displayName}}へ — HYDE起用ブランドのお取引のご相談");
+  const [emailContent, setEmailContent] = useState("突然のご連絡失礼いたします。\nKYOGOKU PROFESSIONALの大久保と申します。\n\n貴社のことを拝見し、ぜひ一度弊社製品のご紹介をさせていただきたくご連絡いたしました。\n\n弊社はHYDEをグローバルアンバサダーに迎え、\nプロフェッショナル向けヘアケア・カラー剤・スキンケア・美顔器や\nヘアアイロンなどを展開しております。\nおかげさまで全国のサロン様に多数ご導入いただき、\n「お客様から指名が増えた」「リピート率が上がった」\nといったお声を多くいただいております。\n\n■ 15分のオンラインご紹介のお願い\nお忙しいところ恐縮ですが、\nZoomまたはGoogle Meetにて15分ほどお時間をいただき、\n貴社に合った商品ラインナップをご紹介させていただけないでしょうか。\n\nもちろん、ご紹介後に無料サンプルもお送りいたします。\n\nご都合の良い日時を2〜3候補いただければ、\nこちらで調整します。\n\nご多忙のところ恐れ入りますが、\nご検討いただけますと幸いです。");
+  const [emailTemplateMode, setEmailTemplateMode] = useState<"edit" | "preview">("edit");
   // Phone state
   const [phoneMemo, setPhoneMemo] = useState("");
   const [phoneResult, setPhoneResult] = useState<string>("answered");
@@ -528,6 +528,25 @@ export default function BusinessCards() {
     },
     onError: (error) => toast.error(error.message),
   });
+
+  // Send email to leads mutation
+  const sendToLeadsMutation = trpc.businessCard.sendEmailToLeads.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.sentCount}件のリードにメール送信完了`);
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const handleSendToLeads = () => {
+    if (!emailSubject || !emailContent) return;
+    const leadsWithEmail = leadResults.filter(l => l.email);
+    if (leadsWithEmail.length === 0) return;
+    sendToLeadsMutation.mutate({
+      emails: leadsWithEmail.map(l => ({ email: l.email!, displayName: l.companyName || "" })),
+      subject: emailSubject,
+      content: emailContent,
+    });
+  };
 
   // Load lead stats from Sales Dash API
   useEffect(() => {
@@ -799,12 +818,12 @@ export default function BusinessCards() {
     }
     if (statusFilter !== "all") {
       result = result.filter((c) => {
-        const cardStatus = c.tags?.find((t: string) => t.startsWith("status:"))?.replace("status:", "") || "new";
+        const cardStatus = getCardStatus(c);
         return cardStatus === statusFilter;
       });
     }
     return result;
-  }, [cards, companyFilter, statusFilter]);
+  }, [cards, companyFilter, statusFilter, getCardStatus]);
 
   const cardsWithEmail = useMemo(() => cards.filter((c) => c.email), [cards]);
   const selectedCardsWithEmail = useMemo(
@@ -825,11 +844,11 @@ export default function BusinessCards() {
     updateStatusMutation.mutate({ id: cardId, salesStatus: newStatus as any });
   };
 
-  const getCardStatus = (card: any): string => {
+  const getCardStatus = useCallback((card: any): string => {
     // salesStatusカラム優先、なければtagsから後方互換
     if (card.salesStatus) return card.salesStatus;
     return card.tags?.find((t: string) => t.startsWith("status:"))?.replace("status:", "") || "new";
-  };
+  }, []);
 
   const statusOptions = [
     { value: "new", label: "新規", color: "bg-gray-100 text-gray-700" },
@@ -1197,7 +1216,7 @@ export default function BusinessCards() {
         {/* TAB: 営業ダッシュボード */}
         {/* ============================================================ */}
         <TabsContent value="sales" className="space-y-4">
-          <SalesDashboard cards={cards} statusOptions={statusOptions} getCardStatus={getCardStatus} />
+          <SalesDashboard cards={cards} statusOptions={statusOptions} getCardStatus={getCardStatus} onStatusClick={(status) => { setStatusFilter(status); setActiveTab("cards"); }} />
         </TabsContent>
 
         {/* ============================================================ */}
@@ -1353,6 +1372,7 @@ export default function BusinessCards() {
                         <TableHead>都道府県</TableHead>
                         <TableHead>ステータス</TableHead>
                         <TableHead>収集元</TableHead>
+                        <TableHead>対応</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1402,6 +1422,32 @@ export default function BusinessCards() {
                                lead.source === "google_search" ? "検索" :
                                lead.source}
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => {
+                                // リードデータをbusinessCard形式に変換して対応登録ダイアログを開く
+                                const cardLike = {
+                                  id: lead.id,
+                                  name: lead.companyName || "不明",
+                                  company: lead.companyName,
+                                  phone: lead.phone,
+                                  mobile: "",
+                                  email: lead.email,
+                                };
+                                setSelectedCard(cardLike);
+                                setPhoneMemo("");
+                                setPhoneResult("answered");
+                                setPhoneNextFollowUp("");
+                                setIsPhoneDialogOpen(true);
+                              }}
+                            >
+                              <PhoneCall className="h-3 w-3 mr-1" />
+                              対応登録
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1551,21 +1597,99 @@ export default function BusinessCards() {
         {/* TAB: メール配信 */}
         {/* ============================================================ */}
         <TabsContent value="email" className="space-y-4">
+          {/* 営業メール テンプレート設定 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5 text-blue-600" />
+                営業メール テンプレート設定
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                リード収集で集めたリードに送信する営業メールの内容を設定します
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* テンプレート編集/プレビュー切り替え */}
+              <div className="flex gap-2">
+                <Button
+                  variant={emailTemplateMode === "edit" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setEmailTemplateMode("edit")}
+                >
+                  編集
+                </Button>
+                <Button
+                  variant={emailTemplateMode === "preview" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setEmailTemplateMode("preview")}
+                >
+                  プレビュー
+                </Button>
+              </div>
+
+              {emailTemplateMode === "edit" ? (
+                <div className="space-y-3">
+                  <div>
+                    <Label>件名テンプレート</Label>
+                    <Input
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                      placeholder="{{displayName}}へ — HYDE起用ブランドのお取引のご相談"
+                    />
+                    <p className="text-xs text-blue-600 mt-1">{'{{displayName}}'} は「会社名 氏名様」に自動置換されます</p>
+                  </div>
+                  <div>
+                    <Label>メール本文</Label>
+                    <Textarea
+                      value={emailContent}
+                      onChange={(e) => setEmailContent(e.target.value)}
+                      placeholder="突然のご連絡失礼いたします。\nKYOGOKU PROFESSIONALの大久保と申します。\n\n貴社のことを拝見し、ぜひ一度弊社製品のご紹介をさせていただきたくご連絡いたしました。"
+                      rows={12}
+                    />
+                    <p className="text-xs text-blue-600 mt-1">空行で段落を区切ります。■で始まる段落は提案ボックスとして表示されます。宛名と署名は自動で付加されます。</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="border rounded-lg p-4 bg-white">
+                  <div className="border-b pb-2 mb-3">
+                    <p className="text-sm text-muted-foreground">件名:</p>
+                    <p className="font-medium">{emailSubject.replace(/\{\{displayName\}\}/g, "株式会社○○ ○○様")}</p>
+                  </div>
+                  <div className="whitespace-pre-wrap text-sm">
+                    <p className="text-muted-foreground mb-2">株式会社○○ ○○様</p>
+                    {emailContent.split("\n\n").map((para, i) => (
+                      <div key={i} className={`mb-3 ${para.startsWith("■") ? "bg-blue-50 border border-blue-200 rounded p-2" : ""}`}>
+                        {para}
+                      </div>
+                    ))}
+                    <div className="mt-4 pt-3 border-t text-xs text-muted-foreground">
+                      <p>---</p>
+                      <p>KYOGOKU PROFESSIONAL</p>
+                      <p>大久保</p>
+                      <p>info@kyogokupro.com</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 送信先選択＆一斉送信 */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Send className="h-5 w-5 text-green-600" />
-                {t.emailTitle}
+                一斉送信
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                名刺一覧タブでチェックボックスを使って送信先を選択してから、メールを作成・送信できます
+                名刺一覧タブでチェックボックスを使って送信先を選択、またはリード収集のメールありリードに一斉送信できます
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Selected recipients */}
+              {/* 名刺一覧からの選択済み送信先 */}
               <div className="p-3 bg-muted rounded-lg">
                 <p className="text-sm font-medium mb-2">
-                  送信先: {selectedCardsWithEmail.length}件
+                  名刺一覧からの送信先: {selectedCardsWithEmail.length}件
                   {selectedCardIds.size > 0 && selectedCardIds.size !== selectedCardsWithEmail.length && (
                     <span className="text-xs text-muted-foreground ml-2">
                       ({selectedCardIds.size - selectedCardsWithEmail.length}件はメールアドレスなし)
@@ -1592,27 +1716,20 @@ export default function BusinessCards() {
                 )}
               </div>
 
-              {/* Email form */}
-              <div className="space-y-3">
-                <div>
-                  <Label>{t.emailSubject}</Label>
-                  <Input
-                    value={emailSubject}
-                    onChange={(e) => setEmailSubject(e.target.value)}
-                    placeholder="メールの件名を入力..."
-                  />
-                </div>
-                <div>
-                  <Label>{t.emailContent}</Label>
-                  <Textarea
-                    value={emailContent}
-                    onChange={(e) => setEmailContent(e.target.value)}
-                    placeholder="メール本文を入力..."
-                    rows={10}
-                  />
-                </div>
+              {/* リード一覧からの一斉送信 */}
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-sm font-medium mb-2 text-blue-800">
+                  リード収集からの送信先: {leadResults.filter(l => l.email).length}件（メールあり）
+                </p>
+                <p className="text-xs text-blue-600">
+                  リード収集タブのメールありリード全件にテンプレートで一斉送信します
+                </p>
+              </div>
+
+              {/* 送信ボタン群 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Button
-                  className="w-full bg-green-600 hover:bg-green-700"
+                  className="bg-green-600 hover:bg-green-700"
                   disabled={
                     selectedCardsWithEmail.length === 0 ||
                     !emailSubject ||
@@ -1626,7 +1743,24 @@ export default function BusinessCards() {
                   ) : (
                     <Send className="h-4 w-4 mr-2" />
                   )}
-                  {selectedCardsWithEmail.length}件に送信
+                  名刺選択分 {selectedCardsWithEmail.length}件に送信
+                </Button>
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700"
+                  disabled={
+                    leadResults.filter(l => l.email).length === 0 ||
+                    !emailSubject ||
+                    !emailContent ||
+                    sendToLeadsMutation.isPending
+                  }
+                  onClick={handleSendToLeads}
+                >
+                  {sendToLeadsMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4 mr-2" />
+                  )}
+                  リード全件 {leadResults.filter(l => l.email).length}件に送信
                 </Button>
               </div>
             </CardContent>
@@ -2227,7 +2361,7 @@ export default function BusinessCards() {
 // ============================================================
 // Sales Dashboard Sub-Component
 // ============================================================
-function SalesDashboard({ cards, statusOptions, getCardStatus }: { cards: any[]; statusOptions: any[]; getCardStatus: (card: any) => string }) {
+function SalesDashboard({ cards, statusOptions, getCardStatus, onStatusClick }: { cards: any[]; statusOptions: any[]; getCardStatus: (card: any) => string; onStatusClick?: (status: string) => void }) {
   const utils = trpc.useUtils();
   const { data: salesKpi } = trpc.businessCard.getSalesKpi.useQuery(undefined, { refetchInterval: 30000 });
   const { data: upcomingFollowUps = [] } = trpc.businessCard.getUpcomingFollowUps.useQuery(undefined);
@@ -2315,7 +2449,11 @@ function SalesDashboard({ cards, statusOptions, getCardStatus }: { cards: any[];
         <CardContent>
           <div className="flex gap-2 flex-wrap">
             {statusOptions.map((s) => (
-              <div key={s.value} className={`flex-1 min-w-[100px] p-3 rounded-lg text-center ${s.color}`}>
+              <div
+                key={s.value}
+                className={`flex-1 min-w-[100px] p-3 rounded-lg text-center cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all ${s.color}`}
+                onClick={() => onStatusClick?.(s.value)}
+              >
                 <p className="text-xs font-medium">{s.label}</p>
                 <p className="text-xl font-bold">{pipelineCounts[s.value] || 0}</p>
               </div>
