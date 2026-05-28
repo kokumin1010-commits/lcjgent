@@ -442,6 +442,8 @@ export default function BusinessCards() {
   const [isCollecting, setIsCollecting] = useState<string | null>(null);
   const [leadMessage, setLeadMessage] = useState<string | null>(null);
   const [leadResults, setLeadResults] = useState<any[]>([]);
+  const [bdBrands, setBdBrands] = useState<any[]>([]);
+  const [bdBrandFilter, setBdBrandFilter] = useState<string>("all");
 
   // Queries
   const { data: cards = [], isLoading } = trpc.businessCard.list.useQuery({
@@ -530,6 +532,15 @@ export default function BusinessCards() {
       .then((d) => {
         if (d?.result?.data?.json) {
           setLeadStats(d.result.data.json);
+        }
+      })
+      .catch(() => {});
+    // Load BD brands from lcjmall
+    fetch("https://lcjmall.com/api/trpc/brand.list")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.result?.data?.json) {
+          setBdBrands(d.result.data.json.filter((b: any) => b.name));
         }
       })
       .catch(() => {});
@@ -1363,6 +1374,136 @@ export default function BusinessCards() {
               </CardContent>
             </Card>
           )}
+
+          {/* BD Brand List */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-blue-500" />
+                BD対象ブランドリスト
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">LCJでBDできるブランド一覧（{bdBrands.length}件）</p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Brand Status Filter */}
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  variant={bdBrandFilter === "all" ? "default" : "outline"}
+                  className="h-7 text-xs"
+                  onClick={() => setBdBrandFilter("all")}
+                >
+                  全て ({bdBrands.length})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={bdBrandFilter === "進行中" ? "default" : "outline"}
+                  className="h-7 text-xs"
+                  onClick={() => setBdBrandFilter("進行中")}
+                >
+                  進行中 ({bdBrands.filter(b => b.status === "進行中").length})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={bdBrandFilter === "契約済み" ? "default" : "outline"}
+                  className="h-7 text-xs"
+                  onClick={() => setBdBrandFilter("契約済み")}
+                >
+                  契約済み ({bdBrands.filter(b => b.status === "契約済み").length})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={bdBrandFilter === "打ち合わせ中" ? "default" : "outline"}
+                  className="h-7 text-xs"
+                  onClick={() => setBdBrandFilter("打ち合わせ中")}
+                >
+                  打ち合わせ中 ({bdBrands.filter(b => b.status === "打ち合わせ中").length})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={bdBrandFilter === "保留" ? "default" : "outline"}
+                  className="h-7 text-xs"
+                  onClick={() => setBdBrandFilter("保留")}
+                >
+                  保留 ({bdBrands.filter(b => b.status === "保留").length})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={bdBrandFilter === "終了" ? "default" : "outline"}
+                  className="h-7 text-xs"
+                  onClick={() => setBdBrandFilter("終了")}
+                >
+                  終了 ({bdBrands.filter(b => b.status === "終了").length})
+                </Button>
+              </div>
+              {/* Brand Table */}
+              <ScrollArea className="h-[350px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ブランド名</TableHead>
+                      <TableHead>会社名</TableHead>
+                      <TableHead>カテゴリ</TableHead>
+                      <TableHead>ステータス</TableHead>
+                      <TableHead>GMV</TableHead>
+                      <TableHead>広告予算</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {bdBrands
+                      .filter(b => bdBrandFilter === "all" || b.status === bdBrandFilter)
+                      .map((brand) => (
+                        <TableRow key={brand.id}>
+                          <TableCell className="font-medium text-sm">
+                            <div className="flex items-center gap-2">
+                              {brand.logoUrl && (
+                                <img src={brand.logoUrl} alt="" className="w-6 h-6 rounded object-cover" />
+                              )}
+                              {brand.name}
+                              {brand.nameJa && brand.nameJa !== brand.name && (
+                                <span className="text-xs text-muted-foreground">({brand.nameJa})</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs">{brand.companyName || "—"}</TableCell>
+                          <TableCell className="text-xs">
+                            <Badge variant="outline" className="text-xs">
+                              {brand.category === "beauty" ? "美容" :
+                               brand.category === "health" ? "健康" :
+                               brand.category === "food" ? "食品" :
+                               brand.category === "fashion" ? "ファッション" :
+                               brand.category === "electronics" ? "家電" :
+                               brand.category || "その他"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              className={`text-xs ${
+                                brand.status === "契約済み" ? "bg-green-100 text-green-700" :
+                                brand.status === "進行中" ? "bg-blue-100 text-blue-700" :
+                                brand.status === "打ち合わせ中" ? "bg-yellow-100 text-yellow-700" :
+                                brand.status === "保留" ? "bg-gray-100 text-gray-700" :
+                                brand.status === "終了" ? "bg-red-100 text-red-700" :
+                                "bg-gray-100 text-gray-700"
+                              }`}
+                              variant="secondary"
+                            >
+                              {brand.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs font-medium">
+                            {brand.totalGmv ? `¥${(brand.totalGmv / 10000).toFixed(1)}万` : "—"}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {brand.totalAdBudget ? `¥${(brand.totalAdBudget / 10000).toFixed(0)}万` : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </CardContent>
+          </Card>
 
           <div className="text-xs text-muted-foreground text-center">
             ※ リードデータは <a href="https://salesdash.buzzdrop.co.jp/command-center/japan/eccube?store=KYOGOKU+%E8%87%AA%E7%A4%BEEC&tab=btob&subtab=leads" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Sales Dash BtoB営業司令塔</a> と連携しています
