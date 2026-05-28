@@ -18,7 +18,8 @@ import {
   MessageCircle, Send, Plus, Users, Image as ImageIcon, Paperclip, FileText,
   Search, X, Edit2, UserPlus, ArrowLeft, Loader2, Check, User,
   Bold, Italic, Strikethrough, UnderlineIcon, List, ListOrdered,
-  Quote, Code, Link as LinkIcon, Maximize2, Minimize2, Languages, Copy, Share2, Link2
+  Quote, Code, Link as LinkIcon, Maximize2, Minimize2, Languages, Copy, Share2, Link2,
+  Camera, FolderOpen, ImagePlus
 } from "lucide-react";
 
 // ===== Rich Text Editor Toolbar =====
@@ -189,6 +190,10 @@ export default function Chat() {
   const [selectedMembers, setSelectedMembers] = useState<Array<{ userId: number; userType: "staff" | "liver"; userName?: string; userAvatar?: string }>>([]);
   const [chatType, setChatType] = useState<"direct" | "group">("group");
   const [uploading, setUploading] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const attachMenuRef = useRef<HTMLDivElement>(null);
   const [mobileShowMessages, setMobileShowMessages] = useState(false);
   const [showMemberList, setShowMemberList] = useState(false);
   const [isEditorExpanded, setIsEditorExpanded] = useState(false);
@@ -796,16 +801,60 @@ export default function Chat() {
                   accept="image/*,.pdf,.txt,.json,.csv,.md,.xlsx,.xls,.doc,.docx,.ppt,.pptx,.zip"
                   onChange={handleFileUpload}
                 />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  title="ファイルを送信（画像・PDF・CSV・Excel・Word・テキスト等）"
-                  className="shrink-0"
-                >
-                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
-                </Button>
+                <input
+                  type="file"
+                  ref={imageInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                />
+                <input
+                  type="file"
+                  ref={cameraInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleFileUpload}
+                />
+                <div className="relative shrink-0" ref={attachMenuRef} onBlur={(e) => { if (!attachMenuRef.current?.contains(e.relatedTarget as Node)) setShowAttachMenu(false); }}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowAttachMenu(!showAttachMenu)}
+                    disabled={uploading}
+                    title="ファイルを送信"
+                  >
+                    {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  </Button>
+                  {showAttachMenu && (
+                    <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowAttachMenu(false)} />
+                    <div className="absolute bottom-full left-0 mb-2 bg-background border rounded-lg shadow-lg p-2 min-w-[180px] z-50">
+                      <button
+                        className="flex items-center gap-3 w-full px-3 py-2.5 text-sm rounded-md hover:bg-muted transition-colors"
+                        onClick={() => { imageInputRef.current?.click(); setShowAttachMenu(false); }}
+                      >
+                        <ImagePlus className="h-4 w-4 text-green-600" />
+                        <span>写真ライブラリ</span>
+                      </button>
+                      <button
+                        className="flex items-center gap-3 w-full px-3 py-2.5 text-sm rounded-md hover:bg-muted transition-colors"
+                        onClick={() => { cameraInputRef.current?.click(); setShowAttachMenu(false); }}
+                      >
+                        <Camera className="h-4 w-4 text-blue-600" />
+                        <span>写真を撮る</span>
+                      </button>
+                      <button
+                        className="flex items-center gap-3 w-full px-3 py-2.5 text-sm rounded-md hover:bg-muted transition-colors"
+                        onClick={() => { fileInputRef.current?.click(); setShowAttachMenu(false); }}
+                      >
+                        <FolderOpen className="h-4 w-4 text-orange-600" />
+                        <span>ファイルを選択</span>
+                      </button>
+                    </div>
+                    </>
+                  )}
+                </div>
                 <div className="flex-1 border rounded-md bg-background overflow-hidden">
                   <EditorContent editor={editor} />
                 </div>
