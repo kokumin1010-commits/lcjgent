@@ -662,6 +662,48 @@ function BrandFilesSection({ brandId, t }: { brandId: number; t: any }) {
   );
 }
 
+// 飛書タスクセクションコンポーネント
+function LarkTasksSection({ brandId, language }: { brandId: number; language: string }) {
+  const { data: tasks = [] } = trpc.brand.getRelatedTasks.useQuery(
+    { brandId },
+    { enabled: brandId > 0 }
+  );
+
+  if (tasks.length === 0) return null;
+
+  return (
+    <div className="bg-gradient-to-br from-indigo-900/15 to-purple-900/10 backdrop-blur-xl rounded-2xl border border-indigo-500/20 p-4 md:p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <FileText className="h-4 w-4 text-indigo-400" />
+        <h3 className="text-sm font-semibold text-indigo-300">
+          {language === 'ja' ? '飛書タスク / メモ' : '飞书任务 / 备注'}
+        </h3>
+        <Badge className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs">
+          {tasks.length}
+        </Badge>
+      </div>
+      <div className="space-y-2">
+        {tasks.map((task: any) => (
+          <div key={task.id} className="bg-gray-800/30 rounded-lg px-3 py-2 flex items-start gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm text-gray-200 font-medium">{task.taskName}</div>
+              {task.larkIntro && (
+                <div className="text-xs text-gray-400 mt-0.5 line-clamp-2">{task.larkIntro}</div>
+              )}
+            </div>
+            {task.createdAt && (
+              <span className="text-xs text-gray-500 shrink-0">
+                {new Date(task.createdAt).toLocaleDateString('ja-JP')}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // 契約ROAS表示コンポーネント
 const INDUSTRY_AVG_ROAS = 0.8; // 業界平均ROAS
 
@@ -2302,6 +2344,74 @@ ${proposal.proposalContent}
             </div>
           </div>
         </div>
+
+        {/* 飛書(Lark)情報セクション */}
+        {brand && (brand as any).larkRecordId && (
+          <div className="bg-gradient-to-br from-blue-900/20 to-indigo-900/15 backdrop-blur-xl rounded-2xl border border-blue-500/30 p-4 md:p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+              <h3 className="text-sm font-semibold text-blue-300">{language === 'ja' ? '飛書(Lark) 同期情報' : '飞书(Lark) 同步信息'}</h3>
+              {(brand as any).larkSyncedAt && (
+                <span className="text-xs text-gray-500 ml-auto">{language === 'ja' ? '最終同期' : '最后同步'}: {new Date((brand as any).larkSyncedAt).toLocaleString('ja-JP')}</span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+              {(brand as any).larkTier && (
+                <div className="bg-gray-800/40 rounded-lg px-3 py-2">
+                  <div className="text-xs text-gray-500">Tier</div>
+                  <div className="text-sm font-medium text-amber-300">{(brand as any).larkTier}</div>
+                </div>
+              )}
+              {(brand as any).larkStage && (
+                <div className="bg-gray-800/40 rounded-lg px-3 py-2">
+                  <div className="text-xs text-gray-500">{language === 'ja' ? 'ステージ' : '阶段'}</div>
+                  <div className="text-sm font-medium text-teal-300">{(brand as any).larkStage}</div>
+                </div>
+              )}
+              {(brand as any).larkCategory && (
+                <div className="bg-gray-800/40 rounded-lg px-3 py-2">
+                  <div className="text-xs text-gray-500">{language === 'ja' ? 'カテゴリ' : '类目'}</div>
+                  <div className="text-sm font-medium text-violet-300">{(brand as any).larkCategory}</div>
+                </div>
+              )}
+              {(brand as any).larkContactPlatform && (
+                <div className="bg-gray-800/40 rounded-lg px-3 py-2">
+                  <div className="text-xs text-gray-500">{language === 'ja' ? '連絡プラットフォーム' : '联系平台'}</div>
+                  <div className="text-sm font-medium text-gray-300">{(brand as any).larkContactPlatform}</div>
+                </div>
+              )}
+            </div>
+            {/* 担当者情報 */}
+            {((brand as any).larkBusinessContact || (brand as any).larkBusinessLead || (brand as any).larkOperationsContact || (brand as any).larkBrandManager) && (
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs">
+                {(brand as any).larkBrandManager && (
+                  <span><span className="text-gray-500">{language === 'ja' ? 'ブランド担当' : '品牌担当'}:</span> <span className="text-pink-300">{(brand as any).larkBrandManager}</span></span>
+                )}
+                {(brand as any).larkBusinessContact && (
+                  <span><span className="text-gray-500">{language === 'ja' ? '商務対接' : '商务对接'}:</span> <span className="text-sky-300">{(brand as any).larkBusinessContact}</span></span>
+                )}
+                {(brand as any).larkBusinessLead && (
+                  <span><span className="text-gray-500">{language === 'ja' ? '商務負責' : '商务负责'}:</span> <span className="text-orange-300">{(brand as any).larkBusinessLead}</span></span>
+                )}
+                {(brand as any).larkOperationsContact && (
+                  <span><span className="text-gray-500">{language === 'ja' ? '運営対接' : '运营对接'}:</span> <span className="text-emerald-300">{(brand as any).larkOperationsContact}</span></span>
+                )}
+              </div>
+            )}
+            {/* ブランド紹介 */}
+            {(brand as any).larkIntro && (
+              <div className="bg-gray-800/30 rounded-lg p-3 mt-2">
+                <div className="text-xs text-gray-500 mb-1">{language === 'ja' ? 'ブランド紹介 / メモ' : '品牌介绍 / 备注'}</div>
+                <div className="text-sm text-gray-300 whitespace-pre-wrap max-h-40 overflow-y-auto leading-relaxed">
+                  {(brand as any).larkIntro}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 飛書タスクセクション */}
+        <LarkTasksSection brandId={brandId} language={language} />
 
         {/* ノルマ進捗セクション - 最上部に配置 */}
         {quotaProgress && (quotaProgress.quotas.kgLiveHours > 0 || quotaProgress.quotas.liverLiveHours > 0 || quotaProgress.quotas.shortVideoCount > 0) && (

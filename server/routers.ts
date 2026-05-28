@@ -7499,6 +7499,76 @@ Respond with a JSON object.`,
           .limit(input.limit);
         return history;
       }),
+    // ブランドに紐付く飛書タスクレコードを取得
+    getRelatedTasks: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        const { like } = await import("drizzle-orm");
+        // まずブランド名を取得
+        const brand = await getBrandById(input.brandId);
+        if (!brand) return [];
+        // 「タスク < ブランド名」形式のレコードを検索
+        const taskRecords = await db.select({
+          id: brands.id,
+          name: brands.name,
+          larkIntro: brands.larkIntro,
+          larkStage: brands.larkStage,
+          larkSyncedAt: brands.larkSyncedAt,
+          createdAt: brands.createdAt,
+        }).from(brands)
+          .where(like(brands.name, `%< ${brand.name}%`));
+        
+        // 名前の部分一致も検索（スペースなしのパターン）
+        const taskRecords2 = await db.select({
+          id: brands.id,
+          name: brands.name,
+          larkIntro: brands.larkIntro,
+          larkStage: brands.larkStage,
+          larkSyncedAt: brands.larkSyncedAt,
+          createdAt: brands.createdAt,
+        }).from(brands)
+          .where(like(brands.name, `%<${brand.name}%`));
+        
+        // 重複除去して返す
+        const allTasks = [...taskRecords, ...taskRecords2];
+        const uniqueIds = new Set<number>();
+        const uniqueTasks = allTasks.filter(t => {
+          if (uniqueIds.has(t.id)) return false;
+          uniqueIds.add(t.id);
+          return true;
+        });
+        
+        return uniqueTasks.map(t => ({
+          id: t.id,
+          taskName: t.name.split('<')[0]?.trim() || t.name,
+          fullName: t.name,
+          larkIntro: t.larkIntro,
+          larkStage: t.larkStage,
+          syncedAt: t.larkSyncedAt,
+          createdAt: t.createdAt,
+        }));
+      }),
+    // タスクレコード（「< 」含む不正ブランド）を一括削除
+    cleanupTaskRecords: protectedProcedure
+      .mutation(async () => {
+        const db = await getDb();
+        const { like } = await import("drizzle-orm");
+        // 名前に < を含むレコードを取得
+        const taskRecords = await db.select({ id: brands.id, name: brands.name }).from(brands)
+          .where(like(brands.name, '%<%'));
+        
+        if (taskRecords.length === 0) {
+          return { deleted: 0, records: [] };
+        }
+        
+        // 削除実行
+        for (const record of taskRecords) {
+          await db.delete(brands).where(eq(brands.id, record.id));
+        }
+        
+        return { deleted: taskRecords.length, records: taskRecords.map(r => r.name) };
+      }),
   }),
 
   // Brand Products Router

@@ -299,8 +299,10 @@ export default function BrandList() {
     return { totalAdBudget, totalGmv, lcjReward };
   }, [brandsData, allLivestreamsData, allProductsData, allContractsData, periodFilter]);
 
-  // ソートされたブランドリスト
-  const brands = brandsData ? [...brandsData].sort((a, b) => {
+  // ソートされたブランドリスト（タスクレコードをフィルター）
+  const brands = brandsData ? [...brandsData]
+    .filter(b => !b.name.includes('<') && !b.name.includes('＜'))
+    .sort((a, b) => {
     // ノルマありブランドを常に最上部に優先表示
     const hasQuotaA = (a as any).hasQuota ? 1 : 0;
     const hasQuotaB = (b as any).hasQuota ? 1 : 0;
@@ -691,12 +693,14 @@ export default function BrandList() {
                         <Building2 className="h-8 w-8 text-gray-400" />
                       </div>
                     )}
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-white group-hover:text-red-400 transition-colors">
-                        {brand.name}
-                        {brand.nameJa && <span className="text-sm font-normal text-red-400 ml-2">({brand.nameJa})</span>}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-bold text-white group-hover:text-red-400 transition-colors truncate" title={brand.name}>
+                        {brand.name.length > 20 ? brand.name.slice(0, 20) + '...' : brand.name}
+                        {brand.nameJa && brand.nameJa !== brand.name && (
+                          <span className="text-sm font-normal text-red-400 ml-2">({brand.nameJa.length > 15 ? brand.nameJa.slice(0, 15) + '...' : brand.nameJa})</span>
+                        )}
                       </h3>
-                      <p className="text-sm text-gray-400">{brand.companyName || "-"}</p>
+                      <p className="text-sm text-gray-400 truncate">{brand.companyName || "-"}</p>
                     </div>
                     <Badge className={`${statusColors[brand.status] || "bg-gray-500/20 text-gray-400"} border`}>
                       {getStatusLabel(brand.status)}
@@ -735,9 +739,9 @@ export default function BrandList() {
                     </div>
                   )}
 
-                  {/* 担当者情報 */}
+                  {/* 担当者情報 - コンパクト表示 */}
                   {(brand as any).larkRecordId && ((brand as any).larkBusinessContact || (brand as any).larkBusinessLead || (brand as any).larkOperationsContact) && (
-                    <div className="flex flex-wrap gap-2 mb-3 text-xs">
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 mb-3 text-xs bg-gray-900/30 rounded-lg px-2.5 py-1.5">
                       {(brand as any).larkBusinessContact && (
                         <span className="text-gray-400">
                           <span className="text-gray-500">商務:</span> <span className="text-sky-300">{(brand as any).larkBusinessContact}</span>

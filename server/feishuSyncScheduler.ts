@@ -53,10 +53,49 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
     let synced = 0;
     let created = 0;
     let updated = 0;
+    let skipped = 0;
     let errors: string[] = [];
 
     for (const larkBrand of larkBrands) {
       try {
+        // ========== タスク/メモレコードのフィルタリング ==========
+        // パターン: 「タスク内容 < ブランド名」はタスクレコードであり、ブランドではない
+        const isTaskRecord = larkBrand.brandName.includes('<') || larkBrand.brandName.includes('＜');
+        
+        if (isTaskRecord) {
+          // < の右側からブランド名を抽出して既存ブランドに紐付け試行
+          const separator = larkBrand.brandName.includes('<') ? '<' : '＜';
+          const parts = larkBrand.brandName.split(separator);
+          const actualBrandName = (parts[1] || '').trim();
+          
+          if (actualBrandName) {
+            // 既存ブランドが見つかれば、タスク情報をlarkIntroに追記（ブランド自体は作成しない）
+            const existingBrand = await db.select().from(brands)
+              .where(eq(brands.name, actualBrandName))
+              .limit(1);
+            
+            if (existingBrand.length > 0) {
+              // 既存ブランドにタスク情報を追記（larkIntroにのみ）
+              const taskInfo = parts[0].trim();
+              const currentIntro = existingBrand[0].larkIntro || '';
+              if (!currentIntro.includes(taskInfo)) {
+                const updatedIntro = currentIntro ? `${currentIntro}\n[タスク] ${taskInfo}` : `[タスク] ${taskInfo}`;
+                await db.update(brands)
+                  .set({ larkIntro: updatedIntro, larkSyncedAt: new Date() })
+                  .where(eq(brands.id, existingBrand[0].id));
+              }
+            }
+          }
+          skipped++;
+          continue;
+        }
+
+        // ブランド名が空、Unknown、または明らかに無効なレコードをスキップ
+        if (!larkBrand.brandName || larkBrand.brandName === 'Unknown' || larkBrand.brandName.length > 80) {
+          skipped++;
+          continue;
+        }
+
         // 既存ブランドをlarkRecordIdまたは名前で検索
         const existing = await db.select().from(brands)
           .where(
@@ -83,7 +122,7 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
         };
 
         if (existing.length > 0) {
-          // 更新（飞书データを優先）
+          // 更新（飞書データを優先）
           await db.update(brands)
             .set({
               ...larkFields,
@@ -124,7 +163,7 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
       errorMessage: errors.length > 0 ? errors.slice(0, 5).join("; ") : null,
     });
 
-    console.log(`[Feishu Sync] Completed: ${synced}/${larkBrands.length} synced (${created} new, ${updated} updated) in ${durationMs}ms`);
+    console.log(`[Feishu Sync] Completed: ${synced}/${larkBrands.length} synced (${created} new, ${updated} updated, ${skipped} skipped) in ${durationMs}ms`);
 
     return { total: larkBrands.length, synced, created, updated, errors: errors.slice(0, 10) };
   } catch (err: any) {
