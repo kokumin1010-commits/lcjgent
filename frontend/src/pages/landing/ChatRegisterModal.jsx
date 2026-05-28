@@ -143,9 +143,13 @@ export default function ChatRegisterModal({ isOpen, onClose, onSuccess, pendingV
       try {
         await AuthService.register(email.trim(), password);
         const userInfo = await AuthService.getCurrentUser();
+        const me = userInfo?.data || userInfo || {};
         const userData = {
           isLoggedIn: true,
-          email: userInfo?.email || email.trim(),
+          id: me.id,
+          email: me.email || email.trim(),
+          name: me.name || me.display_name,
+          role: me.role || 'user',
         };
         localStorage.setItem('user', JSON.stringify(userData));
 

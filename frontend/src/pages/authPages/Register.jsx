@@ -70,10 +70,13 @@ export default function Register({ onSuccess }) {
       await AuthService.register(email, password);
 
       const userInfo = await AuthService.getCurrentUser();
-
+      const me = userInfo?.data || userInfo || {};
       const userData = {
         isLoggedIn: true,
-        email: userInfo?.email || email,
+        id: me.id,
+        email: me.email || email,
+        name: me.name || me.display_name,
+        role: me.role || 'user',
       };
       localStorage.setItem("user", JSON.stringify(userData));
 
