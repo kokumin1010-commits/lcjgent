@@ -4435,15 +4435,29 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
                 logger.info(f"[ai-clip {job_id}] Using product slideshow as video source")
 
         elif video_mode == "product_overlay" and (product_imgs or clip.get("product_video_urls")):
-            # PiPモード: 動画メイン+商品画像/動画ポップアップ
-            # V12: 商品画像と商品動画の両方がある場合、両方を合成する
-            #   Step 1: 商品画像PiP（中央にポップアップ表示）
-            #   Step 2: 商品動画PiP（右下ワイプ表示）
+            # V13: PiPモード改善 - 時間帯分離表示、角配置、ループなし
+            # 商品動画と商品画像がある場合:
+            #   前半: 商品動画を1回完全再生（右下角）
+            #   後半: 商品画像を順番に1回ずつ表示（右下角、ループなし）
+            # 商品画像のみ: 順番に1回ずつ表示（右下角、ループなし）
+            # 商品動画のみ: 1回完全再生（右下角）
             product_videos = clip.get("product_video_urls") or []
             pip_applied = False
-            # Step 1: 商品画像PiPを適用（画像がある場合）
-            if product_imgs:
-                await _update_job(job_id, progress_pct=54, current_step=f"クリップ {idx+1}/{total}: PiP合成中（商品画像ポップアップ）...")
+
+            if product_videos and product_imgs:
+                # V13: 時間帯分離 - 動画→画像の順番で表示
+                await _update_job(job_id, progress_pct=54, current_step=f"クリップ {idx+1}/{total}: PiP合成中（時間帯分離）...")
+                pip_combined_path = await _generate_pip_combined_sequential(
+                    video_path, product_videos, product_imgs, duration,
+                    video_width, video_height, tmp_dir, job_id
+                )
+                if pip_combined_path and os.path.exists(pip_combined_path):
+                    video_path = pip_combined_path
+                    pip_applied = True
+                    logger.info(f"[ai-clip {job_id}] V13 PiP sequential applied (videos={len(product_videos)}, images={len(product_imgs)})")
+            elif product_imgs:
+                # 商品画像のみ: 角に配置、ループなし
+                await _update_job(job_id, progress_pct=54, current_step=f"クリップ {idx+1}/{total}: PiP合成中（商品画像）...")
                 pip_img_path = await _generate_pip_video(
                     video_path, product_imgs, duration, video_width, video_height, tmp_dir, job_id
                 )
@@ -4451,9 +4465,9 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
                     video_path = pip_img_path
                     pip_applied = True
                     logger.info(f"[ai-clip {job_id}] PiP image overlay applied ({len(product_imgs)} images)")
-            # Step 2: 商品動画PiPも適用（動画がある場合）
-            if product_videos:
-                await _update_job(job_id, progress_pct=56, current_step=f"クリップ {idx+1}/{total}: PiP合成中（商品動画オーバーレイ）...")
+            elif product_videos:
+                # 商品動画のみ: 1回完全再生
+                await _update_job(job_id, progress_pct=56, current_step=f"クリップ {idx+1}/{total}: PiP合成中（商品動画）...")
                 pip_vid_path = await _generate_pip_video_overlay(
                     video_path, product_videos, duration, video_width, video_height, tmp_dir, job_id
                 )
@@ -4461,8 +4475,9 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
                     video_path = pip_vid_path
                     pip_applied = True
                     logger.info(f"[ai-clip {job_id}] PiP video overlay applied ({len(product_videos)} videos)")
+
             if pip_applied:
-                logger.info(f"[ai-clip {job_id}] Using PiP composite as video source (images={len(product_imgs)}, videos={len(product_videos)})")
+                logger.info(f"[ai-clip {job_id}] V13 PiP composite applied (images={len(product_imgs)}, videos={len(product_videos)})")
             else:
                 logger.warning(f"[ai-clip {job_id}] PiP generation failed for all inputs (images={len(product_imgs)}, videos={len(product_videos)})")
 
@@ -5317,9 +5332,11 @@ async def _generate_pip_video(
     video_path: str, product_image_urls: list, duration: float,
     width: int, height: int, tmp_dir: str, job_id: str
 ) -> Optional[str]:
-    """PiP (Picture-in-Picture) 合成: 動画がフルスクリーンメイン、商品画像が中央にローテーション表示。
-    複数画像を順番に切り替えてポップアップ表示する（3秒表示→4秒非表示→次の画像）。
-    全画像を使い切ったら最初に戻ってループする。
+    """V13: PiP (Picture-in-Picture) 合成 - 商品画像を右下角に配置。
+    各画像を1回ずつ順番に表示（ループなし）。
+    表示時間: 5秒/画像、非表示時間: 3秒。
+    配置: 右下角（ライブ配信者の顔を避ける）。
+    サイズ: 画面の25%幅（主体を遮らない）。
     """
     import httpx
     from PIL import Image, ImageDraw, ImageFilter
@@ -5365,11 +5382,12 @@ async def _generate_pip_video(
     num_images = len(product_img_paths)
     logger.info(f"[ai-clip {job_id}] PiP rotation: {num_images} images downloaded")
 
-    # Create overlay images for each product (rounded corners, white card background)
-    overlay_size = int(width * 0.55)
-    overlay_h = int(height * 0.35)
-    corner_radius = 24
-    padding = 20
+    # V13: Create overlay images for each product (rounded corners, white card background)
+    # Reduced size: 25% width (was 55%) to avoid blocking face/main subject
+    overlay_size = int(width * 0.25)
+    overlay_h = int(height * 0.20)
+    corner_radius = 16
+    padding = 12
     inner_w = overlay_size - padding * 2
     inner_h = overlay_h - padding * 2
 
@@ -5406,48 +5424,40 @@ async def _generate_pip_video(
         logger.error(f"[ai-clip {job_id}] No overlay images created")
         return None
 
-    # V11: Smart PiP timing based on video duration
-    # Short videos (< 60s): show once at 5-10s for 3 seconds only
-    # Long videos (>= 60s): original loop behavior (3s show, 4s hide)
-    is_short_video = duration < 60.0
+    # V13: Smart PiP timing - NO LOOP, each image shown ONCE
+    # Show duration: 5s per image (was 3s - too short)
+    # Hide duration: 3s between images
+    # No loop: each image appears exactly once
+    show_duration = 5.0   # seconds visible per image
+    hide_duration = 3.0   # seconds hidden between images
+    first_appear = 3.0    # first appearance at 3 seconds (give viewer time to focus)
+    cycle_duration = show_duration + hide_duration  # 8s per image slot
 
-    if is_short_video:
-        # 短動画モード: 5-10秒時点で3秒間だけ表示
-        show_duration = 3.0
-        # 表示開始位置: 動画の5秒目（動画が短い場合は調整）
-        first_appear = min(5.0, duration * 0.3)  # 最低でも動画の30%位置
-        if first_appear + show_duration > duration - 1.0:
-            first_appear = max(1.0, duration - show_duration - 1.0)
-        schedule = [(first_appear, first_appear + show_duration, 0)]
-        logger.info(f"[ai-clip {job_id}] PiP short-video mode: single appearance at {first_appear:.1f}s-{first_appear+show_duration:.1f}s")
-    else:
-        # ロング動画モード: 従来のループ表示
-        show_duration = 3.0  # seconds visible per image
-        hide_duration = 4.0  # seconds hidden between images
-        first_appear = 2.0   # first appearance at 2 seconds
-        cycle_duration = show_duration + hide_duration  # 7s per image slot
+    # Build schedule: [(start_time, end_time, image_index), ...]
+    # Each image shown EXACTLY ONCE (no loop/modulo)
+    schedule = []
+    t = first_appear
+    for img_idx in range(len(overlay_paths)):
+        if t + show_duration > duration - 1.0:
+            break  # Don't show if it would extend past video end
+        schedule.append((t, t + show_duration, img_idx))
+        t += cycle_duration
 
-        # Build schedule: [(start_time, end_time, image_index), ...]
-        schedule = []
-        t = first_appear
-        img_idx = 0
-        while t + show_duration <= duration:
-            schedule.append((t, t + show_duration, img_idx % len(overlay_paths)))
-            t += cycle_duration
-            img_idx += 1
-        # If video is very short, show at least one image
-        if not schedule and duration > 2:
-            schedule.append((1.0, min(duration - 0.5, 4.0), 0))
+    # If video is very short, show at least one image for longer
+    if not schedule and duration > 3:
+        show_t = min(show_duration, duration - 2.0)
+        schedule.append((1.5, 1.5 + show_t, 0))
 
     if not schedule:
         logger.warning(f"[ai-clip {job_id}] Video too short for PiP rotation (duration={duration})")
         return None
 
-    logger.info(f"[ai-clip {job_id}] PiP rotation schedule: {len(schedule)} appearances, {len(overlay_paths)} unique images")
+    logger.info(f"[ai-clip {job_id}] V13 PiP schedule: {len(schedule)} appearances (no loop), {len(overlay_paths)} unique images")
 
-    # Position overlay in center of video
-    overlay_x = (width - overlay_size) // 2
-    overlay_y = (height - overlay_h) // 2
+    # V13: Position overlay in BOTTOM-RIGHT CORNER (avoid blocking face)
+    # Margin: 20px from right, 180px from bottom (above subtitles area)
+    overlay_x = width - overlay_size - 20
+    overlay_y = height - overlay_h - 180
 
     pip_output = os.path.join(tmp_dir, "pip_output.mp4")
 
@@ -5533,9 +5543,9 @@ async def _generate_pip_video_overlay(
     video_path: str, product_video_urls: list, duration: float,
     width: int, height: int, tmp_dir: str, job_id: str
 ) -> Optional[str]:
-    """V11: PiP合成 - 商品動画をメイン動画にオーバーレイ表示。
-    短動画: 5-10秒時点で3秒間表示。
-    ロング動画: 3秒表示→4秒非表示のループ。
+    """V13: PiP合成 - 商品動画をメイン動画にオーバーレイ表示。
+    商品動画を1回完全再生（ループなし）。
+    配置: 右下角（顔を避ける）。
     """
     import httpx
     from app.services.storage_service import generate_read_sas_from_url
@@ -5568,37 +5578,39 @@ async def _generate_pip_video_overlay(
         logger.error(f"[ai-clip {job_id}] Failed to download product video: {e}")
         return None
 
-    # Determine PiP display timing
-    is_short_video = duration < 60.0
-    if is_short_video:
-        pip_start = min(5.0, duration * 0.3)
-        pip_duration = 3.0
-        if pip_start + pip_duration > duration - 1.0:
-            pip_start = max(1.0, duration - pip_duration - 1.0)
-    else:
-        pip_start = 2.0
-        pip_duration = 3.0
+    # V13: Determine PiP display timing - play product video ONCE completely (no loop)
+    # Get product video duration using ffprobe
+    try:
+        probe_cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                     "-of", "default=noprint_wrappers=1:nokey=1", product_video_path]
+        probe_proc = await asyncio.create_subprocess_exec(
+            *probe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        probe_out, _ = await asyncio.wait_for(probe_proc.communicate(), timeout=10)
+        product_video_duration = float(probe_out.decode().strip())
+    except Exception:
+        product_video_duration = 10.0  # Default fallback
 
-    # PiP overlay size and position (bottom-right corner, 30% of screen)
-    pip_w = int(width * 0.35)
-    pip_h = int(height * 0.25)
-    pip_x = width - pip_w - 30  # 30px margin from right
-    pip_y = height - pip_h - 200  # 200px from bottom (above subtitles)
+    # Start at 3s, play for the full product video duration (capped to main video length)
+    pip_start = 3.0
+    pip_duration = min(product_video_duration, duration - pip_start - 1.0)
+    if pip_duration < 2.0:
+        pip_start = 1.0
+        pip_duration = min(product_video_duration, duration - 2.0)
+
+    logger.info(f"[ai-clip {job_id}] V13 PiP video: product_dur={product_video_duration:.1f}s, "
+                f"pip_start={pip_start:.1f}s, pip_duration={pip_duration:.1f}s (1x play, no loop)")
+
+    # V13: PiP overlay size and position (bottom-right corner, 28% of screen)
+    pip_w = int(width * 0.28)
+    pip_h = int(height * 0.22)
+    pip_x = width - pip_w - 20  # 20px margin from right
+    pip_y = height - pip_h - 180  # 180px from bottom (above subtitles)
 
     pip_output = os.path.join(tmp_dir, "pip_video_output.mp4")
 
-    # Build ffmpeg command: overlay product video on main video at specific time
-    if is_short_video:
-        enable_expr = f"between(t,{pip_start:.1f},{pip_start+pip_duration:.1f})"
-    else:
-        # Loop: 3s show, 4s hide
-        cycle = 7.0
-        enable_parts = []
-        t = pip_start
-        while t + pip_duration <= duration:
-            enable_parts.append(f"between(t,{t:.1f},{t+pip_duration:.1f})")
-            t += cycle
-        enable_expr = "+".join(enable_parts) if enable_parts else f"between(t,{pip_start:.1f},{pip_start+pip_duration:.1f})"
+    # V13: Single enable expression - play once, no loop
+    enable_expr = f"between(t,{pip_start:.1f},{pip_start+pip_duration:.1f})"
 
     filter_complex = (
         f"[1:v]scale={pip_w}:{pip_h}:force_original_aspect_ratio=decrease,"
@@ -5618,7 +5630,7 @@ async def _generate_pip_video_overlay(
         pip_output
     ]
 
-    logger.info(f"[ai-clip {job_id}] PiP video overlay: start={pip_start:.1f}s, duration={pip_duration:.1f}s, short={is_short_video}")
+    logger.info(f"[ai-clip {job_id}] V13 PiP video overlay: start={pip_start:.1f}s, duration={pip_duration:.1f}s (1x play, no loop)")
 
     proc = await asyncio.create_subprocess_exec(
         *pip_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -5630,6 +5642,214 @@ async def _generate_pip_video_overlay(
 
     logger.info(f"[ai-clip {job_id}] PiP video overlay generated successfully")
     return pip_output
+
+
+
+# ─── V13: Combined Sequential PiP (Video then Images) ────────────────────────────────────
+
+async def _generate_pip_combined_sequential(
+    video_path: str, product_video_urls: list, product_image_urls: list,
+    duration: float, width: int, height: int, tmp_dir: str, job_id: str
+) -> Optional[str]:
+    """V13: 時間帯分離PiP合成 - 商品動画を先に1回再生、その後商品画像を順番に表示。
+    同時表示なし、ループなし。配置は全て右下角。
+    """
+    import httpx
+    from PIL import Image, ImageDraw
+    from app.services.storage_service import generate_read_sas_from_url
+
+    # --- Step 1: Download product video ---
+    resolved_video_urls = []
+    for url in product_video_urls[:1]:  # Use first video only
+        if "blob.core.windows.net" in url and "?" not in url:
+            sas_url = generate_read_sas_from_url(url, expires_hours=2)
+            resolved_video_urls.append(sas_url or url)
+        elif "cdn.aitherhub.com" in url:
+            blob_url = url.replace("https://cdn.aitherhub.com", "https://aitherhub.blob.core.windows.net")
+            sas_url = generate_read_sas_from_url(blob_url, expires_hours=2)
+            resolved_video_urls.append(sas_url or url)
+        else:
+            resolved_video_urls.append(url)
+
+    product_video_path = os.path.join(tmp_dir, "pip_seq_product_video.mp4")
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.get(resolved_video_urls[0])
+            resp.raise_for_status()
+            with open(product_video_path, "wb") as f:
+                f.write(resp.content)
+    except Exception as e:
+        logger.error(f"[ai-clip {job_id}] V13 seq: Failed to download product video: {e}")
+        # Fallback: just do image PiP
+        return await _generate_pip_video(
+            video_path, product_image_urls, duration, width, height, tmp_dir, job_id
+        )
+
+    # Get product video duration
+    try:
+        probe_cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                     "-of", "default=noprint_wrappers=1:nokey=1", product_video_path]
+        probe_proc = await asyncio.create_subprocess_exec(
+            *probe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        probe_out, _ = await asyncio.wait_for(probe_proc.communicate(), timeout=10)
+        product_video_duration = float(probe_out.decode().strip())
+    except Exception:
+        product_video_duration = 10.0
+
+    # --- Step 2: Download product images ---
+    resolved_img_urls = []
+    for url in product_image_urls:
+        if "blob.core.windows.net" in url and "?" not in url:
+            sas_url = generate_read_sas_from_url(url, expires_hours=2)
+            resolved_img_urls.append(sas_url or url)
+        elif "cdn.aitherhub.com" in url:
+            blob_url = url.replace("https://cdn.aitherhub.com", "https://aitherhub.blob.core.windows.net")
+            sas_url = generate_read_sas_from_url(blob_url, expires_hours=2)
+            resolved_img_urls.append(sas_url or url)
+        else:
+            resolved_img_urls.append(url)
+
+    product_img_paths = []
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for i, img_url in enumerate(resolved_img_urls):
+            try:
+                resp = await client.get(img_url)
+                resp.raise_for_status()
+                ext = "png" if "png" in img_url.lower() else "jpg"
+                img_path = os.path.join(tmp_dir, f"pip_seq_product_{i}.{ext}")
+                with open(img_path, "wb") as f:
+                    f.write(resp.content)
+                product_img_paths.append(img_path)
+            except Exception as e:
+                logger.warning(f"[ai-clip {job_id}] V13 seq: Failed to download image {i}: {e}")
+
+    # --- Step 3: Build timeline ---
+    # Phase 1: Product video (starts at 3s, plays once completely)
+    video_pip_start = 3.0
+    video_pip_end = min(video_pip_start + product_video_duration, duration - 2.0)
+
+    # Phase 2: Product images (starts after video ends + 3s gap)
+    img_start_time = video_pip_end + 3.0
+    img_show_duration = 5.0
+    img_hide_duration = 3.0
+
+    # PiP size and position (right-bottom corner)
+    pip_w = int(width * 0.28)
+    pip_h = int(height * 0.22)
+    pip_x = width - pip_w - 20
+    pip_y = height - pip_h - 180
+
+    logger.info(f"[ai-clip {job_id}] V13 seq: video_phase={video_pip_start:.1f}-{video_pip_end:.1f}s, "
+                f"image_phase_start={img_start_time:.1f}s, {len(product_img_paths)} images")
+
+    # --- Step 4: Create image overlays ---
+    overlay_size_w = pip_w
+    overlay_size_h = pip_h
+    corner_radius = 12
+    padding = 8
+    inner_w = overlay_size_w - padding * 2
+    inner_h = overlay_size_h - padding * 2
+
+    overlay_paths = []
+    for i, img_path in enumerate(product_img_paths):
+        try:
+            product_img = Image.open(img_path).convert("RGBA")
+            img_w, img_h = product_img.size
+            scale = min(inner_w / img_w, inner_h / img_h)
+            new_w = int(img_w * scale)
+            new_h = int(img_h * scale)
+            product_resized = product_img.resize((new_w, new_h), Image.LANCZOS)
+
+            overlay_bg = Image.new("RGBA", (overlay_size_w, overlay_size_h), (0, 0, 0, 0))
+            mask = Image.new("L", (overlay_size_w, overlay_size_h), 0)
+            draw = ImageDraw.Draw(mask)
+            draw.rounded_rectangle([(0, 0), (overlay_size_w - 1, overlay_size_h - 1)], radius=corner_radius, fill=255)
+            white_bg = Image.new("RGBA", (overlay_size_w, overlay_size_h), (255, 255, 255, 220))
+            overlay_bg.paste(white_bg, (0, 0), mask)
+            x_off = (overlay_size_w - new_w) // 2
+            y_off = (overlay_size_h - new_h) // 2
+            overlay_bg.paste(product_resized, (x_off, y_off), product_resized)
+            overlay_bg.putalpha(mask)
+
+            overlay_path = os.path.join(tmp_dir, f"pip_seq_overlay_{i}.png")
+            overlay_bg.save(overlay_path, "PNG")
+            overlay_paths.append(overlay_path)
+        except Exception as e:
+            logger.warning(f"[ai-clip {job_id}] V13 seq: Failed to create overlay {i}: {e}")
+
+    # --- Step 5: Build ffmpeg command ---
+    # Inputs: [0]=main video, [1]=product video, [2..N]=product images
+    input_args = ["-i", video_path, "-i", product_video_path]
+    for op in overlay_paths:
+        input_args.extend(["-i", op])
+
+    # Filter: video PiP first, then image overlays
+    filter_parts = []
+
+    # Video PiP: scale product video and overlay at right-bottom
+    video_enable = f"between(t,{video_pip_start:.1f},{video_pip_end:.1f})"
+    filter_parts.append(
+        f"[1:v]scale={pip_w}:{pip_h}:force_original_aspect_ratio=decrease,"
+        f"pad={pip_w}:{pip_h}:(ow-iw)/2:(oh-ih)/2:color=black@0[vpip];"
+        f"[0:v][vpip]overlay={pip_x}:{pip_y}:enable='{video_enable}'[vtmp]"
+    )
+
+    # Image overlays: each shown once sequentially after video phase
+    prev_label = "vtmp"
+    t = img_start_time
+    added_images = 0
+    for i, op in enumerate(overlay_paths):
+        if t + img_show_duration > duration - 1.0:
+            break
+        input_idx = i + 2  # +2 because [0]=main, [1]=product video
+        enable = f"between(t,{t:.1f},{t+img_show_duration:.1f})"
+        # Determine output label
+        is_last = (i == len(overlay_paths) - 1) or (t + img_show_duration + img_hide_duration + img_show_duration > duration - 1.0)
+        out_label = "outv" if is_last else f"itmp{i}"
+        filter_parts.append(
+            f"[{prev_label}][{input_idx}:v]overlay={pip_x}:{pip_y}:enable='{enable}'[{out_label}]"
+        )
+        prev_label = out_label
+        t += img_show_duration + img_hide_duration
+        added_images += 1
+        if out_label == "outv":
+            break
+
+    # If no images were scheduled, rename vtmp to outv
+    if prev_label == "vtmp":
+        filter_parts[0] = filter_parts[0].replace("[vtmp]", "[outv]")
+
+    filter_complex = ";".join(filter_parts)
+
+    pip_output = os.path.join(tmp_dir, "pip_seq_output.mp4")
+    pip_cmd = [
+        "ffmpeg", "-y",
+        *input_args,
+        "-filter_complex", filter_complex,
+        "-map", "[outv]", "-map", "0:a?",
+        "-t", str(duration),
+        "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-r", "30",
+        pip_output
+    ]
+
+    logger.info(f"[ai-clip {job_id}] V13 seq PiP: filter_complex={filter_complex[:300]}...")
+
+    proc = await asyncio.create_subprocess_exec(
+        *pip_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
+    if proc.returncode != 0:
+        logger.error(f"[ai-clip {job_id}] V13 seq PiP ffmpeg failed: {stderr.decode()[-500:]}")
+        # Fallback: try just image PiP
+        return await _generate_pip_video(
+            video_path, product_image_urls, duration, width, height, tmp_dir, job_id
+        )
+
+    logger.info(f"[ai-clip {job_id}] V13 seq PiP generated successfully (video+{added_images} images)")
+    return pip_output
+
 
 
 # ─── Product Image/Video Upload & AI Analysis Endpoints ──────────────────────────────────────
