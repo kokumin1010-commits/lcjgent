@@ -430,6 +430,9 @@ export default function BusinessCards() {
   // Phone state
   const [phoneMemo, setPhoneMemo] = useState("");
 
+  // Image zoom state
+  const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
+
   // Lead collection state
   const [leadStats, setLeadStats] = useState<any>(null);
   const [leadKeyword, setLeadKeyword] = useState("美容 ディーラー");
@@ -953,7 +956,12 @@ export default function BusinessCards() {
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
                             {card.imageUrl ? (
-                              <img src={card.imageUrl} alt="" className="w-8 h-8 rounded object-cover" />
+                              <img
+                                src={card.imageUrl}
+                                alt=""
+                                className="w-8 h-8 rounded object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={(e) => { e.stopPropagation(); setZoomedImageUrl(card.imageUrl!); }}
+                              />
                             ) : (
                               <div className="w-8 h-8 rounded bg-muted flex items-center justify-center">
                                 <User className="h-4 w-4 text-muted-foreground" />
@@ -1858,6 +1866,24 @@ export default function BusinessCards() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Image Zoom Dialog */}
+      <Dialog open={!!zoomedImageUrl} onOpenChange={() => setZoomedImageUrl(null)}>
+        <DialogContent className="max-w-3xl p-2">
+          <DialogHeader>
+            <DialogTitle className="sr-only">名刺画像</DialogTitle>
+          </DialogHeader>
+          {zoomedImageUrl && (
+            <div className="flex justify-center items-center">
+              <img
+                src={zoomedImageUrl}
+                alt="名刺"
+                className="max-w-full max-h-[80vh] object-contain rounded"
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
