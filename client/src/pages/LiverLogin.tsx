@@ -157,7 +157,7 @@ export default function LiverLogin() {
             </div>
             <div>
               <h1 className="font-bold text-gray-800">{lt("login.title")}</h1>
-              <p className="text-xs text-white">{lt("login.subtitle")}</p>
+              <p className="text-xs text-gray-500">{lt("login.subtitle")}</p>
             </div>
           </div>
         </div>
@@ -225,14 +225,14 @@ export default function LiverLogin() {
             <div className="mt-4 text-center">
               <Link
                 href="/liver/forgot-password"
-                className="text-sm text-white hover:text-pink-500"
+                className="text-sm text-pink-500 hover:text-pink-600 underline"
               >
                 {lt("login.forgotPassword")}
               </Link>
             </div>
 
             <div className="mt-4 text-center">
-              <p className="text-sm text-white">
+              <p className="text-sm text-gray-500">
                 {lt("login.noAccount")}
               </p>
               <Link
