@@ -1,6 +1,6 @@
 import { getDb } from "./db";
 import { brands, feishuSyncHistory } from "../drizzle/schema";
-import { eq, or, sql } from "drizzle-orm";
+import { eq, or, sql, isNull } from "drizzle-orm";
 
 const SIX_HOURS = 6 * 60 * 60 * 1000; // 6時間
 
@@ -28,7 +28,60 @@ export function startFeishuSyncScheduler() {
 }
 
 /**
+ * ブランド名を正規化してマッチング用のキーを生成
+ * - 大文字小文字統一
+ * - カッコ内の補足を除去
+ * - スペース統一
+ * - 全角半角統一
+ */
+function normalizeBrandName(name: string): string {
+  let n = name.trim();
+  // カッコ内の補足を除去 (英語・日本語カッコ両方)
+  n = n.replace(/[\(（].*?[\)）]/g, '');
+  // 全角英数字を半角に変換
+  n = n.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+  // 小文字に統一
+  n = n.toLowerCase();
+  // スペースを統一して除去
+  n = n.replace(/[\s\u3000]+/g, '');
+  // 末尾の特殊文字を除去
+  n = n.replace(/[・\-_]+$/, '');
+  return n;
+}
+
+/**
+ * 2つのブランド名が同一ブランドかどうかを判定
+ * - 正規化後の完全一致
+ * - 正規化後の前方一致（短い方が3文字以上の場合のみ）
+ * - 正規化後の包含一致（短い方が4文字以上の場合のみ）
+ */
+function isSameBrand(name1: string, name2: string): boolean {
+  const n1 = normalizeBrandName(name1);
+  const n2 = normalizeBrandName(name2);
+  
+  if (!n1 || !n2) return false;
+  
+  // 完全一致
+  if (n1 === n2) return true;
+  
+  const shorter = n1.length <= n2.length ? n1 : n2;
+  const longer = n1.length <= n2.length ? n2 : n1;
+  
+  // 短い方が3文字未満の場合はマッチしない（誤マッチ防止）
+  if (shorter.length < 3) return false;
+  
+  // 前方一致（短い方が長い方の先頭と一致）
+  if (longer.startsWith(shorter) && shorter.length >= 4) return true;
+  
+  // 包含一致（短い方が4文字以上で長い方に含まれる）
+  if (shorter.length >= 4 && longer.includes(shorter)) return true;
+  
+  return false;
+}
+
+/**
  * 飛書同期を実行し、履歴をDBに記録する
+ * 改善版: ブランド名の正規化マッチングにより重複作成を防止
  */
 export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Promise<{
   total: number;
@@ -56,33 +109,49 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
     let skipped = 0;
     let errors: string[] = [];
 
+    // ========== 全既存ブランドを事前にロード（マッチング用） ==========
+    const allExistingBrands = await db.select({
+      id: brands.id,
+      name: brands.name,
+      larkRecordId: brands.larkRecordId,
+    }).from(brands).where(isNull(brands.deletedAt));
+
+    // larkRecordId → brand のマップ
+    const byRecordId = new Map<string, { id: number; name: string }>();
+    for (const b of allExistingBrands) {
+      if (b.larkRecordId) {
+        byRecordId.set(b.larkRecordId, { id: b.id, name: b.name });
+      }
+    }
+
     for (const larkBrand of larkBrands) {
       try {
         // ========== タスク/メモレコードのフィルタリング ==========
-        // パターン: 「タスク内容 < ブランド名」はタスクレコードであり、ブランドではない
         const isTaskRecord = larkBrand.brandName.includes('<') || larkBrand.brandName.includes('＜');
         
         if (isTaskRecord) {
-          // < の右側からブランド名を抽出して既存ブランドに紐付け試行
           const separator = larkBrand.brandName.includes('<') ? '<' : '＜';
           const parts = larkBrand.brandName.split(separator);
           const actualBrandName = (parts[1] || '').trim();
           
           if (actualBrandName) {
-            // 既存ブランドが見つかれば、タスク情報をlarkIntroに追記（ブランド自体は作成しない）
-            const existingBrand = await db.select().from(brands)
-              .where(eq(brands.name, actualBrandName))
-              .limit(1);
+            // 正規化マッチングで既存ブランドを検索
+            const matchedBrand = allExistingBrands.find(b => isSameBrand(b.name, actualBrandName));
             
-            if (existingBrand.length > 0) {
-              // 既存ブランドにタスク情報を追記（larkIntroにのみ）
+            if (matchedBrand) {
               const taskInfo = parts[0].trim();
-              const currentIntro = existingBrand[0].larkIntro || '';
-              if (!currentIntro.includes(taskInfo)) {
-                const updatedIntro = currentIntro ? `${currentIntro}\n[タスク] ${taskInfo}` : `[タスク] ${taskInfo}`;
-                await db.update(brands)
-                  .set({ larkIntro: updatedIntro, larkSyncedAt: new Date() })
-                  .where(eq(brands.id, existingBrand[0].id));
+              // 既存ブランドのlarkIntroにタスク情報を追記
+              const existingBrand = await db.select().from(brands)
+                .where(eq(brands.id, matchedBrand.id))
+                .limit(1);
+              if (existingBrand.length > 0) {
+                const currentIntro = existingBrand[0].larkIntro || '';
+                if (!currentIntro.includes(taskInfo)) {
+                  const updatedIntro = currentIntro ? `${currentIntro}\n[タスク] ${taskInfo}` : `[タスク] ${taskInfo}`;
+                  await db.update(brands)
+                    .set({ larkIntro: updatedIntro, larkSyncedAt: new Date() })
+                    .where(eq(brands.id, matchedBrand.id));
+                }
               }
             }
           }
@@ -96,15 +165,17 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
           continue;
         }
 
-        // 既存ブランドをlarkRecordIdまたは名前で検索
-        const existing = await db.select().from(brands)
-          .where(
-            or(
-              eq(brands.larkRecordId, larkBrand.recordId),
-              eq(brands.name, larkBrand.brandName)
-            )
-          )
-          .limit(1);
+        // ========== 改善版マッチングロジック ==========
+        // 優先度1: larkRecordIdで完全一致
+        let matchedBrand = byRecordId.get(larkBrand.recordId);
+        
+        // 優先度2: ブランド名の正規化マッチング（全既存ブランドと比較）
+        if (!matchedBrand) {
+          const nameMatch = allExistingBrands.find(b => isSameBrand(b.name, larkBrand.brandName));
+          if (nameMatch) {
+            matchedBrand = { id: nameMatch.id, name: nameMatch.name };
+          }
+        }
 
         const larkFields = {
           larkRecordId: larkBrand.recordId,
@@ -121,19 +192,21 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
           larkSyncedAt: new Date(),
         };
 
-        if (existing.length > 0) {
-          // 更新（飞書データを優先）
+        if (matchedBrand) {
+          // ========== 既存ブランドを更新（新規作成しない） ==========
           await db.update(brands)
             .set({
               ...larkFields,
               status: mapLarkStageToStatus(larkBrand.stage),
-              materialCategory: larkBrand.category || existing[0].materialCategory,
             })
-            .where(eq(brands.id, existing[0].id));
+            .where(eq(brands.id, matchedBrand.id));
           updated++;
+          
+          // byRecordIdマップも更新（同じrecordIdで再マッチしないように）
+          byRecordId.set(larkBrand.recordId, matchedBrand);
         } else {
-          // 新規作成
-          await db.insert(brands).values({
+          // ========== 新規作成（既存に一致するブランドがない場合のみ） ==========
+          const result = await db.insert(brands).values({
             name: larkBrand.brandName,
             nameJa: larkBrand.brandName,
             status: mapLarkStageToStatus(larkBrand.stage),
@@ -142,6 +215,13 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
             createdBy: 1, // System user
           });
           created++;
+          
+          // 新規作成したブランドもallExistingBrandsとbyRecordIdに追加
+          const newId = (result as any)[0]?.insertId || 0;
+          if (newId) {
+            allExistingBrands.push({ id: newId, name: larkBrand.brandName, larkRecordId: larkBrand.recordId });
+            byRecordId.set(larkBrand.recordId, { id: newId, name: larkBrand.brandName });
+          }
         }
         synced++;
       } catch (err: any) {

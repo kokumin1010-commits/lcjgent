@@ -7569,6 +7569,82 @@ Respond with a JSON object.`,
         
         return { deleted: taskRecords.length, records: taskRecords.map(r => r.name) };
       }),
+
+    // 重複ブランドをマージ（飛書で作成された重複を既存ブランドに統合）
+    mergeDuplicates: protectedProcedure
+      .mutation(async () => {
+        const db = await getDb();
+        const { isNull } = await import("drizzle-orm");
+        
+        // 全ブランドを取得
+        const allBrands = await db.select().from(brands).where(isNull(brands.deletedAt));
+        
+        // 正規化関数
+        function normalizeName(name: string): string {
+          let n = name.trim();
+          n = n.replace(/[\(（].*?[\)）]/g, '');
+          n = n.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s: string) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+          n = n.toLowerCase();
+          n = n.replace(/[\s\u3000]+/g, '');
+          n = n.replace(/[・\-_]+$/, '');
+          return n;
+        }
+        
+        function isSameBrand(name1: string, name2: string): boolean {
+          const n1 = normalizeName(name1);
+          const n2 = normalizeName(name2);
+          if (!n1 || !n2) return false;
+          if (n1 === n2) return true;
+          const shorter = n1.length <= n2.length ? n1 : n2;
+          const longer = n1.length <= n2.length ? n2 : n1;
+          if (shorter.length < 3) return false;
+          if (longer.startsWith(shorter) && shorter.length >= 4) return true;
+          if (shorter.length >= 4 && longer.includes(shorter)) return true;
+          return false;
+        }
+        
+        // larkRecordIdがあるブランド（飛書から作成）とないブランド（既存）に分離
+        const larkBrands = allBrands.filter(b => b.larkRecordId && !b.name.includes('<'));
+        const originalBrands = allBrands.filter(b => !b.larkRecordId);
+        
+        let merged = 0;
+        const mergeLog: string[] = [];
+        
+        for (const larkBrand of larkBrands) {
+          // 既存ブランドとマッチするか確認
+          const match = originalBrands.find(ob => isSameBrand(ob.name, larkBrand.name));
+          
+          if (match) {
+            // 既存ブランドにlark情報を統合
+            await db.update(brands)
+              .set({
+                larkRecordId: larkBrand.larkRecordId,
+                larkStage: larkBrand.larkStage,
+                larkTier: larkBrand.larkTier,
+                larkCategory: larkBrand.larkCategory,
+                larkContactPlatform: larkBrand.larkContactPlatform,
+                larkBrandManager: larkBrand.larkBrandManager,
+                larkBusinessContact: larkBrand.larkBusinessContact,
+                larkBusinessLead: larkBrand.larkBusinessLead,
+                larkOperationsContact: larkBrand.larkOperationsContact,
+                larkShopId: larkBrand.larkShopId,
+                larkIntro: larkBrand.larkIntro,
+                larkSyncedAt: new Date(),
+              })
+              .where(eq(brands.id, match.id));
+            
+            // 重複ブランドをソフトデリート
+            await db.update(brands)
+              .set({ deletedAt: new Date() })
+              .where(eq(brands.id, larkBrand.id));
+            
+            merged++;
+            mergeLog.push(`[${larkBrand.name}] → [${match.name}] (ID: ${match.id})`);
+          }
+        }
+        
+        return { merged, mergeLog };
+      }),
   }),
 
   // Brand Products Router
