@@ -13608,10 +13608,25 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
         
         try {
           const { url } = await storagePut(key, buffer, contentType);
+          if (!url) {
+            throw new Error('Storage returned empty URL');
+          }
           return { url, key };
         } catch (uploadErr) {
-          console.error('[uploadScreenshot] Storage upload failed (returning empty url):', uploadErr);
-          return { url: "", key: "" };
+          console.error('[uploadScreenshot] Storage upload failed, retrying...', uploadErr);
+          // リトライ: 1回だけ再試行
+          try {
+            const retryKey = `livestreams/${input.liverId || 'unknown'}/${Date.now()}-${nanoid()}.${ext}`;
+            const { url: retryUrl } = await storagePut(retryKey, buffer, contentType);
+            if (retryUrl) {
+              console.log('[uploadScreenshot] Retry succeeded');
+              return { url: retryUrl, key: retryKey };
+            }
+          } catch (retryErr) {
+            console.error('[uploadScreenshot] Retry also failed:', retryErr);
+          }
+          // リトライも失敗した場合はエラーをthrow
+          throw new Error('Screenshot upload failed. Please try again.');
         }
       }),
 

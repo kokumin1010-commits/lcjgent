@@ -507,7 +507,8 @@ export default function LiverSelfRecord() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    // 重複送信防止
+    if (isSubmitting) return;
     if (!liverInfo?.id) {
       toast.error(tr.loginRequired);
       return;
@@ -559,8 +560,9 @@ export default function LiverSelfRecord() {
 
     try {
       // Upload after screenshot if exists and not already uploaded
-      let finalScreenshotUrl = screenshotUrl;
-      if (screenshotFile && !screenshotUrl) {
+      // screenshotUrlが空またはnullの場合、screenshotFileがあれば再アップロードを試みる
+      let finalScreenshotUrl = screenshotUrl || null;
+      if (screenshotFile && !finalScreenshotUrl) {
         const reader = new FileReader();
         const base64Promise = new Promise<string>((resolve) => {
           reader.onloadend = () => {
