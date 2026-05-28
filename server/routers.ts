@@ -8638,6 +8638,126 @@ Return ONLY valid JSON, no markdown or explanation.`,
           existingCard: existing,
         };
       }),
+
+    // CSV一括インポート（Eight形式対応）
+    importCsv: protectedProcedure
+      .input(
+        z.object({
+          cards: z.array(
+            z.object({
+              name: z.string().min(1),
+              nameReading: z.string().optional(),
+              company: z.string().optional(),
+              department: z.string().optional(),
+              position: z.string().optional(),
+              email: z.string().optional(),
+              phone: z.string().optional(),
+              mobile: z.string().optional(),
+              fax: z.string().optional(),
+              address: z.string().optional(),
+              website: z.string().optional(),
+              notes: z.string().optional(),
+            })
+          ),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const crypto = await import("crypto");
+        let imported = 0;
+        let skipped = 0;
+        const duplicates: string[] = [];
+
+        for (const card of input.cards) {
+          const duplicateHash = crypto
+            .createHash("md5")
+            .update(`${card.company || ""}|${card.name}`)
+            .digest("hex");
+
+          // Check for duplicates
+          const existing = await checkDuplicateBusinessCard(duplicateHash);
+          if (existing) {
+            skipped++;
+            duplicates.push(`${card.name} (${card.company || ""})`);
+            continue;
+          }
+
+          await createBusinessCard({
+            ...card,
+            registeredBy: ctx.user.id,
+            duplicateHash,
+          });
+          imported++;
+        }
+
+        // Record activity log
+        await createActivityLog({
+          userId: ctx.user.id,
+          actionType: "business_card_csv_import",
+          actionLabel: "名刺CSVインポート",
+          targetType: "business_card",
+          targetName: `${imported}件インポート / ${skipped}件スキップ`,
+          metadata: {
+            totalCards: input.cards.length,
+            imported,
+            skipped,
+            duplicates: duplicates.slice(0, 10),
+          },
+        });
+
+        return { success: true, imported, skipped, duplicates };
+      }),
+
+    // 名刺ベースのメール一括送信
+    sendBulkEmail: protectedProcedure
+      .input(
+        z.object({
+          cardIds: z.array(z.number()),
+          subject: z.string().min(1),
+          content: z.string().min(1),
+          html: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        // 選択した名刺のメールアドレスを取得
+        const cards = await Promise.all(
+          input.cardIds.map((id) => getBusinessCardById(id))
+        );
+        const validCards = cards.filter((c) => c && c.email);
+        const emails = validCards.map((c) => c!.email!);
+
+        if (emails.length === 0) {
+          throw new Error("送信先のメールアドレスが見つかりません。");
+        }
+
+        const { sendEmail } = await import("./emailService");
+        const result = await sendEmail({
+          to: emails,
+          subject: input.subject,
+          content: input.content,
+          html: input.html,
+        });
+
+        // Record activity log
+        await createActivityLog({
+          userId: ctx.user.id,
+          actionType: "business_card_bulk_email",
+          actionLabel: "名刺ベースメール一括送信",
+          targetType: "business_card",
+          targetName: `${emails.length}件に送信`,
+          metadata: {
+            cardIds: input.cardIds,
+            emailCount: emails.length,
+            subject: input.subject,
+            recipients: emails.slice(0, 10),
+          },
+        });
+
+        return {
+          success: result.success,
+          sentCount: emails.length,
+          error: result.error,
+        };
+      }),
   }),
 
   // Activity Log Router
