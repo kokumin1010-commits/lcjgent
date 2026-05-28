@@ -12,6 +12,7 @@ import MagicCutPage from './components/MagicCutPage'
 import ScriptGeneratorPage from './components/ScriptGeneratorPage'
 import PrivacyPolicy from './components/PrivacyPolicy'
 import AuthPage from './pages/authPages/AuthPage'
+import AutoLogin from './pages/authPages/AutoLogin'
 import BrandPortal from './components/brand/BrandPortal'
 import ShareVideoPage from './components/ShareVideoPage'
 import LandingPage from './pages/landing/LandingPage'
@@ -70,6 +71,7 @@ function App() {
             <Route path="/login" element={<AuthPage mode="login" />} />
             <Route path="/register" element={<AuthPage mode="register" />} />
             <Route path="/forgot-password" element={<AuthPage mode="forgot-password" />} />
+            <Route path="/auto-login" element={<AutoLogin />} />
             <Route path="/brand" element={<BrandPortal />} />
             <Route path="/v/:clipId" element={<ShareVideoPage />} />
           </Routes>

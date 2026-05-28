@@ -55,6 +55,9 @@ class User(Base, IntegerMixin, TimestampMixin):
         nullable=False,
     )
 
+    # Registration source (e.g., "web", "liveboost")
+    registration_source: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
     # LCJ連携
     lcj_liver_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     lcj_liver_name: Mapped[str | None] = mapped_column(String(255), nullable=True)

@@ -346,9 +346,18 @@ async def run_all_ddl_migrations():
                     await conn.execute(_text("CREATE INDEX IF NOT EXISTS idx_sg_created_at ON script_generations (created_at DESC)"))
                     await conn.execute(_text("CREATE INDEX IF NOT EXISTS idx_sg_rating ON script_generations (rating) WHERE rating IS NOT NULL"))
                     await conn.execute(_text("CREATE INDEX IF NOT EXISTS idx_sg_user_email ON script_generations (user_email)"))
-                    logger.info("[DDL 9/9] script_generations ✓")
+                    logger.info("[DDL 9/9] script_generations \u2713")
                 except Exception as e:
                     logger.warning(f"[DDL 9/9] script_generations: {e}")
+
+                # ── 10. users.registration_source ──
+                try:
+                    await conn.execute(_text(
+                        "ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_source VARCHAR(50)"
+                    ))
+                    logger.info("[DDL 10] users.registration_source \u2713")
+                except Exception as e:
+                    logger.warning(f"[DDL 10] users.registration_source: {e}")
 
         # ── ORM-based tables (separate connection for run_sync) ──
         try:

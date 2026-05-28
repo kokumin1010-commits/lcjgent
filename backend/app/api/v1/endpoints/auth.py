@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 
@@ -6,6 +7,7 @@ from app.core.db import get_db
 from app.core.dependencies import get_current_user
 from app.repository.auth_repo import (
     get_user_by_email,
+    get_user_by_id,
     create_user_with_password,
     update_user_password,
     verify_user_password,
@@ -37,6 +39,7 @@ async def register(
         db=db,
         email=payload.email,
         password=payload.password,
+        registration_source=payload.source,
     )
 
     # Generate JWT tokens
@@ -195,3 +198,48 @@ async def change_password(
     await update_user_password(db, current_user["id"], payload.new_password)
     
     return {"message": "\u30d1\u30b9\u30ef\u30fc\u30c9\u306e\u5909\u66f4\u306b\u6210\u529f\u3057\u307e\u3057\u305f"}
+
+
+@router.get("/auto-login")
+async def auto_login(
+    token: str = Query(..., description="Valid access_token or refresh_token"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Auto-login endpoint for LiveBoost app -> AitherHub Web transition.
+    Validates the token, issues fresh tokens, and redirects to the frontend
+    with tokens in the URL fragment (not exposed to server logs).
+    """
+    from jose import JWTError
+
+    try:
+        token_data = decode_token(token)
+        user_id = token_data.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+        user = await get_user_by_id(db, user_id)
+        if not user or not user.is_active:
+            raise HTTPException(status_code=401, detail="User not found or inactive")
+
+        # Issue fresh tokens for the web session
+        new_access_token = create_access_token(str(user.id))
+        new_refresh_token = create_refresh_token(str(user.id))
+
+        # Redirect to frontend auto-login page with tokens in fragment
+        # Fragment (#) is never sent to the server, keeping tokens secure
+        frontend_url = "https://www.aitherhub.com/auto-login"
+        redirect_url = (
+            f"{frontend_url}"
+            f"#access_token={new_access_token}"
+            f"&refresh_token={new_refresh_token}"
+            f"&user_id={user.id}"
+            f"&email={user.email or ''}"
+        )
+        return RedirectResponse(url=redirect_url, status_code=302)
+
+    except JWTError:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token. Please log in again.",
+        )

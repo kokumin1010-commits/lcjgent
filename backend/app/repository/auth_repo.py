@@ -43,10 +43,12 @@ async def create_user_with_password(
     db: AsyncSession,
     email: str,
     password: str,
+    registration_source: str | None = None,
 ) -> User:
     user = User(
         email=email,
         hashed_password=hash_password(password),
+        registration_source=registration_source,
     )
 
     db.add(user)
