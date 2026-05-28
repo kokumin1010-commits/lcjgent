@@ -13,7 +13,6 @@ export default function OnboardingModal({ isOpen, onComplete }) {
   const [userType, setUserType] = useState(null);
   const [mainChallenge, setMainChallenge] = useState(null);
   const [tiktokAccount, setTiktokAccount] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const chatEndRef = useRef(null);
 
   // Initial message
@@ -128,25 +127,21 @@ export default function OnboardingModal({ isOpen, onComplete }) {
     }
 
     setStep(3);
-    setIsSubmitting(true);
 
-    // Save to backend
-    let saveSuccess = false;
-    try {
-      const api = new BaseApiService(API_BASE);
-      await api.post('/api/v1/profile/onboarding', {
-        user_type: userType,
-        main_challenge: mainChallenge,
-        tiktok_account: skip ? null : tiktokAccount.trim() || null,
-      });
-      saveSuccess = true;
-    } catch (err) {
-      console.error('[Onboarding] Failed to save profile:', err);
-      // Still continue - localStorage flag will prevent re-show
-    }
-    // Always persist locally so popup never reappears
+    // Persist locally IMMEDIATELY so popup never reappears
     localStorage.setItem('onboarding_completed', '1');
 
+    // Save to backend in background (fire-and-forget, don't block UI)
+    const api = new BaseApiService(API_BASE);
+    api.post('/api/v1/profile/onboarding', {
+      user_type: userType,
+      main_challenge: mainChallenge,
+      tiktok_account: skip ? null : tiktokAccount.trim() || null,
+    }).catch(err => {
+      console.error('[Onboarding] Failed to save profile:', err);
+    });
+
+    // Show thank-you message immediately (no loading spinner)
     setTimeout(() => {
       setMessages(prev => [
         ...prev,
@@ -156,12 +151,11 @@ export default function OnboardingModal({ isOpen, onComplete }) {
           id: Date.now(),
         },
       ]);
-      setIsSubmitting(false);
       // Auto-close after brief delay
       setTimeout(() => {
         onComplete?.();
-      }, 1000);
-    }, 500);
+      }, 800);
+    }, 300);
   };
 
   if (!isOpen) return null;
@@ -259,20 +253,7 @@ export default function OnboardingModal({ isOpen, onComplete }) {
               )}
             </div>
           ))}
-          {isSubmitting && (
-            <div className="flex gap-2">
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex-shrink-0 flex items-center justify-center">
-                <span className="text-white text-[10px] font-bold">A</span>
-              </div>
-              <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 inline-block">
-                <div className="flex gap-1">
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                </div>
-              </div>
-            </div>
-          )}
+
           <div ref={chatEndRef} />
         </div>
       </div>
