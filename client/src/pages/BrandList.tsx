@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake, Trash2, Target, AlertTriangle, Flame, RefreshCw } from "lucide-react";
+import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake, Trash2, Target, AlertTriangle, Flame, RefreshCw, Users, Tag, Crown } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -54,6 +54,7 @@ const translations = {
     sortByGmv: "売上順",
     sortByAdBudget: "広告費順",
     sortByCreatedAt: "登録順",
+    sortByTier: "Tier順",
     // 期間フィルター
     period: "期間",
     allTime: "全期間",
@@ -93,6 +94,7 @@ const translations = {
     sortByGmv: "销售额排序",
     sortByAdBudget: "广告费排序",
     sortByCreatedAt: "注册顺序",
+    sortByTier: "Tier排序",
     // 期間フィルター
     period: "期间",
     allTime: "全期间",
@@ -311,6 +313,11 @@ export default function BrandList() {
       const dateA = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
       const dateB = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
       return dateB - dateA; // 新しい順
+    } else if (sortBy === "tier") {
+      const tierOrder: Record<string, number> = { 'Tier1': 1, 'Tier2': 2 };
+      const tierA = tierOrder[(a as any).larkTier] || 99;
+      const tierB = tierOrder[(b as any).larkTier] || 99;
+      return tierA - tierB;
     } else {
       return (a.name || "").localeCompare(b.name || "", "ja");
     }
@@ -349,6 +356,9 @@ export default function BrandList() {
   // 統計情報を計算
   const totalBrands = brands?.length || 0;
   const contractedBrands = brands?.filter(b => b.status === "契約済み").length || 0;
+  const larkSyncedBrands = brands?.filter(b => (b as any).larkRecordId).length || 0;
+  const tier1Brands = brands?.filter(b => (b as any).larkTier === 'Tier1').length || 0;
+  const tier2Brands = brands?.filter(b => (b as any).larkTier === 'Tier2').length || 0;
 
   if (isLoading) {
     return (
@@ -469,8 +479,8 @@ export default function BrandList() {
           </div>
         </div>
 
-        {/* KPI Cards - 6 cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+        {/* KPI Cards - 8 cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
           <div className="bg-gradient-to-br from-red-600/20 to-orange-600/20 border border-red-500/30 rounded-xl p-4">
             <div className="flex items-center gap-2 text-red-400 mb-2">
               <Building2 className="h-4 w-4" />
@@ -484,6 +494,20 @@ export default function BrandList() {
               <span className="text-xs">{t.contractedBrands}</span>
             </div>
             <div className="text-2xl font-bold text-white">{contractedBrands}</div>
+          </div>
+          <div className="bg-gradient-to-br from-blue-600/20 to-indigo-600/20 border border-blue-500/30 rounded-xl p-4">
+            <div className="flex items-center gap-2 text-blue-400 mb-2">
+              <RefreshCw className="h-4 w-4" />
+              <span className="text-xs">飛書同期</span>
+            </div>
+            <div className="text-2xl font-bold text-white">{larkSyncedBrands}</div>
+          </div>
+          <div className="bg-gradient-to-br from-amber-600/20 to-yellow-600/20 border border-amber-500/30 rounded-xl p-4">
+            <div className="flex items-center gap-2 text-amber-400 mb-2">
+              <Crown className="h-4 w-4" />
+              <span className="text-xs">Tier1/Tier2</span>
+            </div>
+            <div className="text-2xl font-bold text-white">{tier1Brands}/{tier2Brands}</div>
           </div>
           <div className="bg-gradient-to-br from-yellow-600/20 to-amber-600/20 border border-yellow-500/30 rounded-xl p-4">
             <div className="flex items-center gap-2 text-yellow-400 mb-2">
@@ -529,6 +553,7 @@ export default function BrandList() {
                   <SelectItem value="adBudget">{t.sortByAdBudget}</SelectItem>
                   <SelectItem value="name">{t.sortByName}</SelectItem>
                   <SelectItem value="createdAt">{t.sortByCreatedAt}</SelectItem>
+                  <SelectItem value="tier">{t.sortByTier}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -622,6 +647,54 @@ export default function BrandList() {
                     )}
                   </div>
                   
+                  {/* 飛書データ: Tier + カテゴリ + 担当者 */}
+                  {(brand as any).larkRecordId && (
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {(brand as any).larkTier && (
+                        <Badge className={`text-xs px-2 py-0.5 ${
+                          (brand as any).larkTier === 'Tier1' 
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
+                            : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                        }`}>
+                          <Crown className="h-3 w-3 mr-1" />
+                          {(brand as any).larkTier}
+                        </Badge>
+                      )}
+                      {(brand as any).larkCategory && (
+                        <Badge className="bg-violet-500/20 text-violet-300 border border-violet-500/40 text-xs px-2 py-0.5">
+                          <Tag className="h-3 w-3 mr-1" />
+                          {(brand as any).larkCategory}
+                        </Badge>
+                      )}
+                      {(brand as any).larkStage && (
+                        <Badge className="bg-teal-500/20 text-teal-300 border border-teal-500/40 text-xs px-2 py-0.5">
+                          {(brand as any).larkStage}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 担当者情報 */}
+                  {(brand as any).larkRecordId && ((brand as any).larkBusinessContact || (brand as any).larkBusinessLead || (brand as any).larkOperationsContact) && (
+                    <div className="flex flex-wrap gap-2 mb-3 text-xs">
+                      {(brand as any).larkBusinessContact && (
+                        <span className="text-gray-400">
+                          <span className="text-gray-500">商務:</span> <span className="text-sky-300">{(brand as any).larkBusinessContact}</span>
+                        </span>
+                      )}
+                      {(brand as any).larkBusinessLead && (
+                        <span className="text-gray-400">
+                          <span className="text-gray-500">負責:</span> <span className="text-orange-300">{(brand as any).larkBusinessLead}</span>
+                        </span>
+                      )}
+                      {(brand as any).larkOperationsContact && (
+                        <span className="text-gray-400">
+                          <span className="text-gray-500">運営:</span> <span className="text-emerald-300">{(brand as any).larkOperationsContact}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div className="bg-gray-700/30 rounded-lg p-3">
                       <div className="text-xs text-gray-400 mb-1">{'広告費'}</div>
