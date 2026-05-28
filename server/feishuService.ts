@@ -142,8 +142,8 @@ export async function fetchFeishuBrands(): Promise<LarkBrandData[]> {
       tier: extractOptionValue(fields["当前阶段"]) === "Tier1" || extractOptionValue(fields["当前阶段"]) === "Tier2" 
         ? extractOptionValue(fields["当前阶段"]) 
         : extractOptionValue(fields["Tier"]) || extractTierFromStage(fields),
-      category: extractOptionValue(fields["类目"]),
-      contactPlatform: extractOptionValue(fields["联系平台"]),
+      category: extractCategoryValue(fields["类目"]),
+      contactPlatform: extractTextValue(fields["联系平台"]),
       brandManager: extractPersonValue(fields["品牌担当"]),
       businessContact: extractPersonValue(fields["商务对接"]),
       businessLead: extractPersonValue(fields["商务负责"]),
@@ -221,9 +221,28 @@ export function mapLarkStageToStatus(larkStage: string | null): "進行中" | "�
     "达人配信者": "進行中",
     "未成约客户": "打ち合わせ中",
     "暂不合作": "終了",
+    "合作中": "契約済み",
+    "线索阶段": "打ち合わせ中",
+    "Tier1": "契約済み",
+    "Tier2": "契約済み",
   };
 
   return stageMap[larkStage] || "進行中";
+}
+
+/**
+ * Extract category value from Feishu field (array of strings)
+ */
+function extractCategoryValue(field: any): string | null {
+  if (!field) return null;
+  if (typeof field === "string") return field;
+  if (Array.isArray(field)) {
+    // Category field is array of strings like ["美妆个护"]
+    return field.filter((item: any) => typeof item === "string").join(", ") || 
+           field.map((item: any) => item.text || item.value || String(item)).join(", ");
+  }
+  if (field.text) return field.text;
+  return null;
 }
 
 /**
