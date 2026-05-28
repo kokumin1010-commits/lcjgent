@@ -696,6 +696,18 @@ import {
   addBrandAdEmailRecipient,
   removeBrandAdEmailRecipient,
   ensureBrandAdReportsTables,
+  createCallLog,
+  getCallLogsByBusinessCardId,
+  getCallLogsToday,
+  getSalesKpi,
+  createSalesActivity,
+  getSalesActivitiesByBusinessCardId,
+  updateBusinessCardSalesStatus,
+  getUpcomingFollowUps,
+  getOverdueFollowUpsForCards,
+  migrateCallLogsTable,
+  migrateSalesActivitiesTable,
+  migrateBusinessCardsCrmColumns,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -8946,14 +8958,149 @@ Return ONLY valid JSON, no markdown or explanation.`,
           },
         });
 
-        return {
+                return {
           success: result.success,
           sentCount: emails.length,
           error: result.error,
         };
       }),
+    // ===== 営業CRM: 通話記録API =====
+    createCallLog: protectedProcedure
+      .input(z.object({
+        businessCardId: z.number(),
+        duration: z.number().optional(),
+        result: z.enum(["answered", "no_answer", "busy", "callback", "meeting_set", "rejected"]),
+        memo: z.string().optional(),
+        nextFollowUpAt: z.string().optional(), // ISO date string
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const data: any = {
+          businessCardId: input.businessCardId,
+          calledBy: ctx.user.id,
+          result: input.result,
+          duration: input.duration,
+          memo: input.memo,
+        };
+        if (input.nextFollowUpAt) {
+          data.nextFollowUpAt = new Date(input.nextFollowUpAt);
+          // Also update the business card's nextFollowUpAt
+          await updateBusinessCard(input.businessCardId, { nextFollowUpAt: new Date(input.nextFollowUpAt) } as any);
+        }
+        await createCallLog(data);
+        // Auto-update status to "contacted" if currently "new"
+        const card = await getBusinessCardById(input.businessCardId);
+        if (card && (!card.salesStatus || card.salesStatus === "new")) {
+          await updateBusinessCardSalesStatus(input.businessCardId, "contacted", ctx.user.id);
+        }
+        // Record sales activity
+        await createSalesActivity({
+          businessCardId: input.businessCardId,
+          activityType: "call",
+          description: `通話: ${input.result === "answered" ? "応答あり" : input.result === "no_answer" ? "不在" : input.result === "busy" ? "話し中" : input.result === "callback" ? "折り返し依頼" : input.result === "meeting_set" ? "アポ確定" : "見送り"}${input.memo ? " - " + input.memo : ""}`,
+          performedBy: ctx.user.id,
+          metadata: { result: input.result, duration: input.duration },
+        });
+        return { success: true };
+      }),
+    // Get call logs for a business card
+    getCallLogs: protectedProcedure
+      .input(z.object({ businessCardId: z.number(), limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        return await getCallLogsByBusinessCardId(input.businessCardId, input.limit || 50);
+      }),
+    // Get today's sales KPI
+    getSalesKpi: protectedProcedure
+      .input(z.object({
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        const options: any = {};
+        if (input?.startDate) options.startDate = new Date(input.startDate);
+        if (input?.endDate) options.endDate = new Date(input.endDate);
+        return await getSalesKpi(options);
+      }),
+    // Get sales activities for a business card
+    getSalesActivities: protectedProcedure
+      .input(z.object({ businessCardId: z.number(), limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        return await getSalesActivitiesByBusinessCardId(input.businessCardId, input.limit || 50);
+      }),
+    // Update sales status
+    updateSalesStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        salesStatus: z.enum(["new", "contacted", "negotiating", "meeting", "contracted", "rejected"]),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const card = await getBusinessCardById(input.id);
+        const oldStatus = card?.salesStatus || "new";
+        await updateBusinessCardSalesStatus(input.id, input.salesStatus, ctx.user.id);
+        // Record activity
+        await createSalesActivity({
+          businessCardId: input.id,
+          activityType: "status_change",
+          description: `ステータス変更: ${oldStatus} → ${input.salesStatus}`,
+          performedBy: ctx.user.id,
+          metadata: { oldStatus, newStatus: input.salesStatus },
+        });
+        return { success: true };
+      }),
+    // Link business card to brand (contract conversion)
+    linkToBrand: protectedProcedure
+      .input(z.object({
+        businessCardId: z.number(),
+        brandName: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const card = await getBusinessCardById(input.businessCardId);
+        if (!card) throw new Error("名刺が見つかりません");
+        // Create brand from business card info
+        const brandResult = await createBrand({
+          name: input.brandName || card.company || card.name,
+          nameJa: input.brandName || card.company || card.name,
+          companyName: card.company || undefined,
+          phoneNumber: card.phone || card.mobile || undefined,
+          email: card.email || undefined,
+          contactPerson: card.name,
+          status: "契約済み",
+          createdBy: ctx.user.id,
+        });
+        // Update business card with linked brand ID and status
+        const brandId = (brandResult as any)[0]?.insertId || (brandResult as any).insertId;
+        if (brandId) {
+          await updateBusinessCard(input.businessCardId, { linkedBrandId: brandId, salesStatus: "contracted" } as any);
+        }
+        // Record activity
+        await createSalesActivity({
+          businessCardId: input.businessCardId,
+          activityType: "brand_linked",
+          description: `ブランド登録: ${input.brandName || card.company || card.name}`,
+          performedBy: ctx.user.id,
+          metadata: { brandId },
+        });
+        return { success: true, brandId };
+      }),
+    // Get upcoming follow-ups
+    getUpcomingFollowUps: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getUpcomingFollowUps(input?.limit || 20);
+      }),
+    // Get overdue follow-ups
+    getOverdueFollowUps: protectedProcedure
+      .query(async () => {
+        return await getOverdueFollowUpsForCards();
+      }),
+    // Run CRM migration
+    runCrmMigration: protectedProcedure
+      .mutation(async () => {
+        await migrateCallLogsTable();
+        await migrateSalesActivitiesTable();
+        await migrateBusinessCardsCrmColumns();
+        return { success: true, message: "CRM migration completed" };
+      }),
   }),
-
   // Activity Log Router
   activityLog: router({
     // Get recent activity logs

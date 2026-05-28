@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallProductVariants, InsertMallProductVariant, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion, livestreamPromotions, InsertLivestreamPromotion, masterSetSuggestions, InsertMasterSetSuggestion, masterSetSuggestionItems, InsertMasterSetSuggestionItem, masterSetAdoptions, InsertMasterSetAdoption, masterSetFeedback, InsertMasterSetFeedback, masterSetReviews, InsertMasterSetReview, megaChannelSettings, InsertMegaChannelSetting, megaChannelQualifications, InsertMegaChannelQualification, megaChannelHistory, InsertMegaChannelHistoryRecord, featuredProducts, InsertFeaturedProduct, featuredProductTargets, InsertFeaturedProductTarget, featuredProductAcknowledgements, InsertFeaturedProductAcknowledgement, featuredProductProgress, InsertFeaturedProductProgress, featuredProductPenalties, InsertFeaturedProductPenalty, brandShortVideos, InsertBrandShortVideo, brandAdReports, InsertBrandAdReport, brandAdEmailRecipients, InsertBrandAdEmailRecipient } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallProductVariants, InsertMallProductVariant, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion, livestreamPromotions, InsertLivestreamPromotion, masterSetSuggestions, InsertMasterSetSuggestion, masterSetSuggestionItems, InsertMasterSetSuggestionItem, masterSetAdoptions, InsertMasterSetAdoption, masterSetFeedback, InsertMasterSetFeedback, masterSetReviews, InsertMasterSetReview, megaChannelSettings, InsertMegaChannelSetting, megaChannelQualifications, InsertMegaChannelQualification, megaChannelHistory, InsertMegaChannelHistoryRecord, featuredProducts, InsertFeaturedProduct, featuredProductTargets, InsertFeaturedProductTarget, featuredProductAcknowledgements, InsertFeaturedProductAcknowledgement, featuredProductProgress, InsertFeaturedProductProgress, featuredProductPenalties, InsertFeaturedProductPenalty, brandShortVideos, InsertBrandShortVideo, brandAdReports, InsertBrandAdReport, brandAdEmailRecipients, InsertBrandAdEmailRecipient, callLogs, InsertCallLog, salesActivities, InsertSalesActivity } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -25685,4 +25685,220 @@ export async function ensureBrandsLarkColumns() {
     }
   }
   console.log("[Migration] Lark columns migration complete for brands table");
+}
+
+// ===== 営業CRM: 通話記録 (Call Logs) =====
+
+export async function createCallLog(data: InsertCallLog) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(callLogs).values(data);
+  return result;
+}
+
+export async function getCallLogsByBusinessCardId(businessCardId: number, limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(callLogs)
+    .where(eq(callLogs.businessCardId, businessCardId))
+    .orderBy(desc(callLogs.calledAt))
+    .limit(limit);
+}
+
+export async function getCallLogsByUser(userId: number, options?: { startDate?: Date; endDate?: Date; limit?: number }) {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = [eq(callLogs.calledBy, userId)];
+  if (options?.startDate) conditions.push(gte(callLogs.calledAt, options.startDate));
+  if (options?.endDate) conditions.push(lte(callLogs.calledAt, options.endDate));
+  return await db.select().from(callLogs)
+    .where(and(...conditions))
+    .orderBy(desc(callLogs.calledAt))
+    .limit(options?.limit || 100);
+}
+
+export async function getCallLogsToday() {
+  const db = await getDb();
+  if (!db) return [];
+  // JST today start (00:00 JST = 15:00 UTC previous day)
+  const now = new Date();
+  const jstOffset = 9 * 60 * 60 * 1000;
+  const jstNow = new Date(now.getTime() + jstOffset);
+  const jstTodayStart = new Date(jstNow.getFullYear(), jstNow.getMonth(), jstNow.getDate());
+  const utcTodayStart = new Date(jstTodayStart.getTime() - jstOffset);
+  return await db.select().from(callLogs)
+    .where(gte(callLogs.calledAt, utcTodayStart))
+    .orderBy(desc(callLogs.calledAt));
+}
+
+export async function getSalesKpi(options?: { startDate?: Date; endDate?: Date }) {
+  const db = await getDb();
+  if (!db) return { totalCalls: 0, answered: 0, noAnswer: 0, meetingsSet: 0, rejected: 0 };
+  // Default to today (JST)
+  const now = new Date();
+  const jstOffset = 9 * 60 * 60 * 1000;
+  const jstNow = new Date(now.getTime() + jstOffset);
+  const jstTodayStart = new Date(jstNow.getFullYear(), jstNow.getMonth(), jstNow.getDate());
+  const startDate = options?.startDate || new Date(jstTodayStart.getTime() - jstOffset);
+  const endDate = options?.endDate || now;
+  const conditions = [gte(callLogs.calledAt, startDate), lte(callLogs.calledAt, endDate)];
+  const results = await db.select({
+    result: callLogs.result,
+    count: sql<number>`count(*)`,
+  }).from(callLogs)
+    .where(and(...conditions))
+    .groupBy(callLogs.result);
+  const kpi = { totalCalls: 0, answered: 0, noAnswer: 0, busy: 0, callback: 0, meetingsSet: 0, rejected: 0 };
+  for (const row of results) {
+    const count = Number(row.count);
+    kpi.totalCalls += count;
+    switch (row.result) {
+      case "answered": kpi.answered += count; break;
+      case "no_answer": kpi.noAnswer += count; break;
+      case "busy": kpi.busy += count; break;
+      case "callback": kpi.callback += count; break;
+      case "meeting_set": kpi.meetingsSet += count; break;
+      case "rejected": kpi.rejected += count; break;
+    }
+  }
+  return kpi;
+}
+
+// ===== 営業CRM: 営業アクティビティ (Sales Activities) =====
+
+export async function createSalesActivity(data: InsertSalesActivity) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await db.insert(salesActivities).values(data);
+}
+
+export async function getSalesActivitiesByBusinessCardId(businessCardId: number, limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(salesActivities)
+    .where(eq(salesActivities.businessCardId, businessCardId))
+    .orderBy(desc(salesActivities.createdAt))
+    .limit(limit);
+}
+
+// ===== 営業CRM: ステータス更新 =====
+
+export async function updateBusinessCardSalesStatus(id: number, salesStatus: string, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(businessCards).set({ salesStatus: salesStatus as any }).where(eq(businessCards.id, id));
+}
+
+// ===== 営業CRM: フォローアップ予定取得 =====
+
+export async function getUpcomingFollowUps(limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(businessCards)
+    .where(and(
+      isNotNull(businessCards.nextFollowUpAt),
+      gte(businessCards.nextFollowUpAt, new Date())
+    ))
+    .orderBy(asc(businessCards.nextFollowUpAt))
+    .limit(limit);
+}
+
+export async function getOverdueFollowUpsForCards() {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(businessCards)
+    .where(and(
+      isNotNull(businessCards.nextFollowUpAt),
+      lt(businessCards.nextFollowUpAt, new Date()),
+      not(eq(businessCards.salesStatus as any, "contracted")),
+      not(eq(businessCards.salesStatus as any, "rejected"))
+    ))
+    .orderBy(asc(businessCards.nextFollowUpAt));
+}
+
+// ===== 営業CRM: マイグレーション =====
+
+export async function migrateCallLogsTable() {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS call_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        businessCardId INT NOT NULL,
+        calledBy INT NOT NULL,
+        calledAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        duration INT,
+        result ENUM('answered', 'no_answer', 'busy', 'callback', 'meeting_set', 'rejected') NOT NULL,
+        memo TEXT,
+        nextFollowUpAt TIMESTAMP NULL,
+        createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_call_logs_card (businessCardId),
+        INDEX idx_call_logs_user (calledBy),
+        INDEX idx_call_logs_date (calledAt)
+      )
+    `);
+    console.log("[Migration] call_logs table created/verified");
+  } catch (error: any) {
+    if (!error?.message?.includes("already exists")) {
+      console.error("[Migration] Failed to create call_logs:", error?.message);
+    }
+  }
+}
+
+export async function migrateSalesActivitiesTable() {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS sales_activities (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        businessCardId INT NOT NULL,
+        activityType ENUM('call', 'email', 'status_change', 'note', 'meeting', 'brand_linked') NOT NULL,
+        description TEXT,
+        performedBy INT NOT NULL,
+        metadata JSON,
+        createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_sales_activities_card (businessCardId),
+        INDEX idx_sales_activities_user (performedBy)
+      )
+    `);
+    console.log("[Migration] sales_activities table created/verified");
+  } catch (error: any) {
+    if (!error?.message?.includes("already exists")) {
+      console.error("[Migration] Failed to create sales_activities:", error?.message);
+    }
+  }
+}
+
+export async function migrateBusinessCardsCrmColumns() {
+  const db = await getDb();
+  if (!db) return;
+  const columns = [
+    { name: "salesStatus", type: "ENUM('new', 'contacted', 'negotiating', 'meeting', 'contracted', 'rejected') DEFAULT 'new'" },
+    { name: "assignedTo", type: "INT NULL" },
+    { name: "nextFollowUpAt", type: "TIMESTAMP NULL" },
+    { name: "linkedBrandId", type: "INT NULL" },
+  ];
+  for (const col of columns) {
+    try {
+      const [cols] = await db.execute(sql`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'business_cards' 
+        AND COLUMN_NAME = ${col.name}
+      `);
+      if (!cols || (Array.isArray(cols) && cols.length === 0)) {
+        await db.execute(sql.raw(`ALTER TABLE business_cards ADD COLUMN ${col.name} ${col.type}`));
+        console.log(`[Migration] Added ${col.name} column to business_cards`);
+      }
+    } catch (error: any) {
+      if (error?.code === 'ER_DUP_FIELDNAME' || error?.message?.includes('Duplicate column')) {
+        // Column already exists, ignore
+      } else {
+        console.error(`[Migration] Failed to add ${col.name} to business_cards:`, error?.message);
+      }
+    }
+  }
+  console.log("[Migration] CRM columns migration complete for business_cards table");
 }

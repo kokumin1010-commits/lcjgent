@@ -431,6 +431,9 @@ export default function BusinessCards() {
 
   // Phone state
   const [phoneMemo, setPhoneMemo] = useState("");
+  const [phoneResult, setPhoneResult] = useState<string>("answered");
+  const [phoneNextFollowUp, setPhoneNextFollowUp] = useState<string>("");
+  const [isCallLogDialogOpen, setIsCallLogDialogOpen] = useState(false);
 
   // Image zoom state
   const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
@@ -643,6 +646,19 @@ export default function BusinessCards() {
     });
   };
 
+    // CRM Call Log mutation
+  const createCallLogMutation = trpc.businessCard.createCallLog.useMutation({
+    onSuccess: () => {
+      toast.success("通話記録を保存しました");
+      setIsPhoneDialogOpen(false);
+      setPhoneMemo("");
+      setPhoneResult("answered");
+      setPhoneNextFollowUp("");
+      utils.businessCard.list.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   const handlePhoneCall = (card: any) => {
     const phoneNumber = card.phone || card.mobile;
     if (phoneNumber) {
@@ -650,16 +666,18 @@ export default function BusinessCards() {
     }
     setSelectedCard(card);
     setPhoneMemo("");
+    setPhoneResult("answered");
+    setPhoneNextFollowUp("");
     setIsPhoneDialogOpen(true);
   };
-
   const handleSavePhoneMemo = () => {
-    if (!selectedCard || !phoneMemo) return;
-    const existingNotes = selectedCard.notes || "";
-    const newNotes = `${existingNotes}\n[通話メモ ${new Date().toLocaleString()}] ${phoneMemo}`.trim();
-    updateMutation.mutate({ id: selectedCard.id, notes: newNotes });
-    setIsPhoneDialogOpen(false);
-    setPhoneMemo("");
+    if (!selectedCard) return;
+    createCallLogMutation.mutate({
+      businessCardId: selectedCard.id,
+      result: phoneResult as any,
+      memo: phoneMemo || undefined,
+      nextFollowUpAt: phoneNextFollowUp || undefined,
+    });
   };
 
   const handleLeadCollect = async (source: string) => {
@@ -794,23 +812,30 @@ export default function BusinessCards() {
     [cards, selectedCardIds]
   );
 
-  // Status change handler
+  // Status change handler (CRM API)
+  const updateStatusMutation = trpc.businessCard.updateSalesStatus.useMutation({
+    onSuccess: () => {
+      toast.success("ステータスを更新しました");
+      utils.businessCard.list.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   const handleStatusChange = (cardId: number, newStatus: string) => {
-    const card = cards.find((c) => c.id === cardId);
-    if (!card) return;
-    const existingTags = (card.tags || []).filter((t: string) => !t.startsWith("status:"));
-    const newTags = [...existingTags, `status:${newStatus}`];
-    updateMutation.mutate({ id: cardId, tags: newTags });
+    updateStatusMutation.mutate({ id: cardId, salesStatus: newStatus as any });
   };
 
   const getCardStatus = (card: any): string => {
+    // salesStatusカラム優先、なければtagsから後方互換
+    if (card.salesStatus) return card.salesStatus;
     return card.tags?.find((t: string) => t.startsWith("status:"))?.replace("status:", "") || "new";
   };
 
   const statusOptions = [
-    { value: "new", label: "未対応", color: "bg-gray-100 text-gray-700" },
-    { value: "contacted", label: "連絡済", color: "bg-blue-100 text-blue-700" },
-    { value: "negotiating", label: "商談中", color: "bg-yellow-100 text-yellow-700" },
+    { value: "new", label: "新規", color: "bg-gray-100 text-gray-700" },
+    { value: "contacted", label: "架電済", color: "bg-blue-100 text-blue-700" },
+    { value: "negotiating", label: "進行中", color: "bg-yellow-100 text-yellow-700" },
+    { value: "meeting", label: "打ち合わせ", color: "bg-purple-100 text-purple-700" },
     { value: "contracted", label: "契約済", color: "bg-green-100 text-green-700" },
     { value: "rejected", label: "見送り", color: "bg-red-100 text-red-700" },
   ];
@@ -896,10 +921,14 @@ export default function BusinessCards() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="cards" className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
             {t.tabCards}
+          </TabsTrigger>
+          <TabsTrigger value="sales" className="flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            営業ダッシュボード
           </TabsTrigger>
           <TabsTrigger value="leads" className="flex items-center gap-2">
             <Rocket className="h-4 w-4" />
@@ -1162,6 +1191,13 @@ export default function BusinessCards() {
               </ScrollArea>
             </Card>
           )}
+        </TabsContent>
+
+        {/* ============================================================ */}
+        {/* TAB: 営業ダッシュボード */}
+        {/* ============================================================ */}
+        <TabsContent value="sales" className="space-y-4">
+          <SalesDashboard cards={cards} statusOptions={statusOptions} getCardStatus={getCardStatus} />
         </TabsContent>
 
         {/* ============================================================ */}
@@ -1958,13 +1994,13 @@ export default function BusinessCards() {
         </DialogContent>
       </Dialog>
 
-      {/* Phone Call Dialog */}
+      {/* Phone Call Dialog - CRM Enhanced */}
       <Dialog open={isPhoneDialogOpen} onOpenChange={setIsPhoneDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <PhoneCall className="h-5 w-5 text-green-600" />
-              {t.phoneCall}: {selectedCard?.name}
+              通話記録: {selectedCard?.name}
             </DialogTitle>
           </DialogHeader>
           {selectedCard && (
@@ -1995,23 +2031,59 @@ export default function BusinessCards() {
                   </div>
                 )}
               </div>
+              {/* 通話結果選択 */}
               <div>
-                <Label>{t.phoneMemo}</Label>
+                <Label className="mb-2 block font-medium">通話結果</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: "answered", label: "応答あり", icon: CheckCircle2, color: "text-green-600 border-green-300 bg-green-50" },
+                    { value: "no_answer", label: "不在", icon: XCircle, color: "text-gray-600 border-gray-300 bg-gray-50" },
+                    { value: "busy", label: "話し中", icon: Phone, color: "text-yellow-600 border-yellow-300 bg-yellow-50" },
+                    { value: "callback", label: "折返し", icon: Clock, color: "text-blue-600 border-blue-300 bg-blue-50" },
+                    { value: "meeting_set", label: "アポ確定", icon: Target, color: "text-purple-600 border-purple-300 bg-purple-50" },
+                    { value: "rejected", label: "見送り", icon: XCircle, color: "text-red-600 border-red-300 bg-red-50" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className={`flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-all ${
+                        phoneResult === opt.value ? opt.color + " ring-2 ring-offset-1" : "border-gray-200 hover:border-gray-300"
+                      }`}
+                      onClick={() => setPhoneResult(opt.value)}
+                    >
+                      <opt.icon className="h-4 w-4" />
+                      <span className="text-xs font-medium">{opt.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* 次回フォローアップ日時 */}
+              <div>
+                <Label className="mb-1 block">次回フォローアップ</Label>
+                <Input
+                  type="datetime-local"
+                  value={phoneNextFollowUp}
+                  onChange={(e) => setPhoneNextFollowUp(e.target.value)}
+                />
+              </div>
+              {/* メモ */}
+              <div>
+                <Label className="mb-1 block">通話メモ</Label>
                 <Textarea
                   value={phoneMemo}
                   onChange={(e) => setPhoneMemo(e.target.value)}
                   placeholder="通話内容をメモ..."
-                  rows={4}
+                  rows={3}
                 />
               </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsPhoneDialogOpen(false)}>{t.cancel}</Button>
-            <Button onClick={handleSavePhoneMemo} disabled={!phoneMemo || updateMutation.isPending}>
-              {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              <MessageSquare className="h-4 w-4 mr-2" />
-              {t.phoneSaveMemo}
+            <Button onClick={handleSavePhoneMemo} disabled={createCallLogMutation.isPending}>
+              {createCallLogMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              記録を保存
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2147,6 +2219,168 @@ export default function BusinessCards() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+
+// ============================================================
+// Sales Dashboard Sub-Component
+// ============================================================
+function SalesDashboard({ cards, statusOptions, getCardStatus }: { cards: any[]; statusOptions: any[]; getCardStatus: (card: any) => string }) {
+  const utils = trpc.useUtils();
+  const { data: salesKpi } = trpc.businessCard.getSalesKpi.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: upcomingFollowUps = [] } = trpc.businessCard.getUpcomingFollowUps.useQuery(undefined);
+  const { data: overdueFollowUps = [] } = trpc.businessCard.getOverdueFollowUps.useQuery(undefined);
+
+  // CRM Migration trigger (run once on first load)
+  const migrateMutation = trpc.businessCard.runCrmMigration.useMutation({
+    onSuccess: () => console.log("[CRM] Migration completed"),
+    onError: (e) => console.warn("[CRM] Migration error:", e.message),
+  });
+
+  useEffect(() => {
+    // Run migration on first load (idempotent)
+    migrateMutation.mutate();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pipeline counts
+  const pipelineCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    statusOptions.forEach((s) => { counts[s.value] = 0; });
+    cards.forEach((card) => {
+      const status = getCardStatus(card);
+      if (counts[status] !== undefined) counts[status]++;
+      else counts["new"] = (counts["new"] || 0) + 1;
+    });
+    return counts;
+  }, [cards, statusOptions, getCardStatus]);
+
+  return (
+    <div className="space-y-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-blue-600 font-medium">本日架電数</p>
+            <p className="text-2xl font-bold text-blue-800">{salesKpi?.totalCalls || 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-green-600 font-medium">応答</p>
+            <p className="text-2xl font-bold text-green-800">{salesKpi?.answered || 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200">
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-gray-600 font-medium">不在</p>
+            <p className="text-2xl font-bold text-gray-800">{salesKpi?.noAnswer || 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-yellow-600 font-medium">話し中</p>
+            <p className="text-2xl font-bold text-yellow-800">{salesKpi?.busy || 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200">
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-indigo-600 font-medium">折返し</p>
+            <p className="text-2xl font-bold text-indigo-800">{salesKpi?.callback || 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-purple-600 font-medium">アポ確定</p>
+            <p className="text-2xl font-bold text-purple-800">{salesKpi?.meetingsSet || 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200">
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-red-600 font-medium">見送り</p>
+            <p className="text-2xl font-bold text-red-800">{salesKpi?.rejected || 0}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Pipeline */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Target className="h-5 w-5" />
+            営業パイプライン
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2 flex-wrap">
+            {statusOptions.map((s) => (
+              <div key={s.value} className={`flex-1 min-w-[100px] p-3 rounded-lg text-center ${s.color}`}>
+                <p className="text-xs font-medium">{s.label}</p>
+                <p className="text-xl font-bold">{pipelineCounts[s.value] || 0}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Overdue Follow-ups */}
+      {overdueFollowUps.length > 0 && (
+        <Card className="border-red-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2 text-red-700">
+              <AlertTriangle className="h-5 w-5" />
+              期限超過フォローアップ ({overdueFollowUps.length}件)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {overdueFollowUps.slice(0, 10).map((card: any) => (
+                <div key={card.id} className="flex items-center justify-between p-2 bg-red-50 rounded-lg border border-red-100">
+                  <div>
+                    <span className="font-medium text-sm">{card.name}</span>
+                    <span className="text-xs text-muted-foreground ml-2">{card.company || ""}</span>
+                  </div>
+                  <div className="text-xs text-red-600">
+                    {card.nextFollowUpAt ? new Date(card.nextFollowUpAt).toLocaleDateString("ja-JP") : ""}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Upcoming Follow-ups */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            今後のフォローアップ予定
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {upcomingFollowUps.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">予定なし</p>
+          ) : (
+            <div className="space-y-2">
+              {upcomingFollowUps.slice(0, 15).map((card: any) => (
+                <div key={card.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
+                  <div>
+                    <span className="font-medium text-sm">{card.name}</span>
+                    <span className="text-xs text-muted-foreground ml-2">{card.company || ""}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {card.nextFollowUpAt ? new Date(card.nextFollowUpAt).toLocaleDateString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

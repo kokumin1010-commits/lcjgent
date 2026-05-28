@@ -407,12 +407,16 @@ export const businessCards = mysqlTable("business_cards", {
   registeredBy: int("registeredBy").notNull(), // 登録した担当者（user ID）
   notes: text("notes"), // メモ
   tags: json("tags").$type<string[]>(), // タグ（検索用）
-  // 重複チェック用ハッシュ
+    // 重複チェック用ハッシュ
   duplicateHash: varchar("duplicateHash", { length: 64 }), // 会社名+氏名のハッシュ
+  // 営業CRM拡張カラム
+  salesStatus: mysqlEnum("salesStatus", ["new", "contacted", "negotiating", "meeting", "contracted", "rejected"]).default("new"),
+  assignedTo: int("assignedTo"), // 担当者のuser ID
+  nextFollowUpAt: timestamp("nextFollowUpAt"), // 次回フォローアップ日時
+  linkedBrandId: int("linkedBrandId"), // 連携ブランドID
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type BusinessCard = typeof businessCards.$inferSelect;
 export type InsertBusinessCard = typeof businessCards.$inferInsert;
 
@@ -6089,3 +6093,35 @@ export const feishuSyncHistory = mysqlTable("feishu_sync_history", {
 });
 export type FeishuSyncHistory = typeof feishuSyncHistory.$inferSelect;
 export type InsertFeishuSyncHistory = typeof feishuSyncHistory.$inferInsert;
+
+// ============================================================
+// 営業CRM: 通話記録テーブル (Call Logs)
+// ============================================================
+export const callLogs = mysqlTable("call_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  businessCardId: int("businessCardId").notNull(), // References business_cards.id
+  calledBy: int("calledBy").notNull(), // User ID who made the call
+  calledAt: timestamp("calledAt").defaultNow().notNull(), // When the call was made
+  duration: int("duration"), // Duration in minutes (nullable for unanswered)
+  result: mysqlEnum("result", ["answered", "no_answer", "busy", "callback", "meeting_set", "rejected"]).notNull(),
+  memo: text("memo"), // Call notes
+  nextFollowUpAt: timestamp("nextFollowUpAt"), // Next follow-up date/time
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type CallLog = typeof callLogs.$inferSelect;
+export type InsertCallLog = typeof callLogs.$inferInsert;
+
+// ============================================================
+// 営業CRM: 営業アクティビティテーブル (Sales Activities)
+// ============================================================
+export const salesActivities = mysqlTable("sales_activities", {
+  id: int("id").autoincrement().primaryKey(),
+  businessCardId: int("businessCardId").notNull(), // References business_cards.id
+  activityType: mysqlEnum("activityType", ["call", "email", "status_change", "note", "meeting", "brand_linked"]).notNull(),
+  description: text("description"), // Activity description
+  performedBy: int("performedBy").notNull(), // User ID
+  metadata: json("metadata").$type<Record<string, any>>(), // Additional data
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type SalesActivity = typeof salesActivities.$inferSelect;
+export type InsertSalesActivity = typeof salesActivities.$inferInsert;
