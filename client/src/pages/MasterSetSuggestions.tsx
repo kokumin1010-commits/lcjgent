@@ -7,7 +7,7 @@ export default function MasterSetSuggestions() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("pending");
   const [aiGenerating, setAiGenerating] = useState(false);
-  const [showPastSets, setShowPastSets] = useState(false);
+  const [showPastSets, setShowPastSets] = useState(true);
   const [pastSetsSortBy, setPastSetsSortBy] = useState<"revenue" | "date">("revenue");
   const [pastSetsSearch, setPastSetsSearch] = useState("");
   const [expandedLiverId, setExpandedLiverId] = useState<number | null>(null);
@@ -333,7 +333,7 @@ export default function MasterSetSuggestions() {
       
       {/* Phase 3: パターン分析ダッシュボード */}
       {showPatternAnalysis && (
-        <div className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 border border-indigo-500/50 rounded-xl p-6">
+        <div className="bg-slate-900/80 border border-indigo-500/50 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-indigo-200 flex items-center gap-2">
               <Brain className="w-5 h-5" />
@@ -349,7 +349,7 @@ export default function MasterSetSuggestions() {
           ) : patternQuery.data ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* カテゴリ別フィードバック */}
-              <div className="bg-slate-800/60 rounded-lg p-4">
+              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
                 <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
                   <BarChart3 className="w-4 h-4 text-indigo-400" />
                   カテゴリ別フィードバック
@@ -376,7 +376,7 @@ export default function MasterSetSuggestions() {
               </div>
               
               {/* キーワード頻度 */}
-              <div className="bg-slate-800/60 rounded-lg p-4">
+              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
                 <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-pink-400" />
                   頻出キーワード（AI学習済み）
@@ -399,7 +399,7 @@ export default function MasterSetSuggestions() {
               </div>
               
               {/* 口コミ傾向 */}
-              <div className="bg-slate-800/60 rounded-lg p-4">
+              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
                 <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
                   <Star className="w-4 h-4 text-yellow-400" />
                   口コミ傾向分析
@@ -424,7 +424,7 @@ export default function MasterSetSuggestions() {
               </div>
               
               {/* 最近の却下理由 */}
-              <div className="bg-slate-800/60 rounded-lg p-4">
+              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
                 <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
                   <ThumbsDown className="w-4 h-4 text-red-400" />
                   最近の却下理由（次回AI生成に反映）
@@ -683,6 +683,11 @@ export default function MasterSetSuggestions() {
                     <h3 className="text-lg font-bold text-white">{s.title}</h3>
                     {s.category && (
                       <span className="px-2 py-0.5 bg-purple-800 text-purple-200 text-xs rounded font-medium">{s.category}</span>
+                    )}
+                    {s.createdAt && (
+                      <span className="text-xs text-slate-500">
+                        {new Date(s.createdAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}生成
+                      </span>
                     )}
                     <span className={`px-2 py-0.5 text-xs rounded font-medium ${
                       s.status === "active" ? "bg-green-800 text-green-200" :
