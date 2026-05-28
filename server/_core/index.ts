@@ -955,7 +955,7 @@ async function startServer() {
           address: card.address || "",
           website: card.website || "",
           notes: card.notes || "",
-          registeredBy: "system",
+          registeredBy: 0,
           duplicateHash,
         });
         imported++;
