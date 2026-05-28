@@ -1757,7 +1757,27 @@ export const lineLoginRouter = router({
         message: "パスワードが正常にリセットされました",
       };
     }),
-  
+  // Admin reset password by email (管理者用メールベースパスワードリセット)
+  adminResetByEmail: publicProcedure
+    .input(z.object({
+      email: z.string().email(),
+      newPassword: z.string().min(6),
+      adminSecret: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const validSecret = process.env.ADMIN_SECRET || "lcj_admin_2024_secret";
+      if (input.adminSecret !== validSecret) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid admin secret" });
+      }
+      const user = await getLineUserByEmail(input.email);
+      if (!user) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+      const bcrypt = await import("bcryptjs");
+      const hashedPassword = await bcrypt.hash(input.newPassword, 10);
+      await updateLineUserPassword(user.id, hashedPassword);
+      return { success: true, userId: user.id };
+    }),
   // Get point balance for current LINE user
   getMyPoints: publicProcedure.query(async ({ ctx }) => {
     const result = await getLineUserFromSession(ctx);
