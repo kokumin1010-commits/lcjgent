@@ -449,6 +449,22 @@ export default function LiverSelfRecord() {
         }));
       }
       
+      // 【重要】AI解析のdurationMinutesを選択済みブランドのbrandDurationsに自動設定
+      // ライバーが手動入力を忘れて保存できない問題の根本修正
+      if (analysisResult.durationMinutes && selectedBrandIds.length > 0) {
+        const durationStr = analysisResult.durationMinutes.toString();
+        setBrandDurations(prev => {
+          const updated = { ...prev };
+          for (const id of selectedBrandIds) {
+            // 既に入力済みの場合は上書きしない
+            if (!updated[id] || updated[id] === '' || updated[id] === '0') {
+              updated[id] = durationStr;
+            }
+          }
+          return updated;
+        });
+      }
+      
       toast.success(tr.analysisComplete);
       
       // Auto-generate advice
@@ -502,9 +518,22 @@ export default function LiverSelfRecord() {
       return;
     }
 
-    // ブランド配信時間のバリデーション
+    // ブランド配信時間のバリデーション（自動補完付き）
+    // AI解析のdurationMinutesがあれば未入力のブランドに自動設定
+    const effectiveBrandDurations = { ...brandDurations };
+    const aiDuration = formData.durationMinutes || (analyzedData?.durationMinutes?.toString());
+    if (aiDuration && parseInt(aiDuration) > 0) {
+      for (const id of selectedBrandIds) {
+        if (!effectiveBrandDurations[id] || effectiveBrandDurations[id] === '' || parseInt(effectiveBrandDurations[id]) <= 0) {
+          effectiveBrandDurations[id] = aiDuration;
+        }
+      }
+      // UIの状態も更新
+      setBrandDurations(effectiveBrandDurations);
+    }
+    
     const missingDurations = selectedBrandIds.filter(id => {
-      const dur = brandDurations[id];
+      const dur = effectiveBrandDurations[id];
       return !dur || parseInt(dur) <= 0;
     });
     if (missingDurations.length > 0) {
@@ -513,7 +542,15 @@ export default function LiverSelfRecord() {
       return;
     }
 
-    if (!formData.livestreamDate || !formData.livestreamStartTime) {
+    // 日付が未入力の場合、今日の日付を自動設定
+    let effectiveDate = formData.livestreamDate;
+    let effectiveStartTime = formData.livestreamStartTime;
+    if (!effectiveDate) {
+      const now = new Date();
+      effectiveDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      setFormData(prev => ({ ...prev, livestreamDate: effectiveDate }));
+    }
+    if (!effectiveStartTime) {
       toast.error(tr.enterDateTimeError);
       return;
     }
@@ -565,13 +602,14 @@ export default function LiverSelfRecord() {
         finalBeforeScreenshotUrl = uploadResult.url;
       }
 
-      const livestreamDateTime = safeCreateDate(formData.livestreamDate, formData.livestreamStartTime);
+      const livestreamDateTime = safeCreateDate(effectiveDate, effectiveStartTime);
       if (!livestreamDateTime) {
         toast.error(t("record.invalidDateTime"));
+        setIsSubmitting(false);
         return;
       }
       // 終了日が設定されている場合はそれを使用、そうでなければ配信日を使用
-      const endDateToUse = formData.livestreamEndDate || formData.livestreamDate;
+      const endDateToUse = formData.livestreamEndDate || effectiveDate;
       const endDateTime = formData.livestreamEndTime 
         ? safeCreateDate(endDateToUse, formData.livestreamEndTime)
         : undefined;
@@ -607,9 +645,9 @@ export default function LiverSelfRecord() {
         cvr = ((orderCount / productClicks) * 100).toFixed(2) + '%';
       }
 
-      // brandDurationsを数値に変換
+      // brandDurationsを数値に変換（effectiveBrandDurationsを使用）
       const brandDurationsNumeric: Record<string, number> = {};
-      for (const [bid, dur] of Object.entries(brandDurations)) {
+      for (const [bid, dur] of Object.entries(effectiveBrandDurations)) {
         const val = parseInt(dur);
         if (val > 0) brandDurationsNumeric[bid] = val;
       }
@@ -1160,8 +1198,21 @@ export default function LiverSelfRecord() {
                                   const brandIdStr = brand.id.toString();
                                   if (isSelected) {
                                     setSelectedBrandIds(prev => prev.filter(id => id !== brandIdStr));
+                                    // ブランド削除時にbrandDurationsも削除
+                                    setBrandDurations(prev => {
+                                      const next = { ...prev };
+                                      delete next[brandIdStr];
+                                      return next;
+                                    });
                                   } else {
                                     setSelectedBrandIds(prev => [...prev, brandIdStr]);
+                                    // 【重要】AI解析済みのdurationMinutesがあれば自動設定
+                                    if (formData.durationMinutes && parseInt(formData.durationMinutes) > 0) {
+                                      setBrandDurations(prev => ({
+                                        ...prev,
+                                        [brandIdStr]: prev[brandIdStr] || formData.durationMinutes,
+                                      }));
+                                    }
                                   }
                                   // Keep popover open for multi-select
                                 }}
@@ -1749,39 +1800,12 @@ export default function LiverSelfRecord() {
             </CardContent>
           </Card>
 
-          {/* Submit Button - Direct save with native confirm */}
+          {/* Submit Button - 直接保存（LINEブラウザ互換性のためwindow.confirm削除） */}
           <Button
             type="button"
             onClick={(e) => {
-              // Validate before saving
-              if (selectedBrandIds.length === 0) {
-                toast.error(tr.selectBrandError);
-                return;
-              }
-              // ブランド配信時間のバリデーション
-              const missingDurs = selectedBrandIds.filter(id => {
-                const dur = brandDurations[id];
-                return !dur || parseInt(dur) <= 0;
-              });
-              if (missingDurs.length > 0) {
-                const missingNames = missingDurs.map(id => brands?.find((b: { id: number; name: string }) => b.id.toString() === id)?.name || id).join(', ');
-                toast.error(`${missingNames} ${tr.brandDuration}を入力してください`);
-                return;
-              }
-              if (!formData.livestreamDate || !formData.livestreamStartTime) {
-                toast.error(tr.enterDateTimeError);
-                return;
-              }
-              // Use native confirm for better LINE browser compatibility
-              const brandDetails = selectedBrandIds.map(id => {
-                const name = brands?.find((b: { id: number; name: string }) => b.id.toString() === id)?.name || '';
-                const dur = brandDurations[id] || '0';
-                return `  ${name}: ${dur}${tr.minLabel}`;
-              }).filter(Boolean).join('\n');
-              const confirmMessage = `${tr.confirmTitle}\n\n${tr.selectBrand}:\n${brandDetails}\n\n${tr.livestreamDate}: ${formData.livestreamDate}\n${tr.startTime}: ${formData.livestreamStartTime}\n${formData.salesAmount ? `${tr.salesAmount}: \u00a5${Number(parseInt(formData.salesAmount)).toLocaleString()}` : ''}\n\n${tr.confirmDescription}`;
-              if (window.confirm(confirmMessage)) {
-                handleSubmit(e as unknown as React.FormEvent);
-              }
+              // 直接handleSubmitを呼ぶ（window.confirmはLINEブラウザで動作しない場合がある）
+              handleSubmit(e as unknown as React.FormEvent);
             }}
             disabled={isSubmitting}
             className="w-full bg-red-600 hover:bg-red-700 text-white py-6 text-lg font-bold touch-manipulation"
