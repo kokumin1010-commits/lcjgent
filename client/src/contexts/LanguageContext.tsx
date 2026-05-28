@@ -24,7 +24,7 @@ const jaTranslations: Record<string, string> = {
   "nav.masterControl": "マスターコントロール",
   "nav.reportAnalysis": "AI分析",
   "nav.brands": "ブランド管理",
-  "nav.businessCards": "名刺管理",
+  "nav.businessCards": "名刺管理(TO B 営業)",
   "nav.line": "LINE管理",
   "nav.lineFollowUps": "フォローアップ",
   "nav.pendingResponses": "要対応",

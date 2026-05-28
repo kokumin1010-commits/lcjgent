@@ -123,7 +123,7 @@ interface CsvRow {
 // ============================================================
 const translations = {
   ja: {
-    title: "名刺管理",
+    title: "名刺管理(TO B 営業)",
     subtitle: "名刺・リード管理・営業ツール",
     tabCards: "名刺一覧",
     tabLeads: "リード収集",
