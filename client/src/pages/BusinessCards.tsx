@@ -398,6 +398,8 @@ export default function BusinessCards() {
 
   // Card list state
   const [searchQuery, setSearchQuery] = useState("");
+  const [companyFilter, setCompanyFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedCardIds, setSelectedCardIds] = useState<Set<number>>(new Set());
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
@@ -752,11 +754,54 @@ export default function BusinessCards() {
     }
   };
 
+  // Derived data: unique companies for filter
+  const uniqueCompanies = useMemo(() => {
+    const companies = new Set<string>();
+    cards.forEach((c) => { if (c.company) companies.add(c.company); });
+    return Array.from(companies).sort();
+  }, [cards]);
+
+  // Filtered cards by company and status
+  const filteredCards = useMemo(() => {
+    let result = cards;
+    if (companyFilter !== "all") {
+      result = result.filter((c) => c.company === companyFilter);
+    }
+    if (statusFilter !== "all") {
+      result = result.filter((c) => {
+        const cardStatus = c.tags?.find((t: string) => t.startsWith("status:"))?.replace("status:", "") || "new";
+        return cardStatus === statusFilter;
+      });
+    }
+    return result;
+  }, [cards, companyFilter, statusFilter]);
+
   const cardsWithEmail = useMemo(() => cards.filter((c) => c.email), [cards]);
   const selectedCardsWithEmail = useMemo(
     () => cards.filter((c) => selectedCardIds.has(c.id) && c.email),
     [cards, selectedCardIds]
   );
+
+  // Status change handler
+  const handleStatusChange = (cardId: number, newStatus: string) => {
+    const card = cards.find((c) => c.id === cardId);
+    if (!card) return;
+    const existingTags = (card.tags || []).filter((t: string) => !t.startsWith("status:"));
+    const newTags = [...existingTags, `status:${newStatus}`];
+    updateMutation.mutate({ id: cardId, tags: newTags });
+  };
+
+  const getCardStatus = (card: any): string => {
+    return card.tags?.find((t: string) => t.startsWith("status:"))?.replace("status:", "") || "new";
+  };
+
+  const statusOptions = [
+    { value: "new", label: "未対応", color: "bg-gray-100 text-gray-700" },
+    { value: "contacted", label: "連絡済", color: "bg-blue-100 text-blue-700" },
+    { value: "negotiating", label: "商談中", color: "bg-yellow-100 text-yellow-700" },
+    { value: "contracted", label: "契約済", color: "bg-green-100 text-green-700" },
+    { value: "rejected", label: "見送り", color: "bg-red-100 text-red-700" },
+  ];
 
   // ============================================================
   // Render
@@ -869,6 +914,34 @@ export default function BusinessCards() {
                 className="pl-9"
               />
             </div>
+            {/* Company Filter */}
+            <Select value={companyFilter} onValueChange={setCompanyFilter}>
+              <SelectTrigger className="w-[180px] h-9 text-xs">
+                <Building2 className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+                <SelectValue placeholder="会社で絞り込み" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全ての会社 ({cards.length})</SelectItem>
+                {uniqueCompanies.map((company) => (
+                  <SelectItem key={company} value={company}>
+                    {company} ({cards.filter(c => c.company === company).length})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {/* Status Filter */}
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px] h-9 text-xs">
+                <Filter className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+                <SelectValue placeholder="ステータス" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全ステータス</SelectItem>
+                {statusOptions.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button size="sm" variant="outline" onClick={() => csvInputRef.current?.click()}>
               <FileSpreadsheet className="h-4 w-4 mr-1" />
               {t.csvImport}
@@ -895,6 +968,27 @@ export default function BusinessCards() {
               </>
             )}
           </div>
+          {/* Active Filters Display */}
+          {(companyFilter !== "all" || statusFilter !== "all") && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground">フィルター:</span>
+              {companyFilter !== "all" && (
+                <Badge variant="secondary" className="text-xs cursor-pointer" onClick={() => setCompanyFilter("all")}>
+                  <Building2 className="h-3 w-3 mr-1" />
+                  {companyFilter} ×
+                </Badge>
+              )}
+              {statusFilter !== "all" && (
+                <Badge variant="secondary" className="text-xs cursor-pointer" onClick={() => setStatusFilter("all")}>
+                  {statusOptions.find(s => s.value === statusFilter)?.label} ×
+                </Badge>
+              )}
+              <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { setCompanyFilter("all"); setStatusFilter("all"); }}>
+                クリア
+              </Button>
+              <span className="text-muted-foreground ml-auto">{filteredCards.length}件表示中</span>
+            </div>
+          )}
 
           {/* Hidden file inputs */}
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
@@ -939,13 +1033,14 @@ export default function BusinessCards() {
                       <TableHead>{t.name}</TableHead>
                       <TableHead>{t.company}</TableHead>
                       <TableHead>{t.position}</TableHead>
+                      <TableHead>ステータス</TableHead>
                       <TableHead>{t.email}</TableHead>
                       <TableHead>{t.phone}</TableHead>
                       <TableHead className="text-right">操作</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {cards.map((card) => (
+                    {filteredCards.map((card) => (
                       <TableRow key={card.id} className={selectedCardIds.has(card.id) ? "bg-blue-50" : ""}>
                         <TableCell>
                           <Checkbox
@@ -970,8 +1065,34 @@ export default function BusinessCards() {
                             <span className="break-all">{card.name}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-sm">{card.company || "—"}</TableCell>
+                        <TableCell className="text-sm">
+                          {card.company ? (
+                            <button
+                              onClick={() => setCompanyFilter(card.company!)}
+                              className="text-left hover:underline hover:text-blue-600 transition-colors"
+                            >
+                              {card.company}
+                            </button>
+                          ) : "—"}
+                        </TableCell>
                         <TableCell className="text-sm">{card.position || "—"}</TableCell>
+                        <TableCell className="text-sm">
+                          <Select
+                            value={getCardStatus(card)}
+                            onValueChange={(val) => handleStatusChange(card.id, val)}
+                          >
+                            <SelectTrigger className={`h-7 w-[100px] text-xs border-0 ${statusOptions.find(s => s.value === getCardStatus(card))?.color || ''}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {statusOptions.map((s) => (
+                                <SelectItem key={s.value} value={s.value}>
+                                  <span className={`px-1.5 py-0.5 rounded text-xs ${s.color}`}>{s.label}</span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
                         <TableCell className="text-sm">
                           {card.email ? (
                             <a href={`mailto:${card.email}`} className="text-blue-600 hover:underline text-xs">
