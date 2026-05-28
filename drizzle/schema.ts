@@ -194,6 +194,19 @@ export const brands = mysqlTable("brands", {
   memo: text("memo"), // メモ
   businessManagerId: int("businessManagerId"), // 商務負責人 (References staff.id)
   operationsManagerId: int("operationsManagerId"), // 運営負責人 (References staff.id)
+  // 飞书(Lark)同期フィールド
+  larkRecordId: varchar("larkRecordId", { length: 255 }), // 飞书レコードID
+  larkStage: varchar("larkStage", { length: 100 }), // 当前阶段（跟进中/成约客户/TSP/半年框/自营/暂不合作/纯佣/达人配信者）
+  larkTier: varchar("larkTier", { length: 50 }), // Tier1/Tier2
+  larkCategory: varchar("larkCategory", { length: 255 }), // 类目（美妆个护/饰品&箱包/家电/3C数码&配件/食品料理/保健&健康管理）
+  larkContactPlatform: varchar("larkContactPlatform", { length: 100 }), // 联系平台（微信/飞书）
+  larkBrandManager: varchar("larkBrandManager", { length: 255 }), // 品牌担当
+  larkBusinessContact: varchar("larkBusinessContact", { length: 255 }), // 商务对接
+  larkBusinessLead: varchar("larkBusinessLead", { length: 255 }), // 商务负责
+  larkOperationsContact: varchar("larkOperationsContact", { length: 255 }), // 运营对接
+  larkShopId: varchar("larkShopId", { length: 255 }), // 飞书店铺ID
+  larkIntro: text("larkIntro"), // 品牌介绍
+  larkSyncedAt: timestamp("larkSyncedAt"), // 最終飞书同期日時
   createdBy: int("createdBy").notNull(), // User ID who created the brand
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

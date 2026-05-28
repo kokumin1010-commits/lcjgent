@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake, Trash2, Target, AlertTriangle, Flame } from "lucide-react";
+import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake, Trash2, Target, AlertTriangle, Flame, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -177,6 +177,16 @@ export default function BrandList() {
     },
     onError: (err) => {
       toast.error("削除に失敗しました: " + err.message);
+    },
+  });
+
+  const syncLarkMutation = trpc.brand.syncLark.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`飞书同期完了: ${data.synced}件更新, ${data.created}件新規作成`);
+      utils.brand.list.invalidate();
+    },
+    onError: (err: any) => {
+      toast.error(`飞书同期エラー: ${err.message}`);
     },
   });
 
@@ -372,6 +382,14 @@ export default function BrandList() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Button
+              onClick={() => syncLarkMutation.mutate()}
+              disabled={syncLarkMutation.isPending}
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${syncLarkMutation.isPending ? 'animate-spin' : ''}`} />
+              {syncLarkMutation.isPending ? '同期中...' : '飞书同期'}
+            </Button>
             <Link href="/master/recruitment">
               <Button className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white">
                 <Handshake className="h-4 w-4 mr-2" />
@@ -597,6 +615,11 @@ export default function BrandList() {
                     <Badge className={`${statusColors[brand.status] || "bg-gray-500/20 text-gray-400"} border`}>
                       {getStatusLabel(brand.status)}
                     </Badge>
+                    {(brand as any).larkRecordId && (
+                      <Badge className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-xs">
+                        Lark
+                      </Badge>
+                    )}
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4 mb-4">

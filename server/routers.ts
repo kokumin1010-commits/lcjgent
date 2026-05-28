@@ -7451,6 +7451,93 @@ Respond with a JSON object.`,
       .query(async ({ input }) => {
         return await getDistinctLiversForBrandSchedules(input.brandId);
       }),
+
+    // 飞书(Lark)同期ステータス確認
+    getLarkStatus: protectedProcedure
+      .query(async () => {
+        const { isFeishuConfigured } = await import("./feishuService");
+        return { configured: isFeishuConfigured() };
+      }),
+
+    // 飞书(Lark)からブランドデータを同期
+    syncLark: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const { fetchFeishuBrands, mapLarkStageToStatus, isFeishuConfigured } = await import("./feishuService");
+        
+        if (!isFeishuConfigured()) {
+          throw new Error("飞书APIが設定されていません。FEISHU_APP_ID, FEISHU_APP_SECRET, FEISHU_BITABLE_APP_TOKEN, FEISHU_BITABLE_TABLE_IDを環境変数に設定してください。");
+        }
+
+        const db = await getDb();
+        const larkBrands = await fetchFeishuBrands();
+        let synced = 0;
+        let created = 0;
+        let updated = 0;
+        let errors: string[] = [];
+
+        for (const larkBrand of larkBrands) {
+          try {
+            // 既存ブランドをlarkRecordIdまたは名前で検索
+            const existing = await db.select().from(brands)
+              .where(
+                or(
+                  eq(brands.larkRecordId, larkBrand.recordId),
+                  eq(brands.name, larkBrand.brandName)
+                )
+              )
+              .limit(1);
+
+            const larkFields = {
+              larkRecordId: larkBrand.recordId,
+              larkStage: larkBrand.stage,
+              larkTier: larkBrand.tier,
+              larkCategory: larkBrand.category,
+              larkContactPlatform: larkBrand.contactPlatform,
+              larkBrandManager: larkBrand.brandManager,
+              larkBusinessContact: larkBrand.businessContact,
+              larkBusinessLead: larkBrand.businessLead,
+              larkOperationsContact: larkBrand.operationsContact,
+              larkShopId: larkBrand.shopId,
+              larkIntro: larkBrand.intro,
+              larkSyncedAt: new Date(),
+            };
+
+            if (existing.length > 0) {
+              // 更新（飞书データを優先）
+              await db.update(brands)
+                .set({
+                  ...larkFields,
+                  status: mapLarkStageToStatus(larkBrand.stage),
+                  materialCategory: larkBrand.category || existing[0].materialCategory,
+                })
+                .where(eq(brands.id, existing[0].id));
+              updated++;
+            } else {
+              // 新規作成
+              await db.insert(brands).values({
+                name: larkBrand.brandName,
+                nameJa: larkBrand.brandName,
+                status: mapLarkStageToStatus(larkBrand.stage),
+                materialCategory: larkBrand.category || undefined,
+                ...larkFields,
+                createdBy: ctx.user.id,
+              });
+              created++;
+            }
+            synced++;
+          } catch (err: any) {
+            errors.push(`${larkBrand.brandName}: ${err.message}`);
+          }
+        }
+
+        return {
+          total: larkBrands.length,
+          synced,
+          created,
+          updated,
+          errors: errors.slice(0, 10),
+        };
+      }),
   }),
 
   // Brand Products Router
