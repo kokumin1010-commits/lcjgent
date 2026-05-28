@@ -1610,3 +1610,73 @@ async def resume_all_account_videos(
         resumed = result.fetchall()
         await session.commit()
         return {"resumed": len(resumed), "account": account_name}
+
+
+@router.get("/accounts/daily-posts")
+async def get_daily_posts_by_account(
+    days: int = 30,
+    x_admin_key: Optional[str] = Header(None),
+):
+    """Get daily post counts per account for the last N days."""
+    verify_admin(x_admin_key)
+    async with get_session() as session:
+        result = await session.execute(
+            text("""
+                SELECT
+                    (tv.posted_at AT TIME ZONE 'Asia/Tokyo')::date as post_date,
+                    tv.account_name,
+                    COUNT(*) as post_count
+                FROM tiktok_tracked_videos tv
+                WHERE tv.posted_at IS NOT NULL
+                    AND tv.posted_at >= (CURRENT_DATE - :days * INTERVAL '1 day')
+                    AND tv.account_name IS NOT NULL
+                    AND tv.account_name != ''
+                GROUP BY (tv.posted_at AT TIME ZONE 'Asia/Tokyo')::date, tv.account_name
+                ORDER BY post_date DESC, tv.account_name
+            """),
+            {"days": min(days, 90)}
+        )
+        rows = result.fetchall()
+
+        # Also get summary: total posts per day (all accounts combined)
+        summary_result = await session.execute(
+            text("""
+                SELECT
+                    (tv.posted_at AT TIME ZONE 'Asia/Tokyo')::date as post_date,
+                    COUNT(*) as total_posts,
+                    COUNT(DISTINCT tv.account_name) as active_accounts
+                FROM tiktok_tracked_videos tv
+                WHERE tv.posted_at IS NOT NULL
+                    AND tv.posted_at >= (CURRENT_DATE - :days * INTERVAL '1 day')
+                    AND tv.account_name IS NOT NULL
+                    AND tv.account_name != ''
+                GROUP BY (tv.posted_at AT TIME ZONE 'Asia/Tokyo')::date
+                ORDER BY post_date DESC
+            """),
+            {"days": min(days, 90)}
+        )
+        summary_rows = summary_result.fetchall()
+
+        # Format response
+        daily_by_account = {}
+        for row in rows:
+            date_str = row[0].isoformat() if row[0] else None
+            account = row[1]
+            count = row[2]
+            if date_str not in daily_by_account:
+                daily_by_account[date_str] = {}
+            daily_by_account[date_str][account] = count
+
+        daily_summary = []
+        for row in summary_rows:
+            daily_summary.append({
+                "date": row[0].isoformat() if row[0] else None,
+                "total_posts": row[1],
+                "active_accounts": row[2],
+            })
+
+        return {
+            "daily_by_account": daily_by_account,
+            "daily_summary": daily_summary,
+            "days": min(days, 90),
+        }

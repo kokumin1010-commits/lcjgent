@@ -182,7 +182,30 @@ export default function TikTokTrackingPanel({ adminKey }) {
   // Help tooltip
   const [showHelp, setShowHelp] = useState(false);
 
+  // Daily posts tracking
+  const [dailyPosts, setDailyPosts] = useState(null);
+  const [dailyPostsLoading, setDailyPostsLoading] = useState(false);
+  const [showDailyPosts, setShowDailyPosts] = useState(true);
+
   const headers = { "X-Admin-Key": adminKey };
+
+  // ── Fetch daily posts data ──
+  const fetchDailyPosts = useCallback(async () => {
+    setDailyPostsLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/v1/tiktok-tracking/accounts/daily-posts?days=14`,
+        { headers }
+      );
+      if (res.ok) setDailyPosts(await res.json());
+    } catch (e) {
+      console.error("Failed to fetch daily posts:", e);
+    } finally {
+      setDailyPostsLoading(false);
+    }
+  }, [adminKey]);
+
+  useEffect(() => { fetchDailyPosts(); }, [fetchDailyPosts]);
 
   // ── Fetch tracked videos ──
   const fetchVideos = useCallback(async () => {
@@ -680,6 +703,119 @@ export default function TikTokTrackingPanel({ adminKey }) {
             <div className="text-[10px] text-gray-400 mb-1">アクティブ</div>
             <div className="text-lg font-bold text-green-500">{videos.filter(v => v.status === "active").length}</div>
           </div>
+        </div>
+      )}
+
+      {/* Daily Posts Section */}
+      {!loading && dailyPosts && dailyPosts.daily_summary?.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-gray-700">📅 日別投稿数</span>
+              <span className="text-[10px] text-gray-400">（各アカウントの毎日の更新状況）</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchDailyPosts}
+                disabled={dailyPostsLoading}
+                className="px-2 py-1 text-[10px] font-medium bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50"
+              >
+                {dailyPostsLoading ? "..." : "↻"}
+              </button>
+              <button
+                onClick={() => setShowDailyPosts(!showDailyPosts)}
+                className="px-2 py-1 text-[10px] font-medium bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition-colors"
+              >
+                {showDailyPosts ? "▼ 閉じる" : "▶ 展開"}
+              </button>
+            </div>
+          </div>
+          {showDailyPosts && (
+            <div className="space-y-3">
+              {/* Summary bar chart */}
+              <div className="overflow-x-auto">
+                <div className="flex gap-1 items-end min-w-fit" style={{ height: "80px" }}>
+                  {dailyPosts.daily_summary.slice(0, 14).reverse().map((day) => {
+                    const maxPosts = Math.max(...dailyPosts.daily_summary.map(d => d.total_posts), 1);
+                    const height = Math.max((day.total_posts / maxPosts) * 60, 4);
+                    const isToday = day.date === new Date().toISOString().split('T')[0];
+                    const isYesterday = (() => {
+                      const y = new Date(); y.setDate(y.getDate() - 1);
+                      return day.date === y.toISOString().split('T')[0];
+                    })();
+                    return (
+                      <div key={day.date} className="flex flex-col items-center gap-1" style={{ minWidth: "44px" }}>
+                        <div className="text-[9px] font-bold text-gray-700">{day.total_posts}</div>
+                        <div
+                          className={`w-8 rounded-t-sm transition-all ${
+                            isToday ? "bg-gradient-to-t from-green-500 to-green-300" :
+                            isYesterday ? "bg-gradient-to-t from-blue-500 to-blue-300" :
+                            "bg-gradient-to-t from-gray-300 to-gray-200"
+                          }`}
+                          style={{ height: `${height}px` }}
+                          title={`${day.date}: ${day.total_posts}件 (${day.active_accounts}アカウント)`}
+                        />
+                        <div className={`text-[8px] ${isToday ? "text-green-600 font-bold" : isYesterday ? "text-blue-600 font-medium" : "text-gray-400"}`}>
+                          {new Date(day.date + 'T00:00:00').toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              {/* Per-account breakdown for recent days */}
+              <div className="border-t border-gray-100 pt-3">
+                <div className="text-[10px] font-medium text-gray-500 mb-2">アカウント別（直近3日）</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {(() => {
+                    const recentDates = dailyPosts.daily_summary.slice(0, 3).map(d => d.date);
+                    const accountTotals = {};
+                    recentDates.forEach(date => {
+                      const dayData = dailyPosts.daily_by_account[date] || {};
+                      Object.entries(dayData).forEach(([account, count]) => {
+                        if (!accountTotals[account]) accountTotals[account] = { total: 0, days: {} };
+                        accountTotals[account].total += count;
+                        accountTotals[account].days[date] = count;
+                      });
+                    });
+                    return Object.entries(accountTotals)
+                      .sort((a, b) => b[1].total - a[1].total)
+                      .map(([account, data]) => (
+                        <div key={account} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-[10px] font-medium text-gray-700 truncate">@{account}</span>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {recentDates.map(date => {
+                              const count = data.days[date] || 0;
+                              const isToday = date === new Date().toISOString().split('T')[0];
+                              return (
+                                <span
+                                  key={date}
+                                  className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[9px] font-bold ${
+                                    count > 0
+                                      ? isToday
+                                        ? "bg-green-100 text-green-700"
+                                        : "bg-blue-100 text-blue-700"
+                                      : "bg-gray-100 text-gray-300"
+                                  }`}
+                                  title={`${date}: ${count}件`}
+                                >
+                                  {count}
+                                </span>
+                              );
+                            })}
+                            <span className="ml-1 text-[9px] font-bold text-gray-600">
+                              計{data.total}
+                            </span>
+                          </div>
+                        </div>
+                      ));
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
