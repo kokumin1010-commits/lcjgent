@@ -90,7 +90,7 @@ async function deleteImageFromDB(id) {
   }
 }
 
-async function cleanupOrphanedImages(validIds) {
+async function cleanupOrphanedImages(validProductIds, validFaceIds) {
   try {
     const db = await openImageDB();
     const tx = db.transaction(IDB_STORE, "readwrite");
@@ -100,9 +100,15 @@ async function cleanupOrphanedImages(validIds) {
       req.onsuccess = () => res(req.result);
       req.onerror = () => res([]);
     });
-    const validSet = new Set(validIds);
+    const validProductSet = new Set(validProductIds);
+    const validFaceSet = new Set(validFaceIds);
     for (const key of allKeys) {
-      if (!validSet.has(key)) store.delete(key);
+      // Protect face images (face_*) and product images separately
+      if (typeof key === "string" && key.startsWith("face_")) {
+        if (!validFaceSet.has(key)) store.delete(key);
+      } else {
+        if (!validProductSet.has(key)) store.delete(key);
+      }
     }
   } catch (e) {
     console.warn("[IDB] Cleanup failed:", e);
@@ -264,12 +270,14 @@ export default function LiverClonePage() {
               }
               return p;
             });
-            productsInitializedRef.current = true;
             setProducts(restored);
           }
         }
       } catch (e) {
         console.warn("[Products] Failed to restore images from IndexedDB:", e);
+      } finally {
+        // Mark initialization complete AFTER restore attempt (even if no products)
+        productsInitializedRef.current = true;
       }
     })();
 
@@ -280,13 +288,32 @@ export default function LiverClonePage() {
         if (savedFaceMeta.length === 0) return;
         const faceIds = savedFaceMeta.map(f => `face_${f.id}`);
         const faceImages = await loadImagesFromDB(faceIds);
-        const restoredFaces = savedFaceMeta.map(f => {
+        const restoredFaces = await Promise.all(savedFaceMeta.map(async (f) => {
           const img = faceImages[`face_${f.id}`];
-          return {
-            ...f,
-            preview: img?.image_preview || f.preview || "",
-          };
-        });
+          if (img?.image_preview) {
+            return { ...f, preview: img.image_preview };
+          }
+          // If no image in IndexedDB but URL exists, try to fetch from URL
+          if (f.url) {
+            try {
+              const resp = await fetch(f.url);
+              if (resp.ok) {
+                const blob = await resp.blob();
+                const dataUrl = await new Promise((res) => {
+                  const reader = new FileReader();
+                  reader.onload = () => res(reader.result);
+                  reader.readAsDataURL(blob);
+                });
+                // Save to IndexedDB for future use
+                await saveImageToDB(`face_${f.id}`, "", dataUrl);
+                return { ...f, preview: dataUrl };
+              }
+            } catch (err) {
+              console.warn(`[Faces] Failed to fetch face image from URL for ${f.name}:`, err);
+            }
+          }
+          return { ...f, preview: f.preview || "" };
+        }));
         setSavedFaces(restoredFaces);
       } catch (e) {
         console.warn("[Faces] Failed to restore images from IndexedDB:", e);
@@ -357,9 +384,15 @@ export default function LiverClonePage() {
         saveImageToDB(p.id, p.image_base64 || "", p.image_preview || "");
       }
     });
-    // Cleanup orphaned images
-    const validIds = products.map(p => p.id).filter(Boolean);
-    cleanupOrphanedImages(validIds);
+    // Cleanup orphaned images ONLY after initialization is complete
+    // This prevents deleting images before they are restored from IndexedDB
+    if (productsInitializedRef.current) {
+      const validProductIds = products.map(p => p.id).filter(Boolean);
+      // Also protect face images by passing their IDs
+      const faceMeta = JSON.parse(localStorage.getItem("liverClone_savedFaces") || "[]");
+      const validFaceIds = faceMeta.map(f => `face_${f.id}`);
+      cleanupOrphanedImages(validProductIds, validFaceIds);
+    }
   }, [products]);
 
   // ── Poll session status ──
@@ -2164,11 +2197,16 @@ export default function LiverClonePage() {
                           onClick={async () => {
                             if (!faceSaveName.trim() || !sourceFacePreview) return;
                             const faceId = Date.now();
+                            // Determine URL: use explicit URL or extract from preview if it's a URL
+                            let faceUrl = sourceFaceUrl || "";
+                            if (!faceUrl && sourceFacePreview && !sourceFacePreview.startsWith("data:")) {
+                              faceUrl = sourceFacePreview;
+                            }
                             const newFace = {
                               id: faceId,
                               name: faceSaveName.trim(),
                               preview: sourceFacePreview,
-                              url: sourceFaceUrl || "",
+                              url: faceUrl,
                             };
                             const updated = [...savedFaces, newFace];
                             setSavedFaces(updated);
@@ -2233,9 +2271,11 @@ export default function LiverClonePage() {
                             >
                               {face.preview && face.preview.startsWith("data:") ? (
                                 <img src={face.preview} alt={face.name} className="w-full h-16 object-cover" />
+                              ) : face.url ? (
+                                <img src={face.url} alt={face.name} className="w-full h-16 object-cover" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling && (e.target.nextSibling.style.display = 'flex'); }} />
                               ) : (
                                 <div className="w-full h-16 bg-gray-800 flex items-center justify-center text-gray-500 text-[10px]">
-                                  {face.url ? "Click to load" : "No image"}
+                                  No image
                                 </div>
                               )}
                               <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-1 py-0.5 text-[10px] truncate">
