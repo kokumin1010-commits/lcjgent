@@ -182,6 +182,7 @@ import {
   getAllActiveLivers,
   getAllLivers,
   updateLiver,
+  updateLiverPassword,
   updateLiverLastLogin,
   checkLiverEmailExists,
   getSchedulesByLiverId,
@@ -12348,6 +12349,19 @@ ${conversationText}
       .mutation(async ({ input }) => {
         const { id, ...data } = input;
         await updateLiver(id, data);
+        return { success: true };
+      }),
+
+    // Admin reset liver password
+    adminResetPassword: protectedProcedure
+      .input(z.object({
+        liverId: z.number(),
+        newPassword: z.string().min(6),
+      }))
+      .mutation(async ({ input }) => {
+        const bcrypt = await import("bcrypt");
+        const hashedPassword = await bcrypt.hash(input.newPassword, 10);
+        await updateLiverPassword(input.liverId, hashedPassword);
         return { success: true };
       }),
 
