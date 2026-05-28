@@ -1842,6 +1842,95 @@ export default function LiverMypage() {
                   </div>
                 </div>
               </div>
+              {/* 🚨 売上低迷アラート：配信してるけど売上が上がってないブランド3選 */}
+              {(() => {
+                const lowPerformers = brandDurationStats
+                  .filter((b: any) => b.totalMinutes > 0 && (b.status === 'no_csv' || (b.csvGmv === 0 && b.status !== 'unregistered')))
+                  .sort((a, b) => b.totalMinutes - a.totalMinutes)
+                  .slice(0, 3);
+                if (lowPerformers.length > 0) {
+                  return (
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-2 mb-3">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 text-red-400" />
+                        <span className="text-xs font-bold text-red-400">
+                          {language === 'en' ? 'Low Performance Alert' : language === 'zh-TW' ? '低效能警報' : '⚠️ 配信中・売上未確認ブランド'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-400 mb-2">
+                        {language === 'en' ? 'Streaming but no sales recorded' : '配信時間があるのにCSV売上が確認できていないブランドです'}
+                      </p>
+                      <div className="space-y-1.5">
+                        {lowPerformers.map((b: any, idx: number) => {
+                          const hours = Math.floor(b.totalMinutes / 60);
+                          const mins = b.totalMinutes % 60;
+                          return (
+                            <div key={b.brandId} className="flex items-center justify-between bg-red-500/5 rounded px-2 py-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-red-300">#{idx + 1}</span>
+                                <span className="text-xs text-white font-medium truncate max-w-[120px]">{b.brandName}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-cyan-400">
+                                  {hours > 0 ? `${hours}h${mins > 0 ? `${mins}m` : ''}` : `${mins}m`}
+                                </span>
+                                <span className="text-[10px] text-red-400 font-medium">売上¥0</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* 時間単価ランキング（低い順） */}
+              {(() => {
+                const withRate = brandDurationStats
+                  .filter((b: any) => b.totalMinutes > 0 && b.csvGmv > 0)
+                  .sort((a: any, b: any) => (a.hourlyRate || 0) - (b.hourlyRate || 0))
+                  .slice(0, 3);
+                if (withRate.length > 0) {
+                  return (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 mb-3">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <TrendingDown className="h-3.5 w-3.5 text-amber-400" />
+                        <span className="text-xs font-bold text-amber-400">
+                          {language === 'en' ? 'Lowest Hourly Rate' : language === 'zh-TW' ? '最低時薪' : '💰 時間単価ワースト3'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-400 mb-2">
+                        {language === 'en' ? 'Brands with lowest revenue per hour' : '配信時間あたりの売上が低いブランドです'}
+                      </p>
+                      <div className="space-y-1.5">
+                        {withRate.map((b: any, idx: number) => {
+                          const hours = Math.floor(b.totalMinutes / 60);
+                          const mins = b.totalMinutes % 60;
+                          return (
+                            <div key={b.brandId} className="flex items-center justify-between bg-amber-500/5 rounded px-2 py-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-amber-300">#{idx + 1}</span>
+                                <span className="text-xs text-white font-medium truncate max-w-[120px]">{b.brandName}</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-[10px] text-cyan-400">
+                                  {hours > 0 ? `${hours}h${mins > 0 ? `${mins}m` : ''}` : `${mins}m`}
+                                </span>
+                                <span className="text-[10px] text-yellow-400">¥{Number(b.csvGmv).toLocaleString()}</span>
+                                <span className="text-[10px] text-amber-400 font-bold">¥{Number(b.hourlyRate).toLocaleString()}/h</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               {/* ブランド別バー */}
               <div className="space-y-2">
                 {(() => {
