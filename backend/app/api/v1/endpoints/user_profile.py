@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from sqlalchemy import text as _text
 
-from app.core.database import get_db
+from app.core.db import get_db
 from app.api.v1.endpoints.auth import get_current_user
 
 router = APIRouter(prefix="/profile", tags=["User Profile"])
