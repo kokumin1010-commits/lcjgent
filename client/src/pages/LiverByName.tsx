@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ChevronDown, ChevronUp, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2, UserCheck, Upload, Package, FileSpreadsheet, Trophy, Crown, ShoppingBag, Tag, Percent, Sparkles, MessageSquare, ShieldCheck, ShieldAlert, HelpCircle, AlertCircle } from "lucide-react";
+import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ChevronDown, ChevronUp, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2, UserCheck, Upload, Package, FileSpreadsheet, Trophy, Crown, ShoppingBag, Tag, Percent, Sparkles, MessageSquare, ShieldCheck, ShieldAlert, HelpCircle, AlertCircle, Target } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -1227,6 +1227,94 @@ export default function LiverByName() {
             </CardContent>
           </Card>
         )}
+
+        {/* ブランド効率アラート（個人） */}
+        {brandDurationStats && brandDurationStats.length > 0 && (() => {
+          const brandsWithEfficiency = brandDurationStats
+            .filter((b: any) => b.csvGmv > 0 && b.totalMinutes > 0)
+            .map((b: any) => ({
+              brandName: b.brandName,
+              hourlyRate: b.hourlyRate || Math.round(b.csvGmv / (b.totalMinutes / 60)),
+              totalHours: Math.round(b.totalMinutes / 60 * 10) / 10,
+              csvGmv: b.csvGmv,
+              streamCount: b.streamCount || 0,
+            }))
+            .sort((a: any, b: any) => b.hourlyRate - a.hourlyRate);
+          
+          if (brandsWithEfficiency.length === 0) return null;
+          
+          const topPerformers = brandsWithEfficiency.filter((b: any) => b.hourlyRate >= 50000);
+          const lowPerformers = brandsWithEfficiency.filter((b: any) => b.hourlyRate < 15000 && b.totalHours >= 1);
+          
+          if (topPerformers.length === 0 && lowPerformers.length === 0) return null;
+          
+          return (
+            <Card className="bg-gray-900/50 border-gray-800">
+              <CardContent className="p-4">
+                <h3 className="text-base font-bold text-white flex items-center gap-2 mb-3">
+                  <Target className="w-4 h-4 text-cyan-500" />
+                  ブランド配信効率アラート
+                </h3>
+                <p className="text-[10px] text-white/50 mb-3">ブランド別時間単価を分析。🔥=高効率（¥5万+/h） ⚠️=低効率（¥1.5万未満/h・1h以上配信）</p>
+                <div className="space-y-3">
+                  {topPerformers.length > 0 && (
+                    <div className="p-3 rounded-lg bg-gradient-to-r from-orange-900/20 to-amber-900/20 border border-orange-500/20">
+                      <p className="text-xs font-bold text-orange-300 mb-2">🔥 高効率ブランド — もっと配信時間を増やすべき</p>
+                      <div className="space-y-1.5">
+                        {topPerformers.map((brand: any, idx: number) => (
+                          <div key={idx} className="flex items-center gap-2 px-2 py-1.5 rounded bg-gray-800/40">
+                            <span className="text-xs text-orange-200 font-medium">{brand.brandName}</span>
+                            <span className="text-xs font-bold text-orange-400 ml-auto">¥{brand.hourlyRate >= 10000 ? `${Math.round(brand.hourlyRate / 10000)}万` : brand.hourlyRate.toLocaleString()}/h</span>
+                            <span className="text-[10px] text-white/40">{brand.totalHours}h</span>
+                            <span className="text-[10px] text-yellow-400">¥{brand.csvGmv.toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {lowPerformers.length > 0 && (
+                    <div className="p-3 rounded-lg bg-gradient-to-r from-red-900/20 to-pink-900/20 border border-red-500/20">
+                      <p className="text-xs font-bold text-red-300 mb-2">⚠️ 低効率ブランド — 配信ブランド見直し推奨</p>
+                      <div className="space-y-1.5">
+                        {lowPerformers.map((brand: any, idx: number) => (
+                          <div key={idx} className="flex items-center gap-2 px-2 py-1.5 rounded bg-gray-800/40">
+                            <span className="text-xs text-red-200 font-medium">{brand.brandName}</span>
+                            <span className="text-xs font-bold text-red-400 ml-auto">¥{brand.hourlyRate.toLocaleString()}/h</span>
+                            <span className="text-[10px] text-white/40">{brand.totalHours}h</span>
+                            <span className="text-[10px] text-red-300">¥{brand.csvGmv.toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {topPerformers.length > 0 && lowPerformers.length > 0 && (
+                    <div className="p-3 rounded-lg bg-gradient-to-r from-emerald-900/20 to-teal-900/20 border border-emerald-500/20">
+                      <p className="text-xs font-bold text-emerald-300 mb-2">💡 提案 — 配信ブランド変更で売上アップ</p>
+                      <div className="space-y-1.5">
+                        {lowPerformers.slice(0, 3).map((low: any, idx: number) => {
+                          const suggested = topPerformers[0];
+                          const potentialGain = Math.round(low.totalHours * (suggested.hourlyRate - low.hourlyRate));
+                          return (
+                            <div key={idx} className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-gray-800/40 text-xs flex-wrap">
+                              <span className="text-red-300 line-through">{low.brandName}</span>
+                              <span className="text-red-400 text-[10px]">¥{low.hourlyRate.toLocaleString()}/h</span>
+                              <span className="text-white/50">→</span>
+                              <span className="text-emerald-300 font-bold">{suggested.brandName}</span>
+                              <span className="text-emerald-400 text-[10px]">¥{suggested.hourlyRate >= 10000 ? `${Math.round(suggested.hourlyRate / 10000)}万` : suggested.hourlyRate.toLocaleString()}/h</span>
+                              {potentialGain > 0 && (
+                                <span className="text-[10px] text-emerald-200 ml-auto">+¥{potentialGain.toLocaleString()}見込</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* Growth Chart */}
         {!isGrowthLoading && chartData.length > 0 && (
