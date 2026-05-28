@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake, Trash2, Target, AlertTriangle, Flame, RefreshCw, Users, Tag, Crown } from "lucide-react";
+import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake, Trash2, Target, AlertTriangle, Flame, RefreshCw, Users, Tag, Crown, History, Clock, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -184,13 +184,18 @@ export default function BrandList() {
 
   const syncLarkMutation = trpc.brand.syncLark.useMutation({
     onSuccess: (data: any) => {
-      toast.success(`飞书同期完了: ${data.synced}件更新, ${data.created}件新規作成`);
+      toast.success(`飞書同期完了: ${data.synced}件同期 (${data.created}件新規, ${data.updated}件更新)`);
       utils.brand.list.invalidate();
+      syncHistoryQuery.refetch();
     },
     onError: (err: any) => {
-      toast.error(`飞书同期エラー: ${err.message}`);
+      toast.error(`飞書同期エラー: ${err.message}`);
     },
   });
+
+  // 同期履歴を取得
+  const syncHistoryQuery = trpc.brand.getSyncHistory.useQuery({ limit: 10 });
+  const [showSyncHistory, setShowSyncHistory] = useState(false);
 
   const handleDelete = (e: React.MouseEvent, brand: { id: number; name: string }) => {
     e.preventDefault();
@@ -393,12 +398,20 @@ export default function BrandList() {
           </div>
           <div className="flex items-center gap-3">
             <Button
+              onClick={() => setShowSyncHistory(!showSyncHistory)}
+              variant="outline"
+              className="border-gray-600 text-gray-300 hover:bg-gray-700"
+            >
+              <History className="h-4 w-4 mr-2" />
+              同期履歴
+            </Button>
+            <Button
               onClick={() => syncLarkMutation.mutate()}
               disabled={syncLarkMutation.isPending}
               className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${syncLarkMutation.isPending ? 'animate-spin' : ''}`} />
-              {syncLarkMutation.isPending ? '同期中...' : '飞书同期'}
+              {syncLarkMutation.isPending ? '同期中...' : '飞書同期'}
             </Button>
             <Link href="/master/recruitment">
               <Button className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white">
@@ -414,6 +427,54 @@ export default function BrandList() {
             </Link>
           </div>
         </div>
+
+        {/* Sync History Panel */}
+        {showSyncHistory && (
+          <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <History className="h-4 w-4 text-blue-400" />
+                <span className="text-sm font-medium text-gray-200">飛書同期履歴</span>
+                <Badge variant="outline" className="text-xs border-blue-500/50 text-blue-300">自動: 6時間ごと</Badge>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setShowSyncHistory(false)} className="text-gray-400 hover:text-white">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            {syncHistoryQuery.isLoading ? (
+              <p className="text-sm text-gray-400">読み込み中...</p>
+            ) : syncHistoryQuery.data && syncHistoryQuery.data.length > 0 ? (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {syncHistoryQuery.data.map((h: any) => (
+                  <div key={h.id} className="flex items-center justify-between bg-gray-900/50 rounded-lg px-3 py-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      {h.status === 'success' ? (
+                        <CheckCircle className="h-4 w-4 text-green-400" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-red-400" />
+                      )}
+                      <span className="text-gray-300">
+                        {h.totalRecords}件取得 / {h.newRecords}件新規 / {h.updatedRecords}件更新
+                      </span>
+                      <Badge variant="outline" className={`text-xs ${h.triggeredBy === 'auto' ? 'border-cyan-500/50 text-cyan-300' : 'border-amber-500/50 text-amber-300'}`}>
+                        {h.triggeredBy === 'auto' ? '自動' : '手動'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <Clock className="h-3 w-3" />
+                      <span className="text-xs">
+                        {new Date(h.syncedAt).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <span className="text-xs text-gray-600">({Math.round((h.durationMs || 0) / 1000)}s)</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">同期履歴がありません。「飛書同期」ボタンを押して初回同期を実行してください。</p>
+            )}
+          </div>
+        )}
 
         {/* Period Filter */}
         <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 mb-6">

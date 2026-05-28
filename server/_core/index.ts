@@ -28,6 +28,7 @@ import { startMonthlyReportScheduler } from "../monthlyReportScheduler";
 import { startPeerBonusResetScheduler } from "../peerBonusResetScheduler";
 import { startDailyRankingScheduler } from "../dailyRankingScheduler";
 import { startPreBriefingScheduler } from "../preBriefingScheduler";
+import { startFeishuSyncScheduler } from "../feishuSyncScheduler";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
 
@@ -2212,8 +2213,9 @@ async function startServer() {
     startMonthlyReportScheduler();
     
     // Start pre-briefing scheduler (sends briefing 1h before and 5min before stream)
-    startPreBriefingScheduler();
-    
+        startPreBriefingScheduler();
+    // Start Feishu auto-sync scheduler (syncs brands from Lark every 6 hours)
+    startFeishuSyncScheduler();
     // Ensure schedules.brandIds column exists (multi-brand support)
     import("../db").then(({ ensureSchedulesBrandIdsColumn }) => {
       ensureSchedulesBrandIdsColumn().catch((err: unknown) => {

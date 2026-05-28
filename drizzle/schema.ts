@@ -6071,3 +6071,21 @@ export const brandMonthlyGmvTargets = mysqlTable("brand_monthly_gmv_targets", {
 });
 export type BrandMonthlyGmvTarget = typeof brandMonthlyGmvTargets.$inferSelect;
 export type InsertBrandMonthlyGmvTarget = typeof brandMonthlyGmvTargets.$inferInsert;
+
+// ============================================================
+// 飛書同期履歴テーブル (Feishu Sync History)
+// ============================================================
+export const feishuSyncHistory = mysqlTable("feishu_sync_history", {
+  id: int("id").autoincrement().primaryKey(),
+  syncType: varchar("syncType", { length: 50 }).notNull().default("brands"), // brands, tasks, etc.
+  status: varchar("status", { length: 20 }).notNull().default("success"), // success, error
+  totalRecords: int("totalRecords").default(0).notNull(), // 飛書から取得した総レコード数
+  newRecords: int("newRecords").default(0).notNull(), // 新規作成数
+  updatedRecords: int("updatedRecords").default(0).notNull(), // 更新数
+  errorMessage: text("errorMessage"), // エラーメッセージ（失敗時）
+  triggeredBy: varchar("triggeredBy", { length: 50 }).notNull().default("auto"), // auto, manual
+  durationMs: int("durationMs").default(0), // 同期にかかった時間（ミリ秒）
+  syncedAt: timestamp("syncedAt").defaultNow().notNull(),
+});
+export type FeishuSyncHistory = typeof feishuSyncHistory.$inferSelect;
+export type InsertFeishuSyncHistory = typeof feishuSyncHistory.$inferInsert;
