@@ -49,7 +49,7 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   const lineUserPages = [
     '/receipt-upload', '/line-login', '/line-callback', '/mypage',
     '/products', '/mall', '/point-request', '/friend-challenge',
-    '/beauty-wallet', '/reviews', '/my/'
+    '/beauty-wallet', '/reviews', '/my/', '/chat/invite'
   ];
   if (lineUserPages.some(p => currentPath.startsWith(p) || currentPath === p)) {
     // LINEユーザー向けページではリダイレクトしない（コンポーネント内でエラーハンドリング）
