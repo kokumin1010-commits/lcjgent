@@ -810,6 +810,12 @@ export default function BusinessCards() {
     return Array.from(companies).sort();
   }, [cards]);
 
+  const getCardStatus = useCallback((card: any): string => {
+    // salesStatusカラム優先、なければtagsから後方互換
+    if (card.salesStatus) return card.salesStatus;
+    return card.tags?.find((t: string) => t.startsWith("status:"))?.replace("status:", "") || "new";
+  }, []);
+
   // Filtered cards by company and status
   const filteredCards = useMemo(() => {
     let result = cards;
@@ -843,12 +849,6 @@ export default function BusinessCards() {
   const handleStatusChange = (cardId: number, newStatus: string) => {
     updateStatusMutation.mutate({ id: cardId, salesStatus: newStatus as any });
   };
-
-  const getCardStatus = useCallback((card: any): string => {
-    // salesStatusカラム優先、なければtagsから後方互換
-    if (card.salesStatus) return card.salesStatus;
-    return card.tags?.find((t: string) => t.startsWith("status:"))?.replace("status:", "") || "new";
-  }, []);
 
   const statusOptions = [
     { value: "new", label: "新規", color: "bg-gray-100 text-gray-700" },
