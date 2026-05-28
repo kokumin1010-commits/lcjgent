@@ -923,49 +923,6 @@ async function startServer() {
     }
   });
 
-  // TEMPORARY: Bulk import business cards endpoint (secret-protected)
-  app.post("/api/bulk-import-cards", async (req: any, res: any) => {
-    try {
-      const { cards, secret } = req.body;
-      if (secret !== "lcj_bulk_2026_temp") {
-        return res.status(403).json({ error: "Unauthorized" });
-      }
-      if (!cards || !Array.isArray(cards)) {
-        return res.status(400).json({ error: "cards array required" });
-      }
-      const crypto = await import("crypto");
-      const { createBusinessCard, checkDuplicateBusinessCard } = await import("../db");
-      let imported = 0;
-      let skipped = 0;
-      for (const card of cards) {
-        const duplicateHash = crypto
-          .createHash("md5")
-          .update(`${card.company || ""}|${card.name}`)
-          .digest("hex");
-        const existing = await checkDuplicateBusinessCard(duplicateHash);
-        if (existing) {
-          skipped++;
-          continue;
-        }
-        await createBusinessCard({
-          name: card.name || "",
-          company: card.company || "",
-          email: card.email || "",
-          phone: card.phone || "",
-          address: card.address || "",
-          website: card.website || "",
-          notes: card.notes || "",
-          registeredBy: 0,
-          duplicateHash,
-        });
-        imported++;
-      }
-      res.json({ success: true, imported, skipped, total: cards.length });
-    } catch (e: any) {
-      console.error("[Bulk Import] Error:", e.message);
-      res.status(500).json({ error: e.message });
-    }
-  });
 
   // Global Express error handler to prevent raw error text responses
   app.use((err: any, _req: any, res: any, _next: any) => {

@@ -448,6 +448,7 @@ export default function BusinessCards() {
   // Queries
   const { data: cards = [], isLoading } = trpc.businessCard.list.useQuery({
     search: searchQuery || undefined,
+    limit: 2500,
   });
 
   // Mutations
