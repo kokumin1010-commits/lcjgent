@@ -2235,6 +2235,13 @@ async function startServer() {
       });
     });
 
+    // Ensure brands Lark/Feishu columns exist
+    import("../db").then(({ ensureBrandsLarkColumns }) => {
+      ensureBrandsLarkColumns().catch((err: unknown) => {
+        console.error("[Migration] Failed to ensure brands Lark columns:", err);
+      });
+    });
+
     // Ensure livers.uid column exists
     import("../db").then(({ ensureLiversUidColumn }) => {
       ensureLiversUidColumn().catch((err: unknown) => {

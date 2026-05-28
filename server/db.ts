@@ -25642,3 +25642,47 @@ export async function getAllLiverBrandEfficiency(month: string, agencyId?: numbe
   }
   return result;
 }
+
+
+// Auto-migration: Add Lark/Feishu columns to brands table
+export async function ensureBrandsLarkColumns() {
+  const db = await getDb();
+  if (!db) return;
+
+  const larkColumns = [
+    { name: 'larkRecordId', type: 'VARCHAR(255) DEFAULT NULL' },
+    { name: 'larkStage', type: 'VARCHAR(100) DEFAULT NULL' },
+    { name: 'larkTier', type: 'VARCHAR(50) DEFAULT NULL' },
+    { name: 'larkCategory', type: 'VARCHAR(255) DEFAULT NULL' },
+    { name: 'larkContactPlatform', type: 'VARCHAR(100) DEFAULT NULL' },
+    { name: 'larkBrandManager', type: 'VARCHAR(255) DEFAULT NULL' },
+    { name: 'larkBusinessContact', type: 'VARCHAR(255) DEFAULT NULL' },
+    { name: 'larkBusinessLead', type: 'VARCHAR(255) DEFAULT NULL' },
+    { name: 'larkOperationsContact', type: 'VARCHAR(255) DEFAULT NULL' },
+    { name: 'larkShopId', type: 'VARCHAR(255) DEFAULT NULL' },
+    { name: 'larkIntro', type: 'TEXT DEFAULT NULL' },
+    { name: 'larkSyncedAt', type: 'TIMESTAMP NULL DEFAULT NULL' },
+  ];
+
+  for (const col of larkColumns) {
+    try {
+      const [cols] = await db.execute(sql`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'brands' 
+        AND COLUMN_NAME = ${col.name}
+      `);
+      if (!cols || (Array.isArray(cols) && cols.length === 0)) {
+        await db.execute(sql.raw(`ALTER TABLE brands ADD COLUMN ${col.name} ${col.type}`));
+        console.log(`[Migration] Added ${col.name} column to brands`);
+      }
+    } catch (error: any) {
+      if (error?.code === 'ER_DUP_FIELDNAME' || error?.message?.includes('Duplicate column')) {
+        // Column already exists, ignore
+      } else {
+        console.error(`[Migration] Failed to add ${col.name} to brands:`, error?.message);
+      }
+    }
+  }
+  console.log("[Migration] Lark columns migration complete for brands table");
+}
