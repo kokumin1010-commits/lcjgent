@@ -282,4 +282,24 @@ export const authRouter = router({
         message: "パスワードが正常にリセットされました",
       };
     }),
+  // Admin reset password by email (管理者用メールベースパスワードリセット - usersテーブル)
+  adminResetByEmail: publicProcedure
+    .input(z.object({
+      email: z.string().email(),
+      newPassword: z.string().min(6),
+      adminSecret: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const validSecret = process.env.ADMIN_SECRET || "lcj_admin_2024_secret";
+      if (input.adminSecret !== validSecret) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid admin secret" });
+      }
+      const user = await getUserByEmail(input.email);
+      if (!user) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+      const hashedPassword = await bcrypt.hash(input.newPassword, SALT_ROUNDS);
+      await updateUserPassword(user.id, hashedPassword);
+      return { success: true, userId: user.id };
+    }),
 });
