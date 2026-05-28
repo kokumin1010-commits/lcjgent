@@ -131,6 +131,7 @@ export default function OnboardingModal({ isOpen, onComplete }) {
     setIsSubmitting(true);
 
     // Save to backend
+    let saveSuccess = false;
     try {
       const api = new BaseApiService(API_BASE);
       await api.post('/api/v1/profile/onboarding', {
@@ -138,10 +139,13 @@ export default function OnboardingModal({ isOpen, onComplete }) {
         main_challenge: mainChallenge,
         tiktok_account: skip ? null : tiktokAccount.trim() || null,
       });
+      saveSuccess = true;
     } catch (err) {
       console.error('[Onboarding] Failed to save profile:', err);
-      // Don't block the user - continue anyway
+      // Still continue - localStorage flag will prevent re-show
     }
+    // Always persist locally so popup never reappears
+    localStorage.setItem('onboarding_completed', '1');
 
     setTimeout(() => {
       setMessages(prev => [

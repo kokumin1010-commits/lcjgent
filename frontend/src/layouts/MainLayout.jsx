@@ -43,12 +43,24 @@ export default function MainLayout() {
   useEffect(() => {
     const checkOnboarding = async () => {
       try {
-        // Skip if already dismissed this session
-        if (sessionStorage.getItem('onboarding_dismissed')) return;
+        // Skip if already dismissed (persisted across sessions)
+        if (localStorage.getItem('onboarding_completed')) return;
+        // Also check legacy sessionStorage flag
+        if (sessionStorage.getItem('onboarding_dismissed')) {
+          // Migrate to localStorage for persistence
+          localStorage.setItem('onboarding_completed', '1');
+          return;
+        }
+        // Skip if not logged in (no token = no profile to check)
+        const token = localStorage.getItem('app_access_token');
+        if (!token) return;
         const api = new BaseApiService(API_BASE);
-        const profile = await api.get('/api/v1/profile/me');
+        const profile = await api.get('/api/v1/profile/me', { noCache: true });
         if (profile && !profile.onboarding_completed) {
           setShowOnboarding(true);
+        } else if (profile && profile.onboarding_completed) {
+          // Sync local flag so we never check again
+          localStorage.setItem('onboarding_completed', '1');
         }
       } catch (err) {
         // If API fails (401, network), don't show onboarding
@@ -60,7 +72,9 @@ export default function MainLayout() {
 
   const handleOnboardingComplete = useCallback(() => {
     setShowOnboarding(false);
-    sessionStorage.setItem('onboarding_dismissed', '1');
+    // Persist across sessions so popup never reappears
+    localStorage.setItem('onboarding_completed', '1');
+    sessionStorage.setItem('onboarding_dismissed', '1'); // legacy compat
   }, []);
 
   // Sync selectedVideoId when URL param changes
