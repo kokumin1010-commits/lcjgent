@@ -9100,6 +9100,27 @@ Return ONLY valid JSON, no markdown or explanation.`,
         await migrateBusinessCardsCrmColumns();
         return { success: true, message: "CRM migration completed" };
       }),
+    // ===== テスト送信用一時エンドポイント（テスト後に削除） =====
+    sendTestEmail: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        subject: z.string().min(1),
+        content: z.string().min(1),
+        secret: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        // Simple secret check to prevent abuse
+        if (input.secret !== "lcj_test_2026") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Invalid secret" });
+        }
+        const { sendEmail } = await import("./emailService");
+        const result = await sendEmail({
+          to: [input.email],
+          subject: input.subject,
+          content: input.content,
+        });
+        return result;
+      }),
     // ===== 営業メール: リードへのテンプレート一斉送信 =====
     sendEmailToLeads: protectedProcedure
       .input(z.object({
@@ -9118,7 +9139,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
           for (const lead of batch) {
             try {
               const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, lead.displayName || "ご担当者様");
-              const personalizedContent = `${lead.displayName || "ご担当者"}様\n\n${input.content}\n\n---\nKYOGOKU PROFESSIONAL\n大久保\ninfo@kyogokupro.com`;
+              const personalizedContent = `${lead.displayName || "ご担当者"}様\n\n${input.content}\n\n---\n株式会社ライブコマースジャパン\n大久保\ninfo@livecommercejapan.jp`;
               await sendEmail({
                 to: [lead.email],
                 subject: personalizedSubject,

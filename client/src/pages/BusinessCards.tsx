@@ -426,8 +426,8 @@ export default function BusinessCards() {
   const [csvResult, setCsvResult] = useState<{ imported: number; skipped: number; duplicates: string[] } | null>(null);
 
   // Email state
-    const [emailSubject, setEmailSubject] = useState("{{displayName}}へ — HYDE起用ブランドのお取引のご相談");
-  const [emailContent, setEmailContent] = useState("突然のご連絡失礼いたします。\nKYOGOKU PROFESSIONALの大久保と申します。\n\n貴社のことを拝見し、ぜひ一度弊社製品のご紹介をさせていただきたくご連絡いたしました。\n\n弊社はHYDEをグローバルアンバサダーに迎え、\nプロフェッショナル向けヘアケア・カラー剤・スキンケア・美顔器や\nヘアアイロンなどを展開しております。\nおかげさまで全国のサロン様に多数ご導入いただき、\n「お客様から指名が増えた」「リピート率が上がった」\nといったお声を多くいただいております。\n\n■ 15分のオンラインご紹介のお願い\nお忙しいところ恐縮ですが、\nZoomまたはGoogle Meetにて15分ほどお時間をいただき、\n貴社に合った商品ラインナップをご紹介させていただけないでしょうか。\n\nもちろん、ご紹介後に無料サンプルもお送りいたします。\n\nご都合の良い日時を2〜3候補いただければ、\nこちらで調整します。\n\nご多忙のところ恐れ入りますが、\nご検討いただけますと幸いです。");
+    const [emailSubject, setEmailSubject] = useState("{{displayName}}へ ― 無料ライブコマース診断のご案内｜即売上につながる新チャネル");
+  const [emailContent, setEmailContent] = useState("突然のご連絡失礼いたします。\n株式会社ライブコマースジャパンの大久保と申します。\n\n貴社のことを拝見し、ぜひ一度お話しさせていただきたくご連絡いたしました。\n\n弊社は日本最大級のライブコマース専門企業として、\nこれまで数百社以上のブランド様のライブ販売を支援してまいりました。\n\n■ なぜ今、ライブコマースなのか？\n\n・配信初日から売上が立つ即効性\n・広告費ゼロでも顧客と直接つながれる\n・ECの「カゴ落ち率」を大幅に改善\n・ファン化による高いリピート率\n\n実際に導入企業様からは、\n「初回配信で月商の10%を1時間で達成した」\n「広告CPAが従来の1/3になった」\nといったお声を多数いただいております。\n\n■ 無料ライブコマース診断のご提案\n\n貴社の商品・ブランドに最適なライブコマース戦略を、\n完全無料で診断させていただきます。\n\n・貴社に合った配信プラットフォームのご提案\n・想定売上シミュレーション\n・競合のライブコマース活用状況の分析\n・最短で成果を出すためのロードマップ\n\n■ 15分のオンラインご紹介\n\nお忙しいところ恐縮ですが、\nZoomまたはGoogle Meetにて15分ほどお時間をいただき、\n貴社に合ったライブコマース活用法をご紹介させていただけないでしょうか。\n\nまた、弊社では広告運用代行も承っており、\nライブコマース×広告の相乗効果で最短での売上最大化が可能です。\n\nご都合の良い日時を2〜3候補いただければ、\nこちらで調整いたします。\n\nご多忙のところ恐れ入りますが、\nご検討いただけますと幸いです。")
   const [emailTemplateMode, setEmailTemplateMode] = useState<"edit" | "preview">("edit");
   // Phone state
   const [phoneMemo, setPhoneMemo] = useState("");
