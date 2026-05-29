@@ -836,18 +836,49 @@ async def _analyze_content_relevance(captions: list, product_name: str, duration
 {captions_text}
 
 【タスク】
-この動画をTikTok短動画用に編集します。以下に該当する区間を積極的に特定してください：
-1. 商品・セールスと無関係な雑談（天気、挨拶、無関係な話題）
-2. フィラーワード・言い淀み（「えーっと」「あの」「なんか」「えー」等）
-3. 同じ内容の繰り返し（同じことを2回以上言っている場合、1回目だけ残す）
-4. 視聴者への単純な挨拶・コメント読み上げ（商品紹介と無関）
-5. 「えーと」「それで」「じゃあ」などのつなぎ言葉だけの区間
-6. 無音・沈黙の区間（0.3秒以上）
+この動画をTikTok短動画（帯貨/商品紹介）用に編集します。
+成片の80%以上が商品に関連する有効な帯貨内容でなければなりません。
+以下に該当する区間を積極的にカットしてください：
+
+1. 弾幕互動・コメント読み上げ（最重要カット対象）：
+   - 「ありがとうXXさん」「XXさんいらっしゃい」「XXさんこんにちは」
+   - 「谢谢XX」「欢迎XX」「XX来了」「感谢XX的关注」
+   - 視聴者の名前を呼ぶ全ての区間
+   - 「コメントありがとう」「みんなありがとう」等の視聴者への感謝
+   - 弾幕の質問に答える区間（商品に関する質問への回答は除く）
+
+2. 閑聊・雑談（商品と無関係な話題）：
+   - 天気、日常、個人的な話、他の配信者の話
+   - 「今日は暑いね」「疲れた」等の独り言
+   - 配信環境の説明（「音聞こえる？」「画面見える？」等）
+
+3. フィラーワード・言い淀み：
+   - 「えーっと」「あの」「なんか」「えー」「うーん」
+   - 「那个」「就是」「然后」「嗯」「这个」
+   - 「um」「uh」「like」「you know」
+
+4. 繰り返し（同じ内容を2回以上言っている場合、最も明確な1回だけ残す）
+
+5. つなぎ言葉だけの区間（「えーと」「それで」「じゃあ」「那我们」）
+
+6. 無音・沈黙の区間（0.5秒以上）
+
+7. 配信プラットフォーム違反リスクのある内容：
+   - 他プラットフォームへの誘導
+   - 過度な煽り表現
+
+【絶対にカットしてはいけない内容】
+- 商品の説明・特徴・成分・効果
+- 価格・割引・セール情報
+- 使用方法・使用感のレビュー
+- 商品の比較・推薦理由
+- 購入を促すセールストーク
 
 【ルール】
-- 商品説明・価格・特徴・使用感・セールストークは絶対にカットしない
-- それ以外は積極的にカットする（TikTokはテンポが命）
-- 目標: 元動画の40-60%をカットしてテンポ良く仕上げる
+- 帯貨内容（商品関連）を最優先で残す
+- 弾幕互動は商品に関する質問への回答以外、全てカット
+- 目標: 成片の80%以上が有効な帯貨内容になるようカット
+- 積極的にカットする（TikTokはテンポが命）
 
 【出力形式】
 JSON配列で出力。カットすべき区間がない場合は空配列[]。
@@ -858,7 +889,7 @@ JSON配列で出力。カットすべき区間がない場合は空配列[]。
         response = await client.chat.completions.create(
             model=azure_model,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=500,
+            max_tokens=1000,
             temperature=0.1,
         )
 
@@ -886,15 +917,34 @@ JSON配列で出力。カットすべき区間がない場合は空配列[]。
 
 
 def _detect_filler_segments_local(captions: list) -> list:
-    """ローカルフィラーワード検出（GPT不要）。
-    字幕テキストがフィラーワードのみの区間を返す。
+    """ローカルフィラーワード検出 + 弾幕互動検出（GPT不要）。
+    字幕テキストがフィラーワードのみまたは弾幕互動パターンに合致する区間を返す。
     """
+    import re as _re
     _FILLER_WORDS = {
         "えー", "えっと", "あの", "あのー", "うーん", "うん", "まあ", "その",
         "えーっと", "ええと", "ねー", "なんか", "ちょっと", "えー",
         "那个", "就是", "然后", "就是说", "嘛", "嗯", "这个",
         "um", "uh", "er", "ah", "like", "you know", "so",
     }
+    # 弾幕互動パターン（視聴者への挨拶・感謝・コメント読み上げ）
+    _DANMAKU_PATTERNS = [
+        _re.compile(r'ありがとう.*さん'),  # ありがとうXXさん
+        _re.compile(r'.*さんいらっしゃい'),  # XXさんいらっしゃい
+        _re.compile(r'.*さんこんにちは'),  # XXさんこんにちは
+        _re.compile(r'.*さんこんばんは'),  # XXさんこんばんは
+        _re.compile(r'こんにちは.*さん'),  # こんにちはXXさん
+        _re.compile(r'ありがとうございます'),
+        _re.compile(r'みんなありがとう'),
+        _re.compile(r'コメントありがとう'),
+        _re.compile(r'谢谢.*的'),  # 谢谢XX的关注
+        _re.compile(r'欢迎.*来'),  # 欢迎XX来
+        _re.compile(r'感谢.*关注'),  # 感谢XX的关注
+        _re.compile(r'谢谢.*来了'),  # 谢谢XX来了
+        _re.compile(r'欢迎来到'),  # 欢迎来到直播间
+        _re.compile(r'大家好'),  # 大家好
+        _re.compile(r'谢谢大家'),  # 谢谢大家
+    ]
 
     filler_segments = []
     for cap in (captions or []):
@@ -903,8 +953,15 @@ def _detect_filler_segments_local(captions: list) -> list:
         text = (cap.get("text") or "").strip().lower()
         if e <= s:
             continue
+        # フィラーワード検出
         if text in _FILLER_WORDS or len(text) <= 2:
             filler_segments.append((s, e))
+            continue
+        # 弾幕互動パターン検出
+        for pattern in _DANMAKU_PATTERNS:
+            if pattern.search(text):
+                filler_segments.append((s, e))
+                break
 
     # 連続するフィラーをマージ
     if not filler_segments:
@@ -7351,20 +7408,51 @@ def _apply_editing_profile_to_request(req: "GenerateRequest", profile_params: di
         elif fh == "keep":
             req_dict["enable_content_cut"] = False
 
-    # ── Pacing / zoom intensity ──
+    # ── Pacing → speed_factor + zoom_intensity + content_cut ──
     if "pacing" in profile_params:
         pacing = profile_params["pacing"]
         if pacing == "fast":
+            req_dict["speed_factor"] = 1.10  # Fast tempo
             req_dict["zoom_intensity"] = 1.12  # More dynamic
+            req_dict["enable_content_cut"] = True  # Aggressive cut
+            req_dict["enable_silence_cut"] = True
+        elif pacing == "medium":
+            req_dict["speed_factor"] = 1.05  # Normal TikTok speed
+            req_dict["zoom_intensity"] = 1.08
         elif pacing == "slow":
+            req_dict["speed_factor"] = 1.0  # No speed change
             req_dict["zoom_intensity"] = 1.04  # Subtle
 
+    # ── Cut aggressiveness → silence/content cut control ──
     if "cut_aggressiveness" in profile_params:
         agg = float(profile_params["cut_aggressiveness"])
-        # Higher aggressiveness = more silence cut
-        if agg > 0.7:
+        # Scale: 0.0=no cut, 0.5=moderate, 1.0=aggressive
+        if agg > 0.6:
             req_dict["enable_silence_cut"] = True
             req_dict["enable_content_cut"] = True
+            req_dict["silence_threshold_db"] = -25.0  # Very aggressive
+        elif agg > 0.3:
+            req_dict["enable_silence_cut"] = True
+            req_dict["enable_content_cut"] = True
+        # Low aggressiveness: keep defaults (don't disable)
+
+    # ── Cut ratio → speed_factor fine-tuning ──
+    if "cut_ratio" in profile_params:
+        ratio = float(profile_params["cut_ratio"])
+        # cut_ratio: 0.0=no cuts, 1.0=cut everything
+        # High cut_ratio means the reference video was heavily edited
+        if ratio > 0.7:
+            # Reference was heavily cut → be aggressive
+            req_dict["enable_content_cut"] = True
+            req_dict["enable_silence_cut"] = True
+
+    # ── Content density → speed adjustment ──
+    if "content_density" in profile_params:
+        density = profile_params["content_density"]
+        if density == "high":
+            # High density = fast-paced content, slight speed up
+            if req_dict.get("speed_factor", 1.05) < 1.08:
+                req_dict["speed_factor"] = 1.08
 
     # ── Subtitle style preference ──
     if "subtitle_style_preference" in profile_params:
@@ -7393,6 +7481,24 @@ def _apply_editing_profile_to_request(req: "GenerateRequest", profile_params: di
             req_dict["enable_flash_intro"] = False
             req_dict["enable_zoom_pulse"] = False
             req_dict["enable_sfx"] = False
+
+    # ── Preferred clip duration → max_duration ──
+    if "preferred_clip_duration_sec" in profile_params:
+        pref_dur = float(profile_params["preferred_clip_duration_sec"])
+        if 15 <= pref_dur <= 180:
+            req_dict["max_duration"] = pref_dur
+
+    # ── Preferred segment duration (from pair analysis) ──
+    if "preferred_segment_duration" in profile_params:
+        seg_dur = float(profile_params["preferred_segment_duration"])
+        if 10 <= seg_dur <= 180:
+            req_dict["max_duration"] = seg_dur
+
+    # Log applied params for debugging
+    changed_keys = [k for k in req_dict if k not in (req.dict() if hasattr(req, 'dict') else {}) or
+                    req_dict[k] != (req.dict() if hasattr(req, 'dict') else {}).get(k)]
+    if changed_keys:
+        logger.info(f"[ai-clip] Editing profile applied changes: {changed_keys}")
 
     # Reconstruct request object
     try:
