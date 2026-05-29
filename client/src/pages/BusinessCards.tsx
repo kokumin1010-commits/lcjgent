@@ -2039,6 +2039,7 @@ export default function BusinessCards() {
                         <TableHead>カテゴリ</TableHead>
                         <TableHead>メール</TableHead>
                         <TableHead>電話</TableHead>
+                        <TableHead>ホームページ</TableHead>
                         <TableHead>ステータス</TableHead>
                         <TableHead>リンク</TableHead>
                         <TableHead>対応</TableHead>
@@ -2077,6 +2078,22 @@ export default function BusinessCards() {
                               <span className="text-muted-foreground">未取得</span>
                             )}
                           </TableCell>
+                          <TableCell className="text-xs">
+                            {lead.website ? (
+                              <a
+                                href={lead.website}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-indigo-600 hover:underline flex items-center gap-1 max-w-[180px]"
+                                title={lead.website}
+                              >
+                                <ExternalLink className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{lead.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
+                              </a>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <Badge
                               variant={lead.status === "contacted" ? "default" : lead.status === "converted" ? "default" : "secondary"}
@@ -2096,10 +2113,12 @@ export default function BusinessCards() {
                                 href={lead.sourceUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                title={lead.sourceUrl}
                                 className="text-purple-600 hover:underline flex items-center gap-1"
                               >
                                 <ExternalLink className="h-3 w-3" />
-                                Kalodata
+                                <span className="hidden md:inline truncate max-w-[120px]">{lead.sourceUrl.replace('https://www.kalodata.com/shop/', '')}</span>
+                                <span className="md:hidden">Kalodata</span>
                               </a>
                             )}
                           </TableCell>
