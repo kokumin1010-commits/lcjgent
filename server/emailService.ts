@@ -87,7 +87,7 @@ export async function sendEmail(message: EmailMessage): Promise<{ success: boole
       textBody = stripHtml(htmlBody);
     }
 
-    const mailOptions: nodemailer.SendMailOptions = {
+    const mailOptions: any = {
       from: `${fromName} <${fromEmail}>`,
       to: message.to.join(", "),
       subject: message.subject,
