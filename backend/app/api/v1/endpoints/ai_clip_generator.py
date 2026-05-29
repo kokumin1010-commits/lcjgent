@@ -3934,13 +3934,22 @@ async def _select_candidates(req: GenerateRequest) -> list:
         "vc.status = 'completed'",
         "vc.clip_url IS NOT NULL",
         "COALESCE(vc.is_unusable, FALSE) = FALSE",
-        # V9: Exclude clips with empty/too-short transcript (likely unusable)
-        "COALESCE(LENGTH(vc.transcript_text), 0) >= 10",
-        # V9: Minimum duration filter (too short clips are rarely useful)
-        "COALESCE(vc.duration_sec, 0) >= 8",
+        # V11: Minimum duration filter (too short clips are rarely useful)
+        "COALESCE(vc.duration_sec, 0) >= 15",
+        # V11 NG率改善: 同じ動画の同じフェーズからのNGクリップが3件以上ある場合、そのフェーズを除外
+        """NOT EXISTS (
+            SELECT 1 FROM video_clips ng_vc
+            WHERE ng_vc.video_id = vc.video_id
+              AND ng_vc.phase_index = vc.phase_index
+              AND ng_vc.is_unusable = TRUE
+            GROUP BY ng_vc.video_id, ng_vc.phase_index
+            HAVING COUNT(*) >= 3
+        )""",
+        # V11: 最低限のトランスクリプト長（短すぎるトランスクリプトは商品紹介として不十分）
+        "COALESCE(LENGTH(vc.transcript_text), 0) >= 30",
     ]
-    # V9: Fetch more candidates (5x) to allow quality filtering to work effectively
-    params: dict = {"limit": req.max_clips * 5}
+    # V11: Fetch more candidates (8x) to allow stronger quality filtering
+    params: dict = {"limit": req.max_clips * 8}
 
     if req.brand_id:
         conditions.append("""
@@ -4097,18 +4106,41 @@ def _compute_clip_quality_score(clip: dict) -> float:
             elif unique_ratio < 0.5:
                 score -= 8
 
-    # ── Penalty: Filler/chat content ──
+    # ── Penalty: Filler/chat content (V11強化: 雑談ペナルティを大幅増加) ──
     filler_patterns = [
         "こんにちは", "おはよう", "ありがとう", "お疲れ", "バイバイ",
         "聞こえますか", "見えてますか", "コメント読み", "ちょっと待って",
         "大家好", "謝謝", "掰掰", "等一下", "聽得到嗎",
         "hello", "thank you", "bye",
+        # V11追加: よくある雑談パターン
+        "お元気ですか", "今日も来てくれて", "初見さん", "いらっしゃい",
+        "こんばんは", "おやすみ", "おつかれさまです",
+        "どこから", "何歳", "天気", "雨",
+        "次回の配信", "また来てね", "フォローして",
     ]
     filler_count = sum(1 for p in filler_patterns if p in transcript.lower())
-    if filler_count >= 3:
-        score -= 10  # 挨拶/雑談が多い
+    if filler_count >= 4:
+        score -= 20  # V11: 雑談が非常に多い → 大幅減点
+    elif filler_count >= 3:
+        score -= 15  # V11: 10→15 雑談が多い
     elif filler_count >= 2:
-        score -= 5
+        score -= 8   # V11: 5→8
+
+    # ── V11 Penalty: No product relevance at all (NG率改善の核心) ──
+    # 商品名がなく、商品関連キーワードもないクリップは大幅減点
+    if not product_name:
+        product_relevance_keywords = [
+            "商品", "セット", "限定", "在庫", "購入", "お得", "割引", "送料",
+            "プレゼント", "キャンペーン", "今だけ", "残り", "ラスト",
+            "產品", "限量", "優惠", "折扣", "免運", "搶購", "最後",
+            "product", "limited", "discount", "sale", "buy",
+            "使い方", "効果", "成分", "おすすめ", "人気", "ランキング",
+            "塗る", "つける", "洗う", "乾かす", "仕上がり",
+            "クーポン", "値段", "円", "個", "本",
+        ]
+        has_any_product_keyword = any(kw in transcript for kw in product_relevance_keywords)
+        if not has_any_product_keyword and transcript_len > 30:
+            score -= 20  # V11: 商品と完全に無関係なコンテンツ
 
     # ── V2.19 Penalty: Low speech coverage ratio (発話率が低いクリップ) ──
     # 字幕のタイムスタンプから発話がカバーする時間比率を計算
@@ -4143,8 +4175,8 @@ async def _validate_and_filter_candidates(
     if not candidates:
         return []
 
-    MIN_QUALITY_SCORE = 35  # この閾値以下は自動除外
-    GPT_VALIDATE_THRESHOLD = 55  # この閾値以下はGPT検証を実施
+    MIN_QUALITY_SCORE = 50  # V11: 35→50 閾値引き上げ（NG率改善: 低品質クリップをより積極的に除外）
+    GPT_VALIDATE_THRESHOLD = 65  # V11: 55→65 GPT検証範囲を拡大
 
     scored_candidates = []
     for clip in candidates:
@@ -4164,7 +4196,7 @@ async def _validate_and_filter_candidates(
 
     # GPT検証: 中間スコアのクリップに対してGPTで内容を検証
     borderline = [c for c in scored_candidates if c["_quality_score"] < GPT_VALIDATE_THRESHOLD]
-    if borderline and len(borderline) <= 5:
+    if borderline and len(borderline) <= 10:  # V11: 5→10 より多くのクリップをGPT検証
         validated = await _gpt_validate_clips(borderline, job_id)
         # GPTが「無効」と判断したクリップを除外
         rejected_ids = {v["clip_id"] for v in validated if not v["is_valid"]}
@@ -4324,16 +4356,17 @@ async def _post_generation_quality_check(
         speech_ratio = speech_time / duration if duration > 0 else 0
         result["speech_ratio"] = round(speech_ratio, 3)
 
-        if speech_ratio < 0.15:
-            # 発話率15%未満: ほぼ無音動画 → 完成リストから除外
+        if speech_ratio < 0.25:
+            # V11: 発話率25%未満: 無音が多すぎる → 完成リストから除外 (V10は0.15だったが、NG率改善のため0.25に引き上げ)
             quality_flags.append("mostly_silent")
             result["status"] = "rejected"
             result["rejection_reason"] = f"発話率が低すぎます ({speech_ratio*100:.0f}%)。クリップの大部分が無音です。"
             logger.warning(
                 f"[ai-clip {job_id}] REJECTED clip {result.get('clip_id')}: "
-                f"speech_ratio={speech_ratio:.2f} (<0.15), mostly silent"
+                f"speech_ratio={speech_ratio:.2f} (<0.25), mostly silent"
             )
-        elif speech_ratio < 0.30:
+        elif speech_ratio < 0.40:
+            # V11: 0.30→0.40 警告範囲も拡大
             quality_flags.append("low_speech")
             logger.info(
                 f"[ai-clip {job_id}] Low speech ratio for clip {result.get('clip_id')}: "
@@ -6218,7 +6251,7 @@ async def analyze_product_image(
 # ─── V10: Clip Regeneration from Source ──────────────────────────────────────
 class RegenFromSourceRequest(BaseModel):
     """V10: clip-dbの既存クリップから元動画を参照して再生成（AI自動最適化）"""
-    target_duration: float = Field(90.0, ge=30, le=180, description="目標クリップ長（秒）")
+    target_duration: float = Field(0, ge=0, le=180, description="目標クリップ長（秒）。0=元クリップの長さを維持（推奨）")
     # All other options are auto-optimized by AI
     subtitle_style: str = Field("auto", description="字幕スタイル")
     enable_sfx: bool = Field(True)
@@ -6234,7 +6267,7 @@ class RegenFromSourceRequest(BaseModel):
 class BatchRegenRequest(BaseModel):
     """V10: 一括再生成リクエスト（AI自動最適化）"""
     clip_ids: List[str] = Field(..., min_length=1, max_length=50, description="再生成対象のclip_id一覧")
-    target_duration: float = Field(90.0, ge=30, le=180, description="目標クリップ長（秒）")
+    target_duration: float = Field(0, ge=0, le=180, description="目標クリップ長（秒）。0=元クリップの長さを維持（推奨）")
 
 @router.post("/clips/{clip_id}/regenerate-from-source")
 async def regenerate_clip_from_source(
@@ -6312,7 +6345,7 @@ async def _regenerate_clip_from_source_impl(clip_id: str, req: RegenFromSourceRe
         "job_id": regen_job_id,
         "status": "processing",
         "progress_pct": 0,
-        "current_step": "V10再生成準備中...",
+        "current_step": "V11再生成準備中...",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "config": {
             "type": "regenerate_from_source",
@@ -6344,7 +6377,7 @@ async def _regenerate_clip_from_source_impl(clip_id: str, req: RegenFromSourceRe
     return {
         "job_id": regen_job_id,
         "status": "processing",
-        "message": "V10再生成を開始しました。元動画から拡張範囲で再カット＋最新AI処理を適用します。",
+        "message": "V11再生成を開始しました。元クリップの範囲を尊重しつつ、最新AI処理を適用します。",
         "original_quality_score": original_quality_score,
         "source_clip_id": clip_id,
     }
@@ -6587,16 +6620,19 @@ async def _run_regeneration_from_source_inner(job_id: str, clip_row, req: RegenF
     original_end = float((clip_row["time_end"] if isinstance(clip_row, dict) else clip_row.time_end) or original_start + 30)
     # Determine if we have the full video or just the clip segment
     is_full_video = full_video_duration > (original_end - original_start) * 1.5
-    target_dur = req.target_duration  # default 90s
+    original_duration = original_end - original_start
+    # V11 NG率改善: target_duration=0の場合は元クリップの長さを維持（過剰拡張を防止）
+    target_dur = req.target_duration if req.target_duration > 0 else original_duration
+    # V11: 拡張は最大+15秒までに制限（過剰拡張が無関係コンテンツを含む主原因）
+    MAX_EXPAND_SEC = 15.0
     if is_full_video:
-        # AI auto-determines optimal expand range to reach target duration
-        original_duration = original_end - original_start
-        needed_extra = max(0, target_dur - original_duration)
-        # Expand more toward the end (content continuation) than the beginning
-        auto_expand_before = min(original_start, needed_extra * 0.35)
+        # V11: 拡張は控えめに。元のクリップが良質なので、元の範囲を尊重する。
+        needed_extra = max(0, min(target_dur - original_duration, MAX_EXPAND_SEC))
+        # Expand slightly toward the end for natural flow
+        auto_expand_before = min(original_start, needed_extra * 0.3)
         auto_expand_after = min(
             (full_video_duration - original_end) if full_video_duration > original_end else 0,
-            needed_extra * 0.65
+            needed_extra * 0.7
         )
         # If one side can't expand enough, give the remainder to the other
         remaining = needed_extra - auto_expand_before - auto_expand_after
@@ -6609,15 +6645,13 @@ async def _run_regeneration_from_source_inner(job_id: str, clip_row, req: RegenF
                 auto_expand_after += max(0, extra_after)
         new_start = max(0, original_start - auto_expand_before)
         new_end = min(full_video_duration, original_end + auto_expand_after) if full_video_duration > 0 else original_end + auto_expand_after
-        # Cap at target_duration
-        actual_duration = min(new_end - new_start, target_dur)
-        new_end = new_start + actual_duration
+        actual_duration = new_end - new_start
     else:
         # We only have the clip segment - use full duration
         new_start = 0
         new_end = full_video_duration or (original_end - original_start)
         actual_duration = new_end - new_start
-    logger.info(f"[v10-regen {job_id}] Time range: {original_start:.1f}-{original_end:.1f} → {new_start:.1f}-{new_end:.1f} (duration: {actual_duration:.1f}s, full_video={is_full_video})")
+    logger.info(f"[v10-regen {job_id}] Time range: {original_start:.1f}-{original_end:.1f} \u2192 {new_start:.1f}-{new_end:.1f} (duration: {actual_duration:.1f}s, expand={actual_duration-original_duration:.1f}s, full_video={is_full_video})")
     # ── Step 5: Cut the expanded segment from full video ──
     await _update_job(job_id, progress_pct=30, current_step=f"拡張範囲でカット中 ({new_start:.0f}s-{new_end:.0f}s)...")
     cut_video_path = os.path.join(tmp_dir, "cut_segment.mp4")
@@ -6665,9 +6699,36 @@ async def _run_regeneration_from_source_inner(job_id: str, clip_row, req: RegenF
     # Always split long segments to ensure one-line-per-subtitle
     if captions:
         captions = _split_long_segments(captions)
+    # ── V11 Quality Gate: 拡張後のトランスクリプト品質チェック ──
+    transcript_text = " ".join(c.get("text", "") for c in captions if c.get("text"))
+    regen_quality_clip = {
+        "transcript_text": transcript_text,
+        "product_name": (clip_row["product_name"] if isinstance(clip_row, dict) else clip_row.product_name) or "",
+        "cta_score": float((clip_row["cta_score"] if isinstance(clip_row, dict) else clip_row.cta_score) or 0),
+        "importance_score": float((clip_row["importance_score"] if isinstance(clip_row, dict) else clip_row.importance_score) or 0),
+        "duration_sec": actual_duration,
+        "captions": captions,
+    }
+    regen_quality_score = _compute_clip_quality_score(regen_quality_clip)
+    # V11: 元クリップの品質スコアも計算して比較
+    orig_clip_for_score = {
+        "transcript_text": (clip_row["transcript_text"] if isinstance(clip_row, dict) else clip_row.get("transcript_text", "")) or "",
+        "product_name": (clip_row["product_name"] if isinstance(clip_row, dict) else clip_row.get("product_name", "")) or "",
+        "cta_score": float((clip_row["cta_score"] if isinstance(clip_row, dict) else clip_row.get("cta_score", 0)) or 0),
+        "importance_score": float((clip_row["importance_score"] if isinstance(clip_row, dict) else clip_row.get("importance_score", 0)) or 0),
+        "duration_sec": original_duration,
+        "captions": (clip_row["captions"] if isinstance(clip_row, dict) else clip_row.get("captions")) or [],
+    }
+    original_quality_score = _compute_clip_quality_score(orig_clip_for_score)
+    logger.info(f"[v10-regen {job_id}] Quality check: regen_score={regen_quality_score:.1f}, original_score={original_quality_score:.1f}")
+    # V11: 再生成後の品質が低すぎる場合は警告ログ（将来的には元の範囲にフォールバックするが、まずはデータ収集）
+    if regen_quality_score < 40:
+        logger.warning(
+            f"[v10-regen {job_id}] LOW QUALITY after expansion: score={regen_quality_score:.1f}. "
+            f"Expanded content may contain irrelevant material."
+        )
     # ── Step 7: Generate hook text and CTA ──
     await _update_job(job_id, progress_pct=50, current_step="フック＆CTA生成中...")
-    transcript_text = " ".join(c.get("text", "") for c in captions if c.get("text"))
     # Build a clip dict compatible with _generate_hook / _generate_cta_text
     clip_dict = {
         "clip_id": clip_id,
@@ -6816,7 +6877,7 @@ async def _run_regeneration_from_source_inner(job_id: str, clip_row, req: RegenF
     }
     # Update video_clips with V10 regeneration mark and new exported_url
     from datetime import date as _date
-    v10_version_tag = f"v10.{_date.today().strftime('%Y%m%d')}"
+    v11_version_tag = f"v11.{_date.today().strftime('%Y%m%d')}"
     try:
         async with get_session() as session:
             await session.execute(text("""
@@ -6829,17 +6890,17 @@ async def _run_regeneration_from_source_inner(job_id: str, clip_row, req: RegenF
                 WHERE id = CAST(:clip_id AS uuid)
             """), {
                 "clip_id": clip_id,
-                "version_tag": v10_version_tag,
+                "version_tag": v11_version_tag,
                 "exported_url": blob_url,
                 "duration": actual_duration,
                 "quality_score": new_quality_score,
             })
             await session.commit()
-        logger.info(f"[v10-regen {job_id}] Updated clip {clip_id} with version={v10_version_tag}")
+        logger.info(f"[v11-regen {job_id}] Updated clip {clip_id} with version={v11_version_tag}")
     except Exception as e:
         logger.warning(f"[v10-regen {job_id}] Failed to update clip version: {e}")
     # Save final result
-    await _update_job(job_id, status="done", progress_pct=100, current_step="V10再生成完了")
+    await _update_job(job_id, status="done", progress_pct=100, current_step="V11再生成完了")
     job_data = _load_job(job_id)
     if not job_data:
         job_data = await _load_job_db(job_id)
