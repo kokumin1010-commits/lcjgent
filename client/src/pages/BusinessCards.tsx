@@ -850,29 +850,6 @@ export default function BusinessCards() {
     }
   };
 
-  // Load leads from Sales Dash
-  const loadLeads = useCallback(async (statusFilter?: string) => {
-    try {
-      const filter: any = { limit: 200, hasEmail: true };
-      if (statusFilter) filter.status = statusFilter;
-      const params = encodeURIComponent(JSON.stringify({ json: filter }));
-      const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
-      const data = await res.json();
-      if (data?.result?.data?.json?.rows) {
-        setLeadResults(data.result.data.json.rows);
-      }
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === "leads") {
-      if (leadViewTab === "rejected") {
-        loadLeads("rejected");
-      } else {
-        loadLeads("new");
-      }
-    }
-  }, [activeTab, loadLeads, leadViewTab]);
 
   const resetForm = () => {
     setUploadedImage(null);
