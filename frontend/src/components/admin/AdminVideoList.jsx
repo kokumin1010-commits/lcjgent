@@ -39,6 +39,7 @@ export default function AdminVideoList({ adminKey, onSelectVideo }) {
   const [statusFilter, setStatusFilter] = useState("");
   const [uploadTypeFilter, setUploadTypeFilter] = useState("");
   const [page, setPage] = useState(0);
+  const [deletingId, setDeletingId] = useState(null);
   const PAGE_SIZE = 30;
 
   useEffect(() => {
@@ -70,6 +71,27 @@ export default function AdminVideoList({ adminKey, onSelectVideo }) {
   };
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  const handleDelete = async (e, videoId, filename) => {
+    e.stopPropagation(); // Prevent row click navigation
+    if (!window.confirm(`「${filename || videoId.slice(0, 8)}」を削除しますか？\n\n※ この操作は取り消せません。動画とすべての関連データが完全に削除されます。`)) return;
+    setDeletingId(videoId);
+    try {
+      const baseURL = import.meta.env.VITE_API_BASE_URL;
+      const res = await axios.delete(`${baseURL}/api/v1/admin/videos/${videoId}?delete_blobs=true`, {
+        headers: { "X-Admin-Key": adminKey },
+      });
+      if (res.data.success) {
+        alert(`✅ 削除完了: ${res.data.message}`);
+        fetchVideos(); // Refresh list
+      }
+    } catch (err) {
+      alert(`❌ 削除失敗: ${err.response?.data?.detail || err.message}`);
+      console.error(err);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div>
@@ -122,6 +144,7 @@ export default function AdminVideoList({ adminKey, onSelectVideo }) {
                   <th className="px-3 py-2.5 font-medium text-center">人間ラベル</th>
                   <th className="px-3 py-2.5 font-medium text-center">Dataset</th>
                   <th className="px-3 py-2.5 font-medium">作成日</th>
+                  <th className="px-3 py-2.5 font-medium text-center w-16">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -205,11 +228,21 @@ export default function AdminVideoList({ adminKey, onSelectVideo }) {
                     <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">
                       {v.created_at ? new Date(v.created_at).toLocaleDateString("ja-JP") : "-"}
                     </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <button
+                        onClick={(e) => handleDelete(e, v.id, v.filename)}
+                        disabled={deletingId === v.id}
+                        className="px-2 py-1 text-xs bg-red-50 text-red-600 border border-red-200 rounded hover:bg-red-100 disabled:opacity-50 transition-colors"
+                        title="動画を削除"
+                      >
+                        {deletingId === v.id ? "..." : "🗑"}
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {videos.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-3 py-8 text-center text-gray-400">
+                    <td colSpan={10} className="px-3 py-8 text-center text-gray-400">
                       動画が見つかりません
                     </td>
                   </tr>

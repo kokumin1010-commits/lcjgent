@@ -6215,3 +6215,114 @@ async def delete_user(
     await db.commit()
 
     return {"success": True, "message": f"User {user_id} ({user.email}) deleted successfully"}
+
+
+
+@router.delete("/videos/{video_id}")
+async def admin_delete_video(
+    video_id: str,
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+    db: AsyncSession = Depends(get_db),
+    delete_blobs: bool = Query(False, description="Also delete blobs from Azure Storage"),
+):
+    """Admin: Delete a video and ALL its related data (no ownership check).
+    Used when editors upload wrong videos and need to remove them."""
+    expected_key = f"{ADMIN_ID}:{ADMIN_PASS}"
+    if x_admin_key != expected_key:
+        raise HTTPException(status_code=403, detail="Invalid admin credentials")
+
+    try:
+        # Verify video exists
+        check = await db.execute(
+            text("SELECT id, user_id, original_filename FROM videos WHERE id = :vid"),
+            {"vid": video_id}
+        )
+        video_row = check.fetchone()
+        if not video_row:
+            raise HTTPException(status_code=404, detail=f"Video {video_id} not found")
+
+        video_filename = video_row.original_filename or video_id[:8]
+
+        # Delete ALL related records in correct order (child → parent)
+        tables_to_delete = [
+            # Level 3: grandchild tables
+            "DELETE FROM speech_segments WHERE audio_chunk_id IN (SELECT id FROM audio_chunks WHERE video_id = :vid)",
+            "DELETE FROM frame_analysis_results WHERE frame_id IN (SELECT id FROM video_frames WHERE video_id = :vid)",
+            # Level 2: child tables with video_id FK
+            "DELETE FROM video_frames WHERE video_id = :vid",
+            "DELETE FROM video_product_exposures WHERE video_id = :vid",
+            "DELETE FROM video_clips WHERE video_id = :vid",
+            "DELETE FROM audio_chunks WHERE video_id = :vid",
+            "DELETE FROM chats WHERE video_id = :vid",
+            "DELETE FROM group_best_phases WHERE video_id = :vid",
+            "DELETE FROM phase_insights WHERE video_id = :vid",
+            "DELETE FROM video_phases WHERE video_id = :vid",
+            "DELETE FROM video_insights WHERE video_id = :vid",
+            "DELETE FROM processing_jobs WHERE video_id = :vid",
+            "DELETE FROM reports WHERE video_id = :vid",
+            "DELETE FROM video_processing_state WHERE video_id = :vid",
+            # Structure tables
+            "DELETE FROM video_structure_group_best_videos WHERE video_id = :vid",
+            "DELETE FROM video_structure_group_members WHERE video_id = :vid",
+            "DELETE FROM video_structure_features WHERE video_id = :vid",
+            # Sales moments
+            "DELETE FROM video_sales_moments WHERE video_id = :vid",
+            # Clip feedback
+            "DELETE FROM clip_feedback WHERE video_id = :vid",
+            # Clip jobs (AI clip generation)
+            "DELETE FROM clip_jobs WHERE source_video_id = :vid",
+        ]
+
+        deleted_tables = []
+        for sql in tables_to_delete:
+            try:
+                result = await db.execute(text(sql), {"vid": video_id})
+                if result.rowcount > 0:
+                    # Extract table name from SQL
+                    table_name = sql.split("FROM ")[1].split(" ")[0]
+                    deleted_tables.append(f"{table_name}({result.rowcount})")
+            except Exception as table_err:
+                logger.warning(f"[admin/delete-video] Skipping: {table_err}")
+                await db.rollback()
+                continue
+
+        # Delete the video record itself
+        await db.execute(text("DELETE FROM videos WHERE id = :vid"), {"vid": video_id})
+        await db.commit()
+
+        # Optionally delete blobs from Azure Storage
+        blob_deleted = False
+        if delete_blobs:
+            try:
+                from app.services.storage_service import CONNECTION_STRING, CONTAINER_NAME
+                if CONNECTION_STRING:
+                    from azure.storage.blob import BlobServiceClient
+                    service_client = BlobServiceClient.from_connection_string(CONNECTION_STRING)
+                    container_client = service_client.get_container_client(CONTAINER_NAME)
+                    # List and delete all blobs with this video_id in path
+                    deleted_blob_count = 0
+                    for blob in container_client.list_blobs(name_starts_with=f""):
+                        if video_id in blob.name or video_id.upper() in blob.name:
+                            container_client.delete_blob(blob.name)
+                            deleted_blob_count += 1
+                    blob_deleted = deleted_blob_count > 0
+                    logger.info(f"[admin/delete-video] Deleted {deleted_blob_count} blobs for {video_id}")
+            except Exception as blob_err:
+                logger.warning(f"[admin/delete-video] Blob deletion failed: {blob_err}")
+
+        logger.info(f"[admin/delete-video] Deleted video={video_id} filename={video_filename} tables={deleted_tables}")
+
+        return {
+            "success": True,
+            "video_id": video_id,
+            "filename": video_filename,
+            "deleted_tables": deleted_tables,
+            "blobs_deleted": blob_deleted,
+            "message": f"Video '{video_filename}' deleted successfully",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.exception(f"[admin/delete-video] Failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete video: {str(e)}")
