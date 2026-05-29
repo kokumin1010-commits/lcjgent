@@ -307,3 +307,32 @@ async def generate_download_sas(email: str, video_id: str, filename: str | None 
     print(f"[storage_service] download_url: {download_url} (expires in {ttl_minutes} min)")
     return download_url, expiry
 
+
+async def verify_blob_exists(email: str, video_id: str, filename: str | None = None) -> bool:
+    """
+    v18: Check if a blob actually exists in Azure Storage.
+    Used to prevent retry-video from enqueuing jobs for non-existent blobs.
+    
+    Returns True if blob exists, False otherwise.
+    """
+    if not CONNECTION_STRING:
+        logger.warning("[verify_blob_exists] No connection string, assuming blob exists")
+        return True
+
+    blob_name = generate_blob_name(email, video_id, filename)
+    try:
+        blob_service = BlobServiceClient.from_connection_string(CONNECTION_STRING)
+        container_client = blob_service.get_container_client(CONTAINER_NAME)
+        blob_client = container_client.get_blob_client(blob_name)
+        props = blob_client.get_blob_properties()
+        size_mb = props.size / (1024 * 1024) if props.size else 0
+        logger.info("[verify_blob_exists] Blob exists: %s (%.1f MB)", blob_name, size_mb)
+        return True
+    except Exception as e:
+        error_str = str(e)
+        if "BlobNotFound" in error_str or "404" in error_str:
+            logger.warning("[verify_blob_exists] Blob NOT found: %s", blob_name)
+            return False
+        # Other errors (network, auth) — log but assume exists to avoid false negatives
+        logger.error("[verify_blob_exists] Error checking blob %s: %s", blob_name, e)
+        return True

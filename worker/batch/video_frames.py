@@ -170,7 +170,7 @@ def extract_frames(
     duration = _get_video_duration(video_path)
     expected_frames = int(duration * fps) if duration > 0 else 0
 
-    # --- Resume check: if frames already extracted, skip ---
+    # --- Resume check: if frames already extracted, skip or accept partial ---
     existing_frames = len([f for f in os.listdir(out_dir) if f.endswith('.jpg')]) if os.path.exists(out_dir) else 0
     if existing_frames > 0 and expected_frames > 0:
         completeness = existing_frames / expected_frames
@@ -182,10 +182,32 @@ def extract_frames(
             if on_progress:
                 on_progress(100)
             return out_dir
+        elif completeness >= 0.40:
+            # v18: For long videos (>30min), accept >=40% as sufficient
+            # This prevents infinite retry loops where each attempt deletes progress
+            # Short videos (<30min) still re-extract for quality
+            if duration > 1800:
+                logger.info(
+                    "[FRAMES][RESUME] Found %d/%d frames (%.1f%%) for long video (%.0fs). "
+                    "Accepting partial result to avoid infinite retry loop.",
+                    existing_frames, expected_frames, completeness * 100, duration,
+                )
+                if on_progress:
+                    on_progress(100)
+                return out_dir
+            else:
+                # Short video with partial extraction → re-extract
+                logger.info(
+                    "[FRAMES][RESUME] Found %d/%d frames (%.1f%%) — incomplete short video. Re-extracting.",
+                    existing_frames, expected_frames, completeness * 100,
+                )
+                for f in os.listdir(out_dir):
+                    if f.endswith('.jpg'):
+                        os.remove(os.path.join(out_dir, f))
         else:
-            # Partial extraction → clean up and re-extract
+            # Very low completeness (<40%) → re-extract
             logger.info(
-                "[FRAMES][RESUME] Found %d/%d frames (%.1f%%) — incomplete. Re-extracting.",
+                "[FRAMES][RESUME] Found %d/%d frames (%.1f%%) — too incomplete. Re-extracting.",
                 existing_frames, expected_frames, completeness * 100,
             )
             for f in os.listdir(out_dir):
@@ -291,7 +313,9 @@ def extract_frames(
     # - Absolute max: 1800s (30 min) to prevent infinite waits
     # - PARTIAL_SUCCESS_THRESHOLD: if >=40% frames extracted, accept as success
     INITIAL_GRACE_PERIOD = 600  # 10 min for ffmpeg to start
-    STALL_TIMEOUT = max(300, min(int(duration / 4), 1800))  # 300s-1800s
+    # v18: Increase stall timeout for very long videos (>1h)
+    _max_stall = 3600 if duration > 3600 else 1800  # 1h for long videos, 30min for short
+    STALL_TIMEOUT = max(300, min(int(duration / 4), _max_stall))  # 300s-3600s
     PARTIAL_SUCCESS_THRESHOLD = 0.40  # Accept if >=40% frames extracted
     logger.info("[FRAMES] STALL_TIMEOUT=%ds, PARTIAL_THRESHOLD=%.0f%% (duration=%.0fs, expected=%d)",
                 STALL_TIMEOUT, PARTIAL_SUCCESS_THRESHOLD * 100, duration, expected_frames)

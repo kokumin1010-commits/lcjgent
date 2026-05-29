@@ -441,6 +441,8 @@
   "analysisMayStalled": "Analysis may have stalled",
   "minutesNoProgress": " min with no progress",
   "retryAnalysisBtn": "Retry Analysis",
+  "deleteVideoBtn": "Delete Video",
+  "deleteVideoConfirm": "Are you sure you want to permanently delete this video? This action cannot be undone.",
   "errorLogLabel": "Error Log",
   "items": " items",
   "loadingText": "Loading...",

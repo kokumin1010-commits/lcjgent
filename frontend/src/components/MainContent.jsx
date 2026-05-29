@@ -1694,6 +1694,39 @@ export default function MainContent({
                     >
                       + {window.__t('newUploadButton') || '新しい動画をアップロード'}
                     </button>
+                    {/* v18: Delete video button for erroneously uploaded videos */}
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        if (!window.confirm(window.__t('deleteVideoConfirm') || 'この動画を完全に削除しますか？この操作は取り消せません。')) return;
+                        try {
+                          const btn = e.currentTarget;
+                          btn.disabled = true;
+                          btn.textContent = '削除中...';
+                          await VideoService.deleteVideo(videoData.id);
+                          toast({ title: '動画を削除しました' });
+                          setSelectedFile(null);
+                          setUploading(false);
+                          setProgress(0);
+                          setUploadedVideoId(null);
+                          setVideoData(null);
+                          setMessage('');
+                          setMessageType('');
+                          setUploadMode(null);
+                          if (onUploadSuccess) onUploadSuccess();
+                          navigate('/');
+                        } catch (err) {
+                          console.error('Delete video failed:', err);
+                          toast({ title: '削除に失敗しました', description: err?.message || '', variant: 'destructive' });
+                          e.currentTarget.disabled = false;
+                          e.currentTarget.textContent = '🗑 動画を削除';
+                        }
+                      }}
+                      className="px-6 py-2 text-xs text-red-400 border border-red-400 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer"
+                    >
+                      🗑 {window.__t('deleteVideoBtn') || '動画を削除'}
+                    </button>
                   </div>
                 </div>
                 {/* Error Log Section */}

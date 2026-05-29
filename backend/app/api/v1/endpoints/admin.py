@@ -1167,8 +1167,21 @@ async def retry_video(
             )
 
         # ── Standard videos: use standard pipeline ──
+        # v18: Verify blob actually exists before re-enqueuing
+        from app.services.storage_service import generate_download_sas, generate_read_sas_from_url, verify_blob_exists
+        blob_exists = await verify_blob_exists(
+            email=row.user_email,
+            video_id=str(row.id),
+            filename=row.original_filename,
+        )
+        if not blob_exists:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Blob file does not exist in storage. The video was likely not fully uploaded. "
+                       f"Please delete this video and re-upload.",
+            )
+
         # Generate fresh SAS URL for video blob
-        from app.services.storage_service import generate_download_sas, generate_read_sas_from_url
         download_url, expiry = await generate_download_sas(
             email=row.user_email,
             video_id=str(row.id),

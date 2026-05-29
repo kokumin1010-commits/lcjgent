@@ -364,7 +364,7 @@ def _download_blob(blob_url: str, dest_path: str):
     logger.info("Fallback to requests.get")
 
     try:
-        with requests.get(final_url, stream=True, timeout=60) as r:
+        with requests.get(final_url, stream=True, timeout=3600) as r:  # v18: 1h for large files
             r.raise_for_status()
 
             total = int(r.headers.get("content-length", 0))
@@ -384,7 +384,7 @@ def _download_blob(blob_url: str, dest_path: str):
             try:
                 logger.info("[SAS] requests.get got 403, regenerating SAS...")
                 new_url = _regenerate_sas_url(blob_url)
-                with requests.get(new_url, stream=True, timeout=60) as r2:
+                with requests.get(new_url, stream=True, timeout=3600) as r2:  # v18: 1h for large files
                     r2.raise_for_status()
                     total = int(r2.headers.get("content-length", 0))
                     downloaded = 0
@@ -731,6 +731,16 @@ def main():
         # v6: Always use RAW video directly (GPU NVDEC handles it efficiently)
         _frames_source = video_path
 
+        # v18: Compute adaptive FPS early (before if/elif) so all paths can use it
+        from video_frames import _get_video_duration as _gvd_early
+        _vid_duration_early = _gvd_early(_frames_source) if os.path.exists(_frames_source) else 0
+        if _vid_duration_early > 14400:  # > 4 hours
+            _adaptive_fps = 0.2
+        elif _vid_duration_early > 3600:  # > 1 hour
+            _adaptive_fps = 0.5
+        else:
+            _adaptive_fps = 1
+
         if start_step <= 0:
             # Status already updated to STEP_0 before analysis video generation
             logger.info("[FRAMES] Source: %s (direct RAW, v6)", _frames_source)
@@ -770,12 +780,16 @@ def main():
                 _parallel_progress["audio"] = pct
                 _update_combined_progress()
 
+            # v18: Log adaptive FPS if non-standard
+            if _adaptive_fps != 1:
+                logger.info("[STEP0] v18: Adaptive FPS=%.1f for long video (%.0fs)", _adaptive_fps, _vid_duration)
+
             def _do_extract_frames():
-                logger.info("[STEP0] Starting frame extraction (fps=1) from %s", _frames_source)
-                update_video_processing_log_sync(video_id, "\U0001f39e\ufe0f \u52d5\u753b\u304b\u3089\u30d5\u30ec\u30fc\u30e0\u3092\u62bd\u51fa\u4e2d... (1fps)", "frames", 5)
+                logger.info("[STEP0] Starting frame extraction (fps=%.1f) from %s", _adaptive_fps, _frames_source)
+                update_video_processing_log_sync(video_id, f"\U0001f39e\ufe0f \u52d5\u753b\u304b\u3089\u30d5\u30ec\u30fc\u30e0\u3092\u62bd\u51fa\u4e2d... ({_adaptive_fps}fps)", "frames", 5)
                 extract_frames(
                     video_path=_frames_source,
-                    fps=1,
+                    fps=_adaptive_fps,
                     frames_root=video_root(video_id),
                     on_progress=_on_frames_progress,
                 )
@@ -892,9 +906,10 @@ def main():
                 except Exception as _e:
                     logger.debug(f"Suppressed: {_e}")
             # v6: Extract frames directly from RAW video (no analysis video needed)
+            # v18: Use adaptive fps (already calculated above)
             extract_frames(
                 video_path=video_path,
-                fps=1,
+                fps=_adaptive_fps,
                 frames_root=video_root(video_id),
                 on_progress=_on_frames_only_progress,
             )
@@ -956,7 +971,7 @@ def main():
             try:
                 important_ranges = get_important_time_ranges(
                     trends=excel_data["trends"],
-                    video_duration_sec=float(total_frames),  # fps=1
+                    video_duration_sec=float(_vid_duration),  # v18: use actual duration (adaptive fps safe)
                     margin_sec=600,  # 前後10分
                     min_score=1,
                 )
@@ -1429,7 +1444,7 @@ def main():
                 screen_moments = detect_screen_moments(
                     frame_dir=frame_dir,
                     keyframes=keyframes,
-                    fps=1.0,
+                    fps=float(_adaptive_fps),  # v18: adaptive fps
                     sample_interval_sec=5.0,
                     max_frames=30,
                 )

@@ -441,6 +441,8 @@
   "analysisMayStalled": "分析可能已停滯",
   "minutesNoProgress": "分鐘以上無進度",
   "retryAnalysisBtn": "重新分析",
+  "deleteVideoBtn": "刪除影片",
+  "deleteVideoConfirm": "確定要完全刪除這個影片嗎？此操作無法撤銷。",
   "errorLogLabel": "錯誤日誌",
   "items": "筆",
   "loadingText": "載入中...",

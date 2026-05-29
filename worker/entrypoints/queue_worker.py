@@ -1088,7 +1088,7 @@ def _resolve_video_path(video_id: str, blob_url: str) -> str:
         import subprocess as sp
         result = sp.run(
             ["curl", "-sS", "-L", "-o", local_path, blob_url],
-            capture_output=True, text=True, timeout=600,
+            capture_output=True, text=True, timeout=3600,  # v18: 1h for large files (12GB+)
         )
         if result.returncode == 0 and os.path.exists(local_path):
             size_mb = os.path.getsize(local_path) / (1024 * 1024)
