@@ -2123,15 +2123,14 @@ export default function BusinessCards() {
                           <TableCell className="text-xs">
                             {lead.sourceUrl && (
                               <a
-                                href={lead.sourceUrl}
+                                href={lead.sourceUrl.includes('/shop/detail?') ? lead.sourceUrl : lead.sourceUrl.replace('/shop/', '/shop/detail?id=')}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 title={lead.sourceUrl}
                                 className="text-purple-600 hover:underline flex items-center gap-1"
                               >
                                 <ExternalLink className="h-3 w-3" />
-                                <span className="hidden md:inline truncate max-w-[120px]">{lead.sourceUrl.replace('https://www.kalodata.com/shop/', '')}</span>
-                                <span className="md:hidden">Kalodata</span>
+                                <span>Kalodata</span>
                               </a>
                             )}
                           </TableCell>
