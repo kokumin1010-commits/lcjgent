@@ -787,7 +787,7 @@ export default function BusinessCards() {
   const loadKalodataLeads = useCallback(async () => {
     setKalodataLoading(true);
     try {
-      const filter: any = { source: "kalodata", limit: 500 };
+      const filter: any = { source: "kalodata_tiktok", limit: 500 };
       if (kalodataSearch) filter.search = kalodataSearch;
       const params = encodeURIComponent(JSON.stringify({ json: filter }));
       const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
