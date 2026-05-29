@@ -9108,7 +9108,18 @@ Return ONLY valid JSON, no markdown or explanation.`,
         content: z.string().min(1),
       }))
       .mutation(async ({ input, ctx }) => {
-        const { sendEmail } = await import("./emailService");
+        // Alibaba Cloud SMTPで送信（招商管理の「送信済み」に自動表示される）
+        const { ENV } = await import("./_core/env");
+        const nodemailer = await import("nodemailer");
+        const transporter = nodemailer.default.createTransport({
+          host: ENV.emailSmtpHost || "smtp.qiye.aliyun.com",
+          port: 465,
+          secure: true,
+          auth: {
+            user: ENV.emailUser,
+            pass: ENV.emailPassword,
+          },
+        });
         let sentCount = 0;
         const errors: string[] = [];
 
@@ -9137,10 +9148,11 @@ Return ONLY valid JSON, no markdown or explanation.`,
                 <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
                 <p style="font-size: 12px; color: #6b7280;">━━━━━━━━━━━━━━━━━━━━━━<br>株式会社ライブコマースジャパン<br>営業部 大久保<br>Email: info@livecommercejapan.jp<br>━━━━━━━━━━━━━━━━━━━━━━</p>
               </div>`;
-              await sendEmail({
-                to: [lead.email],
+              await transporter.sendMail({
+                from: `"株式会社ライブコマースジャパン" <${ENV.emailUser}>`,
+                to: lead.email,
                 subject: personalizedSubject,
-                content: textContent,
+                text: textContent,
                 html: htmlContent,
               });
               sentCount++;

@@ -2109,6 +2109,17 @@ export default function BusinessCards() {
                   未送信 {unsentLeads.length}件に一括送信
                 </Button>
               </div>
+              {/* 送信履歴確認ボタン */}
+              <div className="mt-4 pt-4 border-t border-gray-700">
+                <Button
+                  variant="outline"
+                  className="w-full border-gray-600 text-gray-300 hover:bg-gray-700"
+                  onClick={() => window.location.href = '/master/recruitment'}
+                >
+                  <Mail className="h-4 w-4 mr-2" />
+                  送信履歴を確認（招商管理メール） →
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
