@@ -89,6 +89,9 @@ _db_loop_thread: threading.Thread | None = None
 _db_loop_lock = threading.Lock()
 
 
+_db_loop_ready = threading.Event()
+
+
 def _start_db_loop():
     """Start the background event loop (called once, lazily)."""
     global _db_loop, _db_loop_thread
@@ -96,10 +99,13 @@ def _start_db_loop():
 
     def _run():
         asyncio.set_event_loop(_db_loop)
+        _db_loop_ready.set()  # Signal that the loop is ready
         _db_loop.run_forever()
 
     _db_loop_thread = threading.Thread(target=_run, daemon=True, name="db-event-loop")
     _db_loop_thread.start()
+    # Wait for the loop to actually start running in the background thread
+    _db_loop_ready.wait(timeout=10)
 
 
 def get_event_loop():
@@ -124,10 +130,43 @@ def run_sync(coro):
     the dedicated DB event loop, then blocks until the result is ready.
     This is safe to call from the main thread, ThreadPoolExecutor workers,
     or any other thread.
+
+    v11: Added retry logic and loop health check to handle intermittent
+    'This event loop is already running' errors.
     """
-    loop = get_event_loop()
-    future = asyncio.run_coroutine_threadsafe(coro, loop)
-    return future.result()  # blocks until done
+    for attempt in range(3):
+        try:
+            loop = get_event_loop()
+            if not loop.is_running():
+                # Loop died - restart it
+                print(f"[DB][run_sync] Loop not running (attempt {attempt+1}), restarting...")
+                with _db_loop_lock:
+                    _db_loop_ready.clear()
+                    _start_db_loop()
+                loop = get_event_loop()
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=60)  # 60s timeout to prevent infinite blocking
+        except RuntimeError as e:
+            if "already running" in str(e) and attempt < 2:
+                import time as _t
+                print(f"[DB][run_sync] Event loop conflict (attempt {attempt+1}): {e}. Retrying...")
+                # Force restart the DB loop
+                global _db_loop
+                with _db_loop_lock:
+                    try:
+                        if _db_loop and _db_loop.is_running():
+                            _db_loop.call_soon_threadsafe(_db_loop.stop)
+                            _t.sleep(0.5)
+                    except Exception:
+                        pass
+                    _db_loop = None
+                    _db_loop_ready.clear()
+                    _start_db_loop()
+                _t.sleep(0.5)
+                continue
+            raise
+        except Exception:
+            raise
 
 
 @asynccontextmanager
