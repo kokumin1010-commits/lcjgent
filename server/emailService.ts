@@ -30,7 +30,7 @@ function createTransporter() {
   return nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 587,
-    secure: false, // Use TLS
+    secure: false,
     auth: {
       user: smtpUser,
       pass: smtpPass,
@@ -39,21 +39,69 @@ function createTransporter() {
 }
 
 /**
+ * Strip HTML tags to generate plain text fallback
+ */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/h[1-6]>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<hr[^>]*>/gi, '\n---\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
  * Send email via Gmail SMTP
+ * 
+ * IMPORTANT: When html field is provided, it is used as the email body.
+ * The content field serves as plain-text fallback only.
+ * If html is not provided but content contains HTML tags, content is treated as HTML.
  */
 export async function sendEmail(message: EmailMessage): Promise<{ success: boolean; error?: string }> {
   try {
     const transporter = createTransporter();
+    const fromName = "株式会社ライブコマースジャパン";
+    const fromEmail = process.env.SMTP_USER;
 
-    const mailOptions: any = {
-      from: `株式会社ライブコマースジャパン <${process.env.SMTP_USER}>`,
+    // Determine if we should send as HTML
+    let htmlBody: string | undefined = message.html;
+    let textBody: string = message.content;
+
+    // If content contains HTML tags but html field is not set, treat content as HTML
+    if (!htmlBody && /<[a-z][\s\S]*>/i.test(message.content)) {
+      htmlBody = message.content;
+      textBody = stripHtml(message.content);
+    }
+
+    // If html is provided, ensure text is a clean plain-text version
+    if (htmlBody && textBody === message.content && /<[a-z][\s\S]*>/i.test(textBody)) {
+      textBody = stripHtml(htmlBody);
+    }
+
+    const mailOptions: nodemailer.SendMailOptions = {
+      from: `${fromName} <${fromEmail}>`,
       to: message.to.join(", "),
-      cc: message.cc?.join(", "),
-      bcc: message.bcc?.join(", "),
       subject: message.subject,
-      text: message.content,
-      ...(message.html && { html: message.html }),
+      text: textBody,
+      html: htmlBody,
     };
+
+    // Only add cc/bcc if they have values
+    if (message.cc && message.cc.length > 0) {
+      mailOptions.cc = message.cc.join(", ");
+    }
+    if (message.bcc && message.bcc.length > 0) {
+      mailOptions.bcc = message.bcc.join(", ");
+    }
 
     if (message.attachments) {
       mailOptions.attachments = message.attachments;
@@ -85,14 +133,10 @@ export async function sendReminderEmail(
 ): Promise<{ success: boolean; error?: string }> {
   const subject = `【リマインド/提醒】タスクの進捗確認 / 任务进度确认: ${taskDetail.substring(0, 50)}...`;
   
-  // Generate completion URL if token is provided
-  // Get the base URL from environment or use the dev server URL
   const getBaseUrl = () => {
-    // In production, use the deployed domain
     if (process.env.NODE_ENV === 'production') {
       return process.env.APP_URL || 'https://lcjmall.com';
     }
-    // In development, use the dev server URL
     return 'https://3000-i58mz8953bkj8oa3sie09-f1f28683.sg1.manus.computer';
   };
   
