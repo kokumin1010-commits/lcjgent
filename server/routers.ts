@@ -9154,6 +9154,32 @@ Return ONLY valid JSON, no markdown or explanation.`,
           }
         }
 
+        // salesdash側のemailSentCountを更新（送信成功したメールアドレスに対して）
+        try {
+          const sentEmails = input.emails.slice(0, sentCount).map(l => l.email.toLowerCase());
+          // salesdashのgetLeadsで該当リードを取得してemailSentCountをインクリメント
+          for (const email of sentEmails) {
+            try {
+              const searchParams = encodeURIComponent(JSON.stringify({ json: { search: email, hasEmail: true, limit: 1 } }));
+              const searchRes = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${searchParams}`);
+              const searchData = await searchRes.json();
+              const lead = searchData?.result?.data?.json?.rows?.[0];
+              if (lead) {
+                const updateBody = { json: { id: lead.id, data: { emailSentCount: (lead.emailSentCount || 0) + 1 } } };
+                await fetch("https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.updateLead", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(updateBody),
+                });
+              }
+            } catch (e2: any) {
+              console.error(`[emailSentCount update] Failed for ${email}:`, e2.message);
+            }
+          }
+        } catch (e: any) {
+          console.error("[emailSentCount bulk update] Error:", e.message);
+        }
+
         // Activity log
         await createActivityLog({
           userId: ctx.user.id,

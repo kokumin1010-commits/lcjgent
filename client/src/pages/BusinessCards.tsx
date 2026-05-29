@@ -456,6 +456,9 @@ export default function BusinessCards() {
   const [callListLeads, setCallListLeads] = useState<any[]>([]);
   const [bdBrands, setBdBrands] = useState<any[]>([]);
   const [bdBrandFilter, setBdBrandFilter] = useState<string>("all");
+  const [unsentLeads, setUnsentLeads] = useState<any[]>([]);
+  const [unsentTotal, setUnsentTotal] = useState(0);
+  const [isLoadingUnsent, setIsLoadingUnsent] = useState(false);
 
   // Queries
   const { data: cards = [], isLoading } = trpc.businessCard.list.useQuery({
@@ -549,6 +552,37 @@ export default function BusinessCards() {
   const handleSendToLeads = () => {
     if (!emailSubject || !emailContent) return;
     const leadsWithEmail = leadResults.filter(l => l.email);
+    if (leadsWithEmail.length === 0) return;
+    sendToLeadsMutation.mutate({
+      emails: leadsWithEmail.map(l => ({ email: l.email!, displayName: l.companyName || "" })),
+      subject: emailSubject,
+      content: emailContent,
+    });
+  };
+
+  // 未送信リード全件取得
+  const loadUnsentLeads = useCallback(async () => {
+    setIsLoadingUnsent(true);
+    try {
+      const filter = { notSent: true, hasEmail: true, status: "new", limit: 5000 };
+      const params = encodeURIComponent(JSON.stringify({ json: filter }));
+      const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
+      const data = await res.json();
+      if (data?.result?.data?.json?.rows) {
+        setUnsentLeads(data.result.data.json.rows);
+        setUnsentTotal(data.result.data.json.total);
+      }
+    } catch (e) {
+      console.error("Failed to load unsent leads:", e);
+    } finally {
+      setIsLoadingUnsent(false);
+    }
+  }, []);
+
+  // 未送信リードに一括送信
+  const handleSendToUnsentLeads = () => {
+    if (!emailSubject || !emailContent) return;
+    const leadsWithEmail = unsentLeads.filter(l => l.email);
     if (leadsWithEmail.length === 0) return;
     sendToLeadsMutation.mutate({
       emails: leadsWithEmail.map(l => ({ email: l.email!, displayName: l.companyName || "" })),
@@ -1996,6 +2030,21 @@ export default function BusinessCards() {
                 )}
               </div>
 
+              {/* 未送信リード一括送信 */}
+              <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-orange-800">
+                    未送信リード: {unsentTotal > 0 ? `${unsentLeads.length}件取得済み（全${unsentTotal}件）` : "未取得"}
+                  </p>
+                  <Button size="sm" variant="outline" className="h-7 text-xs border-orange-300 text-orange-700 hover:bg-orange-100" onClick={loadUnsentLeads} disabled={isLoadingUnsent}>
+                    {isLoadingUnsent ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                    未送信リード取得
+                  </Button>
+                </div>
+                <p className="text-xs text-orange-600">
+                  まだ一度もメールを送っていないリード（emailSentCount=0）全件に一括送信
+                </p>
+              </div>
               {/* リード一覧からの一斉送信 */}
               <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                 <p className="text-sm font-medium mb-2 text-blue-800">
@@ -2041,6 +2090,23 @@ export default function BusinessCards() {
                     <Send className="h-4 w-4 mr-2" />
                   )}
                   リード全件 {leadResults.filter(l => l.email).length}件に送信
+                </Button>
+                <Button
+                  className="bg-orange-600 hover:bg-orange-700"
+                  disabled={
+                    unsentLeads.length === 0 ||
+                    !emailSubject ||
+                    !emailContent ||
+                    sendToLeadsMutation.isPending
+                  }
+                  onClick={handleSendToUnsentLeads}
+                >
+                  {sendToLeadsMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4 mr-2" />
+                  )}
+                  未送信 {unsentLeads.length}件に一括送信
                 </Button>
               </div>
             </CardContent>
