@@ -9100,6 +9100,27 @@ Return ONLY valid JSON, no markdown or explanation.`,
         await migrateBusinessCardsCrmColumns();
         return { success: true, message: "CRM migration completed" };
       }),
+    // ===== テスト送信用（テスト後削除） =====
+    sendTestEmail: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        subject: z.string().min(1),
+        content: z.string().min(1),
+        secret: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        if (input.secret !== "lcj_test_2026") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Invalid secret" });
+        }
+        const { sendEmail } = await import("./emailService");
+        const result = await sendEmail({
+          to: [input.email],
+          subject: input.subject,
+          content: input.content,
+          html: input.content,
+        });
+        return result;
+      }),
     // ===== 営業メール: リードへのテンプレート一斉送信 =====
     sendEmailToLeads: protectedProcedure
       .input(z.object({
@@ -9118,11 +9139,30 @@ Return ONLY valid JSON, no markdown or explanation.`,
           for (const lead of batch) {
             try {
               const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, lead.displayName || "ご担当者様");
-              const personalizedContent = `${lead.displayName || "ご担当者"}様\n\n${input.content}\n\n---\n株式会社ライブコマースジャパン\n大久保\ninfo@livecommercejapan.jp`;
+              const textContent = `${lead.displayName || "ご担当者"}様\n\n${input.content}\n\n---\n株式会社ライブコマースジャパン\n大久保\ninfo@livecommercejapan.jp`;
+              // HTMLメールを生成
+              const htmlLines = input.content.split('\n').map((line: string) => {
+                if (line.startsWith('■') || line.startsWith('□')) {
+                  return `<h3 style="color: #1a56db; margin-top: 24px; margin-bottom: 8px; font-size: 15px;">${line}</h3>`;
+                } else if (line.startsWith('・') || line.startsWith('- ')) {
+                  return `<li style="margin: 4px 0; font-size: 14px;">${line.replace(/^[・\-]\s*/, '')}</li>`;
+                } else if (line.trim() === '') {
+                  return '<br>';
+                } else {
+                  return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
+                }
+              }).join('\n');
+              const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;">
+                <p style="font-size: 15px;">${lead.displayName || "ご担当者"} 様</p>
+                ${htmlLines}
+                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+                <p style="font-size: 12px; color: #6b7280;">━━━━━━━━━━━━━━━━━━━━━━<br>株式会社ライブコマースジャパン<br>営業部 大久保<br>Email: info@livecommercejapan.jp<br>━━━━━━━━━━━━━━━━━━━━━━</p>
+              </div>`;
               await sendEmail({
                 to: [lead.email],
                 subject: personalizedSubject,
-                content: personalizedContent,
+                content: textContent,
+                html: htmlContent,
               });
               sentCount++;
             } catch (e: any) {
