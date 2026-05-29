@@ -77,6 +77,11 @@ import {
   Filter,
   Users,
   Rocket,
+  PlayCircle,
+  SkipForward,
+  SkipBack,
+  PhoneOff,
+  RefreshCw,
 } from "lucide-react";
 
 // ============================================================
@@ -445,6 +450,10 @@ export default function BusinessCards() {
   const [isCollecting, setIsCollecting] = useState<string | null>(null);
   const [leadMessage, setLeadMessage] = useState<string | null>(null);
   const [leadResults, setLeadResults] = useState<any[]>([]);
+  const [leadViewTab, setLeadViewTab] = useState<"active" | "rejected">("active");
+  const [isCallListMode, setIsCallListMode] = useState(false);
+  const [callListIndex, setCallListIndex] = useState(0);
+  const [callListLeads, setCallListLeads] = useState<any[]>([]);
   const [bdBrands, setBdBrands] = useState<any[]>([]);
   const [bdBrandFilter, setBdBrandFilter] = useState<string>("all");
 
@@ -689,8 +698,23 @@ export default function BusinessCards() {
     setPhoneNextFollowUp("");
     setIsPhoneDialogOpen(true);
   };
-  const handleSavePhoneMemo = () => {
+  const handleSavePhoneMemo = async () => {
     if (!selectedCard) return;
+    // If this is a lead from salesdash, update its status there too
+    if (selectedCard._isLead && selectedCard._leadId) {
+      const statusMap: Record<string, string> = {
+        "answered": "contacted",
+        "meeting_set": "converted",
+        "rejected": "rejected",
+        "no_answer": "contacted",
+        "busy": "new",
+        "callback": "new",
+      };
+      const newStatus = statusMap[phoneResult] || "contacted";
+      await updateLeadStatus(selectedCard._leadId, newStatus);
+      // Remove from current list
+      setLeadResults(prev => prev.filter(l => l.id !== selectedCard._leadId));
+    }
     createCallLogMutation.mutate({
       businessCardId: selectedCard.id,
       result: phoneResult as any,
@@ -699,7 +723,28 @@ export default function BusinessCards() {
     });
   };
 
-  const handleLeadCollect = async (source: string) => {
+  const loadLeads = useCallback(async (statusFilter?: string) => {
+    try {
+      const filter: any = { limit: 200, hasEmail: true };
+      if (statusFilter) filter.status = statusFilter;
+      const params = encodeURIComponent(JSON.stringify({ json: filter }));
+      const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
+      const data = await res.json();
+      if (data?.result?.data?.json?.rows) {
+        setLeadResults(data.result.data.json.rows);
+      }
+    } catch {}
+  }, []);
+  useEffect(() => {
+    if (activeTab === "leads") {
+      if (leadViewTab === "rejected") {
+        loadLeads("rejected");
+      } else {
+        loadLeads("new");
+      }
+    }
+  }, [activeTab, loadLeads, leadViewTab]);
+    const handleLeadCollect = async (source: string) => {
     setIsCollecting(source);
     setLeadMessage(null);
     try {
@@ -739,12 +784,78 @@ export default function BusinessCards() {
       setLeadMessage(`エラー: ${err.message}`);
     }
     setIsCollecting(null);
+    // Auto-refresh leads after collection
+    setTimeout(() => loadLeads(leadViewTab === "rejected" ? "rejected" : "new"), 3000);
+    setTimeout(() => loadLeads(leadViewTab === "rejected" ? "rejected" : "new"), 8000);
+    setTimeout(() => loadLeads(leadViewTab === "rejected" ? "rejected" : "new"), 15000);
+  };
+
+  // Update lead status on salesdash when marking as handled
+  const updateLeadStatus = async (leadId: number, status: string) => {
+    try {
+      await fetch("https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.updateLead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ json: { id: leadId, data: { status } } }),
+      });
+    } catch (e) {
+      console.error("[Lead] Failed to update status:", e);
+    }
+  };
+
+  // Start call list mode
+  const startCallListMode = () => {
+    const activeLeads = leadResults.filter(l => l.phone);
+    if (activeLeads.length === 0) {
+      toast.error("電話番号のあるリードがありません");
+      return;
+    }
+    setCallListLeads(activeLeads);
+    setCallListIndex(0);
+    setIsCallListMode(true);
+  };
+
+  // Handle call list save and advance
+  const handleCallListSave = async () => {
+    const currentLead = callListLeads[callListIndex];
+    if (!currentLead) return;
+    // Update status on salesdash
+    const statusMap: Record<string, string> = {
+      "answered": "contacted",
+      "meeting_set": "converted",
+      "rejected": "rejected",
+      "no_answer": "contacted",
+      "busy": "new",
+      "callback": "new",
+    };
+    const newStatus = statusMap[phoneResult] || "contacted";
+    await updateLeadStatus(currentLead.id, newStatus);
+    // Save call log locally
+    createCallLogMutation.mutate({
+      businessCardId: currentLead.id,
+      result: phoneResult as any,
+      memo: phoneMemo || undefined,
+      nextFollowUpAt: phoneNextFollowUp || undefined,
+    });
+    // Advance to next
+    if (callListIndex < callListLeads.length - 1) {
+      setCallListIndex(callListIndex + 1);
+      setPhoneMemo("");
+      setPhoneResult("answered");
+      setPhoneNextFollowUp("");
+    } else {
+      toast.success("全件対応完了！");
+      setIsCallListMode(false);
+      loadLeads("new");
+    }
   };
 
   // Load leads from Sales Dash
-  const loadLeads = useCallback(async () => {
+  const loadLeads = useCallback(async (statusFilter?: string) => {
     try {
-      const params = encodeURIComponent(JSON.stringify({ json: { limit: 50, hasEmail: true } }));
+      const filter: any = { limit: 200, hasEmail: true };
+      if (statusFilter) filter.status = statusFilter;
+      const params = encodeURIComponent(JSON.stringify({ json: filter }));
       const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
       const data = await res.json();
       if (data?.result?.data?.json?.rows) {
@@ -755,9 +866,13 @@ export default function BusinessCards() {
 
   useEffect(() => {
     if (activeTab === "leads") {
-      loadLeads();
+      if (leadViewTab === "rejected") {
+        loadLeads("rejected");
+      } else {
+        loadLeads("new");
+      }
     }
-  }, [activeTab, loadLeads]);
+  }, [activeTab, loadLeads, leadViewTab]);
 
   const resetForm = () => {
     setUploadedImage(null);
@@ -1355,12 +1470,55 @@ export default function BusinessCards() {
             </CardContent>
           </Card>
 
-          {/* Lead Results Table */}
-          {leadResults.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">最新リード一覧（メールあり・上位50件）</CardTitle>
-              </CardHeader>
+          {/* Lead Results Table with Tabs */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-sm">リード一覧</CardTitle>
+                  <div className="flex gap-1 ml-4">
+                    <Button
+                      size="sm"
+                      variant={leadViewTab === "active" ? "default" : "outline"}
+                      className="h-7 text-xs"
+                      onClick={() => setLeadViewTab("active")}
+                    >
+                      未対応 ({leadResults.length})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={leadViewTab === "rejected" ? "default" : "outline"}
+                      className="h-7 text-xs bg-red-100 text-red-700 hover:bg-red-200 border-red-200"
+                      onClick={() => setLeadViewTab("rejected")}
+                    >
+                      <PhoneOff className="h-3 w-3 mr-1" />
+                      見送り
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => loadLeads(leadViewTab === "rejected" ? "rejected" : "new")}
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    更新
+                  </Button>
+                  {leadViewTab === "active" && leadResults.length > 0 && (
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs bg-green-600 hover:bg-green-700"
+                      onClick={startCallListMode}
+                    >
+                      <PlayCircle className="h-3 w-3 mr-1" />
+                      電話営業開始
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[400px]">
                   <Table>
@@ -1437,6 +1595,8 @@ export default function BusinessCards() {
                                   phone: lead.phone,
                                   mobile: "",
                                   email: lead.email,
+                                  _isLead: true,
+                                  _leadId: lead.id,
                                 };
                                 setSelectedCard(cardLike);
                                 setPhoneMemo("");
@@ -1454,6 +1614,149 @@ export default function BusinessCards() {
                     </TableBody>
                   </Table>
                 </ScrollArea>
+              </CardContent>
+            </Card>
+
+          {/* Call List Mode Dialog */}
+          {isCallListMode && callListLeads.length > 0 && (
+            <Card className="border-green-300 bg-green-50/30">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <PhoneCall className="h-4 w-4 text-green-600" />
+                    電話営業モード ({callListIndex + 1}/{callListLeads.length}件)
+                  </CardTitle>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setIsCallListMode(false); loadLeads("new"); }}>
+                    <XCircle className="h-3 w-3 mr-1" />
+                    終了
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Left: Lead Info */}
+                  <div className="space-y-3">
+                    <div className="p-4 bg-white rounded-lg border shadow-sm">
+                      <h3 className="font-bold text-lg text-gray-900">{callListLeads[callListIndex]?.companyName}</h3>
+                      {callListLeads[callListIndex]?.personName && (
+                        <p className="text-sm text-gray-600 mt-1">{callListLeads[callListIndex].personName}</p>
+                      )}
+                      <div className="mt-3 space-y-2">
+                        <a
+                          href={`tel:${(callListLeads[callListIndex]?.phone || "").replace(/[-\s]/g, "")}`}
+                          className="flex items-center gap-2 text-lg font-bold text-green-700 hover:underline"
+                        >
+                          <Phone className="h-5 w-5" />
+                          {callListLeads[callListIndex]?.phone}
+                        </a>
+                        {callListLeads[callListIndex]?.email && (
+                          <p className="flex items-center gap-2 text-sm text-gray-600">
+                            <Mail className="h-4 w-4" />
+                            {callListLeads[callListIndex].email}
+                          </p>
+                        )}
+                        {callListLeads[callListIndex]?.website && (
+                          <a href={callListLeads[callListIndex].website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-blue-600 hover:underline">
+                            <Globe className="h-4 w-4" />
+                            {callListLeads[callListIndex].website}
+                          </a>
+                        )}
+                        <p className="flex items-center gap-2 text-sm text-gray-500">
+                          <MapPin className="h-4 w-4" />
+                          {callListLeads[callListIndex]?.prefecture || "—"} {callListLeads[callListIndex]?.address || ""}
+                        </p>
+                      </div>
+                    </div>
+                    {/* Navigation */}
+                    <div className="flex items-center justify-between">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={callListIndex === 0}
+                        onClick={() => { setCallListIndex(Math.max(0, callListIndex - 1)); setPhoneMemo(""); setPhoneResult("answered"); }}
+                      >
+                        <SkipBack className="h-4 w-4 mr-1" />
+                        前へ
+                      </Button>
+                      <span className="text-sm text-muted-foreground">{callListIndex + 1} / {callListLeads.length}</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={callListIndex >= callListLeads.length - 1}
+                        onClick={() => { setCallListIndex(Math.min(callListLeads.length - 1, callListIndex + 1)); setPhoneMemo(""); setPhoneResult("answered"); }}
+                      >
+                        次へ
+                        <SkipForward className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                  {/* Right: Call Record Panel */}
+                  <div className="space-y-3 p-4 bg-white rounded-lg border shadow-sm">
+                    <div className="flex items-center justify-center">
+                      <a
+                        href={`tel:${(callListLeads[callListIndex]?.phone || "").replace(/[-\s]/g, "")}`}
+                        className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center justify-center gap-2 font-bold text-lg transition-colors"
+                      >
+                        <Phone className="h-5 w-5" />
+                        電話開始
+                      </a>
+                    </div>
+                    {/* Status Selection */}
+                    <div>
+                      <Label className="mb-2 block font-medium text-sm">ステータス</Label>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { value: "answered", label: "応答", color: "text-green-600 border-green-300 bg-green-50" },
+                          { value: "no_answer", label: "不在", color: "text-gray-600 border-gray-300 bg-gray-50" },
+                          { value: "busy", label: "話し中", color: "text-yellow-600 border-yellow-300 bg-yellow-50" },
+                          { value: "callback", label: "折返し", color: "text-blue-600 border-blue-300 bg-blue-50" },
+                          { value: "meeting_set", label: "アポ確定", color: "text-purple-600 border-purple-300 bg-purple-50" },
+                          { value: "rejected", label: "見送り", color: "text-red-600 border-red-300 bg-red-50" },
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            className={`flex flex-col items-center gap-0.5 p-2 rounded-lg border-2 transition-all text-xs ${
+                              phoneResult === opt.value ? opt.color + " ring-2 ring-offset-1" : "border-gray-200 hover:border-gray-300"
+                            }`}
+                            onClick={() => setPhoneResult(opt.value)}
+                          >
+                            <span className="font-medium">{opt.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Memo */}
+                    <div>
+                      <Label className="mb-1 block text-sm">対応メモ</Label>
+                      <Textarea
+                        value={phoneMemo}
+                        onChange={(e) => setPhoneMemo(e.target.value)}
+                        placeholder="通話内容をメモ..."
+                        rows={2}
+                        className="text-sm"
+                      />
+                    </div>
+                    {/* Next Follow-up */}
+                    <div>
+                      <Label className="mb-1 block text-sm">次回フォロー</Label>
+                      <Input
+                        type="datetime-local"
+                        value={phoneNextFollowUp}
+                        onChange={(e) => setPhoneNextFollowUp(e.target.value)}
+                        className="text-sm"
+                      />
+                    </div>
+                    {/* Save Button */}
+                    <Button
+                      className="w-full bg-green-600 hover:bg-green-700"
+                      onClick={handleCallListSave}
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      対応記録を保存 → 次へ
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
