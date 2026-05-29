@@ -2080,16 +2080,29 @@ export default function BusinessCards() {
                           </TableCell>
                           <TableCell className="text-xs">
                             {lead.website ? (
-                              <a
-                                href={lead.website}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-indigo-600 hover:underline flex items-center gap-1 max-w-[180px]"
-                                title={lead.website}
-                              >
-                                <ExternalLink className="h-3 w-3 shrink-0" />
-                                <span className="truncate">{lead.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
-                              </a>
+                              lead.website.includes('tiktok.com') ? (
+                                <a
+                                  href={lead.website}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-pink-500 hover:underline flex items-center gap-1"
+                                  title={lead.website}
+                                >
+                                  <ExternalLink className="h-3 w-3 shrink-0" />
+                                  <span>TikTok Shop</span>
+                                </a>
+                              ) : (
+                                <a
+                                  href={lead.website}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-indigo-600 hover:underline flex items-center gap-1 max-w-[180px]"
+                                  title={lead.website}
+                                >
+                                  <ExternalLink className="h-3 w-3 shrink-0" />
+                                  <span className="truncate">{lead.website.replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/^www\./, '')}</span>
+                                </a>
+                              )
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
