@@ -82,6 +82,10 @@ import {
   SkipBack,
   PhoneOff,
   RefreshCw,
+  TrendingUp,
+  Store,
+  ExternalLink,
+  ArrowUpDown,
 } from "lucide-react";
 
 // ============================================================
@@ -460,6 +464,15 @@ export default function BusinessCards() {
   const [unsentTotal, setUnsentTotal] = useState(0);
   const [isLoadingUnsent, setIsLoadingUnsent] = useState(false);
 
+  // Kalodata tab state
+  const [kalodataLeads, setKalodataLeads] = useState<any[]>([]);
+  const [kalodataLoading, setKalodataLoading] = useState(false);
+  const [kalodataSearch, setKalodataSearch] = useState("");
+  const [kalodataSort, setKalodataSort] = useState<"name" | "revenue" | "status">("name");
+  const [kalodataPage, setKalodataPage] = useState(0);
+  const [kalodataTotal, setKalodataTotal] = useState(0);
+  const [kalodataStats, setKalodataStats] = useState<{total: number; withEmail: number; withPhone: number; contacted: number}>({total: 0, withEmail: 0, withPhone: 0, contacted: 0});
+
   // Queries
   const { data: cards = [], isLoading } = trpc.businessCard.list.useQuery({
     search: searchQuery || undefined,
@@ -769,6 +782,39 @@ export default function BusinessCards() {
       }
     } catch {}
   }, []);
+
+  // Kalodata leads loader
+  const loadKalodataLeads = useCallback(async () => {
+    setKalodataLoading(true);
+    try {
+      const filter: any = { source: "kalodata", limit: 500 };
+      if (kalodataSearch) filter.search = kalodataSearch;
+      const params = encodeURIComponent(JSON.stringify({ json: filter }));
+      const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
+      const data = await res.json();
+      if (data?.result?.data?.json?.rows) {
+        const rows = data.result.data.json.rows;
+        setKalodataLeads(rows);
+        setKalodataTotal(rows.length);
+        // Calculate stats
+        setKalodataStats({
+          total: rows.length,
+          withEmail: rows.filter((r: any) => r.email).length,
+          withPhone: rows.filter((r: any) => r.phone).length,
+          contacted: rows.filter((r: any) => r.status === "contacted").length,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load Kalodata leads:", err);
+    }
+    setKalodataLoading(false);
+  }, [kalodataSearch]);
+
+  useEffect(() => {
+    if (activeTab === "kalodata") {
+      loadKalodataLeads();
+    }
+  }, [activeTab, loadKalodataLeads]);
   useEffect(() => {
     if (activeTab === "leads") {
       if (leadViewTab === "rejected") {
@@ -1066,7 +1112,7 @@ export default function BusinessCards() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="cards" className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
             {t.tabCards}
@@ -1078,6 +1124,10 @@ export default function BusinessCards() {
           <TabsTrigger value="leads" className="flex items-center gap-2">
             <Rocket className="h-4 w-4" />
             {t.tabLeads}
+          </TabsTrigger>
+          <TabsTrigger value="kalodata" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Kalodata
           </TabsTrigger>
           <TabsTrigger value="email" className="flex items-center gap-2">
             <Mail className="h-4 w-4" />
@@ -1904,6 +1954,222 @@ export default function BusinessCards() {
 
           <div className="text-xs text-muted-foreground text-center">
             ※ リードデータは <a href="https://salesdash.buzzdrop.co.jp/command-center/japan/eccube?store=KYOGOKU+%E8%87%AA%E7%A4%BEEC&tab=btob&subtab=leads" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Sales Dash BtoB営業司令塔</a> と連携しています
+          </div>
+        </TabsContent>
+
+        {/* ============================================================ */}
+        {/* TAB: Kalodata TikTok Shop */}
+        {/* ============================================================ */}
+        <TabsContent value="kalodata" className="space-y-4">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+              <CardContent className="p-3">
+                <p className="text-xs text-purple-600 font-medium">TikTok Shop 総数</p>
+                <p className="text-xl font-bold text-purple-700">{kalodataStats.total}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+              <CardContent className="p-3">
+                <p className="text-xs text-green-600 font-medium">メールあり</p>
+                <p className="text-xl font-bold text-green-700">{kalodataStats.withEmail}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+              <CardContent className="p-3">
+                <p className="text-xs text-blue-600 font-medium">電話あり</p>
+                <p className="text-xl font-bold text-blue-700">{kalodataStats.withPhone}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
+              <CardContent className="p-3">
+                <p className="text-xs text-amber-600 font-medium">連絡済み</p>
+                <p className="text-xl font-bold text-amber-700">{kalodataStats.contacted}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Search & Actions */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Store className="h-4 w-4 text-purple-500" />
+                  TikTok Shop 日本ランキング TOP500（Kalodata）
+                </CardTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={loadKalodataLeads}
+                  disabled={kalodataLoading}
+                >
+                  <RefreshCw className={`h-3 w-3 mr-1 ${kalodataLoading ? "animate-spin" : ""}`} />
+                  更新
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex gap-2">
+                <Input
+                  className="h-8 text-xs flex-1"
+                  placeholder="店舗名で検索..."
+                  value={kalodataSearch}
+                  onChange={(e) => setKalodataSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && loadKalodataLeads()}
+                />
+                <Button size="sm" className="h-8 text-xs" onClick={loadKalodataLeads}>
+                  <Search className="h-3 w-3 mr-1" />
+                  検索
+                </Button>
+              </div>
+
+              {kalodataLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+                  <span className="ml-2 text-sm text-muted-foreground">読み込み中...</span>
+                </div>
+              ) : (
+                <ScrollArea className="h-[500px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8">#</TableHead>
+                        <TableHead>店舗名</TableHead>
+                        <TableHead>カテゴリ</TableHead>
+                        <TableHead>メール</TableHead>
+                        <TableHead>電話</TableHead>
+                        <TableHead>ステータス</TableHead>
+                        <TableHead>リンク</TableHead>
+                        <TableHead>対応</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {kalodataLeads.slice(kalodataPage * 50, (kalodataPage + 1) * 50).map((lead, idx) => (
+                        <TableRow key={lead.id}>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {kalodataPage * 50 + idx + 1}
+                          </TableCell>
+                          <TableCell className="font-medium text-sm">
+                            {lead.companyName}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            <Badge variant="outline" className="text-xs">
+                              {lead.category || "—"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {lead.email ? (
+                              <a href={`mailto:${lead.email}`} className="text-blue-600 hover:underline">
+                                {lead.email}
+                              </a>
+                            ) : (
+                              <span className="text-muted-foreground">未取得</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {lead.phone ? (
+                              <a href={`tel:${lead.phone}`} className="text-green-600 hover:underline flex items-center gap-1">
+                                <PhoneCall className="h-3 w-3" />
+                                {lead.phone}
+                              </a>
+                            ) : (
+                              <span className="text-muted-foreground">未取得</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={lead.status === "contacted" ? "default" : lead.status === "converted" ? "default" : "secondary"}
+                              className={`text-xs ${lead.status === "converted" ? "bg-green-600" : ""}`}
+                            >
+                              {lead.status === "new" ? "新規" :
+                               lead.status === "contacted" ? "連絡済" :
+                               lead.status === "responded" ? "返信あり" :
+                               lead.status === "converted" ? "成約" :
+                               lead.status === "rejected" ? "見送り" :
+                               lead.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {lead.sourceUrl && (
+                              <a
+                                href={lead.sourceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-purple-600 hover:underline flex items-center gap-1"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                Kalodata
+                              </a>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => {
+                                const cardLike = {
+                                  id: lead.id,
+                                  name: lead.companyName || "不明",
+                                  company: lead.companyName,
+                                  phone: lead.phone,
+                                  mobile: "",
+                                  email: lead.email,
+                                  _isLead: true,
+                                  _leadId: lead.id,
+                                };
+                                setSelectedCard(cardLike);
+                                setPhoneMemo("");
+                                setPhoneResult("answered");
+                                setPhoneNextFollowUp("");
+                                setIsPhoneDialogOpen(true);
+                              }}
+                            >
+                              <PhoneCall className="h-3 w-3 mr-1" />
+                              対応
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              )}
+
+              {/* Pagination */}
+              {kalodataTotal > 50 && (
+                <div className="flex items-center justify-between pt-2">
+                  <p className="text-xs text-muted-foreground">
+                    {kalodataTotal}件中 {kalodataPage * 50 + 1}〜{Math.min((kalodataPage + 1) * 50, kalodataTotal)}件表示
+                  </p>
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      disabled={kalodataPage === 0}
+                      onClick={() => setKalodataPage(p => p - 1)}
+                    >
+                      前へ
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      disabled={(kalodataPage + 1) * 50 >= kalodataTotal}
+                      onClick={() => setKalodataPage(p => p + 1)}
+                    >
+                      次へ
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="text-xs text-muted-foreground text-center">
+            ※ データソース: <a href="https://www.kalodata.com/shop" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">Kalodata</a> TikTok Shop 日本ランキング
           </div>
         </TabsContent>
 
