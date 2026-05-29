@@ -630,9 +630,9 @@ _temporal_state = {
     "frame_count": 0,         # Frame counter for adaptive smoothing
 
 }
-_SMOOTH_ALPHA = 0.03   # EMA alpha: lower = smoother but more lag, higher = responsive but jittery
+_SMOOTH_ALPHA = 0.02   # EMA alpha: lower = smoother but more lag, higher = responsive but jittery
 
-# At 15 FPS, 0.03 means each frame only takes 3% of new detection → rock-solid stable
+# At 15 FPS, 0.02 means each frame only takes 2% of new detection → extremely stable
 # Combined with change-threshold gating (Step 12), this eliminates virtually all flicker
 
 def _reset_temporal_state():
@@ -777,6 +777,9 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
         # Step 6: GFPGAN Enhancement (restores skin detail)
         if use_enhancer and gfpgan_session is not None:
             enhanced = enhance_face_gfpgan(swap_result, target_size=512)
+            # Apply light Gaussian blur to suppress GFPGAN non-deterministic high-frequency noise
+            # This is nearly invisible (sigma=0.5) but eliminates per-frame micro-variations
+            enhanced = cv2.GaussianBlur(enhanced, (3, 3), 0.5)
             # Resize back to match paste requirements
             # We'll paste at higher resolution for better quality
             paste_size = 512
@@ -847,25 +850,14 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
         # (This is a non-ghosting approach: softens edges without temporal blending)
         combined_mask = cv2.GaussianBlur(combined_mask_raw, (7, 7), 3.0)
 
-        # Step 10: Stable alpha blending with color correction
+        # Step 10: Stable alpha blending (NO color correction)
         # seamlessClone was removed because it produces frame-to-frame instability.
-        # Instead, we use color-corrected alpha blending with soft mask edges.
+        # Color correction was REMOVED because per-frame mean calculation causes flickering:
+        # - mask_binary region changes slightly each frame
+        # - mean values fluctuate → ratio fluctuates → color flickers
+        # The soft mask edges + GFPGAN enhancement provide sufficient color matching.
         
-        # Color correction: match mean color of swapped face to target region
-        mask_binary = combined_mask > 0.1
-        if np.any(mask_binary):
-            for c in range(3):
-                src_mean = face_warped[:, :, c][mask_binary].mean()
-                dst_mean = result[:, :, c][mask_binary].mean()
-                if src_mean > 10:  # Avoid division by near-zero
-                    ratio = np.clip(dst_mean / src_mean, 0.7, 1.4)  # Clamp to prevent extreme correction
-                    if abs(ratio - 1.0) > 0.02:
-                        face_warped[:, :, c] = np.clip(
-                            face_warped[:, :, c].astype(np.float32) * ratio,
-                            0, 255
-                        ).astype(np.uint8)
-        
-        # Alpha blend with soft mask (no Poisson, fully deterministic)
+        # Alpha blend with soft mask (no Poisson, no color correction, fully deterministic)
         mask_3ch = combined_mask[:, :, np.newaxis]
         result = (face_warped.astype(np.float32) * mask_3ch + result.astype(np.float32) * (1 - mask_3ch)).astype(np.uint8)
 
@@ -977,25 +969,40 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
             except Exception as e:
                 logger.warning(f"[LipSync] mouth_open error: {e}")
 
-    # Step 12: Temporal output blending with change-threshold gating
-    # Anti-flicker: skip negligible changes, blend moderate changes, pass large changes through.
-    # IMPORTANT: Do NOT over-blend or it causes ghosting/hallucination artifacts.
+    # Step 12: Temporal output blending with change-threshold gating (FACE REGION ONLY)
+    # Anti-flicker: compare only the face region to avoid background changes triggering blending.
+    # Uses the combined_mask to isolate face pixels for difference calculation.
+    # IMPORTANT: Blend the FULL frame but calculate diff on FACE ONLY.
     if _temporal_state["prev_result"] is not None and \
        _temporal_state["prev_result"].shape == result.shape:
-        # Calculate frame difference (full frame mean absolute difference)
-        frame_diff = np.mean(np.abs(result.astype(np.int16) - _temporal_state["prev_result"].astype(np.int16)))
+        # Calculate frame difference in FACE REGION ONLY (not full frame)
+        # This prevents background changes (lighting, camera noise) from affecting face stability
+        try:
+            _cm = combined_mask
+        except NameError:
+            _cm = None
+        if _cm is not None:
+            face_pixels = combined_mask > 0.3
+            if np.any(face_pixels):
+                diff_map = np.abs(result.astype(np.int16) - _temporal_state["prev_result"].astype(np.int16))
+                face_diff = np.mean(diff_map[face_pixels])
+            else:
+                face_diff = np.mean(np.abs(result.astype(np.int16) - _temporal_state["prev_result"].astype(np.int16)))
+        else:
+            face_diff = np.mean(np.abs(result.astype(np.int16) - _temporal_state["prev_result"].astype(np.int16)))
         
-        if frame_diff < 1.5:
-            # Difference is truly negligible (sub-pixel noise) - return previous
+        if face_diff < 3.0:
+            # Face region barely changed (GFPGAN noise + sub-pixel jitter) - return previous
             _temporal_state["miss_count"] = 0
             return _temporal_state["prev_result"]
-        elif frame_diff < 6.0:
-            # Small difference - mild blend (60% new, 40% old)
-            result = cv2.addWeighted(result, 0.6, _temporal_state["prev_result"], 0.4, 0)
-        elif frame_diff < 15.0:
-            # Moderate difference - light blend (80% new, 20% old)
-            result = cv2.addWeighted(result, 0.8, _temporal_state["prev_result"], 0.2, 0)
-        # else: large difference - pass through unchanged (no ghosting on movement)
+        elif face_diff < 8.0:
+            # Small face change - blend to smooth out GFPGAN non-determinism
+            # 40% new / 60% old: strong enough to suppress flicker, not enough to ghost
+            result = cv2.addWeighted(result, 0.4, _temporal_state["prev_result"], 0.6, 0)
+        elif face_diff < 20.0:
+            # Moderate face change (slight movement) - lighter blend
+            result = cv2.addWeighted(result, 0.7, _temporal_state["prev_result"], 0.3, 0)
+        # else: large difference (head turn, etc.) - pass through unchanged (no ghosting)
 
     # Cache successful result for flicker prevention
     _temporal_state["prev_result"] = result.copy()
