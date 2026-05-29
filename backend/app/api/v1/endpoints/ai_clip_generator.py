@@ -861,7 +861,7 @@ async def _analyze_content_relevance(captions: list, product_name: str, duration
 
 5. つなぎ言葉だけの区間（「えーと」「それで」「じゃあ」「那我们」）
 
-6. 無音・沈黙の区間（0.5秒以上）
+6. 無音・沈黙の区間（0.5秒以上）—— 特に発話終了後の無音は积極的にカット（余韻として0.8秒だけ残す）
 
 7. 配信プラットフォーム違反リスクのある内容：
    - 他プラットフォームへの誘導
@@ -981,15 +981,30 @@ def _detect_filler_segments_local(captions: list) -> list:
 def _build_silence_trim_segments(duration: float, silence_periods: list,
                                   captions: list, keep_margin: float = 0.12,
                                   filler_cut_segments: list = None) -> list:
-    """V11改善版: 無音区間 + フィラー区間 + 商品無関係区間をカット。
+    """V2.19改善版: 無音区間 + フィラー区間 + 商品無関係区間をカット。
     - 無音区間: 1.0秒以上は積極的にカット（0.2秒の自然なポーズ残す）
     - 0.5〜1.0秒の無音は部分カット（50%除去）
     - フィラー区間（「えーっと」「あの」等）: 字幕があってもカット対象
     - 商品無関係区間（GPT判定）: カット対象
-    - 最大カット量は元の動画の50%まで（短動画向けに積極カット）
+    - V2.19: 末尾無音トリム——最後の発話終了後0.8秒だけ余韻を残して残りをカット
+    - 最大カット量は元の動画の70%まで（短動画向けに積極カット）
     Returns list of (start, end) tuples representing segments to KEEP.
     """
     if not silence_periods and not filler_cut_segments:
+        # V2.19: 無音リストがなくても、字幕データから末尾無音を検出してトリム
+        if captions and duration > 0:
+            last_speech_end = 0.0
+            for cap in (captions or []):
+                cap_end = float(cap.get("end", 0) if isinstance(cap, dict) else 0)
+                if cap_end > last_speech_end:
+                    last_speech_end = cap_end
+            # 最後の発話終了後に2秒以上の無音があればトリム（0.8秒余韻残し）
+            trailing_silence = duration - last_speech_end
+            if last_speech_end > 0 and trailing_silence > 2.0:
+                trim_end = last_speech_end + 0.8  # 余韻0.8秒
+                logger.info(f"[ai-clip] V2.19 trailing silence trim: last_speech={last_speech_end:.1f}s, "
+                            f"trim_at={trim_end:.1f}s, removed={duration - trim_end:.1f}s")
+                return [(0, trim_end)]
         return [(0, duration)]
 
     # Build "protected" intervals from captions (don't cut these)
@@ -1130,8 +1145,28 @@ def _build_silence_trim_segments(duration: float, silence_periods: list,
     if prev_end < duration:
         keep_segments.append((prev_end, duration))
 
+    # V2.19: 末尾無音トリム —— 字幕データから最後の発話終了時刻を検出し、
+    # それ以降の無音を余韻0.8秒残してカット
+    if captions:
+        last_speech_end = 0.0
+        for cap in (captions or []):
+            cap_end = float(cap.get("end", 0) if isinstance(cap, dict) else 0)
+            if cap_end > last_speech_end:
+                last_speech_end = cap_end
+        if last_speech_end > 0 and keep_segments:
+            # keep_segmentsの最後のセグメントの終了時刻をトリム
+            last_seg_start, last_seg_end = keep_segments[-1]
+            trailing_margin = 0.8  # 余韻秒数
+            trim_point = last_speech_end + trailing_margin
+            if trim_point < last_seg_end and (last_seg_end - trim_point) > 1.0:
+                # 末尾セグメントをトリム
+                keep_segments[-1] = (last_seg_start, trim_point)
+                total_cut_time += (last_seg_end - trim_point)
+                logger.info(f"[ai-clip] V2.19 trailing trim: last_speech={last_speech_end:.1f}s, "
+                            f"trim_at={trim_point:.1f}s, extra_cut={last_seg_end - trim_point:.1f}s")
+
     total_kept = sum(e - s for s, e in keep_segments)
-    logger.info(f"[ai-clip] Smart trim V11: {len(cuttable)} cuts, "
+    logger.info(f"[ai-clip] Smart trim V2.19: {len(cuttable)} cuts, "
                 f"{total_cut_time:.1f}s removed ({total_cut_time/duration*100:.0f}%), "
                 f"{total_kept:.1f}s kept, {len(keep_segments)} segments")
     return keep_segments
@@ -4075,6 +4110,26 @@ def _compute_clip_quality_score(clip: dict) -> float:
     elif filler_count >= 2:
         score -= 5
 
+    # ── V2.19 Penalty: Low speech coverage ratio (発話率が低いクリップ) ──
+    # 字幕のタイムスタンプから発話がカバーする時間比率を計算
+    # 例: 23秒のクリップで4秒しか喋っていない → 発話率17% → 大幅減点
+    if duration > 0 and captions and isinstance(captions, list) and len(captions) > 0:
+        speech_time = 0.0
+        for cap in captions:
+            cap_start = float(cap.get("start", 0) if isinstance(cap, dict) else 0)
+            cap_end = float(cap.get("end", 0) if isinstance(cap, dict) else 0)
+            if cap_end > cap_start:
+                speech_time += (cap_end - cap_start)
+        speech_ratio = speech_time / duration
+        if speech_ratio < 0.15:
+            score -= 30  # 発話率15%未満: ほぼ無音 → 致命的減点
+        elif speech_ratio < 0.25:
+            score -= 20  # 発話率25%未満: 大部分が無音
+        elif speech_ratio < 0.35:
+            score -= 12  # 発話率35%未満: 無音が多い
+        elif speech_ratio < 0.50:
+            score -= 5   # 発話率50%未満: やや無音が多い
+
     return max(0.0, min(100.0, score))
 
 
@@ -4232,10 +4287,11 @@ async def _post_generation_quality_check(
     result: dict, clip: dict, job_id: str
 ) -> dict:
     """
-    V9生成後品質チェック: 生成されたクリップの最終品質を検証。
+    V2.19生成後品質チェック: 生成されたクリップの最終品質を検証。
     - 出力動画の尺が短すぎないか
     - 字幕数が適切か
     - フックテキストが生成されているか
+    - V2.19: 無音比率が高すぎるクリップを排除
     """
     if result.get("status") != "done":
         return result
@@ -4244,6 +4300,7 @@ async def _post_generation_quality_check(
     duration = result.get("duration_sec", 0)
     captions_count = result.get("captions_count", 0)
     hook_text = result.get("hook_text", "")
+    captions = result.get("captions", [])
 
     # 尺チェック
     if duration < 5:
@@ -4255,11 +4312,40 @@ async def _post_generation_quality_check(
     if not hook_text:
         quality_flags.append("no_hook")
 
+    # V2.19: 無音比率チェック —— 発話がクリップ全体の30%未満なら低品質と判定
+    if duration > 0 and captions and isinstance(captions, list):
+        speech_time = 0.0
+        for cap in captions:
+            if isinstance(cap, dict):
+                cap_start = float(cap.get("start", 0))
+                cap_end = float(cap.get("end", 0))
+                if cap_end > cap_start:
+                    speech_time += (cap_end - cap_start)
+        speech_ratio = speech_time / duration if duration > 0 else 0
+        result["speech_ratio"] = round(speech_ratio, 3)
+
+        if speech_ratio < 0.15:
+            # 発話率15%未満: ほぼ無音動画 → 完成リストから除外
+            quality_flags.append("mostly_silent")
+            result["status"] = "rejected"
+            result["rejection_reason"] = f"発話率が低すぎます ({speech_ratio*100:.0f}%)。クリップの大部分が無音です。"
+            logger.warning(
+                f"[ai-clip {job_id}] REJECTED clip {result.get('clip_id')}: "
+                f"speech_ratio={speech_ratio:.2f} (<0.15), mostly silent"
+            )
+        elif speech_ratio < 0.30:
+            quality_flags.append("low_speech")
+            logger.info(
+                f"[ai-clip {job_id}] Low speech ratio for clip {result.get('clip_id')}: "
+                f"{speech_ratio:.2f} (warning only)"
+            )
+
     if quality_flags:
         result["quality_warnings"] = quality_flags
-        logger.warning(
-            f"[ai-clip {job_id}] Quality warnings for clip {result.get('clip_id')}: {quality_flags}"
-        )
+        if result.get("status") != "rejected":
+            logger.warning(
+                f"[ai-clip {job_id}] Quality warnings for clip {result.get('clip_id')}: {quality_flags}"
+            )
 
     # 品質スコアを結果に含める
     result["quality_score"] = clip.get("_quality_score", 0)
