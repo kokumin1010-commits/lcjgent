@@ -46,7 +46,7 @@ export async function sendEmail(message: EmailMessage): Promise<{ success: boole
     const transporter = createTransporter();
 
     const mailOptions: any = {
-      from: process.env.SMTP_USER,
+      from: `株式会社ライブコマースジャパン <${process.env.SMTP_USER}>`,
       to: message.to.join(", "),
       cc: message.cc?.join(", "),
       bcc: message.bcc?.join(", "),
