@@ -1,3 +1,20 @@
+/**
+ * ============================================================
+ * ⚠️ PROTECTED FILE - DO NOT MODIFY WITHOUT CAREFUL REVIEW ⚠️
+ * ============================================================
+ * 
+ * このファイルはHTMLメール送信の根幹機能を担っています。
+ * 変更する場合は以下を必ず確認してください：
+ * 
+ * 1. from フィールド: 「株式会社ライブコマースジャパン」表示名を維持
+ * 2. html フィールド: nodemailerのhtmlオプションで送信（textではない）
+ * 3. Content-Type: text/htmlが正しく設定されること
+ * 4. 型注釈: nodemailer.SendMailOptions ではなく any を使用（ビルドエラー防止）
+ * 5. stripHtml: HTMLからプレーンテキストへのフォールバック生成
+ * 
+ * 最終確認日: 2026-05-29
+ * ============================================================
+ */
 import nodemailer from "nodemailer";
 
 interface EmailMessage {
