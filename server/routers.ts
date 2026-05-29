@@ -9100,27 +9100,6 @@ Return ONLY valid JSON, no markdown or explanation.`,
         await migrateBusinessCardsCrmColumns();
         return { success: true, message: "CRM migration completed" };
       }),
-    // ===== テスト送信用一時エンドポイント（テスト後に削除） =====
-    sendTestEmail: publicProcedure
-      .input(z.object({
-        email: z.string().email(),
-        subject: z.string().min(1),
-        content: z.string().min(1),
-        secret: z.string(),
-      }))
-      .mutation(async ({ input }) => {
-        // Simple secret check to prevent abuse
-        if (input.secret !== "lcj_test_2026") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Invalid secret" });
-        }
-        const { sendEmail } = await import("./emailService");
-        const result = await sendEmail({
-          to: [input.email],
-          subject: input.subject,
-          content: input.content,
-        });
-        return result;
-      }),
     // ===== 営業メール: リードへのテンプレート一斉送信 =====
     sendEmailToLeads: protectedProcedure
       .input(z.object({
