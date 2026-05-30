@@ -6105,6 +6105,8 @@ export const callLogs = mysqlTable("call_logs", {
   duration: int("duration"), // Duration in minutes (nullable for unanswered)
   result: mysqlEnum("result", ["answered", "no_answer", "busy", "callback", "meeting_set", "rejected"]).notNull(),
   memo: text("memo"), // Call notes
+  contactName: varchar("contactName", { length: 255 }), // Contact name (denormalized for display)
+  contactCompany: varchar("contactCompany", { length: 255 }), // Contact company (denormalized for display)
   nextFollowUpAt: timestamp("nextFollowUpAt"), // Next follow-up date/time
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

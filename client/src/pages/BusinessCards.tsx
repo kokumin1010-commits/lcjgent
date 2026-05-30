@@ -770,6 +770,8 @@ export default function BusinessCards() {
       businessCardId: selectedCard.id,
       result: phoneResult as any,
       memo: phoneMemo || undefined,
+      contactName: selectedCard.name || selectedCard.displayName || undefined,
+      contactCompany: selectedCard.company || selectedCard.category || undefined,
       nextFollowUpAt: phoneNextFollowUp || undefined,
     });
   };
@@ -968,6 +970,8 @@ export default function BusinessCards() {
       businessCardId: currentLead.id,
       result: phoneResult as any,
       memo: phoneMemo || undefined,
+      contactName: currentLead.name || currentLead.displayName || undefined,
+      contactCompany: currentLead.company || currentLead.category || undefined,
       nextFollowUpAt: phoneNextFollowUp || undefined,
     });
     // Advance to next
@@ -3272,7 +3276,7 @@ function SalesDashboard({ cards, statusOptions, getCardStatus, onStatusClick }: 
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="max-h-[300px]">
+            <ScrollArea className="h-[300px]">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -3318,7 +3322,7 @@ function SalesDashboard({ cards, statusOptions, getCardStatus, onStatusClick }: 
           {recentCallLogs.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">履歴なし</p>
           ) : (
-            <ScrollArea className="max-h-[400px]">
+            <ScrollArea className="h-[400px]">
               <Table>
                 <TableHeader>
                   <TableRow>

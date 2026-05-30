@@ -25743,8 +25743,8 @@ export async function getRecentCallLogs(limit = 100) {
     result: callLogs.result,
     memo: callLogs.memo,
     nextFollowUpAt: callLogs.nextFollowUpAt,
-    contactName: businessCards.name,
-    contactCompany: businessCards.company,
+    contactName: sql<string>`COALESCE(${callLogs.contactName}, ${businessCards.name})`,
+    contactCompany: sql<string>`COALESCE(${callLogs.contactCompany}, ${businessCards.company})`,
   }).from(callLogs)
     .leftJoin(businessCards, eq(callLogs.businessCardId, businessCards.id))
     .orderBy(desc(callLogs.calledAt))
@@ -25875,6 +25875,13 @@ export async function migrateCallLogsTable() {
       )
     `);
     console.log("[Migration] call_logs table created/verified");
+    // Add contactName and contactCompany columns if not exist
+    try {
+      await db.execute(sql`ALTER TABLE call_logs ADD COLUMN contactName VARCHAR(255) NULL`);
+    } catch (e: any) { /* column may already exist */ }
+    try {
+      await db.execute(sql`ALTER TABLE call_logs ADD COLUMN contactCompany VARCHAR(255) NULL`);
+    } catch (e: any) { /* column may already exist */ }
   } catch (error: any) {
     if (!error?.message?.includes("already exists")) {
       console.error("[Migration] Failed to create call_logs:", error?.message);

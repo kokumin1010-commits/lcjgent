@@ -8973,6 +8973,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
         duration: z.number().optional(),
         result: z.enum(["answered", "no_answer", "busy", "callback", "meeting_set", "rejected"]),
         memo: z.string().optional(),
+        contactName: z.string().optional(),
+        contactCompany: z.string().optional(),
         nextFollowUpAt: z.string().optional(), // ISO date string
       }))
       .mutation(async ({ input, ctx }) => {
@@ -8982,6 +8984,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
           result: input.result,
           duration: input.duration,
           memo: input.memo,
+          contactName: input.contactName,
+          contactCompany: input.contactCompany,
         };
         if (input.nextFollowUpAt) {
           data.nextFollowUpAt = new Date(input.nextFollowUpAt);
