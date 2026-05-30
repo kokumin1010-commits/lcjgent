@@ -14,9 +14,9 @@ import axios from "axios";
 
 const SALESDASH_API = "https://salesdash.buzzdrop.co.jp/api/trpc";
 const DDGS_SEARCH_URL = "https://html.duckduckgo.com/html/";
-const BATCH_SIZE = 20; // leads per run
-const SEARCH_DELAY_MS = 3000; // 3 seconds between searches to avoid rate limiting
-const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+const BATCH_SIZE = 100; // leads per run
+const SEARCH_DELAY_MS = 2000; // 2 seconds between searches to avoid rate limiting
+const CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 // Progress tracking
 let isRunning = false;
@@ -333,14 +333,14 @@ export function startContactSearchScheduler(): void {
     return;
   }
 
-  console.log("[ContactSearch] Starting scheduler (every 30 minutes, 20 leads per batch)");
+  console.log("[ContactSearch] Starting scheduler (every 5 minutes, 100 leads per batch)");
 
-  // Run first batch after 2 minutes (let server warm up)
+  // Run first batch after 30 seconds (let server warm up)
   setTimeout(() => {
     processContactSearchBatch();
-  }, 2 * 60 * 1000);
+  }, 30 * 1000);
 
-  // Then run every 30 minutes
+  // Then run every 5 minutes
   intervalId = setInterval(processContactSearchBatch, CHECK_INTERVAL_MS);
 }
 
