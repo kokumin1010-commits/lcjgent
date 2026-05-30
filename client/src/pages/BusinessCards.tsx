@@ -472,6 +472,7 @@ export default function BusinessCards() {
   const [kalodataPage, setKalodataPage] = useState(0);
   const [kalodataTotal, setKalodataTotal] = useState(0);
   const [kalodataStats, setKalodataStats] = useState<{total: number; withEmail: number; withPhone: number; contacted: number}>({total: 0, withEmail: 0, withPhone: 0, contacted: 0});
+  const [kalodataFilter, setKalodataFilter] = useState<"all" | "withEmail" | "withPhone" | "contacted">("all");
   // Contact search state
   const [contactSearchRunning, setContactSearchRunning] = useState(false);
   const [contactSearchStatus, setContactSearchStatus] = useState<{isRunning: boolean; processed: number; total: number; successCount: number; errorCount: number; lastRun?: string} | null>(null);
@@ -2013,27 +2014,27 @@ export default function BusinessCards() {
         {/* TAB: Kalodata TikTok Shop */}
         {/* ============================================================ */}
         <TabsContent value="kalodata" className="space-y-4">
-          {/* Stats Cards */}
+          {/* Stats Cards - clickable filters */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+            <Card className={`bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 cursor-pointer transition-all hover:shadow-md ${kalodataFilter === "all" ? "ring-2 ring-purple-500 shadow-md" : ""}`} onClick={() => { setKalodataFilter("all"); setKalodataPage(0); }}>
               <CardContent className="p-3">
                 <p className="text-xs text-purple-600 font-medium">TikTok Shop 総数</p>
                 <p className="text-xl font-bold text-purple-700">{kalodataStats.total}</p>
               </CardContent>
             </Card>
-            <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+            <Card className={`bg-gradient-to-br from-green-50 to-green-100 border-green-200 cursor-pointer transition-all hover:shadow-md ${kalodataFilter === "withEmail" ? "ring-2 ring-green-500 shadow-md" : ""}`} onClick={() => { setKalodataFilter("withEmail"); setKalodataPage(0); }}>
               <CardContent className="p-3">
                 <p className="text-xs text-green-600 font-medium">メールあり</p>
                 <p className="text-xl font-bold text-green-700">{kalodataStats.withEmail}</p>
               </CardContent>
             </Card>
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+            <Card className={`bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 cursor-pointer transition-all hover:shadow-md ${kalodataFilter === "withPhone" ? "ring-2 ring-blue-500 shadow-md" : ""}`} onClick={() => { setKalodataFilter("withPhone"); setKalodataPage(0); }}>
               <CardContent className="p-3">
                 <p className="text-xs text-blue-600 font-medium">電話あり</p>
                 <p className="text-xl font-bold text-blue-700">{kalodataStats.withPhone}</p>
               </CardContent>
             </Card>
-            <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
+            <Card className={`bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 cursor-pointer transition-all hover:shadow-md ${kalodataFilter === "contacted" ? "ring-2 ring-amber-500 shadow-md" : ""}`} onClick={() => { setKalodataFilter("contacted"); setKalodataPage(0); }}>
               <CardContent className="p-3">
                 <p className="text-xs text-amber-600 font-medium">連絡済み</p>
                 <p className="text-xl font-bold text-amber-700">{kalodataStats.contacted}</p>
@@ -2128,7 +2129,12 @@ export default function BusinessCards() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {kalodataLeads.slice(kalodataPage * 50, (kalodataPage + 1) * 50).map((lead, idx) => (
+                      {(() => {
+                        const filteredLeads = kalodataFilter === "all" ? kalodataLeads
+                          : kalodataFilter === "withEmail" ? kalodataLeads.filter((l: any) => l.email)
+                          : kalodataFilter === "withPhone" ? kalodataLeads.filter((l: any) => l.phone)
+                          : kalodataLeads.filter((l: any) => l.status === "contacted");
+                        return filteredLeads.slice(kalodataPage * 50, (kalodataPage + 1) * 50).map((lead, idx) => (
                         <TableRow key={lead.id}>
                           <TableCell className="text-xs text-muted-foreground">
                             {kalodataPage * 50 + idx + 1}
@@ -2244,40 +2250,50 @@ export default function BusinessCards() {
                             </Button>
                           </TableCell>
                         </TableRow>
-                      ))}
+                      ));
+                      })()}
                     </TableBody>
                   </Table>
                 </ScrollArea>
               )}
 
               {/* Pagination */}
-              {kalodataTotal > 50 && (
-                <div className="flex items-center justify-between pt-2">
-                  <p className="text-xs text-muted-foreground">
-                    {kalodataTotal}件中 {kalodataPage * 50 + 1}〜{Math.min((kalodataPage + 1) * 50, kalodataTotal)}件表示
-                  </p>
-                  <div className="flex gap-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs"
-                      disabled={kalodataPage === 0}
-                      onClick={() => setKalodataPage(p => p - 1)}
-                    >
-                      前へ
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs"
-                      disabled={(kalodataPage + 1) * 50 >= kalodataTotal}
-                      onClick={() => setKalodataPage(p => p + 1)}
-                    >
-                      次へ
-                    </Button>
+              {(() => {
+                const filteredTotal = kalodataFilter === "all" ? kalodataTotal
+                  : kalodataFilter === "withEmail" ? kalodataStats.withEmail
+                  : kalodataFilter === "withPhone" ? kalodataStats.withPhone
+                  : kalodataStats.contacted;
+                return filteredTotal > 50 ? (
+                  <div className="flex items-center justify-between pt-2">
+                    <p className="text-xs text-muted-foreground">
+                      {filteredTotal}件中 {kalodataPage * 50 + 1}〜{Math.min((kalodataPage + 1) * 50, filteredTotal)}件表示
+                      {kalodataFilter !== "all" && (
+                        <span className="ml-2 text-purple-600">(フィルター適用中)</span>
+                      )}
+                    </p>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        disabled={kalodataPage === 0}
+                        onClick={() => setKalodataPage(p => p - 1)}
+                      >
+                        前へ
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        disabled={(kalodataPage + 1) * 50 >= filteredTotal}
+                        onClick={() => setKalodataPage(p => p + 1)}
+                      >
+                        次へ
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              )}
+                ) : null;
+              })()}
             </CardContent>
           </Card>
 
