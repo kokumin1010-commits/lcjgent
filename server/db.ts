@@ -25731,6 +25731,42 @@ export async function getCallLogsToday() {
     .orderBy(desc(callLogs.calledAt));
 }
 
+export async function getRecentCallLogs(limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select({
+    id: callLogs.id,
+    businessCardId: callLogs.businessCardId,
+    calledBy: callLogs.calledBy,
+    calledAt: callLogs.calledAt,
+    duration: callLogs.duration,
+    result: callLogs.result,
+    memo: callLogs.memo,
+    nextFollowUpAt: callLogs.nextFollowUpAt,
+    contactName: businessCards.name,
+    contactCompany: businessCards.company,
+  }).from(callLogs)
+    .leftJoin(businessCards, eq(callLogs.businessCardId, businessCards.id))
+    .orderBy(desc(callLogs.calledAt))
+    .limit(limit);
+}
+
+export async function getCallLogsDailyStats(days = 30) {
+  const db = await getDb();
+  if (!db) return [];
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  const results = await db.select({
+    date: sql<string>`DATE(CONVERT_TZ(${callLogs.calledAt}, '+00:00', '+09:00'))`,
+    result: callLogs.result,
+    count: sql<number>`count(*)`,
+  }).from(callLogs)
+    .where(gte(callLogs.calledAt, startDate))
+    .groupBy(sql`DATE(CONVERT_TZ(${callLogs.calledAt}, '+00:00', '+09:00'))`, callLogs.result)
+    .orderBy(sql`DATE(CONVERT_TZ(${callLogs.calledAt}, '+00:00', '+09:00'))`);
+  return results;
+}
+
 export async function getSalesKpi(options?: { startDate?: Date; endDate?: Date }) {
   const db = await getDb();
   if (!db) return { totalCalls: 0, answered: 0, noAnswer: 0, meetingsSet: 0, rejected: 0 };

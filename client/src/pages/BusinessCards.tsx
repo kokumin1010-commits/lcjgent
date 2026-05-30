@@ -3116,8 +3116,29 @@ export default function BusinessCards() {
 function SalesDashboard({ cards, statusOptions, getCardStatus, onStatusClick }: { cards: any[]; statusOptions: any[]; getCardStatus: (card: any) => string; onStatusClick?: (status: string) => void }) {
   const utils = trpc.useUtils();
   const { data: salesKpi } = trpc.businessCard.getSalesKpi.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: recentCallLogs = [] } = trpc.businessCard.getRecentCallLogs.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: dailyStats = [] } = trpc.businessCard.getCallLogsDailyStats.useQuery(undefined);
   const { data: upcomingFollowUps = [] } = trpc.businessCard.getUpcomingFollowUps.useQuery(undefined);
   const { data: overdueFollowUps = [] } = trpc.businessCard.getOverdueFollowUps.useQuery(undefined);
+
+  // Aggregate daily stats
+  const dailyAggregated = useMemo(() => {
+    const map: Record<string, { date: string; total: number; answered: number; noAnswer: number; busy: number; callback: number; meetingSet: number; rejected: number }> = {};
+    for (const row of dailyStats) {
+      if (!map[row.date]) map[row.date] = { date: row.date, total: 0, answered: 0, noAnswer: 0, busy: 0, callback: 0, meetingSet: 0, rejected: 0 };
+      const count = Number(row.count);
+      map[row.date].total += count;
+      switch (row.result) {
+        case "answered": map[row.date].answered += count; break;
+        case "no_answer": map[row.date].noAnswer += count; break;
+        case "busy": map[row.date].busy += count; break;
+        case "callback": map[row.date].callback += count; break;
+        case "meeting_set": map[row.date].meetingSet += count; break;
+        case "rejected": map[row.date].rejected += count; break;
+      }
+    }
+    return Object.values(map).sort((a, b) => b.date.localeCompare(a.date));
+  }, [dailyStats]);
 
   // CRM Migration trigger (run once on first load)
   const migrateMutation = trpc.businessCard.runCrmMigration.useMutation({
@@ -3240,6 +3261,108 @@ function SalesDashboard({ cards, statusOptions, getCardStatus, onStatusClick }: 
           </CardContent>
         </Card>
       )}
+
+      {/* Daily Stats Table */}
+      {dailyAggregated.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              日別架電実績
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="max-h-[300px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>日付</TableHead>
+                    <TableHead className="text-center">合計</TableHead>
+                    <TableHead className="text-center">応答</TableHead>
+                    <TableHead className="text-center">不在</TableHead>
+                    <TableHead className="text-center">話し中</TableHead>
+                    <TableHead className="text-center">折返し</TableHead>
+                    <TableHead className="text-center">アポ</TableHead>
+                    <TableHead className="text-center">見送り</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dailyAggregated.map((day) => (
+                    <TableRow key={day.date}>
+                      <TableCell className="text-sm font-medium">{day.date}</TableCell>
+                      <TableCell className="text-center font-bold text-blue-700">{day.total}</TableCell>
+                      <TableCell className="text-center text-green-700">{day.answered || "-"}</TableCell>
+                      <TableCell className="text-center text-gray-600">{day.noAnswer || "-"}</TableCell>
+                      <TableCell className="text-center text-yellow-700">{day.busy || "-"}</TableCell>
+                      <TableCell className="text-center text-indigo-700">{day.callback || "-"}</TableCell>
+                      <TableCell className="text-center text-purple-700">{day.meetingSet || "-"}</TableCell>
+                      <TableCell className="text-center text-red-700">{day.rejected || "-"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recent Call History */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <PhoneCall className="h-5 w-5" />
+            架電履歴
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recentCallLogs.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">履歴なし</p>
+          ) : (
+            <ScrollArea className="max-h-[400px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>日時</TableHead>
+                    <TableHead>相手先</TableHead>
+                    <TableHead>会社</TableHead>
+                    <TableHead>結果</TableHead>
+                    <TableHead>メモ</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recentCallLogs.map((log: any) => (
+                    <TableRow key={log.id}>
+                      <TableCell className="text-xs whitespace-nowrap">
+                        {log.calledAt ? new Date(log.calledAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">{log.contactName || "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{log.contactCompany || "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-xs ${
+                          log.result === "answered" ? "bg-green-50 text-green-700 border-green-200" :
+                          log.result === "no_answer" ? "bg-gray-50 text-gray-700 border-gray-200" :
+                          log.result === "busy" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
+                          log.result === "callback" ? "bg-indigo-50 text-indigo-700 border-indigo-200" :
+                          log.result === "meeting_set" ? "bg-purple-50 text-purple-700 border-purple-200" :
+                          log.result === "rejected" ? "bg-red-50 text-red-700 border-red-200" : ""
+                        }`}>
+                          {log.result === "answered" ? "応答" :
+                           log.result === "no_answer" ? "不在" :
+                           log.result === "busy" ? "話し中" :
+                           log.result === "callback" ? "折返し" :
+                           log.result === "meeting_set" ? "アポ確定" :
+                           log.result === "rejected" ? "見送り" : log.result}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs max-w-[200px] truncate">{log.memo || "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Upcoming Follow-ups */}
       <Card>

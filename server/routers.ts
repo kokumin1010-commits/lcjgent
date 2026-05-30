@@ -699,6 +699,8 @@ import {
   createCallLog,
   getCallLogsByBusinessCardId,
   getCallLogsToday,
+  getRecentCallLogs,
+  getCallLogsDailyStats,
   getSalesKpi,
   createSalesActivity,
   getSalesActivitiesByBusinessCardId,
@@ -9019,6 +9021,18 @@ Return ONLY valid JSON, no markdown or explanation.`,
         if (input?.startDate) options.startDate = new Date(input.startDate);
         if (input?.endDate) options.endDate = new Date(input.endDate);
         return await getSalesKpi(options);
+      }),
+    // Get recent call logs with contact info
+    getRecentCallLogs: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getRecentCallLogs(input?.limit || 100);
+      }),
+    // Get daily call stats for the past N days
+    getCallLogsDailyStats: protectedProcedure
+      .input(z.object({ days: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getCallLogsDailyStats(input?.days || 30);
       }),
     // Get sales activities for a business card
     getSalesActivities: protectedProcedure
