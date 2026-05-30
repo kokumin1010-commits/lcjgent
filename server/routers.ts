@@ -26356,6 +26356,20 @@ JSON配列のみを出力してください。`;
         return { inviteCode: code };
       }),
   }),
+  // Contact Search API - triggers and monitors contact search for leads
+  contactSearch: router({
+    trigger: protectedProcedure
+      .input(z.object({ batchSize: z.number().min(1).max(200).optional() }).optional())
+      .mutation(async ({ input }) => {
+        const { triggerContactSearch } = await import("./contactSearchScheduler");
+        const result = await triggerContactSearch(input?.batchSize);
+        return result;
+      }),
+    status: protectedProcedure.query(async () => {
+      const { getContactSearchStatus } = await import("./contactSearchScheduler");
+      return getContactSearchStatus();
+    }),
+  }),
 });
 export type AppRouter = typeof appRouter;
 

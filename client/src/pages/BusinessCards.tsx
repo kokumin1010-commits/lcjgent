@@ -472,6 +472,9 @@ export default function BusinessCards() {
   const [kalodataPage, setKalodataPage] = useState(0);
   const [kalodataTotal, setKalodataTotal] = useState(0);
   const [kalodataStats, setKalodataStats] = useState<{total: number; withEmail: number; withPhone: number; contacted: number}>({total: 0, withEmail: 0, withPhone: 0, contacted: 0});
+  // Contact search state
+  const [contactSearchRunning, setContactSearchRunning] = useState(false);
+  const [contactSearchStatus, setContactSearchStatus] = useState<{isRunning: boolean; processed: number; total: number; successCount: number; errorCount: number; lastRun?: string} | null>(null);
 
   // Queries
   const { data: cards = [], isLoading } = trpc.businessCard.list.useQuery({
@@ -782,6 +785,55 @@ export default function BusinessCards() {
       }
     } catch {}
   }, []);
+
+  // Contact search functions
+  const triggerContactSearch = async () => {
+    setContactSearchRunning(true);
+    try {
+      const res = await fetch("/api/trpc/contactSearch.trigger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ json: { batchSize: 50 } }),
+      });
+      const data = await res.json();
+      if (data?.result?.data?.json) {
+        const r = data.result.data.json;
+        toast.success(`連絡先検索完了: ${r.processed}件処理, ${r.updated}件更新, 残り${r.remaining}件`);
+      }
+    } catch (err) {
+      toast.error("連絡先検索の開始に失敗しました");
+    }
+    setContactSearchRunning(false);
+    loadContactSearchStatus();
+  };
+
+  const loadContactSearchStatus = async () => {
+    try {
+      const res = await fetch("/api/trpc/contactSearch.status", { credentials: "include" });
+      const data = await res.json();
+      if (data?.result?.data?.json) {
+        const s = data.result.data.json;
+        // Map server response to our UI state
+        setContactSearchStatus({
+          isRunning: s.isRunning,
+          processed: s.lastRunStats?.processed || 0,
+          total: s.lastRunStats?.processed || 0,
+          successCount: s.lastRunStats?.updated || 0,
+          errorCount: s.lastRunStats?.errors || 0,
+          lastRun: s.lastRunStats?.lastRunAt || undefined,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load contact search status", err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "kalodata") {
+      loadContactSearchStatus();
+    }
+  }, [activeTab]);
 
   // Kalodata leads loader
   const loadKalodataLeads = useCallback(async () => {
@@ -1997,17 +2049,47 @@ export default function BusinessCards() {
                   <Store className="h-4 w-4 text-purple-500" />
                   TikTok Shop 日本ランキング TOP500（Kalodata）
                 </CardTitle>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs"
-                  onClick={loadKalodataLeads}
-                  disabled={kalodataLoading}
-                >
-                  <RefreshCw className={`h-3 w-3 mr-1 ${kalodataLoading ? "animate-spin" : ""}`} />
-                  更新
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="h-7 text-xs bg-purple-600 hover:bg-purple-700"
+                    onClick={triggerContactSearch}
+                    disabled={contactSearchRunning}
+                  >
+                    {contactSearchRunning ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <Search className="h-3 w-3 mr-1" />
+                    )}
+                    連絡先自動検索
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={loadKalodataLeads}
+                    disabled={kalodataLoading}
+                  >
+                    <RefreshCw className={`h-3 w-3 mr-1 ${kalodataLoading ? "animate-spin" : ""}`} />
+                    更新
+                  </Button>
+                </div>
               </div>
+              {/* Contact Search Status */}
+              {contactSearchStatus && (
+                <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+                  <span className={contactSearchStatus.isRunning ? "text-green-600 font-medium" : ""}>
+                    {contactSearchStatus.isRunning ? "🔄 検索中" : "✓ 待機中"}
+                  </span>
+                  <span>処理済: {contactSearchStatus.processed}/{contactSearchStatus.total}</span>
+                  <span>成功: {contactSearchStatus.successCount}</span>
+                  <span>エラー: {contactSearchStatus.errorCount}</span>
+                  {contactSearchStatus.lastRun && (
+                    <span>最終実行: {new Date(contactSearchStatus.lastRun).toLocaleString("ja-JP")}</span>
+                  )}
+                </div>
+              )}
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex gap-2">

@@ -29,6 +29,7 @@ import { startPeerBonusResetScheduler } from "../peerBonusResetScheduler";
 import { startDailyRankingScheduler } from "../dailyRankingScheduler";
 import { startPreBriefingScheduler } from "../preBriefingScheduler";
 import { startFeishuSyncScheduler } from "../feishuSyncScheduler";
+import { startContactSearchScheduler } from "../contactSearchScheduler";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
 
@@ -2217,6 +2218,8 @@ async function startServer() {
         startPreBriefingScheduler();
     // Start Feishu auto-sync scheduler (syncs brands from Lark every 6 hours)
     startFeishuSyncScheduler();
+    // Start contact search scheduler (searches contact info for Kalodata leads every 30 minutes)
+    startContactSearchScheduler();
     // Ensure schedules.brandIds column exists (multi-brand support)
     import("../db").then(({ ensureSchedulesBrandIdsColumn }) => {
       ensureSchedulesBrandIdsColumn().catch((err: unknown) => {
