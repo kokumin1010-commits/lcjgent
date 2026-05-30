@@ -1266,8 +1266,11 @@ def _enqueue_process_video_for_liveboost(video_id: str, email: str):
         async with factory() as session:
             row = (await session.execute(
                 sa_text("""
-                    SELECT compressed_blob_url, original_filename, user_id
-                    FROM videos WHERE id = :vid
+                    SELECT v.compressed_blob_url, v.original_filename, v.user_id,
+                           u.email AS user_email
+                    FROM videos v
+                    JOIN users u ON u.id = v.user_id
+                    WHERE v.id = :vid
                 """),
                 {"vid": video_id},
             )).fetchone()
@@ -1277,6 +1280,25 @@ def _enqueue_process_video_for_liveboost(video_id: str, email: str):
             blob_path = row.compressed_blob_url
             if not blob_path:
                 raise ValueError(f"Video {video_id} has no compressed_blob_url")
+
+            # BUILD 82: Resolve relative blob path to full path.
+            # The pipeline saves relative paths like "assembled/VIDEO_ID_assembled.mp4"
+            # but the actual blob is at "email/video_id/assembled/VIDEO_ID_assembled.mp4".
+            # This matches the resolution logic in video.py (lines 1048-1068).
+            import re as _re
+            segments = blob_path.split("/")
+            if "@" not in segments[0] and len(segments) < 3:
+                # Relative path — need to prepend email/video_id
+                user_email = row.user_email or email
+                # Extract original-case UUID from filename for blob folder
+                fname = segments[-1]
+                uuid_match = _re.search(
+                    r'([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})',
+                    fname,
+                )
+                original_case_vid = uuid_match.group(1) if uuid_match else video_id
+                blob_path = f"{user_email}/{original_case_vid}/{blob_path}"
+                print(f"[worker] BUILD 82: Resolved blob path → {blob_path}")
 
             result_data["blob_path"] = blob_path
             result_data["filename"] = row.original_filename or "liveboost.mp4"

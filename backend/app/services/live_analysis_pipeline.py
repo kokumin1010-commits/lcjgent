@@ -690,6 +690,26 @@ class LiveAnalysisPipeline:
             logger.info(
                 f"[assemble] Single chunk — copied directly → {output_path}"
             )
+            # BUILD 82: Apply audio normalization even for single chunk
+            normalized_path = output_path.replace(".mp4", "_normalized.mp4")
+            norm_proc = await asyncio.create_subprocess_exec(
+                "ffmpeg", "-y",
+                "-i", output_path,
+                "-c:v", "copy",
+                "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+                "-c:a", "aac", "-b:a", "128k",
+                normalized_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            norm_stdout, norm_stderr = await norm_proc.communicate()
+            if norm_proc.returncode == 0 and os.path.exists(normalized_path):
+                os.replace(normalized_path, output_path)
+                logger.info(f"[assemble] Audio normalized (single chunk) → {output_path}")
+            else:
+                logger.warning(f"[assemble] Audio normalization failed for single chunk (non-critical)")
+                if os.path.exists(normalized_path):
+                    os.remove(normalized_path)
             return output_path
 
         # Create ffmpeg concat list
@@ -725,6 +745,39 @@ class LiveAnalysisPipeline:
         logger.info(
             f"[assemble] Assembled {len(chunk_paths)} chunks → {output_path}"
         )
+
+        # BUILD 82: Audio normalization (EBU R128) to fix quiet audio from iOS ReplayKit.
+        # The loudnorm filter normalizes to -16 LUFS (broadcast standard) with
+        # -1.5 dBTP true peak limit. Video stream is copied losslessly.
+        normalized_path = output_path.replace(".mp4", "_normalized.mp4")
+        norm_proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-y",
+            "-i", output_path,
+            "-c:v", "copy",
+            "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+            "-c:a", "aac", "-b:a", "128k",
+            normalized_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        norm_stdout, norm_stderr = await norm_proc.communicate()
+
+        if norm_proc.returncode == 0 and os.path.exists(normalized_path):
+            # Replace original with normalized version
+            os.replace(normalized_path, output_path)
+            logger.info(
+                f"[assemble] Audio normalized (EBU R128 loudnorm) → {output_path}"
+            )
+        else:
+            # Normalization failed — keep original (non-critical)
+            norm_err = norm_stderr.decode(errors='replace')[-200:] if norm_stderr else 'unknown'
+            logger.warning(
+                f"[assemble] Audio normalization failed (non-critical), keeping original. "
+                f"rc={norm_proc.returncode} err={norm_err}"
+            )
+            if os.path.exists(normalized_path):
+                os.remove(normalized_path)
+
         return output_path
 
     async def _discover_chunk_count(self, email: str, video_id: str) -> int:
