@@ -927,7 +927,16 @@ export default function BusinessCards() {
       const data = await res.json();
       if (data?.result?.data?.json) {
         const result = data.result.data.json;
-        setLeadMessage(`収集完了: ${result.newLeads || result.collected || 0}件の新規リード`);
+        if (result.background) {
+          setLeadMessage(result.message || "バックグラウンドで収集を開始しました。数分後にリストを更新してください。");
+        } else if (result.leadsFound > 0 || result.newLeads > 0 || result.collected > 0) {
+          setLeadMessage(`収集完了: ${result.leadsFound || result.newLeads || result.collected}件の新規リード`);
+        } else {
+          setLeadMessage("収集完了: 新規リードは見つかりませんでした（既に収集済みの可能性があります）");
+        }
+
+
+
         // Refresh stats
         const statsRes = await fetch("https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeadStats");
         const statsData = await statsRes.json();
@@ -3159,7 +3168,7 @@ export default function BusinessCards() {
 // ============================================================
 function SalesDashboard({ cards, statusOptions, getCardStatus, onStatusClick }: { cards: any[]; statusOptions: any[]; getCardStatus: (card: any) => string; onStatusClick?: (status: string) => void }) {
   const utils = trpc.useUtils();
-  const [kpiPeriod, setKpiPeriod] = useState<'today' | 'week' | 'month' | 'all'>('month');
+  const [kpiPeriod, setKpiPeriod] = useState<'today' | 'week' | 'month' | 'all'>('all');
   
   // Calculate date range based on selected period
   const kpiDateRange = useMemo(() => {
