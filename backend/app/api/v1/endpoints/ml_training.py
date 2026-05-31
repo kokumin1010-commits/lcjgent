@@ -920,13 +920,13 @@ async def get_learning_progress(
     _check_admin(x_admin_key)
 
     async with get_session() as session:
-        # 各データソースの学習シグナル数
+        # 各データソースの学習シグナル数（clip_feedbackが存在しない場合に備えてCOALESCE使用）
         signals_result = await session.execute(text("""
             SELECT 
                 (SELECT COUNT(*) FROM video_phases WHERE user_rating > 0) as total_ratings,
                 (SELECT COUNT(*) FROM video_clips WHERE is_unusable = true) as total_ng,
                 (SELECT COUNT(*) FROM widget_clip_assignments) as total_brand_assignments,
-                (SELECT COUNT(*) FROM clip_feedback) as total_clip_feedback,
+                COALESCE((SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'clip_feedback' AND table_schema = 'public'), 0) as clip_feedback_exists,
                 (SELECT COUNT(*) FROM video_phases) as total_phases,
                 (SELECT COUNT(DISTINCT video_id) FROM video_phases) as total_videos,
                 (SELECT COUNT(*) FROM ai_clip_jobs WHERE config->>'type' = 'regenerate_from_source' AND config->>'regen_grade' IS NOT NULL AND config->>'regen_grade' != '') as total_regen_grades,
@@ -934,6 +934,15 @@ async def get_learning_progress(
                 (SELECT COUNT(*) FROM ai_clip_jobs WHERE config->>'type' = 'regenerate_from_source' AND config->>'regen_grade' = 'ng') as total_regen_ng
         """))
         signals = signals_result.fetchone()
+
+        # clip_feedbackテーブルが存在する場合のみカウント
+        total_feedback = 0
+        if signals and signals[3] > 0:  # clip_feedback_exists
+            try:
+                fb_result = await session.execute(text("SELECT COUNT(*) FROM clip_feedback"))
+                total_feedback = fb_result.scalar() or 0
+            except Exception:
+                total_feedback = 0
 
         # 直近の学習履歴
         history_result = await session.execute(text("""
@@ -985,7 +994,7 @@ async def get_learning_progress(
     total_ratings = signals[0] if signals else 0
     total_ng = signals[1] if signals else 0
     total_brand = signals[2] if signals else 0
-    total_feedback = signals[3] if signals else 0
+    # total_feedback is already set above from clip_feedback table check
     total_phases = signals[4] if signals else 0
     total_videos = signals[5] if signals else 0
     total_regen_grades = signals[6] if signals else 0
