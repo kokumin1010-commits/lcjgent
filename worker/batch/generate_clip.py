@@ -3640,6 +3640,49 @@ def generate_clip(clip_id: str, video_id: str, blob_url: str, time_start: float,
         logger.info(f"=== Clip generation completed successfully ({len(captions_data)} captions saved{hook_info}) ===")
         update_clip_progress(clip_id, 100, "completed", log_message=f"\U0001f389 Clip generation complete! {len(captions_data)} subtitles saved{hook_info}")
 
+        # ── AI Edit Summary (structured log for frontend summary card) ──
+        try:
+            _original_duration = time_end - time_start
+            _clip_duration = _get_video_duration_sec(clip_path) or 0
+            _silence_removed_sec = sum(e - s for s, e in silence_intervals) if silence_intervals else 0
+            _silence_count = len(silence_intervals) if silence_intervals else 0
+            _subtitle_count = len(captions_data)
+            _se_count = len(se_points) if 'se_points' in dir() and se_points else 0
+            _summary_data = {
+                "kind": "ai_edit_summary",
+                "original_duration_sec": round(_original_duration, 1),
+                "clip_duration_sec": round(_clip_duration, 1),
+                "silence_removed_sec": round(_silence_removed_sec, 1),
+                "silence_removed_count": _silence_count,
+                "subtitle_count": _subtitle_count,
+                "speed_factor": speed_factor,
+                "hook_applied": hook_applied,
+                "hook_duration_sec": round(hook_duration_actual, 1) if hook_applied else 0,
+                "sound_effects_count": _se_count,
+                "format": "1080x1920 vertical",
+            }
+            import json as _json_summary
+            async def _save_summary():
+                async with get_session() as _ss:
+                    _sql = text("""
+                        UPDATE video_clips
+                        SET processing_logs = COALESCE(processing_logs, CAST('[]' AS jsonb)) || CAST(:entry AS jsonb),
+                            updated_at = NOW()
+                        WHERE id = :clip_id
+                    """)
+                    _entry = _json_summary.dumps({
+                        "ts": datetime.now().strftime("%H:%M:%S"),
+                        "pct": 100,
+                        "step": "summary",
+                        "msg": "AI Edit Summary",
+                        "summary": _summary_data,
+                    })
+                    await _ss.execute(_sql, {"entry": _entry, "clip_id": clip_id})
+            run_sync(_save_summary())
+            logger.info(f"[SUMMARY] AI edit summary saved: {_summary_data}")
+        except Exception as _sum_err:
+            logger.warning(f"[SUMMARY] Failed to save AI edit summary (non-fatal): {_sum_err}")
+
         # 8. Auto-enrich clip metadata (Clip DB)
         try:
             _enrich_clip_after_generation(clip_id, video_id, phase_index, captions_data, segments)

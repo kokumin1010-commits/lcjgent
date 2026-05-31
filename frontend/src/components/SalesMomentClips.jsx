@@ -316,6 +316,69 @@ export default function SalesMomentClips({ videoData, onRequestClip, clipStates 
                       )}
 
                       {/* アクションボタン */}
+                      {/* AI Edit Summary Card (shown when completed) */}
+                      {clipState?.status === "completed" && clipState?.processing_logs?.length > 0 && (() => {
+                        const summaryLog = clipState.processing_logs.find(l => l.summary?.kind === 'ai_edit_summary');
+                        if (!summaryLog) return null;
+                        const s = summaryLog.summary;
+                        return (
+                          <div className="mb-3 rounded-lg bg-gradient-to-r from-gray-900 to-gray-800 p-3 border border-gray-700">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-green-400 text-xs font-bold font-mono">✅ AI Edit Complete</span>
+                              <span className="text-gray-500 text-[9px] font-mono ml-auto">{summaryLog.ts}</span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              {s.silence_removed_sec > 0 && (
+                                <div className="flex flex-col items-center p-1.5 rounded bg-gray-800/50">
+                                  <span className="text-[10px] text-gray-400">🔇 無音カット</span>
+                                  <span className="text-xs font-bold text-amber-400">-{s.silence_removed_sec}s</span>
+                                  <span className="text-[9px] text-gray-500">{s.silence_removed_count}箇所</span>
+                                </div>
+                              )}
+                              {s.subtitle_count > 0 && (
+                                <div className="flex flex-col items-center p-1.5 rounded bg-gray-800/50">
+                                  <span className="text-[10px] text-gray-400">📝 字幕生成</span>
+                                  <span className="text-xs font-bold text-blue-400">{s.subtitle_count}行</span>
+                                  <span className="text-[9px] text-gray-500">AI自動生成</span>
+                                </div>
+                              )}
+                              {s.speed_factor && s.speed_factor !== 1.0 && (
+                                <div className="flex flex-col items-center p-1.5 rounded bg-gray-800/50">
+                                  <span className="text-[10px] text-gray-400">⚡ テンポ調整</span>
+                                  <span className="text-xs font-bold text-purple-400">{s.speed_factor}x</span>
+                                  <span className="text-[9px] text-gray-500">スピードアップ</span>
+                                </div>
+                              )}
+                              {s.hook_applied && (
+                                <div className="flex flex-col items-center p-1.5 rounded bg-gray-800/50">
+                                  <span className="text-[10px] text-gray-400">🔥 フック挿入</span>
+                                  <span className="text-xs font-bold text-orange-400">+{s.hook_duration_sec}s</span>
+                                  <span className="text-[9px] text-gray-500">クライマックス</span>
+                                </div>
+                              )}
+                              {s.sound_effects_count > 0 && (
+                                <div className="flex flex-col items-center p-1.5 rounded bg-gray-800/50">
+                                  <span className="text-[10px] text-gray-400">🎵 効果音</span>
+                                  <span className="text-xs font-bold text-green-400">{s.sound_effects_count}個</span>
+                                  <span className="text-[9px] text-gray-500">自動挿入</span>
+                                </div>
+                              )}
+                              <div className="flex flex-col items-center p-1.5 rounded bg-gray-800/50">
+                                <span className="text-[10px] text-gray-400">📐 フォーマット</span>
+                                <span className="text-xs font-bold text-cyan-400">9:16</span>
+                                <span className="text-[9px] text-gray-500">{s.format || '1080x1920'}</span>
+                              </div>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between text-[9px] font-mono text-gray-500">
+                              <span>元: {s.original_duration_sec}s → 完成: {s.clip_duration_sec}s</span>
+                              <span className="text-green-400 font-bold">
+                                {s.original_duration_sec > 0 ? Math.round((1 - s.clip_duration_sec / s.original_duration_sec) * 100) : 0}% 短縮
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       <div className="flex items-center justify-end gap-2">
                         {clipState?.status === "completed" && clipState?.clip_url ? (
                           <>
