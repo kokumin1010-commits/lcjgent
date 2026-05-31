@@ -462,7 +462,7 @@ export default function LiverByName() {
   );
 
   // 全期間累計ブランド分析（管理者向け）
-  const [showAllTimeAnalysis, setShowAllTimeAnalysis] = useState(false);
+  const [showAllTimeAnalysis, setShowAllTimeAnalysis] = useState(true);
   const [forceRefreshAllTime, setForceRefreshAllTime] = useState(false);
   const { data: allTimeStats, isLoading: isAllTimeLoading, refetch: refetchAllTime } = trpc.liverManagement.getBrandAllTimeStats.useQuery(
     { liverId: liverId!, forceRefresh: forceRefreshAllTime },
