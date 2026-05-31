@@ -3995,7 +3995,7 @@ export async function getLivestreamsByLiverId(liverId: number, month?: string) {
     let longestMatch = 0;
     for (const brand of allBrandsForMatch) {
       const brandNameLower = brand.name.toLowerCase().trim();
-      if (brandNameLower.length > longestMatch && productNameLower.includes(brandNameLower)) {
+      if (brandNameLower.length >= 3 && brandNameLower.length > longestMatch && productNameLower.includes(brandNameLower)) {
         matchedBrand = brand;
         longestMatch = brandNameLower.length;
       }
@@ -8744,7 +8744,7 @@ export async function getLivestreamsByStreamerName(streamerName: string, month?:
       let longestMatch = 0;
       for (const brand of allBrands) {
         const brandNameLower = brand.name.toLowerCase().trim();
-        if (brandNameLower.length > longestMatch && productNameLower.includes(brandNameLower)) {
+        if (brandNameLower.length >= 3 && brandNameLower.length > longestMatch && productNameLower.includes(brandNameLower)) {
           matchedBrand = brand;
           longestMatch = brandNameLower.length;
         }
@@ -22560,14 +22560,14 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
       for (const brand of allBrands) {
         // Check brands.name
         const brandNameLower = brand.name.toLowerCase().trim();
-        if (brandNameLower.length > longestMatch && productNameLower.includes(brandNameLower)) {
+        if (brandNameLower.length >= 3 && brandNameLower.length > longestMatch && productNameLower.includes(brandNameLower)) {
           matchedBrand = brand;
           longestMatch = brandNameLower.length;
         }
         // Check brands.nameJa (Japanese name)
         if (brand.nameJa) {
           const brandNameJaLower = brand.nameJa.toLowerCase().trim();
-          if (brandNameJaLower.length > longestMatch && productNameLower.includes(brandNameJaLower)) {
+          if (brandNameJaLower.length >= 3 && brandNameJaLower.length > longestMatch && productNameLower.includes(brandNameJaLower)) {
             matchedBrand = brand;
             longestMatch = brandNameJaLower.length;
           }
