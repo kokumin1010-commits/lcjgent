@@ -26179,20 +26179,17 @@ export async function getSalesKpi(options?: { startDate?: Date; endDate?: Date; 
   const db = await getDb();
   if (!db) return { totalCalls: 0, answered: 0, noAnswer: 0, meetingsSet: 0, rejected: 0 };
   
-  let whereClause = sql`1=1`;
+  const conditions: any[] = [];
   if (!options?.allTime) {
-    // Default to today (JST) if no allTime flag
     const now = new Date();
     const jstOffset = 9 * 60 * 60 * 1000;
     const jstNow = new Date(now.getTime() + jstOffset);
     const jstTodayStart = new Date(jstNow.getFullYear(), jstNow.getMonth(), jstNow.getDate());
     const startDate = options?.startDate || new Date(jstTodayStart.getTime() - jstOffset);
     const endDate = options?.endDate || now;
-    // Use ISO string format for MySQL timestamp comparison (UTC)
-    const startStr = startDate.toISOString().slice(0, 19).replace('T', ' ');
-    const endStr = endDate.toISOString().slice(0, 19).replace('T', ' ');
-    whereClause = sql`${callLogs.calledAt} >= ${startStr} AND ${callLogs.calledAt} <= ${endStr}`;
-    console.log(`[getSalesKpi] Filter: ${startStr} ~ ${endStr} (allTime=${options?.allTime})`);
+    conditions.push(gte(callLogs.calledAt, startDate));
+    conditions.push(lte(callLogs.calledAt, endDate));
+    console.log(`[getSalesKpi] Filter: ${startDate.toISOString()} ~ ${endDate.toISOString()} (allTime=${options?.allTime})`);
   } else {
     console.log(`[getSalesKpi] allTime mode - no date filter`);
   }
@@ -26200,7 +26197,7 @@ export async function getSalesKpi(options?: { startDate?: Date; endDate?: Date; 
     result: callLogs.result,
     count: sql<number>`count(*)`,
   }).from(callLogs)
-    .where(whereClause)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
     .groupBy(callLogs.result);
   const kpi = { totalCalls: 0, answered: 0, noAnswer: 0, busy: 0, callback: 0, meetingsSet: 0, rejected: 0 };
   for (const row of results) {
@@ -26223,7 +26220,7 @@ export async function getSalesKpi(options?: { startDate?: Date; endDate?: Date; 
 export async function getSalesKpiByStaff(options?: { startDate?: Date; endDate?: Date; allTime?: boolean }) {
   const db = await getDb();
   if (!db) return [];
-  let whereClause = sql`1=1`;
+  const conditions: any[] = [];
   if (!options?.allTime) {
     const now = new Date();
     const jstOffset = 9 * 60 * 60 * 1000;
@@ -26231,16 +26228,15 @@ export async function getSalesKpiByStaff(options?: { startDate?: Date; endDate?:
     const jstTodayStart = new Date(jstNow.getFullYear(), jstNow.getMonth(), jstNow.getDate());
     const startDate = options?.startDate || new Date(jstTodayStart.getTime() - jstOffset);
     const endDate = options?.endDate || now;
-    const startStr = startDate.toISOString().slice(0, 19).replace('T', ' ');
-    const endStr = endDate.toISOString().slice(0, 19).replace('T', ' ');
-    whereClause = sql`${callLogs.calledAt} >= ${startStr} AND ${callLogs.calledAt} <= ${endStr}`;
+    conditions.push(gte(callLogs.calledAt, startDate));
+    conditions.push(lte(callLogs.calledAt, endDate));
   }
   const results = await db.select({
     calledBy: callLogs.calledBy,
     result: callLogs.result,
     count: sql<number>`count(*)`,
   }).from(callLogs)
-    .where(whereClause)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
     .groupBy(callLogs.calledBy, callLogs.result);
   // Get user names for calledBy IDs
   const userIds = [...new Set(results.map(r => r.calledBy))];

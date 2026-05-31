@@ -1,3 +1,4 @@
+import { useSearch, useLocation } from "wouter";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -401,9 +402,25 @@ export default function BusinessCards() {
   const { language } = useLanguage();
   const t = translations[language as keyof typeof translations] || translations.ja;
   const utils = trpc.useUtils();
-
-  // Tab state
-  const [activeTab, setActiveTab] = useState("cards");
+  // Tab state synced with URL params
+  const searchString = useSearch();
+  const [, navigate] = useLocation();
+  const validTabs = useMemo(() => ["cards", "sales", "leads", "kalodata", "email"], []);
+  const activeTab = useMemo(() => {
+    const params = new URLSearchParams(searchString);
+    const tab = params.get("tab");
+    return tab && validTabs.includes(tab) ? tab : "cards";
+  }, [searchString, validTabs]);
+  const setActiveTab = (tab: string) => {
+    const params = new URLSearchParams(searchString);
+    if (tab === "cards") {
+      params.delete("tab");
+    } else {
+      params.set("tab", tab);
+    }
+    const qs = params.toString();
+    navigate(`/master/business-cards${qs ? "?" + qs : ""}`, { replace: true });
+  };
 
   // Card list state
   const [searchQuery, setSearchQuery] = useState("");
