@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallProductVariants, InsertMallProductVariant, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion, livestreamPromotions, InsertLivestreamPromotion, masterSetSuggestions, InsertMasterSetSuggestion, masterSetSuggestionItems, InsertMasterSetSuggestionItem, masterSetAdoptions, InsertMasterSetAdoption, masterSetFeedback, InsertMasterSetFeedback, masterSetReviews, InsertMasterSetReview, megaChannelSettings, InsertMegaChannelSetting, megaChannelQualifications, InsertMegaChannelQualification, megaChannelHistory, InsertMegaChannelHistoryRecord, featuredProducts, InsertFeaturedProduct, featuredProductTargets, InsertFeaturedProductTarget, featuredProductAcknowledgements, InsertFeaturedProductAcknowledgement, featuredProductProgress, InsertFeaturedProductProgress, featuredProductPenalties, InsertFeaturedProductPenalty, brandShortVideos, InsertBrandShortVideo, brandAdReports, InsertBrandAdReport, brandAdEmailRecipients, InsertBrandAdEmailRecipient, callLogs, InsertCallLog, salesActivities, InsertSalesActivity } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallProductVariants, InsertMallProductVariant, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion, livestreamPromotions, InsertLivestreamPromotion, masterSetSuggestions, InsertMasterSetSuggestion, masterSetSuggestionItems, InsertMasterSetSuggestionItem, masterSetAdoptions, InsertMasterSetAdoption, masterSetFeedback, InsertMasterSetFeedback, masterSetReviews, InsertMasterSetReview, megaChannelSettings, InsertMegaChannelSetting, megaChannelQualifications, InsertMegaChannelQualification, megaChannelHistory, InsertMegaChannelHistoryRecord, featuredProducts, InsertFeaturedProduct, featuredProductTargets, InsertFeaturedProductTarget, featuredProductAcknowledgements, InsertFeaturedProductAcknowledgement, featuredProductProgress, InsertFeaturedProductProgress, featuredProductPenalties, InsertFeaturedProductPenalty, brandShortVideos, InsertBrandShortVideo, brandAdReports, InsertBrandAdReport, brandAdEmailRecipients, InsertBrandAdEmailRecipient, callLogs, InsertCallLog, salesActivities, InsertSalesActivity, brandAnalysisCache, InsertBrandAnalysisCache } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -22678,9 +22678,33 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
  * - 月別推移（ブランドごとに月別の売上・時間単価の推移）
  * - ブランド相性スコア（安定して売れるブランドを上位に）
  */
-export async function getLiverBrandAllTimeStats(liverId: number) {
+export async function getLiverBrandAllTimeStats(liverId: number, forceRefresh: boolean = false) {
   const db = await getDb();
   if (!db) return { summary: [], monthlyTrends: [], compatibilityScores: [] };
+
+  // キャッシュ確認（24時間TTL）
+  if (!forceRefresh) {
+    try {
+      const cached = await db
+        .select()
+        .from(brandAnalysisCache)
+        .where(and(
+          eq(brandAnalysisCache.liverId, liverId),
+          eq(brandAnalysisCache.cacheKey, 'alltime_stats')
+        ))
+        .limit(1);
+      if (cached.length > 0) {
+        const cacheAge = Date.now() - new Date(cached[0].updatedAt).getTime();
+        const CACHE_TTL = 24 * 60 * 60 * 1000; // 24時間
+        if (cacheAge < CACHE_TTL) {
+          return cached[0].data as any;
+        }
+      }
+    } catch (e) {
+      // キャッシュ読み取り失敗時は通常計算にフォールバック
+      console.error('[BrandAnalysisCache] Read error:', e);
+    }
+  }
 
   // Step 1: 全配信日を取得して月リストを作成
   const allStreams = await db
@@ -22757,9 +22781,8 @@ export async function getLiverBrandAllTimeStats(liverId: number) {
       return bTotal - aTotal;
     });
 
-  // Step 5: ブランド相性スコアを計算
-  // スコア = (平均時間単価 × 配信回数係数) / (売上の変動係数 + 1)
-  // 安定して売れるブランドが高スコア
+  // Step 5: ブランド相性スコアを計算（改良版）
+  // 総合的に評価: 実績（売上額）× 効率（時間単価）× 信頼度（配信回数）× 安定性
   const compatibilityScores = allTimeSummary
     .filter(b => b.csvGmv > 0 && b.totalMinutes > 0)
     .map(brand => {
@@ -22769,9 +22792,6 @@ export async function getLiverBrandAllTimeStats(liverId: number) {
       
       // 平均時間単価
       const avgHourlyRate = brand.hourlyRate;
-      
-      // 配信回数係数（多く配信したブランドを優遍）
-      const streamCountFactor = Math.log2(brand.streamCount + 1);
       
       // 売上の変動係数（CV: 標準偏差/平均）
       let cv = 0;
@@ -22784,8 +22804,41 @@ export async function getLiverBrandAllTimeStats(liverId: number) {
         }
       }
       
-      // 相性スコア = (平均時間単価 × 配信回数係数) / (変動係数 + 1)
-      const score = Math.round((avgHourlyRate * streamCountFactor) / (cv + 1));
+      // === 新スコア計算 ===
+      // 1. 効率スコア: 時間単価を正規化（¥10万/hを基準100とする）
+      const efficiencyScore = Math.min(avgHourlyRate / 1000, 100); // ¥/hを千円単位に
+      
+      // 2. 実績スコア: 総売上額の対数スケール（¥1000万=70点、¥100万=46点、¥10万=23点）
+      const achievementScore = Math.log10(brand.csvGmv + 1) * 10;
+      
+      // 3. 信頼度係数: 配信回数が多いほど信頼できる（10回で100%、5回で70%、3回で50%）
+      const reliabilityFactor = Math.min(1, 0.3 + 0.7 * (brand.streamCount / 10));
+      
+      // 4. 安定性係数: CVが低いほど安定（CV=0で1.2倍、CV=1で0.8倍）
+      const stabilityFactor = 1.2 - (Math.min(cv, 1) * 0.4);
+      
+      // 5. 成長補正: 直近月の売上が平均より高ければ加点
+      let growthBonus = 1.0;
+      if (monthsWithSales.length >= 2) {
+        const recentMonth = monthsWithSales[monthsWithSales.length - 1];
+        const avgGmv = brand.csvGmv / monthsWithSales.length;
+        if (recentMonth.csvGmv > avgGmv * 1.2) growthBonus = 1.15; // 直近が平均の1.2倍以上なら15%加点
+      }
+      
+      // 総合スコア = (効率 + 実績) × 信頼度 × 安定性 × 成長補正
+      const score = Math.round((efficiencyScore + achievementScore) * reliabilityFactor * stabilityFactor * growthBonus * 1000);
+      
+      // 安定性判定（配信回数を考慮）
+      let stability: string;
+      if (brand.streamCount < 5) {
+        stability = 'データ不足';
+      } else if (cv < 0.4) {
+        stability = '安定';
+      } else if (cv < 0.7) {
+        stability = '普通';
+      } else {
+        stability = '不安定';
+      }
       
       return {
         brandName: brand.brandName,
@@ -22796,17 +22849,46 @@ export async function getLiverBrandAllTimeStats(liverId: number) {
         totalHours: brand.totalHours,
         streamCount: brand.streamCount,
         monthsActive: monthsWithSales.length,
-        stability: cv < 0.3 ? '安定' : cv < 0.6 ? '普通' : '不安定',
+        stability,
+        cv: Math.round(cv * 100) / 100, // フロントで使えるように
+        reliabilityFactor: Math.round(reliabilityFactor * 100) / 100,
       };
     })
     .sort((a, b) => b.score - a.score);
 
-  return {
+  const result = {
     summary: allTimeSummary,
     monthlyTrends,
     compatibilityScores,
     months,
   };
+
+  // キャッシュ保存
+  try {
+    const existing = await db
+      .select({ id: brandAnalysisCache.id })
+      .from(brandAnalysisCache)
+      .where(and(
+        eq(brandAnalysisCache.liverId, liverId),
+        eq(brandAnalysisCache.cacheKey, 'alltime_stats')
+      ))
+      .limit(1);
+    if (existing.length > 0) {
+      await db.update(brandAnalysisCache)
+        .set({ data: result as any, updatedAt: new Date() })
+        .where(eq(brandAnalysisCache.id, existing[0].id));
+    } else {
+      await db.insert(brandAnalysisCache).values({
+        liverId,
+        cacheKey: 'alltime_stats',
+        data: result as any,
+      });
+    }
+  } catch (e) {
+    console.error('[BrandAnalysisCache] Write error:', e);
+  }
+
+  return result;
 }
 
 

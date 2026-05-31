@@ -6127,3 +6127,17 @@ export const salesActivities = mysqlTable("sales_activities", {
 });
 export type SalesActivity = typeof salesActivities.$inferSelect;
 export type InsertSalesActivity = typeof salesActivities.$inferInsert;
+
+// ============================================================
+// ブランド分析キャッシュテーブル (Brand Analysis Cache)
+// ============================================================
+export const brandAnalysisCache = mysqlTable("brand_analysis_cache", {
+  id: int("id").autoincrement().primaryKey(),
+  liverId: int("liverId").notNull(), // ライバーID
+  cacheKey: varchar("cacheKey", { length: 100 }).notNull(), // キャッシュキー（例: "alltime_stats"）
+  data: json("data").$type<Record<string, any>>().notNull(), // 分析結果JSON
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(), // 最終更新日時
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type BrandAnalysisCache = typeof brandAnalysisCache.$inferSelect;
+export type InsertBrandAnalysisCache = typeof brandAnalysisCache.$inferInsert;
