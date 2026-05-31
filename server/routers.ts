@@ -363,6 +363,7 @@ import {
   getLivestreamsByStreamerName,
   getLiverMonthlyGrowth,
   getLiverBrandDurationStats,
+  getLiverBrandAllTimeStats,
   getLiverComplianceStats,
   addProductLiver,
   removeProductLiver,
@@ -15643,6 +15644,11 @@ ${liverName}さんの今回の配信データを分析して、以下を含む�
       .input(z.object({ liverId: z.number(), yearMonth: z.string().optional() }))
       .query(async ({ input }) => {
         return await getLiverBrandDurationStats(input.liverId, input.yearMonth);
+      }),
+    getBrandAllTimeStats: publicProcedure
+      .input(z.object({ liverId: z.number() }))
+      .query(async ({ input }) => {
+        return await getLiverBrandAllTimeStats(input.liverId);
       }),
     getComplianceStats: protectedProcedure
       .input(z.object({ liverId: z.number(), yearMonth: z.string().optional() }))

@@ -461,6 +461,13 @@ export default function LiverByName() {
     { enabled: !!liverId }
   );
 
+  // 全期間累計ブランド分析（管理者向け）
+  const [showAllTimeAnalysis, setShowAllTimeAnalysis] = useState(false);
+  const { data: allTimeStats, isLoading: isAllTimeLoading } = trpc.liverManagement.getBrandAllTimeStats.useQuery(
+    { liverId: liverId! },
+    { enabled: !!liverId && showAllTimeAnalysis }
+  );
+
   // スケジュール遵守率・配信ルール遵守状況取得（管理者向け）
   const { data: complianceStats } = trpc.liverManagement.getComplianceStats.useQuery(
     { liverId: liverId!, yearMonth: selectedMonth },
@@ -1315,6 +1322,210 @@ export default function LiverByName() {
             </Card>
           );
         })()}
+
+        {/* 全期間累計ブランド分析 */}
+        <Card className="bg-gray-900/50 border-gray-800">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-yellow-500" />
+                全期間累計ブランド分析
+              </h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAllTimeAnalysis(!showAllTimeAnalysis)}
+                className="text-xs h-7 border-gray-700 text-white/70 hover:text-white"
+              >
+                {showAllTimeAnalysis ? '閉じる' : '分析を開く'}
+              </Button>
+            </div>
+            {showAllTimeAnalysis && (
+              <div className="space-y-4">
+                {isAllTimeLoading && (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-500" />
+                    <span className="ml-2 text-sm text-white/60">分析中...（全期間データ取得中）</span>
+                  </div>
+                )}
+                {allTimeStats && !isAllTimeLoading && (
+                  <>
+                    {/* ブランド相性スコア */}
+                    {allTimeStats.compatibilityScores && allTimeStats.compatibilityScores.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-bold text-cyan-400 mb-2 flex items-center gap-1">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          ブランド相性スコア
+                          <span className="text-[10px] text-white/40 font-normal ml-1">安定して売れるブランドが高スコア</span>
+                        </h4>
+                        <div className="space-y-1.5">
+                          {allTimeStats.compatibilityScores.slice(0, 10).map((brand: any, idx: number) => (
+                            <div key={idx} className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
+                              idx === 0 ? 'bg-gradient-to-r from-yellow-900/30 to-amber-900/30 border border-yellow-500/20' :
+                              idx <= 2 ? 'bg-gradient-to-r from-gray-800/50 to-gray-700/30 border border-gray-600/20' :
+                              'bg-gray-800/30'
+                            }`}>
+                              <span className={`text-sm font-bold w-6 text-center ${
+                                idx === 0 ? 'text-yellow-400' : idx <= 2 ? 'text-gray-300' : 'text-gray-500'
+                              }`}>
+                                {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}`}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-medium text-white truncate">
+                                    {brand.brandNameJa || brand.brandName}
+                                  </span>
+                                  {brand.brandNameJa && brand.brandNameJa !== brand.brandName && (
+                                    <span className="text-[10px] text-white/40">({brand.brandName})</span>
+                                  )}
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                    brand.stability === '安定' ? 'bg-emerald-900/40 text-emerald-400' :
+                                    brand.stability === '普通' ? 'bg-yellow-900/40 text-yellow-400' :
+                                    'bg-red-900/40 text-red-400'
+                                  }`}>{brand.stability}</span>
+                                </div>
+                                <div className="flex items-center gap-3 mt-0.5">
+                                  <span className="text-[10px] text-white/40">{brand.streamCount}回配信</span>
+                                  <span className="text-[10px] text-white/40">{brand.totalHours}h</span>
+                                  <span className="text-[10px] text-white/40">{brand.monthsActive}ヶ月活動</span>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-xs font-bold text-cyan-400">¥{brand.avgHourlyRate >= 10000 ? `${Math.round(brand.avgHourlyRate / 10000)}万` : brand.avgHourlyRate.toLocaleString()}/h</div>
+                                <div className="text-[10px] text-yellow-400">¥{brand.totalGmv >= 10000 ? `${Math.round(brand.totalGmv / 10000)}万` : brand.totalGmv.toLocaleString()}</div>
+                              </div>
+                              <div className="text-right ml-2">
+                                <div className="text-sm font-bold text-orange-400">{brand.score.toLocaleString()}</div>
+                                <div className="text-[10px] text-white/30">スコア</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 全期間累計サマリー */}
+                    {allTimeStats.summary && allTimeStats.summary.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-bold text-purple-400 mb-2 flex items-center gap-1">
+                          <BarChart3 className="w-3.5 h-3.5" />
+                          全期間累計実績
+                          <span className="text-[10px] text-white/40 font-normal ml-1">総配信時間・総売上・平均時間単価</span>
+                        </h4>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="text-white/50 border-b border-gray-700">
+                                <th className="text-left py-1.5 px-2">ブランド</th>
+                                <th className="text-right py-1.5 px-2">配信時間</th>
+                                <th className="text-right py-1.5 px-2">配信回数</th>
+                                <th className="text-right py-1.5 px-2">総売上</th>
+                                <th className="text-right py-1.5 px-2">時間単価</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {allTimeStats.summary.filter((b: any) => b.totalMinutes > 0 || b.csvGmv > 0).map((brand: any, idx: number) => (
+                                <tr key={idx} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                                  <td className="py-1.5 px-2">
+                                    <span className="text-white font-medium">{brand.brandNameJa || brand.brandName}</span>
+                                    {brand.brandNameJa && brand.brandNameJa !== brand.brandName && (
+                                      <span className="text-[10px] text-white/30 ml-1">({brand.brandName})</span>
+                                    )}
+                                  </td>
+                                  <td className="text-right py-1.5 px-2 text-white/70">{brand.totalHours}h</td>
+                                  <td className="text-right py-1.5 px-2 text-white/70">{brand.streamCount}回</td>
+                                  <td className="text-right py-1.5 px-2">
+                                    {brand.csvGmv > 0 ? (
+                                      <span className="text-yellow-400">¥{brand.csvGmv >= 10000 ? `${Math.round(brand.csvGmv / 10000)}万` : brand.csvGmv.toLocaleString()}</span>
+                                    ) : (
+                                      <span className="text-white/30">-</span>
+                                    )}
+                                  </td>
+                                  <td className="text-right py-1.5 px-2">
+                                    {brand.hourlyRate > 0 ? (
+                                      <span className={`font-bold ${
+                                        brand.hourlyRate >= 50000 ? 'text-orange-400' :
+                                        brand.hourlyRate >= 15000 ? 'text-cyan-400' :
+                                        'text-red-400'
+                                      }`}>¥{brand.hourlyRate >= 10000 ? `${Math.round(brand.hourlyRate / 10000)}万` : brand.hourlyRate.toLocaleString()}/h</span>
+                                    ) : (
+                                      <span className="text-white/30">-</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 月別推移 */}
+                    {allTimeStats.monthlyTrends && allTimeStats.monthlyTrends.length > 0 && allTimeStats.months && allTimeStats.months.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-1">
+                          <TrendingUp className="w-3.5 h-3.5" />
+                          ブランド別月別推移
+                          <span className="text-[10px] text-white/40 font-normal ml-1">売上・時間単価の月別変化</span>
+                        </h4>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-[10px]">
+                            <thead>
+                              <tr className="text-white/50 border-b border-gray-700">
+                                <th className="text-left py-1.5 px-1 sticky left-0 bg-gray-900/90 z-10 min-w-[80px]">ブランド</th>
+                                {allTimeStats.months.slice(-6).map((m: string) => (
+                                  <th key={m} className="text-center py-1.5 px-1 min-w-[60px]">{m.slice(5)}月</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {allTimeStats.monthlyTrends.slice(0, 10).map((brand: any, idx: number) => {
+                                const recentMonths = allTimeStats.months!.slice(-6);
+                                return (
+                                  <tr key={idx} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                                    <td className="py-1.5 px-1 sticky left-0 bg-gray-900/90 z-10">
+                                      <span className="text-white font-medium truncate block max-w-[80px]" title={brand.brandNameJa || brand.brandName}>
+                                        {brand.brandNameJa || brand.brandName}
+                                      </span>
+                                    </td>
+                                    {recentMonths.map((m: string) => {
+                                      const monthData = brand.months.find((md: any) => md.yearMonth === m);
+                                      return (
+                                        <td key={m} className="text-center py-1.5 px-1">
+                                          {monthData ? (
+                                            <div>
+                                              <div className={`font-bold ${
+                                                monthData.hourlyRate >= 50000 ? 'text-orange-400' :
+                                                monthData.hourlyRate >= 15000 ? 'text-cyan-400' :
+                                                monthData.csvGmv > 0 ? 'text-red-400' : 'text-white/30'
+                                              }`}>
+                                                {monthData.csvGmv > 0 ? `¥${monthData.csvGmv >= 10000 ? `${Math.round(monthData.csvGmv / 10000)}万` : monthData.csvGmv.toLocaleString()}` : '-'}
+                                              </div>
+                                              <div className="text-white/40">{monthData.totalHours}h</div>
+                                            </div>
+                                          ) : (
+                                            <span className="text-white/20">-</span>
+                                          )}
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+                {allTimeStats && !isAllTimeLoading && allTimeStats.summary?.length === 0 && (
+                  <p className="text-sm text-white/40 text-center py-4">ブランド配信データがありません</p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Growth Chart */}
         {!isGrowthLoading && chartData.length > 0 && (

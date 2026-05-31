@@ -22329,6 +22329,7 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
     .select({
       brandId: livestreamBrands.brandId,
       brandName: brands.name,
+      brandNameJa: brands.nameJa,
       livestreamId: livestreamBrands.livestreamId,
       durationMinutes: livestreamBrands.durationMinutes,
     })
@@ -22344,7 +22345,7 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
 
   // Build a set of livestreamIds per brand that are covered by the new table
   const newTableLsIdsByBrand = new Map<number, Set<number>>();
-  const newTableSumByBrand = new Map<number, { brandName: string; totalMinutes: number; streamCount: number }>();
+  const newTableSumByBrand = new Map<number, { brandName: string; brandNameJa: string; totalMinutes: number; streamCount: number }>();
   for (const row of newTableData) {
     const bid = row.brandId;
     if (!newTableLsIdsByBrand.has(bid)) {
@@ -22359,6 +22360,7 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
     } else {
       newTableSumByBrand.set(bid, {
         brandName: row.brandName || '不明',
+        brandNameJa: row.brandNameJa || '',
         totalMinutes: Number(row.durationMinutes || 0),
         streamCount: 0, // will be set later
       });
@@ -22376,6 +22378,7 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
       id: brandLivestreams.id,
       brandId: brandLivestreams.brandId,
       brandName: brands.name,
+      brandNameJa: brands.nameJa,
       duration: brandLivestreams.duration,
     })
     .from(brandLivestreams)
@@ -22388,13 +22391,14 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
     ));
 
   // Step C: For each brand, combine new table data + old table data (excluding overlapping livestream IDs)
-  const byIdMap = new Map<number, { brandId: number; brandName: string; totalMinutes: number; streamCount: number }>();
+  const byIdMap = new Map<number, { brandId: number; brandName: string; brandNameJa: string; totalMinutes: number; streamCount: number }>();
 
   // First, add all brands from new table
   for (const [bid, data] of newTableSumByBrand.entries()) {
     byIdMap.set(bid, {
       brandId: bid,
       brandName: data.brandName,
+      brandNameJa: data.brandNameJa,
       totalMinutes: data.totalMinutes,
       streamCount: data.streamCount,
     });
@@ -22417,33 +22421,71 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
       byIdMap.set(bid, {
         brandId: bid,
         brandName: row.brandName || '不明',
+        brandNameJa: row.brandNameJa || '',
         totalMinutes: Number(row.duration || 0),
         streamCount: 1,
       });
     }
   }
 
-  // Step 2: Merge by brandName (same brand name = same brand, combine stats)
+  // Step 2: Merge by brandName AND brandNameJa (same brand = same brand, combine stats)
   // This handles cases where the same brand has multiple brandIds (e.g. KYOGOKU, ULUKA)
-  const byNameMap = new Map<string, { brandIds: number[]; brandName: string; totalMinutes: number; streamCount: number }>();
+  // AND cases where brands.name (e.g. "seinsmous") and brands.nameJa (e.g. "セインムー") should be unified
+  const byNameMap = new Map<string, { brandIds: number[]; brandName: string; brandNameJa: string; totalMinutes: number; streamCount: number }>();
+  // Build a reverse lookup: nameJa -> normalizedName key in byNameMap
+  const nameJaToKey = new Map<string, string>();
   for (const entry of byIdMap.values()) {
     const normalizedName = entry.brandName.toLowerCase().trim().replace(/\s+/g, ' ');
-    const existing = byNameMap.get(normalizedName);
+    const normalizedNameJa = (entry.brandNameJa || '').trim();
+    
+    // Check if this entry's brandName matches an existing entry's nameJa, or vice versa
+    let mergeKey = normalizedName;
+    
+    // Case 1: This entry's normalizedName already exists in byNameMap
+    if (byNameMap.has(normalizedName)) {
+      mergeKey = normalizedName;
+    }
+    // Case 2: This entry's nameJa matches an existing key in byNameMap
+    else if (normalizedNameJa && byNameMap.has(normalizedNameJa.toLowerCase())) {
+      mergeKey = normalizedNameJa.toLowerCase();
+    }
+    // Case 3: This entry's normalizedName matches a previously seen nameJa
+    else if (nameJaToKey.has(normalizedName)) {
+      mergeKey = nameJaToKey.get(normalizedName)!;
+    }
+    // Case 4: This entry's nameJa matches a previously seen nameJa
+    else if (normalizedNameJa && nameJaToKey.has(normalizedNameJa.toLowerCase())) {
+      mergeKey = nameJaToKey.get(normalizedNameJa.toLowerCase())!;
+    }
+    
+    const existing = byNameMap.get(mergeKey);
     if (existing) {
       existing.totalMinutes += entry.totalMinutes;
       existing.streamCount += entry.streamCount;
       existing.brandIds.push(entry.brandId);
+      // Prefer longer/Japanese name for display
       if (entry.brandName.length > existing.brandName.length) {
         existing.brandName = entry.brandName;
       }
+      if (normalizedNameJa && (!existing.brandNameJa || normalizedNameJa.length > existing.brandNameJa.length)) {
+        existing.brandNameJa = normalizedNameJa;
+      }
     } else {
-      byNameMap.set(normalizedName, {
+      byNameMap.set(mergeKey, {
         brandIds: [entry.brandId],
         brandName: entry.brandName,
+        brandNameJa: normalizedNameJa,
         totalMinutes: entry.totalMinutes,
         streamCount: entry.streamCount,
       });
     }
+    
+    // Register nameJa -> mergeKey mapping for future lookups
+    if (normalizedNameJa) {
+      nameJaToKey.set(normalizedNameJa.toLowerCase(), mergeKey);
+    }
+    // Also register the brandName itself for reverse lookup
+    nameJaToKey.set(normalizedName, mergeKey);
   }
 
   const merged = Array.from(byNameMap.values())
@@ -22469,7 +22511,7 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
 
   // Step 2: 全ブランド名を取得（マッチング用）
   const allBrands = await db
-    .select({ id: brands.id, name: brands.name })
+    .select({ id: brands.id, name: brands.name, nameJa: brands.nameJa })
     .from(brands)
     .where(isNull(brands.deletedAt));
 
@@ -22511,15 +22553,24 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
       const revenue = Number(product.grossRevenue || product.gmv || 0);
       if (!productName || revenue === 0) continue;
 
-      let matchedBrand: { id: number; name: string } | null = null;
+      let matchedBrand: { id: number; name: string; nameJa: string | null } | null = null;
       const productNameLower = productName.toLowerCase();
-      // ブランド名で部分一致（長い名前を優先してマッチ）
+      // ブランド名で部分一致（長い名前を優先してマッチ）- nameJaも使用
       let longestMatch = 0;
       for (const brand of allBrands) {
+        // Check brands.name
         const brandNameLower = brand.name.toLowerCase().trim();
         if (brandNameLower.length > longestMatch && productNameLower.includes(brandNameLower)) {
           matchedBrand = brand;
           longestMatch = brandNameLower.length;
+        }
+        // Check brands.nameJa (Japanese name)
+        if (brand.nameJa) {
+          const brandNameJaLower = brand.nameJa.toLowerCase().trim();
+          if (brandNameJaLower.length > longestMatch && productNameLower.includes(brandNameJaLower)) {
+            matchedBrand = brand;
+            longestMatch = brandNameJaLower.length;
+          }
         }
       }
 
@@ -22550,11 +22601,18 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
   // Step 4: 配信時間データと売上データをマージ
   const result = merged.map(m => {
     const normalizedName = m.brandName.toLowerCase().trim().replace(/\s+/g, ' ');
-    const sales = brandSalesMap.get(normalizedName);
+    // Try matching by brandName first, then by brandNameJa
+    let sales = brandSalesMap.get(normalizedName);
+    let salesKey = normalizedName;
+    if (!sales && m.brandNameJa) {
+      const normalizedNameJa = m.brandNameJa.toLowerCase().trim().replace(/\s+/g, ' ');
+      sales = brandSalesMap.get(normalizedNameJa);
+      salesKey = normalizedNameJa;
+    }
     const csvGmv = sales ? sales.totalGmv : 0;
     const hourlyRate = m.totalMinutes > 0 ? Math.round(csvGmv / (m.totalMinutes / 60)) : 0;
     // Remove from brandSalesMap so we can detect unmatched brands later
-    if (sales) brandSalesMap.delete(normalizedName);
+    if (sales) brandSalesMap.delete(salesKey);
     // Get top products for this brand (sorted by GMV, top 5)
     const brandTopProducts = sales?.topProducts
       ? sales.topProducts
@@ -22575,6 +22633,7 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
       brandId: m.brandIds[0],
       brandIds: m.brandIds,
       brandName: m.brandName,
+      brandNameJa: m.brandNameJa || '',
       totalMinutes: m.totalMinutes,
       totalHours: Math.round(m.totalMinutes / 60 * 10) / 10,
       streamCount: m.streamCount,
@@ -22610,6 +22669,144 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
     }));
 
   return [...result, ...unmatchedBrands];
+}
+
+
+/**
+ * ライバーの全期間累計ブランド分析
+ * - 全期間累計実績（総売上、総配信時間、平均時間単価）
+ * - 月別推移（ブランドごとに月別の売上・時間単価の推移）
+ * - ブランド相性スコア（安定して売れるブランドを上位に）
+ */
+export async function getLiverBrandAllTimeStats(liverId: number) {
+  const db = await getDb();
+  if (!db) return { summary: [], monthlyTrends: [], compatibilityScores: [] };
+
+  // Step 1: 全配信日を取得して月リストを作成
+  const allStreams = await db
+    .select({ livestreamDate: brandLivestreams.livestreamDate })
+    .from(brandLivestreams)
+    .where(and(
+      eq(brandLivestreams.liverId, liverId),
+      isNull(brandLivestreams.deletedAt),
+      sql`${brandLivestreams.livestreamDate} IS NOT NULL`
+    ))
+    .orderBy(brandLivestreams.livestreamDate);
+
+  if (allStreams.length === 0) return { summary: [], monthlyTrends: [], compatibilityScores: [] };
+
+  // 月リストを生成（JSTベース）
+  const monthSet = new Set<string>();
+  for (const s of allStreams) {
+    if (s.livestreamDate) {
+      const jstDate = new Date(s.livestreamDate.getTime() + 9 * 60 * 60 * 1000);
+      const ym = `${jstDate.getFullYear()}-${String(jstDate.getMonth() + 1).padStart(2, '0')}`;
+      monthSet.add(ym);
+    }
+  }
+  const months = Array.from(monthSet).sort();
+
+  // Step 2: 全期間累計を取得（yearMonth未指定でgetLiverBrandDurationStatsを呼ぶ）
+  const allTimeSummary = await getLiverBrandDurationStats(liverId);
+
+  // Step 3: 月別データを取得
+  const monthlyDataMap = new Map<string, Awaited<ReturnType<typeof getLiverBrandDurationStats>>>();
+  for (const month of months) {
+    const monthData = await getLiverBrandDurationStats(liverId, month);
+    monthlyDataMap.set(month, monthData);
+  }
+
+  // Step 4: ブランド別月別推移を構築
+  const brandMonthlyMap = new Map<string, {
+    brandName: string;
+    brandNameJa: string;
+    months: { yearMonth: string; totalMinutes: number; totalHours: number; csvGmv: number; hourlyRate: number; streamCount: number }[];
+  }>();
+
+  for (const [month, data] of monthlyDataMap.entries()) {
+    for (const brand of data) {
+      const key = brand.brandName.toLowerCase().trim();
+      if (!brandMonthlyMap.has(key)) {
+        brandMonthlyMap.set(key, {
+          brandName: brand.brandName,
+          brandNameJa: (brand as any).brandNameJa || '',
+          months: [],
+        });
+      }
+      brandMonthlyMap.get(key)!.months.push({
+        yearMonth: month,
+        totalMinutes: brand.totalMinutes,
+        totalHours: brand.totalHours,
+        csvGmv: brand.csvGmv,
+        hourlyRate: brand.hourlyRate,
+        streamCount: brand.streamCount,
+      });
+    }
+  }
+
+  const monthlyTrends = Array.from(brandMonthlyMap.values())
+    .map(b => ({
+      brandName: b.brandName,
+      brandNameJa: b.brandNameJa,
+      months: b.months.sort((a, c) => a.yearMonth.localeCompare(c.yearMonth)),
+    }))
+    .sort((a, b) => {
+      // 総売上が高い順
+      const aTotal = a.months.reduce((s, m) => s + m.csvGmv, 0);
+      const bTotal = b.months.reduce((s, m) => s + m.csvGmv, 0);
+      return bTotal - aTotal;
+    });
+
+  // Step 5: ブランド相性スコアを計算
+  // スコア = (平均時間単価 × 配信回数係数) / (売上の変動係数 + 1)
+  // 安定して売れるブランドが高スコア
+  const compatibilityScores = allTimeSummary
+    .filter(b => b.csvGmv > 0 && b.totalMinutes > 0)
+    .map(brand => {
+      const key = brand.brandName.toLowerCase().trim();
+      const monthlyData = brandMonthlyMap.get(key);
+      const monthsWithSales = monthlyData?.months.filter(m => m.csvGmv > 0) || [];
+      
+      // 平均時間単価
+      const avgHourlyRate = brand.hourlyRate;
+      
+      // 配信回数係数（多く配信したブランドを優遍）
+      const streamCountFactor = Math.log2(brand.streamCount + 1);
+      
+      // 売上の変動係数（CV: 標準偏差/平均）
+      let cv = 0;
+      if (monthsWithSales.length >= 2) {
+        const gmvValues = monthsWithSales.map(m => m.csvGmv);
+        const mean = gmvValues.reduce((s, v) => s + v, 0) / gmvValues.length;
+        if (mean > 0) {
+          const variance = gmvValues.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / gmvValues.length;
+          cv = Math.sqrt(variance) / mean;
+        }
+      }
+      
+      // 相性スコア = (平均時間単価 × 配信回数係数) / (変動係数 + 1)
+      const score = Math.round((avgHourlyRate * streamCountFactor) / (cv + 1));
+      
+      return {
+        brandName: brand.brandName,
+        brandNameJa: (brand as any).brandNameJa || '',
+        score,
+        avgHourlyRate,
+        totalGmv: brand.csvGmv,
+        totalHours: brand.totalHours,
+        streamCount: brand.streamCount,
+        monthsActive: monthsWithSales.length,
+        stability: cv < 0.3 ? '安定' : cv < 0.6 ? '普通' : '不安定',
+      };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  return {
+    summary: allTimeSummary,
+    monthlyTrends,
+    compatibilityScores,
+    months,
+  };
 }
 
 
