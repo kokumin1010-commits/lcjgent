@@ -26011,7 +26011,7 @@ export async function getCallLogsToday() {
 export async function getRecentCallLogs(limit = 100) {
   const db = await getDb();
   if (!db) return [];
-  return await db.select({
+  const rows = await db.select({
     id: callLogs.id,
     businessCardId: callLogs.businessCardId,
     calledBy: callLogs.calledBy,
@@ -26026,6 +26026,53 @@ export async function getRecentCallLogs(limit = 100) {
     .leftJoin(businessCards, eq(callLogs.businessCardId, businessCards.id))
     .orderBy(desc(callLogs.calledAt))
     .limit(limit);
+
+  // For rows where contactName is still null (likely salesdash leads),
+  // fetch lead info from salesdash API in batch
+  const missingIds = rows
+    .filter(r => !r.contactName && !r.contactCompany)
+    .map(r => r.businessCardId);
+
+  if (missingIds.length > 0) {
+    const uniqueIds = [...new Set(missingIds)];
+    const leadMap = new Map<number, { companyName: string; category?: string }>();
+    try {
+      // Fetch leads in parallel (max 10 at a time to avoid overload)
+      const batchSize = 50;
+      for (let i = 0; i < uniqueIds.length; i += batchSize) {
+        const batch = uniqueIds.slice(i, i + batchSize);
+        const promises = batch.map(async (id) => {
+          try {
+            const res = await fetch(
+              `https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeadById?input=${encodeURIComponent(JSON.stringify({ json: { id } }))}`,
+              { signal: AbortSignal.timeout(5000) }
+            );
+            const data = await res.json();
+            const lead = data?.result?.data?.json;
+            if (lead) {
+              leadMap.set(id, { companyName: lead.companyName, category: lead.category });
+            }
+          } catch {}
+        });
+        await Promise.all(promises);
+      }
+    } catch {}
+
+    // Enrich rows with lead info
+    return rows.map(r => {
+      if (!r.contactName && !r.contactCompany && leadMap.has(r.businessCardId)) {
+        const lead = leadMap.get(r.businessCardId)!;
+        return {
+          ...r,
+          contactName: lead.companyName || null,
+          contactCompany: lead.category || null,
+        };
+      }
+      return r;
+    });
+  }
+
+  return rows;
 }
 
 export async function getCallLogsDailyStats(days = 30) {

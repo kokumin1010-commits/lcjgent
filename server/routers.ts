@@ -8979,14 +8979,39 @@ Return ONLY valid JSON, no markdown or explanation.`,
         nextFollowUpAt: z.string().optional(), // ISO date string
       }))
       .mutation(async ({ input, ctx }) => {
+        // Auto-fill contactName/contactCompany if not provided
+        let contactName = input.contactName;
+        let contactCompany = input.contactCompany;
+        if (!contactName || !contactCompany) {
+          // Try business_cards table first
+          const card = await getBusinessCardById(input.businessCardId);
+          if (card) {
+            if (!contactName) contactName = card.name || undefined;
+            if (!contactCompany) contactCompany = card.company || undefined;
+          } else {
+            // Try salesdash lead API
+            try {
+              const res = await fetch(
+                `https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeadById?input=${encodeURIComponent(JSON.stringify({ json: { id: input.businessCardId } }))}`,
+                { signal: AbortSignal.timeout(5000) }
+              );
+              const leadData = await res.json();
+              const lead = leadData?.result?.data?.json;
+              if (lead) {
+                if (!contactName) contactName = lead.companyName || undefined;
+                if (!contactCompany) contactCompany = lead.category || undefined;
+              }
+            } catch {}
+          }
+        }
         const data: any = {
           businessCardId: input.businessCardId,
           calledBy: ctx.user.id,
           result: input.result,
           duration: input.duration,
           memo: input.memo,
-          contactName: input.contactName,
-          contactCompany: input.contactCompany,
+          contactName: contactName,
+          contactCompany: contactCompany,
         };
         if (input.nextFollowUpAt) {
           data.nextFollowUpAt = new Date(input.nextFollowUpAt);
@@ -8995,8 +9020,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
         }
         await createCallLog(data);
         // Auto-update status to "contacted" if currently "new"
-        const card = await getBusinessCardById(input.businessCardId);
-        if (card && (!card.salesStatus || card.salesStatus === "new")) {
+        const cardForStatus = await getBusinessCardById(input.businessCardId);
+        if (cardForStatus && (!cardForStatus.salesStatus || cardForStatus.salesStatus === "new")) {
           await updateBusinessCardSalesStatus(input.businessCardId, "contacted", ctx.user.id);
         }
         // Record sales activity
