@@ -854,8 +854,8 @@ export default function BusinessCards() {
         // Calculate stats
         setKalodataStats({
           total: rows.length,
-          withEmail: rows.filter((r: any) => r.email).length,
-          withPhone: rows.filter((r: any) => r.phone).length,
+          withEmail: rows.filter((r: any) => r.email && r.email.trim()).length,
+          withPhone: rows.filter((r: any) => r.phone && r.phone.trim()).length,
           contacted: rows.filter((r: any) => r.status === "contacted").length,
         });
       }
@@ -2160,7 +2160,7 @@ export default function BusinessCards() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-xs">
-                            {lead.email ? (
+                            {lead.email && lead.email.trim() ? (
                               <a href={`mailto:${lead.email}`} className="text-blue-600 hover:underline">
                                 {lead.email}
                               </a>
@@ -2169,7 +2169,7 @@ export default function BusinessCards() {
                             )}
                           </TableCell>
                           <TableCell className="text-xs">
-                            {lead.phone ? (
+                            {lead.phone && lead.phone.trim() ? (
                               <a href={`tel:${lead.phone}`} className="text-green-600 hover:underline flex items-center gap-1">
                                 <PhoneCall className="h-3 w-3" />
                                 {lead.phone}
@@ -2179,7 +2179,7 @@ export default function BusinessCards() {
                             )}
                           </TableCell>
                           <TableCell className="text-xs">
-                            {lead.website ? (
+                            {lead.website && lead.website.trim() ? (
                               lead.website.includes('tiktok.com') ? (
                                 <a
                                   href={lead.website}

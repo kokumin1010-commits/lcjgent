@@ -172,6 +172,24 @@ async function getLeadsWithoutContact(): Promise<any[]> {
  */
 async function updateLeadContact(leadId: number, data: { email?: string; phone?: string; website?: string }): Promise<boolean> {
   try {
+    // Final validation layer - block any invalid data from being saved
+    const INVALID_EMAIL_PATTERNS = ["duckduckgo.com", "duck.com", "error-lite", "noreply", "no-reply", "w3.org", "example.com", "sentry.io", "wixpress.com", "schema.org"];
+    const INVALID_WEBSITE_PATTERNS = ["w3.org", ".dtd", "schema.org", "duckduckgo.com", "google.com", "bing.com", "yahoo.co", "facebook.com", "twitter.com", "instagram.com", "tiktok.com", "youtube.com", "amazon.co", "rakuten.co", "wikipedia.org"];
+    
+    if (data.email && INVALID_EMAIL_PATTERNS.some(p => data.email!.toLowerCase().includes(p))) {
+      console.warn(`[ContactSearch] BLOCKED invalid email for lead ${leadId}: ${data.email}`);
+      delete data.email;
+    }
+    if (data.website && INVALID_WEBSITE_PATTERNS.some(p => data.website!.toLowerCase().includes(p))) {
+      console.warn(`[ContactSearch] BLOCKED invalid website for lead ${leadId}: ${data.website}`);
+      delete data.website;
+    }
+    
+    // If nothing valid remains after filtering, skip the update
+    if (!data.email && !data.phone && !data.website) {
+      return false;
+    }
+    
     const updateBody = { json: { id: leadId, data } };
     await axios.post(`${SALESDASH_API}/btobLeadProspector.updateLead`, updateBody, {
       headers: { "Content-Type": "application/json" },
