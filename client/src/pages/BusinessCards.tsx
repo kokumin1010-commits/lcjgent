@@ -455,6 +455,7 @@ export default function BusinessCards() {
     const [emailSubject, setEmailSubject] = useState("{{displayName}}へ ― 無料ライブコマース診断のご案内｜即売上につながる新チャネル");
   const [emailContent, setEmailContent] = useState("突然のご連絡失礼いたします。\n株式会社ライブコマースジャパンの大久保と申します。\n\n貴社のことを拝見し、ぜひ一度お話しさせていただきたくご連絡いたしました。\n\n弊社は日本最大級のライブコマース専門企業として、\nこれまで数百社以上のブランド様のライブ販売を支援してまいりました。\n\n■ なぜ今、ライブコマースなのか？\n\n・配信初日から売上が立つ即効性\n・広告費ゼロでも顧客と直接つながれる\n・ECの「カゴ落ち率」を大幅に改善\n・ファン化による高いリピート率\n\n実際に導入企業様からは、\n「初回配信で月商の10%を1時間で達成した」\n「広告CPAが従来の1/3になった」\nといったお声を多数いただいております。\n\n■ 無料ライブコマース診断のご提案\n\n貴社の商品・ブランドに最適なライブコマース戦略を、\n完全無料で診断させていただきます。\n\n・貴社に合った配信プラットフォームのご提案\n・想定売上シミュレーション\n・競合のライブコマース活用状況の分析\n・最短で成果を出すためのロードマップ\n\n■ 15分のオンラインご紹介\n\nお忙しいところ恐縮ですが、\nZoomまたはGoogle Meetにて15分ほどお時間をいただき、\n貴社に合ったライブコマース活用法をご紹介させていただけないでしょうか。\n\nまた、弊社では広告運用代行も承っており、\nライブコマース×広告の相乗効果で最短での売上最大化が可能です。\n\nご都合の良い日時を2〜3候補いただければ、\nこちらで調整いたします。\n\nご多忙のところ恐れ入りますが、\nご検討いただけますと幸いです。")
   const [emailTemplateMode, setEmailTemplateMode] = useState<"edit" | "preview">("edit");
+  const [attachPdf, setAttachPdf] = useState(true); // PDF提案書添付デフォルトON
   // Phone state
   const [phoneMemo, setPhoneMemo] = useState("");
   const [phoneResult, setPhoneResult] = useState<string>("answered");
@@ -591,6 +592,7 @@ export default function BusinessCards() {
       emails: leadsWithEmail.map(l => ({ email: l.email!, displayName: l.companyName || "" })),
       subject: emailSubject,
       content: emailContent,
+      attachPdf,
     });
   };
 
@@ -622,6 +624,7 @@ export default function BusinessCards() {
       emails: leadsWithEmail.map(l => ({ email: l.email!, displayName: l.companyName || "" })),
       subject: emailSubject,
       content: emailContent,
+      attachPdf,
     });
   };
 
@@ -2479,6 +2482,18 @@ export default function BusinessCards() {
                 </p>
               </div>
 
+              {/* PDF添付オプション */}
+              <div className="flex items-center gap-2 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                <Checkbox
+                  id="attachPdf"
+                  checked={attachPdf}
+                  onCheckedChange={(checked: boolean | "indeterminate") => setAttachPdf(checked === true)}
+                />
+                <label htmlFor="attachPdf" className="text-sm font-medium text-purple-800 cursor-pointer">
+                  LCJ提案書（PDF）を添付する
+                </label>
+                <span className="text-xs text-purple-600 ml-auto">2.5MB</span>
+              </div>
               {/* 送信ボタン群 */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Button

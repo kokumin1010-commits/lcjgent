@@ -9207,6 +9207,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
         emails: z.array(z.object({ email: z.string(), displayName: z.string() })),
         subject: z.string().min(1),
         content: z.string().min(1),
+        attachPdf: z.boolean().default(false),
       }))
       .mutation(async ({ input, ctx }) => {
         // Alibaba Cloud SMTPで送信（招商管理の「送信済み」に自動表示される）
@@ -9249,13 +9250,23 @@ Return ONLY valid JSON, no markdown or explanation.`,
                 <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
                 <p style="font-size: 12px; color: #6b7280;">━━━━━━━━━━━━━━━━━━━━━━<br>株式会社ライブコマースジャパン<br>営業部 大久保<br>Email: info@livecommercejapan.jp<br>━━━━━━━━━━━━━━━━━━━━━━</p>
               </div>`;
-              await transporter.sendMail({
+              const mailOpts: any = {
                 from: `"株式会社ライブコマースジャパン" <${ENV.emailUser}>`,
                 to: lead.email,
                 subject: personalizedSubject,
                 text: textContent,
                 html: htmlContent,
-              });
+              };
+              // PDF提案書添付
+              if (input.attachPdf) {
+                const path = await import("path");
+                const pdfPath = path.resolve(process.cwd(), "server/assets/LCJ_proposal_ja_v06.pdf");
+                mailOpts.attachments = [{
+                  filename: "LCJ提案書_ライブコマースジャパン.pdf",
+                  path: pdfPath,
+                }];
+              }
+              await transporter.sendMail(mailOpts);
               sentCount++;
             } catch (e: any) {
               errors.push(`${lead.email}: ${e.message}`);
