@@ -1355,7 +1355,7 @@ export default function BusinessCards() {
                                 <User className="h-4 w-4 text-muted-foreground" />
                               </div>
                             )}
-                            <span className="break-all">{card.name}</span>
+                            <a href={`/master/business-cards/${card.id}`} className="break-all text-blue-600 hover:underline">{card.name}</a>
                           </div>
                         </TableCell>
                         <TableCell className="text-sm">
@@ -3435,7 +3435,11 @@ function SalesDashboard({ cards, statusOptions, getCardStatus, onStatusClick }: 
                         {log.calledAt ? new Date(log.calledAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
                       </TableCell>
                       <TableCell className="text-xs font-medium text-indigo-700">{log.callerName || "—"}</TableCell>
-                      <TableCell className="text-sm font-medium">{log.contactName || "—"}</TableCell>
+                      <TableCell className="text-sm font-medium">
+                        {log.businessCardId ? (
+                          <a href={`/master/business-cards/${log.businessCardId}`} className="text-blue-600 hover:underline cursor-pointer">{log.contactName || "—"}</a>
+                        ) : (log.contactName || "—")}
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{log.contactCompany || "—"}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={`text-xs ${

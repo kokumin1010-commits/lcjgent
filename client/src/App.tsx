@@ -33,6 +33,7 @@ const BrandDetail = lazy(() => import("./pages/BrandDetail"));
 const BrandFinance = lazy(() => import("./pages/BrandFinance"));
 const FinanceManagement = lazy(() => import("./pages/FinanceManagement"));
 const BusinessCards = lazy(() => import("./pages/BusinessCards"));
+const BusinessCardProfile = lazy(() => import("./pages/BusinessCardProfile"));
 const ChatReport = lazy(() => import("./pages/ChatReport"));
 const LineManagement = lazy(() => import("./pages/LineManagement"));
 const LineFollowUps = lazy(() => import("./pages/LineFollowUps"));
@@ -332,6 +333,11 @@ function Router() {
         <Route path={"/master/business-cards"}>
           <DashboardLayout>
             <BusinessCards />
+          </DashboardLayout>
+        </Route>
+        <Route path={"/master/business-cards/:id"}>
+          <DashboardLayout>
+            <BusinessCardProfile />
           </DashboardLayout>
         </Route>
         <Route path={"/master/line"}>

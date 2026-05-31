@@ -717,7 +717,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos, brandMonthlyGmvTargets } from "../drizzle/schema";
+import { users, lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos, brandMonthlyGmvTargets } from "../drizzle/schema";
 import { eq, and, or, not, isNotNull, isNull, desc, gt, gte, lte, like, inArray, sql as sqlTag, sum, count, max } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -8770,6 +8770,46 @@ Return ONLY valid JSON, no markdown or explanation.`,
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return await getBusinessCardById(input.id);
+      }),
+
+    // Get full profile with call logs and activities timeline
+    getProfile: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const card = await getBusinessCardById(input.id);
+        if (!card) return null;
+        const [cardCallLogs, activities] = await Promise.all([
+          getCallLogsByBusinessCardId(input.id, 100),
+          getSalesActivitiesByBusinessCardId(input.id, 100),
+        ]);
+        // Get caller names for call logs
+        const db = await getDb();
+        let callerNames: Record<number, string> = {};
+        if (db && cardCallLogs.length > 0) {
+          const callerIds = [...new Set(cardCallLogs.map(l => l.calledBy))];
+          const usersResult = await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, callerIds));
+          callerNames = Object.fromEntries(usersResult.map(u => [u.id, u.name]));
+        }
+        const callLogsWithNames = cardCallLogs.map(log => ({
+          ...log,
+          callerName: callerNames[log.calledBy] || `User ${log.calledBy}`,
+        }));
+        // Get performer names for activities
+        let performerNames: Record<number, string> = {};
+        if (db && activities.length > 0) {
+          const performerIds = [...new Set(activities.map(a => a.performedBy))];
+          const performersResult = await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, performerIds));
+          performerNames = Object.fromEntries(performersResult.map(u => [u.id, u.name]));
+        }
+        const activitiesWithNames = activities.map(act => ({
+          ...act,
+          performerName: performerNames[act.performedBy] || `User ${act.performedBy}`,
+        }));
+        return {
+          card,
+          callLogs: callLogsWithNames,
+          activities: activitiesWithNames,
+        };
       }),
 
     // Update business card
