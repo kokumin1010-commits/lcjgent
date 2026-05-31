@@ -26104,8 +26104,10 @@ export async function getRecentCallLogs(limit = 100) {
     nextFollowUpAt: callLogs.nextFollowUpAt,
     contactName: sql<string>`COALESCE(${callLogs.contactName}, ${businessCards.name})`,
     contactCompany: sql<string>`COALESCE(${callLogs.contactCompany}, ${businessCards.company})`,
+    callerName: sql<string>`COALESCE(${users.name}, ${users.email})`,
   }).from(callLogs)
     .leftJoin(businessCards, eq(callLogs.businessCardId, businessCards.id))
+    .leftJoin(users, eq(callLogs.calledBy, users.id))
     .orderBy(desc(callLogs.calledAt))
     .limit(limit);
 
@@ -26215,6 +26217,62 @@ export async function getSalesKpi(options?: { startDate?: Date; endDate?: Date; 
   }
   console.log(`[getSalesKpi] Results:`, JSON.stringify(kpi));
   return kpi;
+}
+
+// ===== 営業CRM: スタッフ別架電集計 =====
+export async function getSalesKpiByStaff(options?: { startDate?: Date; endDate?: Date; allTime?: boolean }) {
+  const db = await getDb();
+  if (!db) return [];
+  let whereClause = sql`1=1`;
+  if (!options?.allTime) {
+    const now = new Date();
+    const jstOffset = 9 * 60 * 60 * 1000;
+    const jstNow = new Date(now.getTime() + jstOffset);
+    const jstTodayStart = new Date(jstNow.getFullYear(), jstNow.getMonth(), jstNow.getDate());
+    const startDate = options?.startDate || new Date(jstTodayStart.getTime() - jstOffset);
+    const endDate = options?.endDate || now;
+    const startStr = startDate.toISOString().slice(0, 19).replace('T', ' ');
+    const endStr = endDate.toISOString().slice(0, 19).replace('T', ' ');
+    whereClause = sql`${callLogs.calledAt} >= ${startStr} AND ${callLogs.calledAt} <= ${endStr}`;
+  }
+  const results = await db.select({
+    calledBy: callLogs.calledBy,
+    result: callLogs.result,
+    count: sql<number>`count(*)`,
+  }).from(callLogs)
+    .where(whereClause)
+    .groupBy(callLogs.calledBy, callLogs.result);
+  // Get user names for calledBy IDs
+  const userIds = [...new Set(results.map(r => r.calledBy))];
+  const userNameMap = new Map<number, string>();
+  if (userIds.length > 0) {
+    const userRows = await db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, userIds));
+    for (const u of userRows) {
+      userNameMap.set(u.id, u.name || u.email.split('@')[0]);
+    }
+  }
+  // Aggregate per staff
+  const staffMap = new Map<number, { name: string; totalCalls: number; answered: number; noAnswer: number; busy: number; callback: number; meetingsSet: number; rejected: number }>();
+  for (const row of results) {
+    const count = Number(row.count);
+    if (!staffMap.has(row.calledBy)) {
+      staffMap.set(row.calledBy, {
+        name: userNameMap.get(row.calledBy) || `User#${row.calledBy}`,
+        totalCalls: 0, answered: 0, noAnswer: 0, busy: 0, callback: 0, meetingsSet: 0, rejected: 0,
+      });
+    }
+    const s = staffMap.get(row.calledBy)!;
+    s.totalCalls += count;
+    switch (row.result) {
+      case "answered": s.answered += count; break;
+      case "no_answer": s.noAnswer += count; break;
+      case "busy": s.busy += count; break;
+      case "callback": s.callback += count; break;
+      case "meeting_set": s.meetingsSet += count; break;
+      case "rejected": s.rejected += count; break;
+    }
+  }
+  return Array.from(staffMap.values()).sort((a, b) => b.totalCalls - a.totalCalls);
 }
 
 // ===== 営業CRM: 営業アクティビティ (Sales Activities) =====

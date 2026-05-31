@@ -2079,32 +2079,7 @@ export default function BusinessCards() {
                     <RefreshCw className={`h-3 w-3 mr-1 ${kalodataLoading ? "animate-spin" : ""}`} />
                     更新
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
-                    onClick={async () => {
-                      try {
-                        const res = await fetch("/api/trpc/contactSearch.cleanupBadData", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          credentials: "include",
-                          body: JSON.stringify({}),
-                        });
-                        const data = await res.json();
-                        if (data?.result?.data?.json) {
-                          const r = data.result.data.json;
-                          toast.success(`不正データクリーンアップ完了: ${r.cleaned}件修正, ${r.errors}件エラー`);
-                          loadKalodataLeads();
-                        }
-                      } catch (err) {
-                        toast.error("クリーンアップに失敗しました");
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-3 w-3 mr-1" />
-                    不正データ削除
-                  </Button>
+
                 </div>
               </div>
               {/* Contact Search Status */}
@@ -3182,6 +3157,7 @@ function SalesDashboard({ cards, statusOptions, getCardStatus, onStatusClick }: 
   }, [kpiPeriod]);
   
   const { data: salesKpi } = trpc.businessCard.getSalesKpi.useQuery(kpiDateRange, { refetchInterval: 30000 });
+  const { data: staffKpi = [] } = trpc.businessCard.getSalesKpiByStaff.useQuery(kpiDateRange, { refetchInterval: 30000 });
   const { data: recentCallLogs = [] } = trpc.businessCard.getRecentCallLogs.useQuery(undefined, { refetchInterval: 30000 });
   const { data: dailyStats = [] } = trpc.businessCard.getCallLogsDailyStats.useQuery(undefined);
   const { data: upcomingFollowUps = [] } = trpc.businessCard.getUpcomingFollowUps.useQuery(undefined);
@@ -3290,6 +3266,48 @@ function SalesDashboard({ cards, statusOptions, getCardStatus, onStatusClick }: 
           </CardContent>
         </Card>
       </div>
+
+      {/* Staff KPI Table */}
+      {staffKpi.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              スタッフ別実績
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>担当者</TableHead>
+                  <TableHead className="text-center">架電数</TableHead>
+                  <TableHead className="text-center">応答</TableHead>
+                  <TableHead className="text-center">不在</TableHead>
+                  <TableHead className="text-center">話し中</TableHead>
+                  <TableHead className="text-center">折返し</TableHead>
+                  <TableHead className="text-center">アポ確定</TableHead>
+                  <TableHead className="text-center">見送り</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {staffKpi.map((staff: any, idx: number) => (
+                  <TableRow key={idx}>
+                    <TableCell className="font-medium">{staff.name}</TableCell>
+                    <TableCell className="text-center font-bold text-blue-700">{staff.totalCalls}</TableCell>
+                    <TableCell className="text-center text-green-700">{staff.answered || "-"}</TableCell>
+                    <TableCell className="text-center text-gray-600">{staff.noAnswer || "-"}</TableCell>
+                    <TableCell className="text-center text-yellow-700">{staff.busy || "-"}</TableCell>
+                    <TableCell className="text-center text-indigo-700">{staff.callback || "-"}</TableCell>
+                    <TableCell className="text-center text-purple-700">{staff.meetingsSet || "-"}</TableCell>
+                    <TableCell className="text-center text-red-700">{staff.rejected || "-"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Pipeline */}
       <Card>
@@ -3403,6 +3421,7 @@ function SalesDashboard({ cards, statusOptions, getCardStatus, onStatusClick }: 
                 <TableHeader>
                   <TableRow>
                     <TableHead>日時</TableHead>
+                    <TableHead>担当者</TableHead>
                     <TableHead>相手先</TableHead>
                     <TableHead>会社</TableHead>
                     <TableHead>結果</TableHead>
@@ -3415,6 +3434,7 @@ function SalesDashboard({ cards, statusOptions, getCardStatus, onStatusClick }: 
                       <TableCell className="text-xs whitespace-nowrap">
                         {log.calledAt ? new Date(log.calledAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
                       </TableCell>
+                      <TableCell className="text-xs font-medium text-indigo-700">{log.callerName || "—"}</TableCell>
                       <TableCell className="text-sm font-medium">{log.contactName || "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{log.contactCompany || "—"}</TableCell>
                       <TableCell>
