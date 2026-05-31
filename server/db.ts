@@ -25486,6 +25486,7 @@ export async function getAllLiverBrandDurations(month: string, agencyId?: number
       liverId: brandLivestreams.liverId,
       brandId: livestreamBrands.brandId,
       brandName: brands.name,
+      brandNameJa: brands.nameJa,
       durationMinutes: sql<number>`COALESCE(SUM(${livestreamBrands.durationMinutes}), 0)`,
     })
     .from(livestreamBrands)
@@ -25493,30 +25494,63 @@ export async function getAllLiverBrandDurations(month: string, agencyId?: number
     .leftJoin(brands, eq(livestreamBrands.brandId, brands.id))
     .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
     .where(and(...conditions))
-    .groupBy(brandLivestreams.liverId, livestreamBrands.brandId, brands.name)
+    .groupBy(brandLivestreams.liverId, livestreamBrands.brandId, brands.name, brands.nameJa)
     .orderBy(sql`SUM(${livestreamBrands.durationMinutes}) DESC`);
   
   // Normalize brand name helper (merge duplicates like "Dr alba" / "Dr.Alba")
   const normBrandName = (name: string) => name.toLowerCase().replace(/[\s.\-\u3000]/g, '');
 
-  // Group by liverId, merging brands with same normalized name
-  const result: Record<number, { brandId: number; brandName: string; durationMinutes: number }[]> = {};
+  // Group by liverId, merging brands with same normalized name OR nameJa
+  const result: Record<number, { brandId: number; brandName: string; brandNameJa: string; durationMinutes: number }[]> = {};
+  // Track nameJa -> normalized key mapping per liver for cross-name merging
+  const liverNameJaMap: Record<number, Map<string, number>> = {}; // liverId -> Map<normalizedNameJa, index in result array>
+  
   for (const row of rows) {
     if (!row.liverId) continue;
-    if (!result[row.liverId]) result[row.liverId] = [];
+    if (!result[row.liverId]) {
+      result[row.liverId] = [];
+      liverNameJaMap[row.liverId] = new Map();
+    }
     const brandName = row.brandName || `Brand ${row.brandId}`;
+    const brandNameJa = row.brandNameJa || '';
     const normName = normBrandName(brandName);
-    // Check if this normalized brand already exists for this liver
-    const existing = result[row.liverId].find(b => normBrandName(b.brandName) === normName);
-    if (existing) {
+    const normNameJa = brandNameJa ? normBrandName(brandNameJa) : '';
+    const nameJaMap = liverNameJaMap[row.liverId];
+    
+    // Find existing entry by: 1) same normalized name, 2) name matches existing nameJa, 3) nameJa matches existing name
+    let existingIdx = result[row.liverId].findIndex(b => normBrandName(b.brandName) === normName);
+    if (existingIdx === -1 && normNameJa) {
+      // Check if this entry's nameJa matches an existing entry's name
+      existingIdx = result[row.liverId].findIndex(b => normBrandName(b.brandName) === normNameJa);
+    }
+    if (existingIdx === -1 && nameJaMap.has(normName)) {
+      // This entry's name matches a previously seen nameJa
+      existingIdx = nameJaMap.get(normName)!;
+    }
+    if (existingIdx === -1 && normNameJa && nameJaMap.has(normNameJa)) {
+      // This entry's nameJa matches a previously seen nameJa
+      existingIdx = nameJaMap.get(normNameJa)!;
+    }
+    
+    if (existingIdx !== -1) {
       // Merge: add duration to existing entry
+      const existing = result[row.liverId][existingIdx];
       existing.durationMinutes += Number(row.durationMinutes);
+      // Prefer longer/Japanese name for display
+      if (brandNameJa && (!existing.brandNameJa || brandNameJa.length > existing.brandNameJa.length)) {
+        existing.brandNameJa = brandNameJa;
+      }
     } else {
+      const newIdx = result[row.liverId].length;
       result[row.liverId].push({
         brandId: row.brandId,
         brandName: brandName,
+        brandNameJa: brandNameJa,
         durationMinutes: Number(row.durationMinutes),
       });
+      // Register nameJa mapping
+      if (normNameJa) nameJaMap.set(normNameJa, newIdx);
+      nameJaMap.set(normName, newIdx);
     }
   }
   // Re-sort each liver's brands by duration descending
@@ -25641,6 +25675,7 @@ export async function getAllLiverBrandEfficiency(month: string, agencyId?: numbe
       liverId: brandLivestreams.liverId,
       brandId: livestreamBrands.brandId,
       brandName: brands.name,
+      brandNameJa: brands.nameJa,
       livestreamId: livestreamBrands.livestreamId,
       durationMinutes: livestreamBrands.durationMinutes,
     })
@@ -25659,6 +25694,7 @@ export async function getAllLiverBrandEfficiency(month: string, agencyId?: numbe
       liverId: brandLivestreams.liverId,
       brandId: brandLivestreams.brandId,
       brandName: brands.name,
+      brandNameJa: brands.nameJa,
       duration: brandLivestreams.duration,
     })
     .from(brandLivestreams)
@@ -25670,44 +25706,75 @@ export async function getAllLiverBrandEfficiency(month: string, agencyId?: numbe
     ));
   // Build per-liver, per-brand duration map using NORMALIZED brand name as key
   // Key: `${liverId}-${normalizedBrandName}`, Value: { totalMinutes, coveredLsIds }
-  const durationMap = new Map<string, { liverId: number; brandId: number; brandName: string; totalMinutes: number; coveredLsIds: Set<number> }>();
+  // Also tracks nameJa for cross-name merging (e.g. seinsmous <-> セインムー)
+  const durationMap = new Map<string, { liverId: number; brandId: number; brandName: string; brandNameJa: string; totalMinutes: number; coveredLsIds: Set<number> }>();
+  const nameJaKeyMap = new Map<string, string>(); // `${liverId}-${normalizedNameJa}` -> actual key in durationMap
+  
   // Add new table data
   for (const row of newTableData) {
     if (!row.liverId) continue;
     const normalizedName = normalizeBrandName(row.brandName || '不明');
-    const key = `${row.liverId}-${normalizedName}`;
+    const normalizedNameJa = row.brandNameJa ? normalizeBrandName(row.brandNameJa) : '';
+    // Try to find existing entry by name or nameJa cross-match
+    let key = `${row.liverId}-${normalizedName}`;
+    if (!durationMap.has(key) && normalizedNameJa) {
+      const jaKey = `${row.liverId}-${normalizedNameJa}`;
+      if (durationMap.has(jaKey)) key = jaKey;
+      else if (nameJaKeyMap.has(jaKey)) key = nameJaKeyMap.get(jaKey)!;
+    }
+    if (!durationMap.has(key) && nameJaKeyMap.has(key)) key = nameJaKeyMap.get(key)!;
     const existing = durationMap.get(key);
     if (existing) {
       existing.totalMinutes += Number(row.durationMinutes || 0);
       existing.coveredLsIds.add(row.livestreamId);
+      if (row.brandNameJa && (!existing.brandNameJa || row.brandNameJa.length > existing.brandNameJa.length)) {
+        existing.brandNameJa = row.brandNameJa;
+      }
     } else {
       durationMap.set(key, {
         liverId: row.liverId,
         brandId: row.brandId,
         brandName: row.brandName || '不明',
+        brandNameJa: row.brandNameJa || '',
         totalMinutes: Number(row.durationMinutes || 0),
         coveredLsIds: new Set([row.livestreamId]),
       });
     }
+    // Register nameJa mappings
+    if (normalizedNameJa) nameJaKeyMap.set(`${row.liverId}-${normalizedNameJa}`, key);
+    nameJaKeyMap.set(`${row.liverId}-${normalizedName}`, key);
   }
   // Add old table data (skip if livestream already covered by new table for same brand)
   for (const row of oldTableData) {
     if (!row.liverId) continue;
     const normalizedName = normalizeBrandName(row.brandName || '不明');
-    const key = `${row.liverId}-${normalizedName}`;
+    const normalizedNameJa = row.brandNameJa ? normalizeBrandName(row.brandNameJa) : '';
+    let key = `${row.liverId}-${normalizedName}`;
+    if (!durationMap.has(key) && normalizedNameJa) {
+      const jaKey = `${row.liverId}-${normalizedNameJa}`;
+      if (durationMap.has(jaKey)) key = jaKey;
+      else if (nameJaKeyMap.has(jaKey)) key = nameJaKeyMap.get(jaKey)!;
+    }
+    if (!durationMap.has(key) && nameJaKeyMap.has(key)) key = nameJaKeyMap.get(key)!;
     const existing = durationMap.get(key);
     if (existing) {
       // Skip if this livestream is already covered by new table
       if (existing.coveredLsIds.has(row.id)) continue;
       existing.totalMinutes += Number(row.duration || 0);
+      if (row.brandNameJa && (!existing.brandNameJa || row.brandNameJa.length > existing.brandNameJa.length)) {
+        existing.brandNameJa = row.brandNameJa;
+      }
     } else {
       durationMap.set(key, {
         liverId: row.liverId,
         brandId: row.brandId,
         brandName: row.brandName || '不明',
+        brandNameJa: row.brandNameJa || '',
         totalMinutes: Number(row.duration || 0),
         coveredLsIds: new Set(),
       });
+      if (normalizedNameJa) nameJaKeyMap.set(`${row.liverId}-${normalizedNameJa}`, key);
+      nameJaKeyMap.set(`${row.liverId}-${normalizedName}`, key);
     }
   }
   // Step 4: Get all product sales per liver (for GMV calculation)
@@ -25728,7 +25795,7 @@ export async function getAllLiverBrandEfficiency(month: string, agencyId?: numbe
   }
   // Get all brands for name matching
   const allBrands = await db
-    .select({ id: brands.id, name: brands.name })
+    .select({ id: brands.id, name: brands.name, nameJa: brands.nameJa })
     .from(brands)
     .where(isNull(brands.deletedAt));
   // Get all product data in bulk (all livestream IDs at once)
@@ -25776,15 +25843,23 @@ export async function getAllLiverBrandEfficiency(month: string, agencyId?: numbe
       const dedupeKey = `${productName}|${revenue}`;
       if (seenProducts.has(dedupeKey)) continue;
       seenProducts.add(dedupeKey);
-      // Match product to brand (use normalized comparison for matching)
+      // Match product to brand (use normalized comparison for matching, including nameJa)
       const productNameNormalized = normalizeBrandName(productName);
-      let matchedBrand: { id: number; name: string } | null = null;
+      let matchedBrand: { id: number; name: string; nameJa: string | null } | null = null;
       let longestMatch = 0;
       for (const brand of allBrands) {
         const brandNameNormalized = normalizeBrandName(brand.name);
         if (brandNameNormalized.length > longestMatch && productNameNormalized.includes(brandNameNormalized)) {
           matchedBrand = brand;
           longestMatch = brandNameNormalized.length;
+        }
+        // Also try matching with nameJa
+        if (brand.nameJa) {
+          const brandNameJaNormalized = normalizeBrandName(brand.nameJa);
+          if (brandNameJaNormalized.length > longestMatch && productNameNormalized.includes(brandNameJaNormalized)) {
+            matchedBrand = brand;
+            longestMatch = brandNameJaNormalized.length;
+          }
         }
       }
       if (matchedBrand) {
@@ -25796,31 +25871,35 @@ export async function getAllLiverBrandEfficiency(month: string, agencyId?: numbe
   }
   // Step 6: Merge duration + GMV data and calculate hourly rate per liver per brand
   // Group by liverId
-  const result: Record<number, { brandId: number; brandName: string; totalHours: number; csvGmv: number; hourlyRate: number }[]> = {};
+  const result: Record<number, { brandId: number; brandName: string; brandNameJa: string; totalHours: number; csvGmv: number; hourlyRate: number }[]> = {};
   // First, group duration entries by liverId (already using normalized keys)
-  const durationByLiver = new Map<number, { brandId: number; brandName: string; normalizedName: string; totalMinutes: number }[]>();
+  const durationByLiver = new Map<number, { brandId: number; brandName: string; brandNameJa: string; normalizedName: string; totalMinutes: number }[]>();
   for (const [key, entry] of durationMap.entries()) {
     const normalizedName = key.split('-').slice(1).join('-'); // extract normalized name from key
     if (!durationByLiver.has(entry.liverId)) durationByLiver.set(entry.liverId, []);
     durationByLiver.get(entry.liverId)!.push({
       brandId: entry.brandId,
       brandName: entry.brandName,
+      brandNameJa: entry.brandNameJa,
       normalizedName,
       totalMinutes: entry.totalMinutes,
     });
   }
   // Merge by normalized brand name within each liver
   for (const [liverId, entries] of durationByLiver.entries()) {
-    const byNameMap = new Map<string, { brandId: number; brandName: string; totalMinutes: number }>();
+    const byNameMap = new Map<string, { brandId: number; brandName: string; brandNameJa: string; totalMinutes: number }>();
     for (const entry of entries) {
       const existing = byNameMap.get(entry.normalizedName);
       if (existing) {
         existing.totalMinutes += entry.totalMinutes;
+        if (entry.brandNameJa && (!existing.brandNameJa || entry.brandNameJa.length > existing.brandNameJa.length)) {
+          existing.brandNameJa = entry.brandNameJa;
+        }
       } else {
-        byNameMap.set(entry.normalizedName, { brandId: entry.brandId, brandName: entry.brandName, totalMinutes: entry.totalMinutes });
+        byNameMap.set(entry.normalizedName, { brandId: entry.brandId, brandName: entry.brandName, brandNameJa: entry.brandNameJa, totalMinutes: entry.totalMinutes });
       }
     }
-    const liverResult: { brandId: number; brandName: string; totalHours: number; csvGmv: number; hourlyRate: number }[] = [];
+    const liverResult: { brandId: number; brandName: string; brandNameJa: string; totalHours: number; csvGmv: number; hourlyRate: number }[] = [];
     for (const [normalizedName, data] of byNameMap.entries()) {
       const totalHours = Math.round(data.totalMinutes / 60 * 10) / 10;
       const csvGmv = gmvByLiverBrand.get(`${liverId}-${normalizedName}`) || 0;
@@ -25828,6 +25907,7 @@ export async function getAllLiverBrandEfficiency(month: string, agencyId?: numbe
       liverResult.push({
         brandId: data.brandId,
         brandName: data.brandName,
+        brandNameJa: data.brandNameJa,
         totalHours,
         csvGmv,
         hourlyRate,

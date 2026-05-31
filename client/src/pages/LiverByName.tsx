@@ -1110,7 +1110,7 @@ export default function LiverByName() {
                           <div className="flex items-center justify-between text-sm">
                             <div className="flex items-center gap-2 flex-1">
                               {isExpanded ? <ChevronUp className="w-4 h-4 text-cyan-400" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
-                              <span className="text-white font-medium truncate">{brand.brandName}</span>
+                              <span className="text-white font-medium truncate">{brand.brandNameJa || brand.brandName}{brand.brandNameJa && brand.brandNameJa !== brand.brandName && <span className="text-[10px] text-white/40 ml-1">({brand.brandName})</span>}</span>
                               {brand.status === 'unregistered' && (
                                 <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">⚠️ 未入力</span>
                               )}
@@ -1270,7 +1270,7 @@ export default function LiverByName() {
                       <div className="space-y-1.5">
                         {topPerformers.map((brand: any, idx: number) => (
                           <div key={idx} className="flex items-center gap-2 px-2 py-1.5 rounded bg-gray-800/40">
-                            <span className="text-xs text-orange-200 font-medium">{brand.brandName}</span>
+                            <span className="text-xs text-orange-200 font-medium">{brand.brandNameJa || brand.brandName}{brand.brandNameJa && brand.brandNameJa !== brand.brandName && <span className="text-[10px] text-orange-200/60 ml-0.5">({brand.brandName})</span>}</span>
                             <span className="text-xs font-bold text-orange-400 ml-auto">¥{brand.hourlyRate >= 10000 ? `${Math.round(brand.hourlyRate / 10000)}万` : brand.hourlyRate.toLocaleString()}/h</span>
                             <span className="text-[10px] text-white/40">{brand.totalHours}h</span>
                             <span className="text-[10px] text-yellow-400">¥{brand.csvGmv.toLocaleString()}</span>
@@ -1285,7 +1285,7 @@ export default function LiverByName() {
                       <div className="space-y-1.5">
                         {lowPerformers.map((brand: any, idx: number) => (
                           <div key={idx} className="flex items-center gap-2 px-2 py-1.5 rounded bg-gray-800/40">
-                            <span className="text-xs text-red-200 font-medium">{brand.brandName}</span>
+                            <span className="text-xs text-red-200 font-medium">{brand.brandNameJa || brand.brandName}{brand.brandNameJa && brand.brandNameJa !== brand.brandName && <span className="text-[10px] text-red-200/60 ml-0.5">({brand.brandName})</span>}</span>
                             <span className="text-xs font-bold text-red-400 ml-auto">¥{brand.hourlyRate.toLocaleString()}/h</span>
                             <span className="text-[10px] text-white/40">{brand.totalHours}h</span>
                             <span className="text-[10px] text-red-300">¥{brand.csvGmv.toLocaleString()}</span>
@@ -1303,10 +1303,10 @@ export default function LiverByName() {
                           const potentialGain = Math.round(low.totalHours * (suggested.hourlyRate - low.hourlyRate));
                           return (
                             <div key={idx} className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-gray-800/40 text-xs flex-wrap">
-                              <span className="text-red-300 line-through">{low.brandName}</span>
+                              <span className="text-red-300 line-through">{low.brandNameJa || low.brandName}</span>
                               <span className="text-red-400 text-[10px]">¥{low.hourlyRate.toLocaleString()}/h</span>
                               <span className="text-white/50">→</span>
-                              <span className="text-emerald-300 font-bold">{suggested.brandName}</span>
+                              <span className="text-emerald-300 font-bold">{suggested.brandNameJa || suggested.brandName}</span>
                               <span className="text-emerald-400 text-[10px]">¥{suggested.hourlyRate >= 10000 ? `${Math.round(suggested.hourlyRate / 10000)}万` : suggested.hourlyRate.toLocaleString()}/h</span>
                               {potentialGain > 0 && (
                                 <span className="text-[10px] text-emerald-200 ml-auto">+¥{potentialGain.toLocaleString()}見込</span>

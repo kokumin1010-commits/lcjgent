@@ -408,14 +408,27 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
 
               {/* Brand Total Duration (全ブランド合計配信時間) */}
               {allLiverBrandDurations && (() => {
-                // Aggregate all brands across all livers
-                const brandTotals: Record<string, { brandName: string; totalMinutes: number }> = {};
-                Object.values(allLiverBrandDurations as Record<string, { brandId: number; brandName: string; durationMinutes: number }[]>).forEach((brands) => {
+                // Aggregate all brands across all livers (with nameJa merging)
+                const brandTotals: Record<string, { brandName: string; brandNameJa: string; totalMinutes: number }> = {};
+                const nameJaToKey: Record<string, string> = {}; // nameJa -> key in brandTotals
+                const normKey = (s: string) => s.toLowerCase().replace(/[\s.\-\u3000]/g, '');
+                Object.values(allLiverBrandDurations as Record<string, { brandId: number; brandName: string; brandNameJa?: string; durationMinutes: number }[]>).forEach((brands) => {
                   brands.forEach((b) => {
-                    if (!brandTotals[b.brandName]) {
-                      brandTotals[b.brandName] = { brandName: b.brandName, totalMinutes: 0 };
+                    const nk = normKey(b.brandName);
+                    const nkJa = b.brandNameJa ? normKey(b.brandNameJa) : '';
+                    // Find existing key by name, nameJa, or cross-match
+                    let key = brandTotals[nk] ? nk : (nkJa && brandTotals[nkJa]) ? nkJa : nameJaToKey[nk] || (nkJa ? nameJaToKey[nkJa] : '') || '';
+                    if (!key) key = nk;
+                    if (!brandTotals[key]) {
+                      brandTotals[key] = { brandName: b.brandName, brandNameJa: b.brandNameJa || '', totalMinutes: 0 };
                     }
-                    brandTotals[b.brandName].totalMinutes += b.durationMinutes;
+                    brandTotals[key].totalMinutes += b.durationMinutes;
+                    if (b.brandNameJa && (!brandTotals[key].brandNameJa || b.brandNameJa.length > brandTotals[key].brandNameJa.length)) {
+                      brandTotals[key].brandNameJa = b.brandNameJa;
+                    }
+                    // Register mappings
+                    if (nkJa) nameJaToKey[nkJa] = key;
+                    nameJaToKey[nk] = key;
                   });
                 });
                 const sortedBrands = Object.values(brandTotals).sort((a, b) => b.totalMinutes - a.totalMinutes);
@@ -462,7 +475,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                               onClick={() => setExpandedBrand(isExpanded ? null : brand.brandName)}
                             >
                               <span className="text-[10px] text-white/40 w-[12px] shrink-0">{isExpanded ? '▼' : '▶'}</span>
-                              <span className="text-[11px] text-white/70 w-[88px] shrink-0 truncate">{brand.brandName}</span>
+                              <span className="text-[11px] text-white/70 w-[88px] shrink-0 truncate" title={brand.brandNameJa && brand.brandNameJa !== brand.brandName ? `${brand.brandNameJa} (${brand.brandName})` : brand.brandName}>{brand.brandNameJa || brand.brandName}</span>
                               <div className="flex-1 h-4 bg-white/5 rounded overflow-hidden">
                                 <div 
                                   className="h-full bg-gradient-to-r from-emerald-500 to-teal-300 rounded transition-all"
@@ -919,7 +932,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                                   key={brand.brandId}
                                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-900/40 border border-indigo-500/20 text-[10px]"
                                 >
-                                  <span className="text-indigo-300">{brand.brandName}</span>
+                                  <span className="text-indigo-300">{brand.brandNameJa || brand.brandName}{brand.brandNameJa && brand.brandNameJa !== brand.brandName && <span className="text-indigo-300/50 ml-0.5">({brand.brandName})</span>}</span>
                                   <span className="text-white/60 font-medium">{brand.durationMinutes >= 60 ? `${Math.floor(brand.durationMinutes / 60)}h${brand.durationMinutes % 60 > 0 ? `${brand.durationMinutes % 60}m` : ''}` : `${brand.durationMinutes}m`}</span>
                                 </span>
                               ))}
@@ -952,10 +965,10 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                                     <span
                                       key={brand.brandId}
                                       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] ${bgClass}`}
-                                      title={`${brand.brandName}: ¥${brand.hourlyRate.toLocaleString()}/h (売上¥${brand.csvGmv.toLocaleString()} / ${brand.totalHours}h)`}
+                                      title={`${brand.brandNameJa || brand.brandName}${brand.brandNameJa && brand.brandNameJa !== brand.brandName ? ` (${brand.brandName})` : ''}: ¥${brand.hourlyRate.toLocaleString()}/h (売上¥${brand.csvGmv.toLocaleString()} / ${brand.totalHours}h)`}
                                     >
                                       {icon && <span>{icon}</span>}
-                                      <span className={textClass}>{brand.brandName}</span>
+                                      <span className={textClass}>{brand.brandNameJa || brand.brandName}</span>
                                       <span className="text-white/70 font-bold">¥{brand.hourlyRate >= 10000 ? `${Math.round(brand.hourlyRate / 10000)}万` : brand.hourlyRate.toLocaleString()}/h</span>
                                     </span>
                                   );
@@ -1190,7 +1203,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                                   key={brand.brandId}
                                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-900/40 border border-indigo-500/20 text-[10px]"
                                 >
-                                  <span className="text-indigo-300">{brand.brandName}</span>
+                                  <span className="text-indigo-300">{brand.brandNameJa || brand.brandName}{brand.brandNameJa && brand.brandNameJa !== brand.brandName && <span className="text-indigo-300/50 ml-0.5">({brand.brandName})</span>}</span>
                                   <span className="text-white/60 font-medium">{brand.durationMinutes >= 60 ? `${Math.floor(brand.durationMinutes / 60)}h${brand.durationMinutes % 60 > 0 ? `${brand.durationMinutes % 60}m` : ''}` : `${brand.durationMinutes}m`}</span>
                                 </span>
                               ))}
@@ -1223,10 +1236,10 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                                     <span
                                       key={brand.brandId}
                                       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] ${bgClass}`}
-                                      title={`${brand.brandName}: ¥${brand.hourlyRate.toLocaleString()}/h (売上¥${brand.csvGmv.toLocaleString()} / ${brand.totalHours}h)`}
+                                      title={`${brand.brandNameJa || brand.brandName}${brand.brandNameJa && brand.brandNameJa !== brand.brandName ? ` (${brand.brandName})` : ''}: ¥${brand.hourlyRate.toLocaleString()}/h (売上¥${brand.csvGmv.toLocaleString()} / ${brand.totalHours}h)`}
                                     >
                                       {icon && <span>{icon}</span>}
-                                      <span className={textClass}>{brand.brandName}</span>
+                                      <span className={textClass}>{brand.brandNameJa || brand.brandName}</span>
                                       <span className="text-white/70 font-bold">¥{brand.hourlyRate >= 10000 ? `${Math.round(brand.hourlyRate / 10000)}万` : brand.hourlyRate.toLocaleString()}/h</span>
                                     </span>
                                   );
