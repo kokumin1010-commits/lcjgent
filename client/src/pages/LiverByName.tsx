@@ -1001,6 +1001,68 @@ export default function LiverByName() {
           </Card>
         )}
 
+        {/* 当月ブランドランキング */}
+        {brandDurationStats && brandDurationStats.length > 0 && (() => {
+          const rankedBrands = [...brandDurationStats]
+            .filter((b: any) => b.csvGmv > 0 || b.totalMinutes > 0)
+            .sort((a: any, b: any) => (b.csvGmv || 0) - (a.csvGmv || 0));
+          const monthLabel = selectedMonth ? `${parseInt(selectedMonth.split('-')[1])}月` : '当月';
+          if (rankedBrands.length === 0) return null;
+          return (
+            <Card className="bg-gray-900/50 border-gray-800">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Crown className="h-5 w-5 text-yellow-400" />
+                  <h3 className="text-base font-bold text-white">{monthLabel} ブランドランキング</h3>
+                  <span className="text-[10px] text-white/40 ml-1">売上順</span>
+                </div>
+                <div className="space-y-1.5">
+                  {rankedBrands.slice(0, 10).map((brand: any, idx: number) => {
+                    const hours = brand.totalHours || Math.round(brand.totalMinutes / 60 * 10) / 10;
+                    const hourlyRate = brand.hourlyRate || (hours > 0 ? Math.round(brand.csvGmv / hours) : 0);
+                    return (
+                      <div key={idx} className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
+                        idx === 0 ? 'bg-gradient-to-r from-yellow-900/30 to-amber-900/30 border border-yellow-500/20' :
+                        idx <= 2 ? 'bg-gradient-to-r from-gray-800/50 to-gray-700/30 border border-gray-600/20' :
+                        'bg-gray-800/30'
+                      }`}>
+                        <span className={`text-sm font-bold w-6 text-center ${
+                          idx === 0 ? 'text-yellow-400' : idx <= 2 ? 'text-gray-300' : 'text-gray-500'
+                        }`}>
+                          {idx === 0 ? '\u{1F947}' : idx === 1 ? '\u{1F948}' : idx === 2 ? '\u{1F949}' : `${idx + 1}`}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-medium text-white truncate block">
+                            {brand.brandNameJa || brand.brandName}
+                          </span>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <span className="text-[10px] text-white/40">{brand.streamCount}回</span>
+                            <span className="text-[10px] text-white/40">{hours}h</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          {brand.csvGmv > 0 ? (
+                            <div className="text-xs font-bold text-yellow-400">¥{brand.csvGmv >= 10000 ? `${Math.round(brand.csvGmv / 10000)}万` : brand.csvGmv.toLocaleString()}</div>
+                          ) : (
+                            <div className="text-xs text-white/30">CSV未確認</div>
+                          )}
+                          {hourlyRate > 0 && (
+                            <div className={`text-[10px] font-bold ${
+                              hourlyRate >= 50000 ? 'text-orange-400' :
+                              hourlyRate >= 15000 ? 'text-cyan-400' :
+                              'text-red-400'
+                            }`}>¥{hourlyRate >= 10000 ? `${Math.round(hourlyRate / 10000)}万` : hourlyRate.toLocaleString()}/h</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
         {/* ブランド別配信時間 */}
         {brandDurationStats && brandDurationStats.length > 0 && (
           <Card className="bg-gray-900/50 border-gray-800">
@@ -1473,62 +1535,80 @@ export default function LiverByName() {
                     )}
 
                     {/* 月別推移 */}
-                    {allTimeStats.monthlyTrends && allTimeStats.monthlyTrends.length > 0 && allTimeStats.months && allTimeStats.months.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-1">
-                          <TrendingUp className="w-3.5 h-3.5" />
-                          ブランド別月別推移
-                          <span className="text-[10px] text-white/40 font-normal ml-1">売上・時間単価の月別変化</span>
-                        </h4>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-[10px]">
-                            <thead>
-                              <tr className="text-white/50 border-b border-gray-700">
-                                <th className="text-left py-1.5 px-1 sticky left-0 bg-gray-900/90 z-10 min-w-[80px]">ブランド</th>
-                                {allTimeStats.months.slice(-6).map((m: string) => (
-                                  <th key={m} className="text-center py-1.5 px-1 min-w-[60px]">{m.slice(5)}月</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {allTimeStats.monthlyTrends.slice(0, 10).map((brand: any, idx: number) => {
-                                const recentMonths = allTimeStats.months!.slice(-6);
-                                return (
+                    {allTimeStats.monthlyTrends && allTimeStats.monthlyTrends.length > 0 && allTimeStats.months && allTimeStats.months.length > 0 && (() => {
+                      // 連続月のみ表示（最新から過去6ヶ月の連続範囲）
+                      const now = new Date();
+                      const continuousMonths: string[] = [];
+                      for (let i = 0; i < 6; i++) {
+                        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                        continuousMonths.unshift(ym);
+                      }
+                      return (
+                        <div>
+                          <h4 className="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-1">
+                            <TrendingUp className="w-3.5 h-3.5" />
+                            ブランド別月別推移
+                            <span className="text-[10px] text-white/40 font-normal ml-1">過去6ヶ月の売上・時間単価</span>
+                          </h4>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-[10px]">
+                              <thead>
+                                <tr className="text-white/50 border-b border-gray-700">
+                                  <th className="text-left py-1.5 px-1 sticky left-0 bg-gray-900/90 z-10 min-w-[80px]">ブランド</th>
+                                  {continuousMonths.map((m: string) => (
+                                    <th key={m} className="text-center py-1.5 px-1 min-w-[70px]">
+                                      <div>{parseInt(m.slice(5))}月</div>
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {allTimeStats.monthlyTrends.slice(0, 10).map((brand: any, idx: number) => (
                                   <tr key={idx} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                                    <td className="py-1.5 px-1 sticky left-0 bg-gray-900/90 z-10">
+                                    <td className="py-2 px-1 sticky left-0 bg-gray-900/90 z-10">
                                       <span className="text-white font-medium truncate block max-w-[80px]" title={brand.brandNameJa || brand.brandName}>
                                         {brand.brandNameJa || brand.brandName}
                                       </span>
                                     </td>
-                                    {recentMonths.map((m: string) => {
+                                    {continuousMonths.map((m: string) => {
                                       const monthData = brand.months.find((md: any) => md.yearMonth === m);
                                       return (
-                                        <td key={m} className="text-center py-1.5 px-1">
-                                          {monthData ? (
-                                            <div>
+                                        <td key={m} className="text-center py-2 px-1">
+                                          {monthData && (monthData.csvGmv > 0 || monthData.totalMinutes > 0) ? (
+                                            <div className="space-y-0.5">
                                               <div className={`font-bold ${
-                                                monthData.hourlyRate >= 50000 ? 'text-orange-400' :
-                                                monthData.hourlyRate >= 15000 ? 'text-cyan-400' :
-                                                monthData.csvGmv > 0 ? 'text-red-400' : 'text-white/30'
+                                                monthData.csvGmv > 0 && monthData.hourlyRate >= 50000 ? 'text-orange-400' :
+                                                monthData.csvGmv > 0 && monthData.hourlyRate >= 15000 ? 'text-cyan-400' :
+                                                monthData.csvGmv > 0 ? 'text-yellow-400' : 'text-white/40'
                                               }`}>
                                                 {monthData.csvGmv > 0 ? `¥${monthData.csvGmv >= 10000 ? `${Math.round(monthData.csvGmv / 10000)}万` : monthData.csvGmv.toLocaleString()}` : '-'}
                                               </div>
-                                              <div className="text-white/40">{monthData.totalHours}h</div>
+                                              {monthData.totalHours > 0 && (
+                                                <div className="text-white/50 text-[9px]">{monthData.totalHours}h</div>
+                                              )}
+                                              {monthData.hourlyRate > 0 && (
+                                                <div className={`text-[9px] ${
+                                                  monthData.hourlyRate >= 50000 ? 'text-orange-300' :
+                                                  monthData.hourlyRate >= 15000 ? 'text-cyan-300' :
+                                                  'text-red-300'
+                                                }`}>¥{monthData.hourlyRate >= 10000 ? `${Math.round(monthData.hourlyRate / 10000)}万` : Math.round(monthData.hourlyRate / 1000) + 'k'}/h</div>
+                                              )}
                                             </div>
                                           ) : (
-                                            <span className="text-white/20">-</span>
+                                            <span className="text-white/10">—</span>
                                           )}
                                         </td>
                                       );
                                     })}
                                   </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </>
                 )}
                 {allTimeStats && !isAllTimeLoading && allTimeStats.summary?.length === 0 && (
