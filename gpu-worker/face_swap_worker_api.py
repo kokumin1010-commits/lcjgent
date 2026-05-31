@@ -629,7 +629,7 @@ _temporal_state = {
     "prev_lm106": None,        # Previous smoothed 106-point landmarks
     "frame_count": 0,          # Frame counter for logging
 }
-_SMOOTH_ALPHA = 0.08   # EMA alpha: 0.08 balances smoothness and responsiveness
+_SMOOTH_ALPHA = 0.18  # Higher = more responsive, lower = more stable. 0.18 balances flicker reduction with responsiveness
 # Combined with simple temporal blend (Step 12), this eliminates virtually all flicker
 # while keeping the pipeline fast (~34ms/frame without heavy Optical Flow)
 
@@ -705,7 +705,7 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
         else:
             # Check for sudden large jumps (face re-detection) - reset if too far
             kps_diff = np.linalg.norm(raw_kps - _temporal_state["prev_kps"])
-            if kps_diff > 120:  # Large jump = new face or re-detection, reset
+            if kps_diff > 80:  # Large jump = new face or re-detection, reset
                 _temporal_state["prev_kps"] = raw_kps.copy()
                 _temporal_state["prev_bbox"] = raw_bbox.copy()
                 _temporal_state["prev_affine"] = None  # Reset affine cache too
@@ -826,18 +826,15 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
 
         # Create a mask for the warped face region (where pixels are non-zero)
         warp_mask = np.zeros((paste_size, paste_size), dtype=np.float32)
-        # Very large border to keep blending well inside the face crop
-        border = int(paste_size * 0.15)
+        # Border keeps blending inside the face crop (smaller = more face visible)
+        border = int(paste_size * 0.10)
         warp_mask[border:-border, border:-border] = 1.0
-        # Very large blur kernel for extremely soft edges (critical for eliminating boundary flicker)
-        blur_k = max(3, int(paste_size * 0.30) | 1)
+        # Soft edge blur: 2-pass with moderate kernels
+        # (Too much blur = face looks ghostly/blurry; too little = visible seam)
+        blur_k = max(3, int(paste_size * 0.18) | 1)
         warp_mask = cv2.GaussianBlur(warp_mask, (blur_k, blur_k), 0)
-        # Second pass for even smoother gradient
-        blur_k2 = max(3, int(paste_size * 0.15) | 1)
+        blur_k2 = max(3, int(paste_size * 0.10) | 1)
         warp_mask = cv2.GaussianBlur(warp_mask, (blur_k2, blur_k2), 0)
-        # Third pass - ultra-smooth transition
-        blur_k3 = max(3, int(paste_size * 0.08) | 1)
-        warp_mask = cv2.GaussianBlur(warp_mask, (blur_k3, blur_k3), 0)
 
         warp_mask_warped = cv2.warpAffine(
             warp_mask, inv_matrix, (w, h),
@@ -983,10 +980,10 @@ def direct_swap_frame(frame, detect_score: float = 0.5, use_enhancer: bool = Tru
             # Lip-sync active: NO temporal blend (preserve mouth deformation)
             pass
         else:
-            # Blend 75% current + 25% previous for flicker reduction
-            # This is applied to the FULL frame (face + background) which is safe
-            # because the face region is already stabilized by EMA landmarks
-            blend_alpha = 0.75
+            # Blend 65% current + 35% previous for strong flicker reduction
+            # Combined with EMA alpha=0.18, this provides very stable output
+            # without ghosting because landmarks are already smoothed
+            blend_alpha = 0.65
             result = cv2.addWeighted(result, blend_alpha,
                                      _temporal_state["prev_result"], 1.0 - blend_alpha, 0)
 
@@ -2096,9 +2093,9 @@ async def preview_stream(websocket: WebSocket, api_key: str = Query(...)):
                         result = direct_swap_frame(frame, use_enhancer=apply_gfpgan, mouth_open=smoothed_mouth_open)
 
                         if result is not None:
-                            # Lower JPEG quality for faster transfer (75% is visually identical at 640x360)
+                            # High JPEG quality for better visual output
                             _, encoded = cv2.imencode('.jpg', result,
-                                                      [cv2.IMWRITE_JPEG_QUALITY, 85])
+                                                      [cv2.IMWRITE_JPEG_QUALITY, 92])
                             processed = encoded.tobytes()
                         else:
                             processed = data

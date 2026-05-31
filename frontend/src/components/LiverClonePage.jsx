@@ -1081,12 +1081,20 @@ export default function LiverClonePage() {
 
     let chunks = [];
 
-    // Check if audio has voice activity (not just noise)
-    // Uses both average energy AND peak energy to avoid false positives
-    const hasVoiceActivity = () => {
+    // ── VAD (Voice Activity Detection) ──
+    // BUG FIX: Previously, hasVoiceActivity() was called in recorder.onstop,
+    // but at that point the MediaRecorder has already stopped capturing audio,
+    // so the AnalyserNode returns near-zero data → VAD always returned false.
+    //
+    // FIX: Sample VAD continuously DURING recording using setInterval.
+    // If voice is detected at ANY point during the chunk, set hadVoiceInChunk=true.
+    // In onstop, check the flag instead of calling hasVoiceActivity().
+    let hadVoiceInChunk = false;
+    let vadSamplerInterval = null;
+
+    const sampleVAD = () => {
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       analyser.getByteFrequencyData(dataArray);
-      // Calculate average energy
       let sum = 0;
       let peak = 0;
       for (let i = 0; i < dataArray.length; i++) {
@@ -1094,14 +1102,14 @@ export default function LiverClonePage() {
         if (dataArray[i] > peak) peak = dataArray[i];
       }
       const avg = sum / dataArray.length;
-      // Require BOTH: average > 15 AND peak > 50 (lowered for better sensitivity)
-      // Previous thresholds (avg>25, peak>80) were too strict and missed quiet speech
-      const isVoice = avg > 15 && peak > 50;
-      if (!isVoice && avg > 10) {
-        console.log(`[STS] VAD: avg=${avg.toFixed(1)}, peak=${peak} → skipped (below threshold)`);
+      // Thresholds: avg > 12 AND peak > 40 (relaxed for quiet speech / distant mic)
+      if (avg > 12 && peak > 40) {
+        hadVoiceInChunk = true;
       }
-      return isVoice;
     };
+
+    // Sample VAD every 100ms during recording (25 samples per 2.5s chunk)
+    vadSamplerInterval = setInterval(sampleVAD, 100);
 
     // Track if STS is currently playing (to avoid recording during playback)
     let stsPlaying = false;
@@ -1113,18 +1121,21 @@ export default function LiverClonePage() {
     };
 
     recorder.onstop = () => {
+      // Capture the flag value and reset for next chunk
+      const voiceDetected = hadVoiceInChunk;
+      hadVoiceInChunk = false;
+
       if (chunks.length > 0) {
         const blob = new Blob(chunks, { type: mimeType });
         chunks = [];
 
-        // Skip if no voice activity detected
-        if (!hasVoiceActivity()) {
-          console.log("[STS] Skipping silent chunk");
+        // Skip if no voice activity was detected during the entire recording chunk
+        if (!voiceDetected) {
+          console.log("[STS] Skipping silent chunk (no voice detected during recording)");
           return;
         }
 
         // Allow recording during playback but limit queue to prevent lag
-        // (Don't skip during playback - this causes gaps in continuous speech)
         if (stsQueueRef.current.length > 2) {
           console.log(`[STS] Queue overflow (${stsQueueRef.current.length}), keeping latest only`);
           stsQueueRef.current = [stsQueueRef.current[stsQueueRef.current.length - 1]];
@@ -1134,6 +1145,7 @@ export default function LiverClonePage() {
         reader.onloadend = () => {
           const base64 = reader.result.split(',')[1];
           if (base64 && base64.length > 800) {
+            console.log(`[STS] Voice detected, queuing chunk (${(base64.length * 0.75 / 1024).toFixed(1)}KB)`);
             stsQueueRef.current.push(base64);
             processSTSQueue();
           }
@@ -1166,9 +1178,10 @@ export default function LiverClonePage() {
       }
     }, CHUNK_INTERVAL);
 
-    // Store VAD context for cleanup
+    // Store VAD context and sampler interval for cleanup
     stsRecorderRef.current._vadCtx = vadCtx;
-    console.log(`[STS] Recording started (${CHUNK_INTERVAL}ms chunks, VAD enabled, ${mimeType})`);
+    stsRecorderRef.current._vadSamplerInterval = vadSamplerInterval;
+    console.log(`[STS] Recording started (${CHUNK_INTERVAL}ms chunks, continuous VAD sampling, ${mimeType})`);
   };
 
   /**
@@ -1368,6 +1381,9 @@ export default function LiverClonePage() {
     }
     if (stsRecorderRef.current) {
       try {
+        if (stsRecorderRef.current._vadSamplerInterval) {
+          clearInterval(stsRecorderRef.current._vadSamplerInterval);
+        }
         if (stsRecorderRef.current._vadCtx) {
           stsRecorderRef.current._vadCtx.close().catch(() => {});
         }
