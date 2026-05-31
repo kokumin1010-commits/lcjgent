@@ -2359,135 +2359,139 @@ async def list_regenerations(
     if x_admin_key != f"{ADMIN_ID}:{ADMIN_PASS}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    offset = (page - 1) * per_page
-    order = "DESC" if sort_order == "desc" else "ASC"
+    try:
+        offset = (page - 1) * per_page
+        order = "DESC" if sort_order == "desc" else "ASC"
 
-    # Grade filter condition
-    grade_condition = ""
-    if grade == "ok":
-        grade_condition = "AND j.config->>'regen_grade' = 'ok'"
-    elif grade == "ng":
-        grade_condition = "AND j.config->>'regen_grade' = 'ng'"
-    elif grade == "retry":
-        grade_condition = "AND j.config->>'regen_grade' = 'retry'"
-    elif grade == "ungraded":
-        grade_condition = "AND (j.config->>'regen_grade' IS NULL OR j.config->>'regen_grade' = '')"
+        # Grade filter condition
+        grade_condition = ""
+        if grade == "ok":
+            grade_condition = "AND j.config->>'regen_grade' = 'ok'"
+        elif grade == "ng":
+            grade_condition = "AND j.config->>'regen_grade' = 'ng'"
+        elif grade == "retry":
+            grade_condition = "AND j.config->>'regen_grade' = 'retry'"
+        elif grade == "ungraded":
+            grade_condition = "AND (j.config->>'regen_grade' IS NULL OR j.config->>'regen_grade' = '')"
 
-    # Count total
-    count_sql = text(f"""
-        SELECT COUNT(*) as total
-        FROM ai_clip_jobs j
-        WHERE j.status = 'done'
-          AND j.config->>'type' = 'regenerate_from_source'
-          {grade_condition}
-    """)
-    count_result = await db.execute(count_sql)
-    total = count_result.scalar() or 0
+        # Count total
+        count_sql = text(f"""
+            SELECT COUNT(*) as total
+            FROM ai_clip_jobs j
+            WHERE j.status = 'done'
+              AND j.config->>'type' = 'regenerate_from_source'
+              {grade_condition}
+        """)
+        count_result = await db.execute(count_sql)
+        total = count_result.scalar() or 0
 
-    # Fetch jobs with clip data
-    sql = text(f"""
-        SELECT 
-            j.job_id,
-            j.status,
-            j.results,
-            j.config,
-            j.created_at as job_created_at,
-            vc.id as clip_id,
-            vc.clip_url,
-            vc.thumbnail_url,
-            vc.transcript_text,
-            vc.product_name,
-            vc.liver_name,
-            vc.quality_score,
-            vc.duration_sec,
-            vc.cta_score,
-            vc.importance_score,
-            vc.tags,
-            vc.ml_model_version,
-            vc.exported_url
-        FROM ai_clip_jobs j
-        LEFT JOIN video_clips vc ON CAST(j.config->>'source_clip_id' AS uuid) = vc.id
-        WHERE j.status = 'done'
-          AND j.config->>'type' = 'regenerate_from_source'
-          {grade_condition}
-        ORDER BY j.created_at {order}
-        LIMIT :limit OFFSET :offset
-    """)
-    result = await db.execute(sql, {"limit": per_page, "offset": offset})
-    rows = result.fetchall()
+        # Fetch jobs (no JOIN - safer, handle clip lookup in Python)
+        sql = text(f"""
+            SELECT 
+                j.job_id,
+                j.status,
+                j.results,
+                j.config,
+                j.source_clip,
+                j.created_at as job_created_at
+            FROM ai_clip_jobs j
+            WHERE j.status = 'done'
+              AND j.config->>'type' = 'regenerate_from_source'
+              {grade_condition}
+            ORDER BY j.created_at {order}
+            LIMIT :limit OFFSET :offset
+        """)
+        result = await db.execute(sql, {"limit": per_page, "offset": offset})
+        rows = result.fetchall()
 
-    items = []
-    for row in rows:
-        job_results = row.results if isinstance(row.results, list) else json.loads(row.results or "[]")
-        job_config = row.config if isinstance(row.config, dict) else json.loads(row.config or "{}")
+        items = []
+        for row in rows:
+            job_results = row.results if isinstance(row.results, list) else json.loads(row.results or "[]")
+            job_config = row.config if isinstance(row.config, dict) else json.loads(row.config or "{}")
+            source_clip = row.source_clip if isinstance(row.source_clip, dict) else json.loads(row.source_clip or "{}") if row.source_clip else {}
 
-        # Extract regen result
-        regen_result = job_results[0] if job_results else {}
+            # Extract regen result
+            regen_result = job_results[0] if job_results else {}
 
-        items.append({
-            "job_id": row.job_id,
-            "clip_id": str(row.clip_id) if row.clip_id else None,
-            "created_at": row.job_created_at.isoformat() if row.job_created_at else None,
-            "grade": job_config.get("regen_grade"),
-            "grade_comment": job_config.get("regen_grade_comment"),
-            # Before (original)
-            "before": {
-                "clip_url": row.clip_url,
-                "thumbnail_url": row.thumbnail_url,
-                "quality_score": regen_result.get("original_quality_score"),
-                "duration_sec": row.duration_sec,
-                "product_name": row.product_name,
-                "liver_name": row.liver_name,
-                "transcript_text": (row.transcript_text or "")[:200],
+            items.append({
+                "job_id": row.job_id,
+                "clip_id": job_config.get("source_clip_id"),
+                "created_at": row.job_created_at.isoformat() if row.job_created_at else None,
+                "grade": job_config.get("regen_grade"),
+                "grade_comment": job_config.get("regen_grade_comment"),
+                # Before (original) - from source_clip snapshot
+                "before": {
+                    "clip_url": source_clip.get("clip_url"),
+                    "thumbnail_url": source_clip.get("thumbnail_url"),
+                    "quality_score": regen_result.get("original_quality_score") or source_clip.get("quality_score"),
+                    "duration_sec": source_clip.get("duration_sec"),
+                    "product_name": source_clip.get("product_name"),
+                    "liver_name": source_clip.get("liver_name"),
+                    "transcript_text": (source_clip.get("transcript_text") or "")[:200],
+                },
+                # After (regenerated)
+                "after": {
+                    "download_url": regen_result.get("download_url"),
+                    "blob_url": regen_result.get("blob_url"),
+                    "quality_score": regen_result.get("new_quality_score"),
+                    "duration_sec": regen_result.get("duration_sec"),
+                    "hook_text": regen_result.get("hook_text"),
+                    "cta_text": regen_result.get("cta_text"),
+                    "captions_count": regen_result.get("captions_count"),
+                    "transcript_text": (regen_result.get("transcript_text") or "")[:200],
+                    "effects_applied": regen_result.get("effects_applied"),
+                },
+                # Metadata
+                "current_version": source_clip.get("ml_model_version"),
+                "tags": source_clip.get("tags") if isinstance(source_clip.get("tags"), list) else [],
+            })
+
+        # Stats (simple, no JOIN)
+        stats_sql = text("""
+            SELECT 
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE j.config->>'regen_grade' = 'ok') as ok_count,
+                COUNT(*) FILTER (WHERE j.config->>'regen_grade' = 'ng') as ng_count,
+                COUNT(*) FILTER (WHERE j.config->>'regen_grade' = 'retry') as retry_count,
+                COUNT(*) FILTER (WHERE j.config->>'regen_grade' IS NULL OR j.config->>'regen_grade' = '') as ungraded_count
+            FROM ai_clip_jobs j
+            WHERE j.status = 'done'
+              AND j.config->>'type' = 'regenerate_from_source'
+        """)
+        stats_result = await db.execute(stats_sql)
+        stats_row = stats_result.fetchone()
+
+        # Calculate avg score improvement from items
+        improvements = []
+        for item in items:
+            before_score = item["before"].get("quality_score")
+            after_score = item["after"].get("quality_score")
+            if before_score is not None and after_score is not None:
+                try:
+                    improvements.append(float(after_score) - float(before_score))
+                except (ValueError, TypeError):
+                    pass
+        avg_improvement = round(sum(improvements) / len(improvements), 1) if improvements else 0
+
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "stats": {
+                "total": stats_row.total if stats_row else 0,
+                "ok": stats_row.ok_count if stats_row else 0,
+                "ng": stats_row.ng_count if stats_row else 0,
+                "retry": stats_row.retry_count if stats_row else 0,
+                "ungraded": stats_row.ungraded_count if stats_row else 0,
+                "avg_score_improvement": avg_improvement,
             },
-            # After (regenerated)
-            "after": {
-                "download_url": regen_result.get("download_url"),
-                "blob_url": regen_result.get("blob_url"),
-                "quality_score": regen_result.get("new_quality_score"),
-                "duration_sec": regen_result.get("duration_sec"),
-                "hook_text": regen_result.get("hook_text"),
-                "cta_text": regen_result.get("cta_text"),
-                "captions_count": regen_result.get("captions_count"),
-                "transcript_text": regen_result.get("transcript_text", "")[:200],
-                "effects_applied": regen_result.get("effects_applied"),
-            },
-            # Current clip state
-            "current_version": row.ml_model_version,
-            "tags": row.tags if isinstance(row.tags, list) else json.loads(row.tags or "[]") if row.tags else [],
-        })
-
-    # Stats
-    stats_sql = text("""
-        SELECT 
-            COUNT(*) as total,
-            COUNT(*) FILTER (WHERE j.config->>'regen_grade' = 'ok') as ok_count,
-            COUNT(*) FILTER (WHERE j.config->>'regen_grade' = 'ng') as ng_count,
-            COUNT(*) FILTER (WHERE j.config->>'regen_grade' = 'retry') as retry_count,
-            COUNT(*) FILTER (WHERE j.config->>'regen_grade' IS NULL OR j.config->>'regen_grade' = '') as ungraded_count,
-            AVG((j.results->0->>'new_quality_score')::float - (j.results->0->>'original_quality_score')::float) 
-                FILTER (WHERE j.results->0->>'new_quality_score' IS NOT NULL) as avg_score_improvement
-        FROM ai_clip_jobs j
-        WHERE j.status = 'done'
-          AND j.config->>'type' = 'regenerate_from_source'
-    """)
-    stats_result = await db.execute(stats_sql)
-    stats_row = stats_result.fetchone()
-
-    return {
-        "items": items,
-        "total": total,
-        "page": page,
-        "per_page": per_page,
-        "stats": {
-            "total": stats_row.total if stats_row else 0,
-            "ok": stats_row.ok_count if stats_row else 0,
-            "ng": stats_row.ng_count if stats_row else 0,
-            "retry": stats_row.retry_count if stats_row else 0,
-            "ungraded": stats_row.ungraded_count if stats_row else 0,
-            "avg_score_improvement": round(float(stats_row.avg_score_improvement or 0), 1) if stats_row else 0,
-        },
-    }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[clip-db] List regenerations failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/regenerations/{job_id}/grade")
