@@ -970,8 +970,8 @@ export default function BusinessCards() {
       businessCardId: currentLead.id,
       result: phoneResult as any,
       memo: phoneMemo || undefined,
-      contactName: currentLead.name || currentLead.displayName || undefined,
-      contactCompany: currentLead.company || currentLead.category || undefined,
+      contactName: currentLead.companyName || currentLead.name || currentLead.displayName || undefined,
+      contactCompany: currentLead.category || currentLead.company || undefined,
       nextFollowUpAt: phoneNextFollowUp || undefined,
     });
     // Advance to next
