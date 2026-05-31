@@ -26422,6 +26422,69 @@ JSON配列のみを出力してください。`;
       const { getContactSearchStatus } = await import("./contactSearchScheduler");
       return getContactSearchStatus();
     }),
+    cleanupBadData: protectedProcedure.mutation(async () => {
+      // Cleanup invalid contact data from salesdash leads
+      // Remove error-lite@duckduckgo.com emails and w3.org/TR/html4/loose.dtd websites
+      const SALESDASH_API = "https://salesdash.buzzdrop.co.jp/api/trpc";
+      let cleaned = 0;
+      let errors = 0;
+      try {
+        // Get all leads with email containing duckduckgo or website containing w3.org
+        const params = encodeURIComponent(JSON.stringify({
+          json: { source: "kalodata_tiktok", limit: 5000 }
+        }));
+        const res = await fetch(`${SALESDASH_API}/btobLeadProspector.getLeads?input=${params}`, {
+          signal: AbortSignal.timeout(30000),
+        });
+        const data = await res.json();
+        const rows = data?.result?.data?.json?.rows || [];
+        
+        const badLeads = rows.filter((r: any) => {
+          const hasBadEmail = r.email && (
+            r.email.includes("duckduckgo.com") ||
+            r.email.includes("duck.com") ||
+            r.email.includes("error-lite") ||
+            r.email.includes("noreply") ||
+            r.email.includes("w3.org")
+          );
+          const hasBadWebsite = r.website && (
+            r.website.includes("w3.org") ||
+            r.website.includes(".dtd") ||
+            r.website.includes("schema.org")
+          );
+          return hasBadEmail || hasBadWebsite;
+        });
+        
+        console.log(`[CleanupBadData] Found ${badLeads.length} leads with bad data`);
+        
+        for (const lead of badLeads) {
+          try {
+            const updateData: any = {};
+            if (lead.email && (lead.email.includes("duckduckgo.com") || lead.email.includes("duck.com") || lead.email.includes("error-lite") || lead.email.includes("noreply") || lead.email.includes("w3.org"))) {
+              updateData.email = null;
+            }
+            if (lead.website && (lead.website.includes("w3.org") || lead.website.includes(".dtd") || lead.website.includes("schema.org"))) {
+              updateData.website = null;
+            }
+            if (Object.keys(updateData).length > 0) {
+              const updateBody = { json: { id: lead.id, data: updateData } };
+              await fetch(`${SALESDASH_API}/btobLeadProspector.updateLead`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(updateBody),
+                signal: AbortSignal.timeout(10000),
+              });
+              cleaned++;
+            }
+          } catch (err) {
+            errors++;
+          }
+        }
+      } catch (err: any) {
+        console.error("[CleanupBadData] Error:", err.message);
+      }
+      return { cleaned, errors };
+    }),
   }),
 });
 export type AppRouter = typeof appRouter;

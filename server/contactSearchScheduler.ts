@@ -34,6 +34,11 @@ function extractEmails(text: string): string[] {
     !e.includes("sentry.io") &&
     !e.includes("wixpress.com") &&
     !e.includes("w3.org") &&
+    !e.includes("duckduckgo.com") &&
+    !e.includes("duck.com") &&
+    !e.includes("noreply") &&
+    !e.includes("no-reply") &&
+    !e.includes("error-lite") &&
     !e.endsWith(".png") &&
     !e.endsWith(".jpg") &&
     !e.endsWith(".gif") &&
@@ -69,7 +74,10 @@ function extractWebsites(text: string): string[] {
     !u.includes("youtube.com") &&
     !u.includes("amazon.co") &&
     !u.includes("rakuten.co") &&
-    !u.includes("wikipedia.org")
+    !u.includes("wikipedia.org") &&
+    !u.includes("w3.org") &&
+    !u.includes("schema.org") &&
+    !u.includes(".dtd")
   );
 }
 

@@ -26177,7 +26177,7 @@ export async function getSalesKpi(options?: { startDate?: Date; endDate?: Date; 
   const db = await getDb();
   if (!db) return { totalCalls: 0, answered: 0, noAnswer: 0, meetingsSet: 0, rejected: 0 };
   
-  let conditions: any[] = [];
+  let whereClause = sql`1=1`;
   if (!options?.allTime) {
     // Default to today (JST) if no allTime flag
     const now = new Date();
@@ -26186,15 +26186,20 @@ export async function getSalesKpi(options?: { startDate?: Date; endDate?: Date; 
     const jstTodayStart = new Date(jstNow.getFullYear(), jstNow.getMonth(), jstNow.getDate());
     const startDate = options?.startDate || new Date(jstTodayStart.getTime() - jstOffset);
     const endDate = options?.endDate || now;
-    conditions = [gte(callLogs.calledAt, startDate), lte(callLogs.calledAt, endDate)];
+    // Use ISO string format for MySQL timestamp comparison (UTC)
+    const startStr = startDate.toISOString().slice(0, 19).replace('T', ' ');
+    const endStr = endDate.toISOString().slice(0, 19).replace('T', ' ');
+    whereClause = sql`${callLogs.calledAt} >= ${startStr} AND ${callLogs.calledAt} <= ${endStr}`;
+    console.log(`[getSalesKpi] Filter: ${startStr} ~ ${endStr} (allTime=${options?.allTime})`);
+  } else {
+    console.log(`[getSalesKpi] allTime mode - no date filter`);
   }
-  const query = db.select({
+  const results = await db.select({
     result: callLogs.result,
     count: sql<number>`count(*)`,
-  }).from(callLogs);
-  const results = conditions.length > 0
-    ? await query.where(and(...conditions)).groupBy(callLogs.result)
-    : await query.groupBy(callLogs.result);
+  }).from(callLogs)
+    .where(whereClause)
+    .groupBy(callLogs.result);
   const kpi = { totalCalls: 0, answered: 0, noAnswer: 0, busy: 0, callback: 0, meetingsSet: 0, rejected: 0 };
   for (const row of results) {
     const count = Number(row.count);
@@ -26208,6 +26213,7 @@ export async function getSalesKpi(options?: { startDate?: Date; endDate?: Date; 
       case "rejected": kpi.rejected += count; break;
     }
   }
+  console.log(`[getSalesKpi] Results:`, JSON.stringify(kpi));
   return kpi;
 }
 

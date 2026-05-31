@@ -2079,6 +2079,32 @@ export default function BusinessCards() {
                     <RefreshCw className={`h-3 w-3 mr-1 ${kalodataLoading ? "animate-spin" : ""}`} />
                     更新
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/trpc/contactSearch.cleanupBadData", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          credentials: "include",
+                          body: JSON.stringify({}),
+                        });
+                        const data = await res.json();
+                        if (data?.result?.data?.json) {
+                          const r = data.result.data.json;
+                          toast.success(`不正データクリーンアップ完了: ${r.cleaned}件修正, ${r.errors}件エラー`);
+                          loadKalodataLeads();
+                        }
+                      } catch (err) {
+                        toast.error("クリーンアップに失敗しました");
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    不正データ削除
+                  </Button>
                 </div>
               </div>
               {/* Contact Search Status */}
@@ -3126,7 +3152,7 @@ export default function BusinessCards() {
 // ============================================================
 function SalesDashboard({ cards, statusOptions, getCardStatus, onStatusClick }: { cards: any[]; statusOptions: any[]; getCardStatus: (card: any) => string; onStatusClick?: (status: string) => void }) {
   const utils = trpc.useUtils();
-  const [kpiPeriod, setKpiPeriod] = useState<'today' | 'week' | 'month' | 'all'>('today');
+  const [kpiPeriod, setKpiPeriod] = useState<'today' | 'week' | 'month' | 'all'>('month');
   
   // Calculate date range based on selected period
   const kpiDateRange = useMemo(() => {
