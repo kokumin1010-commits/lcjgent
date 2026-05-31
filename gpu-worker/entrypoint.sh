@@ -330,6 +330,7 @@ if [ -d "$REPO_DIR/.git" ]; then
     git reset --hard origin/master --quiet 2>/dev/null || true
     # Copy latest worker files to workspace
     cp -f "$REPO_DIR/gpu-worker/worker_api.py" "$WORKSPACE/worker_api.py" 2>/dev/null || true
+    cp -f "$REPO_DIR/gpu-worker/face_swap_worker_api.py" "$WORKSPACE/face_swap_worker_api.py" 2>/dev/null || true
     cp -f "$REPO_DIR/gpu-worker/live_api.py" "$WORKSPACE/live_api.py" 2>/dev/null || true
     cp -f "$REPO_DIR/gpu-worker/live_engine.py" "$WORKSPACE/live_engine.py" 2>/dev/null || true
     cp -f "$REPO_DIR/gpu-worker/liveportrait_engine.py" "$WORKSPACE/liveportrait_engine.py" 2>/dev/null || true
