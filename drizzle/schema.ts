@@ -6141,3 +6141,18 @@ export const brandAnalysisCache = mysqlTable("brand_analysis_cache", {
 });
 export type BrandAnalysisCache = typeof brandAnalysisCache.$inferSelect;
 export type InsertBrandAnalysisCache = typeof brandAnalysisCache.$inferInsert;
+
+// リード収集履歴テーブル
+export const leadCollectionHistory = mysqlTable("lead_collection_history", {
+  id: int("id").autoincrement().primaryKey(),
+  keyword: varchar("keyword", { length: 255 }).notNull(), // 検索キーワード
+  prefecture: varchar("prefecture", { length: 50 }), // 都道府県
+  pipeline: varchar("pipeline", { length: 50 }).notNull(), // google_maps, google_search, portals, full_pipeline
+  leadsFound: int("leadsFound").default(0), // 収集されたリード数
+  executedBy: varchar("executedBy", { length: 255 }), // 実行者
+  executedAt: timestamp("executedAt").defaultNow().notNull(), // 実行日時
+  batchId: varchar("batchId", { length: 100 }), // salesdash APIのbatchId
+  status: varchar("status", { length: 50 }).default("completed"), // completed, running, failed
+});
+export type LeadCollectionHistory = typeof leadCollectionHistory.$inferSelect;
+export type InsertLeadCollectionHistory = typeof leadCollectionHistory.$inferInsert;

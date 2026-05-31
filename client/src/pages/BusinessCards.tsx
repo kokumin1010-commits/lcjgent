@@ -473,6 +473,7 @@ export default function BusinessCards() {
   const [leadMessage, setLeadMessage] = useState<string | null>(null);
   const [leadResults, setLeadResults] = useState<any[]>([]);
   const [leadViewTab, setLeadViewTab] = useState<"active" | "rejected">("active");
+  const [leadDetailData, setLeadDetailData] = useState<any>(null);
   const [isCallListMode, setIsCallListMode] = useState(false);
   const [callListIndex, setCallListIndex] = useState(0);
   const [callListLeads, setCallListLeads] = useState<any[]>([]);
@@ -927,15 +928,33 @@ export default function BusinessCards() {
       const data = await res.json();
       if (data?.result?.data?.json) {
         const result = data.result.data.json;
+        const leadsCount = result.leadsFound || result.newLeads || result.collected || 0;
         if (result.background) {
           setLeadMessage(result.message || "バックグラウンドで収集を開始しました。数分後にリストを更新してください。");
-        } else if (result.leadsFound > 0 || result.newLeads > 0 || result.collected > 0) {
-          setLeadMessage(`収集完了: ${result.leadsFound || result.newLeads || result.collected}件の新規リード`);
+        } else if (leadsCount > 0) {
+          setLeadMessage(`収集完了: ${leadsCount}件の新規リード`);
         } else {
           setLeadMessage("収集完了: 新規リードは見つかりませんでした（既に収集済みの可能性があります）");
         }
 
-
+        // Record collection history
+        try {
+          await fetch("/api/trpc/leadHistory.create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ json: {
+              keyword: leadKeyword,
+              prefecture: leadPrefecture,
+              pipeline: source,
+              leadsFound: leadsCount,
+              batchId: result.batchId || null,
+              status: result.background ? "running" : "completed",
+            }}),
+          });
+        } catch (e) {
+          console.error("Failed to record lead collection history", e);
+        }
 
         // Refresh stats
         const statsRes = await fetch("https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeadStats");
@@ -943,6 +962,23 @@ export default function BusinessCards() {
         if (statsData?.result?.data?.json) setLeadStats(statsData.result.data.json);
       } else {
         setLeadMessage("バックグラウンドで収集を開始しました");
+        // Record as running
+        try {
+          await fetch("/api/trpc/leadHistory.create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ json: {
+              keyword: leadKeyword,
+              prefecture: leadPrefecture,
+              pipeline: source,
+              leadsFound: 0,
+              status: "running",
+            }}),
+          });
+        } catch (e) {
+          console.error("Failed to record lead collection history", e);
+        }
       }
     } catch (err: any) {
       setLeadMessage(`エラー: ${err.message}`);
@@ -1672,10 +1708,12 @@ export default function BusinessCards() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>会社名</TableHead>
+                        <TableHead>HP</TableHead>
                         <TableHead>メール</TableHead>
                         <TableHead>電話</TableHead>
                         <TableHead>都道府県</TableHead>
                         <TableHead>ステータス</TableHead>
+                        <TableHead>カテゴリ</TableHead>
                         <TableHead>収集元</TableHead>
                         <TableHead>対応</TableHead>
                       </TableRow>
@@ -1684,12 +1722,20 @@ export default function BusinessCards() {
                       {leadResults.map((lead) => (
                         <TableRow key={lead.id}>
                           <TableCell className="font-medium text-sm">
+                            <button
+                              className="text-blue-600 hover:underline text-left cursor-pointer"
+                              onClick={() => setLeadDetailData(lead)}
+                            >
+                              {lead.companyName}
+                            </button>
+                          </TableCell>
+                          <TableCell className="text-xs">
                             {lead.website ? (
-                              <a href={lead.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                                {lead.companyName}
+                              <a href={lead.website} target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:text-indigo-700" title={lead.website}>
+                                <ExternalLink className="h-3.5 w-3.5" />
                               </a>
                             ) : (
-                              lead.companyName
+                              <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
                           <TableCell className="text-xs">
@@ -1718,6 +1764,11 @@ export default function BusinessCards() {
                                lead.status === "responded" ? t.statusResponded :
                                lead.status === "converted" ? t.statusConverted :
                                lead.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            <Badge variant="outline" className="text-xs">
+                              {lead.category || "—"}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-xs">
@@ -1763,6 +1814,150 @@ export default function BusinessCards() {
                 </ScrollArea>
               </CardContent>
             </Card>
+
+          {/* Lead Detail Dialog */}
+          {leadDetailData && (
+            <Dialog open={!!leadDetailData} onOpenChange={(open) => !open && setLeadDetailData(null)}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5 text-blue-600" />
+                    {leadDetailData.companyName}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  {/* 基本情報 */}
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">担当者:</span>
+                      <p className="font-medium">{leadDetailData.personName || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">都道府県:</span>
+                      <p className="font-medium">{leadDetailData.prefecture || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">業種:</span>
+                      <p className="font-medium">{leadDetailData.category || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">収集元:</span>
+                      <p className="font-medium">
+                        {leadDetailData.source === "google_maps" ? "Google Maps" :
+                         leadDetailData.source === "google_search" ? "Google検索" :
+                         leadDetailData.source === "portals" ? "ポータル" :
+                         leadDetailData.source || "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">ステータス:</span>
+                      <p className="font-medium">
+                        <Badge variant="secondary" className="text-xs">
+                          {leadDetailData.status === "new" ? "新規" :
+                           leadDetailData.status === "contacted" ? "連絡済" :
+                           leadDetailData.status === "responded" ? "返信あり" :
+                           leadDetailData.status === "converted" ? "成約" :
+                           leadDetailData.status === "rejected" ? "見送り" :
+                           leadDetailData.status}
+                        </Badge>
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">収集日:</span>
+                      <p className="font-medium">{leadDetailData.createdAt ? new Date(leadDetailData.createdAt).toLocaleDateString('ja-JP') : "—"}</p>
+                    </div>
+                  </div>
+                  {/* 連絡先 */}
+                  <div className="border-t pt-3 space-y-2">
+                    <h4 className="text-sm font-semibold">連絡先</h4>
+                    {leadDetailData.email && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Mail className="h-4 w-4 text-blue-500" />
+                        <a href={`mailto:${leadDetailData.email}`} className="text-blue-600 hover:underline">{leadDetailData.email}</a>
+                      </div>
+                    )}
+                    {leadDetailData.phone && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Phone className="h-4 w-4 text-green-500" />
+                        <a href={`tel:${leadDetailData.phone}`} className="text-green-600 hover:underline">{leadDetailData.phone}</a>
+                      </div>
+                    )}
+                    {leadDetailData.website && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Globe className="h-4 w-4 text-indigo-500" />
+                        <a href={leadDetailData.website} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline truncate max-w-[300px]">
+                          {leadDetailData.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                        </a>
+                      </div>
+                    )}
+                    {leadDetailData.address && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <MapPin className="h-4 w-4 text-orange-500" />
+                        <span>{leadDetailData.address}</span>
+                      </div>
+                    )}
+                  </div>
+                  {/* Google評価 */}
+                  {leadDetailData.googleRating && (
+                    <div className="border-t pt-3">
+                      <h4 className="text-sm font-semibold mb-1">Google評価</h4>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-yellow-500">★</span>
+                        <span>{leadDetailData.googleRating}</span>
+                        <span className="text-muted-foreground">({leadDetailData.googleReviewCount || 0}件のレビュー)</span>
+                      </div>
+                    </div>
+                  )}
+                  {/* メモ */}
+                  {leadDetailData.memo && (
+                    <div className="border-t pt-3">
+                      <h4 className="text-sm font-semibold mb-1">メモ</h4>
+                      <p className="text-sm text-muted-foreground">{leadDetailData.memo}</p>
+                    </div>
+                  )}
+                </div>
+                <DialogFooter className="flex gap-2">
+                  {leadDetailData.website && (
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={leadDetailData.website} target="_blank" rel="noopener noreferrer">
+                        <Globe className="h-3 w-3 mr-1" />
+                        HPを開く
+                      </a>
+                    </Button>
+                  )}
+                  {leadDetailData.sourceUrl && (
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={leadDetailData.sourceUrl} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-3 w-3 mr-1" />
+                        収集元
+                      </a>
+                    </Button>
+                  )}
+                  <Button size="sm" onClick={() => {
+                    const cardLike = {
+                      id: leadDetailData.id,
+                      name: leadDetailData.companyName || "不明",
+                      company: leadDetailData.companyName,
+                      phone: leadDetailData.phone,
+                      mobile: "",
+                      email: leadDetailData.email,
+                      _isLead: true,
+                      _leadId: leadDetailData.id,
+                    };
+                    setSelectedCard(cardLike);
+                    setPhoneMemo("");
+                    setPhoneResult("answered");
+                    setPhoneNextFollowUp("");
+                    setIsPhoneDialogOpen(true);
+                    setLeadDetailData(null);
+                  }}>
+                    <PhoneCall className="h-3 w-3 mr-1" />
+                    対応登録
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
 
           {/* Call List Mode Dialog */}
           {isCallListMode && callListLeads.length > 0 && (
@@ -2035,6 +2230,19 @@ export default function BusinessCards() {
                   </TableBody>
                 </Table>
               </ScrollArea>
+            </CardContent>
+          </Card>
+
+          {/* Lead Collection History */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                収集履歴
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <LeadCollectionHistoryTable />
             </CardContent>
           </Card>
 
@@ -3162,6 +3370,72 @@ export default function BusinessCards() {
   );
 }
 
+
+// ============================================================
+// Lead Collection History Sub-Component
+// ============================================================
+function LeadCollectionHistoryTable() {
+  const { data: history, isLoading } = trpc.leadHistory.list.useQuery({ limit: 30 });
+
+  const pipelineLabels: Record<string, string> = {
+    google_maps: "Google Maps",
+    google_search: "Google検索",
+    portals: "ポータル",
+    full_pipeline: "全パイプライン",
+  };
+
+  const statusBadge = (status: string) => {
+    switch (status) {
+      case "completed": return <Badge className="bg-green-100 text-green-700 text-xs">完了</Badge>;
+      case "running": return <Badge className="bg-blue-100 text-blue-700 text-xs">実行中</Badge>;
+      case "failed": return <Badge className="bg-red-100 text-red-700 text-xs">失敗</Badge>;
+      default: return <Badge variant="secondary" className="text-xs">{status}</Badge>;
+    }
+  };
+
+  if (isLoading) {
+    return <div className="text-xs text-muted-foreground text-center py-4">読み込み中...</div>;
+  }
+
+  if (!history || history.length === 0) {
+    return <div className="text-xs text-muted-foreground text-center py-4">収集履歴はまだありません</div>;
+  }
+
+  return (
+    <ScrollArea className="h-[250px]">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>実行日時</TableHead>
+            <TableHead>キーワード</TableHead>
+            <TableHead>都道府県</TableHead>
+            <TableHead>パイプライン</TableHead>
+            <TableHead>収集数</TableHead>
+            <TableHead>ステータス</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {history.map((h: any) => (
+            <TableRow key={h.id}>
+              <TableCell className="text-xs">
+                {h.executedAt ? new Date(h.executedAt).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : "—"}
+              </TableCell>
+              <TableCell className="text-xs font-medium">{h.keyword}</TableCell>
+              <TableCell className="text-xs">{h.prefecture || "—"}</TableCell>
+              <TableCell className="text-xs">
+                <Badge variant="outline" className="text-xs">
+                  {pipelineLabels[h.pipeline] || h.pipeline}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-xs font-medium">{h.leadsFound || 0}件</TableCell>
+              <TableCell>{statusBadge(h.status || "completed")}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </ScrollArea>
+  );
+}
 
 // ============================================================
 // Sales Dashboard Sub-Component

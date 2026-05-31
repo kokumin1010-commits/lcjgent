@@ -26490,6 +26490,38 @@ JSON配列のみを出力してください。`;
     }),
 
   }),
+
+  leadHistory: router({
+    list: protectedProcedure
+      .input(z.object({ limit: z.number().min(1).max(200).optional() }).nullish())
+      .query(async ({ input }) => {
+        const { getLeadCollectionHistoryList } = await import("./db");
+        return getLeadCollectionHistoryList(input?.limit || 50);
+      }),
+    create: protectedProcedure
+      .input(z.object({
+        keyword: z.string(),
+        prefecture: z.string().optional(),
+        pipeline: z.string(),
+        leadsFound: z.number().optional(),
+        executedBy: z.string().optional(),
+        batchId: z.string().optional(),
+        status: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { createLeadCollectionHistory } = await import("./db");
+        await createLeadCollectionHistory({
+          keyword: input.keyword,
+          prefecture: input.prefecture || null,
+          pipeline: input.pipeline,
+          leadsFound: input.leadsFound || 0,
+          executedBy: input.executedBy || ctx.user?.name || "system",
+          batchId: input.batchId || null,
+          status: input.status || "completed",
+        });
+        return { success: true };
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;
 
