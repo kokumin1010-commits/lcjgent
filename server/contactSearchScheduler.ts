@@ -146,8 +146,13 @@ async function getLeadsWithoutContact(): Promise<any[]> {
       timeout: 30000,
     });
     const rows = res.data?.result?.data?.json?.rows || [];
-    // Filter to only those without email AND without phone AND without website
-    return rows.filter((r: any) => !r.email && !r.phone && !r.website);
+    // Filter to only those without REAL contact info
+    // TikTok/Kalodata URLs are not real contact websites, so ignore them
+    const isTikTokOrKalodataUrl = (url: string | null | undefined) => {
+      if (!url) return true; // no website = needs search
+      return url.includes("tiktok.com") || url.includes("kalodata.com");
+    };
+    return rows.filter((r: any) => !r.email && !r.phone && isTikTokOrKalodataUrl(r.website));
   } catch (error: any) {
     console.error("[ContactSearch] Failed to get leads:", error.message);
     return [];

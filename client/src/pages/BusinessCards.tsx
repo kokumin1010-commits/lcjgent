@@ -2083,16 +2083,23 @@ export default function BusinessCards() {
               </div>
               {/* Contact Search Status */}
               {contactSearchStatus && (
-                <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                  <span className={contactSearchStatus.isRunning ? "text-green-600 font-medium" : ""}>
-                    {contactSearchStatus.isRunning ? "🔄 検索中" : "✓ 待機中"}
+                <div className="text-xs text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
+                  <span className={contactSearchStatus.isRunning ? "text-green-600 font-medium" : "text-blue-600"}>
+                    {contactSearchStatus.isRunning ? "🔄 検索実行中..." : "✓ 待機中（5分毎に自動実行）"}
                   </span>
-                  <span>処理済: {contactSearchStatus.processed}/{contactSearchStatus.total}</span>
-                  <span>成功: {contactSearchStatus.successCount}</span>
-                  <span>エラー: {contactSearchStatus.errorCount}</span>
-                  {contactSearchStatus.lastRun && (
-                    <span>最終実行: {new Date(contactSearchStatus.lastRun).toLocaleString("ja-JP")}</span>
+                  {contactSearchStatus.processed > 0 && (
+                    <span>前回処理: {contactSearchStatus.processed}件</span>
                   )}
+                  {contactSearchStatus.successCount > 0 && (
+                    <span className="text-green-600">成功: {contactSearchStatus.successCount}件</span>
+                  )}
+                  {contactSearchStatus.errorCount > 0 && (
+                    <span className="text-red-600">エラー: {contactSearchStatus.errorCount}件</span>
+                  )}
+                  {contactSearchStatus.lastRun && (
+                    <span>最終: {new Date(contactSearchStatus.lastRun).toLocaleString("ja-JP")}</span>
+                  )}
+                  <span className="text-orange-600 font-medium">未検索: {kalodataStats.total - kalodataStats.withEmail - kalodataStats.withPhone + kalodataStats.contacted}件</span>
                 </div>
               )}
             </CardHeader>
@@ -3119,7 +3126,36 @@ export default function BusinessCards() {
 // ============================================================
 function SalesDashboard({ cards, statusOptions, getCardStatus, onStatusClick }: { cards: any[]; statusOptions: any[]; getCardStatus: (card: any) => string; onStatusClick?: (status: string) => void }) {
   const utils = trpc.useUtils();
-  const { data: salesKpi } = trpc.businessCard.getSalesKpi.useQuery(undefined, { refetchInterval: 30000 });
+  const [kpiPeriod, setKpiPeriod] = useState<'today' | 'week' | 'month' | 'all'>('today');
+  
+  // Calculate date range based on selected period
+  const kpiDateRange = useMemo(() => {
+    const now = new Date();
+    const jstOffset = 9 * 60 * 60 * 1000;
+    const jstNow = new Date(now.getTime() + jstOffset);
+    const jstTodayStart = new Date(jstNow.getFullYear(), jstNow.getMonth(), jstNow.getDate());
+    const todayStartUTC = new Date(jstTodayStart.getTime() - jstOffset);
+    
+    switch (kpiPeriod) {
+      case 'today':
+        return { startDate: todayStartUTC.toISOString(), endDate: now.toISOString() };
+      case 'week': {
+        const dayOfWeek = jstNow.getDay();
+        const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        const weekStart = new Date(jstTodayStart.getTime() - mondayOffset * 24 * 60 * 60 * 1000 - jstOffset);
+        return { startDate: weekStart.toISOString(), endDate: now.toISOString() };
+      }
+      case 'month': {
+        const monthStart = new Date(jstNow.getFullYear(), jstNow.getMonth(), 1);
+        const monthStartUTC = new Date(monthStart.getTime() - jstOffset);
+        return { startDate: monthStartUTC.toISOString(), endDate: now.toISOString() };
+      }
+      case 'all':
+        return { allTime: true };
+    }
+  }, [kpiPeriod]);
+  
+  const { data: salesKpi } = trpc.businessCard.getSalesKpi.useQuery(kpiDateRange, { refetchInterval: 30000 });
   const { data: recentCallLogs = [] } = trpc.businessCard.getRecentCallLogs.useQuery(undefined, { refetchInterval: 30000 });
   const { data: dailyStats = [] } = trpc.businessCard.getCallLogsDailyStats.useQuery(undefined);
   const { data: upcomingFollowUps = [] } = trpc.businessCard.getUpcomingFollowUps.useQuery(undefined);
@@ -3169,11 +3205,25 @@ function SalesDashboard({ cards, statusOptions, getCardStatus, onStatusClick }: 
 
   return (
     <div className="space-y-6">
-      {/* KPI Cards */}
+      {/* Period Filter + KPI Cards */}
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-sm font-medium text-gray-600">期間:</span>
+        {(['today', 'week', 'month', 'all'] as const).map((period) => (
+          <Button
+            key={period}
+            variant={kpiPeriod === period ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setKpiPeriod(period)}
+            className="text-xs h-7"
+          >
+            {period === 'today' ? '本日' : period === 'week' ? '今週' : period === 'month' ? '今月' : '全期間'}
+          </Button>
+        ))}
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
           <CardContent className="p-3 text-center">
-            <p className="text-xs text-blue-600 font-medium">本日架電数</p>
+            <p className="text-xs text-blue-600 font-medium">{kpiPeriod === 'today' ? '本日' : kpiPeriod === 'week' ? '今週' : kpiPeriod === 'month' ? '今月' : '全期間'}架電数</p>
             <p className="text-2xl font-bold text-blue-800">{salesKpi?.totalCalls || 0}</p>
           </CardContent>
         </Card>

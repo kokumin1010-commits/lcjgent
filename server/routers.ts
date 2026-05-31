@@ -9045,11 +9045,13 @@ Return ONLY valid JSON, no markdown or explanation.`,
       .input(z.object({
         startDate: z.string().optional(),
         endDate: z.string().optional(),
+        allTime: z.boolean().optional(),
       }).nullish())
       .query(async ({ input }) => {
         const options: any = {};
         if (input?.startDate) options.startDate = new Date(input.startDate);
         if (input?.endDate) options.endDate = new Date(input.endDate);
+        if (input?.allTime) options.allTime = true;
         return await getSalesKpi(options);
       }),
     // Get recent call logs with contact info

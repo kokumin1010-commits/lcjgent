@@ -26173,23 +26173,28 @@ export async function getCallLogsDailyStats(days = 30) {
   return results;
 }
 
-export async function getSalesKpi(options?: { startDate?: Date; endDate?: Date }) {
+export async function getSalesKpi(options?: { startDate?: Date; endDate?: Date; allTime?: boolean }) {
   const db = await getDb();
   if (!db) return { totalCalls: 0, answered: 0, noAnswer: 0, meetingsSet: 0, rejected: 0 };
-  // Default to today (JST)
-  const now = new Date();
-  const jstOffset = 9 * 60 * 60 * 1000;
-  const jstNow = new Date(now.getTime() + jstOffset);
-  const jstTodayStart = new Date(jstNow.getFullYear(), jstNow.getMonth(), jstNow.getDate());
-  const startDate = options?.startDate || new Date(jstTodayStart.getTime() - jstOffset);
-  const endDate = options?.endDate || now;
-  const conditions = [gte(callLogs.calledAt, startDate), lte(callLogs.calledAt, endDate)];
-  const results = await db.select({
+  
+  let conditions: any[] = [];
+  if (!options?.allTime) {
+    // Default to today (JST) if no allTime flag
+    const now = new Date();
+    const jstOffset = 9 * 60 * 60 * 1000;
+    const jstNow = new Date(now.getTime() + jstOffset);
+    const jstTodayStart = new Date(jstNow.getFullYear(), jstNow.getMonth(), jstNow.getDate());
+    const startDate = options?.startDate || new Date(jstTodayStart.getTime() - jstOffset);
+    const endDate = options?.endDate || now;
+    conditions = [gte(callLogs.calledAt, startDate), lte(callLogs.calledAt, endDate)];
+  }
+  const query = db.select({
     result: callLogs.result,
     count: sql<number>`count(*)`,
-  }).from(callLogs)
-    .where(and(...conditions))
-    .groupBy(callLogs.result);
+  }).from(callLogs);
+  const results = conditions.length > 0
+    ? await query.where(and(...conditions)).groupBy(callLogs.result)
+    : await query.groupBy(callLogs.result);
   const kpi = { totalCalls: 0, answered: 0, noAnswer: 0, busy: 0, callback: 0, meetingsSet: 0, rejected: 0 };
   for (const row of results) {
     const count = Number(row.count);
