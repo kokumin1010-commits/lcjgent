@@ -899,6 +899,10 @@ export default function BusinessCards() {
         loadLeads("new");
       }
     }
+    // メール配信タブでもリードデータをロード（送信先件数表示のため）
+    if (activeTab === "email" && leadResults.length === 0) {
+      loadLeads("new");
+    }
   }, [activeTab, loadLeads, leadViewTab]);
     const handleLeadCollect = async (source: string) => {
     setIsCollecting(source);
