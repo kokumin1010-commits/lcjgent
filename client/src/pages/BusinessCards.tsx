@@ -468,9 +468,10 @@ export default function BusinessCards() {
   // Image zoom state
   const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
 
-  // 送信済み件数取得
+  // 送信済み件数取得（バッチ送信中は10秒ごとに自動更新）
   const emailStatsQuery = trpc.businessCard.getSalesEmailStats.useQuery(undefined, {
-    staleTime: 30000,
+    staleTime: 5000,
+    refetchInterval: batchProgress?.isRunning ? 10000 : false,
   });
   const emailStats = emailStatsQuery.data;
 
@@ -645,6 +646,8 @@ export default function BusinessCards() {
       });
       if (!bg.isRunning && bg.sentCount > 0) {
         toast.success(`バックグラウンド送信完了！${bg.sentCount}件送信（エラー${bg.errorCount}件）`);
+        // 送信完了時に統計を即座に更新
+        emailStatsQuery.refetch();
       }
     }
   }, [bgProgressQuery.data]);
@@ -674,7 +677,7 @@ export default function BusinessCards() {
       return;
     }
     const totalEstimate = (cardsWithEmail.length || 0) + (leadStats?.withEmail || 0);
-    const sentAlready = emailStats?.total || 0;
+    const sentAlready = emailStats?.uniqueEmails || 0;
     const unsent = skipSent ? Math.max(0, totalEstimate - sentAlready) : totalEstimate;
     if (!confirm(`バックグラウンドでメールあり全件に送信します。\n送信対象: 約${unsent}件${skipSent ? `（全体${totalEstimate}件 - 送信済${sentAlready}件）` : `（全体${totalEstimate}件）`}\n※ページを離れても送信は継続されます\nよろしいですか？`)) return;
 
@@ -2970,8 +2973,8 @@ export default function BusinessCards() {
                 </p>
                 <div className="flex flex-wrap items-center gap-3 text-xs">
                   <span className="text-purple-700">全体: <span className="font-bold">{cardsWithEmail.length + (leadStats?.withEmail || 0)}件</span></span>
-                  <span className="text-green-600">送信済: <span className="font-bold">{emailStats?.total || 0}件</span></span>
-                  <span className="text-orange-600">未送信: <span className="font-bold">{Math.max(0, (cardsWithEmail.length + (leadStats?.withEmail || 0)) - (emailStats?.total || 0))}件</span></span>
+                  <span className="text-green-600">送信済: <span className="font-bold">{emailStats?.uniqueEmails || 0}件</span></span>
+                  <span className="text-orange-600">未送信: <span className="font-bold">{Math.max(0, (cardsWithEmail.length + (leadStats?.withEmail || 0)) - (emailStats?.uniqueEmails || 0))}件</span></span>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex items-center gap-2">

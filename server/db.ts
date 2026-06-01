@@ -26704,9 +26704,15 @@ export async function getSalesEmailLogs(options?: {
 
 export async function getSalesEmailStats() {
   const db = await getDb();
-  if (!db) return { total: 0, byType: [], recentCount: 0 };
+  if (!db) return { total: 0, sentCount: 0, uniqueEmails: 0, byType: [], recentCount: 0 };
   
+  // 全レコード数
   const [totalResult] = await db.select({ count: sql<number>`count(*)` }).from(salesEmailLogs);
+  // 送信成功数（status='sent'のみ）
+  const [sentResult] = await db.select({ count: sql<number>`count(*)` }).from(salesEmailLogs).where(eq(salesEmailLogs.status, "sent"));
+  // ユニークメールアドレス数（送信済みスキップの基準）
+  const [uniqueResult] = await db.select({ count: sql<number>`count(distinct toEmail)` }).from(salesEmailLogs).where(eq(salesEmailLogs.status, "sent"));
+  
   const byType = await db
     .select({
       sendType: salesEmailLogs.sendType,
@@ -26724,6 +26730,8 @@ export async function getSalesEmailStats() {
 
   return {
     total: (totalResult as any)?.count || 0,
+    sentCount: (sentResult as any)?.count || 0,
+    uniqueEmails: (uniqueResult as any)?.count || 0,
     byType,
     recentCount: (recentResult as any)?.count || 0,
   };
