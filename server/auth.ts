@@ -24,6 +24,18 @@ export const authRouter = router({
       })
     )
     .mutation(async ({ input }) => {
+      // スタッフテーブルに登録されているメールのみ登録可能
+      const activeStaff = await getActiveStaff();
+      const staffMember = activeStaff.find(
+        (s: any) => s.email && s.email.toLowerCase() === input.email.toLowerCase()
+      );
+      if (!staffMember) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "このメールアドレスはスタッフとして登録されていません。管理者にお問い合わせください。",
+        });
+      }
+
       const existingUser = await getUserByEmail(input.email);
       if (existingUser) {
         throw new TRPCError({
@@ -34,14 +46,15 @@ export const authRouter = router({
 
       const hashedPassword = await bcrypt.hash(input.password, SALT_ROUNDS);
 
+      // スタッフは自動的にadminロールで登録
       await createUser({
         email: input.email,
         password: hashedPassword,
-        name: input.name,
-        role: "user",
+        name: input.name || staffMember.name,
+        role: "admin",
       });
 
-      return { success: true };
+      return { success: true, staffName: staffMember.name };
     }),
 
   login: publicProcedure
