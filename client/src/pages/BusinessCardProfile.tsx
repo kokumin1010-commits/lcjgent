@@ -38,6 +38,8 @@ import {
   XCircle,
   ArrowRightLeft,
   Loader2,
+  History,
+  AlertCircle,
 } from "lucide-react";
 
 const statusLabels: Record<string, string> = {
@@ -386,6 +388,11 @@ export default function BusinessCardProfile() {
           </Card>
         </div>
 
+        {/* メール送信履歴 */}
+        {card.email && (
+          <EmailHistoryCard email={card.email} businessCardId={cardId} />
+        )}
+
         {/* Timeline */}
         <Card>
           <CardHeader className="pb-3">
@@ -511,5 +518,108 @@ export default function BusinessCardProfile() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+
+// メール送信履歴カード（個別プロフィールページ用）
+function EmailHistoryCard({ email, businessCardId }: { email: string; businessCardId: number }) {
+  const { data: emailLogs, isLoading } = trpc.businessCard.getSalesEmailLogsByEmail.useQuery(
+    { email },
+    { enabled: !!email }
+  );
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-6">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            メール送信履歴を読み込み中...
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!emailLogs || emailLogs.length === 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Mail className="h-4 w-4" />
+            メール送信履歴
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-gray-500 text-center py-4">
+            まだメール送信履歴がありません
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const sendTypeLabel = (type: string) => {
+    switch (type) {
+      case "test": return "テスト";
+      case "bulk_card": return "名刺一括";
+      case "bulk_lead": return "リード一括";
+      case "bulk_unsent": return "未送信一括";
+      case "bulk_all": return "全件一括";
+      default: return type;
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Mail className="h-4 w-4 text-blue-600" />
+          メール送信履歴（{emailLogs.length}件）
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {emailLogs.map((log: any) => (
+            <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg border bg-gray-50">
+              {log.status === "sent" ? (
+                <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+              ) : (
+                <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge className="text-xs bg-blue-100 text-blue-700">
+                    {sendTypeLabel(log.sendType)}
+                  </Badge>
+                  <span className="text-xs text-gray-500">
+                    {new Date(log.sentAt).toLocaleString("ja-JP", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                  {log.status === "sent" ? (
+                    <Badge className="text-xs bg-green-100 text-green-700">送信成功</Badge>
+                  ) : (
+                    <Badge className="text-xs bg-red-100 text-red-700">送信失敗</Badge>
+                  )}
+                </div>
+                <p className="text-sm font-medium mt-1 truncate">{log.subject}</p>
+                {log.attachPdf && (
+                  <span className="text-xs text-purple-600">📎 PDF添付</span>
+                )}
+                {log.errorMessage && (
+                  <p className="text-xs text-red-500 mt-1">{log.errorMessage}</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
