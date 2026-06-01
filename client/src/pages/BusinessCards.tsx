@@ -674,7 +674,9 @@ export default function BusinessCards() {
       return;
     }
     const totalEstimate = (cardsWithEmail.length || 0) + (leadStats?.withEmail || 0);
-    if (!confirm(`バックグラウンドでメールあり全件に送信します。\n推定約${totalEstimate}件${skipSent ? "（送信済はスキップ）" : ""}\n※ページを離れても送信は継続されます\nよろしいですか？`)) return;
+    const sentAlready = emailStats?.total || 0;
+    const unsent = skipSent ? Math.max(0, totalEstimate - sentAlready) : totalEstimate;
+    if (!confirm(`バックグラウンドでメールあり全件に送信します。\n送信対象: 約${unsent}件${skipSent ? `（全体${totalEstimate}件 - 送信済${sentAlready}件）` : `（全体${totalEstimate}件）`}\n※ページを離れても送信は継続されます\nよろしいですか？`)) return;
 
     try {
       const result = await startBgBatchMutation.mutateAsync({
