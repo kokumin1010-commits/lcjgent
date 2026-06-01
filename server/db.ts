@@ -26497,23 +26497,111 @@ export async function createSalesEmailLogsBatch(logs: InsertSalesEmailLog[]) {
 export async function getSalesEmailLogsByEmail(email: string, limit = 50) {
   const db = await getDb();
   if (!db) return [];
-  return await db
-    .select()
-    .from(salesEmailLogs)
-    .where(eq(salesEmailLogs.toEmail, email.toLowerCase()))
-    .orderBy(desc(salesEmailLogs.sentAt))
-    .limit(limit);
+  try {
+    return await db
+      .select({
+        id: salesEmailLogs.id,
+        toEmail: salesEmailLogs.toEmail,
+        toName: salesEmailLogs.toName,
+        toCompany: salesEmailLogs.toCompany,
+        subject: salesEmailLogs.subject,
+        sendType: salesEmailLogs.sendType,
+        attachPdf: salesEmailLogs.attachPdf,
+        status: salesEmailLogs.status,
+        errorMessage: salesEmailLogs.errorMessage,
+        businessCardId: salesEmailLogs.businessCardId,
+        sentAt: salesEmailLogs.sentAt,
+        trackingId: salesEmailLogs.trackingId,
+        openedAt: salesEmailLogs.openedAt,
+        openCount: salesEmailLogs.openCount,
+        lastOpenedAt: salesEmailLogs.lastOpenedAt,
+        pdfDownloadedAt: salesEmailLogs.pdfDownloadedAt,
+        pdfDownloadCount: salesEmailLogs.pdfDownloadCount,
+      })
+      .from(salesEmailLogs)
+      .where(eq(salesEmailLogs.toEmail, email.toLowerCase()))
+      .orderBy(desc(salesEmailLogs.sentAt))
+      .limit(limit);
+  } catch (err: any) {
+    if (err.message?.includes("Unknown column")) {
+      console.warn("[getSalesEmailLogsByEmail] Tracking columns not available, using basic query");
+      const rows = await db
+        .select({
+          id: salesEmailLogs.id,
+          toEmail: salesEmailLogs.toEmail,
+          toName: salesEmailLogs.toName,
+          toCompany: salesEmailLogs.toCompany,
+          subject: salesEmailLogs.subject,
+          sendType: salesEmailLogs.sendType,
+          attachPdf: salesEmailLogs.attachPdf,
+          status: salesEmailLogs.status,
+          errorMessage: salesEmailLogs.errorMessage,
+          businessCardId: salesEmailLogs.businessCardId,
+          sentAt: salesEmailLogs.sentAt,
+        })
+        .from(salesEmailLogs)
+        .where(eq(salesEmailLogs.toEmail, email.toLowerCase()))
+        .orderBy(desc(salesEmailLogs.sentAt))
+        .limit(limit);
+      return rows.map(r => ({ ...r, trackingId: null, openedAt: null, openCount: 0, lastOpenedAt: null, pdfDownloadedAt: null, pdfDownloadCount: 0 }));
+    }
+    throw err;
+  }
 }
 
 export async function getSalesEmailLogsByBusinessCardId(businessCardId: number, limit = 50) {
   const db = await getDb();
   if (!db) return [];
-  return await db
-    .select()
-    .from(salesEmailLogs)
-    .where(eq(salesEmailLogs.businessCardId, businessCardId))
-    .orderBy(desc(salesEmailLogs.sentAt))
-    .limit(limit);
+  try {
+    return await db
+      .select({
+        id: salesEmailLogs.id,
+        toEmail: salesEmailLogs.toEmail,
+        toName: salesEmailLogs.toName,
+        toCompany: salesEmailLogs.toCompany,
+        subject: salesEmailLogs.subject,
+        sendType: salesEmailLogs.sendType,
+        attachPdf: salesEmailLogs.attachPdf,
+        status: salesEmailLogs.status,
+        errorMessage: salesEmailLogs.errorMessage,
+        businessCardId: salesEmailLogs.businessCardId,
+        sentAt: salesEmailLogs.sentAt,
+        trackingId: salesEmailLogs.trackingId,
+        openedAt: salesEmailLogs.openedAt,
+        openCount: salesEmailLogs.openCount,
+        lastOpenedAt: salesEmailLogs.lastOpenedAt,
+        pdfDownloadedAt: salesEmailLogs.pdfDownloadedAt,
+        pdfDownloadCount: salesEmailLogs.pdfDownloadCount,
+      })
+      .from(salesEmailLogs)
+      .where(eq(salesEmailLogs.businessCardId, businessCardId))
+      .orderBy(desc(salesEmailLogs.sentAt))
+      .limit(limit);
+  } catch (err: any) {
+    if (err.message?.includes("Unknown column")) {
+      console.warn("[getSalesEmailLogsByBusinessCardId] Tracking columns not available, using basic query");
+      const rows = await db
+        .select({
+          id: salesEmailLogs.id,
+          toEmail: salesEmailLogs.toEmail,
+          toName: salesEmailLogs.toName,
+          toCompany: salesEmailLogs.toCompany,
+          subject: salesEmailLogs.subject,
+          sendType: salesEmailLogs.sendType,
+          attachPdf: salesEmailLogs.attachPdf,
+          status: salesEmailLogs.status,
+          errorMessage: salesEmailLogs.errorMessage,
+          businessCardId: salesEmailLogs.businessCardId,
+          sentAt: salesEmailLogs.sentAt,
+        })
+        .from(salesEmailLogs)
+        .where(eq(salesEmailLogs.businessCardId, businessCardId))
+        .orderBy(desc(salesEmailLogs.sentAt))
+        .limit(limit);
+      return rows.map(r => ({ ...r, trackingId: null, openedAt: null, openCount: 0, lastOpenedAt: null, pdfDownloadedAt: null, pdfDownloadCount: 0 }));
+    }
+    throw err;
+  }
 }
 
 export async function getSalesEmailLogs(options?: {
