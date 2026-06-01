@@ -9947,9 +9947,14 @@ Return ONLY valid JSON, no markdown or explanation.`,
                 }));
                 await createSalesEmailLogsBatch(emailLogs);
               } catch (logErr: any) {
-                console.error("[BG Batch Log]", logErr.message);
+                console.error("[BG Batch Log] DB insert failed:", logErr.message);
+                jobState.errors.push(`[DB Log Error] ${logErr.message}`);
               }
-              jobState.errors = batchErrors.slice(-10);
+              // DB Log ErrorとbatchErrorsの両方を保持
+              if (batchErrors.length > 0) {
+                jobState.errors.push(...batchErrors);
+              }
+              jobState.errors = jobState.errors.slice(-10);
               // バッチ間ディレイ（10秒）
               if (batchIdx < jobState.totalBatches - 1 && !jobState.aborted) {
                 await sleep(DELAY_BETWEEN_BATCHES_MS);

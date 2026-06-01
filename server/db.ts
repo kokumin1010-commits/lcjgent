@@ -26482,12 +26482,38 @@ export async function createSalesEmailLogsBatch(logs: InsertSalesEmailLog[]) {
     try {
       await db.insert(salesEmailLogs).values(batch);
     } catch (err: any) {
-      // trackingIdカラムがまだない場合のフォールバック: trackingIdを除外してリトライ
-      if (err.message?.includes("Unknown column") && err.message?.includes("trackingId")) {
-        const batchWithoutTracking = batch.map(({ trackingId, ...rest }) => rest);
-        await db.insert(salesEmailLogs).values(batchWithoutTracking as any);
-        console.warn("[SalesEmailLog] Inserted without trackingId (column not yet migrated)");
+      const errMsg = err.message || '';
+      // Unknown columnエラーの場合: 問題カラムを自動除外してリトライ
+      if (errMsg.includes("Unknown column")) {
+        // エラーメッセージからカラム名を抽出 (例: "Unknown column 'sentBy' in 'field list'")
+        const colMatch = errMsg.match(/Unknown column '([^']+)'/);
+        const problemCol = colMatch ? colMatch[1] : null;
+        console.warn(`[SalesEmailLog] Unknown column detected: ${problemCol || 'unknown'}, attempting fallback insert`);
+        
+        // 問題カラムを除外してリトライ（複数カラムが問題の場合は最小限のフィールドで再試行）
+        const minimalBatch = batch.map((log: any) => {
+          const safe: any = {
+            toEmail: log.toEmail,
+            toName: log.toName || "",
+            toCompany: log.toCompany || "",
+            subject: log.subject,
+            sendType: log.sendType,
+            status: log.status,
+            attachPdf: log.attachPdf,
+          };
+          // オプションカラムは存在する場合のみ追加（エラーにならないよう試行）
+          return safe;
+        });
+        
+        try {
+          await db.insert(salesEmailLogs).values(minimalBatch as any);
+          console.warn(`[SalesEmailLog] Fallback insert succeeded with minimal fields`);
+        } catch (retryErr: any) {
+          console.error(`[SalesEmailLog] Fallback insert also failed: ${retryErr.message}`);
+          throw retryErr;
+        }
       } else {
+        console.error(`[SalesEmailLog] Insert error: ${errMsg}`);
         throw err;
       }
     }
