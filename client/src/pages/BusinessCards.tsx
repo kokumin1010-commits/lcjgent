@@ -1703,20 +1703,23 @@ export default function BusinessCards() {
               </div>
             </CardHeader>
               <CardContent>
-                <div className="overflow-auto max-h-[500px] border rounded-md" style={{ scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #e2e8f0' }}>
-                  <Table className="min-w-[1400px]">
+                <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                  <span>← 横スクロールで全列表示 →</span>
+                </div>
+                <div className="overflow-auto max-h-[500px] border rounded-md" style={{ scrollbarWidth: 'auto' }}>
+                  <Table className="min-w-[1100px]">
                     <TableHeader className="sticky top-0 z-10 bg-white">
                       <TableRow>
-                        <TableHead className="min-w-[160px]">会社名</TableHead>
-                        <TableHead className="w-[40px]">HP</TableHead>
-                        <TableHead className="min-w-[180px]">メール</TableHead>
-                        <TableHead className="min-w-[120px]">電話</TableHead>
-                        <TableHead className="min-w-[80px]">都道府県</TableHead>
-                        <TableHead className="min-w-[80px]">ステータス</TableHead>
-                        <TableHead className="min-w-[120px]">キーワード</TableHead>
-                        <TableHead className="min-w-[80px]">カテゴリ</TableHead>
-                        <TableHead className="min-w-[80px]">収集元</TableHead>
-                        <TableHead className="min-w-[90px]">対応</TableHead>
+                        <TableHead className="min-w-[140px]">会社名</TableHead>
+                        <TableHead className="w-[36px]">HP</TableHead>
+                        <TableHead className="min-w-[160px]">メール</TableHead>
+                        <TableHead className="min-w-[110px]">電話</TableHead>
+                        <TableHead className="min-w-[60px]">県</TableHead>
+                        <TableHead className="min-w-[60px]">状態</TableHead>
+                        <TableHead className="min-w-[100px]">キーワード</TableHead>
+                        <TableHead className="min-w-[60px]">カテゴリ</TableHead>
+                        <TableHead className="min-w-[60px]">収集元</TableHead>
+                        <TableHead className="min-w-[80px]">対応</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
