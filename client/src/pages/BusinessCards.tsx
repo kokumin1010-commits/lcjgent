@@ -1703,10 +1703,9 @@ export default function BusinessCards() {
               </div>
             </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #e2e8f0' }}>
-                <ScrollArea className="h-[500px]">
+                <div className="overflow-auto max-h-[500px] border rounded-md" style={{ scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #e2e8f0' }}>
                   <Table className="min-w-[1400px]">
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 z-10 bg-white">
                       <TableRow>
                         <TableHead className="min-w-[160px]">会社名</TableHead>
                         <TableHead className="w-[40px]">HP</TableHead>
@@ -1822,7 +1821,6 @@ export default function BusinessCards() {
                       ))}
                     </TableBody>
                   </Table>
-                </ScrollArea>
                 </div>
               </CardContent>
             </Card>
