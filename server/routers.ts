@@ -8994,7 +8994,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
           html: input.html,
         });
 
-        // 送信履歴を一括記録
+        // 送信履歴を一括記録（トラッキングID付き）
         try {
           const emailLogs = validCards.map((card) => ({
             toEmail: card!.email!.toLowerCase(),
@@ -9008,6 +9008,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
             errorMessage: result.error || undefined,
             businessCardId: card!.id,
             sentBy: ctx.user.id,
+            trackingId: nanoid(32),
           }));
           await createSalesEmailLogsBatch(emailLogs);
         } catch (logErr: any) {
@@ -9250,6 +9251,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
         });
         const testTo = input.testEmail || ctx.user.email;
         const displayName = "テスト送信先";
+        const trackingId = nanoid(32);
         const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, displayName);
         const textContent = `${displayName}様\n\n${input.content}\n\n---\n株式会社ライブコマースジャパン\n大久保\ninfo@livecommercejapan.jp`;
         const htmlLines = input.content.split('\n').map((line: string) => {
@@ -9263,11 +9265,16 @@ Return ONLY valid JSON, no markdown or explanation.`,
             return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
           }
         }).join('\n');
+        // トラッキングピクセル + PDFダウンロードリンクを埋め込み
+        const trackingPixel = `<img src="https://lcjmall.com/api/track/sales-email/open/${trackingId}" width="1" height="1" style="display:none" alt="" />`;
+        const pdfDownloadLink = input.attachPdf ? `<p style="margin: 16px 0; text-align: center;"><a href="https://lcjmall.com/api/track/sales-email/pdf/${trackingId}" style="color: #1a56db; text-decoration: underline; font-size: 14px;">📄 提案書をダウンロード（PDF）</a></p>` : '';
         const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;">
           <p style="font-size: 15px;">${displayName} 様</p>
           ${htmlLines}
+          ${pdfDownloadLink}
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
           <p style="font-size: 12px; color: #6b7280;">━━━━━━━━━━━━━━━━━━━━━━<br>株式会社ライブコマースジャパン<br>営業部 大久保<br>Email: info@livecommercejapan.jp<br>━━━━━━━━━━━━━━━━━━━━━━</p>
+          ${trackingPixel}
         </div>`;
         const mailOpts: any = {
           from: `"株式会社ライブコマースジャパン" <${ENV.emailUser}>`,
@@ -9297,6 +9304,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
               attachPdf: input.attachPdf,
               status: "sent",
               sentBy: ctx.user.id,
+              trackingId,
             });
           } catch (logErr: any) {
             console.error("[SalesEmailLog] Failed to record test email:", logErr.message);
@@ -9315,6 +9323,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
               status: "failed",
               errorMessage: e.message,
               sentBy: ctx.user.id,
+              trackingId,
             });
           } catch (logErr: any) {
             console.error("[SalesEmailLog] Failed to record test email error:", logErr.message);
@@ -9345,11 +9354,14 @@ Return ONLY valid JSON, no markdown or explanation.`,
         });
         let sentCount = 0;
         const errors: string[] = [];
+        const trackingIds: string[] = [];
 
         // バッチ送信（10件ずつ）
         for (let i = 0; i < input.emails.length; i += 10) {
           const batch = input.emails.slice(i, i + 10);
           for (const lead of batch) {
+            const trackingId = nanoid(32);
+            trackingIds.push(trackingId);
             try {
               const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, lead.displayName || "ご担当者様");
               const textContent = `${lead.displayName || "ご担当者"}様\n\n${input.content}\n\n---\n株式会社ライブコマースジャパン\n大久保\ninfo@livecommercejapan.jp`;
@@ -9365,11 +9377,16 @@ Return ONLY valid JSON, no markdown or explanation.`,
                   return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
                 }
               }).join('\n');
+              // トラッキングピクセル + PDFダウンロードリンクを埋め込み
+              const trackingPixel = `<img src="https://lcjmall.com/api/track/sales-email/open/${trackingId}" width="1" height="1" style="display:none" alt="" />`;
+              const pdfDownloadLink = input.attachPdf ? `<p style="margin: 16px 0; text-align: center;"><a href="https://lcjmall.com/api/track/sales-email/pdf/${trackingId}" style="color: #1a56db; text-decoration: underline; font-size: 14px;">📄 提案書をダウンロード（PDF）</a></p>` : '';
               const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;">
                 <p style="font-size: 15px;">${lead.displayName || "ご担当者"} 様</p>
                 ${htmlLines}
+                ${pdfDownloadLink}
                 <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
                 <p style="font-size: 12px; color: #6b7280;">━━━━━━━━━━━━━━━━━━━━━━<br>株式会社ライブコマースジャパン<br>営業部 大久保<br>Email: info@livecommercejapan.jp<br>━━━━━━━━━━━━━━━━━━━━━━</p>
+                ${trackingPixel}
               </div>`;
               const mailOpts: any = {
                 from: `"株式会社ライブコマースジャパン" <${ENV.emailUser}>`,
@@ -9437,6 +9454,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
             status: idx < sentCount ? "sent" as const : "failed" as const,
             errorMessage: idx >= sentCount && errors[idx - sentCount] ? errors[idx - sentCount] : undefined,
             sentBy: ctx.user.id,
+            trackingId: trackingIds[idx],
           }));
           await createSalesEmailLogsBatch(emailLogs);
         } catch (logErr: any) {
@@ -9588,7 +9606,10 @@ Return ONLY valid JSON, no markdown or explanation.`,
         let sentCount = 0;
         const errors: string[] = [];
 
+        const trackingIds: string[] = [];
         for (const recipient of input.recipients) {
+          const trackingId = nanoid(32);
+          trackingIds.push(trackingId);
           try {
             const displayName = recipient.name || recipient.company || "ご担当者様";
             const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, displayName);
@@ -9604,11 +9625,16 @@ Return ONLY valid JSON, no markdown or explanation.`,
                 return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
               }
             }).join('\n');
+            // トラッキングピクセル + PDFダウンロードリンクを埋め込み
+            const trackingPixel = `<img src="https://lcjmall.com/api/track/sales-email/open/${trackingId}" width="1" height="1" style="display:none" alt="" />`;
+            const pdfDownloadLink = input.attachPdf ? `<p style="margin: 16px 0; text-align: center;"><a href="https://lcjmall.com/api/track/sales-email/pdf/${trackingId}" style="color: #1a56db; text-decoration: underline; font-size: 14px;">📄 提案書をダウンロード（PDF）</a></p>` : '';
             const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;">
               <p style="font-size: 15px;">${displayName} 様</p>
               ${htmlLines}
+              ${pdfDownloadLink}
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
               <p style="font-size: 12px; color: #6b7280;">━━━━━━━━━━━━━━━━━━━━━━<br>株式会社ライブコマースジャパン<br>営業部 大久保<br>Email: info@livecommercejapan.jp<br>━━━━━━━━━━━━━━━━━━━━━━</p>
+              ${trackingPixel}
             </div>`;
             const mailOpts: any = {
               from: `"株式会社ライブコマースジャパン" <${ENV.emailUser}>`,
@@ -9646,6 +9672,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
             errorMessage: idx >= sentCount && errors[idx - sentCount] ? errors[idx - sentCount] : undefined,
             businessCardId: r.businessCardId || undefined,
             sentBy: ctx.user.id,
+            trackingId: trackingIds[idx],
           }));
           await createSalesEmailLogsBatch(emailLogs);
         } catch (logErr: any) {

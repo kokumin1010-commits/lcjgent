@@ -3040,19 +3040,11 @@ export default function BusinessCards() {
                 </div>
               </div>
 
-              {/* 送信履歴確認ボタン */}
-              <div className="mt-4 pt-4 border-t border-gray-700">
-                <Button
-                  variant="outline"
-                  className="w-full border-gray-600 text-gray-300 hover:bg-gray-700"
-                  onClick={() => window.location.href = '/master/recruitment?tab=email'}
-                >
-                  <Mail className="h-4 w-4 mr-2" />
-                  送信履歴を確認（招商管理メール） →
-                </Button>
-              </div>
+              {/* 送信履歴インラインセクション */}
             </CardContent>
           </Card>
+          {/* 送信履歴一覧（同ページ内表示） */}
+          <SalesEmailHistorySection />
         </TabsContent>
       </Tabs>
 
@@ -4180,5 +4172,215 @@ function EmailHistorySection({ email, businessCardId }: { email: string; busines
         ))}
       </div>
     </div>
+  );
+}
+
+
+// ============================================================
+// 営業メール送信履歴セクション（emailタブ内にインライン表示）
+// 開封トラッキング + PDFダウンロードトラッキング表示
+// ============================================================
+function SalesEmailHistorySection() {
+  const [search, setSearch] = useState("");
+  const [sendTypeFilter, setSendTypeFilter] = useState<string>("_all");
+  const [page, setPage] = useState(0);
+  const limit = 30;
+  const [, navigate] = useLocation();
+
+  const { data, isLoading, refetch } = trpc.businessCard.getSalesEmailLogs.useQuery(
+    {
+      search: search || undefined,
+      sendType: sendTypeFilter === "_all" ? undefined : sendTypeFilter,
+      limit,
+      offset: page * limit,
+    },
+    { refetchOnWindowFocus: false }
+  );
+
+  const sendTypeLabel = (type: string) => {
+    switch (type) {
+      case "test": return "テスト";
+      case "bulk_card": return "名刺一括";
+      case "bulk_lead": return "リード一括";
+      case "bulk_unsent": return "未送信一括";
+      case "bulk_all": return "全件一括";
+      default: return type;
+    }
+  };
+
+  const sendTypeBadgeColor = (type: string) => {
+    switch (type) {
+      case "test": return "bg-gray-100 text-gray-700 border-gray-300";
+      case "bulk_card": return "bg-green-50 text-green-700 border-green-300";
+      case "bulk_lead": return "bg-blue-50 text-blue-700 border-blue-300";
+      case "bulk_all": return "bg-purple-50 text-purple-700 border-purple-300";
+      default: return "bg-gray-100 text-gray-700 border-gray-300";
+    }
+  };
+
+  const totalPages = data ? Math.ceil(data.total / limit) : 0;
+
+  return (
+    <Card className="mt-4">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <History className="h-5 w-5 text-blue-600" />
+          営業メール送信履歴
+          {data && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              全{data.total}件
+            </Badge>
+          )}
+        </CardTitle>
+        {/* フィルター */}
+        <div className="flex flex-wrap gap-2 mt-2">
+          <Input
+            placeholder="メール/名前/会社で検索..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+            className="h-8 w-48 text-sm"
+          />
+          <Select value={sendTypeFilter} onValueChange={(v) => { setSendTypeFilter(v); setPage(0); }}>
+            <SelectTrigger className="h-8 w-32 text-xs">
+              <SelectValue placeholder="種別" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_all">全種別</SelectItem>
+              <SelectItem value="test">テスト</SelectItem>
+              <SelectItem value="bulk_card">名刺一括</SelectItem>
+              <SelectItem value="bulk_lead">リード一括</SelectItem>
+              <SelectItem value="bulk_all">全件一括</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="ghost" size="sm" onClick={() => refetch()} className="h-8">
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-sm text-muted-foreground">読み込み中...</span>
+          </div>
+        ) : !data?.rows || data.rows.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground text-sm">
+            送信履歴がありません
+          </div>
+        ) : (
+          <>
+            {/* テーブル */}
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs w-[140px]">宛先</TableHead>
+                    <TableHead className="text-xs w-[100px]">会社</TableHead>
+                    <TableHead className="text-xs">件名</TableHead>
+                    <TableHead className="text-xs w-[70px]">種別</TableHead>
+                    <TableHead className="text-xs w-[80px]">開封</TableHead>
+                    <TableHead className="text-xs w-[80px]">PDF</TableHead>
+                    <TableHead className="text-xs w-[100px]">送信日時</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.rows.map((log: any) => (
+                    <TableRow key={log.id} className="hover:bg-muted/50">
+                      <TableCell className="text-xs">
+                        <button
+                          className="text-blue-600 hover:underline cursor-pointer font-medium text-left"
+                          onClick={() => {
+                            if (log.businessCardId) {
+                              navigate(`/master/business-cards/${log.businessCardId}`);
+                            }
+                          }}
+                          disabled={!log.businessCardId}
+                          title={log.businessCardId ? "個人ページを開く" : "名刺未紐付け"}
+                        >
+                          {log.toName || log.toEmail}
+                        </button>
+                        <div className="text-[10px] text-muted-foreground truncate max-w-[130px]">{log.toEmail}</div>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground truncate max-w-[100px]">
+                        {log.toCompany || "—"}
+                      </TableCell>
+                      <TableCell className="text-xs truncate max-w-[200px]" title={log.subject}>
+                        {log.subject}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${sendTypeBadgeColor(log.sendType)}`}>
+                          {sendTypeLabel(log.sendType)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {log.openCount > 0 ? (
+                          <div className="flex items-center gap-1">
+                            <Eye className="h-3.5 w-3.5 text-green-600" />
+                            <span className="text-xs text-green-700 font-medium">{log.openCount}回</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">未開封</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {log.pdfDownloadCount > 0 ? (
+                          <div className="flex items-center gap-1">
+                            <Download className="h-3.5 w-3.5 text-purple-600" />
+                            <span className="text-xs text-purple-700 font-medium">{log.pdfDownloadCount}回</span>
+                          </div>
+                        ) : log.attachPdf ? (
+                          <span className="text-xs text-muted-foreground">未DL</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-[10px] text-muted-foreground whitespace-nowrap">
+                        {new Date(log.sentAt).toLocaleString("ja-JP", {
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {/* ページネーション */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-3 pt-3 border-t">
+                <span className="text-xs text-muted-foreground">
+                  {page * limit + 1}〜{Math.min((page + 1) * limit, data.total)}件 / 全{data.total}件
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={page <= 0}
+                    onClick={() => setPage(p => p - 1)}
+                    className="h-7 px-2"
+                  >
+                    ←
+                  </Button>
+                  <span className="text-xs text-muted-foreground px-2">
+                    {page + 1} / {totalPages}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={page >= totalPages - 1}
+                    onClick={() => setPage(p => p + 1)}
+                    className="h-7 px-2"
+                  >
+                    →
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }

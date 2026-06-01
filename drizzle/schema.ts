@@ -6175,6 +6175,13 @@ export const salesEmailLogs = mysqlTable("sales_email_logs", {
   businessCardId: int("businessCardId"), // 名刺ID（名刺経由の場合）
   sentBy: int("sentBy"), // 送信者のuser ID
   sentAt: timestamp("sentAt").defaultNow().notNull(), // 送信日時
+  // トラッキング
+  trackingId: varchar("trackingId", { length: 64 }), // ユニークトラッキングID
+  openedAt: timestamp("openedAt"), // 初回開封日時
+  openCount: int("openCount").default(0), // 開封回数
+  lastOpenedAt: timestamp("lastOpenedAt"), // 最終開封日時
+  pdfDownloadedAt: timestamp("pdfDownloadedAt"), // 初回PDFダウンロード日時
+  pdfDownloadCount: int("pdfDownloadCount").default(0), // PDFダウンロード回数
 });
 export type SalesEmailLog = typeof salesEmailLogs.$inferSelect;
 export type InsertSalesEmailLog = typeof salesEmailLogs.$inferInsert;

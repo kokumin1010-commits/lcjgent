@@ -2371,6 +2371,12 @@ async function startServer() {
             createSalesEmailLogs(db).catch((err: unknown) => {
               console.error("[Migration] Sales email logs table error:", err);
             });
+            // Add tracking columns
+            import("../migrations/addTrackingToSalesEmailLogs").then(({ addTrackingToSalesEmailLogs }) => {
+              addTrackingToSalesEmailLogs(db).catch((err: unknown) => {
+                console.error("[Migration] Add tracking columns error:", err);
+              });
+            });
           });
         }
       });

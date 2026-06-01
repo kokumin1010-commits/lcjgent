@@ -1,7 +1,8 @@
 import { Router } from "express";
+import path from "path";
 import { getDb } from "./db";
-import { emailTracking } from "../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { emailTracking, salesEmailLogs } from "../drizzle/schema";
+import { eq, sql } from "drizzle-orm";
 
 export const trackingRouter = Router();
 
@@ -114,4 +115,96 @@ trackingRouter.get("/step-email/click/:trackingId", async (req, res) => {
 
   // Redirect to the original URL
   res.redirect(302, decodeURIComponent(url));
+});
+
+/**
+ * Sales Email - Open tracking pixel
+ * Records email open event for sales emails (business card / lead emails)
+ */
+trackingRouter.get("/sales-email/open/:trackingId", async (req, res) => {
+  const { trackingId } = req.params;
+
+  try {
+    const db = await getDb();
+    if (db) {
+      const [existing] = await db
+        .select()
+        .from(salesEmailLogs)
+        .where(eq(salesEmailLogs.trackingId, trackingId))
+        .limit(1);
+
+      if (existing) {
+        const now = new Date();
+        await db
+          .update(salesEmailLogs)
+          .set({
+            openedAt: existing.openedAt || now,
+            openCount: (existing.openCount || 0) + 1,
+            lastOpenedAt: now,
+          })
+          .where(eq(salesEmailLogs.trackingId, trackingId));
+      }
+    }
+  } catch (error) {
+    console.error("[Sales Email Tracking] Error recording open:", error);
+  }
+
+  // Return transparent 1x1 pixel GIF
+  const pixel = Buffer.from(
+    "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    "base64"
+  );
+
+  res.set({
+    "Content-Type": "image/gif",
+    "Content-Length": String(pixel.length),
+    "Cache-Control": "no-store, no-cache, must-revalidate, private",
+    "Pragma": "no-cache",
+    "Expires": "0",
+  });
+
+  res.send(pixel);
+});
+
+/**
+ * Sales Email - PDF download tracking
+ * Records PDF download event and serves the PDF file
+ */
+trackingRouter.get("/sales-email/pdf/:trackingId", async (req, res) => {
+  const { trackingId } = req.params;
+
+  try {
+    const db = await getDb();
+    if (db) {
+      const [existing] = await db
+        .select()
+        .from(salesEmailLogs)
+        .where(eq(salesEmailLogs.trackingId, trackingId))
+        .limit(1);
+
+      if (existing) {
+        const now = new Date();
+        await db
+          .update(salesEmailLogs)
+          .set({
+            pdfDownloadedAt: existing.pdfDownloadedAt || now,
+            pdfDownloadCount: (existing.pdfDownloadCount || 0) + 1,
+          })
+          .where(eq(salesEmailLogs.trackingId, trackingId));
+      }
+    }
+  } catch (error) {
+    console.error("[Sales Email Tracking] Error recording PDF download:", error);
+  }
+
+  // Serve the PDF file
+  const pdfPath = path.resolve(process.cwd(), "server/assets/LCJ_proposal_ja_v06.pdf");
+  res.download(pdfPath, "LCJ提案書.pdf", (err) => {
+    if (err) {
+      console.error("[Sales Email Tracking] Error serving PDF:", err);
+      if (!res.headersSent) {
+        res.status(404).send("PDF not found");
+      }
+    }
+  });
 });
