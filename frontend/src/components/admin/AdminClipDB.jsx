@@ -284,7 +284,7 @@ function ClipCard({ clip, onPlay, brands, adminKey, onBrandChange, allPlaylists,
           className={`absolute top-2 left-2 z-20 w-6 h-6 rounded flex items-center justify-center transition-all ${
             isSelected
               ? "bg-blue-500 text-white shadow-md"
-              : "bg-white/80 text-gray-400 hover:bg-blue-100 hover:text-blue-500 opacity-0 group-hover:opacity-100"
+              : "bg-white/90 text-gray-500 hover:bg-blue-100 hover:text-blue-500 shadow-sm border border-gray-200"
           }`}
           title={isSelected ? "選択解除" : "選択"}
         >
