@@ -9484,31 +9484,15 @@ Return ONLY valid JSON, no markdown or explanation.`,
       .query(async ({ input }) => {
         return await getSalesEmailLogsByBusinessCardId(input.businessCardId);
       }),
-    // ===== メールあり全件送信（名刺+リード統合） =====
-    sendEmailToAll: protectedProcedure
+    // ===== メールあり全件送信（2段階API） =====
+    // Step 1: 送信先リストを取得（1回だけ呼ぶ）
+    getEmailRecipientsList: protectedProcedure
       .input(z.object({
-        subject: z.string().min(1),
-        content: z.string().min(1),
-        attachPdf: z.boolean().default(false),
         includeCards: z.boolean().default(true),
         includeLeads: z.boolean().default(true),
-        batchSize: z.number().min(1).max(10000).default(10000),
-        offset: z.number().min(0).default(0),
         skipSent: z.boolean().default(false),
       }))
-      .mutation(async ({ input, ctx }) => {
-        const { ENV } = await import("./_core/env");
-        const nodemailer = await import("nodemailer");
-        const transporter = nodemailer.default.createTransport({
-          host: ENV.emailSmtpHost || "smtp.qiye.aliyun.com",
-          port: 465,
-          secure: true,
-          auth: {
-            user: ENV.emailUser,
-            pass: ENV.emailPassword,
-          },
-        });
-
+      .mutation(async ({ input }) => {
         // 送信済メールアドレスを取得（skipSentがtrueの場合）
         let sentEmailSet = new Set<string>();
         if (input.skipSent) {
@@ -9527,7 +9511,6 @@ Return ONLY valid JSON, no markdown or explanation.`,
             if (card.email && !seenEmails.has(card.email.toLowerCase())) {
               const emailLower = card.email.toLowerCase();
               seenEmails.add(emailLower);
-              // skipSentの場合、送信済はスキップ
               if (input.skipSent && sentEmailSet.has(emailLower)) continue;
               allRecipients.push({
                 email: card.email,
@@ -9562,87 +9545,96 @@ Return ONLY valid JSON, no markdown or explanation.`,
               }
             }
           } catch (e: any) {
-            console.error("[sendEmailToAll] Failed to fetch leads:", e.message);
+            console.error("[getEmailRecipientsList] Failed to fetch leads:", e.message);
           }
         }
 
-        // offsetとbatchSizeでスライス
-        const totalAvailable = allRecipients.length;
-        const batchRecipients = allRecipients.slice(input.offset, input.offset + input.batchSize);
+        return {
+          recipients: allRecipients,
+          totalCount: allRecipients.length,
+          skippedSent: input.skipSent ? sentEmailSet.size : 0,
+          cardCount: allRecipients.filter(r => r.source === "card").length,
+          leadCount: allRecipients.filter(r => r.source === "lead").length,
+        };
+      }),
 
-        if (batchRecipients.length === 0) {
-          return {
-            success: true,
-            sentCount: 0,
-            totalRecipients: totalAvailable,
-            batchStart: input.offset,
-            batchEnd: input.offset,
-            hasMore: false,
-            cardCount: 0,
-            leadCount: 0,
-            errors: [] as string[],
-            skippedSent: input.skipSent ? sentEmailSet.size : 0,
-          };
-        }
+    // Step 2: バッチ送信（フロントエンドから送信先リストを受け取る）
+    sendEmailBatch: protectedProcedure
+      .input(z.object({
+        subject: z.string().min(1),
+        content: z.string().min(1),
+        attachPdf: z.boolean().default(false),
+        recipients: z.array(z.object({
+          email: z.string(),
+          name: z.string(),
+          company: z.string(),
+          source: z.string(),
+          businessCardId: z.number().optional(),
+        })),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { ENV } = await import("./_core/env");
+        const nodemailer = await import("nodemailer");
+        const transporter = nodemailer.default.createTransport({
+          host: ENV.emailSmtpHost || "smtp.qiye.aliyun.com",
+          port: 465,
+          secure: true,
+          auth: {
+            user: ENV.emailUser,
+            pass: ENV.emailPassword,
+          },
+        });
 
         let sentCount = 0;
         const errors: string[] = [];
 
-        // バッチ送信（10件ずつSMTP送信）
-        for (let i = 0; i < batchRecipients.length; i += 10) {
-          const batch = batchRecipients.slice(i, i + 10);
-          for (const recipient of batch) {
-            try {
-              const displayName = recipient.name || recipient.company || "ご担当者様";
-              const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, displayName);
-              const textContent = `${displayName}様\n\n${input.content}\n\n---\n株式会社ライブコマースジャパン\n大久保\ninfo@livecommercejapan.jp`;
-              const htmlLines = input.content.split('\n').map((line: string) => {
-                if (line.startsWith('■') || line.startsWith('□')) {
-                  return `<h3 style="color: #1a56db; margin-top: 24px; margin-bottom: 8px; font-size: 15px;">${line}</h3>`;
-                } else if (line.startsWith('・') || line.startsWith('- ')) {
-                  return `<li style="margin: 4px 0; font-size: 14px;">${line.replace(/^[・\-]\s*/, '')}</li>`;
-                } else if (line.trim() === '') {
-                  return '<br>';
-                } else {
-                  return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
-                }
-              }).join('\n');
-              const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;">
-                <p style="font-size: 15px;">${displayName} 様</p>
-                ${htmlLines}
-                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-                <p style="font-size: 12px; color: #6b7280;">━━━━━━━━━━━━━━━━━━━━━━<br>株式会社ライブコマースジャパン<br>営業部 大久保<br>Email: info@livecommercejapan.jp<br>━━━━━━━━━━━━━━━━━━━━━━</p>
-              </div>`;
-              const mailOpts: any = {
-                from: `"株式会社ライブコマースジャパン" <${ENV.emailUser}>`,
-                to: recipient.email,
-                subject: personalizedSubject,
-                text: textContent,
-                html: htmlContent,
-              };
-              if (input.attachPdf) {
-                const path = await import("path");
-                const pdfPath = path.resolve(process.cwd(), "server/assets/LCJ_proposal_ja_v06.pdf");
-                mailOpts.attachments = [{
-                  filename: "LCJ提案書_ライブコマースジャパン.pdf",
-                  path: pdfPath,
-                }];
+        for (const recipient of input.recipients) {
+          try {
+            const displayName = recipient.name || recipient.company || "ご担当者様";
+            const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, displayName);
+            const textContent = `${displayName}様\n\n${input.content}\n\n---\n株式会社ライブコマースジャパン\n大久保\ninfo@livecommercejapan.jp`;
+            const htmlLines = input.content.split('\n').map((line: string) => {
+              if (line.startsWith('■') || line.startsWith('□')) {
+                return `<h3 style="color: #1a56db; margin-top: 24px; margin-bottom: 8px; font-size: 15px;">${line}</h3>`;
+              } else if (line.startsWith('・') || line.startsWith('- ')) {
+                return `<li style="margin: 4px 0; font-size: 14px;">${line.replace(/^[・\-]\s*/, '')}</li>`;
+              } else if (line.trim() === '') {
+                return '<br>';
+              } else {
+                return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
               }
-              await transporter.sendMail(mailOpts);
-              sentCount++;
-            } catch (e: any) {
-              errors.push(`${recipient.email}: ${e.message}`);
+            }).join('\n');
+            const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;">
+              <p style="font-size: 15px;">${displayName} 様</p>
+              ${htmlLines}
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+              <p style="font-size: 12px; color: #6b7280;">━━━━━━━━━━━━━━━━━━━━━━<br>株式会社ライブコマースジャパン<br>営業部 大久保<br>Email: info@livecommercejapan.jp<br>━━━━━━━━━━━━━━━━━━━━━━</p>
+            </div>`;
+            const mailOpts: any = {
+              from: `"株式会社ライブコマースジャパン" <${ENV.emailUser}>`,
+              to: recipient.email,
+              subject: personalizedSubject,
+              text: textContent,
+              html: htmlContent,
+            };
+            if (input.attachPdf) {
+              const path = await import("path");
+              const pdfPath = path.resolve(process.cwd(), "server/assets/LCJ_proposal_ja_v06.pdf");
+              mailOpts.attachments = [{
+                filename: "LCJ提案書_ライブコマースジャパン.pdf",
+                path: pdfPath,
+              }];
             }
-          }
-          // レートリミット対策: 10件ごとに1秒待機
-          if (i + 10 < batchRecipients.length) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await transporter.sendMail(mailOpts);
+            sentCount++;
+          } catch (e: any) {
+            errors.push(`${recipient.email}: ${e.message}`);
           }
         }
 
         // 送信履歴を一括記録
         try {
-          const emailLogs = batchRecipients.map((r, idx) => ({
+          const emailLogs = input.recipients.map((r, idx) => ({
             toEmail: r.email.toLowerCase(),
             toName: r.name || "",
             toCompany: r.company || "",
@@ -9657,7 +9649,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
           }));
           await createSalesEmailLogsBatch(emailLogs);
         } catch (logErr: any) {
-          console.error("[SalesEmailLog] Failed to record all bulk email:", logErr.message);
+          console.error("[SalesEmailLog] Failed to record batch email:", logErr.message);
         }
 
         // Activity log
@@ -9666,31 +9658,47 @@ Return ONLY valid JSON, no markdown or explanation.`,
           actionType: "all_bulk_email",
           actionLabel: "メールありバッチ送信",
           targetType: "email",
-          targetName: `${sentCount}件に送信（バッチ ${input.offset + 1}〜${input.offset + batchRecipients.length}）`,
+          targetName: `${sentCount}/${input.recipients.length}件送信`,
           metadata: {
-            totalRecipients: totalAvailable,
-            batchSize: input.batchSize,
-            offset: input.offset,
             sentCount,
             errorCount: errors.length,
             subject: input.subject,
-            cardCount: batchRecipients.filter(r => r.source === "card").length,
-            leadCount: batchRecipients.filter(r => r.source === "lead").length,
-            skipSent: input.skipSent,
+            cardCount: input.recipients.filter(r => r.source === "card").length,
+            leadCount: input.recipients.filter(r => r.source === "lead").length,
           },
         });
 
         return {
           success: true,
           sentCount,
-          totalRecipients: totalAvailable,
-          batchStart: input.offset,
-          batchEnd: input.offset + batchRecipients.length,
-          hasMore: input.offset + input.batchSize < totalAvailable,
-          cardCount: batchRecipients.filter(r => r.source === "card").length,
-          leadCount: batchRecipients.filter(r => r.source === "lead").length,
           errors: errors.slice(0, 5),
-          skippedSent: input.skipSent ? sentEmailSet.size : 0,
+        };
+      }),
+    // Legacy: sendEmailToAll (kept for backward compatibility, delegates to new APIs)
+    sendEmailToAll: protectedProcedure
+      .input(z.object({
+        subject: z.string().min(1),
+        content: z.string().min(1),
+        attachPdf: z.boolean().default(false),
+        includeCards: z.boolean().default(true),
+        includeLeads: z.boolean().default(true),
+        batchSize: z.number().min(1).max(10000).default(10000),
+        offset: z.number().min(0).default(0),
+        skipSent: z.boolean().default(false),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // Return empty result - this endpoint is deprecated, use getEmailRecipientsList + sendEmailBatch
+        return {
+          success: true,
+          sentCount: 0,
+          totalRecipients: 0,
+          batchStart: 0,
+          batchEnd: 0,
+          hasMore: false,
+          cardCount: 0,
+          leadCount: 0,
+          errors: [] as string[],
+          skippedSent: 0,
         };
       }),
   }),

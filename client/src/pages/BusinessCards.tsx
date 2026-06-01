@@ -596,8 +596,9 @@ export default function BusinessCards() {
     onError: (error) => toast.error(error.message),
   });
 
-  // メールあり全件送信mutation
-  const sendToAllMutation = trpc.businessCard.sendEmailToAll.useMutation();
+  // メールあり全件送信mutation（2段階API）
+  const getRecipientsMutation = trpc.businessCard.getEmailRecipientsList.useMutation();
+  const sendBatchMutation = trpc.businessCard.sendEmailBatch.useMutation();
   const [testEmailAddress, setTestEmailAddress] = useState("");
 
   // バッチ送信用state
@@ -627,34 +628,59 @@ export default function BusinessCards() {
       skippedSent: 0,
     });
 
+    // Step 1: 送信先リストを一括取得
+    let allRecipients: Array<{ email: string; name: string; company: string; source: string; businessCardId?: number }> = [];
+    let skippedSent = 0;
+    try {
+      const listResult = await getRecipientsMutation.mutateAsync({
+        includeCards: true,
+        includeLeads: true,
+        skipSent,
+      });
+      allRecipients = listResult.recipients;
+      skippedSent = listResult.skippedSent;
+    } catch (e: any) {
+      toast.error(`送信先リスト取得エラー: ${e.message}`);
+      setBatchProgress(null);
+      return;
+    }
+
+    if (allRecipients.length === 0) {
+      toast.info("送信対象が0件です。全て送信済みか、メールありのデータがありません。");
+      setBatchProgress(null);
+      return;
+    }
+
+    const totalRecipients = allRecipients.length;
+    setBatchProgress({
+      isRunning: true,
+      currentOffset: 0,
+      totalSent: 0,
+      totalErrors: 0,
+      totalRecipients,
+      skippedSent,
+    });
+
+    // Step 2: バッチサイズごとに送信APIを呼ぶ
     let offset = 0;
     let totalSent = 0;
     let totalErrors = 0;
-    let totalRecipients = 0;
-    let skippedSent = 0;
-    let hasMore = true;
 
-    while (hasMore && !batchAbortRef.current) {
+    while (offset < totalRecipients && !batchAbortRef.current) {
+      const batch = allRecipients.slice(offset, offset + batchSize);
       try {
-        const result = await sendToAllMutation.mutateAsync({
+        const result = await sendBatchMutation.mutateAsync({
           subject: emailSubject,
           content: emailContent,
           attachPdf,
-          includeCards: true,
-          includeLeads: true,
-          batchSize,
-          offset,
-          skipSent,
+          recipients: batch,
         });
         totalSent += result.sentCount;
         totalErrors += result.errors.length;
-        totalRecipients = result.totalRecipients;
-        skippedSent = result.skippedSent || 0;
-        hasMore = result.hasMore;
-        offset = result.batchEnd;
+        offset += batch.length;
 
         setBatchProgress({
-          isRunning: !batchAbortRef.current && hasMore,
+          isRunning: !batchAbortRef.current && offset < totalRecipients,
           currentOffset: offset,
           totalSent,
           totalErrors,
@@ -663,7 +689,7 @@ export default function BusinessCards() {
         });
 
         if (result.errors.length > 0) {
-          toast.error(`バッチエラー: ${result.errors[0]}`);
+          console.warn(`バッチエラー:`, result.errors);
         }
       } catch (e: any) {
         toast.error(`バッチ送信エラー: ${e.message}`);
