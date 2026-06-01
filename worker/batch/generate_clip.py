@@ -3163,6 +3163,70 @@ def generate_clip(clip_id: str, video_id: str, blob_url: str, time_start: float,
         run_sync(_mark_dedup())
         return
 
+    # ─── PRE-GENERATION QUALITY GATE: Check NG history + phase importance ───
+    async def _pre_generation_quality_check():
+        """Check if this clip should be skipped based on feedback history and phase quality."""
+        try:
+            async with get_session() as _qc_session:
+                # 1. Check if same phase was previously marked as NG/unusable
+                ng_check_sql = text("""
+                    SELECT COUNT(*) as ng_count
+                    FROM video_clips
+                    WHERE video_id = :vid
+                      AND phase_index = (SELECT phase_index FROM video_clips WHERE id = :cid LIMIT 1)
+                      AND is_unusable = TRUE
+                      AND id != :cid
+                """)
+                ng_result = await _qc_session.execute(ng_check_sql, {"vid": video_id, "cid": clip_id})
+                ng_row = ng_result.fetchone()
+                if ng_row and ng_row.ng_count > 0:
+                    return "same_phase_previously_ng"
+                
+                # 2. Check clip_feedback for same video+phase with bad rating
+                fb_check_sql = text("""
+                    SELECT COUNT(*) as bad_count
+                    FROM clip_feedback
+                    WHERE video_id = CAST(:vid AS uuid)
+                      AND phase_index = (SELECT phase_index FROM video_clips WHERE id = :cid LIMIT 1)
+                      AND rating = 'bad'
+                """)
+                fb_result = await _qc_session.execute(fb_check_sql, {"vid": video_id, "cid": clip_id})
+                fb_row = fb_result.fetchone()
+                if fb_row and fb_row.bad_count >= 2:
+                    return "phase_has_multiple_bad_feedback"
+                
+                # 3. Check phase importance_score (from video_phases)
+                phase_score_sql = text("""
+                    SELECT vp.importance_score
+                    FROM video_phases vp
+                    JOIN video_clips vc ON vc.video_id = vp.video_id AND vc.phase_index = vp.phase_index
+                    WHERE vc.id = :cid
+                    LIMIT 1
+                """)
+                ps_result = await _qc_session.execute(phase_score_sql, {"cid": clip_id})
+                ps_row = ps_result.fetchone()
+                # If importance_score exists and is very low, skip
+                if ps_row and ps_row.importance_score is not None and ps_row.importance_score < 0.1:
+                    return "phase_importance_too_low"
+                
+                return None  # Pass quality gate
+        except Exception as e:
+            logger.warning(f"Pre-generation quality check failed (proceeding anyway): {e}")
+            return None
+    
+    skip_reason = run_sync(_pre_generation_quality_check())
+    if skip_reason:
+        logger.info(f"PRE-GEN GATE: Skipping clip {clip_id} - reason: {skip_reason}")
+        update_clip_status(clip_id, "cancelled")
+        async def _mark_quality_skip():
+            async with get_session() as _s:
+                await _s.execute(text(
+                    "UPDATE video_clips SET progress_step = :reason, is_unusable = TRUE, "
+                    "unusable_reason = :reason WHERE id = :cid"
+                ), {"cid": clip_id, "reason": f"pre_gen_skip:{skip_reason}"})
+        run_sync(_mark_quality_skip())
+        return
+
     # Ensure blob_url has a fresh SAS token (expired tokens cause download failures)
     blob_url = _ensure_fresh_sas_url(blob_url)
 
@@ -3833,12 +3897,38 @@ def _enrich_clip_after_generation(clip_id: str, video_id: str, phase_index, capt
             if video and video.created_at:
                 updates["stream_date"] = video.created_at.date() if hasattr(video.created_at, 'date') else None
 
-            # 4. Calculate duration
-            clip_sql = text("SELECT time_start, time_end FROM video_clips WHERE id = :clip_id")
+            # 4. Calculate duration (use actual clip duration from ffprobe, not phase time range)
+            clip_sql = text("SELECT time_start, time_end, clip_url FROM video_clips WHERE id = :clip_id")
             c_result = await session.execute(clip_sql, {"clip_id": clip_id})
             clip_row = c_result.fetchone()
-            if clip_row and clip_row.time_start is not None and clip_row.time_end is not None:
-                updates["duration_sec"] = round(clip_row.time_end - clip_row.time_start, 2)
+            if clip_row:
+                # Try to get actual clip duration from the generated file
+                actual_duration = None
+                if clip_row.clip_url:
+                    try:
+                        # Use ffprobe to get actual duration from the uploaded clip
+                        import subprocess as _sp
+                        _probe_cmd = [
+                            "ffprobe", "-v", "error", "-show_entries",
+                            "format=duration", "-of", "default=noprint_wrappers=1:nokey=1",
+                            clip_row.clip_url
+                        ]
+                        _probe_result = _sp.run(_probe_cmd, capture_output=True, text=True, timeout=15)
+                        if _probe_result.returncode == 0 and _probe_result.stdout.strip():
+                            actual_duration = float(_probe_result.stdout.strip())
+                    except Exception as _dur_err:
+                        logger.debug(f"ffprobe duration check failed: {_dur_err}")
+                
+                if actual_duration and actual_duration > 0:
+                    updates["duration_sec"] = round(actual_duration, 2)
+                elif clip_row.time_start is not None and clip_row.time_end is not None:
+                    # Fallback to phase time range if ffprobe fails
+                    updates["duration_sec"] = round(clip_row.time_end - clip_row.time_start, 2)
+                
+                # Auto-mark as unusable if actual clip is too short (< 10 seconds)
+                if actual_duration and actual_duration < 10:
+                    updates["is_unusable"] = True
+                    updates["unusable_reason"] = f"too_short_after_processing:{actual_duration:.1f}s"
 
             # 5. Build and execute UPDATE
             set_parts = []

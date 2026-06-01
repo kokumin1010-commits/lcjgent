@@ -4222,6 +4222,88 @@ async def _gpt_content_quality_score(clip: dict, job_id: str = "") -> dict:
     transcript = (clip.get("transcript_text") or "")[:600]
     product_name = clip.get("product_name") or ""
     phase_description = (clip.get("phase_description") or "")[:400]
+    video_id = clip.get("video_id") or ""
+    
+    # ─── フィードバック学習データ取得（同じ動画のNG/Good履歴を参照）───
+    feedback_context = ""
+    try:
+        async with get_session() as _fb_session:
+            # 同じ動画のフィードバック統計を取得
+            fb_stats_sql = text("""
+                SELECT 
+                    COUNT(*) FILTER (WHERE rating = 'bad') as bad_count,
+                    COUNT(*) FILTER (WHERE rating = 'good') as good_count,
+                    array_agg(DISTINCT unnested_tag) FILTER (WHERE rating = 'bad') as bad_reason_tags
+                FROM clip_feedback
+                LEFT JOIN LATERAL unnest(
+                    CASE WHEN jsonb_typeof(reason_tags) = 'array' 
+                         THEN ARRAY(SELECT jsonb_array_elements_text(reason_tags))
+                         ELSE ARRAY[]::text[] END
+                ) AS unnested_tag ON TRUE
+                WHERE video_id = CAST(:vid AS uuid)
+            """)
+            fb_result = await _fb_session.execute(fb_stats_sql, {"vid": video_id})
+            fb_row = fb_result.fetchone()
+            
+            # 同じ動画のgoodクリップのtranscriptサンプルを取得（最大3件）
+            good_samples_sql = text("""
+                SELECT vc.transcript_text
+                FROM clip_feedback cf
+                JOIN video_clips vc ON vc.id = cf.clip_id
+                WHERE cf.video_id = CAST(:vid AS uuid)
+                  AND cf.rating = 'good'
+                  AND vc.transcript_text IS NOT NULL
+                  AND LENGTH(vc.transcript_text) > 30
+                ORDER BY cf.created_at DESC
+                LIMIT 3
+            """)
+            good_result = await _fb_session.execute(good_samples_sql, {"vid": video_id})
+            good_rows = good_result.fetchall()
+            
+            # グローバルなNG理由の統計（全動画から学習）
+            global_ng_sql = text("""
+                SELECT reason_tag, COUNT(*) as cnt
+                FROM (
+                    SELECT jsonb_array_elements_text(reason_tags) as reason_tag
+                    FROM clip_feedback
+                    WHERE rating = 'bad' AND reason_tags IS NOT NULL
+                      AND jsonb_typeof(reason_tags) = 'array'
+                ) sub
+                GROUP BY reason_tag
+                ORDER BY cnt DESC
+                LIMIT 5
+            """)
+            global_ng_result = await _fb_session.execute(global_ng_sql)
+            global_ng_rows = global_ng_result.fetchall()
+            
+            # フィードバックコンテキストを構築
+            if fb_row and (fb_row.bad_count or fb_row.good_count):
+                feedback_context += f"\n【過去のフィードバック学習データ（この動画）】\n"
+                feedback_context += f"- NG判定: {fb_row.bad_count}件 / Good判定: {fb_row.good_count}件\n"
+                if fb_row.bad_reason_tags:
+                    clean_tags = [t for t in fb_row.bad_reason_tags if t]
+                    if clean_tags:
+                        feedback_context += f"- NG理由: {', '.join(clean_tags[:5])}\n"
+            
+            if good_rows:
+                feedback_context += "\n【この動画で高評価だったクリップの例】\n"
+                for i, gr in enumerate(good_rows[:2], 1):
+                    sample_text = (gr.transcript_text or "")[:150]
+                    feedback_context += f"  例{i}: {sample_text}...\n"
+                feedback_context += "→ 上記のような内容は高く評価してください。\n"
+            
+            if global_ng_rows:
+                feedback_context += "\n【全体のNG傾向（学習済み）】\n"
+                tag_map = {"irrelevant": "商品と無関係", "hook_weak": "フックが弱い", 
+                           "too_short": "内容が薄い", "cut_position": "切り出し位置が悪い",
+                           "subtitle": "字幕問題"}
+                for ng_row in global_ng_rows[:3]:
+                    tag_label = tag_map.get(ng_row.reason_tag, ng_row.reason_tag)
+                    feedback_context += f"  - {tag_label}: {ng_row.cnt}件\n"
+                feedback_context += "→ 上記に該当する場合は厳しく減点してください。\n"
+    except Exception as _fb_err:
+        logger.debug(f"[gpt-quality {job_id}] Feedback context fetch failed (non-fatal): {_fb_err}")
+        feedback_context = ""
     
     # トランスクリプトが空の場合、phase_descriptionをフォールバックとして使用
     if not transcript.strip():
@@ -4262,7 +4344,7 @@ async def _gpt_content_quality_score(clip: dict, job_id: str = "") -> dict:
         
         prompt = f"""あなたはTikTokライブコマース動画の品質評価専門家です。
 以下の動画の書き起こし内容を読み、「この動画を見た視聴者が商品を購入したくなるか」を評価してください。
-
+{feedback_context}
 【評価項目】各項目を0点〜満点で採点してください。
 
 1. 商品訴求力 (0-30点): 商品の効果・使い方・メリットを具体的に説明しているか

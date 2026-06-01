@@ -577,14 +577,19 @@ export default function VideoDetail({ videoData, editorParams }) {
         // Sort all scored phases by relevance score (highest first)
         scoredPhases.sort((a, b) => b.relevanceScore - a.relevanceScore);
 
-        // Filter: only phases with positive relevance score
-        let qualifiedPhases = scoredPhases.filter(p => p.relevanceScore > 0);
+        // Filter: phases with sufficient relevance score
+        // When ML scores are available (apiScores), use a higher threshold
+        // because ML scores add up to 30 points, so qualified clips should score > 15
+        const hasMLScores = Object.keys(apiScores).length > 0;
+        const primaryThreshold = hasMLScores ? 15 : 0;
+        let qualifiedPhases = scoredPhases.filter(p => p.relevanceScore > primaryThreshold);
 
         // If we have fewer than MIN_CLIPS qualified, relax the threshold
         // to include phases with score > -10 (exclude only clear greeting/chitchat)
         if (qualifiedPhases.length < MIN_CLIPS && scoredPhases.length >= MIN_CLIPS) {
           console.log(`[AutoClipGen] Only ${qualifiedPhases.length} qualified phases (< ${MIN_CLIPS}), relaxing threshold`);
-          qualifiedPhases = scoredPhases.filter(p => p.relevanceScore > -10);
+          const relaxedThreshold = hasMLScores ? 5 : -10;
+          qualifiedPhases = scoredPhases.filter(p => p.relevanceScore > relaxedThreshold);
         }
 
         // Take top N
