@@ -9779,11 +9779,14 @@ Return ONLY valid JSON, no markdown or explanation.`,
             });
 
             // Step 1: 送信先リストを取得
+            console.log("[BG Batch] Step 1: Building recipient list...");
+            console.log(`[BG Batch] includeCards=${input.includeCards}, includeLeads=${input.includeLeads}, skipSent=${input.skipSent}`);
             let sentEmailSet = new Set<string>();
             if (input.skipSent) {
               const sentEmails = await getSentEmailAddresses();
               sentEmailSet = new Set(sentEmails.map(e => e.toLowerCase()));
               jobState.skippedSent = sentEmailSet.size;
+              console.log(`[BG Batch] Sent emails to skip: ${sentEmailSet.size}`);
             }
 
             const allRecipients: Array<{ email: string; name: string; company: string; source: string; businessCardId?: number }> = [];
@@ -9791,14 +9794,18 @@ Return ONLY valid JSON, no markdown or explanation.`,
 
             if (input.includeCards) {
               const allCards = await getBusinessCards({ limit: 10000 });
+              console.log(`[BG Batch] Cards fetched: ${allCards.length}`);
+              let cardsWithEmailCount = 0;
               for (const card of allCards) {
                 if (card.email && !seenEmails.has(card.email.toLowerCase())) {
+                  cardsWithEmailCount++;
                   const emailLower = card.email.toLowerCase();
                   seenEmails.add(emailLower);
                   if (input.skipSent && sentEmailSet.has(emailLower)) continue;
                   allRecipients.push({ email: card.email, name: card.name || "", company: card.company || "", source: "card", businessCardId: card.id });
                 }
               }
+              console.log(`[BG Batch] Cards with unique email: ${cardsWithEmailCount}, after skip: ${allRecipients.length}`);
             }
 
             if (input.includeLeads) {
@@ -9808,6 +9815,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
                 const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
                 const data = await res.json();
                 const leads = data?.result?.data?.json?.rows || [];
+                console.log(`[BG Batch] Leads fetched: ${leads.length}`);
+                const beforeLeads = allRecipients.length;
                 for (const lead of leads) {
                   if (lead.email && !seenEmails.has(lead.email.toLowerCase())) {
                     const emailLower = lead.email.toLowerCase();
@@ -9816,15 +9825,18 @@ Return ONLY valid JSON, no markdown or explanation.`,
                     allRecipients.push({ email: lead.email, name: lead.companyName || "", company: lead.companyName || "", source: "lead" });
                   }
                 }
+                console.log(`[BG Batch] Leads added: ${allRecipients.length - beforeLeads}`);
               } catch (e: any) {
                 console.error("[BG Batch] Failed to fetch leads:", e.message);
               }
             }
 
+            console.log(`[BG Batch] Total recipients: ${allRecipients.length}, batchSize: ${input.batchSize}`);
             jobState.totalRecipients = allRecipients.length;
             jobState.totalBatches = Math.ceil(allRecipients.length / input.batchSize);
 
             if (allRecipients.length === 0) {
+              console.warn("[BG Batch] No recipients found! Ending.");
               jobState.isRunning = false;
               return;
             }
