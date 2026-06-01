@@ -1703,21 +1703,21 @@ export default function BusinessCards() {
               </div>
             </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                <ScrollArea className="h-[400px]">
-                  <Table className="min-w-[1100px]">
+                <div className="overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #e2e8f0' }}>
+                <ScrollArea className="h-[500px]">
+                  <Table className="min-w-[1400px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="min-w-[160px]">会社名</TableHead>
                         <TableHead className="w-[40px]">HP</TableHead>
                         <TableHead className="min-w-[180px]">メール</TableHead>
                         <TableHead className="min-w-[120px]">電話</TableHead>
-                        <TableHead>都道府県</TableHead>
-                        <TableHead>ステータス</TableHead>
-                        <TableHead>キーワード</TableHead>
-                        <TableHead>カテゴリ</TableHead>
-                        <TableHead>収集元</TableHead>
-                        <TableHead>対応</TableHead>
+                        <TableHead className="min-w-[80px]">都道府県</TableHead>
+                        <TableHead className="min-w-[80px]">ステータス</TableHead>
+                        <TableHead className="min-w-[120px]">キーワード</TableHead>
+                        <TableHead className="min-w-[80px]">カテゴリ</TableHead>
+                        <TableHead className="min-w-[80px]">収集元</TableHead>
+                        <TableHead className="min-w-[90px]">対応</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
