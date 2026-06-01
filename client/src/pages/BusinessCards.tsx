@@ -1703,16 +1703,18 @@ export default function BusinessCards() {
               </div>
             </CardHeader>
               <CardContent>
+                <div className="overflow-x-auto">
                 <ScrollArea className="h-[400px]">
-                  <Table>
+                  <Table className="min-w-[1100px]">
                     <TableHeader>
                       <TableRow>
-                        <TableHead>会社名</TableHead>
-                        <TableHead>HP</TableHead>
-                        <TableHead>メール</TableHead>
-                        <TableHead>電話</TableHead>
+                        <TableHead className="min-w-[160px]">会社名</TableHead>
+                        <TableHead className="w-[40px]">HP</TableHead>
+                        <TableHead className="min-w-[180px]">メール</TableHead>
+                        <TableHead className="min-w-[120px]">電話</TableHead>
                         <TableHead>都道府県</TableHead>
                         <TableHead>ステータス</TableHead>
+                        <TableHead>キーワード</TableHead>
                         <TableHead>カテゴリ</TableHead>
                         <TableHead>収集元</TableHead>
                         <TableHead>対応</TableHead>
@@ -1739,10 +1741,12 @@ export default function BusinessCards() {
                             )}
                           </TableCell>
                           <TableCell className="text-xs">
-                            {lead.email ? (
+                            {lead.email && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(lead.email) && !/\.(avif|webp|png|jpg|jpeg|gif|svg|bmp|ico)$/i.test(lead.email) && lead.email.length < 100 ? (
                               <a href={`mailto:${lead.email}`} className="text-blue-600 hover:underline">
                                 {lead.email}
                               </a>
+                            ) : lead.email ? (
+                              <span className="text-orange-400 text-xs" title="不正なメールアドレス">⚠ 無効</span>
                             ) : "—"}
                           </TableCell>
                           <TableCell className="text-xs">
@@ -1765,6 +1769,13 @@ export default function BusinessCards() {
                                lead.status === "converted" ? t.statusConverted :
                                lead.status}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {lead.searchKeyword ? (
+                              <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                {lead.searchKeyword}
+                              </Badge>
+                            ) : "—"}
                           </TableCell>
                           <TableCell className="text-xs">
                             <Badge variant="outline" className="text-xs">
@@ -1812,6 +1823,7 @@ export default function BusinessCards() {
                     </TableBody>
                   </Table>
                 </ScrollArea>
+                </div>
               </CardContent>
             </Card>
 
