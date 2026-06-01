@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import liverCloneService from "../base/services/liverCloneService";
 import { useTranslation } from "react-i18next";
+import { lcText } from "./liverCloneTexts";
 
 // ── IndexedDB helpers for large binary data (product/face images) ──
 const IDB_NAME = "liverClone_imageStore";
@@ -148,6 +149,7 @@ export default function LiverClonePage() {
   const [mode, setMode] = useState(() => localStorage.getItem("liverClone_mode") || "hybrid");
   const [quality, setQuality] = useState(() => localStorage.getItem("liverClone_quality") || "high");
   const [language, setLanguage] = useState(() => localStorage.getItem("liverClone_language") || "en");
+  const [uiLang, setUiLang] = useState(() => localStorage.getItem("liverClone_uiLang") || "zh");
   const [resolution, setResolution] = useState(() => localStorage.getItem("liverClone_resolution") || "720p");
   const [fps, setFps] = useState(() => Number(localStorage.getItem("liverClone_fps")) || 30);
 
@@ -383,6 +385,7 @@ export default function LiverClonePage() {
   useEffect(() => { localStorage.setItem("liverClone_mode", mode); }, [mode]);
   useEffect(() => { localStorage.setItem("liverClone_quality", quality); }, [quality]);
   useEffect(() => { localStorage.setItem("liverClone_language", language); }, [language]);
+  useEffect(() => { localStorage.setItem("liverClone_uiLang", uiLang); }, [uiLang]);
   useEffect(() => { localStorage.setItem("liverClone_resolution", resolution); }, [resolution]);
   useEffect(() => { localStorage.setItem("liverClone_fps", String(fps)); }, [fps]);
   useEffect(() => { localStorage.setItem("liverClone_voiceStability", String(voiceStability)); }, [voiceStability]);
@@ -534,7 +537,7 @@ export default function LiverClonePage() {
       setPreviewError(null);
     } catch (err) {
       console.error("[Preview] Failed to upload source face:", err);
-      setPreviewError("ソース顔のアップロードに失敗しました");
+      setPreviewError(lcText("errorSourceUpload", uiLang));
       setIsSourceUploaded(false);
     }
   };
@@ -659,7 +662,7 @@ export default function LiverClonePage() {
 
       ws.onerror = (err) => {
         console.error("[Preview] WebSocket error:", err);
-        setPreviewError("WebSocket接続エラー");
+        setPreviewError("WebSocket connection error");
       };
 
       ws.onclose = () => {
@@ -668,7 +671,7 @@ export default function LiverClonePage() {
       };
     } catch (err) {
       console.error("[Preview] Start failed:", err);
-      setPreviewError(err.message || "プレビューの開始に失敗しました");
+      setPreviewError(err.message || "Preview start failed");
     }
   };
 
@@ -952,7 +955,7 @@ export default function LiverClonePage() {
       setSessionStatus(result);
     } catch (err) {
       const detail = err.response?.data?.detail || err.message;
-      setError(`セッション作成に失敗: ${detail}`);
+      setError(`{lcText("createSession", uiLang)}に失敗: ${detail}`);
     } finally {
       setIsCreating(false);
     }
@@ -967,7 +970,7 @@ export default function LiverClonePage() {
       setSessionStatus(result);
     } catch (err) {
       const detail = err.response?.data?.detail || err.message;
-      setError(`配信開始に失敗: ${detail}`);
+      setError(`{lcText("startStream", uiLang)}に失敗: ${detail}`);
     } finally {
       setIsStarting(false);
     }
@@ -980,7 +983,7 @@ export default function LiverClonePage() {
       setSessionStatus(null);
       setSessionId(null);
     } catch (err) {
-      setError("停止に失敗しました");
+      setError("Stop failed");
     }
   };
 
@@ -991,7 +994,7 @@ export default function LiverClonePage() {
       setSessionId(null);
       setSessionStatus(null);
     } catch (err) {
-      setError("削除に失敗しました");
+      setError("Delete failed");
     }
   };
 
@@ -1013,7 +1016,7 @@ export default function LiverClonePage() {
           },
         ]);
       } catch (err) {
-        setError("コメント返答に失敗しました");
+        setError("Comment response failed");
       }
       return;
     }
@@ -1023,7 +1026,7 @@ export default function LiverClonePage() {
       ...prev,
       {
         comment: text,
-        response: "🗣️ 読み上げ中...",
+        response: "🗣️ ...",
         time: new Date().toLocaleTimeString(),
       },
     ]);
@@ -1032,7 +1035,7 @@ export default function LiverClonePage() {
     setCommentHistory((prev) => {
       const updated = [...prev];
       if (updated.length > 0) {
-        updated[updated.length - 1].response = "✅ 読み上げ完了";
+        updated[updated.length - 1].response = "✅ Done";
       }
       return updated;
     });
@@ -1413,7 +1416,7 @@ export default function LiverClonePage() {
       try {
         await liverCloneService.pushSpeakText(sessionId, text);
       } catch (err) {
-        setError("テキスト送信に失敗しました");
+        setError("Text send failed");
       }
       return;
     }
@@ -1428,7 +1431,7 @@ export default function LiverClonePage() {
    */
   const speakWithTTS = async (text) => {
     if (!voiceId) {
-      setError("Voice IDが設定されていません");
+      setError(lcText("errorVoiceNotSet", uiLang));
       return;
     }
     if (isSpeaking) {
@@ -1452,7 +1455,7 @@ export default function LiverClonePage() {
       }
     } catch (err) {
       console.error("[TTS] Speak failed:", err);
-      setError("音声生成に失敗しました: " + (err.response?.data?.detail || err.message));
+      setError(lcText("errorTtsFailed", uiLang) + ": " + (err.response?.data?.detail || err.message));
     } finally {
       setIsSpeaking(false);
       // Process queue
@@ -1727,7 +1730,7 @@ export default function LiverClonePage() {
       }
     } catch (err) {
       console.error("[Product] Script generation failed:", err);
-      setError("商品スクリプト生成に失敗しました: " + (err.response?.data?.detail || err.message));
+      setError(lcText("errorProductScript", uiLang) + ": " + (err.response?.data?.detail || err.message));
     } finally {
       setProductGenerating(false);
     }
@@ -1898,13 +1901,13 @@ export default function LiverClonePage() {
       return (
         <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-yellow-900/50 text-yellow-400">
           <Settings className="w-3 h-3" />
-          設定中
+          {lcText("statusConfiguring", uiLang)}
         </span>
       );
     }
     return (
       <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400">
-        待機中
+        {lcText("statusIdle", uiLang)}
       </span>
     );
   };
@@ -1928,7 +1931,7 @@ export default function LiverClonePage() {
                 Liver Clone
               </h1>
               <p className="text-sm text-gray-400">
-                リアルタイム顔変換 + 声変換 ライブ配信
+                {lcText("subtitle", uiLang)}
               </p>
             </div>
           </div>
@@ -1949,9 +1952,19 @@ export default function LiverClonePage() {
                       : "bg-red-400"
                   }`}
                 />
-                GPU {health.status === "healthy" || health.status === "ok" || health.face_swap_worker === "ok" ? "Ready" : "Offline"}
+                {health.status === "healthy" || health.status === "ok" || health.face_swap_worker === "ok" ? lcText("gpuReady", uiLang) : lcText("gpuOffline", uiLang)}
               </div>
             )}
+            {/* UI Language Switcher */}
+            <select
+              value={uiLang}
+              onChange={(e) => setUiLang(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-300"
+            >
+              <option value="zh">中文</option>
+              <option value="ja">日本語</option>
+              <option value="en">English</option>
+            </select>
           </div>
         </div>
       </header>
@@ -1998,15 +2011,15 @@ export default function LiverClonePage() {
                 ) : isStreaming ? (
                   <div className="text-center">
                     <Radio className="w-12 h-12 text-red-400 animate-pulse mx-auto mb-2" />
-                    <p className="text-sm text-gray-400">配信中...</p>
+                    <p className="text-sm text-gray-400">{lcText("streaming", uiLang)}</p>
                     <p className="text-xs text-gray-500 mt-1">
-                      プラットフォームで確認してください
+                      {lcText("checkPlatform", uiLang)}
                     </p>
                   </div>
                 ) : previewActive ? (
                   <div className="text-center">
                     <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-2" />
-                    <p className="text-sm text-gray-400">プレビュー接続中...</p>
+                    <p className="text-sm text-gray-400">{lcText("previewConnecting", uiLang)}</p>
                   </div>
                 ) : sourceFacePreview ? (
                   <div
@@ -2024,7 +2037,7 @@ export default function LiverClonePage() {
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
                       <div className="text-center">
                         <Camera className="w-8 h-8 text-cyan-400 mx-auto mb-1" />
-                        <p className="text-xs text-cyan-400">クリックで変更</p>
+                        <p className="text-xs text-cyan-400">{lcText("clickToChange", uiLang)}</p>
                       </div>
                     </div>
                   </div>
@@ -2032,10 +2045,10 @@ export default function LiverClonePage() {
                   <div className="text-center hover:scale-105 transition">
                     <Camera className="w-12 h-12 text-gray-600 mx-auto mb-2 group-hover:text-cyan-400" />
                     <p className="text-sm text-gray-500">
-                      顔写真をアップロード
+                      {lcText("uploadFace", uiLang)}
                     </p>
                     <p className="text-xs text-gray-600 mt-1">
-                      クリックまたは右の⬆ボタン
+                      {lcText("clickOrButton", uiLang)}
                     </p>
                   </div>
                 )}
@@ -2075,7 +2088,7 @@ export default function LiverClonePage() {
                     className="flex-1 flex items-center justify-center gap-2 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-sm font-medium transition"
                   >
                     <Camera className="w-4 h-4" />
-                    プレビュー開始
+                    {lcText("startPreview", uiLang)}
                   </button>
                 ) : (
                   <>
@@ -2084,16 +2097,16 @@ export default function LiverClonePage() {
                       className="flex-1 flex items-center justify-center gap-2 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition"
                     >
                       <Square className="w-4 h-4 text-red-400" />
-                      停止
+                      {lcText("stop", uiLang)}
                     </button>
                     {!isRecording ? (
                       <button
                         onClick={startRecording}
                         className="flex items-center justify-center gap-2 py-2 px-4 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition"
-                        title="9:16縦動画で録画開始"
+                        title={lcText("recordTooltip", uiLang)}
                       >
                         <Circle className="w-4 h-4 fill-current" />
-                        録画
+                        {lcText("record", uiLang)}
                       </button>
                     ) : (
                       <button
@@ -2110,7 +2123,7 @@ export default function LiverClonePage() {
                   <button
                     onClick={downloadRecording}
                     className="flex items-center justify-center gap-2 py-2 px-4 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition"
-                    title="9:16縦動画をダウンロード"
+                    title={lcText("downloadTooltip", uiLang)}
                   >
                     <Download className="w-4 h-4" />
                     DL
@@ -2131,7 +2144,7 @@ export default function LiverClonePage() {
               <div className="bg-[#12121a] rounded-xl border border-gray-800 p-4">
                 <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                   <Monitor className="w-4 h-4 text-cyan-400" />
-                  配信メトリクス
+                  {lcText("streamMetrics", uiLang)}
                 </h3>
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="bg-gray-900 rounded-lg p-2">
@@ -2141,19 +2154,19 @@ export default function LiverClonePage() {
                     </p>
                   </div>
                   <div className="bg-gray-900 rounded-lg p-2">
-                    <p className="text-gray-500">遅延</p>
+                    <p className="text-gray-500">{lcText("latency", uiLang)}</p>
                     <p className="text-lg font-bold text-yellow-400">
                       {sessionStatus.metrics.latency_ms || "--"}ms
                     </p>
                   </div>
                   <div className="bg-gray-900 rounded-lg p-2">
-                    <p className="text-gray-500">モード</p>
+                    <p className="text-gray-500">{lcText("mode", uiLang)}</p>
                     <p className="text-sm font-bold text-cyan-400">
                       {sessionStatus.metrics.current_mode || mode}
                     </p>
                   </div>
                   <div className="bg-gray-900 rounded-lg p-2">
-                    <p className="text-gray-500">発話数</p>
+                    <p className="text-gray-500">{lcText("speechCount", uiLang)}</p>
                     <p className="text-lg font-bold text-purple-400">
                       {sessionStatus.metrics.speak_count || 0}
                     </p>
@@ -2167,7 +2180,7 @@ export default function LiverClonePage() {
               <div className="bg-[#12121a] rounded-xl border border-gray-800 p-4">
                 <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
                   <Volume2 className="w-4 h-4 text-purple-400" />
-                  {isSpeaking ? "🗣️ 発話中..." : "手動発話"}
+                  {isSpeaking ? lcText("speaking", uiLang) : lcText("manualSpeak", uiLang)}
                 </h3>
                 <div className="flex gap-2">
                   <input
@@ -2175,7 +2188,7 @@ export default function LiverClonePage() {
                     value={speakText}
                     onChange={(e) => setSpeakText(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleSpeak()}
-                    placeholder="テキストを入力して読み上げ..."
+                    placeholder={lcText("speakPlaceholder", uiLang)}
                     className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
                   />
                   <button
@@ -2195,8 +2208,8 @@ export default function LiverClonePage() {
             {/* Tab Navigation */}
             <div className="flex gap-1 bg-[#12121a] rounded-xl border border-gray-800 p-1">
               {[
-                { id: "config", label: "設定", icon: Settings },
-                { id: "comments", label: "コメント", icon: MessageSquare },
+                { id: "config", label: lcText("tabSettings", uiLang), icon: Settings },
+                { id: "comments", label: lcText("tabComments", uiLang), icon: MessageSquare },
                 { id: "autopilot", label: "Auto Pilot", icon: Zap },
               ].map((tab) => (
                 <button
@@ -2221,12 +2234,12 @@ export default function LiverClonePage() {
                 <div className="bg-[#12121a] rounded-xl border border-gray-800 p-5">
                   <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                     <Camera className="w-4 h-4 text-cyan-400" />
-                    顔設定
+                    {lcText("faceSettings", uiLang)}
                   </h3>
                   <div className="space-y-3">
                     <div>
                       <label className="text-xs text-gray-400 mb-1 block">
-                        ソース顔画像
+                        {lcText("sourceFaceImage", uiLang)}
                       </label>
                       <div className="flex gap-3">
                         <div
@@ -2255,7 +2268,7 @@ export default function LiverClonePage() {
                             type="text"
                             value={sourceFaceUrl}
                             onChange={(e) => setSourceFaceUrl(e.target.value)}
-                            placeholder="または画像URLを入力..."
+                            placeholder={lcText("enterImageUrl", uiLang)}
                             className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
                           />
                           <div className="mt-2 flex gap-2">
@@ -2280,7 +2293,7 @@ export default function LiverClonePage() {
                           type="text"
                           value={faceSaveName}
                           onChange={(e) => setFaceSaveName(e.target.value)}
-                          placeholder="名前をつけて保存..."
+                          placeholder={lcText("saveWithName", uiLang)}
                           className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-cyan-500"
                         />
                         <button
@@ -2312,14 +2325,14 @@ export default function LiverClonePage() {
                           }}
                           className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 rounded-lg text-xs font-medium transition"
                         >
-                          保存
+                          {lcText("save", uiLang)}
                         </button>
                       </div>
                     )}
                     {/* Saved Faces List */}
                     {savedFaces.length > 0 && (
                       <div className="space-y-1">
-                        <label className="text-xs text-gray-400 block">保存済み顔</label>
+                        <label className="text-xs text-gray-400 block">{lcText("savedFaces", uiLang)}</label>
                         <div className="grid grid-cols-3 gap-2">
                           {savedFaces.map((face) => (
                             <div
@@ -2398,12 +2411,12 @@ export default function LiverClonePage() {
                 <div className="bg-[#12121a] rounded-xl border border-gray-800 p-5">
                   <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                     <Radio className="w-4 h-4 text-red-400" />
-                    配信設定
+                    {lcText("streamSettings", uiLang)}
                   </h3>
                   <div className="space-y-3">
                     <div>
                       <label className="text-xs text-gray-400 mb-1 block">
-                        入力RTMP URL（OBSから）
+                        {lcText("inputRtmp", uiLang)}
                       </label>
                       <input
                         type="text"
@@ -2415,7 +2428,7 @@ export default function LiverClonePage() {
                     </div>
                     <div>
                       <label className="text-xs text-gray-400 mb-1 block">
-                        出力RTMP URL（配信先）
+                        {lcText("outputRtmp", uiLang)}
                       </label>
                       <input
                         type="text"
@@ -2428,7 +2441,7 @@ export default function LiverClonePage() {
                     <div className="flex gap-3">
                       <div className="flex-1">
                         <label className="text-xs text-gray-400 mb-1 block">
-                          解像度
+                          {lcText("resolution", uiLang)}
                         </label>
                         <select
                           value={resolution}
@@ -2462,7 +2475,7 @@ export default function LiverClonePage() {
                 <div className="bg-[#12121a] rounded-xl border border-gray-800 p-5">
                   <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                     <Mic className="w-4 h-4 text-purple-400" />
-                    音声設定
+                    {lcText("voiceSettings", uiLang)}
                   </h3>
                   <div className="space-y-3">
                     {/* Voice ID with save/load management */}
@@ -2502,7 +2515,7 @@ export default function LiverClonePage() {
                             type="text"
                             value={voiceIdName}
                             onChange={(e) => setVoiceIdName(e.target.value)}
-                            placeholder="名前を付けて保存..."
+                            placeholder={lcText("saveVoiceName", uiLang)}
                             className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-purple-500"
                           />
                           <button
@@ -2531,7 +2544,7 @@ export default function LiverClonePage() {
                             disabled={!voiceIdName.trim() || voiceValidation?.loading}
                             className="px-3 py-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 rounded-lg text-xs transition"
                           >
-                            {voiceValidation?.loading ? "検証中..." : "保存"}
+                            {voiceValidation?.loading ? lcText("validating", uiLang) : lcText("save", uiLang)}
                           </button>
                         </div>
                       )}
@@ -2543,7 +2556,7 @@ export default function LiverClonePage() {
                             : 'bg-red-900/30 border border-red-700 text-red-300'
                         }`}>
                           {voiceValidation.valid ? (
-                            <><CheckCircle className="w-3 h-3" /> Voice ID確認済み: {voiceValidation.name}</>
+                            <><CheckCircle className="w-3 h-3" /> {lcText("voiceConfirmed", uiLang)}: {voiceValidation.name}</>
                           ) : (
                             <><AlertCircle className="w-3 h-3" /> {voiceValidation.error}</>
                           )}
@@ -2563,7 +2576,7 @@ export default function LiverClonePage() {
                               <button
                                 onClick={() => setSavedVoiceIds(prev => prev.filter((_, i) => i !== idx))}
                                 className="text-red-400 hover:text-red-300 ml-2"
-                                title="削除"
+                                title={lcText("delete", uiLang)}
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
@@ -2575,8 +2588,8 @@ export default function LiverClonePage() {
                     {/* Real-time STS Voice Conversion Toggle */}
                     <div className="flex items-center justify-between bg-gray-900/50 rounded-lg px-3 py-2">
                       <div>
-                        <p className="text-xs font-semibold text-cyan-300">リアルタイム音声変換</p>
-                        <p className="text-[10px] text-gray-500">マイク音声をAI声に変換（プレビュー時）</p>
+                        <p className="text-xs font-semibold text-cyan-300">{lcText("realtimeVoice", uiLang)}</p>
+                        <p className="text-[10px] text-gray-500">{lcText("voiceDesc", uiLang)}</p>
                       </div>
                       <button
                         onClick={() => {
@@ -2607,13 +2620,13 @@ export default function LiverClonePage() {
                     {stsActive && (
                       <div className="flex items-center gap-2 px-3 py-1.5 bg-cyan-900/20 border border-cyan-800 rounded-lg">
                         <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                        <span className="text-[10px] text-cyan-300">音声変換中...</span>
+                        <span className="text-[10px] text-cyan-300">{lcText("voiceConverting", uiLang)}</span>
                       </div>
                     )}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs text-gray-400 mb-1 block">
-                          安定性: {voiceStability}
+                          {lcText("stability", uiLang)}: {voiceStability}
                         </label>
                         <input
                           type="range"
@@ -2629,7 +2642,7 @@ export default function LiverClonePage() {
                       </div>
                       <div>
                         <label className="text-xs text-gray-400 mb-1 block">
-                          類似度: {voiceSimilarity}
+                          {lcText("similarity", uiLang)}: {voiceSimilarity}
                         </label>
                         <input
                           type="range"
@@ -2646,16 +2659,16 @@ export default function LiverClonePage() {
                     </div>
                     <div>
                       <label className="text-xs text-gray-400 mb-1 block">
-                        モード
+                        {lcText("modeLabel", uiLang)}
                       </label>
                       <div className="flex gap-2">
                         {[
-                          { id: "manual", label: "手動", desc: "人が喋る→変換" },
-                          { id: "auto", label: "自動", desc: "AI自動配信" },
+                          { id: "manual", label: lcText("modeManual", uiLang), desc: lcText("modeManualDesc", uiLang) },
+                          { id: "auto", label: lcText("modeAuto", uiLang), desc: lcText("modeAutoDesc", uiLang) },
                           {
                             id: "hybrid",
-                            label: "ハイブリッド",
-                            desc: "喋る時は変換、黙ったらAI",
+                            label: lcText("modeHybrid", uiLang),
+                            desc: lcText("modeHybridDesc", uiLang),
                           },
                         ].map((m) => (
                           <button
@@ -2679,7 +2692,7 @@ export default function LiverClonePage() {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="text-xs text-gray-400 mb-1 block">
-                            VAD閾値: {vadThreshold}
+                            {lcText("vadThreshold", uiLang)}: {vadThreshold}
                           </label>
                           <input
                             type="range"
@@ -2695,7 +2708,7 @@ export default function LiverClonePage() {
                         </div>
                         <div>
                           <label className="text-xs text-gray-400 mb-1 block">
-                            無音タイムアウト: {silenceTimeout}s
+                            {lcText("silenceTimeout", uiLang)}: {silenceTimeout}s
                           </label>
                           <input
                             type="range"
@@ -2713,7 +2726,7 @@ export default function LiverClonePage() {
                     )}
                     <div>
                       <label className="text-xs text-gray-400 mb-1 block">
-                        言語
+                        {lcText("languageLabel", uiLang)}
                       </label>
                       <select
                         value={language}
@@ -2734,15 +2747,15 @@ export default function LiverClonePage() {
                 <div className="bg-[#12121a] rounded-xl border border-gray-800 p-5">
                   <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                     <ShoppingBag className="w-4 h-4 text-green-400" />
-                    商品紹介
+                    {lcText("productIntro", uiLang)}
                   </h3>
                   <div className="space-y-4">
                     {/* Auto Product Detection Toggle */}
                     {previewActive && (
                       <div className="flex items-center justify-between p-3 bg-gray-900 rounded-lg border border-gray-700">
                         <div>
-                          <p className="text-sm font-medium text-green-400">自動商品検出</p>
-                          <p className="text-xs text-gray-500">カメラに商品を映すと自動で紹介</p>
+                          <p className="text-sm font-medium text-green-400">{lcText("autoProductDetect", uiLang)}</p>
+                          <p className="text-xs text-gray-500">{lcText("autoProductDesc", uiLang)}</p>
                         </div>
                         <button
                           onClick={() => autoProductDetect ? stopAutoProductDetection() : startAutoProductDetection()}
@@ -2759,7 +2772,7 @@ export default function LiverClonePage() {
                     {autoProductDetect && (
                       <div className="flex items-center gap-2 px-3 py-2 bg-green-900/30 rounded-lg border border-green-700/50">
                         <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                        <span className="text-xs text-green-300">商品を検出中...</span>
+                        <span className="text-xs text-green-300">{lcText("detectingProduct", uiLang)}</span>
                       </div>
                     )}
                     {/* Upload button */}
@@ -2777,7 +2790,7 @@ export default function LiverClonePage() {
                         className="w-full flex items-center justify-center gap-2 py-3 px-4 border-2 border-dashed border-gray-600 rounded-lg text-gray-400 hover:border-green-500 hover:text-green-400 transition"
                       >
                         <Upload className="w-4 h-4" />
-                        商品画像をアップロード
+                        {lcText("uploadProduct", uiLang)}
                       </button>
                     </div>
 
@@ -2796,7 +2809,7 @@ export default function LiverClonePage() {
                             {product.identifying ? (
                               <div className="flex items-center gap-2 py-2">
                                 <Loader2 className="w-3 h-3 animate-spin text-green-400" />
-                                <span className="text-xs text-green-400">AIが商品を識別中...</span>
+                                <span className="text-xs text-green-400">{lcText("identifyingProduct", uiLang)}</span>
                               </div>
                             ) : (
                               <>
@@ -2806,7 +2819,7 @@ export default function LiverClonePage() {
                                   onChange={(e) => setProducts(prev => prev.map((p, i) =>
                                     i === idx ? { ...p, name: e.target.value } : p
                                   ))}
-                                  placeholder="商品名（任意）"
+                                  placeholder={lcText("productNamePlaceholder", uiLang)}
                                   className="w-full bg-transparent border-b border-gray-700 text-sm py-1 focus:outline-none focus:border-green-500 mb-1"
                                 />
                                 <input
@@ -2815,7 +2828,7 @@ export default function LiverClonePage() {
                                   onChange={(e) => setProducts(prev => prev.map((p, i) =>
                                     i === idx ? { ...p, info: e.target.value } : p
                                   ))}
-                                  placeholder="商品情報（任意：価格、特徴など）"
+                                  placeholder={lcText("productInfoPlaceholder", uiLang)}
                                   className="w-full bg-transparent border-b border-gray-700 text-xs text-gray-400 py-1 focus:outline-none focus:border-green-500"
                                 />
                               </>
@@ -2847,7 +2860,7 @@ export default function LiverClonePage() {
                                 className="flex-1 flex items-center justify-center gap-1 py-1.5 px-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-xs transition disabled:opacity-50"
                               >
                                 <Sparkles className="w-3 h-3" />
-                                再生成
+                                {lcText("regenerate", uiLang)}
                               </button>
                               <button
                                 onClick={() => speakProductScript(idx)}
@@ -2855,7 +2868,7 @@ export default function LiverClonePage() {
                                 className="flex-1 flex items-center justify-center gap-1 py-1.5 px-3 bg-green-600 hover:bg-green-500 rounded-lg text-xs transition disabled:opacity-50"
                               >
                                 <Volume2 className="w-3 h-3" />
-                                {product.speaking ? "読み上げ中..." : "読み上げ"}
+                                {product.speaking ? lcText("readingAloud", uiLang) : lcText("readAloud", uiLang)}
                               </button>
                             </div>
                           </div>
@@ -2866,9 +2879,9 @@ export default function LiverClonePage() {
                             className="mt-3 w-full flex items-center justify-center gap-2 py-2 px-3 bg-green-600/20 hover:bg-green-600/30 border border-green-600/50 rounded-lg text-xs text-green-400 transition disabled:opacity-50"
                           >
                             {productGenerating ? (
-                              <><Loader2 className="w-3 h-3 animate-spin" /> スクリプト生成中...</>
+                              <><Loader2 className="w-3 h-3 animate-spin" /> {lcText("generatingScript", uiLang)}</>
                             ) : (
-                              <><Sparkles className="w-3 h-3" /> AIスクリプトを生成</>
+                              <><Sparkles className="w-3 h-3" /> {lcText("generateScript", uiLang)}</>
                             )}
                           </button>
                         )}
@@ -2877,7 +2890,7 @@ export default function LiverClonePage() {
 
                     {products.length === 0 && (
                       <p className="text-xs text-gray-500 text-center py-2">
-                        商品画像をアップロードすると、AIが自動で商品紹介スクリプトを生成します。
+                        {lcText("productUploadHint", uiLang)}
                       </p>
                     )}
                   </div>
@@ -2896,7 +2909,7 @@ export default function LiverClonePage() {
                       ) : (
                         <Settings className="w-5 h-5" />
                       )}
-                      セッション作成
+                      {lcText("createSession", uiLang)}
                     </button>
                   ) : !isStreaming ? (
                     <>
@@ -2910,7 +2923,7 @@ export default function LiverClonePage() {
                         ) : (
                           <Play className="w-5 h-5" />
                         )}
-                        配信開始
+                        {lcText("startStream", uiLang)}
                       </button>
                       <button
                         onClick={handleDeleteSession}
@@ -2925,7 +2938,7 @@ export default function LiverClonePage() {
                       className="flex-1 flex items-center justify-center gap-2 py-3 bg-gray-800 hover:bg-gray-700 border border-red-600 rounded-xl font-semibold transition"
                     >
                       <Square className="w-5 h-5 text-red-400" />
-                      配信停止
+                      {lcText("stopStream", uiLang)}
                     </button>
                   )}
                 </div>
@@ -2937,7 +2950,7 @@ export default function LiverClonePage() {
               <div className="bg-[#12121a] rounded-xl border border-gray-800 p-5">
                 <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-green-400" />
-                  コメント返答
+                  {lcText("commentResponse", uiLang)}
                 </h3>
                 <div className="space-y-3">
                   <div className="flex gap-2">
@@ -2946,7 +2959,7 @@ export default function LiverClonePage() {
                       value={commentText}
                       onChange={(e) => setCommentText(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleSendComment()}
-                      placeholder="コメントを入力して返答を生成..."
+                      placeholder={lcText("commentPlaceholder", uiLang)}
                       className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
                     />
                     <button
@@ -2961,7 +2974,7 @@ export default function LiverClonePage() {
                   <div className="space-y-2 max-h-96 overflow-y-auto">
                     {commentHistory.length === 0 ? (
                       <p className="text-sm text-gray-500 text-center py-8">
-                        コメントがまだありません
+                        {lcText("noComments", uiLang)}
                       </p>
                     ) : (
                       commentHistory.map((item, i) => (
@@ -2993,47 +3006,47 @@ export default function LiverClonePage() {
               <div className="bg-[#12121a] rounded-xl border border-gray-800 p-5">
                 <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                   <Zap className="w-4 h-4 text-yellow-400" />
-                  Auto Pilot設定
+                  {lcText("autopilotSettings", uiLang)}
                 </h3>
                 <div className="space-y-3">
                   <div>
                     <label className="text-xs text-gray-400 mb-1 block">
-                      ペルソナ名
+                      {lcText("personaName", uiLang)}
                     </label>
                     <input
                       type="text"
                       value={personaName}
                       onChange={(e) => setPersonaName(e.target.value)}
-                      placeholder="例: KYOGOKU Ryu"
+                      placeholder={lcText("personaPlaceholder", uiLang)}
                       className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-yellow-500"
                     />
                   </div>
                   <div>
                     <label className="text-xs text-gray-400 mb-1 block">
-                      話し方・スタイル
+                      {lcText("speakingStyle", uiLang)}
                     </label>
                     <textarea
                       value={personaStyle}
                       onChange={(e) => setPersonaStyle(e.target.value)}
-                      placeholder="例: Professional yet friendly, high energy, confident..."
+                      placeholder={lcText("stylePlaceholder", uiLang)}
                       rows={3}
                       className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-yellow-500 resize-none"
                     />
                   </div>
                   <div>
                     <label className="text-xs text-gray-400 mb-1 block">
-                      オープニングスクリプト
+                      {lcText("openingScript", uiLang)}
                     </label>
                     <textarea
                       value={openingScript}
                       onChange={(e) => setOpeningScript(e.target.value)}
-                      placeholder="配信開始時に自動で話す内容..."
+                      placeholder={lcText("openingPlaceholder", uiLang)}
                       rows={3}
                       className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-yellow-500 resize-none"
                     />
                   </div>
                   <p className="text-xs text-gray-500">
-                    ※ Auto Pilotはハイブリッドモードで人が黙っている時に自動で台本を生成して話します。
+                    {lcText("autopilotNote", uiLang)}
                   </p>
                 </div>
               </div>
