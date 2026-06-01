@@ -26461,11 +26461,29 @@ export async function createSalesEmailLog(data: InsertSalesEmailLog) {
   try {
     await db.insert(salesEmailLogs).values(data);
   } catch (err: any) {
-    // Fallback: trackingId column not yet migrated
-    if (err.message?.includes("Unknown column") && err.message?.includes("trackingId")) {
-      const { trackingId, ...rest } = data as any;
-      await db.insert(salesEmailLogs).values(rest);
-      console.warn("[SalesEmailLog] Inserted without trackingId (column not yet migrated)");
+    const errMsg = err.message || '';
+    // Unknown columnエラーの場合: 最小限フィールドでフォールバック
+    if (errMsg.includes("Unknown column")) {
+      const colMatch = errMsg.match(/Unknown column '([^']+)'/);
+      console.warn(`[SalesEmailLog] Unknown column detected: ${colMatch ? colMatch[1] : 'unknown'}, attempting fallback insert`);
+      const safe: any = {
+        toEmail: (data as any).toEmail,
+        toName: (data as any).toName || "",
+        toCompany: (data as any).toCompany || "",
+        subject: (data as any).subject,
+        sendType: (data as any).sendType,
+        status: (data as any).status,
+        attachPdf: (data as any).attachPdf,
+        businessCardId: (data as any).businessCardId || undefined,
+        errorMessage: (data as any).errorMessage || undefined,
+      };
+      try {
+        await db.insert(salesEmailLogs).values(safe);
+        console.warn(`[SalesEmailLog] Fallback insert succeeded with minimal fields`);
+      } catch (retryErr: any) {
+        console.error(`[SalesEmailLog] Fallback insert also failed: ${retryErr.message}`);
+        throw retryErr;
+      }
     } else {
       throw err;
     }
