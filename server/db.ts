@@ -26458,7 +26458,18 @@ export async function getLeadCollectionHistoryByBatchId(batchId: string) {
 export async function createSalesEmailLog(data: InsertSalesEmailLog) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.insert(salesEmailLogs).values(data);
+  try {
+    await db.insert(salesEmailLogs).values(data);
+  } catch (err: any) {
+    // Fallback: trackingId column not yet migrated
+    if (err.message?.includes("Unknown column") && err.message?.includes("trackingId")) {
+      const { trackingId, ...rest } = data as any;
+      await db.insert(salesEmailLogs).values(rest);
+      console.warn("[SalesEmailLog] Inserted without trackingId (column not yet migrated)");
+    } else {
+      throw err;
+    }
+  }
 }
 
 export async function createSalesEmailLogsBatch(logs: InsertSalesEmailLog[]) {
@@ -26530,41 +26541,77 @@ export async function getSalesEmailLogs(options?: {
     conditions.push(eq(salesEmailLogs.sendType, options.sendType));
   }
 
-  // 軽量カラムのみ取得（contentPreviewは一覧では不要）
-  let query = db.select({
-    id: salesEmailLogs.id,
-    toEmail: salesEmailLogs.toEmail,
-    toName: salesEmailLogs.toName,
-    toCompany: salesEmailLogs.toCompany,
-    subject: salesEmailLogs.subject,
-    sendType: salesEmailLogs.sendType,
-    attachPdf: salesEmailLogs.attachPdf,
-    status: salesEmailLogs.status,
-    businessCardId: salesEmailLogs.businessCardId,
-    sentAt: salesEmailLogs.sentAt,
-    trackingId: salesEmailLogs.trackingId,
-    openedAt: salesEmailLogs.openedAt,
-    openCount: salesEmailLogs.openCount,
-    lastOpenedAt: salesEmailLogs.lastOpenedAt,
-    pdfDownloadedAt: salesEmailLogs.pdfDownloadedAt,
-    pdfDownloadCount: salesEmailLogs.pdfDownloadCount,
-  }).from(salesEmailLogs);
-  let countQuery = db.select({ count: sql<number>`count(*)` }).from(salesEmailLogs);
-  
-  if (conditions.length > 0) {
-    query = query.where(and(...conditions)) as typeof query;
-    countQuery = countQuery.where(and(...conditions)) as typeof countQuery;
+  // Try with tracking columns first, fallback to basic columns if not migrated yet
+  try {
+    let query = db.select({
+      id: salesEmailLogs.id,
+      toEmail: salesEmailLogs.toEmail,
+      toName: salesEmailLogs.toName,
+      toCompany: salesEmailLogs.toCompany,
+      subject: salesEmailLogs.subject,
+      sendType: salesEmailLogs.sendType,
+      attachPdf: salesEmailLogs.attachPdf,
+      status: salesEmailLogs.status,
+      businessCardId: salesEmailLogs.businessCardId,
+      sentAt: salesEmailLogs.sentAt,
+      trackingId: salesEmailLogs.trackingId,
+      openedAt: salesEmailLogs.openedAt,
+      openCount: salesEmailLogs.openCount,
+      lastOpenedAt: salesEmailLogs.lastOpenedAt,
+      pdfDownloadedAt: salesEmailLogs.pdfDownloadedAt,
+      pdfDownloadCount: salesEmailLogs.pdfDownloadCount,
+    }).from(salesEmailLogs);
+    let countQuery = db.select({ count: sql<number>`count(*)` }).from(salesEmailLogs);
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+      countQuery = countQuery.where(and(...conditions)) as typeof countQuery;
+    }
+
+    const [rows, countResult] = await Promise.all([
+      query
+        .orderBy(desc(salesEmailLogs.sentAt))
+        .limit(options?.limit || 20)
+        .offset(options?.offset || 0),
+      countQuery,
+    ]);
+
+    return { rows, total: (countResult[0] as any)?.count || 0 };
+  } catch (err: any) {
+    // Fallback: tracking columns not yet migrated
+    if (err.message?.includes("Unknown column") || err.message?.includes("trackingId") || err.message?.includes("openCount")) {
+      console.warn("[getSalesEmailLogs] Tracking columns not available, using basic query");
+      let query = db.select({
+        id: salesEmailLogs.id,
+        toEmail: salesEmailLogs.toEmail,
+        toName: salesEmailLogs.toName,
+        toCompany: salesEmailLogs.toCompany,
+        subject: salesEmailLogs.subject,
+        sendType: salesEmailLogs.sendType,
+        attachPdf: salesEmailLogs.attachPdf,
+        status: salesEmailLogs.status,
+        businessCardId: salesEmailLogs.businessCardId,
+        sentAt: salesEmailLogs.sentAt,
+      }).from(salesEmailLogs);
+      let countQuery = db.select({ count: sql<number>`count(*)` }).from(salesEmailLogs);
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions)) as typeof query;
+        countQuery = countQuery.where(and(...conditions)) as typeof countQuery;
+      }
+
+      const [rows, countResult] = await Promise.all([
+        query
+          .orderBy(desc(salesEmailLogs.sentAt))
+          .limit(options?.limit || 20)
+          .offset(options?.offset || 0),
+        countQuery,
+      ]);
+
+      return { rows: rows.map(r => ({ ...r, trackingId: null, openedAt: null, openCount: 0, lastOpenedAt: null, pdfDownloadedAt: null, pdfDownloadCount: 0 })), total: (countResult[0] as any)?.count || 0 };
+    }
+    throw err;
   }
-
-  const [rows, countResult] = await Promise.all([
-    query
-      .orderBy(desc(salesEmailLogs.sentAt))
-      .limit(options?.limit || 20)
-      .offset(options?.offset || 0),
-    countQuery,
-  ]);
-
-  return { rows, total: (countResult[0] as any)?.count || 0 };
 }
 
 export async function getSalesEmailStats() {
