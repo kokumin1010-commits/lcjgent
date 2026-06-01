@@ -1906,16 +1906,19 @@ def _concat_via_segments(video_path: str, intervals: list, output_path: str, wor
         for seg_path in segment_files:
             f.write(f"file '{seg_path}'\n")
 
-    # Concatenate using concat demuxer (stream copy is safe here because
-    # all segments were re-encoded with identical codec settings)
+    # Concatenate using concat demuxer with re-encode to prevent PTS
+    # discontinuity and frame stuttering at segment boundaries.
+    # DANGER: -c copy causes duplicate frames / stuttering (lesson #90).
     cmd = [
         FFMPEG_BIN, "-y",
             "-threads", FFMPEG_CLIP_THREADS,
         "-f", "concat",
         "-safe", "0",
         "-i", concat_list_path,
-        "-c", "copy",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+        "-c:a", "aac", "-b:a", "128k",
         "-movflags", "+faststart",
+        "-fflags", "+genpts",
         output_path,
     ]
 
