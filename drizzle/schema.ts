@@ -6156,3 +6156,25 @@ export const leadCollectionHistory = mysqlTable("lead_collection_history", {
 });
 export type LeadCollectionHistory = typeof leadCollectionHistory.$inferSelect;
 export type InsertLeadCollectionHistory = typeof leadCollectionHistory.$inferInsert;
+
+
+// ============================================================
+// 営業メール送信履歴テーブル (Sales Email Send History)
+// ============================================================
+export const salesEmailLogs = mysqlTable("sales_email_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  toEmail: varchar("toEmail", { length: 320 }).notNull(), // 送信先メールアドレス
+  toName: varchar("toName", { length: 255 }), // 送信先名前
+  toCompany: varchar("toCompany", { length: 255 }), // 送信先会社名
+  subject: varchar("subject", { length: 500 }).notNull(), // 件名
+  contentPreview: text("contentPreview"), // 本文プレビュー（最初の200文字程度）
+  sendType: varchar("sendType", { length: 50 }).notNull().default("bulk"), // test, bulk_card, bulk_lead, bulk_unsent, bulk_all
+  attachPdf: boolean("attachPdf").default(false), // PDF添付有無
+  status: varchar("status", { length: 20 }).notNull().default("sent"), // sent, failed
+  errorMessage: text("errorMessage"), // エラーメッセージ（失敗時）
+  businessCardId: int("businessCardId"), // 名刺ID（名刺経由の場合）
+  sentBy: int("sentBy"), // 送信者のuser ID
+  sentAt: timestamp("sentAt").defaultNow().notNull(), // 送信日時
+});
+export type SalesEmailLog = typeof salesEmailLogs.$inferSelect;
+export type InsertSalesEmailLog = typeof salesEmailLogs.$inferInsert;

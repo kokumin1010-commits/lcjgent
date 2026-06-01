@@ -2367,6 +2367,11 @@ async function startServer() {
               console.error("[Migration] Chat member IDs migration error:", err);
             });
           });
+          import("../migrations/createSalesEmailLogs").then(({ createSalesEmailLogs }) => {
+            createSalesEmailLogs(db).catch((err: unknown) => {
+              console.error("[Migration] Sales email logs table error:", err);
+            });
+          });
         }
       });
     });

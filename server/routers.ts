@@ -712,6 +712,12 @@ import {
   migrateCallLogsTable,
   migrateSalesActivitiesTable,
   migrateBusinessCardsCrmColumns,
+  createSalesEmailLog,
+  createSalesEmailLogsBatch,
+  getSalesEmailLogsByEmail,
+  getSalesEmailLogsByBusinessCardId,
+  getSalesEmailLogs,
+  getSalesEmailStats,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -8987,6 +8993,26 @@ Return ONLY valid JSON, no markdown or explanation.`,
           html: input.html,
         });
 
+        // 送信履歴を一括記録
+        try {
+          const emailLogs = validCards.map((card) => ({
+            toEmail: card!.email!.toLowerCase(),
+            toName: card!.name || "",
+            toCompany: card!.company || "",
+            subject: input.subject,
+            contentPreview: input.content.substring(0, 200),
+            sendType: "bulk_card" as const,
+            attachPdf: false,
+            status: result.success ? "sent" as const : "failed" as const,
+            errorMessage: result.error || undefined,
+            businessCardId: card!.id,
+            sentBy: ctx.user.id,
+          }));
+          await createSalesEmailLogsBatch(emailLogs);
+        } catch (logErr: any) {
+          console.error("[SalesEmailLog] Failed to record card bulk email:", logErr.message);
+        }
+
         // Record activity log
         await createActivityLog({
           userId: ctx.user.id,
@@ -9002,7 +9028,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
           },
         });
 
-                return {
+        return {
           success: result.success,
           sentCount: emails.length,
           error: result.error,
@@ -9259,8 +9285,39 @@ Return ONLY valid JSON, no markdown or explanation.`,
         }
         try {
           await transporter.sendMail(mailOpts);
+          // 送信履歴を記録
+          try {
+            await createSalesEmailLog({
+              toEmail: testTo!.toLowerCase(),
+              toName: displayName,
+              subject: `【テスト】${personalizedSubject}`,
+              contentPreview: input.content.substring(0, 200),
+              sendType: "test",
+              attachPdf: input.attachPdf,
+              status: "sent",
+              sentBy: ctx.user.id,
+            });
+          } catch (logErr: any) {
+            console.error("[SalesEmailLog] Failed to record test email:", logErr.message);
+          }
           return { success: true, sentTo: testTo };
         } catch (e: any) {
+          // 失敗も記録
+          try {
+            await createSalesEmailLog({
+              toEmail: (testTo || "").toLowerCase(),
+              toName: displayName,
+              subject: `【テスト】${personalizedSubject}`,
+              contentPreview: input.content.substring(0, 200),
+              sendType: "test",
+              attachPdf: input.attachPdf,
+              status: "failed",
+              errorMessage: e.message,
+              sentBy: ctx.user.id,
+            });
+          } catch (logErr: any) {
+            console.error("[SalesEmailLog] Failed to record test email error:", logErr.message);
+          }
           throw new Error(`テスト送信失敗: ${e.message}`);
         }
       }),
@@ -9367,6 +9424,24 @@ Return ONLY valid JSON, no markdown or explanation.`,
           console.error("[emailSentCount bulk update] Error:", e.message);
         }
 
+        // 送信履歴を一括記録
+        try {
+          const emailLogs = input.emails.map((lead, idx) => ({
+            toEmail: lead.email.toLowerCase(),
+            toName: lead.displayName || "ご担当者",
+            subject: input.subject.replace(/\{\{displayName\}\}/g, lead.displayName || "ご担当者様"),
+            contentPreview: input.content.substring(0, 200),
+            sendType: "bulk_lead" as const,
+            attachPdf: input.attachPdf,
+            status: idx < sentCount ? "sent" as const : "failed" as const,
+            errorMessage: idx >= sentCount && errors[idx - sentCount] ? errors[idx - sentCount] : undefined,
+            sentBy: ctx.user.id,
+          }));
+          await createSalesEmailLogsBatch(emailLogs);
+        } catch (logErr: any) {
+          console.error("[SalesEmailLog] Failed to record lead bulk email:", logErr.message);
+        }
+
         // Activity log
         await createActivityLog({
           userId: ctx.user.id,
@@ -9383,6 +9458,202 @@ Return ONLY valid JSON, no markdown or explanation.`,
         });
 
         return { success: true, sentCount, errors: errors.slice(0, 5) };
+      }),
+    // ===== 営業メール送信履歴API =====
+    getSalesEmailLogs: protectedProcedure
+      .input(z.object({
+        search: z.string().optional(),
+        sendType: z.string().optional(),
+        limit: z.number().optional(),
+        offset: z.number().optional(),
+      }).nullish())
+      .query(async ({ input }) => {
+        return await getSalesEmailLogs(input ?? {});
+      }),
+    getSalesEmailStats: protectedProcedure.query(async () => {
+      return await getSalesEmailStats();
+    }),
+    getSalesEmailLogsByEmail: protectedProcedure
+      .input(z.object({ email: z.string() }))
+      .query(async ({ input }) => {
+        return await getSalesEmailLogsByEmail(input.email);
+      }),
+    getSalesEmailLogsByCardId: protectedProcedure
+      .input(z.object({ businessCardId: z.number() }))
+      .query(async ({ input }) => {
+        return await getSalesEmailLogsByBusinessCardId(input.businessCardId);
+      }),
+    // ===== メールあり全件送信（名刺+リード統合） =====
+    sendEmailToAll: protectedProcedure
+      .input(z.object({
+        subject: z.string().min(1),
+        content: z.string().min(1),
+        attachPdf: z.boolean().default(false),
+        includeCards: z.boolean().default(true),
+        includeLeads: z.boolean().default(true),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { ENV } = await import("./_core/env");
+        const nodemailer = await import("nodemailer");
+        const transporter = nodemailer.default.createTransport({
+          host: ENV.emailSmtpHost || "smtp.qiye.aliyun.com",
+          port: 465,
+          secure: true,
+          auth: {
+            user: ENV.emailUser,
+            pass: ENV.emailPassword,
+          },
+        });
+
+        // メールありの全送信先を収集
+        const allRecipients: Array<{ email: string; name: string; company: string; source: string; businessCardId?: number }> = [];
+        const seenEmails = new Set<string>();
+
+        // 1. 名刺からメールありを取得
+        if (input.includeCards) {
+          const allCards = await getBusinessCards({ limit: 10000 });
+          for (const card of allCards) {
+            if (card.email && !seenEmails.has(card.email.toLowerCase())) {
+              seenEmails.add(card.email.toLowerCase());
+              allRecipients.push({
+                email: card.email,
+                name: card.name || "",
+                company: card.company || "",
+                source: "card",
+                businessCardId: card.id,
+              });
+            }
+          }
+        }
+
+        // 2. Sales Dashリードからメールありを取得
+        if (input.includeLeads) {
+          try {
+            const filter = { hasEmail: true, limit: 10000 };
+            const params = encodeURIComponent(JSON.stringify({ json: filter }));
+            const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
+            const data = await res.json();
+            const leads = data?.result?.data?.json?.rows || [];
+            for (const lead of leads) {
+              if (lead.email && !seenEmails.has(lead.email.toLowerCase())) {
+                seenEmails.add(lead.email.toLowerCase());
+                allRecipients.push({
+                  email: lead.email,
+                  name: lead.companyName || "",
+                  company: lead.companyName || "",
+                  source: "lead",
+                });
+              }
+            }
+          } catch (e: any) {
+            console.error("[sendEmailToAll] Failed to fetch leads:", e.message);
+          }
+        }
+
+        if (allRecipients.length === 0) {
+          throw new Error("送信先が見つかりません。");
+        }
+
+        let sentCount = 0;
+        const errors: string[] = [];
+
+        // バッチ送信（10件ずつ）
+        for (let i = 0; i < allRecipients.length; i += 10) {
+          const batch = allRecipients.slice(i, i + 10);
+          for (const recipient of batch) {
+            try {
+              const displayName = recipient.name || recipient.company || "ご担当者様";
+              const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, displayName);
+              const textContent = `${displayName}様\n\n${input.content}\n\n---\n株式会社ライブコマースジャパン\n大久保\ninfo@livecommercejapan.jp`;
+              const htmlLines = input.content.split('\n').map((line: string) => {
+                if (line.startsWith('■') || line.startsWith('□')) {
+                  return `<h3 style="color: #1a56db; margin-top: 24px; margin-bottom: 8px; font-size: 15px;">${line}</h3>`;
+                } else if (line.startsWith('・') || line.startsWith('- ')) {
+                  return `<li style="margin: 4px 0; font-size: 14px;">${line.replace(/^[・\-]\s*/, '')}</li>`;
+                } else if (line.trim() === '') {
+                  return '<br>';
+                } else {
+                  return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
+                }
+              }).join('\n');
+              const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;">
+                <p style="font-size: 15px;">${displayName} 様</p>
+                ${htmlLines}
+                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+                <p style="font-size: 12px; color: #6b7280;">━━━━━━━━━━━━━━━━━━━━━━<br>株式会社ライブコマースジャパン<br>営業部 大久保<br>Email: info@livecommercejapan.jp<br>━━━━━━━━━━━━━━━━━━━━━━</p>
+              </div>`;
+              const mailOpts: any = {
+                from: `"株式会社ライブコマースジャパン" <${ENV.emailUser}>`,
+                to: recipient.email,
+                subject: personalizedSubject,
+                text: textContent,
+                html: htmlContent,
+              };
+              if (input.attachPdf) {
+                const path = await import("path");
+                const pdfPath = path.resolve(process.cwd(), "server/assets/LCJ_proposal_ja_v06.pdf");
+                mailOpts.attachments = [{
+                  filename: "LCJ提案書_ライブコマースジャパン.pdf",
+                  path: pdfPath,
+                }];
+              }
+              await transporter.sendMail(mailOpts);
+              sentCount++;
+            } catch (e: any) {
+              errors.push(`${recipient.email}: ${e.message}`);
+            }
+          }
+          // レートリミット対策: 10件ごとに1秒待機
+          if (i + 10 < allRecipients.length) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+
+        // 送信履歴を一括記録
+        try {
+          const emailLogs = allRecipients.map((r, idx) => ({
+            toEmail: r.email.toLowerCase(),
+            toName: r.name || "",
+            toCompany: r.company || "",
+            subject: input.subject.replace(/\{\{displayName\}\}/g, r.name || r.company || "ご担当者様"),
+            contentPreview: input.content.substring(0, 200),
+            sendType: "bulk_all" as const,
+            attachPdf: input.attachPdf,
+            status: idx < sentCount ? "sent" as const : "failed" as const,
+            errorMessage: idx >= sentCount && errors[idx - sentCount] ? errors[idx - sentCount] : undefined,
+            businessCardId: r.businessCardId || undefined,
+            sentBy: ctx.user.id,
+          }));
+          await createSalesEmailLogsBatch(emailLogs);
+        } catch (logErr: any) {
+          console.error("[SalesEmailLog] Failed to record all bulk email:", logErr.message);
+        }
+
+        // Activity log
+        await createActivityLog({
+          userId: ctx.user.id,
+          actionType: "all_bulk_email",
+          actionLabel: "メールあり全件一斉送信",
+          targetType: "email",
+          targetName: `${sentCount}件に送信（名刺+リード）`,
+          metadata: {
+            totalRecipients: allRecipients.length,
+            sentCount,
+            errorCount: errors.length,
+            subject: input.subject,
+            cardCount: allRecipients.filter(r => r.source === "card").length,
+            leadCount: allRecipients.filter(r => r.source === "lead").length,
+          },
+        });
+
+        return {
+          success: true,
+          sentCount,
+          totalRecipients: allRecipients.length,
+          cardCount: allRecipients.filter(r => r.source === "card").length,
+          leadCount: allRecipients.filter(r => r.source === "lead").length,
+          errors: errors.slice(0, 5),
+        };
       }),
   }),
   // Activity Log Router

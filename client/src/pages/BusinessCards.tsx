@@ -87,6 +87,9 @@ import {
   Store,
   ExternalLink,
   ArrowUpDown,
+  History,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 
 // ============================================================
@@ -589,6 +592,14 @@ export default function BusinessCards() {
   const sendTestEmailMutation = trpc.businessCard.sendTestEmail.useMutation({
     onSuccess: (data) => {
       toast.success(`テストメールを ${data.sentTo} に送信しました`);
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  // メールあり全件送信mutation
+  const sendToAllMutation = trpc.businessCard.sendEmailToAll.useMutation({
+    onSuccess: (data) => {
+      toast.success(`全${data.sentCount}件にメール送信完了（名刺${data.cardCount}件 + リード${data.leadCount}件）`);
     },
     onError: (error) => toast.error(error.message),
   });
@@ -2836,13 +2847,39 @@ export default function BusinessCards() {
                   )}
                   未送信 {unsentLeads.length}件に一括送信
                 </Button>
+                <Button
+                  className="bg-purple-600 hover:bg-purple-700 md:col-span-2"
+                  disabled={
+                    !emailSubject ||
+                    !emailContent ||
+                    sendToAllMutation.isPending
+                  }
+                  onClick={() => {
+                    const totalEstimate = (cardsWithEmail.length || 0) + (leadStats?.withEmail || 0);
+                    if (!confirm(`メールあり全件（名刺+リード、推定約${totalEstimate}件）に一斉送信します。\n※重複メールアドレスは自動で除外されます。\nよろしいですか？`)) return;
+                    sendToAllMutation.mutate({
+                      subject: emailSubject,
+                      content: emailContent,
+                      attachPdf,
+                      includeCards: true,
+                      includeLeads: true,
+                    });
+                  }}
+                >
+                  {sendToAllMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4 mr-2" />
+                  )}
+                  メールあり全件送信（名刺{cardsWithEmail.length}件 + リード{leadStats?.withEmail || 0}件）
+                </Button>
               </div>
               {/* 送信履歴確認ボタン */}
               <div className="mt-4 pt-4 border-t border-gray-700">
                 <Button
                   variant="outline"
                   className="w-full border-gray-600 text-gray-300 hover:bg-gray-700"
-                  onClick={() => window.location.href = '/master/recruitment'}
+                  onClick={() => window.location.href = '/master/recruitment?tab=email'}
                 >
                   <Mail className="h-4 w-4 mr-2" />
                   送信履歴を確認（招商管理メール） →
@@ -3044,6 +3081,10 @@ export default function BusinessCards() {
                   {t.registeredAt}: {new Date(selectedCard.createdAt).toLocaleDateString()}
                 </div>
               </div>
+              {/* メール送信履歴セクション */}
+              {selectedCard.email && (
+                <EmailHistorySection email={selectedCard.email} businessCardId={selectedCard.id} />
+              )}
             </div>
           )}
           <DialogFooter>
@@ -3885,6 +3926,93 @@ function SalesDashboard({ cards, statusOptions, getCardStatus, onStatusClick }: 
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+
+// ============================================================
+// メール送信履歴セクション（名刺詳細ダイアログ内で使用）
+// ============================================================
+function EmailHistorySection({ email, businessCardId }: { email: string; businessCardId: number }) {
+  const { data: emailLogs, isLoading } = trpc.businessCard.getSalesEmailLogsByEmail.useQuery(
+    { email },
+    { enabled: !!email }
+  );
+
+  if (isLoading) {
+    return (
+      <div className="pt-3 border-t">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          メール送信履歴を読み込み中...
+        </div>
+      </div>
+    );
+  }
+
+  if (!emailLogs || emailLogs.length === 0) {
+    return (
+      <div className="pt-3 border-t">
+        <p className="text-sm text-muted-foreground flex items-center gap-2">
+          <History className="h-4 w-4" />
+          メール送信履歴なし
+        </p>
+      </div>
+    );
+  }
+
+  const sendTypeLabel = (type: string) => {
+    switch (type) {
+      case "test": return "テスト";
+      case "bulk_card": return "名刺一括";
+      case "bulk_lead": return "リード一括";
+      case "bulk_unsent": return "未送信一括";
+      case "bulk_all": return "全件一括";
+      default: return type;
+    }
+  };
+
+  return (
+    <div className="pt-3 border-t space-y-2">
+      <p className="text-sm font-medium flex items-center gap-2">
+        <History className="h-4 w-4 text-blue-600" />
+        メール送信履歴（{emailLogs.length}件）
+      </p>
+      <div className="max-h-48 overflow-y-auto space-y-2">
+        {emailLogs.map((log: any) => (
+          <div key={log.id} className="flex items-start gap-2 p-2 rounded-lg bg-muted/50 text-xs">
+            {log.status === "sent" ? (
+              <CheckCircle className="h-3.5 w-3.5 text-green-600 mt-0.5 shrink-0" />
+            ) : (
+              <AlertCircle className="h-3.5 w-3.5 text-red-500 mt-0.5 shrink-0" />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className="text-[10px] px-1 py-0">
+                  {sendTypeLabel(log.sendType)}
+                </Badge>
+                <span className="text-muted-foreground">
+                  {new Date(log.sentAt).toLocaleString("ja-JP", {
+                    year: "numeric",
+                    month: "2-digit",
+                    day: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+              <p className="truncate mt-0.5 text-foreground">{log.subject}</p>
+              {log.attachPdf && (
+                <span className="text-purple-600">📎 PDF添付</span>
+              )}
+              {log.errorMessage && (
+                <p className="text-red-500 mt-0.5 truncate">{log.errorMessage}</p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

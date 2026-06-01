@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef } from "react";
+import { useSearch, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -274,8 +275,25 @@ export default function RecruitmentManagement() {
   const aiFileInputRef = useRef<HTMLInputElement>(null);
   const [aiDragOver, setAiDragOver] = useState(false);
 
-  // タブ状態
-  const [activeView, setActiveView] = useState<"list" | "email" | "reminders" | "stats">("list");
+  // タブ状態（URLパラメータと同期）
+  const searchString = useSearch();
+  const [, navigate] = useLocation();
+  const validViews = useMemo(() => ["list", "email", "reminders", "stats"] as const, []);
+  const activeView = useMemo(() => {
+    const params = new URLSearchParams(searchString);
+    const view = params.get("tab");
+    return view && (validViews as readonly string[]).includes(view) ? view as typeof validViews[number] : "list";
+  }, [searchString, validViews]);
+  const setActiveView = useCallback((view: typeof validViews[number]) => {
+    const params = new URLSearchParams(searchString);
+    if (view === "list") {
+      params.delete("tab");
+    } else {
+      params.set("tab", view);
+    }
+    const qs = params.toString();
+    navigate(`/master/recruitment${qs ? "?" + qs : ""}`, { replace: true });
+  }, [searchString, navigate]);
 
   // ブランドメールダイアログ状態
   const [brandEmailOpen, setBrandEmailOpen] = useState(false);
