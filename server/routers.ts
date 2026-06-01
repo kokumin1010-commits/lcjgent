@@ -9612,7 +9612,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
         const pathMod = await import("path");
         const pdfPath = input.attachPdf ? pathMod.resolve(process.cwd(), "server/assets/LCJ_proposal_ja_v06.pdf") : "";
         const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-        const DELAY_BETWEEN_EMAILS_MS = 3000;
+        const DELAY_BETWEEN_EMAILS_MS = 1000;
         const RATE_LIMIT_RETRY_DELAY_MS = 60000;
         const MAX_RETRIES = 3;
 
@@ -9841,10 +9841,11 @@ Return ONLY valid JSON, no markdown or explanation.`,
               return;
             }
 
-            // Step 2: バッチ送信（直列 + ディレイ + リトライ）
-            // レート制限対策: 1件ずつ送信、3秒間隔、454エラー時は60秒待ってリトライ
-            const DELAY_BETWEEN_EMAILS_MS = 3000; // 1件ごとに3秒待機
-            const DELAY_BETWEEN_BATCHES_MS = 30000; // バッチ間30秒待機
+            // Step 2: バッチ送信（2件並列 + 1秒間隔 + リトライ）
+            // レート制限対策: 2件並列送信、1秒間隔、454エラー時は60秒待ってリトライ
+            const CONCURRENCY = 2; // 2件並列
+            const DELAY_BETWEEN_CHUNKS_MS = 1000; // チャンクごとに1秒待機
+            const DELAY_BETWEEN_BATCHES_MS = 10000; // バッチ間10秒待機
             const RATE_LIMIT_RETRY_DELAY_MS = 60000; // レート制限時60秒待機
             const MAX_RETRIES = 3; // 最大リトライ回数
             const pathMod = await import("path");
@@ -9860,63 +9861,71 @@ Return ONLY valid JSON, no markdown or explanation.`,
               const sendResults: boolean[] = [];
               const batchErrors: string[] = [];
 
-              // 直列送信（1件ずつ）
-              for (let i = 0; i < batch.length; i++) {
+              // 2件並列送信
+              for (let i = 0; i < batch.length; i += CONCURRENCY) {
                 if (jobState.aborted) break;
-                const recipient = batch[i];
-                const trackingId = trackingIds[i];
-                const displayName = recipient.name || recipient.company || "ご担当者様";
-                const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, displayName);
-                const textContent = `${displayName}様\n\n${input.content}\n\n---\n株式会社ライブコマースジャパン\n大久保\ninfo@livecommercejapan.jp`;
-                const htmlLines = input.content.split('\n').map((line: string) => {
-                  if (line.startsWith('■') || line.startsWith('□')) return `<h3 style="color: #1a56db; margin-top: 24px; margin-bottom: 8px; font-size: 15px;">${line}</h3>`;
-                  if (line.startsWith('・') || line.startsWith('- ')) return `<li style="margin: 4px 0; font-size: 14px;">${line.replace(/^[・\-]\s*/, '')}</li>`;
-                  if (line.trim() === '') return '<br>';
-                  return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
-                }).join('\n');
-                const trackingPixel = `<img src="https://lcjmall.com/api/track/sales-email/open/${trackingId}" width="1" height="1" style="display:none" alt="" />`;
-                const pdfDownloadLink = input.attachPdf ? `<p style="margin: 16px 0; text-align: center;"><a href="https://lcjmall.com/api/track/sales-email/pdf/${trackingId}" style="color: #1a56db; text-decoration: underline; font-size: 14px;">📄 提案書をダウンロード（PDF）</a></p>` : '';
-                const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;"><p style="font-size: 15px;">${displayName} 様</p>${htmlLines}${pdfDownloadLink}<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"><p style="font-size: 12px; color: #6b7280;">━━━━━━━━━━━━━━━━━━━━━━<br>株式会社ライブコマースジャパン<br>営業部 大久保<br>Email: info@livecommercejapan.jp<br>━━━━━━━━━━━━━━━━━━━━━━</p>${trackingPixel}</div>`;
-                const mailOpts: any = {
-                  from: `"株式会社ライブコマースジャパン" <${ENV.emailUser}>`,
-                  to: recipient.email,
-                  subject: personalizedSubject,
-                  text: textContent,
-                  html: htmlContent,
-                };
-                if (input.attachPdf) {
-                  mailOpts.attachments = [{ filename: "LCJ提案書_ライブコマースジャパン.pdf", path: pdfPath }];
-                }
-                // リトライ付き送信
-                let sent = false;
-                for (let retry = 0; retry < MAX_RETRIES; retry++) {
-                  try {
-                    await transporter.sendMail(mailOpts);
-                    sent = true;
-                    break;
-                  } catch (sendErr: any) {
-                    const errMsg = sendErr.message || '';
-                    // レート制限エラー（454）の場合はリトライ
-                    if (errMsg.includes('454') || errMsg.includes('too frequently') || errMsg.includes('rate')) {
-                      console.warn(`[BG Batch] Rate limited on ${recipient.email}, waiting ${RATE_LIMIT_RETRY_DELAY_MS/1000}s (retry ${retry+1}/${MAX_RETRIES})`);
-                      await sleep(RATE_LIMIT_RETRY_DELAY_MS);
-                      continue;
+                const chunk = batch.slice(i, i + CONCURRENCY);
+                const chunkTrackingIds = trackingIds.slice(i, i + CONCURRENCY);
+
+                const chunkResults = await Promise.allSettled(chunk.map(async (recipient, idx) => {
+                  const trackingId = chunkTrackingIds[idx];
+                  const displayName = recipient.name || recipient.company || "ご担当者様";
+                  const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, displayName);
+                  const textContent = `${displayName}様\n\n${input.content}\n\n---\n株式会社ライブコマースジャパン\n大久保\ninfo@livecommercejapan.jp`;
+                  const htmlLines = input.content.split('\n').map((line: string) => {
+                    if (line.startsWith('■') || line.startsWith('□')) return `<h3 style="color: #1a56db; margin-top: 24px; margin-bottom: 8px; font-size: 15px;">${line}</h3>`;
+                    if (line.startsWith('・') || line.startsWith('- ')) return `<li style="margin: 4px 0; font-size: 14px;">${line.replace(/^[・\-]\s*/, '')}</li>`;
+                    if (line.trim() === '') return '<br>';
+                    return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
+                  }).join('\n');
+                  const trackingPixel = `<img src="https://lcjmall.com/api/track/sales-email/open/${trackingId}" width="1" height="1" style="display:none" alt="" />`;
+                  const pdfDownloadLink = input.attachPdf ? `<p style="margin: 16px 0; text-align: center;"><a href="https://lcjmall.com/api/track/sales-email/pdf/${trackingId}" style="color: #1a56db; text-decoration: underline; font-size: 14px;">📄 提案書をダウンロード（PDF）</a></p>` : '';
+                  const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;"><p style="font-size: 15px;">${displayName} 様</p>${htmlLines}${pdfDownloadLink}<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"><p style="font-size: 12px; color: #6b7280;">━━━━━━━━━━━━━━━━━━━━━━<br>株式会社ライブコマースジャパン<br>営業部 大久保<br>Email: info@livecommercejapan.jp<br>━━━━━━━━━━━━━━━━━━━━━━</p>${trackingPixel}</div>`;
+                  const mailOpts: any = {
+                    from: `"株式会社ライブコマースジャパン" <${ENV.emailUser}>`,
+                    to: recipient.email,
+                    subject: personalizedSubject,
+                    text: textContent,
+                    html: htmlContent,
+                  };
+                  if (input.attachPdf) {
+                    mailOpts.attachments = [{ filename: "LCJ提案書_ライブコマースジャパン.pdf", path: pdfPath }];
+                  }
+                  // リトライ付き送信
+                  for (let retry = 0; retry < MAX_RETRIES; retry++) {
+                    try {
+                      await transporter.sendMail(mailOpts);
+                      return true;
+                    } catch (sendErr: any) {
+                      const errMsg = sendErr.message || '';
+                      if (errMsg.includes('454') || errMsg.includes('too frequently') || errMsg.includes('rate')) {
+                        console.warn(`[BG Batch] Rate limited on ${recipient.email}, waiting ${RATE_LIMIT_RETRY_DELAY_MS/1000}s (retry ${retry+1}/${MAX_RETRIES})`);
+                        await sleep(RATE_LIMIT_RETRY_DELAY_MS);
+                        continue;
+                      }
+                      throw sendErr;
                     }
-                    // その他のエラーはリトライしない
-                    throw sendErr;
+                  }
+                  throw new Error(`Rate limit exceeded after ${MAX_RETRIES} retries`);
+                }));
+
+                // チャンク結果を処理
+                for (let idx = 0; idx < chunkResults.length; idx++) {
+                  const result = chunkResults[idx];
+                  if (result.status === 'fulfilled' && result.value === true) {
+                    jobState.sentCount++;
+                    sendResults.push(true);
+                  } else {
+                    jobState.errorCount++;
+                    const errMsg = result.status === 'rejected' ? result.reason?.message || 'Unknown error' : 'Failed';
+                    batchErrors.push(`${chunk[idx].email}: ${errMsg}`);
+                    sendResults.push(false);
                   }
                 }
-                if (sent) {
-                  jobState.sentCount++;
-                  sendResults.push(true);
-                } else {
-                  jobState.errorCount++;
-                  batchErrors.push(`${recipient.email}: Rate limit exceeded after ${MAX_RETRIES} retries`);
-                  sendResults.push(false);
-                }
-                // メール間ディレイ
-                if (i < batch.length - 1 && !jobState.aborted) {
-                  await sleep(DELAY_BETWEEN_EMAILS_MS);
+
+                // チャンク間ディレイ（1秒）
+                if (i + CONCURRENCY < batch.length && !jobState.aborted) {
+                  await sleep(DELAY_BETWEEN_CHUNKS_MS);
                 }
               }
 
@@ -9941,7 +9950,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
                 console.error("[BG Batch Log]", logErr.message);
               }
               jobState.errors = batchErrors.slice(-10);
-              // バッチ間ディレイ（30秒）
+              // バッチ間ディレイ（10秒）
               if (batchIdx < jobState.totalBatches - 1 && !jobState.aborted) {
                 await sleep(DELAY_BETWEEN_BATCHES_MS);
               }
