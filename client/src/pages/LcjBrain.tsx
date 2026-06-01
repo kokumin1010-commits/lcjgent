@@ -1482,7 +1482,21 @@ function ScriptsPanel() {
       {/* 生成結果 */}
       {generatedScript && (
         <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-          <div className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-white/60">生成結果</span>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(generatedScript);
+                const btn = document.getElementById('copy-script-btn');
+                if (btn) { btn.textContent = '✓ 已复制'; setTimeout(() => { btn.textContent = '复制文字'; }, 2000); }
+              }}
+              id="copy-script-btn"
+              className="px-3 py-1.5 text-xs bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-blue-300 transition-all"
+            >
+              复制文字
+            </button>
+          </div>
+          <div className="text-white text-sm leading-relaxed whitespace-pre-wrap">
             {generatedScript}
           </div>
         </div>
