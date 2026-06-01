@@ -9609,10 +9609,21 @@ Return ONLY valid JSON, no markdown or explanation.`,
         const errors: string[] = [];
         const trackingIds: string[] = [];
         const sendResults: boolean[] = []; // 各recipientの送信結果を追跡
-        for (const recipient of input.recipients) {
-          const trackingId = nanoid(32);
-          trackingIds.push(trackingId);
-          try {
+        const CONCURRENCY = 5; // 5件同時送信で高速化
+        const pathMod = await import("path");
+        const pdfPath = input.attachPdf ? pathMod.resolve(process.cwd(), "server/assets/LCJ_proposal_ja_v06.pdf") : "";
+
+        // trackingIdsを先に全て生成
+        for (const _ of input.recipients) {
+          trackingIds.push(nanoid(32));
+        }
+
+        // 並列送信（CONCURRENCY件ずつ）
+        for (let i = 0; i < input.recipients.length; i += CONCURRENCY) {
+          const chunk = input.recipients.slice(i, i + CONCURRENCY);
+          const chunkResults = await Promise.allSettled(chunk.map(async (recipient, chunkIdx) => {
+            const idx = i + chunkIdx;
+            const trackingId = trackingIds[idx];
             const displayName = recipient.name || recipient.company || "ご担当者様";
             const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, displayName);
             const textContent = `${displayName}様\n\n${input.content}\n\n---\n株式会社ライブコマースジャパン\n大久保\ninfo@livecommercejapan.jp`;
@@ -9627,7 +9638,6 @@ Return ONLY valid JSON, no markdown or explanation.`,
                 return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
               }
             }).join('\n');
-            // トラッキングピクセル + PDFダウンロードリンクを埋め込み
             const trackingPixel = `<img src="https://lcjmall.com/api/track/sales-email/open/${trackingId}" width="1" height="1" style="display:none" alt="" />`;
             const pdfDownloadLink = input.attachPdf ? `<p style="margin: 16px 0; text-align: center;"><a href="https://lcjmall.com/api/track/sales-email/pdf/${trackingId}" style="color: #1a56db; text-decoration: underline; font-size: 14px;">📄 提案書をダウンロード（PDF）</a></p>` : '';
             const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;">
@@ -9646,20 +9656,25 @@ Return ONLY valid JSON, no markdown or explanation.`,
               html: htmlContent,
             };
             if (input.attachPdf) {
-              const path = await import("path");
-              const pdfPath = path.resolve(process.cwd(), "server/assets/LCJ_proposal_ja_v06.pdf");
               mailOpts.attachments = [{
                 filename: "LCJ提案書_ライブコマースジャパン.pdf",
                 path: pdfPath,
               }];
             }
             await transporter.sendMail(mailOpts);
-            sentCount++;
-            sendResults.push(true);
-          } catch (e: any) {
-            errors.push(`${recipient.email}: ${e.message}`);
-            sendResults.push(false);
-          }
+            return { success: true };
+          }));
+          // 結果を集計
+          chunkResults.forEach((result, chunkIdx) => {
+            const idx = i + chunkIdx;
+            if (result.status === 'fulfilled') {
+              sentCount++;
+              sendResults.push(true);
+            } else {
+              errors.push(`${chunk[chunkIdx].email}: ${result.reason?.message || 'Unknown error'}`);
+              sendResults.push(false);
+            }
+          });
         }
         // 送信履歴を一括記録
         try {
@@ -9704,6 +9719,232 @@ Return ONLY valid JSON, no markdown or explanation.`,
           errors: errors.slice(0, 5),
         };
       }),
+    // ===== バックグラウンドバッチ送信 =====
+    // サーバーサイドで全バッチを処理し、ページを離れても送信が継続する
+    startBackgroundBatchSend: protectedProcedure
+      .input(z.object({
+        subject: z.string().min(1),
+        content: z.string().min(1),
+        attachPdf: z.boolean().default(false),
+        includeCards: z.boolean().default(true),
+        includeLeads: z.boolean().default(true),
+        skipSent: z.boolean().default(true),
+        batchSize: z.number().min(5).max(100).default(50),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // 既に実行中なら拒否
+        if ((global as any).__bgBatchSend?.isRunning) {
+          return { success: false, message: "既にバックグラウンド送信が実行中です" };
+        }
+        // バックグラウンドジョブを開始（awaitしない）
+        const jobState = {
+          isRunning: true,
+          startedAt: Date.now(),
+          totalRecipients: 0,
+          sentCount: 0,
+          errorCount: 0,
+          skippedSent: 0,
+          currentBatch: 0,
+          totalBatches: 0,
+          errors: [] as string[],
+          aborted: false,
+        };
+        (global as any).__bgBatchSend = jobState;
+
+        // 非同期で送信処理を開始
+        (async () => {
+          try {
+            const { ENV } = await import("./_core/env");
+            const nodemailer = await import("nodemailer");
+            const transporter = nodemailer.default.createTransport({
+              host: ENV.emailSmtpHost || "smtp.qiye.aliyun.com",
+              port: 465,
+              secure: true,
+              auth: { user: ENV.emailUser, pass: ENV.emailPassword },
+            });
+
+            // Step 1: 送信先リストを取得
+            let sentEmailSet = new Set<string>();
+            if (input.skipSent) {
+              const sentEmails = await getSentEmailAddresses();
+              sentEmailSet = new Set(sentEmails.map(e => e.toLowerCase()));
+              jobState.skippedSent = sentEmailSet.size;
+            }
+
+            const allRecipients: Array<{ email: string; name: string; company: string; source: string; businessCardId?: number }> = [];
+            const seenEmails = new Set<string>();
+
+            if (input.includeCards) {
+              const allCards = await getBusinessCards({ limit: 10000 });
+              for (const card of allCards) {
+                if (card.email && !seenEmails.has(card.email.toLowerCase())) {
+                  const emailLower = card.email.toLowerCase();
+                  seenEmails.add(emailLower);
+                  if (input.skipSent && sentEmailSet.has(emailLower)) continue;
+                  allRecipients.push({ email: card.email, name: card.name || "", company: card.company || "", source: "card", businessCardId: card.id });
+                }
+              }
+            }
+
+            if (input.includeLeads) {
+              try {
+                const filter = { hasEmail: true, limit: 10000 };
+                const params = encodeURIComponent(JSON.stringify({ json: filter }));
+                const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
+                const data = await res.json();
+                const leads = data?.result?.data?.json?.rows || [];
+                for (const lead of leads) {
+                  if (lead.email && !seenEmails.has(lead.email.toLowerCase())) {
+                    const emailLower = lead.email.toLowerCase();
+                    seenEmails.add(emailLower);
+                    if (input.skipSent && sentEmailSet.has(emailLower)) continue;
+                    allRecipients.push({ email: lead.email, name: lead.companyName || "", company: lead.companyName || "", source: "lead" });
+                  }
+                }
+              } catch (e: any) {
+                console.error("[BG Batch] Failed to fetch leads:", e.message);
+              }
+            }
+
+            jobState.totalRecipients = allRecipients.length;
+            jobState.totalBatches = Math.ceil(allRecipients.length / input.batchSize);
+
+            if (allRecipients.length === 0) {
+              jobState.isRunning = false;
+              return;
+            }
+
+            // Step 2: バッチ送信（5件並列）
+            const CONCURRENCY = 5;
+            const pathMod = await import("path");
+            const pdfPath = input.attachPdf ? pathMod.resolve(process.cwd(), "server/assets/LCJ_proposal_ja_v06.pdf") : "";
+
+            for (let batchIdx = 0; batchIdx < jobState.totalBatches; batchIdx++) {
+              if (jobState.aborted) break;
+              jobState.currentBatch = batchIdx + 1;
+              const batchStart = batchIdx * input.batchSize;
+              const batch = allRecipients.slice(batchStart, batchStart + input.batchSize);
+              const trackingIds: string[] = batch.map(() => nanoid(32));
+              const sendResults: boolean[] = [];
+              const batchErrors: string[] = [];
+
+              for (let i = 0; i < batch.length; i += CONCURRENCY) {
+                if (jobState.aborted) break;
+                const chunk = batch.slice(i, i + CONCURRENCY);
+                const chunkResults = await Promise.allSettled(chunk.map(async (recipient, chunkIdx) => {
+                  const idx = i + chunkIdx;
+                  const trackingId = trackingIds[idx];
+                  const displayName = recipient.name || recipient.company || "\u3054\u62c5\u5f53\u8005\u69d8";
+                  const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, displayName);
+                  const textContent = `${displayName}\u69d8\n\n${input.content}\n\n---\n\u682a\u5f0f\u4f1a\u793e\u30e9\u30a4\u30d6\u30b3\u30de\u30fc\u30b9\u30b8\u30e3\u30d1\u30f3\n\u5927\u4e45\u4fdd\ninfo@livecommercejapan.jp`;
+                  const htmlLines = input.content.split('\n').map((line: string) => {
+                    if (line.startsWith('\u25a0') || line.startsWith('\u25a1')) return `<h3 style="color: #1a56db; margin-top: 24px; margin-bottom: 8px; font-size: 15px;">${line}</h3>`;
+                    if (line.startsWith('\u30fb') || line.startsWith('- ')) return `<li style="margin: 4px 0; font-size: 14px;">${line.replace(/^[\u30fb\-]\s*/, '')}</li>`;
+                    if (line.trim() === '') return '<br>';
+                    return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
+                  }).join('\n');
+                  const trackingPixel = `<img src="https://lcjmall.com/api/track/sales-email/open/${trackingId}" width="1" height="1" style="display:none" alt="" />`;
+                  const pdfDownloadLink = input.attachPdf ? `<p style="margin: 16px 0; text-align: center;"><a href="https://lcjmall.com/api/track/sales-email/pdf/${trackingId}" style="color: #1a56db; text-decoration: underline; font-size: 14px;">\ud83d\udcc4 \u63d0\u6848\u66f8\u3092\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\uff08PDF\uff09</a></p>` : '';
+                  const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;"><p style="font-size: 15px;">${displayName} \u69d8</p>${htmlLines}${pdfDownloadLink}<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"><p style="font-size: 12px; color: #6b7280;">\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501<br>\u682a\u5f0f\u4f1a\u793e\u30e9\u30a4\u30d6\u30b3\u30de\u30fc\u30b9\u30b8\u30e3\u30d1\u30f3<br>\u55b6\u696d\u90e8 \u5927\u4e45\u4fdd<br>Email: info@livecommercejapan.jp<br>\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501</p>${trackingPixel}</div>`;
+                  const mailOpts: any = {
+                    from: `"\u682a\u5f0f\u4f1a\u793e\u30e9\u30a4\u30d6\u30b3\u30de\u30fc\u30b9\u30b8\u30e3\u30d1\u30f3" <${ENV.emailUser}>`,
+                    to: recipient.email,
+                    subject: personalizedSubject,
+                    text: textContent,
+                    html: htmlContent,
+                  };
+                  if (input.attachPdf) {
+                    mailOpts.attachments = [{ filename: "LCJ\u63d0\u6848\u66f8_\u30e9\u30a4\u30d6\u30b3\u30de\u30fc\u30b9\u30b8\u30e3\u30d1\u30f3.pdf", path: pdfPath }];
+                  }
+                  await transporter.sendMail(mailOpts);
+                  return { success: true };
+                }));
+                chunkResults.forEach((result, chunkIdx) => {
+                  if (result.status === 'fulfilled') {
+                    jobState.sentCount++;
+                    sendResults.push(true);
+                  } else {
+                    jobState.errorCount++;
+                    batchErrors.push(`${chunk[chunkIdx].email}: ${result.reason?.message || 'Unknown'}`);
+                    sendResults.push(false);
+                  }
+                });
+              }
+
+              // バッチごとにログ記録
+              try {
+                const emailLogs = batch.map((r, idx) => ({
+                  toEmail: r.email.toLowerCase(),
+                  toName: r.name || "",
+                  toCompany: r.company || "",
+                  subject: input.subject.replace(/\{\{displayName\}\}/g, r.name || r.company || "\u3054\u62c5\u5f53\u8005\u69d8"),
+                  contentPreview: input.content.substring(0, 200),
+                  sendType: "bulk_all" as const,
+                  attachPdf: input.attachPdf,
+                  status: sendResults[idx] ? "sent" as const : "failed" as const,
+                  errorMessage: !sendResults[idx] ? batchErrors[sendResults.slice(0, idx).filter(r => !r).length] : undefined,
+                  businessCardId: r.businessCardId || undefined,
+                  sentBy: ctx.user.id,
+                  trackingId: trackingIds[idx],
+                }));
+                await createSalesEmailLogsBatch(emailLogs);
+              } catch (logErr: any) {
+                console.error("[BG Batch Log]", logErr.message);
+              }
+              jobState.errors = batchErrors.slice(-10);
+            }
+
+            // 完了
+            jobState.isRunning = false;
+            // Activity log
+            await createActivityLog({
+              userId: ctx.user.id,
+              actionType: "bg_bulk_email",
+              actionLabel: "\u30d0\u30c3\u30af\u30b0\u30e9\u30a6\u30f3\u30c9\u30d0\u30c3\u30c1\u9001\u4fe1",
+              targetType: "email",
+              targetName: `${jobState.sentCount}/${jobState.totalRecipients}\u4ef6\u9001\u4fe1`,
+              metadata: { sentCount: jobState.sentCount, errorCount: jobState.errorCount, subject: input.subject },
+            });
+          } catch (err: any) {
+            console.error("[BG Batch] Fatal error:", err.message);
+            jobState.isRunning = false;
+            jobState.errors.push(`Fatal: ${err.message}`);
+          }
+        })();
+
+        return { success: true, message: "\u30d0\u30c3\u30af\u30b0\u30e9\u30a6\u30f3\u30c9\u9001\u4fe1\u3092\u958b\u59cb\u3057\u307e\u3057\u305f" };
+      }),
+
+    getBackgroundBatchProgress: protectedProcedure
+      .query(async () => {
+        const job = (global as any).__bgBatchSend;
+        if (!job) {
+          return { isRunning: false, totalRecipients: 0, sentCount: 0, errorCount: 0, skippedSent: 0, currentBatch: 0, totalBatches: 0, errors: [] };
+        }
+        return {
+          isRunning: job.isRunning,
+          totalRecipients: job.totalRecipients,
+          sentCount: job.sentCount,
+          errorCount: job.errorCount,
+          skippedSent: job.skippedSent,
+          currentBatch: job.currentBatch,
+          totalBatches: job.totalBatches,
+          errors: job.errors.slice(-5),
+          startedAt: job.startedAt,
+        };
+      }),
+
+    stopBackgroundBatchSend: protectedProcedure
+      .mutation(async () => {
+        const job = (global as any).__bgBatchSend;
+        if (job && job.isRunning) {
+          job.aborted = true;
+          job.isRunning = false;
+          return { success: true, message: "\u30d0\u30c3\u30af\u30b0\u30e9\u30a6\u30f3\u30c9\u9001\u4fe1\u3092\u4e2d\u65ad\u3057\u307e\u3057\u305f" };
+        }
+        return { success: false, message: "\u5b9f\u884c\u4e2d\u306e\u30d0\u30c3\u30af\u30b0\u30e9\u30a6\u30f3\u30c9\u9001\u4fe1\u304c\u3042\u308a\u307e\u305b\u3093" };
+      }),
+
     // Legacy: sendEmailToAll (kept for backward compatibility, delegates to new APIs)
     sendEmailToAll: protectedProcedure
       .input(z.object({

@@ -596,13 +596,14 @@ export default function BusinessCards() {
     onError: (error) => toast.error(error.message),
   });
 
-  // メールあり全件送信mutation（2段階API）
-  const getRecipientsMutation = trpc.businessCard.getEmailRecipientsList.useMutation();
+  // メールあり全件送信mutation（バックグラウンド方式）
   const sendBatchMutation = trpc.businessCard.sendEmailBatch.useMutation();
+  const startBgBatchMutation = trpc.businessCard.startBackgroundBatchSend.useMutation();
+  const stopBgBatchMutation = trpc.businessCard.stopBackgroundBatchSend.useMutation();
   const [testEmailAddress, setTestEmailAddress] = useState("");
 
   // バッチ送信用state
-  const [batchSize, setBatchSize] = useState<number>(20);
+  const [batchSize, setBatchSize] = useState<number>(50);
   const [skipSent, setSkipSent] = useState<boolean>(true);
   const [batchProgress, setBatchProgress] = useState<{
     isRunning: boolean;
@@ -611,97 +612,101 @@ export default function BusinessCards() {
     totalErrors: number;
     totalRecipients: number;
     skippedSent: number;
+    currentBatch?: number;
+    totalBatches?: number;
   } | null>(null);
   const batchAbortRef = useRef(false);
 
+  // バックグラウンド送信の進捗ポーリング
+  const bgProgressQuery = trpc.businessCard.getBackgroundBatchProgress.useQuery(undefined, {
+    refetchInterval: batchProgress?.isRunning ? 2000 : false,
+    enabled: batchProgress?.isRunning || false,
+  });
+
+  // バックグラウンド進捗をUIに反映
+  useEffect(() => {
+    if (bgProgressQuery.data && batchProgress?.isRunning) {
+      const bg = bgProgressQuery.data;
+      setBatchProgress({
+        isRunning: bg.isRunning,
+        currentOffset: bg.sentCount + bg.errorCount,
+        totalSent: bg.sentCount,
+        totalErrors: bg.errorCount,
+        totalRecipients: bg.totalRecipients,
+        skippedSent: bg.skippedSent,
+        currentBatch: bg.currentBatch,
+        totalBatches: bg.totalBatches,
+      });
+      if (!bg.isRunning && bg.sentCount > 0) {
+        toast.success(`バックグラウンド送信完了！${bg.sentCount}件送信（エラー${bg.errorCount}件）`);
+      }
+    }
+  }, [bgProgressQuery.data]);
+
+  // ページロード時にバックグラウンド送信が実行中かチェック
+  const bgInitialCheck = trpc.businessCard.getBackgroundBatchProgress.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+  useEffect(() => {
+    if (bgInitialCheck.data?.isRunning) {
+      setBatchProgress({
+        isRunning: true,
+        currentOffset: bgInitialCheck.data.sentCount + bgInitialCheck.data.errorCount,
+        totalSent: bgInitialCheck.data.sentCount,
+        totalErrors: bgInitialCheck.data.errorCount,
+        totalRecipients: bgInitialCheck.data.totalRecipients,
+        skippedSent: bgInitialCheck.data.skippedSent,
+        currentBatch: bgInitialCheck.data.currentBatch,
+        totalBatches: bgInitialCheck.data.totalBatches,
+      });
+    }
+  }, [bgInitialCheck.data]);
+
   const startBatchSend = async () => {
+    if (!emailSubject || !emailContent) {
+      toast.error("件名と本文を入力してください");
+      return;
+    }
     const totalEstimate = (cardsWithEmail.length || 0) + (leadStats?.withEmail || 0);
-    if (!confirm(`メールあり全件に${batchSize}件ずつバッチ送信します。\n推定約${totalEstimate}件${skipSent ? "（送信済はスキップ）" : ""}\nよろしいですか？`)) return;
+    if (!confirm(`バックグラウンドでメールあり全件に送信します。\n推定約${totalEstimate}件${skipSent ? "（送信済はスキップ）" : ""}\n※ページを離れても送信は継続されます\nよろしいですか？`)) return;
 
-    batchAbortRef.current = false;
-    setBatchProgress({
-      isRunning: true,
-      currentOffset: 0,
-      totalSent: 0,
-      totalErrors: 0,
-      totalRecipients: 0,
-      skippedSent: 0,
-    });
-
-    // Step 1: 送信先リストを一括取得
-    let allRecipients: Array<{ email: string; name: string; company: string; source: string; businessCardId?: number }> = [];
-    let skippedSent = 0;
     try {
-      const listResult = await getRecipientsMutation.mutateAsync({
+      const result = await startBgBatchMutation.mutateAsync({
+        subject: emailSubject,
+        content: emailContent,
+        attachPdf,
         includeCards: true,
         includeLeads: true,
         skipSent,
+        batchSize,
       });
-      allRecipients = listResult.recipients;
-      skippedSent = listResult.skippedSent;
-    } catch (e: any) {
-      toast.error(`送信先リスト取得エラー: ${e.message}`);
-      setBatchProgress(null);
-      return;
-    }
-
-    if (allRecipients.length === 0) {
-      toast.info("送信対象が0件です。全て送信済みか、メールありのデータがありません。");
-      setBatchProgress(null);
-      return;
-    }
-
-    const totalRecipients = allRecipients.length;
-    setBatchProgress({
-      isRunning: true,
-      currentOffset: 0,
-      totalSent: 0,
-      totalErrors: 0,
-      totalRecipients,
-      skippedSent,
-    });
-
-    // Step 2: バッチサイズごとに送信APIを呼ぶ
-    let offset = 0;
-    let totalSent = 0;
-    let totalErrors = 0;
-
-    while (offset < totalRecipients && !batchAbortRef.current) {
-      const batch = allRecipients.slice(offset, offset + batchSize);
-      try {
-        const result = await sendBatchMutation.mutateAsync({
-          subject: emailSubject,
-          content: emailContent,
-          attachPdf,
-          recipients: batch,
-        });
-        totalSent += result.sentCount;
-        totalErrors += result.errors.length;
-        offset += batch.length;
-
+      if (result.success) {
+        toast.success("バックグラウンド送信を開始しました！ページを離れても送信は継続されます。");
         setBatchProgress({
-          isRunning: !batchAbortRef.current && offset < totalRecipients,
-          currentOffset: offset,
-          totalSent,
-          totalErrors,
-          totalRecipients,
-          skippedSent,
+          isRunning: true,
+          currentOffset: 0,
+          totalSent: 0,
+          totalErrors: 0,
+          totalRecipients: 0,
+          skippedSent: 0,
         });
-
-        if (result.errors.length > 0) {
-          console.warn(`バッチエラー:`, result.errors);
-        }
-      } catch (e: any) {
-        toast.error(`バッチ送信エラー: ${e.message}`);
-        break;
+      } else {
+        toast.error(result.message || "送信開始に失敗しました");
       }
+    } catch (e: any) {
+      toast.error(`送信開始エラー: ${e.message}`);
     }
+  };
 
-    setBatchProgress(prev => prev ? { ...prev, isRunning: false } : null);
-    if (batchAbortRef.current) {
-      toast.info(`送信を中断しました。${totalSent}件送信済み。`);
-    } else {
-      toast.success(`バッチ送信完了！合計${totalSent}件送信（エラー${totalErrors}件）`);
+  const stopBatchSend = async () => {
+    try {
+      const result = await stopBgBatchMutation.mutateAsync();
+      if (result.success) {
+        toast.info("バックグラウンド送信を中断しました");
+        setBatchProgress(prev => prev ? { ...prev, isRunning: false } : null);
+      }
+    } catch (e: any) {
+      toast.error(`中断エラー: ${e.message}`);
     }
   };
 
@@ -3003,7 +3008,8 @@ export default function BusinessCards() {
                       />
                     </div>
                     <p className="text-[10px] text-purple-600">
-                      バッチ {Math.ceil(batchProgress.currentOffset / batchSize)} / {Math.ceil(batchProgress.totalRecipients / batchSize)}
+                      バッチ {batchProgress.currentBatch || Math.ceil(batchProgress.currentOffset / batchSize)} / {batchProgress.totalBatches || Math.ceil(batchProgress.totalRecipients / batchSize)}
+                      {batchProgress.isRunning && " ※ページを離れても送信は継続されます"}
                     </p>
                   </div>
                 )}
@@ -3029,9 +3035,7 @@ export default function BusinessCards() {
                     <Button
                       variant="destructive"
                       className="shrink-0"
-                      onClick={() => {
-                        batchAbortRef.current = true;
-                      }}
+                      onClick={stopBatchSend}
                     >
                       <XCircle className="h-4 w-4 mr-1" />
                       中断
