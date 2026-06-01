@@ -4221,18 +4221,24 @@ async def _gpt_content_quality_score(clip: dict, job_id: str = "") -> dict:
     """
     transcript = (clip.get("transcript_text") or "")[:600]
     product_name = clip.get("product_name") or ""
+    phase_description = (clip.get("phase_description") or "")[:400]
     
-    # トランスクリプトが空の場合はフォールバック
+    # トランスクリプトが空の場合、phase_descriptionをフォールバックとして使用
     if not transcript.strip():
-        return {
-            "content_score": 0.0,
-            "breakdown": {
-                "product_appeal": 0, "hook_quality": 0,
-                "story_flow": 0, "viewer_engagement": 0, "specificity": 0,
-            },
-            "reasons": ["発話なし"],
-            "sellability": "low",
-        }
+        if phase_description.strip():
+            # phase_descriptionがある場合はそれを使ってGPT評価を実行
+            transcript = f"[動画内容の説明] {phase_description}"
+        else:
+            # 両方空の場合のみスコア0を返す
+            return {
+                "content_score": 0.0,
+                "breakdown": {
+                    "product_appeal": 0, "hook_quality": 0,
+                    "story_flow": 0, "viewer_engagement": 0, "specificity": 0,
+                },
+                "reasons": ["発話なし（音声認識・内容説明ともに未取得）"],
+                "sellability": "low",
+            }
     
     try:
         import openai
@@ -7246,6 +7252,7 @@ async def _run_batch_regeneration(batch_job_id: str, req: BatchRegenRequest):
                                vc.duration_sec, vc.clip_url, vc.transcript_text,
                                vc.product_name, vc.cta_score, vc.importance_score, vc.captions,
                                vc.subtitle_style, vc.liver_name, vc.tags,
+                               vc.phase_description,
                                v.compressed_blob_url, v.user_id, v.original_filename,
                                u.email as user_email
                         FROM video_clips vc
@@ -7280,6 +7287,7 @@ async def _run_batch_regeneration(batch_job_id: str, req: BatchRegenRequest):
                     "subtitle_style": clip_row.subtitle_style,
                     "liver_name": clip_row.liver_name,
                     "tags": clip_row.tags,
+                    "phase_description": clip_row.phase_description,
                     "compressed_blob_url": clip_row.compressed_blob_url,
                     "user_id": str(clip_row.user_id) if clip_row.user_id else None,
                     "original_filename": clip_row.original_filename,
