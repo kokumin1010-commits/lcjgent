@@ -1414,3 +1414,42 @@ async def get_preview_url(
         # Fallback: return the original URL as-is
         fresh_url = req.video_url
     return {"preview_url": fresh_url}
+
+
+# ─── Delete Sample ─────────────────────────────────────────────────────────────
+
+@router.delete("/samples/{sample_id}")
+async def delete_sample(
+    sample_id: str,
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+):
+    """個別サンプル動画を削除し、プロファイルのstyle_paramsを再集約する"""
+    verify_admin(x_admin_key)
+    await _ensure_tables()
+
+    async with get_session() as session:
+        # Get sample info before deletion (for re-aggregation)
+        result = await session.execute(text("""
+            SELECT id, profile_id, video_url, original_video_url
+            FROM editing_style_samples WHERE id = :sid
+        """), {"sid": sample_id})
+        sample = result.fetchone()
+
+        if not sample:
+            raise HTTPException(status_code=404, detail="サンプルが見つかりません")
+
+        profile_id = sample.profile_id
+
+        # Delete the sample
+        await session.execute(text("""
+            DELETE FROM editing_style_samples WHERE id = :sid
+        """), {"sid": sample_id})
+        await session.commit()
+
+    # Re-aggregate style params after deletion
+    try:
+        await _aggregate_profile_style(profile_id)
+    except Exception as e:
+        logger.warning(f"[editing-style] Re-aggregation after delete failed: {e}")
+
+    return {"success": True, "deleted_id": sample_id, "profile_id": profile_id}

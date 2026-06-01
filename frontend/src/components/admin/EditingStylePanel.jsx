@@ -404,6 +404,19 @@ function PairUploadPanel({ profile, adminKey, onDelete, onRefresh }) {
     }
   };
 
+  // Delete individual sample
+  const handleDeleteSample = async (sampleId, filename) => {
+    if (!confirm(`「${filename}」を削除しますか？\n削除後、学習結果が再計算されます。`)) return;
+    try {
+      await axios.delete(`${API_BASE}/api/v1/editing-style/samples/${sampleId}`, {
+        headers: { 'X-Admin-Key': adminKey }
+      });
+      onRefresh();
+    } catch (e) {
+      alert('削除失敗: ' + (e.response?.data?.detail || e.message));
+    }
+  };
+
   const samples = profile.samples || [];
   const pendingCount = samples.filter(s => s.analysis_status === 'pending').length;
   const doneCount = samples.filter(s => s.analysis_status === 'done').length;
@@ -475,6 +488,7 @@ function PairUploadPanel({ profile, adminKey, onDelete, onRefresh }) {
               uploading={uploading}
               onFileSelect={handleFileSelect}
               onPreview={(url, title) => setPreviewVideo({ open: true, url, title })}
+              onDeleteSample={handleDeleteSample}
             />
           ))}
         </div>
@@ -563,7 +577,7 @@ function PairUploadPanel({ profile, adminKey, onDelete, onRefresh }) {
 
 // ─── Pair Row Component ────────────────────────────────────────────────────────
 
-function PairRow({ pair, pairIndex, uploading, onFileSelect, onPreview }) {
+function PairRow({ pair, pairIndex, uploading, onFileSelect, onPreview, onDeleteSample }) {
   const finishedKey = `${pairIndex}-finished`;
   const originalKey = `${pairIndex}-original`;
   const finishedUpload = uploading[finishedKey];
@@ -587,6 +601,11 @@ function PairRow({ pair, pairIndex, uploading, onFileSelect, onPreview }) {
                 title="プレビュー再生"
               >▶</button>
             )}
+            <button
+              onClick={() => onDeleteSample(pair.finished.id, pair.finished.filename)}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-500 hover:bg-red-100 transition"
+              title="この動画を削除"
+            >🗑</button>
           </div>
         ) : finishedUpload ? (
           <UploadProgress upload={finishedUpload} label="完成動画" />
@@ -622,6 +641,11 @@ function PairRow({ pair, pairIndex, uploading, onFileSelect, onPreview }) {
                 title="プレビュー再生"
               >▶</button>
             )}
+            <button
+              onClick={() => onDeleteSample(pair.original.id, pair.original.filename)}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-500 hover:bg-red-100 transition"
+              title="この動画を削除"
+            >🗑</button>
           </div>
         ) : originalUpload ? (
           <UploadProgress upload={originalUpload} label="元動画" />
