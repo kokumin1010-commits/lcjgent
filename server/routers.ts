@@ -9609,72 +9609,87 @@ Return ONLY valid JSON, no markdown or explanation.`,
         const errors: string[] = [];
         const trackingIds: string[] = [];
         const sendResults: boolean[] = []; // 各recipientの送信結果を追跡
-        const CONCURRENCY = 5; // 5件同時送信で高速化
         const pathMod = await import("path");
         const pdfPath = input.attachPdf ? pathMod.resolve(process.cwd(), "server/assets/LCJ_proposal_ja_v06.pdf") : "";
+        const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+        const DELAY_BETWEEN_EMAILS_MS = 3000;
+        const RATE_LIMIT_RETRY_DELAY_MS = 60000;
+        const MAX_RETRIES = 3;
 
         // trackingIdsを先に全て生成
         for (const _ of input.recipients) {
           trackingIds.push(nanoid(32));
         }
 
-        // 並列送信（CONCURRENCY件ずつ）
-        for (let i = 0; i < input.recipients.length; i += CONCURRENCY) {
-          const chunk = input.recipients.slice(i, i + CONCURRENCY);
-          const chunkResults = await Promise.allSettled(chunk.map(async (recipient, chunkIdx) => {
-            const idx = i + chunkIdx;
-            const trackingId = trackingIds[idx];
-            const displayName = recipient.name || recipient.company || "ご担当者様";
-            const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, displayName);
-            const textContent = `${displayName}様\n\n${input.content}\n\n---\n株式会社ライブコマースジャパン\n大久保\ninfo@livecommercejapan.jp`;
-            const htmlLines = input.content.split('\n').map((line: string) => {
-              if (line.startsWith('■') || line.startsWith('□')) {
-                return `<h3 style="color: #1a56db; margin-top: 24px; margin-bottom: 8px; font-size: 15px;">${line}</h3>`;
-              } else if (line.startsWith('・') || line.startsWith('- ')) {
-                return `<li style="margin: 4px 0; font-size: 14px;">${line.replace(/^[・\-]\s*/, '')}</li>`;
-              } else if (line.trim() === '') {
-                return '<br>';
-              } else {
-                return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
-              }
-            }).join('\n');
-            const trackingPixel = `<img src="https://lcjmall.com/api/track/sales-email/open/${trackingId}" width="1" height="1" style="display:none" alt="" />`;
-            const pdfDownloadLink = input.attachPdf ? `<p style="margin: 16px 0; text-align: center;"><a href="https://lcjmall.com/api/track/sales-email/pdf/${trackingId}" style="color: #1a56db; text-decoration: underline; font-size: 14px;">📄 提案書をダウンロード（PDF）</a></p>` : '';
-            const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;">
-              <p style="font-size: 15px;">${displayName} 様</p>
-              ${htmlLines}
-              ${pdfDownloadLink}
-              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-              <p style="font-size: 12px; color: #6b7280;">━━━━━━━━━━━━━━━━━━━━━━<br>株式会社ライブコマースジャパン<br>営業部 大久保<br>Email: info@livecommercejapan.jp<br>━━━━━━━━━━━━━━━━━━━━━━</p>
-              ${trackingPixel}
-            </div>`;
-            const mailOpts: any = {
-              from: `"株式会社ライブコマースジャパン" <${ENV.emailUser}>`,
-              to: recipient.email,
-              subject: personalizedSubject,
-              text: textContent,
-              html: htmlContent,
-            };
-            if (input.attachPdf) {
-              mailOpts.attachments = [{
-                filename: "LCJ提案書_ライブコマースジャパン.pdf",
-                path: pdfPath,
-              }];
-            }
-            await transporter.sendMail(mailOpts);
-            return { success: true };
-          }));
-          // 結果を集計
-          chunkResults.forEach((result, chunkIdx) => {
-            const idx = i + chunkIdx;
-            if (result.status === 'fulfilled') {
-              sentCount++;
-              sendResults.push(true);
+        // 直列送信（1件ずつ + ディレイ + リトライ）
+        for (let i = 0; i < input.recipients.length; i++) {
+          const recipient = input.recipients[i];
+          const trackingId = trackingIds[i];
+          const displayName = recipient.name || recipient.company || "ご担当者様";
+          const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, displayName);
+          const textContent = `${displayName}様\n\n${input.content}\n\n---\n株式会社ライブコマースジャパン\n大久保\ninfo@livecommercejapan.jp`;
+          const htmlLines = input.content.split('\n').map((line: string) => {
+            if (line.startsWith('■') || line.startsWith('□')) {
+              return `<h3 style="color: #1a56db; margin-top: 24px; margin-bottom: 8px; font-size: 15px;">${line}</h3>`;
+            } else if (line.startsWith('・') || line.startsWith('- ')) {
+              return `<li style="margin: 4px 0; font-size: 14px;">${line.replace(/^[・\-]\s*/, '')}</li>`;
+            } else if (line.trim() === '') {
+              return '<br>';
             } else {
-              errors.push(`${chunk[chunkIdx].email}: ${result.reason?.message || 'Unknown error'}`);
-              sendResults.push(false);
+              return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
             }
-          });
+          }).join('\n');
+          const trackingPixel = `<img src="https://lcjmall.com/api/track/sales-email/open/${trackingId}" width="1" height="1" style="display:none" alt="" />`;
+          const pdfDownloadLink = input.attachPdf ? `<p style="margin: 16px 0; text-align: center;"><a href="https://lcjmall.com/api/track/sales-email/pdf/${trackingId}" style="color: #1a56db; text-decoration: underline; font-size: 14px;">📄 提案書をダウンロード（PDF）</a></p>` : '';
+          const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;">
+            <p style="font-size: 15px;">${displayName} 様</p>
+            ${htmlLines}
+            ${pdfDownloadLink}
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+            <p style="font-size: 12px; color: #6b7280;">━━━━━━━━━━━━━━━━━━━━━━<br>株式会社ライブコマースジャパン<br>営業部 大久保<br>Email: info@livecommercejapan.jp<br>━━━━━━━━━━━━━━━━━━━━━━</p>
+            ${trackingPixel}
+          </div>`;
+          const mailOpts: any = {
+            from: `"株式会社ライブコマースジャパン" <${ENV.emailUser}>`,
+            to: recipient.email,
+            subject: personalizedSubject,
+            text: textContent,
+            html: htmlContent,
+          };
+          if (input.attachPdf) {
+            mailOpts.attachments = [{
+              filename: "LCJ提案書_ライブコマースジャパン.pdf",
+              path: pdfPath,
+            }];
+          }
+          // リトライ付き送信
+          let sent = false;
+          for (let retry = 0; retry < MAX_RETRIES; retry++) {
+            try {
+              await transporter.sendMail(mailOpts);
+              sent = true;
+              break;
+            } catch (sendErr: any) {
+              const errMsg = sendErr.message || '';
+              if (errMsg.includes('454') || errMsg.includes('too frequently') || errMsg.includes('rate')) {
+                console.warn(`[SendEmailBatch] Rate limited on ${recipient.email}, waiting 60s (retry ${retry+1}/${MAX_RETRIES})`);
+                await sleep(RATE_LIMIT_RETRY_DELAY_MS);
+                continue;
+              }
+              throw sendErr;
+            }
+          }
+          if (sent) {
+            sentCount++;
+            sendResults.push(true);
+          } else {
+            errors.push(`${recipient.email}: Rate limit exceeded after ${MAX_RETRIES} retries`);
+            sendResults.push(false);
+          }
+          // メール間ディレイ
+          if (i < input.recipients.length - 1) {
+            await sleep(DELAY_BETWEEN_EMAILS_MS);
+          }
         }
         // 送信履歴を一括記録
         try {
@@ -9814,10 +9829,15 @@ Return ONLY valid JSON, no markdown or explanation.`,
               return;
             }
 
-            // Step 2: バッチ送信（5件並列）
-            const CONCURRENCY = 5;
+            // Step 2: バッチ送信（直列 + ディレイ + リトライ）
+            // レート制限対策: 1件ずつ送信、3秒間隔、454エラー時は60秒待ってリトライ
+            const DELAY_BETWEEN_EMAILS_MS = 3000; // 1件ごとに3秒待機
+            const DELAY_BETWEEN_BATCHES_MS = 30000; // バッチ間30秒待機
+            const RATE_LIMIT_RETRY_DELAY_MS = 60000; // レート制限時60秒待機
+            const MAX_RETRIES = 3; // 最大リトライ回数
             const pathMod = await import("path");
             const pdfPath = input.attachPdf ? pathMod.resolve(process.cwd(), "server/assets/LCJ_proposal_ja_v06.pdf") : "";
+            const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
             for (let batchIdx = 0; batchIdx < jobState.totalBatches; batchIdx++) {
               if (jobState.aborted) break;
@@ -9828,47 +9848,64 @@ Return ONLY valid JSON, no markdown or explanation.`,
               const sendResults: boolean[] = [];
               const batchErrors: string[] = [];
 
-              for (let i = 0; i < batch.length; i += CONCURRENCY) {
+              // 直列送信（1件ずつ）
+              for (let i = 0; i < batch.length; i++) {
                 if (jobState.aborted) break;
-                const chunk = batch.slice(i, i + CONCURRENCY);
-                const chunkResults = await Promise.allSettled(chunk.map(async (recipient, chunkIdx) => {
-                  const idx = i + chunkIdx;
-                  const trackingId = trackingIds[idx];
-                  const displayName = recipient.name || recipient.company || "\u3054\u62c5\u5f53\u8005\u69d8";
-                  const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, displayName);
-                  const textContent = `${displayName}\u69d8\n\n${input.content}\n\n---\n\u682a\u5f0f\u4f1a\u793e\u30e9\u30a4\u30d6\u30b3\u30de\u30fc\u30b9\u30b8\u30e3\u30d1\u30f3\n\u5927\u4e45\u4fdd\ninfo@livecommercejapan.jp`;
-                  const htmlLines = input.content.split('\n').map((line: string) => {
-                    if (line.startsWith('\u25a0') || line.startsWith('\u25a1')) return `<h3 style="color: #1a56db; margin-top: 24px; margin-bottom: 8px; font-size: 15px;">${line}</h3>`;
-                    if (line.startsWith('\u30fb') || line.startsWith('- ')) return `<li style="margin: 4px 0; font-size: 14px;">${line.replace(/^[\u30fb\-]\s*/, '')}</li>`;
-                    if (line.trim() === '') return '<br>';
-                    return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
-                  }).join('\n');
-                  const trackingPixel = `<img src="https://lcjmall.com/api/track/sales-email/open/${trackingId}" width="1" height="1" style="display:none" alt="" />`;
-                  const pdfDownloadLink = input.attachPdf ? `<p style="margin: 16px 0; text-align: center;"><a href="https://lcjmall.com/api/track/sales-email/pdf/${trackingId}" style="color: #1a56db; text-decoration: underline; font-size: 14px;">\ud83d\udcc4 \u63d0\u6848\u66f8\u3092\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\uff08PDF\uff09</a></p>` : '';
-                  const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;"><p style="font-size: 15px;">${displayName} \u69d8</p>${htmlLines}${pdfDownloadLink}<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"><p style="font-size: 12px; color: #6b7280;">\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501<br>\u682a\u5f0f\u4f1a\u793e\u30e9\u30a4\u30d6\u30b3\u30de\u30fc\u30b9\u30b8\u30e3\u30d1\u30f3<br>\u55b6\u696d\u90e8 \u5927\u4e45\u4fdd<br>Email: info@livecommercejapan.jp<br>\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501</p>${trackingPixel}</div>`;
-                  const mailOpts: any = {
-                    from: `"\u682a\u5f0f\u4f1a\u793e\u30e9\u30a4\u30d6\u30b3\u30de\u30fc\u30b9\u30b8\u30e3\u30d1\u30f3" <${ENV.emailUser}>`,
-                    to: recipient.email,
-                    subject: personalizedSubject,
-                    text: textContent,
-                    html: htmlContent,
-                  };
-                  if (input.attachPdf) {
-                    mailOpts.attachments = [{ filename: "LCJ\u63d0\u6848\u66f8_\u30e9\u30a4\u30d6\u30b3\u30de\u30fc\u30b9\u30b8\u30e3\u30d1\u30f3.pdf", path: pdfPath }];
+                const recipient = batch[i];
+                const trackingId = trackingIds[i];
+                const displayName = recipient.name || recipient.company || "ご担当者様";
+                const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, displayName);
+                const textContent = `${displayName}様\n\n${input.content}\n\n---\n株式会社ライブコマースジャパン\n大久保\ninfo@livecommercejapan.jp`;
+                const htmlLines = input.content.split('\n').map((line: string) => {
+                  if (line.startsWith('■') || line.startsWith('□')) return `<h3 style="color: #1a56db; margin-top: 24px; margin-bottom: 8px; font-size: 15px;">${line}</h3>`;
+                  if (line.startsWith('・') || line.startsWith('- ')) return `<li style="margin: 4px 0; font-size: 14px;">${line.replace(/^[・\-]\s*/, '')}</li>`;
+                  if (line.trim() === '') return '<br>';
+                  return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
+                }).join('\n');
+                const trackingPixel = `<img src="https://lcjmall.com/api/track/sales-email/open/${trackingId}" width="1" height="1" style="display:none" alt="" />`;
+                const pdfDownloadLink = input.attachPdf ? `<p style="margin: 16px 0; text-align: center;"><a href="https://lcjmall.com/api/track/sales-email/pdf/${trackingId}" style="color: #1a56db; text-decoration: underline; font-size: 14px;">📄 提案書をダウンロード（PDF）</a></p>` : '';
+                const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;"><p style="font-size: 15px;">${displayName} 様</p>${htmlLines}${pdfDownloadLink}<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"><p style="font-size: 12px; color: #6b7280;">━━━━━━━━━━━━━━━━━━━━━━<br>株式会社ライブコマースジャパン<br>営業部 大久保<br>Email: info@livecommercejapan.jp<br>━━━━━━━━━━━━━━━━━━━━━━</p>${trackingPixel}</div>`;
+                const mailOpts: any = {
+                  from: `"株式会社ライブコマースジャパン" <${ENV.emailUser}>`,
+                  to: recipient.email,
+                  subject: personalizedSubject,
+                  text: textContent,
+                  html: htmlContent,
+                };
+                if (input.attachPdf) {
+                  mailOpts.attachments = [{ filename: "LCJ提案書_ライブコマースジャパン.pdf", path: pdfPath }];
+                }
+                // リトライ付き送信
+                let sent = false;
+                for (let retry = 0; retry < MAX_RETRIES; retry++) {
+                  try {
+                    await transporter.sendMail(mailOpts);
+                    sent = true;
+                    break;
+                  } catch (sendErr: any) {
+                    const errMsg = sendErr.message || '';
+                    // レート制限エラー（454）の場合はリトライ
+                    if (errMsg.includes('454') || errMsg.includes('too frequently') || errMsg.includes('rate')) {
+                      console.warn(`[BG Batch] Rate limited on ${recipient.email}, waiting ${RATE_LIMIT_RETRY_DELAY_MS/1000}s (retry ${retry+1}/${MAX_RETRIES})`);
+                      await sleep(RATE_LIMIT_RETRY_DELAY_MS);
+                      continue;
+                    }
+                    // その他のエラーはリトライしない
+                    throw sendErr;
                   }
-                  await transporter.sendMail(mailOpts);
-                  return { success: true };
-                }));
-                chunkResults.forEach((result, chunkIdx) => {
-                  if (result.status === 'fulfilled') {
-                    jobState.sentCount++;
-                    sendResults.push(true);
-                  } else {
-                    jobState.errorCount++;
-                    batchErrors.push(`${chunk[chunkIdx].email}: ${result.reason?.message || 'Unknown'}`);
-                    sendResults.push(false);
-                  }
-                });
+                }
+                if (sent) {
+                  jobState.sentCount++;
+                  sendResults.push(true);
+                } else {
+                  jobState.errorCount++;
+                  batchErrors.push(`${recipient.email}: Rate limit exceeded after ${MAX_RETRIES} retries`);
+                  sendResults.push(false);
+                }
+                // メール間ディレイ
+                if (i < batch.length - 1 && !jobState.aborted) {
+                  await sleep(DELAY_BETWEEN_EMAILS_MS);
+                }
               }
 
               // バッチごとにログ記録
@@ -9892,6 +9929,10 @@ Return ONLY valid JSON, no markdown or explanation.`,
                 console.error("[BG Batch Log]", logErr.message);
               }
               jobState.errors = batchErrors.slice(-10);
+              // バッチ間ディレイ（30秒）
+              if (batchIdx < jobState.totalBatches - 1 && !jobState.aborted) {
+                await sleep(DELAY_BETWEEN_BATCHES_MS);
+              }
             }
 
             // 完了
