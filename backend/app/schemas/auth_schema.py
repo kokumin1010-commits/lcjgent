@@ -24,3 +24,8 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: constr(min_length=8)
     confirm_password: constr(min_length=8)
+
+
+class DeleteAccountRequest(BaseModel):
+    password: str
+    confirmation: str = "DELETE"  # User must type "DELETE" to confirm

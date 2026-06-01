@@ -12,7 +12,7 @@ from app.repository.auth_repo import (
     update_user_password,
     verify_user_password,
 )
-from app.schemas.auth_schema import RegisterRequest, LoginRequest, ChangePasswordRequest, RefreshRequest
+from app.schemas.auth_schema import RegisterRequest, LoginRequest, ChangePasswordRequest, RefreshRequest, DeleteAccountRequest
 from app.utils.jwt import create_access_token, create_refresh_token, decode_token
 
 logger = logging.getLogger(__name__)
@@ -198,6 +198,59 @@ async def change_password(
     await update_user_password(db, current_user["id"], payload.new_password)
     
     return {"message": "\u30d1\u30b9\u30ef\u30fc\u30c9\u306e\u5909\u66f4\u306b\u6210\u529f\u3057\u307e\u3057\u305f"}
+
+
+@router.delete("/delete-account")
+async def delete_account(
+    payload: DeleteAccountRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Permanently delete user account.
+    Requires password confirmation and typing 'DELETE'.
+    Apple App Store Guideline 5.1.1(v) compliance.
+    """
+    logger.info("[DELETE_ACCOUNT] user_id=%s email=%s", current_user.get("id"), current_user.get("email"))
+
+    # Verify confirmation text
+    if payload.confirmation != "DELETE":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="\u524a\u9664\u3092\u78ba\u8a8d\u3059\u308b\u306b\u306f 'DELETE' \u3068\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044",
+        )
+
+    # Verify password
+    valid = await verify_user_password(db, current_user["email"], payload.password)
+    if not valid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="\u30d1\u30b9\u30ef\u30fc\u30c9\u304c\u6b63\u3057\u304f\u3042\u308a\u307e\u305b\u3093",
+        )
+
+    # Get user and deactivate (soft delete)
+    user = await get_user_by_id(db, current_user["id"])
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="\u30e6\u30fc\u30b6\u30fc\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093",
+        )
+
+    # Soft delete: deactivate and anonymize email
+    import uuid
+    user.is_active = False
+    user.email = f"deleted_{uuid.uuid4().hex[:8]}@deleted.liveboost.app"
+    user.hashed_password = None
+    user.display_name = None
+    user.avatar_url = None
+    await db.commit()
+
+    logger.info("[DELETE_ACCOUNT] Account deleted successfully for user_id=%s", current_user.get("id"))
+
+    return {
+        "message": "\u30a2\u30ab\u30a6\u30f3\u30c8\u304c\u524a\u9664\u3055\u308c\u307e\u3057\u305f",
+        "deleted": True,
+    }
 
 
 @router.get("/auto-login")
