@@ -4184,7 +4184,7 @@ function SalesEmailHistorySection() {
   const [search, setSearch] = useState("");
   const [sendTypeFilter, setSendTypeFilter] = useState<string>("_all");
   const [page, setPage] = useState(0);
-  const limit = 30;
+  const limit = 20;
   const [, navigate] = useLocation();
 
   const { data, isLoading, refetch } = trpc.businessCard.getSalesEmailLogs.useQuery(
@@ -4194,7 +4194,7 @@ function SalesEmailHistorySection() {
       limit,
       offset: page * limit,
     },
-    { refetchOnWindowFocus: false }
+    { refetchOnWindowFocus: false, staleTime: 30_000, placeholderData: (prev: any) => prev }
   );
 
   const sendTypeLabel = (type: string) => {

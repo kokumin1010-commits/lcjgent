@@ -9355,7 +9355,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
         let sentCount = 0;
         const errors: string[] = [];
         const trackingIds: string[] = [];
-
+        const sendResults: boolean[] = []; // 各リードの送信結果を追跡
         // バッチ送信（10件ずつ）
         for (let i = 0; i < input.emails.length; i += 10) {
           const batch = input.emails.slice(i, i + 10);
@@ -9406,8 +9406,10 @@ Return ONLY valid JSON, no markdown or explanation.`,
               }
               await transporter.sendMail(mailOpts);
               sentCount++;
+              sendResults.push(true);
             } catch (e: any) {
               errors.push(`${lead.email}: ${e.message}`);
+              sendResults.push(false);
             }
           }
           // レートリミット対策: 10件ごとに1秒待機
@@ -9451,8 +9453,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
             contentPreview: input.content.substring(0, 200),
             sendType: "bulk_lead" as const,
             attachPdf: input.attachPdf,
-            status: idx < sentCount ? "sent" as const : "failed" as const,
-            errorMessage: idx >= sentCount && errors[idx - sentCount] ? errors[idx - sentCount] : undefined,
+            status: sendResults[idx] ? "sent" as const : "failed" as const,
+            errorMessage: !sendResults[idx] ? errors[sendResults.slice(0, idx).filter(r => !r).length] : undefined,
             sentBy: ctx.user.id,
             trackingId: trackingIds[idx],
           }));
@@ -9605,8 +9607,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
 
         let sentCount = 0;
         const errors: string[] = [];
-
         const trackingIds: string[] = [];
+        const sendResults: boolean[] = []; // 各recipientの送信結果を追跡
         for (const recipient of input.recipients) {
           const trackingId = nanoid(32);
           trackingIds.push(trackingId);
@@ -9653,11 +9655,12 @@ Return ONLY valid JSON, no markdown or explanation.`,
             }
             await transporter.sendMail(mailOpts);
             sentCount++;
+            sendResults.push(true);
           } catch (e: any) {
             errors.push(`${recipient.email}: ${e.message}`);
+            sendResults.push(false);
           }
         }
-
         // 送信履歴を一括記録
         try {
           const emailLogs = input.recipients.map((r, idx) => ({
@@ -9668,8 +9671,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
             contentPreview: input.content.substring(0, 200),
             sendType: "bulk_all" as const,
             attachPdf: input.attachPdf,
-            status: idx < sentCount ? "sent" as const : "failed" as const,
-            errorMessage: idx >= sentCount && errors[idx - sentCount] ? errors[idx - sentCount] : undefined,
+            status: sendResults[idx] ? "sent" as const : "failed" as const,
+            errorMessage: !sendResults[idx] ? errors[sendResults.slice(0, idx).filter(r => !r).length] : undefined,
             businessCardId: r.businessCardId || undefined,
             sentBy: ctx.user.id,
             trackingId: trackingIds[idx],

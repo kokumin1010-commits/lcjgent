@@ -2367,16 +2367,19 @@ async function startServer() {
               console.error("[Migration] Chat member IDs migration error:", err);
             });
           });
-          import("../migrations/createSalesEmailLogs").then(({ createSalesEmailLogs }) => {
-            createSalesEmailLogs(db).catch((err: unknown) => {
+          import("../migrations/createSalesEmailLogs").then(async ({ createSalesEmailLogs }) => {
+            try {
+              await createSalesEmailLogs(db);
+            } catch (err: unknown) {
               console.error("[Migration] Sales email logs table error:", err);
-            });
-            // Add tracking columns
-            import("../migrations/addTrackingToSalesEmailLogs").then(({ addTrackingToSalesEmailLogs }) => {
-              addTrackingToSalesEmailLogs(db).catch((err: unknown) => {
-                console.error("[Migration] Add tracking columns error:", err);
-              });
-            });
+            }
+            // Add tracking columns (must run after table creation)
+            try {
+              const { addTrackingToSalesEmailLogs } = await import("../migrations/addTrackingToSalesEmailLogs");
+              await addTrackingToSalesEmailLogs(db);
+            } catch (err: unknown) {
+              console.error("[Migration] Add tracking columns error:", err);
+            }
           });
         }
       });

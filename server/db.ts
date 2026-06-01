@@ -26468,7 +26468,18 @@ export async function createSalesEmailLogsBatch(logs: InsertSalesEmailLog[]) {
   // Insert in batches of 100 to avoid query size limits
   for (let i = 0; i < logs.length; i += 100) {
     const batch = logs.slice(i, i + 100);
-    await db.insert(salesEmailLogs).values(batch);
+    try {
+      await db.insert(salesEmailLogs).values(batch);
+    } catch (err: any) {
+      // trackingIdカラムがまだない場合のフォールバック: trackingIdを除外してリトライ
+      if (err.message?.includes("Unknown column") && err.message?.includes("trackingId")) {
+        const batchWithoutTracking = batch.map(({ trackingId, ...rest }) => rest);
+        await db.insert(salesEmailLogs).values(batchWithoutTracking as any);
+        console.warn("[SalesEmailLog] Inserted without trackingId (column not yet migrated)");
+      } else {
+        throw err;
+      }
+    }
   }
 }
 
@@ -26519,7 +26530,25 @@ export async function getSalesEmailLogs(options?: {
     conditions.push(eq(salesEmailLogs.sendType, options.sendType));
   }
 
-  let query = db.select().from(salesEmailLogs);
+  // 軽量カラムのみ取得（contentPreviewは一覧では不要）
+  let query = db.select({
+    id: salesEmailLogs.id,
+    toEmail: salesEmailLogs.toEmail,
+    toName: salesEmailLogs.toName,
+    toCompany: salesEmailLogs.toCompany,
+    subject: salesEmailLogs.subject,
+    sendType: salesEmailLogs.sendType,
+    attachPdf: salesEmailLogs.attachPdf,
+    status: salesEmailLogs.status,
+    businessCardId: salesEmailLogs.businessCardId,
+    sentAt: salesEmailLogs.sentAt,
+    trackingId: salesEmailLogs.trackingId,
+    openedAt: salesEmailLogs.openedAt,
+    openCount: salesEmailLogs.openCount,
+    lastOpenedAt: salesEmailLogs.lastOpenedAt,
+    pdfDownloadedAt: salesEmailLogs.pdfDownloadedAt,
+    pdfDownloadCount: salesEmailLogs.pdfDownloadCount,
+  }).from(salesEmailLogs);
   let countQuery = db.select({ count: sql<number>`count(*)` }).from(salesEmailLogs);
   
   if (conditions.length > 0) {
@@ -26530,7 +26559,7 @@ export async function getSalesEmailLogs(options?: {
   const [rows, countResult] = await Promise.all([
     query
       .orderBy(desc(salesEmailLogs.sentAt))
-      .limit(options?.limit || 50)
+      .limit(options?.limit || 20)
       .offset(options?.offset || 0),
     countQuery,
   ]);
