@@ -468,10 +468,9 @@ export default function BusinessCards() {
   // Image zoom state
   const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
 
-  // 送信済み件数取得（バッチ送信中は10秒ごとに自動更新）
+  // 送信済み件数取得（staleTimeを5秒に短縮してリアルタイム更新）
   const emailStatsQuery = trpc.businessCard.getSalesEmailStats.useQuery(undefined, {
     staleTime: 5000,
-    refetchInterval: batchProgress?.isRunning ? 10000 : false,
   });
   const emailStats = emailStatsQuery.data;
 
@@ -644,10 +643,10 @@ export default function BusinessCards() {
         currentBatch: bg.currentBatch,
         totalBatches: bg.totalBatches,
       });
+      // 送信中はポーリングごとに統計を更新
+      emailStatsQuery.refetch();
       if (!bg.isRunning && bg.sentCount > 0) {
         toast.success(`バックグラウンド送信完了！${bg.sentCount}件送信（エラー${bg.errorCount}件）`);
-        // 送信完了時に統計を即座に更新
-        emailStatsQuery.refetch();
       }
     }
   }, [bgProgressQuery.data]);
