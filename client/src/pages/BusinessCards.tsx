@@ -47,7 +47,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
   CreditCard,
@@ -584,6 +584,15 @@ export default function BusinessCards() {
     },
     onError: (error) => toast.error(error.message),
   });
+
+  // テスト送信mutation
+  const sendTestEmailMutation = trpc.businessCard.sendTestEmail.useMutation({
+    onSuccess: (data) => {
+      toast.success(`テストメールを ${data.sentTo} に送信しました`);
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const [testEmailAddress, setTestEmailAddress] = useState("");
 
   const handleSendToLeads = () => {
     if (!emailSubject || !emailContent) return;
@@ -2380,18 +2389,19 @@ export default function BusinessCards() {
                 </div>
               ) : (
                 <ScrollArea className="h-[500px]">
-                  <Table>
+                  <div className="overflow-x-auto">
+                  <Table className="min-w-[1000px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-8">#</TableHead>
-                        <TableHead>店舗名</TableHead>
-                        <TableHead>カテゴリ</TableHead>
-                        <TableHead>メール</TableHead>
-                        <TableHead>電話</TableHead>
-                        <TableHead>ホームページ</TableHead>
-                        <TableHead>ステータス</TableHead>
-                        <TableHead>リンク</TableHead>
-                        <TableHead>対応</TableHead>
+                        <TableHead className="min-w-[140px]">店舗名</TableHead>
+                        <TableHead className="min-w-[70px]">カテゴリ</TableHead>
+                        <TableHead className="min-w-[160px]">メール</TableHead>
+                        <TableHead className="min-w-[120px]">電話</TableHead>
+                        <TableHead className="min-w-[180px]">ホームページ</TableHead>
+                        <TableHead className="min-w-[70px]">ステータス</TableHead>
+                        <TableHead className="min-w-[80px]">リンク</TableHead>
+                        <TableHead className="min-w-[70px]">対応</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2520,6 +2530,8 @@ export default function BusinessCards() {
                       })()}
                     </TableBody>
                   </Table>
+                  </div>
+                  <ScrollBar orientation="horizontal" />
                 </ScrollArea>
               )}
 
@@ -2714,6 +2726,49 @@ export default function BusinessCards() {
                 <p className="text-xs text-blue-600">
                   リード収集タブのメールありリード全件にテンプレートで一斉送信します
                 </p>
+              </div>
+
+              {/* テスト送信 */}
+              <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-sm font-medium mb-2 text-gray-800 flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  テスト送信
+                </p>
+                <p className="text-xs text-gray-500 mb-2">現在のテンプレート内容を指定メールアドレスに1通送信して確認できます</p>
+                <div className="flex gap-2">
+                  <Input
+                    className="h-8 text-xs flex-1"
+                    placeholder="送信先メールアドレス（空欄の場合は自分のメールに送信）"
+                    value={testEmailAddress}
+                    onChange={(e) => setTestEmailAddress(e.target.value)}
+                    type="email"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs whitespace-nowrap"
+                    disabled={
+                      !emailSubject ||
+                      !emailContent ||
+                      sendTestEmailMutation.isPending
+                    }
+                    onClick={() => {
+                      sendTestEmailMutation.mutate({
+                        subject: emailSubject,
+                        content: emailContent,
+                        attachPdf,
+                        testEmail: testEmailAddress || undefined,
+                      });
+                    }}
+                  >
+                    {sendTestEmailMutation.isPending ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <Send className="h-3 w-3 mr-1" />
+                    )}
+                    テスト送信
+                  </Button>
+                </div>
               </div>
 
               {/* PDF添付オプション */}

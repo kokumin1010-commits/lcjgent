@@ -9201,6 +9201,69 @@ Return ONLY valid JSON, no markdown or explanation.`,
         await migrateBusinessCardsCrmColumns();
         return { success: true, message: "CRM migration completed" };
       }),
+    // ===== 営業メール: テスト送信（自分宛に1通） =====
+    sendTestEmail: protectedProcedure
+      .input(z.object({
+        subject: z.string().min(1),
+        content: z.string().min(1),
+        attachPdf: z.boolean().default(false),
+        testEmail: z.string().email().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { ENV } = await import("./_core/env");
+        const nodemailer = await import("nodemailer");
+        const transporter = nodemailer.default.createTransport({
+          host: ENV.emailSmtpHost || "smtp.qiye.aliyun.com",
+          port: 465,
+          secure: true,
+          auth: {
+            user: ENV.emailUser,
+            pass: ENV.emailPassword,
+          },
+        });
+        const testTo = input.testEmail || ctx.user.email;
+        const displayName = "テスト送信先";
+        const personalizedSubject = input.subject.replace(/\{\{displayName\}\}/g, displayName);
+        const textContent = `${displayName}様\n\n${input.content}\n\n---\n株式会社ライブコマースジャパン\n大久保\ninfo@livecommercejapan.jp`;
+        const htmlLines = input.content.split('\n').map((line: string) => {
+          if (line.startsWith('■') || line.startsWith('□')) {
+            return `<h3 style="color: #1a56db; margin-top: 24px; margin-bottom: 8px; font-size: 15px;">${line}</h3>`;
+          } else if (line.startsWith('・') || line.startsWith('- ')) {
+            return `<li style="margin: 4px 0; font-size: 14px;">${line.replace(/^[・\-]\s*/, '')}</li>`;
+          } else if (line.trim() === '') {
+            return '<br>';
+          } else {
+            return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
+          }
+        }).join('\n');
+        const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;">
+          <p style="font-size: 15px;">${displayName} 様</p>
+          ${htmlLines}
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+          <p style="font-size: 12px; color: #6b7280;">━━━━━━━━━━━━━━━━━━━━━━<br>株式会社ライブコマースジャパン<br>営業部 大久保<br>Email: info@livecommercejapan.jp<br>━━━━━━━━━━━━━━━━━━━━━━</p>
+        </div>`;
+        const mailOpts: any = {
+          from: `"株式会社ライブコマースジャパン" <${ENV.emailUser}>`,
+          to: testTo,
+          subject: `【テスト】${personalizedSubject}`,
+          text: textContent,
+          html: htmlContent,
+        };
+        if (input.attachPdf) {
+          const path = await import("path");
+          const pdfPath = path.resolve(process.cwd(), "server/assets/LCJ_proposal_ja_v06.pdf");
+          mailOpts.attachments = [{
+            filename: "LCJ提案書_ライブコマースジャパン.pdf",
+            path: pdfPath,
+          }];
+        }
+        try {
+          await transporter.sendMail(mailOpts);
+          return { success: true, sentTo: testTo };
+        } catch (e: any) {
+          throw new Error(`テスト送信失敗: ${e.message}`);
+        }
+      }),
     // ===== 営業メール: リードへのテンプレート一斉送信 =====
     sendEmailToLeads: protectedProcedure
       .input(z.object({
