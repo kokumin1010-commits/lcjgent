@@ -159,8 +159,9 @@ class FaceSwapService:
         """
         Make an HTTP request to the GPU worker.
 
-        If the request fails with a connection error or 404, and auto-discovery
-        is enabled, it will invalidate the cache and retry with a fresh URL.
+        If the request fails with a connection error or 404, it will
+        invalidate the cache and retry with a fresh URL from RunPod discovery.
+        This works even when a static URL is configured (fallback behavior).
         """
         if not self.is_configured:
             raise WorkerConnectionError("Face swap worker not configured")
@@ -190,39 +191,63 @@ class FaceSwapService:
                     except Exception:
                         pass
 
-                    # If 404 and using auto-discovery, try refreshing the URL
-                    if (
-                        resp.status_code == 404
-                        and _retry_on_discovery
-                        and not self._static_worker_url
-                    ):
+                    # If 404, try RunPod discovery as fallback
+                    # (works for both static URL and auto-discovery)
+                    if resp.status_code == 404 and _retry_on_discovery:
                         logger.warning(
                             f"Worker returned 404 at {url}. "
-                            f"Refreshing URL from RunPod API..."
+                            f"Attempting RunPod discovery fallback..."
                         )
                         await self._discovery.invalidate_cache()
-                        return await self._request(
-                            method, path, _retry_on_discovery=False, **kwargs
-                        )
+                        # Temporarily clear static URL to force discovery
+                        original_static = self._static_worker_url
+                        self._static_worker_url = None
+                        try:
+                            result = await self._request(
+                                method, path, _retry_on_discovery=False, **kwargs
+                            )
+                            # Discovery succeeded — update static URL
+                            new_url = await self._discovery.get_worker_url()
+                            if new_url and new_url != original_static:
+                                logger.info(
+                                    f"Static URL was stale ({original_static}). "
+                                    f"Now using discovered URL: {new_url}"
+                                )
+                                self._static_worker_url = new_url
+                            return result
+                        except Exception:
+                            # Restore original and raise
+                            self._static_worker_url = original_static
+                            raise WorkerAPIError(resp.status_code, detail)
 
                     raise WorkerAPIError(resp.status_code, detail)
 
                 return resp.json()
 
         except httpx.ConnectError as e:
-            # Connection failed — try re-discovering if possible
-            if _retry_on_discovery and not self._static_worker_url:
+            # Connection failed — try RunPod discovery as fallback
+            if _retry_on_discovery:
                 logger.warning(
                     f"Cannot connect to worker at {url}. "
-                    f"Refreshing URL from RunPod API..."
+                    f"Attempting RunPod discovery fallback..."
                 )
                 await self._discovery.invalidate_cache()
+                original_static = self._static_worker_url
+                self._static_worker_url = None
                 try:
-                    return await self._request(
+                    result = await self._request(
                         method, path, _retry_on_discovery=False, **kwargs
                     )
+                    new_url = await self._discovery.get_worker_url()
+                    if new_url and new_url != original_static:
+                        logger.info(
+                            f"Static URL was unreachable ({original_static}). "
+                            f"Now using discovered URL: {new_url}"
+                        )
+                        self._static_worker_url = new_url
+                    return result
                 except Exception:
-                    pass  # Fall through to original error
+                    self._static_worker_url = original_static
             raise WorkerConnectionError(f"Cannot connect to worker at {url}: {e}")
         except httpx.TimeoutException as e:
             raise WorkerConnectionError(f"Worker request timed out: {e}")
