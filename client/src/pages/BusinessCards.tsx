@@ -597,13 +597,87 @@ export default function BusinessCards() {
   });
 
   // メールあり全件送信mutation
-  const sendToAllMutation = trpc.businessCard.sendEmailToAll.useMutation({
-    onSuccess: (data) => {
-      toast.success(`全${data.sentCount}件にメール送信完了（名刺${data.cardCount}件 + リード${data.leadCount}件）`);
-    },
-    onError: (error) => toast.error(error.message),
-  });
+  const sendToAllMutation = trpc.businessCard.sendEmailToAll.useMutation();
   const [testEmailAddress, setTestEmailAddress] = useState("");
+
+  // バッチ送信用state
+  const [batchSize, setBatchSize] = useState<number>(20);
+  const [skipSent, setSkipSent] = useState<boolean>(true);
+  const [batchProgress, setBatchProgress] = useState<{
+    isRunning: boolean;
+    currentOffset: number;
+    totalSent: number;
+    totalErrors: number;
+    totalRecipients: number;
+    skippedSent: number;
+  } | null>(null);
+  const batchAbortRef = useRef(false);
+
+  const startBatchSend = async () => {
+    const totalEstimate = (cardsWithEmail.length || 0) + (leadStats?.withEmail || 0);
+    if (!confirm(`メールあり全件に${batchSize}件ずつバッチ送信します。\n推定約${totalEstimate}件${skipSent ? "（送信済はスキップ）" : ""}\nよろしいですか？`)) return;
+
+    batchAbortRef.current = false;
+    setBatchProgress({
+      isRunning: true,
+      currentOffset: 0,
+      totalSent: 0,
+      totalErrors: 0,
+      totalRecipients: 0,
+      skippedSent: 0,
+    });
+
+    let offset = 0;
+    let totalSent = 0;
+    let totalErrors = 0;
+    let totalRecipients = 0;
+    let skippedSent = 0;
+    let hasMore = true;
+
+    while (hasMore && !batchAbortRef.current) {
+      try {
+        const result = await sendToAllMutation.mutateAsync({
+          subject: emailSubject,
+          content: emailContent,
+          attachPdf,
+          includeCards: true,
+          includeLeads: true,
+          batchSize,
+          offset,
+          skipSent,
+        });
+        totalSent += result.sentCount;
+        totalErrors += result.errors.length;
+        totalRecipients = result.totalRecipients;
+        skippedSent = result.skippedSent || 0;
+        hasMore = result.hasMore;
+        offset = result.batchEnd;
+
+        setBatchProgress({
+          isRunning: !batchAbortRef.current && hasMore,
+          currentOffset: offset,
+          totalSent,
+          totalErrors,
+          totalRecipients,
+          skippedSent,
+        });
+
+        if (result.errors.length > 0) {
+          toast.error(`バッチエラー: ${result.errors[0]}`);
+        }
+      } catch (e: any) {
+        toast.error(`バッチ送信エラー: ${e.message}`);
+        break;
+      }
+    }
+
+    setBatchProgress(prev => prev ? { ...prev, isRunning: false } : null);
+    if (batchAbortRef.current) {
+      toast.info(`送信を中断しました。${totalSent}件送信済み。`);
+    } else {
+      toast.success(`バッチ送信完了！合計${totalSent}件送信（エラー${totalErrors}件）`);
+    }
+  };
 
   const handleSendToLeads = () => {
     if (!emailSubject || !emailContent) return;
@@ -2847,33 +2921,99 @@ export default function BusinessCards() {
                   )}
                   未送信 {unsentLeads.length}件に一括送信
                 </Button>
-                <Button
-                  className="bg-purple-600 hover:bg-purple-700 md:col-span-2"
-                  disabled={
-                    !emailSubject ||
-                    !emailContent ||
-                    sendToAllMutation.isPending
-                  }
-                  onClick={() => {
-                    const totalEstimate = (cardsWithEmail.length || 0) + (leadStats?.withEmail || 0);
-                    if (!confirm(`メールあり全件（名刺+リード、推定約${totalEstimate}件）に一斉送信します。\n※重複メールアドレスは自動で除外されます。\nよろしいですか？`)) return;
-                    sendToAllMutation.mutate({
-                      subject: emailSubject,
-                      content: emailContent,
-                      attachPdf,
-                      includeCards: true,
-                      includeLeads: true,
-                    });
-                  }}
-                >
-                  {sendToAllMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4 mr-2" />
-                  )}
-                  メールあり全件送信（名刺{cardsWithEmail.length}件 + リード{leadStats?.withEmail || 0}件）
-                </Button>
               </div>
+
+              {/* バッチ送信セクション */}
+              <div className="p-4 bg-purple-50 rounded-lg border border-purple-200 space-y-3">
+                <p className="text-sm font-bold text-purple-800 flex items-center gap-2">
+                  <Send className="h-4 w-4" />
+                  メールあり全件バッチ送信（名刺{cardsWithEmail.length}件 + リード{leadStats?.withEmail || 0}件）
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-purple-700 whitespace-nowrap">バッチサイズ:</label>
+                    <Select value={String(batchSize)} onValueChange={(v) => setBatchSize(Number(v))}>
+                      <SelectTrigger className="h-8 w-24 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10件</SelectItem>
+                        <SelectItem value="20">20件</SelectItem>
+                        <SelectItem value="50">50件</SelectItem>
+                        <SelectItem value="100">100件</SelectItem>
+                        <SelectItem value="10000">全件</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="skipSent"
+                      checked={skipSent}
+                      onCheckedChange={(checked: boolean | "indeterminate") => setSkipSent(checked === true)}
+                    />
+                    <label htmlFor="skipSent" className="text-xs text-purple-700 cursor-pointer">
+                      未送信のみに送信（送信済スキップ）
+                    </label>
+                  </div>
+                </div>
+
+                {/* 進捗表示 */}
+                {batchProgress && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-purple-700">
+                      <span>
+                        {batchProgress.isRunning ? "送信中..." : "完了"}
+                        {batchProgress.skippedSent > 0 && ` (送信済${batchProgress.skippedSent}件スキップ)`}
+                      </span>
+                      <span>
+                        {batchProgress.totalSent}件送信 / {batchProgress.totalRecipients}件中
+                        {batchProgress.totalErrors > 0 && ` (エラー${batchProgress.totalErrors}件)`}
+                      </span>
+                    </div>
+                    <div className="w-full bg-purple-200 rounded-full h-2.5">
+                      <div
+                        className="bg-purple-600 h-2.5 rounded-full transition-all duration-300"
+                        style={{ width: `${batchProgress.totalRecipients > 0 ? (batchProgress.currentOffset / batchProgress.totalRecipients) * 100 : 0}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-purple-600">
+                      バッチ {Math.ceil(batchProgress.currentOffset / batchSize)} / {Math.ceil(batchProgress.totalRecipients / batchSize)}
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Button
+                    className="bg-purple-600 hover:bg-purple-700 flex-1"
+                    disabled={
+                      !emailSubject ||
+                      !emailContent ||
+                      (batchProgress?.isRunning || false)
+                    }
+                    onClick={startBatchSend}
+                  >
+                    {(batchProgress?.isRunning) ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4 mr-2" />
+                    )}
+                    {batchProgress?.isRunning ? "送信中..." : "バッチ送信開始"}
+                  </Button>
+                  {batchProgress?.isRunning && (
+                    <Button
+                      variant="destructive"
+                      className="shrink-0"
+                      onClick={() => {
+                        batchAbortRef.current = true;
+                      }}
+                    >
+                      <XCircle className="h-4 w-4 mr-1" />
+                      中断
+                    </Button>
+                  )}
+                </div>
+              </div>
+
               {/* 送信履歴確認ボタン */}
               <div className="mt-4 pt-4 border-t border-gray-700">
                 <Button

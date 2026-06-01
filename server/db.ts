@@ -26564,3 +26564,14 @@ export async function getSalesEmailStats() {
     recentCount: (recentResult as any)?.count || 0,
   };
 }
+
+// 送信済みメールアドレス一覧を取得（未送信フィルター用）
+export async function getSentEmailAddresses(): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const results = await db
+    .selectDistinct({ email: salesEmailLogs.toEmail })
+    .from(salesEmailLogs)
+    .where(eq(salesEmailLogs.status, "sent"));
+  return results.map(r => r.email);
+}

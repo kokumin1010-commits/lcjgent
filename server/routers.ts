@@ -718,6 +718,7 @@ import {
   getSalesEmailLogsByBusinessCardId,
   getSalesEmailLogs,
   getSalesEmailStats,
+  getSentEmailAddresses,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -9491,6 +9492,9 @@ Return ONLY valid JSON, no markdown or explanation.`,
         attachPdf: z.boolean().default(false),
         includeCards: z.boolean().default(true),
         includeLeads: z.boolean().default(true),
+        batchSize: z.number().min(1).max(10000).default(10000),
+        offset: z.number().min(0).default(0),
+        skipSent: z.boolean().default(false),
       }))
       .mutation(async ({ input, ctx }) => {
         const { ENV } = await import("./_core/env");
@@ -9505,6 +9509,13 @@ Return ONLY valid JSON, no markdown or explanation.`,
           },
         });
 
+        // 送信済メールアドレスを取得（skipSentがtrueの場合）
+        let sentEmailSet = new Set<string>();
+        if (input.skipSent) {
+          const sentEmails = await getSentEmailAddresses();
+          sentEmailSet = new Set(sentEmails.map(e => e.toLowerCase()));
+        }
+
         // メールありの全送信先を収集
         const allRecipients: Array<{ email: string; name: string; company: string; source: string; businessCardId?: number }> = [];
         const seenEmails = new Set<string>();
@@ -9514,7 +9525,10 @@ Return ONLY valid JSON, no markdown or explanation.`,
           const allCards = await getBusinessCards({ limit: 10000 });
           for (const card of allCards) {
             if (card.email && !seenEmails.has(card.email.toLowerCase())) {
-              seenEmails.add(card.email.toLowerCase());
+              const emailLower = card.email.toLowerCase();
+              seenEmails.add(emailLower);
+              // skipSentの場合、送信済はスキップ
+              if (input.skipSent && sentEmailSet.has(emailLower)) continue;
               allRecipients.push({
                 email: card.email,
                 name: card.name || "",
@@ -9536,7 +9550,9 @@ Return ONLY valid JSON, no markdown or explanation.`,
             const leads = data?.result?.data?.json?.rows || [];
             for (const lead of leads) {
               if (lead.email && !seenEmails.has(lead.email.toLowerCase())) {
-                seenEmails.add(lead.email.toLowerCase());
+                const emailLower = lead.email.toLowerCase();
+                seenEmails.add(emailLower);
+                if (input.skipSent && sentEmailSet.has(emailLower)) continue;
                 allRecipients.push({
                   email: lead.email,
                   name: lead.companyName || "",
@@ -9550,16 +9566,31 @@ Return ONLY valid JSON, no markdown or explanation.`,
           }
         }
 
-        if (allRecipients.length === 0) {
-          throw new Error("送信先が見つかりません。");
+        // offsetとbatchSizeでスライス
+        const totalAvailable = allRecipients.length;
+        const batchRecipients = allRecipients.slice(input.offset, input.offset + input.batchSize);
+
+        if (batchRecipients.length === 0) {
+          return {
+            success: true,
+            sentCount: 0,
+            totalRecipients: totalAvailable,
+            batchStart: input.offset,
+            batchEnd: input.offset,
+            hasMore: false,
+            cardCount: 0,
+            leadCount: 0,
+            errors: [] as string[],
+            skippedSent: input.skipSent ? sentEmailSet.size : 0,
+          };
         }
 
         let sentCount = 0;
         const errors: string[] = [];
 
-        // バッチ送信（10件ずつ）
-        for (let i = 0; i < allRecipients.length; i += 10) {
-          const batch = allRecipients.slice(i, i + 10);
+        // バッチ送信（10件ずつSMTP送信）
+        for (let i = 0; i < batchRecipients.length; i += 10) {
+          const batch = batchRecipients.slice(i, i + 10);
           for (const recipient of batch) {
             try {
               const displayName = recipient.name || recipient.company || "ご担当者様";
@@ -9604,14 +9635,14 @@ Return ONLY valid JSON, no markdown or explanation.`,
             }
           }
           // レートリミット対策: 10件ごとに1秒待機
-          if (i + 10 < allRecipients.length) {
+          if (i + 10 < batchRecipients.length) {
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
         }
 
         // 送信履歴を一括記録
         try {
-          const emailLogs = allRecipients.map((r, idx) => ({
+          const emailLogs = batchRecipients.map((r, idx) => ({
             toEmail: r.email.toLowerCase(),
             toName: r.name || "",
             toCompany: r.company || "",
@@ -9633,26 +9664,33 @@ Return ONLY valid JSON, no markdown or explanation.`,
         await createActivityLog({
           userId: ctx.user.id,
           actionType: "all_bulk_email",
-          actionLabel: "メールあり全件一斉送信",
+          actionLabel: "メールありバッチ送信",
           targetType: "email",
-          targetName: `${sentCount}件に送信（名刺+リード）`,
+          targetName: `${sentCount}件に送信（バッチ ${input.offset + 1}〜${input.offset + batchRecipients.length}）`,
           metadata: {
-            totalRecipients: allRecipients.length,
+            totalRecipients: totalAvailable,
+            batchSize: input.batchSize,
+            offset: input.offset,
             sentCount,
             errorCount: errors.length,
             subject: input.subject,
-            cardCount: allRecipients.filter(r => r.source === "card").length,
-            leadCount: allRecipients.filter(r => r.source === "lead").length,
+            cardCount: batchRecipients.filter(r => r.source === "card").length,
+            leadCount: batchRecipients.filter(r => r.source === "lead").length,
+            skipSent: input.skipSent,
           },
         });
 
         return {
           success: true,
           sentCount,
-          totalRecipients: allRecipients.length,
-          cardCount: allRecipients.filter(r => r.source === "card").length,
-          leadCount: allRecipients.filter(r => r.source === "lead").length,
+          totalRecipients: totalAvailable,
+          batchStart: input.offset,
+          batchEnd: input.offset + batchRecipients.length,
+          hasMore: input.offset + input.batchSize < totalAvailable,
+          cardCount: batchRecipients.filter(r => r.source === "card").length,
+          leadCount: batchRecipients.filter(r => r.source === "lead").length,
           errors: errors.slice(0, 5),
+          skippedSent: input.skipSent ? sentEmailSet.size : 0,
         };
       }),
   }),
