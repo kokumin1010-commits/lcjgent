@@ -23,4 +23,9 @@ export const ENV = {
   emailPassword: process.env.EMAIL_PASSWORD ?? "",
   emailSmtpHost: process.env.EMAIL_SMTP_HOST ?? "smtp.qiye.aliyun.com",
   emailPopHost: process.env.EMAIL_POP_HOST ?? "pop.qiye.aliyun.com",
+  // AWS SES (us-east-1)
+  awsSesAccessKeyId: process.env.AWS_SES_ACCESS_KEY_ID ?? "",
+  awsSesSecretAccessKey: process.env.AWS_SES_SECRET_ACCESS_KEY ?? "",
+  awsSesRegion: process.env.AWS_SES_REGION ?? "us-east-1",
+  awsSesFromEmail: process.env.AWS_SES_FROM_EMAIL ?? "info@livecommercejapan.jp",
 };

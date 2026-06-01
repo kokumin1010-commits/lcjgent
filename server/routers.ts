@@ -748,6 +748,7 @@ import { completionRouter } from "./completion";
 import { sendReminderEmail } from "./emailService";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { bwExchangeTokens, bwLookupCustomer } from "./bw-api";
+import { sendEmailViaSES, isSESConfigured } from "./ses";
 
 // ============================================
 // LINE Login API for MALL (General User Authentication)
@@ -9239,16 +9240,21 @@ Return ONLY valid JSON, no markdown or explanation.`,
       }))
       .mutation(async ({ input, ctx }) => {
         const { ENV } = await import("./_core/env");
-        const nodemailer = await import("nodemailer");
-        const transporter = nodemailer.default.createTransport({
-          host: ENV.emailSmtpHost || "smtp.qiye.aliyun.com",
-          port: 465,
-          secure: true,
-          auth: {
-            user: ENV.emailUser,
-            pass: ENV.emailPassword,
-          },
-        });
+        const useSES = isSESConfigured();
+        let transporter: any = null;
+        if (!useSES) {
+          const nodemailer = await import("nodemailer");
+          transporter = nodemailer.default.createTransport({
+            host: ENV.emailSmtpHost || "smtp.qiye.aliyun.com",
+            port: 465,
+            secure: true,
+            auth: {
+              user: ENV.emailUser,
+              pass: ENV.emailPassword,
+            },
+          });
+        }
+        console.log(`[SendTestEmail] Using ${useSES ? 'Amazon SES' : 'Aliyun SMTP'} for sending`);
         const testTo = input.testEmail || ctx.user.email;
         const displayName = "テスト送信先";
         const trackingId = nanoid(32);
@@ -9292,7 +9298,25 @@ Return ONLY valid JSON, no markdown or explanation.`,
           }];
         }
         try {
-          await transporter.sendMail(mailOpts);
+          if (useSES) {
+            const fsMod = await import("fs");
+            const pathMod = await import("path");
+            await sendEmailViaSES({
+              to: testTo!,
+              subject: `【テスト】${personalizedSubject}`,
+              textBody: textContent,
+              htmlBody: htmlContent,
+              from: ENV.awsSesFromEmail,
+              fromName: "株式会社ライブコマースジャパン",
+              attachments: input.attachPdf ? [{
+                filename: "LCJ提案書_ライブコマースジャパン.pdf",
+                content: fsMod.readFileSync(pathMod.resolve(process.cwd(), "server/assets/LCJ_proposal_ja_v06.pdf")),
+                contentType: "application/pdf",
+              }] : undefined,
+            });
+          } else {
+            await transporter.sendMail(mailOpts);
+          }
           // 送信履歴を記録
           try {
             await createSalesEmailLog({
@@ -9340,18 +9364,23 @@ Return ONLY valid JSON, no markdown or explanation.`,
         attachPdf: z.boolean().default(false),
       }))
       .mutation(async ({ input, ctx }) => {
-        // Alibaba Cloud SMTPで送信（招商管理の「送信済み」に自動表示される）
+        // SESまたはAlibaba Cloud SMTPで送信
         const { ENV } = await import("./_core/env");
-        const nodemailer = await import("nodemailer");
-        const transporter = nodemailer.default.createTransport({
-          host: ENV.emailSmtpHost || "smtp.qiye.aliyun.com",
-          port: 465,
-          secure: true,
-          auth: {
-            user: ENV.emailUser,
-            pass: ENV.emailPassword,
-          },
-        });
+        const useSES = isSESConfigured();
+        let transporter: any = null;
+        if (!useSES) {
+          const nodemailer = await import("nodemailer");
+          transporter = nodemailer.default.createTransport({
+            host: ENV.emailSmtpHost || "smtp.qiye.aliyun.com",
+            port: 465,
+            secure: true,
+            auth: {
+              user: ENV.emailUser,
+              pass: ENV.emailPassword,
+            },
+          });
+        }
+        console.log(`[SendEmailToLeads] Using ${useSES ? 'Amazon SES' : 'Aliyun SMTP'} for sending`);
         let sentCount = 0;
         const errors: string[] = [];
         const trackingIds: string[] = [];
@@ -9404,7 +9433,25 @@ Return ONLY valid JSON, no markdown or explanation.`,
                   path: pdfPath,
                 }];
               }
-              await transporter.sendMail(mailOpts);
+              if (useSES) {
+                const fsMod = await import("fs");
+                const pathMod = await import("path");
+                await sendEmailViaSES({
+                  to: lead.email,
+                  subject: personalizedSubject,
+                  textBody: textContent,
+                  htmlBody: htmlContent,
+                  from: ENV.awsSesFromEmail,
+                  fromName: "株式会社ライブコマースジャパン",
+                  attachments: input.attachPdf ? [{
+                    filename: "LCJ提案書_ライブコマースジャパン.pdf",
+                    content: fsMod.readFileSync(pathMod.resolve(process.cwd(), "server/assets/LCJ_proposal_ja_v06.pdf")),
+                    contentType: "application/pdf",
+                  }] : undefined,
+                });
+              } else {
+                await transporter.sendMail(mailOpts);
+              }
               sentCount++;
               sendResults.push(true);
             } catch (e: any) {
@@ -9594,17 +9641,21 @@ Return ONLY valid JSON, no markdown or explanation.`,
       }))
       .mutation(async ({ input, ctx }) => {
         const { ENV } = await import("./_core/env");
-        const nodemailer = await import("nodemailer");
-        const transporter = nodemailer.default.createTransport({
-          host: ENV.emailSmtpHost || "smtp.qiye.aliyun.com",
-          port: 465,
-          secure: true,
-          auth: {
-            user: ENV.emailUser,
-            pass: ENV.emailPassword,
-          },
-        });
-
+        const useSES = isSESConfigured();
+        let transporter: any = null;
+        if (!useSES) {
+          const nodemailer = await import("nodemailer");
+          transporter = nodemailer.default.createTransport({
+            host: ENV.emailSmtpHost || "smtp.qiye.aliyun.com",
+            port: 465,
+            secure: true,
+            auth: {
+              user: ENV.emailUser,
+              pass: ENV.emailPassword,
+            },
+          });
+        }
+        console.log(`[SendEmailBatch] Using ${useSES ? 'Amazon SES' : 'Aliyun SMTP'} for sending`);
         let sentCount = 0;
         const errors: string[] = [];
         const trackingIds: string[] = [];
@@ -9662,16 +9713,33 @@ Return ONLY valid JSON, no markdown or explanation.`,
               path: pdfPath,
             }];
           }
-          // リトライ付き送信
+          // リトライ付き送信（SES or SMTP）
           let sent = false;
           for (let retry = 0; retry < MAX_RETRIES; retry++) {
             try {
-              await transporter.sendMail(mailOpts);
+              if (useSES) {
+                const fsMod = await import("fs");
+                await sendEmailViaSES({
+                  to: recipient.email,
+                  subject: personalizedSubject,
+                  textBody: textContent,
+                  htmlBody: htmlContent,
+                  from: ENV.awsSesFromEmail,
+                  fromName: "株式会社ライブコマースジャパン",
+                  attachments: input.attachPdf && pdfPath ? [{
+                    filename: "LCJ提案書_ライブコマースジャパン.pdf",
+                    content: fsMod.readFileSync(pdfPath),
+                    contentType: "application/pdf",
+                  }] : undefined,
+                });
+              } else {
+                await transporter.sendMail(mailOpts);
+              }
               sent = true;
               break;
             } catch (sendErr: any) {
               const errMsg = sendErr.message || '';
-              if (errMsg.includes('454') || errMsg.includes('too frequently') || errMsg.includes('rate')) {
+              if (errMsg.includes('454') || errMsg.includes('too frequently') || errMsg.includes('rate') || errMsg.includes('Throttling')) {
                 console.warn(`[SendEmailBatch] Rate limited on ${recipient.email}, waiting 60s (retry ${retry+1}/${MAX_RETRIES})`);
                 await sleep(RATE_LIMIT_RETRY_DELAY_MS);
                 continue;
@@ -9770,13 +9838,18 @@ Return ONLY valid JSON, no markdown or explanation.`,
         (async () => {
           try {
             const { ENV } = await import("./_core/env");
-            const nodemailer = await import("nodemailer");
-            const transporter = nodemailer.default.createTransport({
-              host: ENV.emailSmtpHost || "smtp.qiye.aliyun.com",
-              port: 465,
-              secure: true,
-              auth: { user: ENV.emailUser, pass: ENV.emailPassword },
-            });
+            const useSES = isSESConfigured();
+            let transporter: any = null;
+            if (!useSES) {
+              const nodemailer = await import("nodemailer");
+              transporter = nodemailer.default.createTransport({
+                host: ENV.emailSmtpHost || "smtp.qiye.aliyun.com",
+                port: 465,
+                secure: true,
+                auth: { user: ENV.emailUser, pass: ENV.emailPassword },
+              });
+            }
+            console.log(`[BG Batch] Using ${useSES ? 'Amazon SES' : 'Aliyun SMTP'} for sending`);
 
             // Step 1: 送信先リストを取得
             console.log("[BG Batch] Step 1: Building recipient list...");
@@ -9843,9 +9916,9 @@ Return ONLY valid JSON, no markdown or explanation.`,
 
             // Step 2: バッチ送信（2件並列 + 1秒間隔 + リトライ）
             // レート制限対策: 2件並列送信、1秒間隔、454エラー時は60秒待ってリトライ
-            const CONCURRENCY = 2; // 2件並列
-            const DELAY_BETWEEN_CHUNKS_MS = 1000; // チャンクごとに1秒待機
-            const DELAY_BETWEEN_BATCHES_MS = 10000; // バッチ間10秒待機
+            const CONCURRENCY = useSES ? 5 : 2; // SES: 5件並列, SMTP: 2件並列
+            const DELAY_BETWEEN_CHUNKS_MS = useSES ? 500 : 1000; // SES: 0.5秒, SMTP: 1秒
+            const DELAY_BETWEEN_BATCHES_MS = useSES ? 3000 : 10000; // SES: 3秒, SMTP: 10秒
             const RATE_LIMIT_RETRY_DELAY_MS = 60000; // レート制限時60秒待機
             const MAX_RETRIES = 3; // 最大リトライ回数
             const pathMod = await import("path");
@@ -9891,14 +9964,31 @@ Return ONLY valid JSON, no markdown or explanation.`,
                   if (input.attachPdf) {
                     mailOpts.attachments = [{ filename: "LCJ提案書_ライブコマースジャパン.pdf", path: pdfPath }];
                   }
-                  // リトライ付き送信
+                  // リトライ付き送信（SES or SMTP）
                   for (let retry = 0; retry < MAX_RETRIES; retry++) {
                     try {
-                      await transporter.sendMail(mailOpts);
+                      if (useSES) {
+                        const fsMod = await import("fs");
+                        await sendEmailViaSES({
+                          to: recipient.email,
+                          subject: personalizedSubject,
+                          textBody: textContent,
+                          htmlBody: htmlContent,
+                          from: ENV.awsSesFromEmail,
+                          fromName: "株式会社ライブコマースジャパン",
+                          attachments: input.attachPdf && pdfPath ? [{
+                            filename: "LCJ提案書_ライブコマースジャパン.pdf",
+                            content: fsMod.readFileSync(pdfPath),
+                            contentType: "application/pdf",
+                          }] : undefined,
+                        });
+                      } else {
+                        await transporter.sendMail(mailOpts);
+                      }
                       return true;
                     } catch (sendErr: any) {
                       const errMsg = sendErr.message || '';
-                      if (errMsg.includes('454') || errMsg.includes('too frequently') || errMsg.includes('rate')) {
+                      if (errMsg.includes('454') || errMsg.includes('too frequently') || errMsg.includes('rate') || errMsg.includes('Throttling')) {
                         console.warn(`[BG Batch] Rate limited on ${recipient.email}, waiting ${RATE_LIMIT_RETRY_DELAY_MS/1000}s (retry ${retry+1}/${MAX_RETRIES})`);
                         await sleep(RATE_LIMIT_RETRY_DELAY_MS);
                         continue;
