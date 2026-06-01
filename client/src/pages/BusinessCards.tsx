@@ -643,10 +643,15 @@ export default function BusinessCards() {
         currentBatch: bg.currentBatch,
         totalBatches: bg.totalBatches,
       });
-      // 送信中はポーリングごとに統計を更新
+      // 送信中はポーリングごとに統計と履歴を更新
       emailStatsQuery.refetch();
+      // 送信完了時 or 5バッチごとに履歴もリフレッシュ
+      if (!bg.isRunning || (bg.currentBatch && bg.currentBatch % 5 === 0)) {
+        utils.businessCard.getSalesEmailLogs.invalidate();
+      }
       if (!bg.isRunning && bg.sentCount > 0) {
         toast.success(`バックグラウンド送信完了！${bg.sentCount}件送信（エラー${bg.errorCount}件）`);
+        utils.businessCard.getSalesEmailLogs.invalidate();
       }
     }
   }, [bgProgressQuery.data]);
