@@ -468,6 +468,12 @@ export default function BusinessCards() {
   // Image zoom state
   const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
 
+  // 送信済み件数取得
+  const emailStatsQuery = trpc.businessCard.getSalesEmailStats.useQuery(undefined, {
+    staleTime: 30000,
+  });
+  const emailStats = emailStatsQuery.data;
+
   // Lead collection state
   const [leadStats, setLeadStats] = useState<any>(null);
   const [leadKeyword, setLeadKeyword] = useState("美容 ディーラー");
@@ -2958,8 +2964,13 @@ export default function BusinessCards() {
               <div className="p-4 bg-purple-50 rounded-lg border border-purple-200 space-y-3">
                 <p className="text-sm font-bold text-purple-800 flex items-center gap-2">
                   <Send className="h-4 w-4" />
-                  メールあり全件バッチ送信（名刺{cardsWithEmail.length}件 + リード{leadStats?.withEmail || 0}件）
+                  メールあり全件バッチ送信
                 </p>
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  <span className="text-purple-700">全体: <span className="font-bold">{cardsWithEmail.length + (leadStats?.withEmail || 0)}件</span></span>
+                  <span className="text-green-600">送信済: <span className="font-bold">{emailStats?.total || 0}件</span></span>
+                  <span className="text-orange-600">未送信: <span className="font-bold">{Math.max(0, (cardsWithEmail.length + (leadStats?.withEmail || 0)) - (emailStats?.total || 0))}件</span></span>
+                </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex items-center gap-2">
                     <label className="text-xs text-purple-700 whitespace-nowrap">バッチサイズ:</label>
