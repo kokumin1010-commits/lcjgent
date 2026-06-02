@@ -502,7 +502,8 @@ async def list_clips(
         sql = text("""
             SELECT id, phase_index, time_start, time_end, status, clip_url, sas_token, sas_expireddate, created_at, captions,
                    COALESCE(progress_pct, 0) as progress_pct, progress_step,
-                   COALESCE(processing_logs, '[]'::jsonb) as processing_logs
+                   COALESCE(processing_logs, '[]'::jsonb) as processing_logs,
+                   duration_sec, is_unusable, unusable_reason
             FROM video_clips
             WHERE video_id = :video_id
             ORDER BY phase_index ASC,
@@ -548,6 +549,9 @@ async def list_clips(
                 "progress_step": row.progress_step if hasattr(row, 'progress_step') else None,
                 "processing_logs": _clip_logs,
                 "created_at": row.created_at.isoformat() if hasattr(row, 'created_at') and row.created_at else None,
+                "duration_sec": float(row.duration_sec) if hasattr(row, 'duration_sec') and row.duration_sec else None,
+                "is_unusable": bool(row.is_unusable) if hasattr(row, 'is_unusable') and row.is_unusable else False,
+                "unusable_reason": row.unusable_reason if hasattr(row, 'unusable_reason') and row.unusable_reason else None,
             }
             if row.status == "completed" and row.clip_url:
                 # Generate or reuse SAS download URL (same logic as get_clip_status)

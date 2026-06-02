@@ -145,7 +145,7 @@ export default function ClipSection({ videoData, clipStates, reports1, editorPar
   const visibleClips = useMemo(() => {
     if (!clipStates) return [];
     return Object.entries(clipStates)
-      .filter(([, state]) => (state.status === "completed" || state.status === "generating_subtitles") && state.clip_url)
+      .filter(([, state]) => (state.status === "completed" || state.status === "generating_subtitles") && state.clip_url && !state.is_unusable)
       .map(([phaseIndex, state]) => {
         // phase_index can be numeric ("63") or string ("moment_strong_1")
         const numIdx = parseInt(phaseIndex, 10);
@@ -184,6 +184,8 @@ export default function ClipSection({ videoData, clipStates, reports1, editorPar
           source,
           captions: state.captions,
           isGeneratingSubtitles: state.status === "generating_subtitles",
+          duration_sec: state.duration_sec || null,
+          is_unusable: state.is_unusable || false,
         };
       })
       .sort((a, b) => {
@@ -343,9 +345,9 @@ export default function ClipSection({ videoData, clipStates, reports1, editorPar
     return `${m}:${sec.toString().padStart(2, "0")}`;
   };
 
-  const formatDuration = (start, end) => {
-    if (start == null || end == null) return "";
-    const dur = Math.round(Number(end) - Number(start));
+  const formatDuration = (start, end, durationSec) => {
+    // Prefer actual clip duration (from ffprobe) over phase time range
+    const dur = durationSec ? Math.round(Number(durationSec)) : (start != null && end != null ? Math.round(Number(end) - Number(start)) : 0);
     if (dur <= 0) return "";
     const m = Math.floor(dur / 60);
     const s = dur % 60;
@@ -465,7 +467,7 @@ export default function ClipSection({ videoData, clipStates, reports1, editorPar
                           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
                           </svg>
-                          {formatDuration(clip.time_start, clip.time_end)}
+                          {formatDuration(clip.time_start, clip.time_end, clip.duration_sec)}
                         </span>
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-pink-50 text-pink-600 text-xs">
                           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
