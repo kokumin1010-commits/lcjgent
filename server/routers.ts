@@ -257,6 +257,7 @@ import {
   createLivestreamFromCsv,
   getCsvImportedLivestreams,
   importLivestreamProductsFromCsv,
+  calculateAndSaveBrandGmv,
   createCsvImportHistory,
   getCsvImportHistoryByLivestream,
   deleteCsvImportHistory,
@@ -8548,6 +8549,29 @@ Respond with a JSON object.`,
       .mutation(async ({ input }) => {
         return await deleteCsvImportHistory(input.historyId);
       }),
+    // Recalculate brand GMV for all livestreams that have products imported
+    recalculateAllBrandGmv: protectedProcedure
+      .mutation(async () => {
+        const db = await import("./db").then(m => m.getDb());
+        if (!db) return { success: false, message: "DB not available" };
+        const { livestreamProducts, livestreamBrands } = await import("../drizzle/schema");
+        const { sql } = await import("drizzle-orm");
+        // Get all distinct livestreamIds that have products
+        const rows = await db.selectDistinct({ livestreamId: livestreamProducts.livestreamId }).from(livestreamProducts);
+        const livestreamIds = rows.map(r => r.livestreamId);
+        // Filter to only those that have entries in livestream_brands
+        let processed = 0;
+        let errors = 0;
+        for (const lsId of livestreamIds) {
+          try {
+            await calculateAndSaveBrandGmv(lsId);
+            processed++;
+          } catch (e) {
+            errors++;
+          }
+        }
+        return { success: true, processed, errors, total: livestreamIds.length };
+      }),
   }),
 
   // Brand Memo Router
@@ -10743,6 +10767,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
               .select({
                 livestreamId: livestreamBrands.livestreamId,
                 durationMinutes: livestreamBrands.durationMinutes,
+                gmv: livestreamBrands.gmv,
               })
               .from(livestreamBrands)
               .where(and(
@@ -10754,29 +10779,13 @@ Return ONLY valid JSON, no markdown or explanation.`,
                 const existing = accurateDurations.get(row.livestreamId) || 0;
                 accurateDurations.set(row.livestreamId, existing + Number(row.durationMinutes));
               }
+              if (row.gmv != null && Number(row.gmv) > 0) {
+                const existing = accurateGmvs.get(row.livestreamId) || 0;
+                accurateGmvs.set(row.livestreamId, existing + Number(row.gmv));
+              }
             }
           } catch (e) {
             console.warn("[getQuotaProgress] livestream_brands query failed, using fallback:", e);
-          }
-          // ブランド別GMVを取得（livestream_productsのbrandIdでフィルタ）
-          try {
-            const productRows = await db
-              .select({
-                livestreamId: livestreamProducts.livestreamId,
-                gmv: livestreamProducts.gmv,
-                grossRevenue: livestreamProducts.grossRevenue,
-              })
-              .from(livestreamProducts)
-              .where(and(
-                eq(livestreamProducts.brandId, brandId),
-                sql`${livestreamProducts.livestreamId} IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`, `)})`
-              ));
-            for (const row of productRows) {
-              const existing = accurateGmvs.get(row.livestreamId) || 0;
-              accurateGmvs.set(row.livestreamId, existing + (row.gmv || row.grossRevenue || 0));
-            }
-          } catch (e) {
-            console.warn("[getQuotaProgress] livestream_products brand GMV query failed:", e);
           }
         }
         // Step 3: ライバー別集計（ハイブリッド: livestream_brandsにデータがあればそちらを使用）
@@ -11071,6 +11080,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
                 .select({
                   livestreamId: livestreamBrands.livestreamId,
                   durationMinutes: livestreamBrands.durationMinutes,
+                  gmv: livestreamBrands.gmv,
                 })
                 .from(livestreamBrands)
                 .where(and(
@@ -11082,29 +11092,13 @@ Return ONLY valid JSON, no markdown or explanation.`,
                   const existing = monthAccurateDurations.get(row.livestreamId) || 0;
                   monthAccurateDurations.set(row.livestreamId, existing + Number(row.durationMinutes));
                 }
+                if (row.gmv != null && Number(row.gmv) > 0) {
+                  const existing = monthAccurateGmvs.get(row.livestreamId) || 0;
+                  monthAccurateGmvs.set(row.livestreamId, existing + Number(row.gmv));
+                }
               }
             } catch (e) {
               // livestream_brandsテーブルにアクセスできない場合はフォールバック
-            }
-            // ブランド別GMVを取得
-            try {
-              const productRows = await db
-                .select({
-                  livestreamId: livestreamProducts.livestreamId,
-                  gmv: livestreamProducts.gmv,
-                  grossRevenue: livestreamProducts.grossRevenue,
-                })
-                .from(livestreamProducts)
-                .where(and(
-                  eq(livestreamProducts.brandId, brandId),
-                  sql`${livestreamProducts.livestreamId} IN (${sql.join(monthLsIds.map(id => sql`${id}`), sql`, `)})`
-                ));
-              for (const row of productRows) {
-                const existing = monthAccurateGmvs.get(row.livestreamId) || 0;
-                monthAccurateGmvs.set(row.livestreamId, existing + (row.gmv || row.grossRevenue || 0));
-              }
-            } catch (e) {
-              // フォールバック
             }
           }
           let kgMin = 0, liverMin = 0, totalGmv = 0, streamCount = livestreams.length;
@@ -11259,41 +11253,17 @@ Return ONLY valid JSON, no markdown or explanation.`,
             livestreamId: livestreamBrands.livestreamId,
             brandId: livestreamBrands.brandId,
             durationMinutes: livestreamBrands.durationMinutes,
+            gmv: livestreamBrands.gmv,
           })
           .from(livestreamBrands);
-                // livestreamId -> 配信データのマップを作成
+        // livestreamId -> 配信データのマップを作成
         const livestreamDataMap = new Map(allLivestreams.map(ls => [ls.id, ls]));
-        // ブランド別GMVを取得（livestream_productsのbrandIdでフィルタ）
-        const allLsIds = allLivestreams.map(ls => ls.id).filter(Boolean);
-        // brandId -> livestreamId -> gmv
-        const brandProductGmvMap: Map<string, number> = new Map(); // key: `${brandId}_${livestreamId}`
-        if (allLsIds.length > 0) {
-          try {
-            // バッチで取得（全配信の商品データ）
-            const batchSize = 500;
-            for (let i = 0; i < allLsIds.length; i += batchSize) {
-              const batch = allLsIds.slice(i, i + batchSize);
-              const productRows = await db
-                .select({
-                  livestreamId: livestreamProducts.livestreamId,
-                  brandId: livestreamProducts.brandId,
-                  gmv: livestreamProducts.gmv,
-                  grossRevenue: livestreamProducts.grossRevenue,
-                })
-                .from(livestreamProducts)
-                .where(
-                  sql`${livestreamProducts.livestreamId} IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`
-                );
-              for (const row of productRows) {
-                if (row.brandId) {
-                  const key = `${row.brandId}_${row.livestreamId}`;
-                  const existing = brandProductGmvMap.get(key) || 0;
-                  brandProductGmvMap.set(key, existing + (row.gmv || row.grossRevenue || 0));
-                }
-              }
-            }
-          } catch (e) {
-            console.warn("[getAllContractsProgress] livestream_products query failed:", e);
+        // ブランド別GMVをlivestream_brands.gmvから取得
+        const brandGmvFromLbMap: Map<string, number> = new Map(); // key: `${brandId}_${livestreamId}`
+        for (const lbRow of allLbRows) {
+          if (lbRow.gmv != null && Number(lbRow.gmv) > 0) {
+            const key = `${lbRow.brandId}_${lbRow.livestreamId}`;
+            brandGmvFromLbMap.set(key, Number(lbRow.gmv));
           }
         }
         // ブランドごとに配信データを集計
@@ -11311,10 +11281,10 @@ Return ONLY valid JSON, no markdown or explanation.`,
           const isKg = (ls.streamerName || '').includes('KG') || (ls.streamerName || '').includes('老师') || (ls.streamerName || '').includes('kg');
           if (isKg) brandLivestreamMap[ls.brandId].kgMin += dur;
           else brandLivestreamMap[ls.brandId].liverMin += dur;
-          // ブランド別GMVを使用
-          const productGmvKey = `${ls.brandId}_${ls.id}`;
-          const productGmv = brandProductGmvMap.get(productGmvKey);
-          brandLivestreamMap[ls.brandId].gmv += (productGmv !== undefined && productGmv > 0) ? productGmv : (ls.gmv || ls.salesAmount || 0);
+          // ブランド別GMVを使用（livestream_brands.gmv優先）
+          const gmvKey = `${ls.brandId}_${ls.id}`;
+          const storedBrandGmv = brandGmvFromLbMap.get(gmvKey);
+          brandLivestreamMap[ls.brandId].gmv += (storedBrandGmv !== undefined && storedBrandGmv > 0) ? storedBrandGmv : (ls.gmv || ls.salesAmount || 0);
           brandLivestreamMap[ls.brandId].count += 1;
         }
         // Step 2: livestream_brandsから副ブランド配信を追加集計
@@ -11331,10 +11301,10 @@ Return ONLY valid JSON, no markdown or explanation.`,
           const isKg = (lsData.streamerName || '').includes('KG') || (lsData.streamerName || '').includes('老师') || (lsData.streamerName || '').includes('kg');
           if (isKg) brandLivestreamMap[bid].kgMin += dur;
           else brandLivestreamMap[bid].liverMin += dur;
-          // ブランド別GMVを使用
-          const productGmvKey = `${bid}_${lbRow.livestreamId}`;
-          const productGmv = brandProductGmvMap.get(productGmvKey);
-          brandLivestreamMap[bid].gmv += (productGmv !== undefined && productGmv > 0) ? productGmv : (lsData.gmv || lsData.salesAmount || 0);
+          // ブランド別GMVを使用（livestream_brands.gmv優先）
+          const subGmvKey = `${bid}_${lbRow.livestreamId}`;
+          const subStoredGmv = brandGmvFromLbMap.get(subGmvKey);
+          brandLivestreamMap[bid].gmv += (subStoredGmv !== undefined && subStoredGmv > 0) ? subStoredGmv : (lsData.gmv || lsData.salesAmount || 0);
           brandLivestreamMap[bid].count += 1;
         }
 

@@ -1150,17 +1150,22 @@ export async function getLivestreamsByBrandId(brandId: number) {
   // Step 1: brand_livestreams.brandId = brandId の直接マッチ
   const directLivestreams = await db.select().from(brandLivestreams).where(and(eq(brandLivestreams.brandId, brandId), isNull(brandLivestreams.deletedAt))).orderBy(desc(brandLivestreams.livestreamDate));
   
-  // Step 2: livestream_brands テーブルから、このブランドに紐付く配信IDと時間を取得（副ブランド対応）
+  // Step 2: livestream_brands テーブルから、このブランドに紐付く配信IDと時間・GMVを取得（副ブランド対応）
   const linkedRows = await db
-    .select({ livestreamId: livestreamBrands.livestreamId, durationMinutes: livestreamBrands.durationMinutes })
+    .select({ livestreamId: livestreamBrands.livestreamId, durationMinutes: livestreamBrands.durationMinutes, gmv: livestreamBrands.gmv })
     .from(livestreamBrands)
     .where(eq(livestreamBrands.brandId, brandId));
   const linkedIds = linkedRows.map(r => r.livestreamId);
   // ブランド別の配信時間マップ（livestreamId → durationMinutes）
   const brandDurationMap = new Map<number, number>();
+  // ブランド別GMVマップ（livestreamId → gmv from livestream_brands）
+  const brandGmvFromTable = new Map<number, number>();
   for (const row of linkedRows) {
     if (row.durationMinutes) {
       brandDurationMap.set(row.livestreamId, row.durationMinutes);
+    }
+    if (row.gmv != null && row.gmv > 0) {
+      brandGmvFromTable.set(row.livestreamId, row.gmv);
     }
   }
   
@@ -1181,49 +1186,28 @@ export async function getLivestreamsByBrandId(brandId: number) {
     .sort((a, b) => new Date(b.livestreamDate).getTime() - new Date(a.livestreamDate).getTime());
   
   // 各直播のブランド別GMVと時間を取得
-  const livestreamsWithGmv = await Promise.all(
-    allLivestreams.map(async (ls) => {
-      // ブランド別の商品GMVを取得（livestream_productsのbrandIdでフィルタ）
-      const brandProducts = await db
-        .select()
-        .from(livestreamProducts)
-        .where(and(
-          eq(livestreamProducts.livestreamId, ls.id),
-          eq(livestreamProducts.brandId, brandId)
-        ));
-      const brandGmvTotal = brandProducts.reduce((sum, p) => sum + (p.gmv || p.grossRevenue || 0), 0);
-      const brandProductCount = brandProducts.length;
-      
-      // 全商品のGMV合計（フォールバック用）
-      const allProducts = await db
-        .select()
-        .from(livestreamProducts)
-        .where(eq(livestreamProducts.livestreamId, ls.id));
-      const productGmvTotal = allProducts.reduce((sum, p) => sum + (p.gmv || p.grossRevenue || 0), 0);
-      const productCount = allProducts.length;
-      
-      // ブランド別の配信時間を取得（livestream_brandsから）
-      const brandDuration = brandDurationMap.get(ls.id);
-      
-      // GMV: ブランド別商品がある場合はそのGMV、なければ全体GMV
-      // 時間: ブランド別時間がある場合はそれを使用、なければ全体時間
-      return {
-        ...ls,
-        // ブランド別GMV（商品別売上CSVから）
-        gmv: brandGmvTotal > 0 ? brandGmvTotal : (ls.gmv || ls.salesAmount || 0),
-        salesAmount: brandGmvTotal > 0 ? brandGmvTotal : (ls.salesAmount || 0),
-        // ブランド別配信時間
-        duration: brandDuration || ls.duration,
-        // 元の全体値も保持
-        productGmvTotal,
-        productCount,
-        brandGmvTotal,
-        brandProductCount,
-        originalGmv: ls.gmv,
-        originalDuration: ls.duration,
-      };
-    })
-  );
+  const livestreamsWithGmv = allLivestreams.map((ls) => {
+    // ブランド別GMV: livestream_brands.gmv を優先使用
+    const storedBrandGmv = brandGmvFromTable.get(ls.id);
+    // ブランド別の配信時間を取得（livestream_brandsから）
+    const brandDuration = brandDurationMap.get(ls.id);
+    
+    // GMV: livestream_brands.gmv → brand_livestreams.gmv → salesAmount
+    const effectiveGmv = storedBrandGmv || ls.gmv || ls.salesAmount || 0;
+    
+    return {
+      ...ls,
+      // ブランド別GMV（livestream_brands.gmvから、なければ全体GMV）
+      gmv: effectiveGmv,
+      salesAmount: effectiveGmv,
+      // ブランド別配信時間
+      duration: brandDuration || ls.duration,
+      // 元の全体値も保持
+      originalGmv: ls.gmv,
+      originalDuration: ls.duration,
+      brandGmvFromTable: storedBrandGmv || 0,
+    };
+  });
   return livestreamsWithGmv;
 }
 
@@ -1258,15 +1242,19 @@ export async function getLivestreamStatsByBrandId(brandId: number) {
   if (!db) return { totalSales: 0, totalStreams: 0, avgSales: 0, totalDuration: 0 };
   // Direct match
   const directLivestreams = await db.select().from(brandLivestreams).where(and(eq(brandLivestreams.brandId, brandId), isNull(brandLivestreams.deletedAt)));
-  // Also include livestreams linked via livestream_brands junction table
+  // Also include livestreams linked via livestream_brands junction table (with gmv)
   const linkedRows = await db
-    .select({ livestreamId: livestreamBrands.livestreamId, durationMinutes: livestreamBrands.durationMinutes })
+    .select({ livestreamId: livestreamBrands.livestreamId, durationMinutes: livestreamBrands.durationMinutes, gmv: livestreamBrands.gmv })
     .from(livestreamBrands)
     .where(eq(livestreamBrands.brandId, brandId));
   const brandDurationMap = new Map<number, number>();
+  const brandGmvMap = new Map<number, number>();
   for (const row of linkedRows) {
     if (row.durationMinutes) {
       brandDurationMap.set(row.livestreamId, row.durationMinutes);
+    }
+    if (row.gmv != null && row.gmv > 0) {
+      brandGmvMap.set(row.livestreamId, row.gmv);
     }
   }
   const directIds = new Set(directLivestreams.map(ls => ls.id));
@@ -1279,20 +1267,13 @@ export async function getLivestreamStatsByBrandId(brandId: number) {
     ));
   }
   const allLivestreams = [...directLivestreams, ...additionalLivestreams];
-  // ブランド別GMVを計算（livestream_productsのbrandIdでフィルタ）
+  // ブランド別GMVを計算（livestream_brands.gmvを優先使用）
   let totalSales = 0;
   let totalDuration = 0;
   for (const ls of allLivestreams) {
-    // ブランド別商品GMV
-    const brandProducts = await db
-      .select()
-      .from(livestreamProducts)
-      .where(and(
-        eq(livestreamProducts.livestreamId, ls.id),
-        eq(livestreamProducts.brandId, brandId)
-      ));
-    const brandGmv = brandProducts.reduce((sum, p) => sum + (p.gmv || p.grossRevenue || 0), 0);
-    totalSales += brandGmv > 0 ? brandGmv : (ls.gmv || ls.salesAmount || 0);
+    // livestream_brands.gmv → brand_livestreams.gmv → salesAmount
+    const storedBrandGmv = brandGmvMap.get(ls.id);
+    totalSales += storedBrandGmv || ls.gmv || ls.salesAmount || 0;
     // ブランド別配信時間
     const brandDuration = brandDurationMap.get(ls.id);
     totalDuration += brandDuration || ls.duration || 0;
@@ -3742,8 +3723,148 @@ export async function importLivestreamProductsFromCsv(
     .update(brandLivestreams)
     .set({ productCsvImported: "yes" })
     .where(eq(brandLivestreams.id, livestreamId));
-  
+
+  // Calculate and save per-brand GMV after CSV import
+  await calculateAndSaveBrandGmv(livestreamId);
+
   return products.length;
+}
+
+/**
+ * Calculate per-brand GMV from livestream_products and save to livestream_brands.gmv
+ * Uses product_master (canonicalName→brandId) and product_name_aliases for matching.
+ * Unmatched products are assigned to the primary brand.
+ */
+export async function calculateAndSaveBrandGmv(livestreamId: number) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    // 1. Get all products for this livestream
+    const products = await db
+      .select()
+      .from(livestreamProducts)
+      .where(eq(livestreamProducts.livestreamId, livestreamId));
+
+    if (products.length === 0) return;
+
+    // 2. Get the livestream's brand associations from livestream_brands
+    const brandAssociations = await db
+      .select()
+      .from(livestreamBrands)
+      .where(eq(livestreamBrands.livestreamId, livestreamId));
+
+    if (brandAssociations.length === 0) return;
+
+    // 3. Get the primary brand from brand_livestreams
+    const [livestream] = await db
+      .select({ brandId: brandLivestreams.brandId })
+      .from(brandLivestreams)
+      .where(eq(brandLivestreams.id, livestreamId));
+
+    const primaryBrandId = livestream?.brandId;
+
+    // 4. Build product name → brandId mapping using product_master and aliases
+    const allProductNames = products.map(p => p.productName).filter(Boolean);
+    if (allProductNames.length === 0) return;
+
+    // 4a. Direct match from product_master (canonicalName)
+    const nameToBrandMap = new Map<string, number>();
+    
+    // Process in batches to avoid SQL query size limits
+    const batchSize = 100;
+    for (let i = 0; i < allProductNames.length; i += batchSize) {
+      const batch = allProductNames.slice(i, i + batchSize);
+      const masterMatches = await db
+        .select({
+          canonicalName: productMaster.canonicalName,
+          brandId: productMaster.brandId,
+        })
+        .from(productMaster)
+        .where(
+          and(
+            inArray(productMaster.canonicalName, batch),
+            eq(productMaster.isActive, true)
+          )
+        );
+
+      for (const m of masterMatches) {
+        if (m.brandId) nameToBrandMap.set(m.canonicalName, m.brandId);
+      }
+    }
+
+    // 4b. Match via product_name_aliases for unmatched products
+    const unmatchedNames = allProductNames.filter(n => !nameToBrandMap.has(n));
+    if (unmatchedNames.length > 0) {
+      for (let i = 0; i < unmatchedNames.length; i += batchSize) {
+        const batch = unmatchedNames.slice(i, i + batchSize);
+        const aliasMatches = await db
+          .select({
+            aliasName: productNameAliases.aliasName,
+            masterId: productNameAliases.productMasterId,
+          })
+          .from(productNameAliases)
+          .where(inArray(productNameAliases.aliasName, batch));
+
+        if (aliasMatches.length > 0) {
+          const masterIds = [...new Set(aliasMatches.map(a => a.masterId))];
+          const masters = await db
+            .select({ id: productMaster.id, brandId: productMaster.brandId })
+            .from(productMaster)
+            .where(inArray(productMaster.id, masterIds));
+
+          const masterIdToBrand = new Map(masters.map(m => [m.id, m.brandId]));
+          for (const alias of aliasMatches) {
+            const brandId = masterIdToBrand.get(alias.masterId);
+            if (brandId) nameToBrandMap.set(alias.aliasName, brandId);
+          }
+        }
+      }
+    }
+
+    // 5. Calculate GMV per brand
+    const brandGmvMap = new Map<number, number>();
+    // Initialize all associated brands with 0
+    for (const ba of brandAssociations) {
+      brandGmvMap.set(ba.brandId, 0);
+    }
+
+    for (const product of products) {
+      const gmv = product.directGmv || product.gmv || 0;
+      if (gmv <= 0) continue;
+
+      const matchedBrandId = nameToBrandMap.get(product.productName);
+
+      if (matchedBrandId && brandGmvMap.has(matchedBrandId)) {
+        // Product belongs to a known associated brand
+        brandGmvMap.set(matchedBrandId, (brandGmvMap.get(matchedBrandId) || 0) + gmv);
+      } else if (primaryBrandId && brandGmvMap.has(primaryBrandId)) {
+        // Unmatched product → assign to primary brand
+        brandGmvMap.set(primaryBrandId, (brandGmvMap.get(primaryBrandId) || 0) + gmv);
+      } else {
+        // Fallback: assign to first brand in list
+        const firstBrandId = brandAssociations[0].brandId;
+        brandGmvMap.set(firstBrandId, (brandGmvMap.get(firstBrandId) || 0) + gmv);
+      }
+    }
+
+    // 6. Update livestream_brands with calculated GMV
+    for (const [brandId, gmv] of brandGmvMap.entries()) {
+      await db
+        .update(livestreamBrands)
+        .set({ gmv })
+        .where(
+          and(
+            eq(livestreamBrands.livestreamId, livestreamId),
+            eq(livestreamBrands.brandId, brandId)
+          )
+        );
+    }
+
+    console.log(`[calculateAndSaveBrandGmv] Livestream ${livestreamId}: saved GMV for ${brandGmvMap.size} brands`);
+  } catch (error) {
+    console.error(`[calculateAndSaveBrandGmv] Error for livestream ${livestreamId}:`, error);
+  }
 }
 
 // Get all livestream products for a brand with livestream date info
