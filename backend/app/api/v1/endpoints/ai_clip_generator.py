@@ -5907,10 +5907,11 @@ async def _generate_pip_video(
     num_images = len(product_img_paths)
     logger.info(f"[ai-clip {job_id}] PiP rotation: {num_images} images downloaded")
 
-    # V13: Create overlay images for each product (rounded corners, white card background)
-    # Reduced size: 25% width (was 55%) to avoid blocking face/main subject
-    overlay_size = int(width * 0.25)
-    overlay_h = int(height * 0.20)
+    # V14.3: Create overlay images for each product (rounded corners, white card background)
+    # Size: 30% width, 25% height — large enough to see product clearly
+    # Position is now top-right so it won't block face or subtitles
+    overlay_size = int(width * 0.30)
+    overlay_h = int(height * 0.25)
     corner_radius = 16
     padding = 12
     inner_w = overlay_size - padding * 2
@@ -5979,10 +5980,11 @@ async def _generate_pip_video(
 
     logger.info(f"[ai-clip {job_id}] V13 PiP schedule: {len(schedule)} appearances (no loop), {len(overlay_paths)} unique images")
 
-    # V13: Position overlay in BOTTOM-RIGHT CORNER (avoid blocking face)
-    # Margin: 20px from right, 180px from bottom (above subtitles area)
+    # V14.3: Position overlay in TOP-RIGHT CORNER (avoid blocking subtitles)
+    # Subtitles are rendered at ~75% height, so PiP must be above that zone.
+    # Margin: 20px from right, 100px from top (below safe area)
     overlay_x = width - overlay_size - 20
-    overlay_y = height - overlay_h - 180
+    overlay_y = 100
 
     pip_output = os.path.join(tmp_dir, "pip_output.mp4")
 
@@ -6126,11 +6128,12 @@ async def _generate_pip_video_overlay(
     logger.info(f"[ai-clip {job_id}] V13 PiP video: product_dur={product_video_duration:.1f}s, "
                 f"pip_start={pip_start:.1f}s, pip_duration={pip_duration:.1f}s (1x play, no loop)")
 
-    # V13: PiP overlay size and position (bottom-right corner, 28% of screen)
-    pip_w = int(width * 0.28)
-    pip_h = int(height * 0.22)
+    # V14.3: PiP overlay size and position (TOP-right corner, 30% of screen)
+    # Moved from bottom-right to top-right to avoid blocking subtitles
+    pip_w = int(width * 0.30)
+    pip_h = int(height * 0.25)
     pip_x = width - pip_w - 20  # 20px margin from right
-    pip_y = height - pip_h - 180  # 180px from bottom (above subtitles)
+    pip_y = 100  # 100px from top (avoid subtitle zone at bottom 75%)
 
     pip_output = os.path.join(tmp_dir, "pip_video_output.mp4")
 
@@ -6259,11 +6262,11 @@ async def _generate_pip_combined_sequential(
     img_show_duration = 5.0
     img_hide_duration = 3.0
 
-    # PiP size and position (right-bottom corner)
-    pip_w = int(width * 0.28)
-    pip_h = int(height * 0.22)
+    # V14.3: PiP size and position (TOP-right corner - avoid subtitle overlap)
+    pip_w = int(width * 0.30)
+    pip_h = int(height * 0.25)
     pip_x = width - pip_w - 20
-    pip_y = height - pip_h - 180
+    pip_y = 100  # 100px from top (subtitles are at bottom 75%)
 
     logger.info(f"[ai-clip {job_id}] V13 seq: video_phase={video_pip_start:.1f}-{video_pip_end:.1f}s, "
                 f"image_phase_start={img_start_time:.1f}s, {len(product_img_paths)} images")
