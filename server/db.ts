@@ -1150,12 +1150,19 @@ export async function getLivestreamsByBrandId(brandId: number) {
   // Step 1: brand_livestreams.brandId = brandId の直接マッチ
   const directLivestreams = await db.select().from(brandLivestreams).where(and(eq(brandLivestreams.brandId, brandId), isNull(brandLivestreams.deletedAt))).orderBy(desc(brandLivestreams.livestreamDate));
   
-  // Step 2: livestream_brands テーブルから、このブランドに紐付く配信IDを取得（副ブランド対応）
+  // Step 2: livestream_brands テーブルから、このブランドに紐付く配信IDと時間を取得（副ブランド対応）
   const linkedRows = await db
-    .select({ livestreamId: livestreamBrands.livestreamId })
+    .select({ livestreamId: livestreamBrands.livestreamId, durationMinutes: livestreamBrands.durationMinutes })
     .from(livestreamBrands)
     .where(eq(livestreamBrands.brandId, brandId));
   const linkedIds = linkedRows.map(r => r.livestreamId);
+  // ブランド別の配信時間マップ（livestreamId → durationMinutes）
+  const brandDurationMap = new Map<number, number>();
+  for (const row of linkedRows) {
+    if (row.durationMinutes) {
+      brandDurationMap.set(row.livestreamId, row.durationMinutes);
+    }
+  }
   
   // Step 3: 直接マッチに含まれないIDのみ追加取得
   const directIds = new Set(directLivestreams.map(ls => ls.id));
@@ -1173,21 +1180,47 @@ export async function getLivestreamsByBrandId(brandId: number) {
   const allLivestreams = [...directLivestreams, ...additionalLivestreams]
     .sort((a, b) => new Date(b.livestreamDate).getTime() - new Date(a.livestreamDate).getTime());
   
-  // 各直播の商品別GMV合計を取得
+  // 各直播のブランド別GMVと時間を取得
   const livestreamsWithGmv = await Promise.all(
     allLivestreams.map(async (ls) => {
-      const products = await db
+      // ブランド別の商品GMVを取得（livestream_productsのbrandIdでフィルタ）
+      const brandProducts = await db
+        .select()
+        .from(livestreamProducts)
+        .where(and(
+          eq(livestreamProducts.livestreamId, ls.id),
+          eq(livestreamProducts.brandId, brandId)
+        ));
+      const brandGmvTotal = brandProducts.reduce((sum, p) => sum + (p.gmv || p.grossRevenue || 0), 0);
+      const brandProductCount = brandProducts.length;
+      
+      // 全商品のGMV合計（フォールバック用）
+      const allProducts = await db
         .select()
         .from(livestreamProducts)
         .where(eq(livestreamProducts.livestreamId, ls.id));
+      const productGmvTotal = allProducts.reduce((sum, p) => sum + (p.gmv || p.grossRevenue || 0), 0);
+      const productCount = allProducts.length;
       
-      const productGmvTotal = products.reduce((sum, p) => sum + (p.gmv || 0), 0);
-      const productCount = products.length;
+      // ブランド別の配信時間を取得（livestream_brandsから）
+      const brandDuration = brandDurationMap.get(ls.id);
       
+      // GMV: ブランド別商品がある場合はそのGMV、なければ全体GMV
+      // 時間: ブランド別時間がある場合はそれを使用、なければ全体時間
       return {
         ...ls,
+        // ブランド別GMV（商品別売上CSVから）
+        gmv: brandGmvTotal > 0 ? brandGmvTotal : (ls.gmv || ls.salesAmount || 0),
+        salesAmount: brandGmvTotal > 0 ? brandGmvTotal : (ls.salesAmount || 0),
+        // ブランド別配信時間
+        duration: brandDuration || ls.duration,
+        // 元の全体値も保持
         productGmvTotal,
         productCount,
+        brandGmvTotal,
+        brandProductCount,
+        originalGmv: ls.gmv,
+        originalDuration: ls.duration,
       };
     })
   );
@@ -1222,14 +1255,20 @@ export async function getAllLivestreams() {
 // Get livestream statistics for a brand
 export async function getLivestreamStatsByBrandId(brandId: number) {
   const db = await getDb();
-  if (!db) return { totalSales: 0, totalStreams: 0, avgSales: 0 };
+  if (!db) return { totalSales: 0, totalStreams: 0, avgSales: 0, totalDuration: 0 };
   // Direct match
   const directLivestreams = await db.select().from(brandLivestreams).where(and(eq(brandLivestreams.brandId, brandId), isNull(brandLivestreams.deletedAt)));
   // Also include livestreams linked via livestream_brands junction table
   const linkedRows = await db
-    .select({ livestreamId: livestreamBrands.livestreamId })
+    .select({ livestreamId: livestreamBrands.livestreamId, durationMinutes: livestreamBrands.durationMinutes })
     .from(livestreamBrands)
     .where(eq(livestreamBrands.brandId, brandId));
+  const brandDurationMap = new Map<number, number>();
+  for (const row of linkedRows) {
+    if (row.durationMinutes) {
+      brandDurationMap.set(row.livestreamId, row.durationMinutes);
+    }
+  }
   const directIds = new Set(directLivestreams.map(ls => ls.id));
   const additionalIds = linkedRows.map(r => r.livestreamId).filter(id => !directIds.has(id));
   let additionalLivestreams: typeof directLivestreams = [];
@@ -1240,10 +1279,27 @@ export async function getLivestreamStatsByBrandId(brandId: number) {
     ));
   }
   const allLivestreams = [...directLivestreams, ...additionalLivestreams];
-  const totalSales = allLivestreams.reduce((sum, ls) => sum + (ls.salesAmount || 0), 0);
+  // ブランド別GMVを計算（livestream_productsのbrandIdでフィルタ）
+  let totalSales = 0;
+  let totalDuration = 0;
+  for (const ls of allLivestreams) {
+    // ブランド別商品GMV
+    const brandProducts = await db
+      .select()
+      .from(livestreamProducts)
+      .where(and(
+        eq(livestreamProducts.livestreamId, ls.id),
+        eq(livestreamProducts.brandId, brandId)
+      ));
+    const brandGmv = brandProducts.reduce((sum, p) => sum + (p.gmv || p.grossRevenue || 0), 0);
+    totalSales += brandGmv > 0 ? brandGmv : (ls.gmv || ls.salesAmount || 0);
+    // ブランド別配信時間
+    const brandDuration = brandDurationMap.get(ls.id);
+    totalDuration += brandDuration || ls.duration || 0;
+  }
   const totalStreams = allLivestreams.length;
   const avgSales = totalStreams > 0 ? Math.round(totalSales / totalStreams) : 0;
-  return { totalSales, totalStreams, avgSales };
+  return { totalSales, totalStreams, avgSales, totalDuration };
 }
 
 
