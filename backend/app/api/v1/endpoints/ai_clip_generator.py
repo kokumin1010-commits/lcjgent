@@ -2061,50 +2061,20 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
         vf_parts.append(f"select='{select_expr}'")
         vf_parts.append("setpts=N/FRAME_RATE/TB")
         af_chain = f"aselect='{select_expr}',asetpts=N/SR/TB"
-        # V14.1: セグメント境界にミニフェードを挿入してカクつきを軽減
-        # 【修正】ffmpegのfadeフィルタは累積適用されるため、境界数が多いと
-        # 映像全体が黒くなるバグがあった。最大2境界（4フィルタ）に制限し、
-        # セグメントが短い場合はスキップする。
-        enable_transitions = getattr(req, 'enable_transitions', True)
-        if enable_transitions and len(keep_segments) >= 2:
-            raw_fade_dur = getattr(req, 'transition_duration', 0.12)
-            fade_dur = max(0.06, min(raw_fade_dur, 0.15))  # 0.06-0.15秒の範囲（短縮）
-            # セグメント境界の出力時間軸上の位置を計算
-            boundary_times = []
-            cumulative = 0.0
-            for seg_start, seg_end in keep_segments[:-1]:
-                seg_duration = seg_end - seg_start
-                cumulative += seg_duration
-                # セグメントが短すぎる場合（fade_dur*6未満）はスキップ
-                if seg_duration >= fade_dur * 6:
-                    boundary_times.append(cumulative)
-            # 【重要】境界数が多すぎる場合はfadeを完全にスキップ（黒画面防止）
-            # ffmpegのfadeフィルタは全フレームに対して順番に適用されるため、
-            # 多数のfadeが累積すると映像が暗く/黒くなる
-            MAX_FADE_BOUNDARIES = 2
-            if len(boundary_times) > MAX_FADE_BOUNDARIES:
-                # 境界が多すぎる場合、最初と最後の境界のみ保持（視覚的に最も効果的）
-                logger.info(f"[ai-clip] V14.1: Limited fade boundaries from {len(boundary_times)} to {MAX_FADE_BOUNDARIES}")
-                boundary_times = [boundary_times[0], boundary_times[-1]]
-            # 各境界にfade out→fade inを適用（短いクロスフェード効果）
-            fade_parts = []
-            for bt in boundary_times:
-                fade_out_start = max(0, bt - fade_dur)
-                fade_in_start = bt
-                fade_parts.append(f"fade=t=out:st={fade_out_start:.3f}:d={fade_dur:.3f}")
-                fade_parts.append(f"fade=t=in:st={fade_in_start:.3f}:d={fade_dur:.3f}")
-            if fade_parts:
-                vf_parts.extend(fade_parts)
-                logger.info(f"[ai-clip] V14.1: Added {len(boundary_times)} segment boundary fades "
-                            f"(fade_dur={fade_dur:.2f}s, boundaries={[f'{t:.1f}s' for t in boundary_times]})")
-                # 音声にも同様のフェードを適用（ポップノイズ防止）
-                audio_fades = []
-                for bt in boundary_times:
-                    fade_out_start = max(0, bt - fade_dur)
-                    audio_fades.append(f"afade=t=out:st={fade_out_start:.3f}:d={fade_dur:.3f}")
-                    audio_fades.append(f"afade=t=in:st={bt:.3f}:d={fade_dur:.3f}")
-                if audio_fades:
-                    af_chain = af_chain + "," + ",".join(audio_fades)
+        # V14.2: セグメント境界フェードを完全に無効化
+        # 【根本原因】ffmpegのfadeフィルタをチェーンで使うと全フレームが黒になる:
+        #   fade=t=out:st=S:d=D → S+D以降は完全に黒
+        #   fade=t=in:st=S:d=D → S以前は完全に黒
+        #   この2つをチェーンすると、fade=t=inがfade=t=outの出力（S以前は通常）を
+        #   黒に上書きし、fade=t=outがfade=t=inの出力（S+D以降は通常）を黒に上書きする。
+        #   結果: 全フレームが黒になる。
+        # 【証明】テストで確認済み: fade=t=out:st=5:d=0.15,fade=t=in:st=5:d=0.15 → 全ピクセル=0
+        # 【解決】セグメント境界フェードは視覚的効果が微小（0.15秒）であり、
+        #   黒画面リスクに見合わないため完全に無効化する。
+        #   カット境界のスムーズ化はselect+setptsによる自然な結合で十分。
+        if len(keep_segments) >= 2:
+            logger.info(f"[ai-clip] V14.2: Segment boundary fades DISABLED "
+                        f"(segments={len(keep_segments)}, reason=ffmpeg fade chain causes black screen)")
         # V2.18: overlay_imagesとzoom_keyframesのタイミングをリマッピング
         # select+setpts後の出力時間軸に合わせる（字幕ズレ修正）
         overlay_images = _remap_overlay_images_for_silence_trim(overlay_images, keep_segments)
