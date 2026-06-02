@@ -9,6 +9,7 @@ import OBSOutputPage from './components/OBSOutputPage'
 import PersonaPage from './components/PersonaPage'
 import LiverClonePage from './components/LiverClonePage'
 import MagicCutPage from './components/MagicCutPage'
+import AiVideoGeneratorPage from './components/AiVideoGeneratorPage'
 import ScriptGeneratorPage from './components/ScriptGeneratorPage'
 import PrivacyPolicy from './components/PrivacyPolicy'
 import AuthPage from './pages/authPages/AuthPage'
@@ -67,6 +68,7 @@ function App() {
             <Route path="/personas" element={<PersonaPage />} />
             <Route path="/liver-clone" element={<LiverClonePage />} />
             <Route path="/magic-cut" element={<MagicCutPage />} />
+            <Route path="/ai-video-generator" element={<AiVideoGeneratorPage />} />
             <Route path="/script-generator" element={<ScriptGeneratorPage />} />
             <Route path="/login" element={<AuthPage mode="login" />} />
             <Route path="/register" element={<AuthPage mode="register" />} />

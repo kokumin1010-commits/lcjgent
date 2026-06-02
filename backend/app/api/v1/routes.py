@@ -40,6 +40,7 @@ from app.api.v1.endpoints.liver_clone import router as liver_clone_router
 from app.api.v1.endpoints.magic_cut import router as magic_cut_router
 from app.api.v1.endpoints.editing_style import router as editing_style_router
 from app.api.v1.endpoints.user_profile import router as user_profile_router
+from app.api.v1.endpoints.ai_video_generator import router as ai_video_generator_router
 
 routers = APIRouter()
 routers.include_router(auth_router, prefix="/auth", tags=["Auth"])
@@ -82,3 +83,4 @@ routers.include_router(liver_clone_router, tags=["Liver Clone"])
 routers.include_router(magic_cut_router, tags=["Magic Cut"])
 routers.include_router(editing_style_router, tags=["Editing Style Learning"])
 routers.include_router(user_profile_router, tags=["User Profile"])
+routers.include_router(ai_video_generator_router, tags=["AI Video Generator"])

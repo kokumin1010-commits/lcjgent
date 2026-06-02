@@ -916,6 +916,15 @@ export default function AiLiveCreatorPage() {
               </button>
             </div>
 
+            {/* AI Video Generator Link */}
+            <button
+              onClick={() => navigate("/ai-video-generator")}
+              className="px-3 py-1.5 bg-gradient-to-r from-purple-600/80 to-pink-600/80 hover:from-purple-500 hover:to-pink-500 rounded-lg text-[11px] font-medium text-white flex items-center gap-1.5 transition-all shadow-sm"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              AI Video Gen
+            </button>
+
             {/* GPU Status */}
             <div className="flex items-center gap-2 bg-gray-800/50 px-3 py-1.5 rounded-lg border border-gray-700/30">
               <div className={`w-2 h-2 rounded-full ${health?.status === "ok" ? "bg-green-500 animate-pulse" : health?.status === "not_configured" ? "bg-yellow-500" : "bg-red-500"}`} />
