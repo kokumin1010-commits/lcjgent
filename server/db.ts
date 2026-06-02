@@ -1147,11 +1147,35 @@ export async function getLivestreamsByBrandId(brandId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  const livestreams = await db.select().from(brandLivestreams).where(and(eq(brandLivestreams.brandId, brandId), isNull(brandLivestreams.deletedAt))).orderBy(desc(brandLivestreams.livestreamDate));
+  // Step 1: brand_livestreams.brandId = brandId の直接マッチ
+  const directLivestreams = await db.select().from(brandLivestreams).where(and(eq(brandLivestreams.brandId, brandId), isNull(brandLivestreams.deletedAt))).orderBy(desc(brandLivestreams.livestreamDate));
+  
+  // Step 2: livestream_brands テーブルから、このブランドに紐付く配信IDを取得（副ブランド対応）
+  const linkedRows = await db
+    .select({ livestreamId: livestreamBrands.livestreamId })
+    .from(livestreamBrands)
+    .where(eq(livestreamBrands.brandId, brandId));
+  const linkedIds = linkedRows.map(r => r.livestreamId);
+  
+  // Step 3: 直接マッチに含まれないIDのみ追加取得
+  const directIds = new Set(directLivestreams.map(ls => ls.id));
+  const additionalIds = linkedIds.filter(id => !directIds.has(id));
+  
+  let additionalLivestreams: typeof directLivestreams = [];
+  if (additionalIds.length > 0) {
+    additionalLivestreams = await db.select().from(brandLivestreams).where(and(
+      inArray(brandLivestreams.id, additionalIds),
+      isNull(brandLivestreams.deletedAt)
+    )).orderBy(desc(brandLivestreams.livestreamDate));
+  }
+  
+  // Step 4: マージして日付順にソート
+  const allLivestreams = [...directLivestreams, ...additionalLivestreams]
+    .sort((a, b) => new Date(b.livestreamDate).getTime() - new Date(a.livestreamDate).getTime());
   
   // 各直播の商品別GMV合計を取得
   const livestreamsWithGmv = await Promise.all(
-    livestreams.map(async (ls) => {
+    allLivestreams.map(async (ls) => {
       const products = await db
         .select()
         .from(livestreamProducts)
@@ -1167,7 +1191,6 @@ export async function getLivestreamsByBrandId(brandId: number) {
       };
     })
   );
-  
   return livestreamsWithGmv;
 }
 
@@ -1200,13 +1223,26 @@ export async function getAllLivestreams() {
 export async function getLivestreamStatsByBrandId(brandId: number) {
   const db = await getDb();
   if (!db) return { totalSales: 0, totalStreams: 0, avgSales: 0 };
-  
-  const livestreams = await db.select().from(brandLivestreams).where(and(eq(brandLivestreams.brandId, brandId), isNull(brandLivestreams.deletedAt)));
-  
-  const totalSales = livestreams.reduce((sum, ls) => sum + (ls.salesAmount || 0), 0);
-  const totalStreams = livestreams.length;
+  // Direct match
+  const directLivestreams = await db.select().from(brandLivestreams).where(and(eq(brandLivestreams.brandId, brandId), isNull(brandLivestreams.deletedAt)));
+  // Also include livestreams linked via livestream_brands junction table
+  const linkedRows = await db
+    .select({ livestreamId: livestreamBrands.livestreamId })
+    .from(livestreamBrands)
+    .where(eq(livestreamBrands.brandId, brandId));
+  const directIds = new Set(directLivestreams.map(ls => ls.id));
+  const additionalIds = linkedRows.map(r => r.livestreamId).filter(id => !directIds.has(id));
+  let additionalLivestreams: typeof directLivestreams = [];
+  if (additionalIds.length > 0) {
+    additionalLivestreams = await db.select().from(brandLivestreams).where(and(
+      inArray(brandLivestreams.id, additionalIds),
+      isNull(brandLivestreams.deletedAt)
+    ));
+  }
+  const allLivestreams = [...directLivestreams, ...additionalLivestreams];
+  const totalSales = allLivestreams.reduce((sum, ls) => sum + (ls.salesAmount || 0), 0);
+  const totalStreams = allLivestreams.length;
   const avgSales = totalStreams > 0 ? Math.round(totalSales / totalStreams) : 0;
-  
   return { totalSales, totalStreams, avgSales };
 }
 

@@ -10687,8 +10687,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
         }
 
         // 当月の配信データをライバー別に集計（ハイブリッド: livestream_brandsを優先、なければbrand_livestreamsにフォールバック）
-        // Step 1: brand_livestreamsから当月の全配信を取得
-        const livestreams = await db
+        // Step 1: brand_livestreamsから当月の直接マッチ配信を取得
+        const directLivestreams = await db
           .select({
             id: brandLivestreams.id,
             liverId: brandLivestreams.liverId,
@@ -10705,6 +10705,34 @@ Return ONLY valid JSON, no markdown or explanation.`,
             gte(brandLivestreams.livestreamDate, jstStart),
             lte(brandLivestreams.livestreamDate, jstEnd)
           ));
+        // Step 1b: livestream_brandsテーブルから副ブランドとして紐付く配信も取得
+        const linkedLbRows = await db
+          .select({ livestreamId: livestreamBrands.livestreamId })
+          .from(livestreamBrands)
+          .where(eq(livestreamBrands.brandId, brandId));
+        const directIdSet = new Set(directLivestreams.map(ls => ls.id));
+        const additionalLinkedIds = linkedLbRows.map(r => r.livestreamId).filter(id => !directIdSet.has(id));
+        let additionalLivestreams: typeof directLivestreams = [];
+        if (additionalLinkedIds.length > 0) {
+          additionalLivestreams = await db
+            .select({
+              id: brandLivestreams.id,
+              liverId: brandLivestreams.liverId,
+              streamerName: brandLivestreams.streamerName,
+              duration: brandLivestreams.duration,
+              gmv: brandLivestreams.gmv,
+              salesAmount: brandLivestreams.salesAmount,
+              livestreamDate: brandLivestreams.livestreamDate,
+            })
+            .from(brandLivestreams)
+            .where(and(
+              inArray(brandLivestreams.id, additionalLinkedIds),
+              isNull(brandLivestreams.deletedAt),
+              gte(brandLivestreams.livestreamDate, jstStart),
+              lte(brandLivestreams.livestreamDate, jstEnd)
+            ));
+        }
+        const livestreams = [...directLivestreams, ...additionalLivestreams];
         // Step 2: livestream_brandsから正確なブランド別時間を取得（このブランドに対する分割時間）
         const livestreamIds = livestreams.map(ls => ls.id).filter(Boolean);
         let accurateDurations: Map<number, number> = new Map(); // livestreamId -> durationMinutes
@@ -10968,7 +10996,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
           const lastDay = new Date(y, m + 1, 0).getDate();
           const jstEnd = new Date(Date.UTC(y, m, lastDay, 23, 59, 59) - 9 * 60 * 60 * 1000);
 
-          const livestreams = await db
+          // 直接マッチ配信を取得
+          const directMonthLivestreams = await db
             .select({
               id: brandLivestreams.id,
               streamerName: brandLivestreams.streamerName,
@@ -10983,6 +11012,32 @@ Return ONLY valid JSON, no markdown or explanation.`,
               gte(brandLivestreams.livestreamDate, jstStart),
               lte(brandLivestreams.livestreamDate, jstEnd)
             ));
+          // livestream_brandsから副ブランド配信も取得
+          const monthLinkedRows = await db
+            .select({ livestreamId: livestreamBrands.livestreamId })
+            .from(livestreamBrands)
+            .where(eq(livestreamBrands.brandId, brandId));
+          const directMonthIdSet = new Set(directMonthLivestreams.map(ls => ls.id));
+          const additionalMonthIds = monthLinkedRows.map(r => r.livestreamId).filter(id => !directMonthIdSet.has(id));
+          let additionalMonthLivestreams: typeof directMonthLivestreams = [];
+          if (additionalMonthIds.length > 0) {
+            additionalMonthLivestreams = await db
+              .select({
+                id: brandLivestreams.id,
+                streamerName: brandLivestreams.streamerName,
+                duration: brandLivestreams.duration,
+                gmv: brandLivestreams.gmv,
+                salesAmount: brandLivestreams.salesAmount,
+              })
+              .from(brandLivestreams)
+              .where(and(
+                inArray(brandLivestreams.id, additionalMonthIds),
+                isNull(brandLivestreams.deletedAt),
+                gte(brandLivestreams.livestreamDate, jstStart),
+                lte(brandLivestreams.livestreamDate, jstEnd)
+              ));
+          }
+          const livestreams = [...directMonthLivestreams, ...additionalMonthLivestreams];
 
           // ハイブリッド: livestream_brandsから正確なブランド別時間を取得
           const monthLsIds = livestreams.map(ls => ls.id).filter(Boolean);
@@ -11140,6 +11195,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
 
         const allLivestreams = await db
           .select({
+            id: brandLivestreams.id,
             brandId: brandLivestreams.brandId,
             streamerName: brandLivestreams.streamerName,
             duration: brandLivestreams.duration,
@@ -11153,16 +11209,49 @@ Return ONLY valid JSON, no markdown or explanation.`,
             lte(brandLivestreams.livestreamDate, jstEnd)
           ));
 
+        // livestream_brandsから副ブランド紐付けも取得し、ブランド別に配信をマッピング
+        const allLbRows = await db
+          .select({
+            livestreamId: livestreamBrands.livestreamId,
+            brandId: livestreamBrands.brandId,
+            durationMinutes: livestreamBrands.durationMinutes,
+          })
+          .from(livestreamBrands);
+        // livestreamId -> 配信データのマップを作成
+        const livestreamDataMap = new Map(allLivestreams.map(ls => [ls.id, ls]));
+
         // ブランドごとに配信データを集計
         const brandLivestreamMap: Record<number, { kgMin: number; liverMin: number; gmv: number; count: number }> = {};
+        // 重複カウント防止用: brandId -> Set<livestreamId>
+        const brandCountedIds: Record<number, Set<number>> = {};
+        // Step 1: 直接マッチ（brand_livestreams.brandId）を集計
         for (const ls of allLivestreams) {
           if (!brandLivestreamMap[ls.brandId]) brandLivestreamMap[ls.brandId] = { kgMin: 0, liverMin: 0, gmv: 0, count: 0 };
+          if (!brandCountedIds[ls.brandId]) brandCountedIds[ls.brandId] = new Set();
+          brandCountedIds[ls.brandId].add(ls.id);
           const dur = ls.duration || 0;
           const isKg = (ls.streamerName || '').includes('KG') || (ls.streamerName || '').includes('老师') || (ls.streamerName || '').includes('kg');
           if (isKg) brandLivestreamMap[ls.brandId].kgMin += dur;
           else brandLivestreamMap[ls.brandId].liverMin += dur;
           brandLivestreamMap[ls.brandId].gmv += (ls.gmv || ls.salesAmount || 0);
           brandLivestreamMap[ls.brandId].count += 1;
+        }
+        // Step 2: livestream_brandsから副ブランド配信を追加集計
+        for (const lbRow of allLbRows) {
+          const lsData = livestreamDataMap.get(lbRow.livestreamId);
+          if (!lsData) continue; // 当月の配信でない場合はスキップ
+          const bid = lbRow.brandId;
+          if (!brandCountedIds[bid]) brandCountedIds[bid] = new Set();
+          if (brandCountedIds[bid].has(lbRow.livestreamId)) continue; // 既にカウント済み
+          brandCountedIds[bid].add(lbRow.livestreamId);
+          if (!brandLivestreamMap[bid]) brandLivestreamMap[bid] = { kgMin: 0, liverMin: 0, gmv: 0, count: 0 };
+          // livestream_brandsに正確な時間があればそれを使用、なければ配信全体のdurationを使用
+          const dur = (lbRow.durationMinutes && lbRow.durationMinutes > 0) ? lbRow.durationMinutes : (lsData.duration || 0);
+          const isKg = (lsData.streamerName || '').includes('KG') || (lsData.streamerName || '').includes('老师') || (lsData.streamerName || '').includes('kg');
+          if (isKg) brandLivestreamMap[bid].kgMin += dur;
+          else brandLivestreamMap[bid].liverMin += dur;
+          brandLivestreamMap[bid].gmv += (lsData.gmv || lsData.salesAmount || 0);
+          brandLivestreamMap[bid].count += 1;
         }
 
         // 各ブランドの進捗を計算
