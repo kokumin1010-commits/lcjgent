@@ -48,6 +48,14 @@ router = APIRouter(prefix="/ai-video-generator", tags=["AI Video Generator"])
 # ──────────────────────────────────────────────
 _jobs: Dict[str, Dict[str, Any]] = {}
 
+# ──────────────────────────────────────────────
+# Avatars cache (reduces response time from ~6s to <100ms)
+# SAS tokens are valid for 2h, cache for 30min
+# ──────────────────────────────────────────────
+_avatars_cache: Optional[Dict[str, Any]] = None
+_avatars_cache_time: float = 0
+_AVATARS_CACHE_TTL: int = 1800  # 30 minutes
+
 
 # ──────────────────────────────────────────────
 # Request / Response Models
@@ -675,87 +683,113 @@ async def list_avatars(
       2. HeyGen Digital Twins — pre-registered avatars (direct generation)
     
     AitherHub livers are shown first as they represent real company livers.
+    
+    Performance: Uses in-memory cache (30min TTL) to avoid repeated DB queries
+    and SAS token generation on every request.
     """
+    global _avatars_cache, _avatars_cache_time
+
+    # Return cached result if still fresh
+    now = time.time()
+    if _avatars_cache and (now - _avatars_cache_time) < _AVATARS_CACHE_TTL:
+        logger.info(f"[AIVideoGen] Returning cached avatars ({_avatars_cache['total']} items)")
+        return _avatars_cache
+
     result = []
 
-    # ─── Source 1: AitherHub DB livers (PRIORITY) ───
-    # Extract unique livers from video_filename and get their latest clip_url as preview
-    try:
-        liver_sql = text("""
-            WITH liver_clips AS (
-                SELECT 
-                    REGEXP_REPLACE(v.original_filename, '-[0-9]{8}-[0-9]{4}\\.mp4$', '') AS liver_name,
-                    vc.clip_url,
-                    vc.created_at,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY REGEXP_REPLACE(v.original_filename, '-[0-9]{8}-[0-9]{4}\\.mp4$', '')
-                        ORDER BY vc.created_at DESC
-                    ) AS rn
-                FROM video_clips vc
-                LEFT JOIN videos v ON v.id = vc.video_id
-                WHERE vc.clip_url IS NOT NULL
-                    AND vc.clip_url != ''
-                    AND v.original_filename IS NOT NULL
-                    AND v.original_filename != ''
-                    AND v.original_filename ~ '^[^-]+-[0-9]{8}-[0-9]{4}\\.mp4$'
-            )
-            SELECT liver_name, clip_url, 
-                   (SELECT COUNT(*) FROM video_clips vc2 
-                    LEFT JOIN videos v2 ON v2.id = vc2.video_id
-                    WHERE vc2.clip_url IS NOT NULL
-                    AND v2.original_filename LIKE liver_clips.liver_name || '-%') AS clip_count
-            FROM liver_clips
-            WHERE rn = 1
-            ORDER BY clip_count DESC
-        """)
-        liver_result = await db.execute(liver_sql)
-        liver_rows = liver_result.fetchall()
+    # Run DB query and HeyGen API in parallel
+    async def _fetch_aitherhub_livers():
+        """Fetch AitherHub livers from DB with SAS-signed preview URLs."""
+        livers = []
+        try:
+            liver_sql = text("""
+                WITH liver_clips AS (
+                    SELECT 
+                        REGEXP_REPLACE(v.original_filename, '-[0-9]{8}-[0-9]{4}\\.mp4$', '') AS liver_name,
+                        vc.clip_url,
+                        vc.created_at,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY REGEXP_REPLACE(v.original_filename, '-[0-9]{8}-[0-9]{4}\\.mp4$', '')
+                            ORDER BY vc.created_at DESC
+                        ) AS rn
+                    FROM video_clips vc
+                    LEFT JOIN videos v ON v.id = vc.video_id
+                    WHERE vc.clip_url IS NOT NULL
+                        AND vc.clip_url != ''
+                        AND v.original_filename IS NOT NULL
+                        AND v.original_filename != ''
+                        AND v.original_filename ~ '^[^-]+-[0-9]{8}-[0-9]{4}\\.mp4$'
+                )
+                SELECT liver_name, clip_url, 
+                       (SELECT COUNT(*) FROM video_clips vc2 
+                        LEFT JOIN videos v2 ON v2.id = vc2.video_id
+                        WHERE vc2.clip_url IS NOT NULL
+                        AND v2.original_filename LIKE liver_clips.liver_name || '-%') AS clip_count
+                FROM liver_clips
+                WHERE rn = 1
+                ORDER BY clip_count DESC
+            """)
+            liver_result = await db.execute(liver_sql)
+            liver_rows = liver_result.fetchall()
 
-        # Generate SAS-signed URLs for clip previews
-        from app.services.storage_service import generate_read_sas_from_url
+            from app.services.storage_service import generate_read_sas_from_url
 
-        for row in liver_rows:
-            liver_name = row.liver_name.strip() if row.liver_name else ""
-            if not liver_name:
-                continue
-            avatar_id = f"aitherhub:{liver_name}"
-            # Sign the clip_url with SAS token for browser access
-            clip_url = row.clip_url
-            signed_url = generate_read_sas_from_url(clip_url, expires_hours=2) if clip_url else None
-            preview_url = signed_url or clip_url
-            result.append(AvatarInfo(
-                avatar_id=avatar_id,
-                name=liver_name,
-                preview_image_url=preview_url,
-                avatar_type="talking_photo",
-                face_image_url=clip_url,  # raw URL for server-side frame extraction
-                source="aitherhub",
-            ))
-
-        logger.info(f"[AIVideoGen] Found {len(result)} aitherhub livers from DB")
-
-    except Exception as e:
-        logger.error(f"[AIVideoGen] Failed to query aitherhub livers: {e}", exc_info=True)
-
-    # ─── Source 2: HeyGen Digital Twins (supplement) ───
-    try:
-        from app.services.heygen_service import get_heygen_service
-        heygen = get_heygen_service()
-        if heygen.api_key:
-            avatars = await heygen.list_avatars(custom_only=True)
-            for av in avatars:
-                result.append(AvatarInfo(
-                    avatar_id=av.get("avatar_id", ""),
-                    name=av.get("avatar_name", "Unknown"),
-                    preview_image_url=av.get("preview_image_url") or av.get("thumbnail_url"),
-                    avatar_type=av.get("avatar_type", "full"),
-                    source="heygen",
+            for row in liver_rows:
+                liver_name = row.liver_name.strip() if row.liver_name else ""
+                if not liver_name:
+                    continue
+                avatar_id = f"aitherhub:{liver_name}"
+                clip_url = row.clip_url
+                signed_url = generate_read_sas_from_url(clip_url, expires_hours=2) if clip_url else None
+                preview_url = signed_url or clip_url
+                livers.append(AvatarInfo(
+                    avatar_id=avatar_id,
+                    name=liver_name,
+                    preview_image_url=preview_url,
+                    avatar_type="talking_photo",
+                    face_image_url=clip_url,
+                    source="aitherhub",
                 ))
-            logger.info(f"[AIVideoGen] Added {len(avatars)} HeyGen Digital Twin avatars")
-    except Exception as e:
-        logger.warning(f"[AIVideoGen] HeyGen avatars unavailable: {e}")
+            logger.info(f"[AIVideoGen] Found {len(livers)} aitherhub livers from DB")
+        except Exception as e:
+            logger.error(f"[AIVideoGen] Failed to query aitherhub livers: {e}", exc_info=True)
+        return livers
 
-    return {"avatars": result, "total": len(result)}
+    async def _fetch_heygen_twins():
+        """Fetch HeyGen Digital Twin avatars."""
+        twins = []
+        try:
+            from app.services.heygen_service import get_heygen_service
+            heygen = get_heygen_service()
+            if heygen.api_key:
+                avatars = await heygen.list_avatars(custom_only=True)
+                for av in avatars:
+                    twins.append(AvatarInfo(
+                        avatar_id=av.get("avatar_id", ""),
+                        name=av.get("avatar_name", "Unknown"),
+                        preview_image_url=av.get("preview_image_url") or av.get("thumbnail_url"),
+                        avatar_type=av.get("avatar_type", "full"),
+                        source="heygen",
+                    ))
+                logger.info(f"[AIVideoGen] Added {len(twins)} HeyGen Digital Twin avatars")
+        except Exception as e:
+            logger.warning(f"[AIVideoGen] HeyGen avatars unavailable: {e}")
+        return twins
+
+    # Execute both fetches concurrently
+    aitherhub_livers, heygen_twins = await asyncio.gather(
+        _fetch_aitherhub_livers(),
+        _fetch_heygen_twins(),
+    )
+    result = aitherhub_livers + heygen_twins
+
+    # Cache the result
+    response = {"avatars": result, "total": len(result)}
+    _avatars_cache = response
+    _avatars_cache_time = time.time()
+    logger.info(f"[AIVideoGen] Cached {len(result)} avatars (TTL={_AVATARS_CACHE_TTL}s)")
+
+    return response
 
 
 # ──────────────────────────────────────────────

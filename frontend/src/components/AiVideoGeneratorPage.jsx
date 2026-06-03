@@ -87,11 +87,12 @@ export default function AiVideoGeneratorPage() {
     };
   }, []);
 
-  const loadAvatars = async () => {
+  const loadAvatars = async (retryCount = 0) => {
     try {
       setLoadingAvatars(true);
       const res = await axios.get(`${API_BASE}/api/v1/ai-video-generator/avatars`, {
         headers: { "X-Admin-Key": ADMIN_KEY },
+        timeout: 60000, // 60s - SAS token generation can be slow on first call
       });
       setAvatars(res.data.avatars || []);
       if (res.data.avatars?.length > 0) {
@@ -99,6 +100,11 @@ export default function AiVideoGeneratorPage() {
       }
     } catch (err) {
       console.error("Failed to load avatars:", err);
+      // Retry once on timeout/network error
+      if (retryCount < 1 && (err.code === 'ECONNABORTED' || err.message?.includes('timeout') || !err.response)) {
+        console.log("Retrying avatar load...");
+        return loadAvatars(retryCount + 1);
+      }
     } finally {
       setLoadingAvatars(false);
     }
@@ -728,9 +734,18 @@ export default function AiVideoGeneratorPage() {
               </h2>
 
               {loadingAvatars ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
-                  <span className="ml-2 text-gray-400 text-sm">ライバーを読み込み中...</span>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                    <span className="text-gray-400 text-sm">ライバーを読み込み中...</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="rounded-lg overflow-hidden border-2 border-gray-700">
+                        <div className="w-full aspect-[9/16] bg-gray-800 animate-pulse" />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : avatars.length === 0 ? (
                 <p className="text-gray-500 text-sm text-center py-4">
