@@ -612,7 +612,15 @@ async def list_avatars(
         logger.info(f"[AIVideoGen] Found {len(result)} aitherhub livers from DB")
 
     except Exception as e:
-        logger.error(f"[AIVideoGen] Failed to query aitherhub livers: {e}")
+        logger.error(f"[AIVideoGen] Failed to query aitherhub livers: {e}", exc_info=True)
+        # Temporarily include error in response for debugging
+        result.append(AvatarInfo(
+            avatar_id="debug:error",
+            name=f"DB_ERROR: {str(e)[:100]}",
+            preview_image_url="",
+            avatar_type="debug",
+            source="aitherhub",
+        ))
 
     # ─── Source 2: HeyGen Digital Twins (supplement) ───
     try:
