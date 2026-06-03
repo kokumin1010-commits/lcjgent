@@ -1485,7 +1485,7 @@ export default function Chat() {
                         className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
                         onClick={() => {
                           if (confirm(`${member.userName || "このメンバー"}をグループから除外しますか？`)) {
-                            removeMember.mutate({ roomId: selectedRoomId!, memberId: member.userId, memberType: member.userType });
+                            removeMember.mutate({ roomId: selectedRoomId!, userId: member.userId, userType: member.userType });
                           }
                         }}
                         title="メンバーを除外"
