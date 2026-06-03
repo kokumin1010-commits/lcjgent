@@ -28,7 +28,10 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, Header, HTTPException, Query
+import base64
+import re
+
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, File, Header, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,10 +55,11 @@ _jobs: Dict[str, Dict[str, Any]] = {}
 
 class VideoGenerateRequest(BaseModel):
     """Request to generate a product introduction video."""
-    # Product info
-    product_name: str = Field(..., min_length=1, max_length=200, description="商品名")
+    # Product info (all optional - can be auto-detected from image/URL)
+    product_name: Optional[str] = Field(None, max_length=200, description="商品名（省略時は画像/URLから自動取得）")
     product_description: Optional[str] = Field(None, max_length=2000, description="商品説明・特徴")
     product_image_url: Optional[str] = Field(None, description="商品画像URL")
+    product_page_url: Optional[str] = Field(None, description="商品ページURL（楽天/Amazon等）")
     product_price: Optional[str] = Field(None, max_length=200, description="商品価格")
     original_price: Optional[str] = Field(None, max_length=100, description="定価")
     discounted_price: Optional[str] = Field(None, max_length=100, description="割引価格")
@@ -144,6 +148,30 @@ async def _run_pipeline(job_id: str, request: VideoGenerateRequest, db_url: str)
 
     try:
         # ═══════════════════════════════════════════
+        # STEP 0: Auto-detect product info (if not provided)
+        # ═══════════════════════════════════════════
+        if not request.product_name and (request.product_image_url or request.product_page_url):
+            job["status"] = "analyzing_product"
+            job["progress"] = 5
+            job["updated_at"] = datetime.now(timezone.utc).isoformat()
+            try:
+                product_info = await _analyze_product(request)
+                if product_info:
+                    if not request.product_name and product_info.get("name"):
+                        request.product_name = product_info["name"]
+                    if not request.product_description and product_info.get("description"):
+                        request.product_description = product_info["description"]
+                    if not request.original_price and product_info.get("price"):
+                        request.original_price = product_info["price"]
+                    logger.info(f"[AIVideoGen:{job_id}] Product auto-detected: {request.product_name}")
+            except Exception as e:
+                logger.warning(f"[AIVideoGen:{job_id}] Product analysis failed (continuing): {e}")
+
+        # Ensure we have at least a product name
+        if not request.product_name:
+            request.product_name = "商品紹介"  # Fallback
+
+        # ═══════════════════════════════════════════
         # STEP 1: Script Generation
         # ═══════════════════════════════════════════
         job["status"] = "generating_script"
@@ -207,6 +235,95 @@ async def _run_pipeline(job_id: str, request: VideoGenerateRequest, db_url: str)
         job["error"] = str(e)
         job["error_step"] = job.get("status", "unknown")
         job["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+
+async def _analyze_product(request: VideoGenerateRequest) -> Optional[Dict[str, str]]:
+    """
+    Analyze product from image URL or page URL using GPT-4 Vision.
+    Returns dict with: name, description, price, brand, notes
+    """
+    from openai import AsyncOpenAI
+    import httpx
+
+    client = AsyncOpenAI()
+
+    # If product_page_url is provided, try to scrape basic info
+    page_context = ""
+    if request.product_page_url:
+        try:
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as http:
+                resp = await http.get(request.product_page_url, headers={
+                    "User-Agent": "Mozilla/5.0 (compatible; AitherHub/1.0)"
+                })
+                if resp.status_code == 200:
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    title = soup.title.string if soup.title else ""
+                    # Extract meta description
+                    meta_desc = soup.find("meta", attrs={"name": "description"})
+                    desc = meta_desc["content"] if meta_desc and meta_desc.get("content") else ""
+                    # Extract OG image if no product_image_url
+                    if not request.product_image_url:
+                        og_img = soup.find("meta", attrs={"property": "og:image"})
+                        if og_img and og_img.get("content"):
+                            request.product_image_url = og_img["content"]
+                    page_context = f"\n\u30da\u30fc\u30b8\u30bf\u30a4\u30c8\u30eb: {title}\n\u30da\u30fc\u30b8\u8aac\u660e: {desc[:500]}"
+        except Exception as e:
+            logger.warning(f"[AIVideoGen] Page scrape failed: {e}")
+
+    # Build messages for GPT-4 Vision
+    system_msg = (
+        "You are a product information extraction assistant. "
+        "Analyze the product photo/info and extract structured information. "
+        "Return ONLY a valid JSON object with these fields:\n"
+        '- "name": product name (string, required)\n'
+        '- "description": product description including features, key selling points (string)\n'
+        '- "price": price if visible (string, include currency symbol)\n'
+        '- "brand": brand name if visible (string)\n'
+        '- "notes": additional sales points or notable features (string)\n\n'
+        "Detect the language of the product and respond in that language. "
+        "Do NOT wrap the JSON in markdown code blocks."
+    )
+
+    user_content = []
+    user_text = "\u3053\u306e\u5546\u54c1\u306e\u60c5\u5831\u3092\u89e3\u6790\u3057\u3066\u3001JSON\u5f62\u5f0f\u3067\u8fd4\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+    if page_context:
+        user_text += page_context
+    user_content.append({"type": "text", "text": user_text})
+
+    if request.product_image_url:
+        user_content.append({
+            "type": "image_url",
+            "image_url": {"url": request.product_image_url, "detail": "high"},
+        })
+
+    response = await client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_content},
+        ],
+        max_tokens=1000,
+        temperature=0.2,
+    )
+
+    raw_text = response.choices[0].message.content.strip()
+
+    # Parse JSON
+    json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', raw_text)
+    if json_match:
+        raw_text = json_match.group(1).strip()
+
+    try:
+        product_data = json.loads(raw_text)
+    except json.JSONDecodeError:
+        json_match2 = re.search(r'\{[\s\S]*\}', raw_text)
+        if json_match2:
+            product_data = json.loads(json_match2.group())
+        else:
+            return None
+
+    return product_data
 
 
 async def _generate_script(request: VideoGenerateRequest) -> str:
@@ -639,3 +756,160 @@ async def list_avatars(
         logger.warning(f"[AIVideoGen] HeyGen avatars unavailable: {e}")
 
     return {"avatars": result, "total": len(result)}
+
+
+# ──────────────────────────────────────────────
+# POST /ai-video-generator/analyze-product
+# ──────────────────────────────────────────────
+
+@router.post("/analyze-product")
+async def analyze_product_endpoint(
+    image: UploadFile = File(None, description="商品写真（アップロード）"),
+    image_url: str = Query(None, description="商品画像URL"),
+    page_url: str = Query(None, description="商品ページURL（楽天/Amazon等）"),
+    _: bool = Depends(verify_admin_key),
+):
+    """
+    商品情報を自動解析するエンドポイント。
+    
+    3つの入力方法に対応:
+    1. 商品写真アップロード（multipart/form-data）
+    2. 商品画像URL（query parameter）
+    3. 商品ページURL（query parameter）→ スクレイピング + OG画像解析
+    
+    Returns: { success, product: { name, description, price, brand, notes } }
+    """
+    from openai import AsyncOpenAI
+    import httpx
+
+    # Determine the image source
+    actual_image_url = image_url
+    page_context = ""
+
+    # If page_url provided, scrape it for context and OG image
+    if page_url:
+        try:
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as http:
+                resp = await http.get(page_url, headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                })
+                if resp.status_code == 200:
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    title = soup.title.string if soup.title else ""
+                    meta_desc = soup.find("meta", attrs={"name": "description"})
+                    desc = meta_desc["content"] if meta_desc and meta_desc.get("content") else ""
+                    # Get OG image
+                    if not actual_image_url:
+                        og_img = soup.find("meta", attrs={"property": "og:image"})
+                        if og_img and og_img.get("content"):
+                            actual_image_url = og_img["content"]
+                    # Get price from common patterns
+                    price_el = soup.find(class_=re.compile(r"price|Price"))
+                    price_text = price_el.get_text(strip=True)[:50] if price_el else ""
+                    page_context = f"\nページタイトル: {title}\nページ説明: {desc[:500]}"
+                    if price_text:
+                        page_context += f"\n検出価格: {price_text}"
+        except Exception as e:
+            logger.warning(f"[AIVideoGen] Page scrape failed: {e}")
+
+    # Build the image content for GPT-4 Vision
+    data_url = None
+    if image and image.filename:
+        # Direct upload
+        content = await image.read()
+        if len(content) > 20 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Image too large. Max 20MB.")
+        content_type = image.content_type or "image/jpeg"
+        if content_type not in ("image/jpeg", "image/png", "image/webp", "image/gif"):
+            content_type = "image/jpeg"
+        b64_image = base64.b64encode(content).decode("utf-8")
+        data_url = f"data:{content_type};base64,{b64_image}"
+
+    if not data_url and not actual_image_url and not page_context:
+        raise HTTPException(
+            status_code=400,
+            detail="商品写真、画像URL、または商品ページURLのいずれかを指定してください。"
+        )
+
+    # Call GPT-4 Vision
+    client = AsyncOpenAI()
+
+    system_msg = (
+        "You are a product information extraction assistant for live commerce. "
+        "Analyze the product photo/info and extract structured information. "
+        "Return ONLY a valid JSON object with these fields:\n"
+        '- "name": product name (string, required)\n'
+        '- "description": product description including features, key selling points, ingredients/effects (string, 2-3 sentences)\n'
+        '- "price": price if visible (string, include currency symbol)\n'
+        '- "brand": brand name if visible (string)\n'
+        '- "notes": additional sales points, target audience, or notable features (string)\n\n'
+        "Detect the language of the product and respond in that language. "
+        "If the product is Japanese, respond in Japanese. "
+        "Do NOT wrap the JSON in markdown code blocks."
+    )
+
+    user_content = []
+    user_text = "この商品の情報を解析して、JSON形式で返してください。"
+    if page_context:
+        user_text += page_context
+    user_content.append({"type": "text", "text": user_text})
+
+    if data_url:
+        user_content.append({
+            "type": "image_url",
+            "image_url": {"url": data_url, "detail": "high"},
+        })
+    elif actual_image_url:
+        user_content.append({
+            "type": "image_url",
+            "image_url": {"url": actual_image_url, "detail": "high"},
+        })
+
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_content},
+            ],
+            max_tokens=1000,
+            temperature=0.2,
+        )
+
+        raw_text = response.choices[0].message.content.strip()
+
+        # Parse JSON
+        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', raw_text)
+        if json_match:
+            raw_text = json_match.group(1).strip()
+
+        try:
+            product_data = json.loads(raw_text)
+        except json.JSONDecodeError:
+            json_match2 = re.search(r'\{[\s\S]*\}', raw_text)
+            if json_match2:
+                product_data = json.loads(json_match2.group())
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail="AIが商品情報を解析できませんでした。別の画像をお試しください。"
+                )
+
+        return {
+            "success": True,
+            "product": {
+                "name": product_data.get("name", ""),
+                "description": product_data.get("description", ""),
+                "price": str(product_data.get("price", "")),
+                "brand": product_data.get("brand", ""),
+                "notes": product_data.get("notes", ""),
+            },
+            "image_url": actual_image_url or (data_url[:50] + "..." if data_url else None),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[AIVideoGen] Product analysis failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"商品解析に失敗しました: {str(e)}")
