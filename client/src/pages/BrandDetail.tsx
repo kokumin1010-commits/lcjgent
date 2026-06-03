@@ -1049,7 +1049,7 @@ export default function BrandDetail() {
 
   // ノルマ進捗データ取得
   const [expandedLiverBreakdown, setExpandedLiverBreakdown] = useState<string | null>(null);
-  const [quotaMonth] = useState(() => {
+  const [quotaMonth, setQuotaMonth] = useState(() => {
     const now = new Date();
     // JST: UTC+9
     const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
@@ -2414,32 +2414,70 @@ ${proposal.proposalContent}
         <LarkTasksSection brandId={brandId} language={language} />
 
         {/* ノルマ進捗セクション - 最上部に配置 */}
-        {quotaProgress && (quotaProgress.quotas.kgLiveHours > 0 || quotaProgress.quotas.liverLiveHours > 0 || quotaProgress.quotas.shortVideoCount > 0) && (
+        {quotaProgress && (
           <div className="bg-gradient-to-br from-cyan-900/30 to-blue-900/20 backdrop-blur-xl rounded-2xl border-2 border-cyan-500/40 p-4 md:p-5 shadow-[0_0_50px_rgba(0,200,255,0.15)]">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <h2 className="text-xl font-bold text-white flex items-center gap-3">
                 <div className="w-1.5 h-8 bg-gradient-to-b from-cyan-400 to-blue-500 rounded-full" />
                 <Target className="h-5 w-5 text-cyan-400" />
-                {language === 'ja' ? `ノルマ進捗 (${quotaProgress.year}年${quotaProgress.month}月)` : `配额进度 (${quotaProgress.year}年${quotaProgress.month}月)`}
+                {language === 'ja' ? `配信時長進捗 (${quotaMonth.year}年${quotaMonth.month}月)` : `直播时长进度 (${quotaMonth.year}年${quotaMonth.month}月)`}
               </h2>
-              {contracts.length > 0 && (
-                <button
-                  onClick={() => {
-                    const activeContract = contracts.find((c: any) => c.status === '契約中');
-                    if (activeContract) {
-                      setEditingContract(activeContract);
-                      setEditContractDialogOpen(true);
-                    } else {
-                      toast.info(language === 'ja' ? 'アクティブな契約がありません' : '没有有效合同');
-                    }
-                  }}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs hover:bg-cyan-500/20 transition-all"
-                >
-                  <Edit2 className="h-3 w-3" />
-                  {language === 'ja' ? 'ノルマ編集' : '编辑配额'}
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {/* 月選択ボタン */}
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => {
+                      const prev = quotaMonth.month === 1 ? { year: quotaMonth.year - 1, month: 12 } : { year: quotaMonth.year, month: quotaMonth.month - 1 };
+                      setQuotaMonth(prev);
+                    }}
+                    className="px-2 py-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs hover:bg-cyan-500/20 transition-all"
+                  >
+                    ◀
+                  </button>
+                  <span className="text-sm text-cyan-200 min-w-[80px] text-center">{quotaMonth.year}/{String(quotaMonth.month).padStart(2, '0')}</span>
+                  <button
+                    onClick={() => {
+                      const next = quotaMonth.month === 12 ? { year: quotaMonth.year + 1, month: 1 } : { year: quotaMonth.year, month: quotaMonth.month + 1 };
+                      setQuotaMonth(next);
+                    }}
+                    className="px-2 py-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs hover:bg-cyan-500/20 transition-all"
+                  >
+                    ▶
+                  </button>
+                  <button
+                    onClick={() => {
+                      const now = new Date();
+                      const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+                      setQuotaMonth({ year: jst.getUTCFullYear(), month: jst.getUTCMonth() + 1 });
+                    }}
+                    className="px-2 py-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs hover:bg-cyan-500/20 transition-all ml-1"
+                  >
+                    {language === 'ja' ? '今月' : '本月'}
+                  </button>
+                </div>
+                {contracts.length > 0 && (
+                  <button
+                    onClick={() => {
+                      const activeContract = contracts.find((c: any) => c.status === '契約中');
+                      if (activeContract) {
+                        setEditingContract(activeContract);
+                        setEditContractDialogOpen(true);
+                      } else {
+                        toast.info(language === 'ja' ? 'アクティブな契約がありません' : '没有有效合同');
+                      }
+                    }}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs hover:bg-cyan-500/20 transition-all"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                    {language === 'ja' ? 'ノルマ編集' : '编辑配额'}
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* ノルマ進捗バー - quotaがある場合のみ表示 */}
+            {(quotaProgress.quotas.kgLiveHours > 0 || quotaProgress.quotas.liverLiveHours > 0 || quotaProgress.quotas.shortVideoCount > 0) && (
+            <div className="mb-4">
 
             {/* 進捗バー */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -2535,8 +2573,10 @@ ${proposal.proposalContent}
                 </div>
               )}
             </div>
+            </div>
+            )}
 
-            {/* ライバー別内訳テーブル */}
+            {/* ライバー別内訳テーブル - quotaの有無に関わらず表示 */}
             {quotaProgress.liverBreakdown.length > 0 && (
               <div className="bg-black/40 rounded-xl border border-cyan-500/10 overflow-hidden">
                 <div className="px-4 py-2 border-b border-cyan-500/10">
@@ -2613,9 +2653,18 @@ ${proposal.proposalContent}
                               <div className="text-xs text-gray-400 mb-2">{language === 'ja' ? '📋 配信内訳（なぜこの時間になっているか）' : '📋 直播明细（时长构成）'}</div>
                               <div className="space-y-1">
                                 {livestreams
-                                  .filter(ls => ls.streamerName === lb.streamerName)
+                                  .filter(ls => {
+                                    if (ls.streamerName !== lb.streamerName) return false;
+                                    // 選択月のデータのみ表示
+                                    if (ls.livestreamDate) {
+                                      const d = new Date(ls.livestreamDate);
+                                      const jstD = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+                                      return jstD.getUTCFullYear() === quotaMonth.year && (jstD.getUTCMonth() + 1) === quotaMonth.month;
+                                    }
+                                    return false;
+                                  })
                                   .sort((a, b) => (b.livestreamDate || '').localeCompare(a.livestreamDate || ''))
-                                  .slice(0, 20)
+                                  .slice(0, 30)
                                   .map((ls, lsIdx) => (
                                     <div key={lsIdx} className="flex items-center justify-between bg-black/30 rounded px-3 py-1.5 hover:bg-cyan-900/20 cursor-pointer" onClick={(e) => { e.stopPropagation(); window.open(`/livestreams/${ls.id}`, '_blank'); }}>
                                       <div className="flex items-center gap-3">
