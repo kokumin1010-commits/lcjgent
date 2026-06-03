@@ -2386,6 +2386,11 @@ async function startServer() {
               console.error("[Migration] Add tracking columns error:", err);
             }
           });
+          import("../migrations/addChatMessageEditRevoke").then(({ addChatMessageEditRevoke }) => {
+            addChatMessageEditRevoke().catch((err: unknown) => {
+              console.error("[Migration] Chat message edit/revoke error:", err);
+            });
+          });
         }
       });
     });

@@ -27399,6 +27399,40 @@ JSON配列のみを出力してください。`;
         `);
         return { roomId, existing: false };
       }),
+    // メッセージ編集
+    editMessage: publicProcedure
+      .input(z.object({ messageId: z.number(), content: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
+        // 自分のメッセージか確認
+        const msgResult = await db.execute(sqlTag`SELECT id, senderId, senderType FROM chat_messages WHERE id = ${input.messageId} LIMIT 1`);
+        const msg = (msgResult as any)[0]?.[0];
+        if (!msg) throw new TRPCError({ code: 'NOT_FOUND', message: 'メッセージが見つかりません' });
+        if (msg.senderId !== chatUser.id || msg.senderType !== chatUser.userType) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '自分のメッセージのみ編集できます' });
+        }
+        await db.execute(sqlTag`UPDATE chat_messages SET content = ${input.content}, editedAt = NOW() WHERE id = ${input.messageId}`);
+        return { success: true };
+      }),
+    // メッセージ撤回
+    revokeMessage: publicProcedure
+      .input(z.object({ messageId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
+        // 自分のメッセージか確認
+        const msgResult = await db.execute(sqlTag`SELECT id, senderId, senderType, createdAt FROM chat_messages WHERE id = ${input.messageId} LIMIT 1`);
+        const msg = (msgResult as any)[0]?.[0];
+        if (!msg) throw new TRPCError({ code: 'NOT_FOUND', message: 'メッセージが見つかりません' });
+        if (msg.senderId !== chatUser.id || msg.senderType !== chatUser.userType) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '自分のメッセージのみ撤回できます' });
+        }
+        await db.execute(sqlTag`UPDATE chat_messages SET isRevoked = 1, content = '' WHERE id = ${input.messageId}`);
+        return { success: true };
+      }),
     // グループの招待コードを生成/取得
     getGroupInviteCode: publicProcedure
       .input(z.object({ roomId: z.number() }))

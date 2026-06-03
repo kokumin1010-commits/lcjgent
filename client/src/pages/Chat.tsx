@@ -201,7 +201,9 @@ export default function Chat() {
   const [liveTranslation, setLiveTranslation] = useState("");
   const [translatingMsgId, setTranslatingMsgId] = useState<number | null>(null);
   const [translatedTexts, setTranslatedTexts] = useState<Record<number, string>>({});
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; msgId: number; content: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; msgId: number; content: string; isMe: boolean } | null>(null);
+  const [editingMsgId, setEditingMsgId] = useState<number | null>(null);
+  const [editingContent, setEditingContent] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const liveTranslateTimer = useRef<any>(null);
@@ -312,6 +314,23 @@ export default function Chat() {
       toast.success("ルーム名を変更しました");
     },
     onError: (err) => toast.error("変更失敗: " + err.message),
+  });
+  const editMessage = trpc.chat.editMessage.useMutation({
+    onSuccess: () => {
+      setEditingMsgId(null);
+      setEditingContent("");
+      refetchMessages();
+      toast.success("メッセージを編集しました");
+    },
+    onError: (err) => toast.error("編集失敗: " + err.message),
+  });
+  const revokeMessage = trpc.chat.revokeMessage.useMutation({
+    onSuccess: () => {
+      refetchMessages();
+      refetchRooms();
+      toast.success("メッセージを撤回しました");
+    },
+    onError: (err) => toast.error("撤回失敗: " + err.message),
   });
 
   // Auto scroll to bottom
@@ -455,9 +474,9 @@ export default function Chat() {
   };
 
   // Right-click context menu handler
-  const handleMessageContextMenu = (e: React.MouseEvent, msgId: number, content: string) => {
+  const handleMessageContextMenu = (e: React.MouseEvent, msgId: number, content: string, isMe: boolean) => {
     e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, msgId, content });
+    setContextMenu({ x: e.clientX, y: e.clientY, msgId, content, isMe });
   };
 
   // ルーム表示名を取得
@@ -506,9 +525,9 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-background">
-      {/* Left Panel - Room List */}
-      <div className={`w-full md:w-80 lg:w-96 border-r flex flex-col ${mobileShowMessages ? "hidden md:flex" : "flex"}`}>
+    <div className="flex h-[calc(100vh-4rem)] min-h-0 overflow-hidden bg-background">
+      {/* Left Panel - Room List (fixed, no scroll on whole panel) */}
+      <div className={`w-full md:w-80 lg:w-96 border-r flex flex-col min-h-0 shrink-0 ${mobileShowMessages ? "hidden md:flex" : "flex"}`}>
         {/* Header with my info */}
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-2">
@@ -617,8 +636,8 @@ export default function Chat() {
         </ScrollArea>
       </div>
 
-      {/* Right Panel - Messages */}
-      <div className={`flex-1 flex flex-col ${!mobileShowMessages ? "hidden md:flex" : "flex"}`}>
+      {/* Right Panel - Messages (scrollable) */}
+      <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${!mobileShowMessages ? "hidden md:flex" : "flex"}`}>
         {!selectedRoomId ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
             <div className="text-center">
@@ -678,7 +697,7 @@ export default function Chat() {
             </div>
 
             {/* Messages */}
-            <ScrollArea className="flex-1 p-4">
+            <ScrollArea className="flex-1 min-h-0 p-4">
               <div className="space-y-3">
                 {(!messages || messages.length === 0) ? (
                   <div className="text-center text-muted-foreground py-8">
@@ -688,6 +707,23 @@ export default function Chat() {
                 ) : (
                   (messages as any[]).map((msg: any) => {
                     const isMe = myInfo && msg.senderId === myInfo.id && msg.senderType === myInfo.userType;
+                    // 撤回済みメッセージ
+                    if (msg.isRevoked) {
+                      return (
+                        <div key={msg.id} className={`flex gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
+                          <Avatar className="h-7 w-7 shrink-0 mt-0.5">
+                            <AvatarFallback className="text-[10px] bg-muted">
+                              {(msg.senderName || "?").charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className={`flex-1 min-w-0 ${isMe ? "text-right" : ""}`}>
+                            <div className={`mt-0.5 inline-block rounded-lg px-3 py-1.5 text-sm bg-muted/50 text-muted-foreground italic border border-dashed`}>
+                              {isMe ? "あなたがメッセージを撤回しました" : `${msg.senderName}がメッセージを撤回しました`}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
                     return (
                       <div key={msg.id} className={`flex gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
                         <Avatar className="h-7 w-7 shrink-0 mt-0.5">
@@ -706,8 +742,34 @@ export default function Chat() {
                             <span className="text-[10px] text-muted-foreground">
                               {msg.createdAt ? formatTimeJST(msg.createdAt) : ""}
                             </span>
+                            {msg.editedAt && (
+                              <span className="text-[9px] text-muted-foreground italic">(編集済)</span>
+                            )}
                           </div>
-                          {msg.messageType === "image" && msg.fileUrl ? (
+                          {/* 編集中のUI */}
+                          {editingMsgId === msg.id ? (
+                            <div className={`mt-1 ${isMe ? "flex justify-end" : ""}`}>
+                              <div className="inline-block w-full max-w-sm">
+                                <Input
+                                  value={editingContent}
+                                  onChange={(e) => setEditingContent(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && !e.shiftKey) {
+                                      e.preventDefault();
+                                      if (editingContent.trim()) editMessage.mutate({ messageId: msg.id, content: editingContent.trim() });
+                                    }
+                                    if (e.key === "Escape") { setEditingMsgId(null); setEditingContent(""); }
+                                  }}
+                                  className="text-sm"
+                                  autoFocus
+                                />
+                                <div className="flex gap-1 mt-1 justify-end">
+                                  <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setEditingMsgId(null); setEditingContent(""); }}>キャンセル</Button>
+                                  <Button size="sm" className="h-6 text-xs" onClick={() => { if (editingContent.trim()) editMessage.mutate({ messageId: msg.id, content: editingContent.trim() }); }} disabled={editMessage.isPending || !editingContent.trim()}>保存</Button>
+                                </div>
+                              </div>
+                            </div>
+                          ) : msg.messageType === "image" && msg.fileUrl ? (
                             <div className={`mt-1 ${isMe ? "flex justify-end" : ""}`}>
                               <img
                                 src={msg.fileUrl}
@@ -728,7 +790,7 @@ export default function Chat() {
                           ) : (
                             <div
                               className={`mt-0.5 inline-block rounded-lg px-3 py-1.5 text-sm ${isMe ? "bg-green-500 text-white" : "bg-muted"} group relative`}
-                              onContextMenu={(e) => handleMessageContextMenu(e, msg.id, msg.content)}
+                              onContextMenu={(e) => handleMessageContextMenu(e, msg.id, msg.content, !!isMe)}
                             >
                               <MessageContent content={msg.content} isMe={isMe} />
                               {/* Translate button on hover */}
@@ -922,6 +984,33 @@ export default function Chat() {
           >
             📋 コピー
           </button>
+          {contextMenu.isMe && (
+            <>
+              <div className="border-t my-1" />
+              <button
+                className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2"
+                onClick={() => {
+                  const plain = contextMenu.content.replace(/<[^>]+>/g, "");
+                  setEditingMsgId(contextMenu.msgId);
+                  setEditingContent(plain);
+                  setContextMenu(null);
+                }}
+              >
+                ✏️ 編集
+              </button>
+              <button
+                className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2 text-red-600"
+                onClick={() => {
+                  if (confirm("このメッセージを撤回しますか？撤回すると元に戻せません。")) {
+                    revokeMessage.mutate({ messageId: contextMenu.msgId });
+                  }
+                  setContextMenu(null);
+                }}
+              >
+                🚫 撤回
+              </button>
+            </>
+          )}
         </div>
       )}
 
