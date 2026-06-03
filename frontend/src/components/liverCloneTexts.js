@@ -318,7 +318,7 @@ const LC_TEXTS = {
   errorCameraPermission: {
     ja: "📷 カメラのアクセスが拒否されました\n\nブラウザの設定でカメラの許可を「許可」に変更してから、ページを再読み込みしてください。",
     en: "📷 Camera access denied\n\nPlease change camera permission to 'Allow' in your browser settings, then reload the page.",
-    zh: "📷 摄像头访问被拒绝\n\n请在浏览器设置中将摄像头权限改为"允许"，然后重新加载页面。",
+    zh: "📷 摄像头访问被拒绝\n\n请在浏览器设置中将摄像头权限改为'允许'，然后重新加载页面。",
   },
   errorCameraInUse: {
     ja: "📷 カメラが他のアプリで使用中です\n\n他のアプリ（Zoom、Teams等）を閉じてから再試行してください。",
