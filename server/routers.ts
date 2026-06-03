@@ -27093,20 +27093,23 @@ JSON配列のみを出力してください。`;
       .input(z.object({
         roomId: z.number(),
         content: z.string(),
-        messageType: z.enum(['text', 'image', 'file']).optional(),
+        messageType: z.enum(['text', 'image', 'file', 'video']).optional(),
         fileUrl: z.string().optional(),
         fileName: z.string().optional(),
         replyToId: z.number().optional(),
         replyToName: z.string().optional(),
         replyToContent: z.string().optional(),
+        mentions: z.array(z.number()).optional(),
+        replyToType: z.enum(['text', 'image', 'file', 'video']).optional(),
+        replyToFileUrl: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const chatUser = await getChatUser(ctx);
         if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
         const db = await getDb();
         await db.execute(sqlTag`
-          INSERT INTO chat_messages (roomId, senderId, senderType, senderName, messageType, content, fileUrl, fileName, replyToId, replyToName, replyToContent)
-          VALUES (${input.roomId}, ${chatUser.id}, ${chatUser.userType}, ${chatUser.name}, ${input.messageType || 'text'}, ${input.content}, ${input.fileUrl || null}, ${input.fileName || null}, ${input.replyToId || null}, ${input.replyToName || null}, ${input.replyToContent || null})
+          INSERT INTO chat_messages (roomId, senderId, senderType, senderName, messageType, content, fileUrl, fileName, replyToId, replyToName, replyToContent, mentions, replyToType, replyToFileUrl)
+          VALUES (${input.roomId}, ${chatUser.id}, ${chatUser.userType}, ${chatUser.name}, ${input.messageType || 'text'}, ${input.content}, ${input.fileUrl || null}, ${input.fileName || null}, ${input.replyToId || null}, ${input.replyToName || null}, ${input.replyToContent || null}, ${input.mentions ? JSON.stringify(input.mentions) : null}, ${input.replyToType || null}, ${input.replyToFileUrl || null})
         `);
         // 自分の既読を更新（legacyIdも対応）
         await db.execute(sqlTag`
@@ -27132,7 +27135,7 @@ JSON配列のみを出力してください。`;
             const roomName = room?.name || (room?.type === 'group' ? 'グループチャット' : 'ダイレクトメッセージ');
 
             // メッセージのプレビュー（最大50文字）
-            const msgPreview = input.messageType === 'image' ? '[画像]' : input.messageType === 'file' ? `[ファイル] ${input.fileName || ''}` : (input.content || '').substring(0, 50);
+            const msgPreview = input.messageType === 'image' ? '[画像]' : input.messageType === 'video' ? '[動画]' : input.messageType === 'file' ? `[ファイル] ${input.fileName || ''}` : (input.content || '').substring(0, 50);
             const fileAttachmentInfo = input.fileUrl ? `
 
 📎 添付ファイル: ${input.fileUrl}` : '';

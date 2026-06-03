@@ -2045,6 +2045,16 @@ async function startServer() {
         });
       }
       
+      // For videos
+      const videoMimeTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-m4v', 'video/mpeg'];
+      const videoExtensions = ['mp4', 'webm', 'mov', 'avi', 'm4v', 'mpeg', 'mpg'];
+      const videoFileExt = (file.originalname.split(".").pop() || "").toLowerCase();
+      if (videoMimeTypes.includes(file.mimetype) || videoExtensions.includes(videoFileExt)) {
+        const fileKey = `chat-uploads/${nanoid()}.${videoFileExt || 'mp4'}`;
+        const result = await storagePut(fileKey, file.buffer, file.mimetype);
+        return res.json({ type: 'video', url: result.url, fileName: decodedFileName, mimeType: file.mimetype });
+      }
+      
       // For PDFs, extract text
       if (file.mimetype === "application/pdf") {
         const pdfFileKey = `chat-uploads/${nanoid()}.pdf`;
@@ -2438,6 +2448,12 @@ async function startServer() {
             });
           });
         }
+      });
+    });
+    // Chat mentions and video migration
+    import("../migrations/addChatMentionsAndVideo").then(({ addChatMentionsAndVideo }) => {
+      addChatMentionsAndVideo(db).catch((err: unknown) => {
+        console.error("[Migration] Chat mentions/video error:", err);
       });
     });
     // Seed popup variants on startup (idempotent - only inserts if table is empty)

@@ -19,8 +19,11 @@ import {
   Search, X, Edit2, UserPlus, ArrowLeft, Loader2, Check, User,
   Bold, Italic, Strikethrough, UnderlineIcon, List, ListOrdered,
   Quote, Code, Link as LinkIcon, Maximize2, Minimize2, Languages, Copy, Share2, Link2,
-  Camera, FolderOpen, ImagePlus, Trash2, UserMinus
+  Camera, FolderOpen, ImagePlus, Trash2, UserMinus, Video, AtSign, Play
 } from "lucide-react";
+import Mention from "@tiptap/extension-mention";
+import { ReactRenderer } from "@tiptap/react";
+import tippy, { type Instance as TippyInstance } from "tippy.js";
 
 // ===== Rich Text Editor Toolbar =====
 function EditorToolbar({ editor, isExpanded, onToggleExpand }: { editor: any; isExpanded: boolean; onToggleExpand: () => void }) {
@@ -171,7 +174,7 @@ function MessageContent({ content, isMe }: { content: string; isMe: boolean }) {
   if (isHtml) {
     return (
       <div
-        className={`prose prose-sm max-w-none break-words text-left ${isMe ? "prose-invert" : ""} [&_p]:my-0.5 [&_ul]:my-0.5 [&_ol]:my-0.5 [&_blockquote]:my-0.5 [&_pre]:my-0.5 [&_a]:text-blue-400 [&_a]:underline`}
+        className={`prose prose-sm max-w-none break-words text-left ${isMe ? "prose-invert" : ""} [&_p]:my-0.5 [&_ul]:my-0.5 [&_ol]:my-0.5 [&_blockquote]:my-0.5 [&_pre]:my-0.5 [&_a]:text-blue-400 [&_a]:underline [&_.mention]:text-blue-500 [&_.mention]:font-medium [&_.mention]:bg-blue-100 [&_.mention]:dark:bg-blue-900/30 [&_.mention]:rounded [&_.mention]:px-0.5`}
         dangerouslySetInnerHTML={{ __html: content }}
       />
     );
@@ -204,12 +207,17 @@ export default function Chat() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; msgId: number; content: string; isMe: boolean } | null>(null);
   const [editingMsgId, setEditingMsgId] = useState<number | null>(null);
   const [editingContent, setEditingContent] = useState("");
-  const [replyTo, setReplyTo] = useState<{ id: number; name: string; content: string } | null>(null);
+  const [replyTo, setReplyTo] = useState<{ id: number; name: string; content: string; type?: 'text' | 'image' | 'file' | 'video'; fileUrl?: string } | null>(null);
+  const [mentionIds, setMentionIds] = useState<number[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const liveTranslateTimer = useRef<any>(null);
 
   // Tiptap editor
+  // Mention suggestion component ref for cleanup
+  const mentionSuggestionRef = useRef<{ onKeyDown?: (props: any) => boolean; popup?: TippyInstance[] }>({});
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -217,7 +225,111 @@ export default function Chat() {
       }),
       Underline,
       Link.configure({ openOnClick: false }),
-      Placeholder.configure({ placeholder: "メッセージを入力... (Shift+Enterで改行)" }),
+      Placeholder.configure({ placeholder: "メッセージを入力... @でメンション (Shift+Enterで改行)" }),
+      Mention.configure({
+        HTMLAttributes: {
+          class: 'mention',
+        },
+        suggestion: {
+          items: ({ query }: { query: string }) => {
+            const members = (roomDetail?.members || []) as any[];
+            return members
+              .filter((m: any) => !(myInfo && m.userId === myInfo.id && m.userType === myInfo.userType))
+              .filter((m: any) => (m.userName || '').toLowerCase().includes(query.toLowerCase()))
+              .slice(0, 8)
+              .map((m: any) => ({ id: String(m.userId), label: m.userName || '不明', userType: m.userType }));
+          },
+          render: () => {
+            let component: any;
+            let popup: TippyInstance[];
+            return {
+              onStart: (props: any) => {
+                const el = document.createElement('div');
+                el.className = 'mention-suggestion-list bg-popover border rounded-lg shadow-lg py-1 min-w-[160px] max-h-[200px] overflow-y-auto z-[9999]';
+                component = { el, props, selectedIndex: 0, items: props.items };
+                const updateList = () => {
+                  el.innerHTML = component.items.map((item: any, index: number) =>
+                    `<button class="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2 ${index === component.selectedIndex ? 'bg-accent' : ''}" data-index="${index}">
+                      <span class="inline-flex items-center justify-center h-5 w-5 rounded-full text-[10px] ${item.userType === 'staff' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}">${(item.label || '?').charAt(0)}</span>
+                      <span>${item.label}</span>
+                      <span class="text-[10px] text-muted-foreground ml-auto">${item.userType === 'staff' ? '本部' : 'ライバー'}</span>
+                    </button>`
+                  ).join('');
+                  el.querySelectorAll('button').forEach((btn) => {
+                    btn.addEventListener('mousedown', (e) => {
+                      e.preventDefault();
+                      const idx = parseInt(btn.getAttribute('data-index') || '0');
+                      props.command(component.items[idx]);
+                    });
+                  });
+                };
+                updateList();
+                popup = tippy('body', {
+                  getReferenceClientRect: props.clientRect,
+                  appendTo: () => document.body,
+                  content: el,
+                  showOnCreate: true,
+                  interactive: true,
+                  trigger: 'manual',
+                  placement: 'top-start',
+                });
+                mentionSuggestionRef.current = {
+                  onKeyDown: ({ event }: any) => {
+                    if (event.key === 'ArrowUp') {
+                      component.selectedIndex = (component.selectedIndex + component.items.length - 1) % component.items.length;
+                      updateList();
+                      return true;
+                    }
+                    if (event.key === 'ArrowDown') {
+                      component.selectedIndex = (component.selectedIndex + 1) % component.items.length;
+                      updateList();
+                      return true;
+                    }
+                    if (event.key === 'Enter') {
+                      props.command(component.items[component.selectedIndex]);
+                      return true;
+                    }
+                    if (event.key === 'Escape') {
+                      popup[0]?.hide();
+                      return true;
+                    }
+                    return false;
+                  },
+                  popup,
+                };
+              },
+              onUpdate: (props: any) => {
+                component.items = props.items;
+                component.selectedIndex = 0;
+                component.props = props;
+                const el = component.el;
+                el.innerHTML = component.items.map((item: any, index: number) =>
+                  `<button class="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2 ${index === component.selectedIndex ? 'bg-accent' : ''}" data-index="${index}">
+                    <span class="inline-flex items-center justify-center h-5 w-5 rounded-full text-[10px] ${item.userType === 'staff' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}">${(item.label || '?').charAt(0)}</span>
+                    <span>${item.label}</span>
+                    <span class="text-[10px] text-muted-foreground ml-auto">${item.userType === 'staff' ? '本部' : 'ライバー'}</span>
+                  </button>`
+                ).join('');
+                el.querySelectorAll('button').forEach((btn) => {
+                  btn.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    const idx = parseInt(btn.getAttribute('data-index') || '0');
+                    props.command(component.items[idx]);
+                  });
+                });
+                popup[0]?.setProps({ getReferenceClientRect: props.clientRect });
+              },
+              onKeyDown: (props: any) => {
+                return mentionSuggestionRef.current.onKeyDown?.(props) || false;
+              },
+              onExit: () => {
+                popup?.[0]?.destroy();
+                mentionSuggestionRef.current = {};
+              },
+            };
+          },
+        },
+      }),
     ],
     editorProps: {
       attributes: {
@@ -373,15 +485,30 @@ export default function Chat() {
     const html = editor.getHTML();
     const text = editor.getText().trim();
     if (!text) return;
+    // Extract mention IDs from editor content
+    const mentionNodes: number[] = [];
+    editor.state.doc.descendants((node: any) => {
+      if (node.type.name === 'mention' && node.attrs.id) {
+        mentionNodes.push(parseInt(node.attrs.id));
+      }
+    });
     // If content is plain text (no formatting), send as plain text for backward compatibility
     const isPlain = html === `<p>${text}</p>` || html === `<p>${text.replace(/\n/g, "<br>")}</p>`;
     sendMessage.mutate({
       roomId: selectedRoomId,
       content: isPlain ? text : html,
       messageType: "text",
-      ...(replyTo ? { replyToId: replyTo.id, replyToName: replyTo.name, replyToContent: replyTo.content } : {}),
+      ...(replyTo ? {
+        replyToId: replyTo.id,
+        replyToName: replyTo.name,
+        replyToContent: replyTo.content,
+        replyToType: replyTo.type || 'text',
+        replyToFileUrl: replyTo.fileUrl || undefined,
+      } : {}),
+      ...(mentionNodes.length > 0 ? { mentions: mentionNodes } : {}),
     });
     setReplyTo(null);
+    setMentionIds([]);
   }, [editor, selectedRoomId, sendMessage, replyTo]);
 
   // Paste image handler
@@ -432,12 +559,12 @@ export default function Chat() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedRoomId) return;
-    const allowedTypes = ["image/", "application/pdf", "text/", "application/json", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/csv", "application/zip", "application/x-zip-compressed", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "application/vnd.ms-powerpoint"];
-    const allowedExtensions = [".csv", ".xlsx", ".xls", ".pdf", ".txt", ".json", ".md", ".doc", ".docx", ".ppt", ".pptx", ".zip"];
+    const allowedTypes = ["image/", "video/", "application/pdf", "text/", "application/json", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/csv", "application/zip", "application/x-zip-compressed", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "application/vnd.ms-powerpoint"];
+    const allowedExtensions = [".csv", ".xlsx", ".xls", ".pdf", ".txt", ".json", ".md", ".doc", ".docx", ".ppt", ".pptx", ".zip", ".mp4", ".webm", ".mov", ".avi", ".m4v"];
     const ext = "." + (file.name.split(".").pop()?.toLowerCase() || "");
     const isAllowed = allowedTypes.some(t => file.type.startsWith(t)) || allowedExtensions.includes(ext);
     if (!isAllowed) {
-      toast.error("対応ファイル: 画像, PDF, CSV, Excel, Word, PowerPoint, テキスト, ZIP");
+      toast.error("対応ファイル: 画像, 動画, PDF, CSV, Excel, Word, PowerPoint, テキスト, ZIP");
       return;
     }
     if (file.size > 50 * 1024 * 1024) {
@@ -460,6 +587,14 @@ export default function Chat() {
           roomId: selectedRoomId,
           content: "[画像]",
           messageType: "image",
+          fileUrl: data.url,
+          fileName: data.fileName,
+        });
+      } else if (data.type === "video") {
+        sendMessage.mutate({
+          roomId: selectedRoomId,
+          content: "[動画]",
+          messageType: "video",
           fileUrl: data.url,
           fileName: data.fileName,
         });
@@ -798,9 +933,24 @@ export default function Chat() {
                           {/* 引用返信ブロック */}
                           {msg.replyToName && (
                             <div className={`mb-1 ${isMe ? "flex justify-end" : ""}`}>
-                              <div className="inline-block rounded px-2 py-1 text-[11px] bg-muted/70 border-l-2 border-blue-400 max-w-[80%] truncate">
-                                <span className="font-medium text-blue-600">{msg.replyToName}</span>
-                                <span className="text-muted-foreground ml-1">{(msg.replyToContent || "").replace(/<[^>]+>/g, "").slice(0, 50)}</span>
+                              <div className="inline-flex items-center gap-2 rounded px-2 py-1 text-[11px] bg-muted/70 border-l-2 border-blue-400 max-w-[80%]">
+                                {msg.replyToType === 'image' && msg.replyToFileUrl && (
+                                  <img src={msg.replyToFileUrl} alt="" className="h-8 w-8 rounded object-cover shrink-0" />
+                                )}
+                                {msg.replyToType === 'video' && msg.replyToFileUrl && (
+                                  <div className="h-8 w-8 rounded bg-black flex items-center justify-center shrink-0">
+                                    <Play className="h-3 w-3 text-white" />
+                                  </div>
+                                )}
+                                {msg.replyToType === 'file' && (
+                                  <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                                )}
+                                <div className="truncate">
+                                  <span className="font-medium text-blue-600">{msg.replyToName}</span>
+                                  <span className="text-muted-foreground ml-1">
+                                    {msg.replyToType === 'image' ? '[画像]' : msg.replyToType === 'video' ? '[動画]' : (msg.replyToContent || "").replace(/<[^>]+>/g, "").slice(0, 50)}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           )}
@@ -859,6 +1009,23 @@ export default function Chat() {
                                 <span className="break-all">{msg.fileName || "ファイル"}</span>
                               </div>
                             </div>
+                          ) : msg.messageType === "video" && msg.fileUrl ? (
+                            <div className={`mt-1 ${isMe ? "flex justify-end" : ""}`}>
+                              <div className="max-w-xs rounded-lg border overflow-hidden bg-black">
+                                <video
+                                  src={msg.fileUrl}
+                                  controls
+                                  preload="metadata"
+                                  className="max-w-full max-h-60 rounded-lg"
+                                  playsInline
+                                />
+                                {msg.fileName && (
+                                  <div className="px-2 py-1 text-[10px] text-gray-300 truncate bg-gray-900">
+                                    <Video className="h-3 w-3 inline mr-1" />{msg.fileName}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           ) : (
                             <div
                               className={`mt-0.5 inline-block rounded-lg px-3 py-1.5 text-sm ${isMe ? "bg-green-500 text-white" : "bg-muted"} group relative`}
@@ -909,9 +1076,24 @@ export default function Chat() {
             {/* Reply Preview */}
             {replyTo && (
               <div className="px-3 py-2 border-t bg-muted/30 flex items-center gap-2">
+                {replyTo.type === 'image' && replyTo.fileUrl && (
+                  <img src={replyTo.fileUrl} alt="" className="h-10 w-10 rounded object-cover shrink-0" />
+                )}
+                {replyTo.type === 'video' && replyTo.fileUrl && (
+                  <div className="h-10 w-10 rounded bg-black flex items-center justify-center shrink-0">
+                    <Play className="h-4 w-4 text-white" />
+                  </div>
+                )}
+                {replyTo.type === 'file' && (
+                  <div className="h-10 w-10 rounded bg-muted flex items-center justify-center shrink-0">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                )}
                 <div className="flex-1 min-w-0 border-l-2 border-blue-400 pl-2">
                   <p className="text-xs font-medium text-blue-600">{replyTo.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{replyTo.content.replace(/<[^>]+>/g, "").slice(0, 60)}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {replyTo.type === 'image' ? '[画像]' : replyTo.type === 'video' ? '[動画]' : replyTo.type === 'file' ? '[ファイル]' : replyTo.content.replace(/<[^>]+>/g, "").slice(0, 60)}
+                  </p>
                 </div>
                 <button onClick={() => setReplyTo(null)} className="shrink-0 text-muted-foreground hover:text-foreground">
                   <X className="h-4 w-4" />
@@ -963,6 +1145,13 @@ export default function Chat() {
                   capture="environment"
                   onChange={handleFileUpload}
                 />
+                <input
+                  type="file"
+                  ref={videoInputRef}
+                  className="hidden"
+                  accept="video/*"
+                  onChange={handleFileUpload}
+                />
                 <div className="relative shrink-0" ref={attachMenuRef} onBlur={(e) => { if (!attachMenuRef.current?.contains(e.relatedTarget as Node)) setShowAttachMenu(false); }}>
                   <Button
                     variant="ghost"
@@ -990,6 +1179,13 @@ export default function Chat() {
                       >
                         <Camera className="h-4 w-4 text-blue-600" />
                         <span>写真を撮る</span>
+                      </button>
+                      <button
+                        className="flex items-center gap-3 w-full px-3 py-2.5 text-sm rounded-md hover:bg-muted transition-colors"
+                        onClick={() => { videoInputRef.current?.click(); setShowAttachMenu(false); }}
+                      >
+                        <Video className="h-4 w-4 text-purple-600" />
+                        <span>動画を送信</span>
                       </button>
                       <button
                         className="flex items-center gap-3 w-full px-3 py-2.5 text-sm rounded-md hover:bg-muted transition-colors"
@@ -1074,7 +1270,13 @@ export default function Chat() {
             onClick={() => {
               const msg = (messages as any[])?.find((m: any) => m.id === contextMenu.msgId);
               if (msg) {
-                setReplyTo({ id: msg.id, name: msg.senderName || "", content: msg.content || "" });
+                setReplyTo({
+                  id: msg.id,
+                  name: msg.senderName || "",
+                  content: msg.content || "",
+                  type: msg.messageType || 'text',
+                  fileUrl: msg.fileUrl || undefined,
+                });
               }
               setContextMenu(null);
               editor?.commands.focus();
