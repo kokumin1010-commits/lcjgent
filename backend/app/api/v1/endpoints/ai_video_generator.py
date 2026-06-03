@@ -361,8 +361,7 @@ async def _generate_video(audio_url: str, request: VideoGenerateRequest) -> tupl
             async with AsyncSessionLocal() as db:
                 result = await db.execute(sa_text("""
                     SELECT clip_url FROM video_clips
-                    WHERE status = 'completed'
-                        AND clip_url IS NOT NULL
+                    WHERE clip_url IS NOT NULL
                         AND clip_url != ''
                         AND video_filename IS NOT NULL
                         AND video_filename LIKE :pattern
@@ -575,8 +574,7 @@ async def list_avatars(
                         ORDER BY vc.created_at DESC
                     ) AS rn
                 FROM video_clips vc
-                WHERE vc.status = 'completed' 
-                    AND vc.clip_url IS NOT NULL
+                WHERE vc.clip_url IS NOT NULL
                     AND vc.clip_url != ''
                     AND vc.video_filename IS NOT NULL
                     AND vc.video_filename != ''
@@ -584,8 +582,7 @@ async def list_avatars(
             )
             SELECT liver_name, clip_url, 
                    (SELECT COUNT(*) FROM video_clips vc2 
-                    WHERE vc2.status = 'completed' 
-                    AND vc2.clip_url IS NOT NULL
+                    WHERE vc2.clip_url IS NOT NULL
                     AND vc2.video_filename LIKE liver_clips.liver_name || '-%') AS clip_count
             FROM liver_clips
             WHERE rn = 1
