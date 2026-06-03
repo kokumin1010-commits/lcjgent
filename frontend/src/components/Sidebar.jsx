@@ -712,6 +712,17 @@ export default function Sidebar({ isOpen, onClose, user, onVideoSelect, onNewAna
                 <Scissors className={`w-4 h-4 transition-colors duration-200 ease-out ${location.pathname === '/magic-cut' ? 'text-pink-600' : 'text-gray-500'}`} />
                 <span className={`text-sm transition-colors duration-200 ease-out ${location.pathname === '/magic-cut' ? 'text-pink-700 font-medium' : 'text-muted-foreground'}`}>Magic Cut</span>
               </div>
+              <div
+                onClick={() => { navigate('/ai-video-generator'); onClose?.(); }}
+                className={`flex items-center gap-2 p-2 px-4 rounded-md cursor-pointer transition-all duration-200 ease-out ${
+                  location.pathname === '/ai-video-generator'
+                    ? 'border border-emerald-300 bg-emerald-50 text-emerald-700'
+                    : 'hover:bg-gray-100'
+                }`}
+              >
+                <Video className={`w-4 h-4 transition-colors duration-200 ease-out ${location.pathname === '/ai-video-generator' ? 'text-emerald-600' : 'text-gray-500'}`} />
+                <span className={`text-sm transition-colors duration-200 ease-out ${location.pathname === '/ai-video-generator' ? 'text-emerald-700 font-medium' : 'text-muted-foreground'}`}>AI Video Generator</span>
+              </div>
 
             </div>
             )}
