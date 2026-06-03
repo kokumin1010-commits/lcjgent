@@ -18,10 +18,11 @@ Endpoints:
   GET  /api/v1/liver-clone/sessions/{id}/metrics — Stream metrics
   GET  /api/v1/liver-clone/health                — Health check
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -345,17 +346,110 @@ async def preview_frame(req: PreviewFrameRequest):
 async def get_preview_ws_url():
     """
     Get the WebSocket URL for real-time preview streaming.
-    The frontend connects directly to the GPU Worker via this URL.
+    Returns the backend's own WebSocket proxy URL (avoids RunPod Proxy 403 on WS).
     """
+    # Return the backend's own WebSocket proxy endpoint
+    import os
+    backend_base = os.getenv(
+        "BACKEND_PUBLIC_URL",
+        "https://aitherhubapi-cpcjcnezbgf5f7e2.japaneast-01.azurewebsites.net"
+    )
+    ws_base = backend_base.replace("https://", "wss://").replace("http://", "ws://")
+    return {"ws_url": f"{ws_base}/api/v1/liver-clone/preview/ws"}
+
+
+@router.websocket("/preview/ws")
+async def preview_ws_proxy(websocket: WebSocket):
+    """
+    WebSocket proxy for real-time face swap preview.
+    Bridges the browser client to the GPU Worker's /api/preview-stream endpoint,
+    bypassing RunPod Proxy's Cloudflare 403 on WebSocket upgrades.
+    """
+    import aiohttp
     from app.services.liver_clone_service import get_liver_clone_service
 
+    await websocket.accept()
+    logger.info("[Preview WS Proxy] Client connected")
+
+    # Get the GPU Worker's WebSocket URL
     service = get_liver_clone_service()
     try:
-        ws_url = await service.face_swap.get_preview_ws_url()
-        return {"ws_url": ws_url}
+        worker_ws_url = await service.face_swap.get_preview_ws_url()
     except Exception as e:
-        logger.exception("[LiverClone API] Failed to get preview WS URL")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"[Preview WS Proxy] Cannot get worker WS URL: {e}")
+        await websocket.close(code=1011, reason="GPU Worker unavailable")
+        return
+
+    # Connect to GPU Worker WebSocket
+    session = aiohttp.ClientSession()
+    try:
+        async with session.ws_connect(
+            worker_ws_url,
+            timeout=aiohttp.ClientWSTimeout(ws_close=10),
+            ssl=False,
+        ) as worker_ws:
+            logger.info(f"[Preview WS Proxy] Connected to GPU Worker")
+
+            async def client_to_worker():
+                """Forward messages from browser client to GPU Worker."""
+                try:
+                    while True:
+                        msg = await websocket.receive()
+                        if msg["type"] == "websocket.receive":
+                            if "bytes" in msg and msg["bytes"]:
+                                await worker_ws.send_bytes(msg["bytes"])
+                            elif "text" in msg and msg["text"]:
+                                await worker_ws.send_str(msg["text"])
+                        elif msg["type"] == "websocket.disconnect":
+                            break
+                except WebSocketDisconnect:
+                    pass
+                except Exception as e:
+                    logger.debug(f"[Preview WS Proxy] client_to_worker ended: {e}")
+
+            async def worker_to_client():
+                """Forward messages from GPU Worker to browser client."""
+                try:
+                    async for msg in worker_ws:
+                        if msg.type == aiohttp.WSMsgType.BINARY:
+                            await websocket.send_bytes(msg.data)
+                        elif msg.type == aiohttp.WSMsgType.TEXT:
+                            await websocket.send_text(msg.data)
+                        elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                            break
+                except Exception as e:
+                    logger.debug(f"[Preview WS Proxy] worker_to_client ended: {e}")
+
+            # Run both directions concurrently
+            tasks = [
+                asyncio.create_task(client_to_worker()),
+                asyncio.create_task(worker_to_client()),
+            ]
+            done, pending = await asyncio.wait(
+                tasks, return_when=asyncio.FIRST_COMPLETED
+            )
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+    except aiohttp.WSServerHandshakeError as e:
+        logger.error(f"[Preview WS Proxy] GPU Worker WS handshake failed: {e}")
+        try:
+            await websocket.close(code=1011, reason="GPU Worker connection failed")
+        except Exception:
+            pass
+    except Exception as e:
+        logger.error(f"[Preview WS Proxy] Unexpected error: {e}")
+        try:
+            await websocket.close(code=1011, reason=str(e))
+        except Exception:
+            pass
+    finally:
+        await session.close()
+        logger.info("[Preview WS Proxy] Session closed")
 
 
 @router.post("/preview/set-source")
