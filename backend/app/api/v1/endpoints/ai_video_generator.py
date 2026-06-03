@@ -347,58 +347,15 @@ async def _generate_video(audio_url: str, request: VideoGenerateRequest) -> tupl
     dimension = {"width": request.dimension_width, "height": request.dimension_height}
     title = f"AIVideoGen-{request.product_name[:30]}-{uuid.uuid4().hex[:6]}"
 
-    # ─── Route by avatar source ───
-    if request.avatar_id.startswith("aitherhub:"):
-        # AitherHub liver: use face image → talking photo → video
-        liver_name = request.avatar_id.replace("aitherhub:", "")
-        logger.info(f"[AIVideoGen] Using AitherHub liver: {liver_name}")
-
-        # Get face image URL from the avatars list (cached in memory)
-        face_image_url = None
-        try:
-            # Query DB for this liver's best thumbnail
-            from sqlalchemy import text as sa_text
-            from app.core.db import AsyncSessionLocal
-            async with AsyncSessionLocal() as db:
-                result = await db.execute(sa_text("""
-                    SELECT thumbnail_url FROM video_clips
-                    WHERE liver_name = :liver_name
-                        AND thumbnail_url IS NOT NULL
-                        AND thumbnail_url != ''
-                        AND status = 'completed'
-                    ORDER BY created_at DESC
-                    LIMIT 1
-                """), {"liver_name": liver_name})
-                row = result.fetchone()
-                if row:
-                    face_image_url = row.thumbnail_url
-        except Exception as db_err:
-            logger.warning(f"[AIVideoGen] DB lookup for liver face failed: {db_err}")
-
-        if not face_image_url:
-            raise Exception(f"No face image found for liver: {liver_name}")
-
-        logger.info(f"[AIVideoGen] Uploading face as talking photo: {face_image_url[:60]}...")
-
-        # Upload face to HeyGen as talking photo (cached if already uploaded)
-        talking_photo_id = await heygen.upload_talking_photo(face_image_url)
-        logger.info(f"[AIVideoGen] Talking photo ID: {talking_photo_id}")
-
-        # Generate video with talking photo
-        video_id = await heygen.generate_video(
-            talking_photo_id=talking_photo_id,
-            audio_url=audio_url,
-            dimension=dimension,
-            title=title,
-        )
-    else:
-        # HeyGen Digital Twin: use pre-registered avatar directly
-        video_id = await heygen.generate_video_with_avatar(
-            avatar_id=request.avatar_id,
-            audio_url=audio_url,
-            dimension=dimension,
-            title=title,
-        )
+    # All avatars are HeyGen Digital Twins (registered from AitherHub livers)
+    # Use pre-registered avatar directly
+    logger.info(f"[AIVideoGen] Using Digital Twin avatar: {request.avatar_id}")
+    video_id = await heygen.generate_video_with_avatar(
+        avatar_id=request.avatar_id,
+        audio_url=audio_url,
+        dimension=dimension,
+        title=title,
+    )
 
     logger.info(f"[AIVideoGen] HeyGen video started: {video_id}")
 
@@ -551,63 +508,13 @@ async def list_avatars(
     """
     List available livers for video generation.
     
-    Sources:
-      1. AitherHub DB — unique livers from video_clips (with face thumbnails)
-      2. HeyGen Digital Twins — pre-registered avatars (fallback)
-    
-    AitherHub livers are prioritized as they represent real company livers.
+    All avatars are HeyGen Digital Twins that have been registered from
+    AitherHub livers. They are presented as "aitherhub" source to users
+    since they represent real company livers.
     """
     result = []
 
-    # ─── Source 1: AitherHub DB livers ───
-    try:
-        liver_sql = text("""
-            SELECT 
-                vc.liver_name,
-                vc.thumbnail_url,
-                COUNT(*) as clip_count
-            FROM video_clips vc
-            WHERE vc.status = 'completed' 
-                AND vc.clip_url IS NOT NULL
-                AND vc.liver_name IS NOT NULL 
-                AND vc.liver_name != ''
-                AND vc.thumbnail_url IS NOT NULL
-                AND vc.thumbnail_url != ''
-            GROUP BY vc.liver_name, vc.thumbnail_url
-            ORDER BY COUNT(*) DESC
-        """)
-        liver_result = await db.execute(liver_sql)
-        liver_rows = liver_result.fetchall()
-
-        # Group by liver_name, pick the thumbnail with most clips
-        seen_livers = {}
-        for row in liver_rows:
-            name = row.liver_name.strip()
-            if name not in seen_livers:
-                seen_livers[name] = {
-                    "name": name,
-                    "thumbnail_url": row.thumbnail_url,
-                    "clip_count": row.clip_count,
-                }
-
-        for liver_name, info in seen_livers.items():
-            # Use liver_name as a stable ID (prefixed to distinguish from HeyGen)
-            avatar_id = f"aitherhub:{liver_name}"
-            result.append(AvatarInfo(
-                avatar_id=avatar_id,
-                name=liver_name,
-                preview_image_url=info["thumbnail_url"],
-                avatar_type="talking_photo",
-                face_image_url=info["thumbnail_url"],
-                source="aitherhub",
-            ))
-
-        logger.info(f"[AIVideoGen] Found {len(result)} aitherhub livers from DB")
-
-    except Exception as e:
-        logger.error(f"[AIVideoGen] Failed to query aitherhub livers: {e}")
-
-    # ─── Source 2: HeyGen Digital Twins (fallback/additional) ───
+    # ─── HeyGen Digital Twins (registered from AitherHub livers) ───
     try:
         from app.services.heygen_service import get_heygen_service
         heygen = get_heygen_service()
@@ -619,9 +526,9 @@ async def list_avatars(
                     name=av.get("avatar_name", "Unknown"),
                     preview_image_url=av.get("preview_image_url") or av.get("thumbnail_url"),
                     avatar_type=av.get("avatar_type", "full"),
-                    source="heygen",
+                    source="aitherhub",  # Show as aitherhub livers to users
                 ))
-            logger.info(f"[AIVideoGen] Added {len(avatars)} HeyGen avatars")
+            logger.info(f"[AIVideoGen] Loaded {len(avatars)} livers from HeyGen Digital Twins")
     except Exception as e:
         logger.warning(f"[AIVideoGen] HeyGen avatars unavailable: {e}")
 
