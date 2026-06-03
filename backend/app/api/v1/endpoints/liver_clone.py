@@ -404,14 +404,16 @@ async def preview_ws_proxy(websocket: WebSocket):
                 if msg["type"] != "websocket.receive":
                     continue
 
-                # Handle text messages (JSON commands like config updates)
+                # Handle text messages (JSON commands, config, or base64 frames)
                 if "text" in msg and msg["text"]:
                     text_data = msg["text"]
                     try:
                         import json
                         cmd = json.loads(text_data)
+                        msg_type = cmd.get("type", "")
+
                         # Forward config commands to GPU worker
-                        if cmd.get("type") == "config":
+                        if msg_type == "config":
                             config_url = f"{worker_url}/api/config"
                             resp = await http_client.post(
                                 config_url,
@@ -422,52 +424,63 @@ async def preview_ws_proxy(websocket: WebSocket):
                                 "type": "config_ack",
                                 "status": resp.status_code
                             }))
+                            continue
+
+                        # Handle frame sent as base64 text
+                        if msg_type == "frame" and cmd.get("data"):
+                            frame_b64 = cmd["data"]
+                            try:
+                                result = await service.face_swap.swap_frame(frame_b64)
+                                if isinstance(result, dict) and "image_base64" in result:
+                                    result_bytes = base64.b64decode(result["image_base64"])
+                                    await websocket.send_bytes(result_bytes)
+                                elif isinstance(result, dict) and "error" in result:
+                                    await websocket.send_text(json.dumps({
+                                        "type": "error",
+                                        "message": str(result["error"])
+                                    }))
+                            except Exception as e:
+                                error_msg = str(e)[:200]
+                                logger.error(f"[Preview WS Proxy] swap-frame error: {error_msg}")
+                                await websocket.send_text(json.dumps({
+                                    "type": "error",
+                                    "message": error_msg
+                                }))
+                            continue
+
+                        continue
+                    except json.JSONDecodeError:
                         continue
                     except Exception:
                         continue
 
-                # Handle binary frames
+                # Handle binary frames (fallback - may not work on Azure App Service)
                 frame_bytes = msg.get("bytes")
                 if not frame_bytes:
                     continue
 
-                # Send frame to GPU Worker via HTTP POST
                 try:
                     frame_b64 = base64.b64encode(frame_bytes).decode("ascii")
-                    resp = await http_client.post(
-                        swap_url,
-                        json={"image_base64": frame_b64},
-                        headers=headers,
-                    )
-
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        if "image_base64" in data:
-                            result_bytes = base64.b64decode(data["image_base64"])
-                            await websocket.send_bytes(result_bytes)
-                        elif "error" in data:
-                            await websocket.send_text(
-                                '{"type":"error","message":"' + data["error"] + '"}'
-                            )
-                    elif resp.status_code == 400:
-                        # Source face not set - inform client
-                        detail = resp.json().get("detail", "Bad request")
-                        await websocket.send_text(
-                            '{"type":"error","message":"' + str(detail) + '"}'
-                        )
-                    else:
-                        logger.warning(
-                            f"[Preview WS Proxy] swap-frame returned {resp.status_code}"
-                        )
+                    result = await service.face_swap.swap_frame(frame_b64)
+                    if isinstance(result, dict) and "image_base64" in result:
+                        result_bytes = base64.b64decode(result["image_base64"])
+                        await websocket.send_bytes(result_bytes)
+                    elif isinstance(result, dict) and "error" in result:
+                        import json as _json
+                        await websocket.send_text(_json.dumps({
+                            "type": "error",
+                            "message": str(result["error"])
+                        }))
                 except httpx.TimeoutException:
-                    # Skip this frame on timeout, don't break the loop
-                    logger.debug("[Preview WS Proxy] swap-frame timeout, skipping frame")
                     continue
-                except httpx.ConnectError as e:
-                    logger.error(f"[Preview WS Proxy] GPU Worker connection lost: {e}")
-                    await websocket.send_text(
-                        '{"type":"error","message":"GPU Worker connection lost"}'
-                    )
+                except Exception as e:
+                    error_msg = str(e)[:200]
+                    logger.error(f"[Preview WS Proxy] swap-frame error: {error_msg}")
+                    import json as _json
+                    await websocket.send_text(_json.dumps({
+                        "type": "error",
+                        "message": error_msg
+                    }))
                     break
 
         except WebSocketDisconnect:

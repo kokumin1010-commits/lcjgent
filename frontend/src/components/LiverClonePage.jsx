@@ -633,9 +633,11 @@ export default function LiverClonePage() {
       };
 
       ws.onmessage = (event) => {
-        if (event.data instanceof ArrayBuffer) {
+        if (event.data instanceof ArrayBuffer || event.data instanceof Blob) {
           // Binary frame - display it
-          const blob = new Blob([event.data], { type: "image/jpeg" });
+          const blob = event.data instanceof Blob
+            ? event.data
+            : new Blob([event.data], { type: "image/jpeg" });
           const url = URL.createObjectURL(blob);
           setPreviewFrame((prev) => {
             if (prev) URL.revokeObjectURL(prev);
@@ -649,14 +651,16 @@ export default function LiverClonePage() {
             frameCountRef.current = 0;
             lastFpsTimeRef.current = now;
           }
-        } else {
-          // JSON message (error)
+        } else if (typeof event.data === "string") {
+          // JSON message (error or status)
           try {
             const msg = JSON.parse(event.data);
             if (msg.type === "error") {
               setPreviewError(msg.message);
             }
-          } catch (e) {}
+          } catch (e) {
+            console.debug("[Preview] Non-JSON text message:", event.data?.slice(0, 100));
+          }
         }
       };
 
@@ -738,17 +742,16 @@ export default function LiverClonePage() {
       }
       ctx.drawImage(video, sx, sy, sw, sh, 0, 0, SEND_W, SEND_H);
 
-      // Low JPEG quality for speed - face swap quality is determined by GPU Worker output
-      canvas.toBlob(
-        (blob) => {
-          if (blob && previewWsRef.current?.readyState === WebSocket.OPEN) {
-            previewWsRef.current.send(blob);
-            lastSendTime = performance.now();
-          }
-        },
-        "image/jpeg",
-        0.6 // 60% quality - sufficient for face detection, minimal transfer size (~15-25KB)
-      );
+      // Send frame as base64 text (Azure App Service WS proxy doesn't reliably forward binary frames)
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.6);
+      if (dataUrl && previewWsRef.current?.readyState === WebSocket.OPEN) {
+        // Extract base64 from data URL: "data:image/jpeg;base64,XXXX" -> "XXXX"
+        const b64 = dataUrl.split(",")[1];
+        if (b64) {
+          previewWsRef.current.send(JSON.stringify({ type: "frame", data: b64 }));
+          lastSendTime = performance.now();
+        }
+      }
     };
 
     animFrameId = requestAnimationFrame(sendLoop);
