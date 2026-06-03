@@ -503,7 +503,9 @@ async def _generate_video(audio_url: str, request: VideoGenerateRequest) -> tupl
         if not clip_video_url:
             raise Exception(f"No clip video found for liver: {liver_name}")
 
-        logger.info(f"[AIVideoGen] Extracting frame from clip: {clip_video_url[:80]}...")
+        # Ensure clip URL has SAS token (public access is disabled on storage account)
+        clip_video_url = _ensure_sas_url(clip_video_url)
+        logger.info(f"[AIVideoGen] Extracting frame from clip (with SAS): {clip_video_url[:80]}...")
 
         # Extract frame from video and upload as talking photo
         talking_photo_id = await heygen.upload_talking_photo_from_video(clip_video_url)
