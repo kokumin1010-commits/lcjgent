@@ -464,8 +464,9 @@ export default function LiverByName() {
   // 全期間累計ブランド分析（管理者向け）
   const [showAllTimeAnalysis, setShowAllTimeAnalysis] = useState(true);
   const [forceRefreshAllTime, setForceRefreshAllTime] = useState(false);
+  const [brandAnalysisMonth, setBrandAnalysisMonth] = useState<string>('all'); // 'all' = 全期間
   const { data: allTimeStats, isLoading: isAllTimeLoading, refetch: refetchAllTime } = trpc.liverManagement.getBrandAllTimeStats.useQuery(
-    { liverId: liverId!, forceRefresh: forceRefreshAllTime },
+    { liverId: liverId!, forceRefresh: forceRefreshAllTime, yearMonth: brandAnalysisMonth === 'all' ? undefined : brandAnalysisMonth },
     { enabled: !!liverId && showAllTimeAnalysis }
   );
 
@@ -1298,15 +1299,29 @@ export default function LiverByName() {
           </Card>
         )}
 
-        {/* 全期間累計ブランド分析 */}
+        {/* ブランド分析 */}
         <Card className="bg-gray-900/50 border-gray-800">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <Trophy className="w-4 h-4 text-yellow-500" />
-                全期間累計ブランド分析
+                {brandAnalysisMonth === 'all' ? '全期間累計' : `${brandAnalysisMonth.replace('-', '年')}月`}ブランド分析
               </h3>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* 月選択セレクター */}
+                <Select value={brandAnalysisMonth} onValueChange={(value) => setBrandAnalysisMonth(value)}>
+                  <SelectTrigger className="w-32 h-7 bg-transparent border-gray-700 text-white text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-900 border-gray-700">
+                    <SelectItem value="all" className="text-white hover:bg-gray-800 text-xs">全期間</SelectItem>
+                    {monthOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value} className="text-white hover:bg-gray-800 text-xs">
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {showAllTimeAnalysis && (
                   <Button
                     variant="outline"

@@ -22891,11 +22891,12 @@ export async function getLiverBrandDurationStats(liverId: number, yearMonth?: st
  * - 月別推移（ブランドごとに月別の売上・時間単価の推移）
  * - ブランド相性スコア（安定して売れるブランドを上位に）
  */
-export async function getLiverBrandAllTimeStats(liverId: number, forceRefresh: boolean = false) {
+export async function getLiverBrandAllTimeStats(liverId: number, forceRefresh: boolean = false, yearMonth?: string) {
   const db = await getDb();
   if (!db) return { summary: [], monthlyTrends: [], compatibilityScores: [] };
 
-  // キャッシュ確認（24時間TTL）
+  // キャッシュ確認（24時間TTL）- 月指定時はキャッシュキーを分ける
+  const cacheKey = yearMonth ? `month_stats_${yearMonth}` : 'alltime_stats';
   if (!forceRefresh) {
     try {
       const cached = await db
@@ -22903,7 +22904,7 @@ export async function getLiverBrandAllTimeStats(liverId: number, forceRefresh: b
         .from(brandAnalysisCache)
         .where(and(
           eq(brandAnalysisCache.liverId, liverId),
-          eq(brandAnalysisCache.cacheKey, 'alltime_stats')
+          eq(brandAnalysisCache.cacheKey, cacheKey)
         ))
         .limit(1);
       if (cached.length > 0) {
@@ -22943,12 +22944,17 @@ export async function getLiverBrandAllTimeStats(liverId: number, forceRefresh: b
   }
   const months = Array.from(monthSet).sort();
 
-  // Step 2: 全期間累計を取得（yearMonth未指定でgetLiverBrandDurationStatsを呼ぶ）
-  const allTimeSummary = await getLiverBrandDurationStats(liverId);
+  // yearMonth指定時は、そのmonthのデータのみで分析する
+  const targetMonths = yearMonth ? [yearMonth] : months;
+
+  // Step 2: サマリーを取得
+  const allTimeSummary = yearMonth
+    ? await getLiverBrandDurationStats(liverId, yearMonth)
+    : await getLiverBrandDurationStats(liverId);
 
   // Step 3: 月別データを取得
   const monthlyDataMap = new Map<string, Awaited<ReturnType<typeof getLiverBrandDurationStats>>>();
-  for (const month of months) {
+  for (const month of targetMonths) {
     const monthData = await getLiverBrandDurationStats(liverId, month);
     monthlyDataMap.set(month, monthData);
   }
@@ -23083,7 +23089,7 @@ export async function getLiverBrandAllTimeStats(liverId: number, forceRefresh: b
       .from(brandAnalysisCache)
       .where(and(
         eq(brandAnalysisCache.liverId, liverId),
-        eq(brandAnalysisCache.cacheKey, 'alltime_stats')
+        eq(brandAnalysisCache.cacheKey, cacheKey)
       ))
       .limit(1);
     if (existing.length > 0) {
@@ -23093,7 +23099,7 @@ export async function getLiverBrandAllTimeStats(liverId: number, forceRefresh: b
     } else {
       await db.insert(brandAnalysisCache).values({
         liverId,
-        cacheKey: 'alltime_stats',
+        cacheKey,
         data: result as any,
       });
     }
