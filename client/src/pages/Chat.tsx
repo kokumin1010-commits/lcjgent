@@ -19,7 +19,7 @@ import {
   Search, X, Edit2, UserPlus, ArrowLeft, Loader2, Check, User,
   Bold, Italic, Strikethrough, UnderlineIcon, List, ListOrdered,
   Quote, Code, Link as LinkIcon, Maximize2, Minimize2, Languages, Copy, Share2, Link2,
-  Camera, FolderOpen, ImagePlus
+  Camera, FolderOpen, ImagePlus, Trash2, UserMinus
 } from "lucide-react";
 
 // ===== Rich Text Editor Toolbar =====
@@ -148,8 +148,8 @@ function formatTimeJST(dateStr: string): string {
   if (dateStr.includes("T") || dateStr.includes("Z") || dateStr.includes("+")) {
     d = new Date(dateStr);
   } else {
-    // Format: "2026-05-27 05:31:47" - treat as JST
-    d = new Date(dateStr.replace(" ", "T") + "+09:00");
+    // Format: "2026-05-27 05:31:47" - MySQL TIMESTAMP stored as UTC
+    d = new Date(dateStr.replace(" ", "T") + "Z");
   }
   if (isNaN(d.getTime())) return dateStr;
   const now = new Date();
@@ -204,6 +204,7 @@ export default function Chat() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; msgId: number; content: string; isMe: boolean } | null>(null);
   const [editingMsgId, setEditingMsgId] = useState<number | null>(null);
   const [editingContent, setEditingContent] = useState("");
+  const [replyTo, setReplyTo] = useState<{ id: number; name: string; content: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const liveTranslateTimer = useRef<any>(null);
@@ -332,6 +333,22 @@ export default function Chat() {
     },
     onError: (err) => toast.error("撤回失敗: " + err.message),
   });
+  const dissolveRoom = trpc.chat.dissolveRoom.useMutation({
+    onSuccess: () => {
+      setSelectedRoomId(null);
+      setMobileShowMessages(false);
+      refetchRooms();
+      toast.success("グループを解散しました");
+    },
+    onError: (err) => toast.error("解散失敗: " + err.message),
+  });
+  const removeMember = trpc.chat.removeMember.useMutation({
+    onSuccess: () => {
+      refetchRooms();
+      toast.success("メンバーを除外しました");
+    },
+    onError: (err) => toast.error("除外失敗: " + err.message),
+  });
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -362,8 +379,54 @@ export default function Chat() {
       roomId: selectedRoomId,
       content: isPlain ? text : html,
       messageType: "text",
+      ...(replyTo ? { replyToId: replyTo.id, replyToName: replyTo.name, replyToContent: replyTo.content } : {}),
     });
-  }, [editor, selectedRoomId, sendMessage]);
+    setReplyTo(null);
+  }, [editor, selectedRoomId, sendMessage, replyTo]);
+
+  // Paste image handler
+  const handlePaste = useCallback(async (e: ClipboardEvent) => {
+    if (!selectedRoomId) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith("image/")) {
+        e.preventDefault();
+        const blob = items[i].getAsFile();
+        if (!blob) return;
+        setUploading(true);
+        try {
+          const formData = new FormData();
+          formData.append("file", blob, `pasted_image_${Date.now()}.png`);
+          const res = await fetch("/api/chat-file-upload", {
+            method: "POST",
+            body: formData,
+            credentials: "include",
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Upload failed");
+          sendMessage.mutate({
+            roomId: selectedRoomId,
+            content: "[画像]",
+            messageType: "image",
+            fileUrl: data.url,
+            fileName: data.fileName,
+          });
+        } catch (err: any) {
+          toast.error("画像アップロード失敗: " + err.message);
+        } finally {
+          setUploading(false);
+        }
+        return;
+      }
+    }
+  }, [selectedRoomId, sendMessage]);
+
+  // Register paste listener
+  useEffect(() => {
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [handlePaste]);
 
   // File upload handler
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -732,6 +795,15 @@ export default function Chat() {
                           </AvatarFallback>
                         </Avatar>
                         <div className={`flex-1 min-w-0 ${isMe ? "text-right" : ""}`}>
+                          {/* 引用返信ブロック */}
+                          {msg.replyToName && (
+                            <div className={`mb-1 ${isMe ? "flex justify-end" : ""}`}>
+                              <div className="inline-block rounded px-2 py-1 text-[11px] bg-muted/70 border-l-2 border-blue-400 max-w-[80%] truncate">
+                                <span className="font-medium text-blue-600">{msg.replyToName}</span>
+                                <span className="text-muted-foreground ml-1">{(msg.replyToContent || "").replace(/<[^>]+>/g, "").slice(0, 50)}</span>
+                              </div>
+                            </div>
+                          )}
                           <div className={`flex items-baseline gap-2 ${isMe ? "justify-end" : ""}`}>
                             <span className="text-xs font-medium">{msg.senderName}</span>
                             {msg.senderType && (
@@ -833,6 +905,19 @@ export default function Chat() {
                 <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
+
+            {/* Reply Preview */}
+            {replyTo && (
+              <div className="px-3 py-2 border-t bg-muted/30 flex items-center gap-2">
+                <div className="flex-1 min-w-0 border-l-2 border-blue-400 pl-2">
+                  <p className="text-xs font-medium text-blue-600">{replyTo.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{replyTo.content.replace(/<[^>]+>/g, "").slice(0, 60)}</p>
+                </div>
+                <button onClick={() => setReplyTo(null)} className="shrink-0 text-muted-foreground hover:text-foreground">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
 
             {/* Input Area with Rich Text Editor */}
             <div className={`border-t ${isEditorExpanded ? "flex-1 min-h-[300px]" : ""}`}>
@@ -983,6 +1068,19 @@ export default function Chat() {
             }}
           >
             📋 コピー
+          </button>
+          <button
+            className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2"
+            onClick={() => {
+              const msg = (messages as any[])?.find((m: any) => m.id === contextMenu.msgId);
+              if (msg) {
+                setReplyTo({ id: msg.id, name: msg.senderName || "", content: msg.content || "" });
+              }
+              setContextMenu(null);
+              editor?.commands.focus();
+            }}
+          >
+            💬 引用返信
           </button>
           {contextMenu.isMe && (
             <>
@@ -1178,13 +1276,44 @@ export default function Chat() {
                         {member.userType === 'staff' ? '本部' : 'ライバー'}
                       </p>
                     </div>
+                    {!isSelf && selectedRoom?.type === "group" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => {
+                          if (confirm(`${member.userName || "このメンバー"}をグループから除外しますか？`)) {
+                            removeMember.mutate({ roomId: selectedRoomId!, memberId: member.userId, memberType: member.userType });
+                          }
+                        }}
+                        title="メンバーを除外"
+                      >
+                        <UserMinus className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 );
               })}
             </div>
           </ScrollArea>
-          <DialogFooter>
+          <DialogFooter className="flex-col gap-2">
             <Button variant="outline" onClick={() => setShowMemberList(false)} className="w-full">閉じる</Button>
+            {selectedRoom?.type === "group" && (
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={() => {
+                  if (confirm("このグループを解散しますか？全メンバーがアクセスできなくなります。")) {
+                    dissolveRoom.mutate({ roomId: selectedRoomId! });
+                    setShowMemberList(false);
+                  }
+                }}
+                disabled={dissolveRoom.isPending}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                グループを解散
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

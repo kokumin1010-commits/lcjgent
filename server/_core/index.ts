@@ -2428,6 +2428,18 @@ async function startServer() {
       });
     });
 
+    // Chat quote reply and dissolve migration
+    import("../db").then(({ getDb: getDbChat2 }) => {
+      getDbChat2().then((dbChat2: any) => {
+        if (dbChat2) {
+          import("../migrations/addChatQuoteReplyAndDissolve").then(({ addChatQuoteReplyAndDissolve }) => {
+            addChatQuoteReplyAndDissolve(dbChat2).catch((err: unknown) => {
+              console.error("[Migration] Chat quote reply/dissolve error:", err);
+            });
+          });
+        }
+      });
+    });
     // Seed popup variants on startup (idempotent - only inserts if table is empty)
     import("../db").then(({ seedPopupVariants }) => {
       seedPopupVariants().then((result: { seeded: boolean; count: number }) => {

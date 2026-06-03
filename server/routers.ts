@@ -2733,10 +2733,10 @@ async function getChatUser(ctx: any): Promise<{ id: number; name: string; userTy
     const { payload } = await jwtVerify(token, secret);
     if (payload.liverId) {
       const liverId = Number(payload.liverId);
-      const liverResult = await db.execute(sqlTag`SELECT id, name, avatarUrl FROM livers WHERE id = ${liverId} LIMIT 1`);
+      const liverResult = await db.execute(sqlTag`SELECT id, name, tiktokAccount, avatarUrl FROM livers WHERE id = ${liverId} LIMIT 1`);
       const liver = (liverResult as any)[0]?.[0];
       if (liver) {
-        return { id: liver.id, name: liver.name || 'Unknown', userType: 'liver', avatarUrl: liver.avatarUrl || null };
+        return { id: liver.id, name: liver.tiktokAccount || liver.name || 'Unknown', userType: 'liver', avatarUrl: liver.avatarUrl || null };
       }
     }
     // Also check if it's a staff token with userId (users table id)
@@ -27096,14 +27096,17 @@ JSON配列のみを出力してください。`;
         messageType: z.enum(['text', 'image', 'file']).optional(),
         fileUrl: z.string().optional(),
         fileName: z.string().optional(),
+        replyToId: z.number().optional(),
+        replyToName: z.string().optional(),
+        replyToContent: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const chatUser = await getChatUser(ctx);
         if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
         const db = await getDb();
         await db.execute(sqlTag`
-          INSERT INTO chat_messages (roomId, senderId, senderType, senderName, messageType, content, fileUrl, fileName)
-          VALUES (${input.roomId}, ${chatUser.id}, ${chatUser.userType}, ${chatUser.name}, ${input.messageType || 'text'}, ${input.content}, ${input.fileUrl || null}, ${input.fileName || null})
+          INSERT INTO chat_messages (roomId, senderId, senderType, senderName, messageType, content, fileUrl, fileName, replyToId, replyToName, replyToContent)
+          VALUES (${input.roomId}, ${chatUser.id}, ${chatUser.userType}, ${chatUser.name}, ${input.messageType || 'text'}, ${input.content}, ${input.fileUrl || null}, ${input.fileName || null}, ${input.replyToId || null}, ${input.replyToName || null}, ${input.replyToContent || null})
         `);
         // 自分の既読を更新（legacyIdも対応）
         await db.execute(sqlTag`
@@ -27299,7 +27302,7 @@ JSON配列のみを出力してください。`;
         `);
         // ライバー一覧
         const liverList = await db.execute(sqlTag`
-          SELECT id, name, email, avatarUrl, 'liver' as userType FROM livers WHERE isActive = 1 AND (name LIKE ${q} OR email LIKE ${q} OR tiktokAccount LIKE ${q}) LIMIT 50
+          SELECT id, COALESCE(tiktokAccount, name) as name, tiktokAccount, email, avatarUrl, 'liver' as userType FROM livers WHERE isActive = 1 AND (name LIKE ${q} OR email LIKE ${q} OR tiktokAccount LIKE ${q}) LIMIT 50
         `);
         // 重複除外: 同じemailのユーザーがstaffとliversの両方にいる場合、staffを優先
         const staffEmails = new Set(((staffList as any)[0] || []).map((s: any) => s.email?.toLowerCase()).filter(Boolean));
@@ -27434,6 +27437,60 @@ JSON配列のみを出力してください。`;
         return { success: true };
       }),
     // グループの招待コードを生成/取得
+    // グループ解散
+    dissolveRoom: publicProcedure
+      .input(z.object({ roomId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
+        // Check if user is room creator (owner)
+        const roomResult = await db.execute(sqlTag`SELECT createdBy FROM chat_rooms WHERE id = ${input.roomId} LIMIT 1`);
+        const room = (roomResult as any)[0]?.[0];
+        if (!room) throw new TRPCError({ code: 'NOT_FOUND', message: 'ルームが見つかりません' });
+        if (room.createdBy !== chatUser.id) throw new TRPCError({ code: 'FORBIDDEN', message: 'グループ作成者のみ解散できます' });
+        // Mark room as dissolved
+        await db.execute(sqlTag`UPDATE chat_rooms SET dissolvedAt = NOW() WHERE id = ${input.roomId}`);
+        // Insert system message
+        await db.execute(sqlTag`
+          INSERT INTO chat_messages (roomId, senderId, senderType, senderName, messageType, content)
+          VALUES (${input.roomId}, ${chatUser.id}, ${chatUser.userType}, ${chatUser.name}, 'text', '${chatUser.name}がグループを解散しました')
+        `);
+        return { success: true };
+      }),
+    // メンバー除外
+    removeMember: publicProcedure
+      .input(z.object({
+        roomId: z.number(),
+        userId: z.number(),
+        userType: z.enum(['staff', 'liver']),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
+        // Check if user is room creator (owner)
+        const roomResult = await db.execute(sqlTag`SELECT createdBy FROM chat_rooms WHERE id = ${input.roomId} LIMIT 1`);
+        const room = (roomResult as any)[0]?.[0];
+        if (!room) throw new TRPCError({ code: 'NOT_FOUND', message: 'ルームが見つかりません' });
+        if (room.createdBy !== chatUser.id) throw new TRPCError({ code: 'FORBIDDEN', message: 'グループ作成者のみメンバーを除外できます' });
+        // Cannot remove self
+        if (input.userId === chatUser.id && input.userType === chatUser.userType) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '自分自身を除外することはできません' });
+        }
+        // Get member name for system message
+        const memberResult = await db.execute(sqlTag`SELECT userName FROM chat_room_members WHERE roomId = ${input.roomId} AND userId = ${input.userId} AND userType = ${input.userType} LIMIT 1`);
+        const member = (memberResult as any)[0]?.[0];
+        if (!member) throw new TRPCError({ code: 'NOT_FOUND', message: 'メンバーが見つかりません' });
+        // Remove member
+        await db.execute(sqlTag`DELETE FROM chat_room_members WHERE roomId = ${input.roomId} AND userId = ${input.userId} AND userType = ${input.userType}`);
+        // Insert system message
+        await db.execute(sqlTag`
+          INSERT INTO chat_messages (roomId, senderId, senderType, senderName, messageType, content)
+          VALUES (${input.roomId}, ${chatUser.id}, ${chatUser.userType}, ${chatUser.name}, 'text', '${member.userName || "メンバー"}がグループから除外されました')
+        `);
+        return { success: true };
+      }),
     getGroupInviteCode: publicProcedure
       .input(z.object({ roomId: z.number() }))
       .query(async ({ input, ctx }) => {
