@@ -6955,24 +6955,32 @@ export async function getMallCart(lineUserId: number) {
   return await db.select({
     cart: mallCarts,
     product: mallProducts,
+    variant: mallProductVariants,
   })
     .from(mallCarts)
     .innerJoin(mallProducts, eq(mallCarts.productId, mallProducts.id))
+    .leftJoin(mallProductVariants, eq(mallCarts.variantId, mallProductVariants.id))
     .where(eq(mallCarts.lineUserId, lineUserId));
 }
 
 // カートに追加
-export async function addToMallCart(lineUserId: number, productId: number, quantity: number = 1) {
+export async function addToMallCart(lineUserId: number, productId: number, quantity: number = 1, variantId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  // 既存のカートアイテムを確認
+  // 既存のカートアイテムを確認（同じ商品+同じバリアント）
+  const conditions = [
+    eq(mallCarts.lineUserId, lineUserId),
+    eq(mallCarts.productId, productId),
+  ];
+  if (variantId) {
+    conditions.push(eq(mallCarts.variantId, variantId));
+  } else {
+    conditions.push(sql`${mallCarts.variantId} IS NULL`);
+  }
   const existing = await db.select()
     .from(mallCarts)
-    .where(and(
-      eq(mallCarts.lineUserId, lineUserId),
-      eq(mallCarts.productId, productId)
-    ))
+    .where(and(...conditions))
     .limit(1);
 
   if (existing.length > 0) {
@@ -6985,42 +6993,51 @@ export async function addToMallCart(lineUserId: number, productId: number, quant
     await db.insert(mallCarts).values({
       lineUserId,
       productId,
+      variantId: variantId || null,
       quantity,
     });
   }
 }
 
 // カート数量更新
-export async function updateMallCartQuantity(lineUserId: number, productId: number, quantity: number) {
+export async function updateMallCartQuantity(lineUserId: number, productId: number, quantity: number, variantId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
+  const conditions = [
+    eq(mallCarts.lineUserId, lineUserId),
+    eq(mallCarts.productId, productId),
+  ];
+  if (variantId) {
+    conditions.push(eq(mallCarts.variantId, variantId));
+  } else {
+    conditions.push(sql`${mallCarts.variantId} IS NULL`);
+  }
+
   if (quantity <= 0) {
-    await db.delete(mallCarts)
-      .where(and(
-        eq(mallCarts.lineUserId, lineUserId),
-        eq(mallCarts.productId, productId)
-      ));
+    await db.delete(mallCarts).where(and(...conditions));
   } else {
     await db.update(mallCarts)
       .set({ quantity })
-      .where(and(
-        eq(mallCarts.lineUserId, lineUserId),
-        eq(mallCarts.productId, productId)
-      ));
+      .where(and(...conditions));
   }
 }
 
 // カートから削除
-export async function removeFromMallCart(lineUserId: number, productId: number) {
+export async function removeFromMallCart(lineUserId: number, productId: number, variantId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  await db.delete(mallCarts)
-    .where(and(
-      eq(mallCarts.lineUserId, lineUserId),
-      eq(mallCarts.productId, productId)
-    ));
+  const conditions = [
+    eq(mallCarts.lineUserId, lineUserId),
+    eq(mallCarts.productId, productId),
+  ];
+  if (variantId) {
+    conditions.push(eq(mallCarts.variantId, variantId));
+  } else {
+    conditions.push(sql`${mallCarts.variantId} IS NULL`);
+  }
+  await db.delete(mallCarts).where(and(...conditions));
 }
 
 // カートをクリア
@@ -7051,6 +7068,7 @@ export async function createMallOrder(data: {
     productId: number;
     quantity: number;
     usePoints: boolean;
+    variantId?: number;
   }>;
   pointsToUse: number;
   isFullPointPurchase?: boolean; // ポイント全額購入フラグ
@@ -7084,6 +7102,8 @@ export async function createMallOrder(data: {
     quantity: number;
     subtotal: number;
     pointSubtotal: number;
+    variantId?: number | null;
+    variantName?: string | null;
   }> = [];
 
   for (const item of data.items) {
@@ -7101,7 +7121,21 @@ export async function createMallOrder(data: {
       quantity: item.quantity,
       subtotal,
       pointSubtotal: 0,
+      variantId: item.variantId || null,
+      variantName: null, // 後でバリアント名を取得
     });
+  }
+
+  // バリアント名を取得
+  const variantIds = orderItems.filter(i => i.variantId).map(i => i.variantId!);
+  if (variantIds.length > 0) {
+    const variants = await db.select().from(mallProductVariants).where(inArray(mallProductVariants.id, variantIds));
+    const variantMap = new Map(variants.map(v => [v.id, v.name]));
+    for (const item of orderItems) {
+      if (item.variantId && variantMap.has(item.variantId)) {
+        item.variantName = variantMap.get(item.variantId) || null;
+      }
+    }
   }
 
   // ポイント使用を計算

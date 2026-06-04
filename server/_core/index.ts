@@ -2456,6 +2456,11 @@ async function startServer() {
         console.error("[Migration] Chat mentions/video error:", err);
       });
     });
+    import("../migrations/addCartVariantId").then(({ addCartVariantId }) => {
+      addCartVariantId(db).catch((err: unknown) => {
+        console.error("[Migration] Cart variantId error:", err);
+      });
+    });
     // Seed popup variants on startup (idempotent - only inserts if table is empty)
     import("../db").then(({ seedPopupVariants }) => {
       seedPopupVariants().then((result: { seeded: boolean; count: number }) => {

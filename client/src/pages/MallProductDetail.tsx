@@ -232,6 +232,7 @@ export default function MallProductDetail() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("points");
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [quantity, setQuantity] = useState(1);
+  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   // お気に入り状態はAPIから取得
   const { data: favoriteIds = [] } = trpc.mall.getFavoriteIds.useQuery();
   const utils = trpc.useUtils();
@@ -271,6 +272,12 @@ export default function MallProductDetail() {
   });
 
   const { data: cartCount } = trpc.mall.getCartCount.useQuery();
+
+  // バリアント取得
+  const { data: productVariants } = trpc.mall.getVariants.useQuery(
+    { productId: Number(id) },
+    { enabled: !!id }
+  );
 
   const addToCartMutation = trpc.mall.addToCart.useMutation({
     onSuccess: () => {
@@ -618,6 +625,7 @@ export default function MallProductDetail() {
         await purchaseWithPoints.mutateAsync({
           productId: product.id,
           quantity: quantity,
+          variantId: selectedVariantId,
           shippingInfo,
         });
       } finally {
@@ -648,7 +656,7 @@ export default function MallProductDetail() {
         }
 
         await createCheckoutSession.mutateAsync({
-          items: [{ productId: product.id, quantity }],
+          items: [{ productId: product.id, quantity, variantId: selectedVariantId }],
           shippingInfo,
         });
       } finally {
@@ -859,6 +867,48 @@ export default function MallProductDetail() {
             {/* 購入カード */}
             <Card className="border-2 border-pink-200 shadow-xl">
               <CardContent className="p-6 space-y-4">
+                {/* バリアント選択 */}
+                {productVariants && productVariants.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="font-medium text-sm">タイプを選択</span>
+                    <div className="flex flex-wrap gap-2">
+                      {productVariants.filter((v: any) => v.isActive !== 'no').map((v: any) => (
+                        <button
+                          key={v.id}
+                          type="button"
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
+                            selectedVariantId === v.id
+                              ? 'border-pink-500 bg-pink-50 shadow-md'
+                              : 'border-gray-200 hover:border-pink-300 hover:bg-pink-50/50'
+                          } ${v.stock <= 0 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                          onClick={() => {
+                            if (v.stock > 0) {
+                              setSelectedVariantId(selectedVariantId === v.id ? null : v.id);
+                            }
+                          }}
+                          disabled={v.stock <= 0}
+                        >
+                          {v.imageUrl && (
+                            <img src={v.imageUrl} alt={v.name} className="w-8 h-8 rounded object-cover" />
+                          )}
+                          <div className="text-left">
+                            <div className="text-sm font-medium">{v.name}</div>
+                            {v.price != null && (
+                              <div className="text-xs text-pink-600">¥{v.price.toLocaleString()}</div>
+                            )}
+                          </div>
+                          {v.stock <= 0 && (
+                            <span className="text-xs text-red-500 ml-1">売切</span>
+                          )}
+                          {selectedVariantId === v.id && (
+                            <CheckCircle2 className="h-4 w-4 text-pink-500 ml-1" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* 数量選択 */}
                 {product.stock > 0 && (
                   <div className="flex items-center justify-between">
@@ -895,7 +945,7 @@ export default function MallProductDetail() {
                       variant="outline"
                       className="flex-1 border-pink-300 text-pink-500 hover:bg-pink-50 text-base py-7 rounded-xl transition-all"
                       onClick={() => {
-                        addToCartMutation.mutate({ productId: product.id, quantity });
+                        addToCartMutation.mutate({ productId: product.id, quantity, variantId: selectedVariantId });
                       }}
                       disabled={addToCartMutation.isPending}
                     >

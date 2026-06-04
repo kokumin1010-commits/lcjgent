@@ -269,20 +269,20 @@ export default function MallCart() {
   const canPurchaseWithPoints = lineUser && allPointEligible && lineUser.points >= totalPoints;
   const selectedAddress = savedAddresses?.find(a => a.id === selectedAddressId);
 
-  const handleQuantityChange = (productId: number, newQty: number, maxStock: number) => {
+  const handleQuantityChange = (productId: number, newQty: number, maxStock: number, variantId?: number | null) => {
     if (newQty <= 0) {
-      removeItemMutation.mutate({ productId });
+      removeItemMutation.mutate({ productId, variantId: variantId || undefined });
       return;
     }
     if (newQty > maxStock) {
       toast.error(`在庫数は${maxStock}個までです`);
       return;
     }
-    updateQuantityMutation.mutate({ productId, quantity: newQty });
+    updateQuantityMutation.mutate({ productId, quantity: newQty, variantId: variantId || undefined });
   };
 
-  const handleRemoveItem = (productId: number, productName: string) => {
-    removeItemMutation.mutate({ productId });
+  const handleRemoveItem = (productId: number, productName: string, variantId?: number | null) => {
+    removeItemMutation.mutate({ productId, variantId: variantId || undefined });
     toast.success(`${productName}をカートから削除しました`, { duration: 1500 });
   };
 
@@ -498,13 +498,20 @@ export default function MallCart() {
                     {/* 商品情報 */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
-                        <Link href={`/mall/products/${product.id}`}>
-                          <h3 className="text-sm font-medium text-gray-800 line-clamp-2 leading-tight hover:text-pink-600 transition-colors">
-                            {product.name}
-                          </h3>
-                        </Link>
+                        <div>
+                          <Link href={`/mall/products/${product.id}`}>
+                            <h3 className="text-sm font-medium text-gray-800 line-clamp-2 leading-tight hover:text-pink-600 transition-colors">
+                              {product.name}
+                            </h3>
+                          </Link>
+                          {item.variant && (
+                            <span className="inline-block mt-0.5 text-[11px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                              {item.variant.name}
+                            </span>
+                          )}
+                        </div>
                         <button
-                          onClick={() => handleRemoveItem(product.id, product.name)}
+                          onClick={() => handleRemoveItem(product.id, product.name, cart.variantId)}
                           className="p-1 text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
                         >
                           <X className="h-4 w-4" />
@@ -546,7 +553,7 @@ export default function MallCart() {
                         {!isOutOfStock && (
                           <div className="flex items-center gap-0 border border-gray-200 rounded-full overflow-hidden">
                             <button
-                              onClick={() => handleQuantityChange(product.id, cart.quantity - 1, product.stock)}
+                              onClick={() => handleQuantityChange(product.id, cart.quantity - 1, product.stock, cart.variantId)}
                               className="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors active:bg-gray-200"
                             >
                               {cart.quantity <= 1 ? (
@@ -559,7 +566,7 @@ export default function MallCart() {
                               {cart.quantity}
                             </span>
                             <button
-                              onClick={() => handleQuantityChange(product.id, cart.quantity + 1, product.stock)}
+                              onClick={() => handleQuantityChange(product.id, cart.quantity + 1, product.stock, cart.variantId)}
                               disabled={cart.quantity >= product.stock}
                               className="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors active:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
                             >

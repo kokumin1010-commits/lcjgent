@@ -354,6 +354,32 @@ function VariantSection({ productId }: { productId: number }) {
     price: "",
     stock: "0",
   });
+  const [uploadingVariantId, setUploadingVariantId] = useState<number | null>(null);
+
+  const handleVariantImageUpload = async (variantId: number, file: File) => {
+    setUploadingVariantId(variantId);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload-product-image", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("アップロード失敗");
+      const data = await res.json();
+      updateVariant.mutate({
+        id: variantId,
+        imageUrl: data.url,
+        imageKey: data.key,
+      });
+      toast.success("バリアント画像を更新しました");
+    } catch (err: any) {
+      toast.error(err.message || "画像アップロードに失敗しました");
+    } finally {
+      setUploadingVariantId(null);
+    }
+  };
 
   const handleAddVariant = () => {
     if (!newVariant.name.trim()) {
@@ -451,6 +477,34 @@ function VariantSection({ productId }: { productId: number }) {
                 </>
               ) : (
                 <>
+                  {/* バリアント画像 */}
+                  <div className="relative w-10 h-10 flex-shrink-0 rounded border overflow-hidden bg-muted">
+                    {v.imageUrl ? (
+                      <img src={v.imageUrl} alt={v.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    )}
+                    <label className="absolute inset-0 cursor-pointer opacity-0 hover:opacity-100 bg-black/40 flex items-center justify-center transition-opacity">
+                      <Upload className="h-4 w-4 text-white" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleVariantImageUpload(v.id, file);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    {uploadingVariantId === v.id && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </div>
                   <span className="text-sm font-medium flex-1">{v.name}</span>
                   {v.variantType && <Badge variant="secondary" className="text-xs">{v.variantType}</Badge>}
                   {v.sku && <span className="text-xs text-muted-foreground">SKU:{v.sku}</span>}

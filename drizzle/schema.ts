@@ -1822,6 +1822,10 @@ export const mallOrderItems = mysqlTable("mall_order_items", {
   subtotal: int("subtotal").notNull(), // 小計（円）
   pointSubtotal: int("pointSubtotal").default(0).notNull(), // ポイント小計
   
+  // バリアント情報
+  variantId: int("variantId"),
+  variantName: varchar("variantName", { length: 255 }),
+  
   // タイムスタンプ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
@@ -1840,6 +1844,9 @@ export const mallCarts = mysqlTable("mall_carts", {
   
   // 商品
   productId: int("productId").notNull(),
+  
+  // バリアント（任意）
+  variantId: int("variantId"),
   
   // 数量
   quantity: int("quantity").default(1).notNull(),

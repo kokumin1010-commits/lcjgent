@@ -20768,6 +20768,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         items: z.array(z.object({
           productId: z.number(),
           quantity: z.number().min(1),
+          variantId: z.number().nullable().optional(),
         })),
         shippingInfo: z.object({
           name: z.string().min(1),
@@ -20834,6 +20835,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             productId: product.id,
             quantity: item.quantity,
             usePoints: false,
+            variantId: item.variantId || undefined,
           });
         }
 
@@ -21052,6 +21054,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({
         productId: z.number(),
         quantity: z.number().min(1).default(1),
+        variantId: z.number().nullable().optional(),
         shippingInfo: z.object({
           name: z.string().min(1),
           phone: z.string().min(1),
@@ -21107,6 +21110,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             productId: input.productId,
             quantity: input.quantity,
             usePoints: true,
+            variantId: input.variantId || undefined,
           }],
           pointsToUse: totalPoints,
           isFullPointPurchase: true, // ポイント全額購入
@@ -21594,13 +21598,14 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({
         productId: z.number(),
         quantity: z.number().min(1).default(1),
+        variantId: z.number().nullable().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const result = await getLineUserFromSession(ctx);
         if (!result || !result.lineUser) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
-        await addToMallCart(result.lineUser.id, input.productId, input.quantity);
+        await addToMallCart(result.lineUser.id, input.productId, input.quantity, input.variantId);
         return { success: true };
       }),
 
@@ -21608,26 +21613,28 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({
         productId: z.number(),
         quantity: z.number().min(0),
+        variantId: z.number().nullable().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const result = await getLineUserFromSession(ctx);
         if (!result || !result.lineUser) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
-        await updateMallCartQuantity(result.lineUser.id, input.productId, input.quantity);
+        await updateMallCartQuantity(result.lineUser.id, input.productId, input.quantity, input.variantId);
         return { success: true };
       }),
 
     removeFromCart: publicProcedure
       .input(z.object({
         productId: z.number(),
+        variantId: z.number().nullable().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const result = await getLineUserFromSession(ctx);
         if (!result || !result.lineUser) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
-        await removeFromMallCart(result.lineUser.id, input.productId);
+        await removeFromMallCart(result.lineUser.id, input.productId, input.variantId);
         return { success: true };
       }),
 
