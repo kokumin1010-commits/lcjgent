@@ -7,7 +7,7 @@ import { generateRequestId } from "../utils/runtimeErrorLogger";
  * Default request timeout in milliseconds.
  * Prevents requests from hanging indefinitely (e.g. Azure cold-start).
  */
-const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
+const DEFAULT_TIMEOUT_MS = 45000; // 45 seconds (increased from 30s to handle concurrent upload scenarios)
 
 /**
  * Retry configuration for transient errors (5xx, timeout, network).

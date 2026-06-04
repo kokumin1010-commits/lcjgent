@@ -976,9 +976,12 @@ async def get_video_detail(
             and all(item["csv_metrics"]["viewer_count"] == 0 for item in report1_items)
         ):
             try:
-                recalc_result = await _auto_recalc_csv_metrics(
-                    db, video_id, video_row.excel_trend_blob_url,
-                    float(getattr(video_row, 'time_offset_seconds', 0) or 0),
+                recalc_result = await asyncio.wait_for(
+                    _auto_recalc_csv_metrics(
+                        db, video_id, video_row.excel_trend_blob_url,
+                        float(getattr(video_row, 'time_offset_seconds', 0) or 0),
+                    ),
+                    timeout=10.0,  # Skip if takes >10s (prevents blocking video detail load)
                 )
                 if recalc_result:
                     # Update report1_items in-place with recalculated metrics
@@ -999,6 +1002,8 @@ async def get_video_detail(
                                 "gpm": u["gpm"],
                             })
                     logger.info(f"[AUTO-RECALC] Recalculated CSV metrics for video {video_id}")
+            except asyncio.TimeoutError:
+                logger.warning(f"[AUTO-RECALC] Timed out (>10s) for video {video_id}, skipping")
             except Exception as _recalc_err:
                 logger.warning(f"[AUTO-RECALC] Failed for video {video_id}: {_recalc_err}")
 

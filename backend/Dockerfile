@@ -67,13 +67,13 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -sf http://localhost:8000/ || exit 1
 
 # Run with gunicorn + uvicorn workers for production
-# - 2 workers (suitable for B3: 4 cores, 7GB RAM)
+# - 4 workers (B3: 4 cores, 7GB RAM — prevents request starvation during concurrent uploads)
 # - 600s timeout for long-running video exports
 # - 120s keep-alive for Azure load balancer
 CMD ["python", "-m", "gunicorn", \
      "-k", "uvicorn.workers.UvicornWorker", \
      "app.main:app", \
-     "--workers", "2", \
+     "--workers", "4", \
      "--threads", "1", \
      "--timeout", "600", \
      "--graceful-timeout", "30", \

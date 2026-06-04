@@ -1286,15 +1286,16 @@ export default function MainContent({
     setLoadingVideo(true);
     setVideoLoadError(null);
 
-    // Safety timeout: if API doesn't respond within 20s, show error instead of spinner
+    // Safety timeout: if API doesn't respond within 45s, show error instead of spinner
+    // (Increased from 20s to handle Azure cold-start + heavy DB queries during concurrent uploads)
     if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
     videoLoadTimeoutRef.current = setTimeout(() => {
       if (currentRequestId === videoRequestIdRef.current) {
-        console.warn('[MainContent] Video loading timed out after 20s');
+        console.warn('[MainContent] Video loading timed out after 45s');
         setLoadingVideo(false);
         setVideoLoadError('timeout');
       }
-    }, 20000);
+    }, 45000);
 
     const fetchVideoDetails = async () => {
       try {
@@ -1484,7 +1485,7 @@ export default function MainContent({
                           setLoadingVideo(false);
                           setVideoLoadError('timeout');
                         }
-                      }, 20000);
+                      }, 45000);
                       VideoService.getVideoById(videoId, { signal: ctrl.signal }).then((response) => {
                         if (reqId !== videoRequestIdRef.current) return;
                         const data = response || {};
