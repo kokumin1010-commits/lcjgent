@@ -2602,8 +2602,8 @@ ${proposal.proposalContent}
                       const kolProg = quotaProgress.kolProgress?.find((a: any) => a.liverName === lb.streamerName);
                       const quotaHours = kolProg ? kolProg.quotaHours : null;
                       const kolPct = kolProg ? kolProg.progressPercent : null;
-                      return (<>
-                        <tr key={idx} className="border-b border-gray-800/50 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setExpandedLiverBreakdown(expandedLiverBreakdown === lb.streamerName ? null : lb.streamerName)}>
+                      return (<React.Fragment key={idx}>
+                        <tr className="border-b border-gray-800/50 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setExpandedLiverBreakdown(expandedLiverBreakdown === lb.streamerName ? null : lb.streamerName)}>
                           <td className="p-3">
                             <span className="text-sm font-medium text-white flex items-center gap-1">
                               <ChevronDown className={`h-3 w-3 text-cyan-400 transition-transform ${expandedLiverBreakdown === lb.streamerName ? 'rotate-180' : ''}`} />
@@ -2663,7 +2663,7 @@ ${proposal.proposalContent}
                                     }
                                     return false;
                                   })
-                                  .sort((a, b) => (b.livestreamDate || '').localeCompare(a.livestreamDate || ''))
+                                  .sort((a, b) => new Date(b.livestreamDate || 0).getTime() - new Date(a.livestreamDate || 0).getTime())
                                   .slice(0, 30)
                                   .map((ls, lsIdx) => (
                                     <div key={lsIdx} className="flex items-center justify-between bg-black/30 rounded px-3 py-1.5 hover:bg-cyan-900/20 cursor-pointer" onClick={(e) => { e.stopPropagation(); window.open(`/livestreams/${ls.id}`, '_blank'); }}>
@@ -2687,7 +2687,7 @@ ${proposal.proposalContent}
                             </td>
                           </tr>
                         )}
-                      </>);
+                      </React.Fragment>);
                     })}
                   </tbody>
                 </table>
