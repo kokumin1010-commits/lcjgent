@@ -376,6 +376,10 @@ async def run_all_ddl_migrations():
                         "ALTER TABLE personas ADD COLUMN IF NOT EXISTS live_persona_config JSONB"
                     ))
                     logger.info("[DDL ORM] persona tables ✓")
+
+                    from app.models.orm.ai_video_gen_job import AiVideoGenJob
+                    await conn.run_sync(AiVideoGenJob.__table__.create, checkfirst=True)
+                    logger.info("[DDL ORM] ai_video_gen_jobs ✓")
         except Exception as e:
             logger.warning(f"[DDL ORM] ORM tables: {e}")
 

@@ -88,6 +88,13 @@ class VideoGenerateRequest(BaseModel):
     # Optional: user-provided script (skip AI generation)
     custom_script: Optional[str] = Field(None, max_length=5000, description="カスタム台本（省略時はAI生成）")
 
+    # Product showcase options (NEW)
+    showcase_mode: Optional[str] = Field(None, description="商品展示モード: overlay, split, fullscreen")
+    showcase_description: Optional[str] = Field(None, max_length=2000, description="商品展示方式の詳細説明（カメラ角度、回転等）")
+
+    # Person photo analysis (NEW)
+    person_image_url: Optional[str] = Field(None, description="人物写真URL（アップロード後のURL）")
+
 
 class VideoGenerateResponse(BaseModel):
     """Response from video generation request."""
@@ -113,6 +120,8 @@ class JobStatusResponse(BaseModel):
     # Input echo
     product_name: Optional[str] = None
     avatar_id: Optional[str] = None
+    language: Optional[str] = None
+    tone: Optional[str] = None
     # Error info
     error: Optional[str] = None
     error_step: Optional[str] = None
@@ -233,16 +242,83 @@ async def _run_pipeline(job_id: str, request: VideoGenerateRequest, db_url: str)
         job["updated_at"] = datetime.now(timezone.utc).isoformat()
 
         logger.info(
-            f"[AIVideoGen:{job_id}] ✅ Pipeline complete! "
+            f"[AIVideoGen:{job_id}] \u2705 Pipeline complete! "
             f"Product: {request.product_name}, Duration: {duration_sec}s"
         )
 
+        # Persist completion to DB
+        await _sync_job_to_db(job_id, job)
+
     except Exception as e:
-        logger.error(f"[AIVideoGen:{job_id}] ❌ Pipeline failed: {e}", exc_info=True)
+        logger.error(f"[AIVideoGen:{job_id}] \u274c Pipeline failed: {e}", exc_info=True)
         job["status"] = "failed"
         job["error"] = str(e)
         job["error_step"] = job.get("status", "unknown")
         job["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        # Persist failure to DB
+        await _sync_job_to_db(job_id, job)
+
+
+async def _sync_job_to_db(job_id: str, job: Dict[str, Any]):
+    """Sync in-memory job state to DB."""
+    try:
+        from app.core.db import AsyncSessionLocal
+        from app.models.orm.ai_video_gen_job import AiVideoGenJob
+        from sqlalchemy import update as sa_update
+        async with AsyncSessionLocal() as db_session:
+            await db_session.execute(
+                sa_update(AiVideoGenJob).where(AiVideoGenJob.job_id == job_id).values(
+                    status=job.get("status"),
+                    progress=job.get("progress", 0),
+                    script=job.get("script"),
+                    audio_url=job.get("audio_url"),
+                    video_url=job.get("video_url"),
+                    video_duration_sec=job.get("video_duration_sec"),
+                    error=job.get("error"),
+                    error_step=job.get("error_step"),
+                    completed_at=datetime.now(timezone.utc) if job.get("status") in ("completed", "failed") else None,
+                )
+            )
+            await db_session.commit()
+    except Exception as e:
+        logger.warning(f"[AIVideoGen:{job_id}] DB sync failed (non-fatal): {e}")
+
+
+async def _load_jobs_from_db() -> List[Dict[str, Any]]:
+    """Load completed/failed jobs from DB for history display."""
+    try:
+        from app.core.db import AsyncSessionLocal
+        from app.models.orm.ai_video_gen_job import AiVideoGenJob
+        from sqlalchemy import select, desc
+        async with AsyncSessionLocal() as db_session:
+            result = await db_session.execute(
+                select(AiVideoGenJob).order_by(desc(AiVideoGenJob.created_at)).limit(100)
+            )
+            rows = result.scalars().all()
+            jobs = []
+            for row in rows:
+                jobs.append({
+                    "job_id": row.job_id,
+                    "status": row.status,
+                    "progress": row.progress or 0,
+                    "created_at": row.created_at.isoformat() if row.created_at else "",
+                    "updated_at": row.updated_at.isoformat() if row.updated_at else "",
+                    "product_name": row.product_name,
+                    "avatar_id": row.avatar_id,
+                    "language": row.language,
+                    "tone": row.tone,
+                    "script": row.script,
+                    "audio_url": row.audio_url,
+                    "video_url": row.video_url,
+                    "video_duration_sec": row.video_duration_sec,
+                    "error": row.error,
+                    "error_step": row.error_step,
+                })
+            return jobs
+    except Exception as e:
+        logger.warning(f"[AIVideoGen] DB load failed: {e}")
+        return []
 
 
 async def _analyze_product(request: VideoGenerateRequest) -> Optional[Dict[str, str]]:
@@ -603,6 +679,8 @@ async def generate_video(
         "updated_at": now,
         "product_name": body.product_name,
         "avatar_id": body.avatar_id,
+        "language": body.language,
+        "tone": body.tone,
         "script": None,
         "audio_url": None,
         "video_url": None,
@@ -610,6 +688,37 @@ async def generate_video(
         "error": None,
         "error_step": None,
     }
+
+    # Persist to DB
+    try:
+        from app.core.db import AsyncSessionLocal
+        async with AsyncSessionLocal() as db_session:
+            from app.models.orm.ai_video_gen_job import AiVideoGenJob
+            db_job = AiVideoGenJob(
+                job_id=job_id,
+                status="queued",
+                progress=0,
+                product_name=body.product_name,
+                product_description=body.product_description,
+                product_image_url=body.product_image_url,
+                product_page_url=body.product_page_url,
+                product_price=body.product_price,
+                avatar_id=body.avatar_id,
+                voice_id=body.voice_id,
+                tone=body.tone,
+                language=body.language,
+                duration_seconds=body.duration_seconds,
+                benefits=body.benefits,
+                target_audience=body.target_audience,
+                custom_script=body.custom_script,
+                showcase_mode=body.showcase_mode,
+                showcase_description=body.showcase_description,
+                person_image_url=body.person_image_url,
+            )
+            db_session.add(db_job)
+            await db_session.commit()
+    except Exception as db_err:
+        logger.warning(f"[AIVideoGen:{job_id}] DB persist failed (non-fatal): {db_err}")
 
     # Get DB URL for background task
     db_url = os.getenv("DATABASE_URL", "")
@@ -642,6 +751,13 @@ async def get_job_status(
     """Get the current status of a video generation job."""
     job = _jobs.get(job_id)
     if not job:
+        # Try loading from DB
+        db_jobs = await _load_jobs_from_db()
+        for dj in db_jobs:
+            if dj["job_id"] == job_id:
+                job = dj
+                break
+    if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
 
     return JobStatusResponse(**job)
@@ -655,16 +771,25 @@ async def list_jobs(
     limit: int = Query(20, ge=1, le=100),
     _auth: bool = Depends(verify_admin_key),
 ):
-    """List recent video generation jobs."""
+    """List recent video generation jobs (merged: in-memory + DB)."""
+    # Merge in-memory (active) and DB (historical)
+    db_jobs = await _load_jobs_from_db()
+    merged: Dict[str, Dict[str, Any]] = {}
+    for dj in db_jobs:
+        merged[dj["job_id"]] = dj
+    # In-memory overrides DB (fresher state)
+    for jid, jdata in _jobs.items():
+        merged[jid] = jdata
+
     jobs_list = sorted(
-        _jobs.values(),
+        merged.values(),
         key=lambda j: j.get("created_at", ""),
         reverse=True,
     )[:limit]
 
     return {
         "jobs": [JobStatusResponse(**j) for j in jobs_list],
-        "total": len(_jobs),
+        "total": len(merged),
     }
 
 
@@ -949,3 +1074,298 @@ async def analyze_product_endpoint(
     except Exception as e:
         logger.error(f"[AIVideoGen] Product analysis failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"商品解析に失敗しました: {str(e)}")
+
+
+
+# ──────────────────────────────────────────────
+# GET /ai-video-generator/voices — Voice list for selection
+# ──────────────────────────────────────────────
+
+class VoiceInfo(BaseModel):
+    """Voice information for selection."""
+    voice_id: str
+    name: str
+    language: Optional[str] = None
+    gender: Optional[str] = None
+    preview_url: Optional[str] = None
+    category: str = "premade"  # premade, cloned, professional
+
+
+@router.get(
+    "/voices",
+    summary="List available voices for video generation",
+)
+async def list_voices(
+    language: Optional[str] = Query(None, description="Filter by language (ja, en, zh, ko, etc.)"),
+    _auth: bool = Depends(verify_admin_key),
+):
+    """
+    List available ElevenLabs voices for video generation.
+    Returns both premade and cloned voices.
+    """
+    try:
+        from app.services.elevenlabs_tts_service import ElevenLabsTTSService
+        tts = ElevenLabsTTSService()
+        voices_raw = await tts.list_voices()
+
+        voices = []
+        for v in voices_raw:
+            voice_lang = None
+            labels = v.get("labels", {})
+            if isinstance(labels, dict):
+                voice_lang = labels.get("language")
+                gender = labels.get("gender")
+            else:
+                gender = None
+
+            # Filter by language if specified
+            if language and voice_lang and language.lower() not in (voice_lang or "").lower():
+                continue
+
+            voices.append(VoiceInfo(
+                voice_id=v.get("voice_id", ""),
+                name=v.get("name", "Unknown"),
+                language=voice_lang,
+                gender=gender,
+                preview_url=v.get("preview_url"),
+                category=v.get("category", "premade"),
+            ))
+
+        return {
+            "voices": voices,
+            "total": len(voices),
+        }
+    except Exception as e:
+        logger.error(f"[AIVideoGen] Failed to list voices: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"音声一覧の取得に失敗しました: {str(e)}")
+
+
+# ──────────────────────────────────────────────
+# GET /ai-video-generator/languages — Supported languages
+# ──────────────────────────────────────────────
+
+SUPPORTED_LANGUAGES = [
+    {"code": "ja", "name": "日本語", "name_en": "Japanese"},
+    {"code": "en", "name": "English", "name_en": "English"},
+    {"code": "zh", "name": "中文", "name_en": "Chinese"},
+    {"code": "ko", "name": "한국어", "name_en": "Korean"},
+    {"code": "th", "name": "ภาษาไทย", "name_en": "Thai"},
+    {"code": "vi", "name": "Tiếng Việt", "name_en": "Vietnamese"},
+    {"code": "id", "name": "Bahasa Indonesia", "name_en": "Indonesian"},
+    {"code": "ms", "name": "Bahasa Melayu", "name_en": "Malay"},
+    {"code": "es", "name": "Español", "name_en": "Spanish"},
+    {"code": "fr", "name": "Français", "name_en": "French"},
+    {"code": "de", "name": "Deutsch", "name_en": "German"},
+    {"code": "pt", "name": "Português", "name_en": "Portuguese"},
+    {"code": "ar", "name": "العربية", "name_en": "Arabic"},
+    {"code": "hi", "name": "हिन्दी", "name_en": "Hindi"},
+]
+
+
+@router.get(
+    "/languages",
+    summary="List supported output languages",
+)
+async def list_languages(
+    _auth: bool = Depends(verify_admin_key),
+):
+    """List all supported languages for video generation."""
+    return {
+        "languages": SUPPORTED_LANGUAGES,
+        "total": len(SUPPORTED_LANGUAGES),
+    }
+
+
+# ──────────────────────────────────────────────
+# POST /ai-video-generator/analyze-person — Person photo analysis
+# ──────────────────────────────────────────────
+
+@router.post(
+    "/analyze-person",
+    summary="Analyze person photo for video generation",
+)
+async def analyze_person_photo(
+    image: UploadFile = File(None, description="人物写真（アップロード）"),
+    image_url: str = Query(None, description="人物画像URL"),
+    _: bool = Depends(verify_admin_key),
+):
+    """
+    人物写真を分析し、外見・表情・動作などの情報を抽出する。
+    分析結果は動画生成時のアバター選択や台本生成に活用される。
+    
+    Returns: { success, analysis: { appearance, expression, style, suggestions } }
+    """
+    from openai import AsyncOpenAI
+    import httpx
+
+    actual_image_url = image_url
+    data_url = None
+
+    # Handle file upload
+    if image and image.filename:
+        content = await image.read()
+        import base64 as b64mod
+        ext = image.filename.rsplit(".", 1)[-1].lower() if "." in image.filename else "jpg"
+        mime = f"image/{ext}" if ext != "jpg" else "image/jpeg"
+        data_url = f"data:{mime};base64,{b64mod.b64encode(content).decode()}"
+        actual_image_url = data_url
+
+    if not actual_image_url:
+        raise HTTPException(status_code=400, detail="画像URLまたはファイルが必要です")
+
+    try:
+        # Use Azure OpenAI for GPT-4V analysis
+        azure_key = os.getenv("AZURE_OPENAI_API_KEY_GPT5", os.getenv("AZURE_OPENAI_API_KEY", ""))
+        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT_GPT5", os.getenv("AZURE_OPENAI_ENDPOINT", ""))
+        azure_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_GPT5", "gpt-4o")
+        azure_api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+
+        client = AsyncOpenAI(
+            api_key=azure_key,
+            base_url=f"{azure_endpoint}/openai/deployments/{azure_deployment}",
+            default_headers={"api-key": azure_key},
+            default_query={"api-version": azure_api_version},
+        )
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "あなたは人物分析の専門家です。写真から以下の情報を日本語で分析してください:\n"
+                    "1. 外見特徴（髪型、服装、体型、年齢層）\n"
+                    "2. 表情・雰囲気（明るい、クール、知的等）\n"
+                    "3. スタイル（カジュアル、フォーマル、スポーティ等）\n"
+                    "4. 動画生成への提案（この人物に合うトーン、商品カテゴリ、台本スタイル）\n\n"
+                    "JSON形式で回答してください:\n"
+                    '{"appearance": "...", "expression": "...", "style": "...", "age_range": "...", '
+                    '"suggestions": {"tone": "...", "product_categories": [...], "script_style": "..."}}'
+                ),
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "この人物を分析してください。"},
+                    {"type": "image_url", "image_url": {"url": actual_image_url}},
+                ],
+            },
+        ]
+
+        response = await client.chat.completions.create(
+            model=azure_deployment,
+            messages=messages,
+            max_tokens=1000,
+            temperature=0.3,
+        )
+
+        analysis_text = response.choices[0].message.content.strip()
+        
+        # Try to parse as JSON
+        try:
+            # Remove markdown code block if present
+            clean = analysis_text
+            if "```json" in clean:
+                clean = clean.split("```json")[1].split("```")[0].strip()
+            elif "```" in clean:
+                clean = clean.split("```")[1].split("```")[0].strip()
+            analysis = json.loads(clean)
+        except (json.JSONDecodeError, IndexError):
+            analysis = {"raw_analysis": analysis_text}
+
+        return {
+            "success": True,
+            "analysis": analysis,
+            "image_url": actual_image_url[:100] + "..." if data_url else actual_image_url,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[AIVideoGen] Person analysis failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"人物分析に失敗しました: {str(e)}")
+
+
+# ──────────────────────────────────────────────
+# POST /ai-video-generator/upload-person-photo — Upload person photo to blob
+# ──────────────────────────────────────────────
+
+@router.post(
+    "/upload-person-photo",
+    summary="Upload person photo for avatar creation",
+)
+async def upload_person_photo(
+    image: UploadFile = File(..., description="人物写真"),
+    _: bool = Depends(verify_admin_key),
+):
+    """
+    人物写真をAzure Blobにアップロードし、URLを返す。
+    このURLはgenerate APIのperson_image_urlフィールドに使用可能。
+    """
+    try:
+        content = await image.read()
+        if len(content) > 10 * 1024 * 1024:  # 10MB limit
+            raise HTTPException(status_code=400, detail="ファイルサイズは10MB以下にしてください")
+
+        ext = image.filename.rsplit(".", 1)[-1].lower() if image.filename and "." in image.filename else "jpg"
+        blob_name = f"ai-video-gen/persons/{uuid.uuid4().hex}.{ext}"
+
+        # Use Azure Blob SDK directly to upload
+        from azure.storage.blob import BlobServiceClient, ContentSettings
+        conn_str = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
+        if not conn_str:
+            raise HTTPException(status_code=500, detail="Storage not configured")
+
+        blob_service = BlobServiceClient.from_connection_string(conn_str)
+        container_name = os.getenv("AZURE_STORAGE_CONTAINER", "aitherhub-videos")
+        blob_client = blob_service.get_blob_client(container=container_name, blob=blob_name)
+        blob_client.upload_blob(
+            content,
+            overwrite=True,
+            content_settings=ContentSettings(content_type=f"image/{ext}"),
+        )
+        blob_url = blob_client.url
+
+        from app.services.storage_service import generate_read_sas_from_url
+        signed_url = generate_read_sas_from_url(blob_url, expires_hours=24)
+
+        return {
+            "success": True,
+            "url": signed_url,
+            "blob_url": blob_url,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[AIVideoGen] Person photo upload failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"アップロードに失敗しました: {str(e)}")
+
+
+# ──────────────────────────────────────────────
+# DELETE /ai-video-generator/jobs/{job_id} — Delete a job from history
+# ──────────────────────────────────────────────
+
+@router.delete(
+    "/jobs/{job_id}",
+    summary="Delete a video generation job from history",
+)
+async def delete_job(
+    job_id: str,
+    _auth: bool = Depends(verify_admin_key),
+):
+    """Delete a job from both in-memory and DB."""
+    # Remove from in-memory
+    _jobs.pop(job_id, None)
+
+    # Remove from DB
+    try:
+        from app.core.db import AsyncSessionLocal
+        from app.models.orm.ai_video_gen_job import AiVideoGenJob
+        from sqlalchemy import delete as sa_delete
+        async with AsyncSessionLocal() as db_session:
+            await db_session.execute(
+                sa_delete(AiVideoGenJob).where(AiVideoGenJob.job_id == job_id)
+            )
+            await db_session.commit()
+    except Exception as e:
+        logger.warning(f"[AIVideoGen] DB delete failed: {e}")
+
+    return {"success": True, "message": f"Job {job_id} deleted"}
