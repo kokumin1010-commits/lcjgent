@@ -87,13 +87,8 @@ class RunPodDiscoveryService:
         ):
             return self._cached_url
 
-        # Priority 2: Auto-discover via GraphQL API
-        if self.api_key:
-            url = await self._discover_worker_url()
-            if url:
-                return url
-
-        # Priority 3: Fallback to known Pod ID
+        # Priority 2: Use explicit FALLBACK Pod ID if set (most reliable)
+        # This avoids GraphQL discovery picking the wrong pod when multiple pods exist
         if RUNPOD_FALLBACK_POD_ID:
             fallback_url = (
                 f"https://{RUNPOD_FALLBACK_POD_ID}-{RUNPOD_WORKER_PORT}"
@@ -108,6 +103,12 @@ class RunPodDiscoveryService:
             self._cached_pod_id = RUNPOD_FALLBACK_POD_ID
             self._cache_time = time.time()
             return fallback_url
+
+        # Priority 3: Auto-discover via GraphQL API (only if no fallback Pod ID)
+        if self.api_key:
+            url = await self._discover_worker_url()
+            if url:
+                return url
 
         logger.warning(
             "Neither RUNPOD_API_KEY nor RUNPOD_FALLBACK_POD_ID is set. "
