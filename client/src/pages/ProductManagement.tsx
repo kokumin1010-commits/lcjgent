@@ -345,7 +345,10 @@ function VariantSection({ productId }: { productId: number }) {
     sku: "",
     price: "",
     stock: "0",
+    imageUrl: "",
+    imageKey: "",
   });
+  const [newVariantUploading, setNewVariantUploading] = useState(false);
   const [editingVariantId, setEditingVariantId] = useState<number | null>(null);
   const [editVariant, setEditVariant] = useState({
     name: "",
@@ -393,9 +396,11 @@ function VariantSection({ productId }: { productId: number }) {
       sku: newVariant.sku || undefined,
       price: newVariant.price ? Number(newVariant.price) : null,
       stock: Number(newVariant.stock) || 0,
+      imageUrl: newVariant.imageUrl || undefined,
+      imageKey: newVariant.imageKey || undefined,
       sortOrder: (variants?.length || 0),
     });
-    setNewVariant({ name: "", variantType: "", sku: "", price: "", stock: "0" });
+    setNewVariant({ name: "", variantType: "", sku: "", price: "", stock: "0", imageUrl: "", imageKey: "" });
   };
 
   const handleStartEdit = (v: any) => {
@@ -568,6 +573,56 @@ function VariantSection({ productId }: { productId: number }) {
           type="number"
           className="w-16 text-xs"
         />
+        {/* 画像アップロードボタン */}
+        <div className="flex items-center gap-1">
+          {newVariant.imageUrl ? (
+            <div className="relative w-10 h-10 rounded border overflow-hidden">
+              <img src={newVariant.imageUrl} alt="" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]"
+                onClick={() => setNewVariant({ ...newVariant, imageUrl: "", imageKey: "" })}
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </div>
+          ) : (
+            <label className="cursor-pointer flex items-center gap-1 px-2 py-1.5 border border-dashed rounded text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+              <FileImage className="h-3.5 w-3.5" />
+              <span>画像</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={newVariantUploading}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setNewVariantUploading(true);
+                  try {
+                    const formData = new FormData();
+                    formData.append("file", file);
+                    const res = await fetch("/api/upload-product-image", {
+                      method: "POST",
+                      body: formData,
+                      credentials: "include",
+                    });
+                    if (!res.ok) throw new Error("アップロード失敗");
+                    const data = await res.json();
+                    setNewVariant((prev) => ({ ...prev, imageUrl: data.url, imageKey: data.key }));
+                    toast.success("画像をアップロードしました");
+                  } catch (err: any) {
+                    toast.error(err.message || "画像アップロードに失敗しました");
+                  } finally {
+                    setNewVariantUploading(false);
+                    e.target.value = "";
+                  }
+                }}
+              />
+            </label>
+          )}
+          {newVariantUploading && <span className="text-xs text-muted-foreground animate-pulse">...</span>}
+        </div>
         <Button
           type="button"
           size="sm"
