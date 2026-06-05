@@ -2451,14 +2451,20 @@ async function startServer() {
       });
     });
     // Chat mentions and video migration
-    import("../migrations/addChatMentionsAndVideo").then(({ addChatMentionsAndVideo }) => {
-      addChatMentionsAndVideo(db).catch((err: unknown) => {
-        console.error("[Migration] Chat mentions/video error:", err);
-      });
-    });
-    import("../migrations/addCartVariantId").then(({ addCartVariantId }) => {
-      addCartVariantId(db).catch((err: unknown) => {
-        console.error("[Migration] Cart variantId error:", err);
+    import("../db").then(({ getDb: getDbMentions }) => {
+      getDbMentions().then((dbMentions: any) => {
+        if (dbMentions) {
+          import("../migrations/addChatMentionsAndVideo").then(({ addChatMentionsAndVideo }) => {
+            addChatMentionsAndVideo(dbMentions).catch((err: unknown) => {
+              console.error("[Migration] Chat mentions/video error:", err);
+            });
+          });
+          import("../migrations/addCartVariantId").then(({ addCartVariantId }) => {
+            addCartVariantId(dbMentions).catch((err: unknown) => {
+              console.error("[Migration] Cart variantId error:", err);
+            });
+          });
+        }
       });
     });
     // Seed popup variants on startup (idempotent - only inserts if table is empty)
