@@ -1,23 +1,19 @@
 """
-RunPod Pod Discovery Service for AitherHub
+RunPod GPU Worker Connection Service for AitherHub
+===================================================
 
-Automatically discovers the GPU Worker URL from RunPod API,
-eliminating the need to manually update FACE_SWAP_WORKER_URL
-when Pod IDs change (e.g., after migration).
+Provides the GPU Worker URL using a FIXED Pod ID.
 
-How it works:
-  1. Calls RunPod GraphQL API to list RUNNING pods
-  2. Finds the FaceFusion worker pod by name pattern
-  3. Constructs the proxy URL from Pod ID
-  4. Caches the URL and refreshes on connection errors
-  5. Falls back to known Pod ID if API fails
+SAFETY RULES (NEVER VIOLATE):
+  - This service ONLY provides the worker URL. It does NOT manage pods.
+  - Pod stop/start/terminate/delete/create operations are FORBIDDEN in code.
+  - The Pod ID is HARDCODED and must ONLY be changed by a human developer.
+  - GraphQL discovery is DISABLED to prevent connecting to wrong pods.
+  - If the pod is unresponsive, a human must restart it from RunPod Console.
 
 Environment variables:
-  RUNPOD_API_KEY          — RunPod API key (required for auto-discovery)
-  RUNPOD_POD_NAME_PATTERN — Pod name pattern to match (default: "")
-  RUNPOD_WORKER_PORT      — Internal port for the worker (default: 11434)
-  FACE_SWAP_WORKER_URL    — Manual override (if set, used as primary)
-  RUNPOD_FALLBACK_POD_ID  — Fallback Pod ID when API discovery fails
+  RUNPOD_WORKER_PORT      — Internal port for the worker (default: 8888)
+  FACE_SWAP_WORKER_URL    — Manual override URL (if set, used directly)
 """
 from __future__ import annotations
 
@@ -30,234 +26,109 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  HARDCODED POD ID — DO NOT CHANGE WITHOUT HUMAN APPROVAL                   ║
+# ║  This is the ONLY GPU Worker pod. Never stop, delete, or replace it.       ║
+# ║  To update: change this value manually after creating a new pod.           ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+HARDCODED_POD_ID = os.getenv("RUNPOD_FALLBACK_POD_ID", "nvzjxjh7bito4i")
+
+RUNPOD_WORKER_PORT = int(os.getenv("RUNPOD_WORKER_PORT", "8888"))
+
+# Manual override URL (takes priority over everything)
+FACE_SWAP_WORKER_URL = os.getenv("FACE_SWAP_WORKER_URL", "")
+
+# Cache TTL (seconds) — how long to keep URL before logging again
+CACHE_TTL = int(os.getenv("RUNPOD_CACHE_TTL", "300"))  # 5 minutes
+
+# RunPod API key — ONLY used for read-only health checks (get_pod_info)
+# NEVER used for pod mutations (stop/start/delete/create)
 RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY", "")
 RUNPOD_GRAPHQL_URL = "https://api.runpod.io/graphql"
-RUNPOD_POD_NAME_PATTERN = os.getenv("RUNPOD_POD_NAME_PATTERN", "")
-RUNPOD_WORKER_PORT = int(os.getenv("RUNPOD_WORKER_PORT", "8888"))
-RUNPOD_FALLBACK_POD_ID = os.getenv("RUNPOD_FALLBACK_POD_ID", "nvzjxjh7bito4i")
-
-# Cache TTL: how long to keep a discovered URL before re-checking (seconds)
-CACHE_TTL = int(os.getenv("RUNPOD_CACHE_TTL", "300"))  # 5 minutes
 
 
 class RunPodDiscoveryService:
     """
-    Discovers and caches the GPU Worker URL from RunPod API.
+    Provides the GPU Worker URL using a FIXED Pod ID.
 
-    Uses GraphQL API with api_key query parameter for authentication.
-    Falls back to a known Pod ID if API discovery fails.
+    NO auto-discovery. NO pod management. NO mutations.
+    The pod ID is hardcoded and never changes automatically.
 
     Usage:
         discovery = RunPodDiscoveryService()
         url = await discovery.get_worker_url()
-        # Returns: "https://nvzjxjh7bito4i-11434.proxy.runpod.net"
+        # Returns: "https://<POD_ID>-8888.proxy.runpod.net"
     """
 
     def __init__(self):
         self.api_key = RUNPOD_API_KEY
         self._cached_url: Optional[str] = None
-        self._cached_pod_id: Optional[str] = None
+        self._cached_pod_id: str = HARDCODED_POD_ID
         self._cache_time: float = 0
 
     @property
     def is_configured(self) -> bool:
-        """Check if RunPod API key or fallback Pod ID is available."""
-        return bool(self.api_key) or bool(RUNPOD_FALLBACK_POD_ID)
+        """Check if a Pod ID is available."""
+        return bool(HARDCODED_POD_ID) or bool(FACE_SWAP_WORKER_URL)
 
     async def get_worker_url(self, force_refresh: bool = False) -> Optional[str]:
         """
-        Get the GPU Worker URL via auto-discovery.
+        Get the GPU Worker URL.
 
         Priority:
-          1. Cached URL (if still valid)
-          2. Auto-discover from RunPod GraphQL API
-          3. Fallback to known Pod ID
+          1. FACE_SWAP_WORKER_URL environment variable (manual override)
+          2. Constructed URL from HARDCODED_POD_ID
 
-        Args:
-            force_refresh: If True, bypass cache and re-discover
-
-        Returns:
-            Worker URL string, or None if not available
+        NO GraphQL discovery. NO automatic pod selection.
         """
-        # Priority 1: Cached URL (if not expired and not forced)
-        if (
-            not force_refresh
-            and self._cached_url
-            and (time.time() - self._cache_time) < CACHE_TTL
-        ):
-            return self._cached_url
+        # Priority 1: Manual override URL
+        if FACE_SWAP_WORKER_URL:
+            self._cached_url = FACE_SWAP_WORKER_URL
+            self._cache_time = time.time()
+            return FACE_SWAP_WORKER_URL
 
-        # Priority 2: Use explicit FALLBACK Pod ID if set (most reliable)
-        # This avoids GraphQL discovery picking the wrong pod when multiple pods exist
-        if RUNPOD_FALLBACK_POD_ID:
-            fallback_url = (
-                f"https://{RUNPOD_FALLBACK_POD_ID}-{RUNPOD_WORKER_PORT}"
+        # Priority 2: Fixed Pod ID URL
+        if HARDCODED_POD_ID:
+            url = (
+                f"https://{HARDCODED_POD_ID}-{RUNPOD_WORKER_PORT}"
                 f".proxy.runpod.net"
             )
-            logger.info(
-                f"Using fallback Pod ID: {RUNPOD_FALLBACK_POD_ID}, "
-                f"url={fallback_url}"
-            )
-            # Cache the fallback URL with a shorter TTL
-            self._cached_url = fallback_url
-            self._cached_pod_id = RUNPOD_FALLBACK_POD_ID
+            # Only log on first use or refresh
+            if not self._cached_url or force_refresh:
+                logger.info(
+                    f"GPU Worker URL (fixed pod): {url}"
+                )
+            self._cached_url = url
+            self._cached_pod_id = HARDCODED_POD_ID
             self._cache_time = time.time()
-            return fallback_url
+            return url
 
-        # Priority 3: Auto-discover via GraphQL API (only if no fallback Pod ID)
-        if self.api_key:
-            url = await self._discover_worker_url()
-            if url:
-                return url
-
-        logger.warning(
-            "Neither RUNPOD_API_KEY nor RUNPOD_FALLBACK_POD_ID is set. "
-            "GPU Worker auto-discovery is disabled."
+        logger.error(
+            "NO GPU Worker configured! "
+            "Set FACE_SWAP_WORKER_URL or RUNPOD_FALLBACK_POD_ID."
         )
         return None
 
     async def invalidate_cache(self):
         """
         Invalidate the cached URL.
-        Call this when a connection error occurs to trigger re-discovery.
+        Note: With fixed Pod ID, this just forces a re-log on next call.
+        The URL itself doesn't change.
         """
-        logger.info("Invalidating RunPod worker URL cache")
+        logger.info("Cache invalidated (URL will be re-logged on next access)")
         self._cached_url = None
-        self._cached_pod_id = None
         self._cache_time = 0
-
-    async def _discover_worker_url(self) -> Optional[str]:
-        """
-        Call RunPod GraphQL API to find a RUNNING pod and construct its proxy URL.
-        Uses api_key as query parameter for authentication.
-        """
-        try:
-            logger.info("Discovering GPU Worker URL from RunPod GraphQL API...")
-
-            query = """
-            query {
-                myself {
-                    pods {
-                        id
-                        name
-                        desiredStatus
-                        runtime {
-                            ports {
-                                privatePort
-                                publicPort
-                                type
-                            }
-                        }
-                    }
-                }
-            }
-            """
-
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                resp = await client.post(
-                    f"{RUNPOD_GRAPHQL_URL}?api_key={self.api_key}",
-                    json={"query": query},
-                    headers={"Content-Type": "application/json"},
-                )
-
-                if resp.status_code != 200:
-                    logger.error(
-                        f"RunPod GraphQL API returned {resp.status_code}: "
-                        f"{resp.text[:200]}"
-                    )
-                    return self._cached_url  # Return stale cache if available
-
-                data = resp.json()
-
-            # Check for GraphQL errors
-            if "errors" in data or "error" in data:
-                error_detail = data.get("errors") or data.get("error")
-                logger.error(f"RunPod GraphQL error: {error_detail}")
-                return self._cached_url
-
-            # Extract pods from response
-            pods = []
-            try:
-                all_pods = data["data"]["myself"]["pods"]
-                # Filter to RUNNING pods only
-                pods = [
-                    p for p in all_pods
-                    if (p.get("desiredStatus") or "").upper() == "RUNNING"
-                ]
-            except (KeyError, TypeError) as e:
-                logger.error(
-                    f"Unexpected RunPod API response structure: {e}. "
-                    f"Response: {str(data)[:300]}"
-                )
-                return self._cached_url
-
-            if not pods:
-                logger.warning("No RUNNING pods found on RunPod")
-                return None
-
-            # Find the FaceFusion worker pod
-            target_pod = None
-
-            if RUNPOD_POD_NAME_PATTERN:
-                # Match by name pattern
-                pattern = RUNPOD_POD_NAME_PATTERN.lower()
-                for pod in pods:
-                    pod_name = (pod.get("name") or "").lower()
-                    if pattern in pod_name:
-                        target_pod = pod
-                        break
-
-            if not target_pod:
-                # If no name pattern match, try matching by port
-                for pod in pods:
-                    runtime = pod.get("runtime") or {}
-                    ports = runtime.get("ports") or []
-                    for port_info in ports:
-                        if port_info.get("privatePort") == RUNPOD_WORKER_PORT:
-                            target_pod = pod
-                            break
-                    if target_pod:
-                        break
-
-            if not target_pod:
-                # Last resort: use the first running pod
-                target_pod = pods[0]
-                logger.warning(
-                    f"No pod matched name pattern or port {RUNPOD_WORKER_PORT}. "
-                    f"Using first running pod: {target_pod.get('id')}"
-                )
-
-            pod_id = target_pod["id"]
-            pod_name = target_pod.get("name", "unknown")
-            worker_url = f"https://{pod_id}-{RUNPOD_WORKER_PORT}.proxy.runpod.net"
-
-            # Update cache
-            self._cached_url = worker_url
-            self._cached_pod_id = pod_id
-            self._cache_time = time.time()
-
-            logger.info(
-                f"Discovered GPU Worker: pod_id={pod_id}, "
-                f"name={pod_name}, url={worker_url}"
-            )
-            return worker_url
-
-        except httpx.ConnectError as e:
-            logger.error(f"Cannot connect to RunPod API: {e}")
-            return self._cached_url
-        except httpx.TimeoutException as e:
-            logger.error(f"RunPod API request timed out: {e}")
-            return self._cached_url
-        except Exception as e:
-            logger.error(f"RunPod discovery failed: {type(e).__name__}: {e}")
-            return self._cached_url
 
     async def get_pod_info(self) -> Optional[dict]:
         """
-        Get detailed info about the discovered pod.
-        Useful for health checks and debugging.
+        Get READ-ONLY info about the pod (for health checks / debugging).
+        This is a QUERY ONLY — no mutations.
         """
         if not self.api_key:
+            return None
+
+        pod_id = self._cached_pod_id or HARDCODED_POD_ID
+        if not pod_id:
             return None
 
         try:
@@ -287,14 +158,6 @@ class RunPodDiscoveryService:
             }
             """
 
-            pod_id = self._cached_pod_id
-            if not pod_id:
-                await self.get_worker_url()
-                pod_id = self._cached_pod_id
-
-            if not pod_id:
-                return None
-
             async with httpx.AsyncClient(timeout=15.0) as client:
                 resp = await client.post(
                     f"{RUNPOD_GRAPHQL_URL}?api_key={self.api_key}",
@@ -311,78 +174,16 @@ class RunPodDiscoveryService:
 
         return None
 
-    async def restart_pod(self, target_pod_id: Optional[str] = None) -> dict:
-        """
-        Restart the GPU Worker pod via RunPod API (stop → resume).
-        Always uses RUNPOD_FALLBACK_POD_ID to avoid restarting wrong pods.
-        Optionally accepts a specific target_pod_id.
-        Returns status dict with success/error info.
-        """
-        if not self.api_key:
-            return {"success": False, "error": "RUNPOD_API_KEY not configured"}
-
-        # ALWAYS use the explicit fallback Pod ID to avoid restarting wrong pods
-        pod_id = target_pod_id or RUNPOD_FALLBACK_POD_ID
-        if not pod_id:
-            return {"success": False, "error": "No pod ID configured (RUNPOD_FALLBACK_POD_ID not set)"}
-
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                # Step 1: Stop the pod
-                stop_query = """
-                mutation stopPod($podId: String!) {
-                    podStop(input: { podId: $podId }) {
-                        id
-                        desiredStatus
-                    }
-                }
-                """
-                logger.info(f"Stopping pod {pod_id}...")
-                stop_resp = await client.post(
-                    f"{RUNPOD_GRAPHQL_URL}?api_key={self.api_key}",
-                    json={"query": stop_query, "variables": {"podId": pod_id}},
-                    headers={"Content-Type": "application/json"},
-                )
-                stop_data = stop_resp.json()
-                logger.info(f"Stop response: {stop_data}")
-
-                # Step 2: Wait for pod to stop
-                import asyncio
-                await asyncio.sleep(10)
-
-                # Step 3: Resume the pod
-                resume_query = """
-                mutation resumePod($podId: String!, $gpuCount: Int!) {
-                    podResume(input: { podId: $podId, gpuCount: $gpuCount }) {
-                        id
-                        desiredStatus
-                    }
-                }
-                """
-                logger.info(f"Resuming pod {pod_id}...")
-                resume_resp = await client.post(
-                    f"{RUNPOD_GRAPHQL_URL}?api_key={self.api_key}",
-                    json={"query": resume_query, "variables": {"podId": pod_id, "gpuCount": 1}},
-                    headers={"Content-Type": "application/json"},
-                )
-                resume_data = resume_resp.json()
-                logger.info(f"Resume response: {resume_data}")
-
-                # Clear cache so next health check re-discovers
-                self._cached_url = None
-                self._cached_pod_id = None
-                self._cache_time = 0
-
-                return {
-                    "success": True,
-                    "pod_id": pod_id,
-                    "stop_response": stop_data,
-                    "resume_response": resume_data,
-                }
-
-        except Exception as e:
-            logger.error(f"Failed to restart pod: {e}")
-            return {"success": False, "error": str(e)}
+    # ╔══════════════════════════════════════════════════════════════════════════╗
+    # ║  SAFETY: restart_pod() has been PERMANENTLY REMOVED.                    ║
+    # ║                                                                         ║
+    # ║  Pod lifecycle management (stop/start/restart/delete) must NEVER be     ║
+    # ║  performed by application code. Only a human operator should manage     ║
+    # ║  pods via the RunPod Console.                                           ║
+    # ║                                                                         ║
+    # ║  History: restart_pod() previously called podStop + podResume via       ║
+    # ║  GraphQL API, which caused accidental pod deletion/stoppage.            ║
+    # ╚══════════════════════════════════════════════════════════════════════════╝
 
 
 # Singleton instance

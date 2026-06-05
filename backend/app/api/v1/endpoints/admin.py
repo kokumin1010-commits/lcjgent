@@ -6399,12 +6399,12 @@ async def admin_delete_video(
         raise HTTPException(status_code=500, detail=f"Failed to delete video: {str(e)}")
 
 
-@router.post("/restart-gpu-worker")
-async def restart_gpu_worker(
+@router.get("/gpu-worker-status")
+async def gpu_worker_status(
     x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
 ):
-    """Restart the GPU Worker pod via RunPod API (stop → resume).
-    Use when GPU Worker is unresponsive or showing as offline."""
+    """Get GPU Worker pod status (READ-ONLY).
+    Pod restart/stop/delete is FORBIDDEN in code. Use RunPod Console."""
     expected_key = f"{ADMIN_ID}:{ADMIN_PASS}"
     if x_admin_key != expected_key:
         raise HTTPException(status_code=403, detail="Invalid admin credentials")
@@ -6412,17 +6412,26 @@ async def restart_gpu_worker(
     from app.services.runpod_discovery_service import get_runpod_discovery
 
     discovery = get_runpod_discovery()
-    result = await discovery.restart_pod()
+    pod_info = await discovery.get_pod_info()
+    worker_url = await discovery.get_worker_url()
 
-    if not result.get("success"):
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to restart GPU Worker: {result.get('error', 'unknown')}"
-        )
+    # Try health check
+    import httpx
+    health_status = "unknown"
+    if worker_url:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    f"{worker_url}/api/health",
+                    headers={"X-API-Key": "aitherhub"},
+                )
+                health_status = "online" if resp.status_code == 200 else f"error_{resp.status_code}"
+        except Exception as e:
+            health_status = f"offline ({type(e).__name__})"
 
     return {
-        "success": True,
-        "message": "GPU Worker pod restart initiated. It may take 60-90 seconds to become available.",
-        "pod_id": result.get("pod_id"),
-        "details": result,
+        "worker_url": worker_url,
+        "health_status": health_status,
+        "pod_info": pod_info,
+        "message": "Pod management (restart/stop/delete) is disabled in code. Use RunPod Console.",
     }
