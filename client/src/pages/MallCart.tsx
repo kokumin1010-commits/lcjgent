@@ -251,7 +251,8 @@ export default function MallCart() {
     let allPointEligible = cartItems.length > 0;
     for (const item of cartItems) {
       const qty = item.cart?.quantity ?? 0;
-      const price = item.product?.price ?? 0;
+      // バリアント価格を優先使用
+      const price = (item.variant && item.variant.price != null) ? item.variant.price : (item.product?.price ?? 0);
       const stock = item.product?.stock ?? 0;
       subtotal += price * qty;
       totalItems += qty;
@@ -541,10 +542,10 @@ export default function MallCart() {
                       {/* 価格と数量 */}
                       <div className="flex items-end justify-between mt-2">
                         <p className="text-base font-bold text-pink-600">
-                          ¥{(product.price * cart.quantity).toLocaleString()}
+                          ¥{(((item.variant && item.variant.price != null) ? item.variant.price : product.price) * cart.quantity).toLocaleString()}
                           {cart.quantity > 1 && (
                             <span className="text-[11px] font-normal text-gray-400 ml-1">
-                              (¥{product.price.toLocaleString()} × {cart.quantity})
+                              (¥{((item.variant && item.variant.price != null) ? item.variant.price : product.price).toLocaleString()} × {cart.quantity})
                             </span>
                           )}
                         </p>
@@ -774,7 +775,7 @@ export default function MallCart() {
                   {cartItems.map((item: any) => (
                     <div key={item.product.id} className="flex justify-between text-sm">
                       <span className="text-gray-700 truncate mr-2">{item.product.name} ×{item.cart.quantity}</span>
-                      <span className="text-gray-500 flex-shrink-0">¥{(item.product.price * item.cart.quantity).toLocaleString()}</span>
+                      <span className="text-gray-500 flex-shrink-0">¥{(((item.variant && item.variant.price != null) ? item.variant.price : item.product.price) * item.cart.quantity).toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
@@ -1002,7 +1003,7 @@ export default function MallCart() {
                         {paymentMethod === "points" ? (
                           <p className="font-bold text-sm text-orange-600">{(item.product.pointPrice * item.cart.quantity).toLocaleString()}pt</p>
                         ) : (
-                          <p className="font-bold text-sm text-pink-600">¥{(item.product.price * item.cart.quantity).toLocaleString()}</p>
+                          <p className="font-bold text-sm text-pink-600">¥{(((item.variant && item.variant.price != null) ? item.variant.price : item.product.price) * item.cart.quantity).toLocaleString()}</p>
                         )}
                       </div>
                     </div>

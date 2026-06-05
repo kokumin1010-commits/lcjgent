@@ -723,9 +723,17 @@ export default function MallProductDetail() {
     );
   }
 
-  const canPurchaseWithPoints = lineUser && product.pointPrice && lineUser.points >= (product.pointPrice * quantity);
-  const totalPointPrice = product.pointPrice ? product.pointPrice * quantity : 0;
-  const totalCashPrice = product.price * quantity;
+  // バリアント選択時はバリアント価格を使用
+  const activeVariants = productVariants?.filter((v: any) => v.isActive !== 'no') || [];
+  const hasVariants = activeVariants.length > 0;
+  const selectedVariant = activeVariants.find((v: any) => v.id === selectedVariantId);
+  const effectivePrice = (hasVariants && selectedVariant?.price != null) ? selectedVariant.price : product.price;
+  const effectivePointPrice = product.pointPrice; // ポイント価格は商品レベルのまま
+  const mustSelectVariant = hasVariants && !selectedVariantId;
+
+  const canPurchaseWithPoints = lineUser && effectivePointPrice && lineUser.points >= (effectivePointPrice * quantity);
+  const totalPointPrice = effectivePointPrice ? effectivePointPrice * quantity : 0;
+  const totalCashPrice = effectivePrice * quantity;
   const SHIPPING_FEE = 880;
   const FREE_SHIPPING_THRESHOLD = 5000;
   const shippingFee = totalCashPrice < FREE_SHIPPING_THRESHOLD ? SHIPPING_FEE : 0;
@@ -938,6 +946,11 @@ export default function MallProductDetail() {
                 )}
 
                 {/* 購入ボタン */}
+                {/* バリアント未選択の警告 */}
+                {mustSelectVariant && (
+                  <p className="text-sm text-amber-600 font-medium">※ タイプを選択してください</p>
+                )}
+
                 {product.stock > 0 && (
                   <div className="flex gap-2">
                     <Button
@@ -945,20 +958,33 @@ export default function MallProductDetail() {
                       variant="outline"
                       className="flex-1 border-pink-300 text-pink-500 hover:bg-pink-50 text-base py-7 rounded-xl transition-all"
                       onClick={() => {
+                        if (mustSelectVariant) {
+                          toast.error("タイプを選択してください");
+                          return;
+                        }
                         addToCartMutation.mutate({ productId: product.id, quantity, variantId: selectedVariantId });
                       }}
-                      disabled={addToCartMutation.isPending}
+                      disabled={addToCartMutation.isPending || mustSelectVariant}
                     >
                       <ShoppingCart className="h-5 w-5 mr-2" />
                       カートに入れる
                     </Button>
                     <Button
                       size="lg"
-                      className="flex-1 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-base py-7 rounded-xl shadow-lg hover:shadow-xl transition-all"
+                      className={`flex-1 text-base py-7 rounded-xl shadow-lg hover:shadow-xl transition-all ${
+                        mustSelectVariant
+                          ? 'bg-gray-300 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600'
+                      }`}
                       onClick={() => {
+                        if (mustSelectVariant) {
+                          toast.error("タイプを選択してください");
+                          return;
+                        }
                         resetDialog();
                         setIsPurchaseDialogOpen(true);
                       }}
+                      disabled={mustSelectVariant}
                     >
                       今すぐ購入
                     </Button>

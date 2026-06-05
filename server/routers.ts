@@ -20801,7 +20801,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           usePoints: boolean;
         }> = [];
 
-        for (const item of input.items) {
+                for (const item of input.items) {
           const product = await getMallProductById(item.productId);
           if (!product) {
             throw new TRPCError({ code: "NOT_FOUND", message: `商品ID ${item.productId} が見つかりません` });
@@ -20813,24 +20813,36 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             throw new TRPCError({ code: "BAD_REQUEST", message: `${product.name} の在庫が不足しています` });
           }
 
+          // バリアントが指定されている場合はバリアント価格を使用
+          let unitPrice = product.price;
+          let displayName = product.name;
+          if (item.variantId) {
+            const variants = await getMallProductVariants(item.productId);
+            const variant = variants.find((v: any) => v.id === item.variantId);
+            if (variant) {
+              if (variant.price != null) {
+                unitPrice = variant.price;
+              }
+              displayName = `${product.name}（${variant.name}）`;
+            }
+          }
+
           const productImages: string[] = [];
           if (product.imageUrls && Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
             productImages.push(String(product.imageUrls[0]));
           }
-
           lineItems.push({
             price_data: {
               currency: "jpy",
               product_data: {
-                name: product.name,
+                name: displayName,
                 ...(productImages.length > 0 ? { images: productImages } : {}),
               },
-              unit_amount: product.price,
+              unit_amount: unitPrice,
             },
             quantity: item.quantity,
           });
-
-          totalAmount += product.price * item.quantity;
+          totalAmount += unitPrice * item.quantity;
           orderItemsData.push({
             productId: product.id,
             quantity: item.quantity,
@@ -21696,10 +21708,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           usePoints: boolean;
         }> = [];
 
-        for (const item of cartItems) {
+                for (const item of cartItems) {
           const product = item.product;
+          const variant = item.variant;
           const qty = item.cart.quantity;
-
           if (product.status !== "active") {
             throw new TRPCError({ code: "BAD_REQUEST", message: `${product.name} は現在販売中ではありません` });
           }
@@ -21707,24 +21719,26 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             throw new TRPCError({ code: "BAD_REQUEST", message: `${product.name} の在庫が不足しています（残り${product.stock}点）` });
           }
 
+          // バリアント価格を優先使用
+          const unitPrice = (variant && variant.price != null) ? variant.price : product.price;
+          const displayName = variant ? `${product.name}（${variant.name}）` : product.name;
+
           const productImages: string[] = [];
           if (product.imageUrls && Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
             productImages.push(String(product.imageUrls[0]));
           }
-
           lineItems.push({
             price_data: {
               currency: "jpy",
               product_data: {
-                name: product.name,
+                name: displayName,
                 ...(productImages.length > 0 ? { images: productImages } : {}),
               },
-              unit_amount: product.price,
+              unit_amount: unitPrice,
             },
             quantity: qty,
           });
-
-          totalAmount += product.price * qty;
+          totalAmount += unitPrice * qty;
           orderItemsData.push({
             productId: product.id,
             quantity: qty,
@@ -21831,10 +21845,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           usePoints: boolean;
         }> = [];
 
-        for (const item of cartItems) {
+                for (const item of cartItems) {
           const product = item.product;
+          const variant = item.variant;
           const qty = item.cart.quantity;
-
           if (product.status !== "active") {
             throw new TRPCError({ code: "BAD_REQUEST", message: `${product.name} は現在販売中ではありません` });
           }
@@ -21844,15 +21858,14 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           if (!product.pointPrice) {
             throw new TRPCError({ code: "BAD_REQUEST", message: `${product.name} はポイント購入に対応していません` });
           }
-
           totalPoints += product.pointPrice * qty;
           orderItemsData.push({
             productId: product.id,
             quantity: qty,
             usePoints: true,
+            variantId: item.cart.variantId || undefined,
           });
         }
-
         // 送料計算: 5,000pt未満は880pt、5,000pt以上は送料無料
         const SHIPPING_FEE = 880;
         const FREE_SHIPPING_THRESHOLD = 5000;
