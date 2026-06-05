@@ -6,6 +6,9 @@ RUN apt-get update && apt-get install -y python3 make g++ openssl && rm -rf /var
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
 
+# Increase Node.js memory for large builds
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
 WORKDIR /app
 
 # Copy package files AND patches
@@ -23,6 +26,9 @@ RUN pnpm run build
 
 # Remove dev dependencies to reduce image size
 RUN pnpm prune --prod
+
+# Reset NODE_OPTIONS for production (don't need extra memory at runtime)
+ENV NODE_OPTIONS=""
 
 EXPOSE 8080
 ENV NODE_ENV=production
