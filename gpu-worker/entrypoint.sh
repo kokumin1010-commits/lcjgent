@@ -481,11 +481,28 @@ fi
 # Start Worker API (background so this script can return to /start.sh)
 # Use face_swap_worker_api.py (Direct ONNX Pipeline v4.0 - ~34ms/frame)
 # Falls back to worker_api.py if face_swap_worker_api.py is not available
+# Ensure CUDA libraries are discoverable for onnxruntime-gpu
+export LD_LIBRARY_PATH="/usr/local/cuda/lib64:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
+
+# Also install onnxruntime-gpu system-wide if CUDA provider is missing
+ORT_CUDA_CHECK=$(python3 -c "import sys; sys.path.insert(0, '$PIP_PKG_DIR'); import onnxruntime as ort; print('cuda' if 'CUDAExecutionProvider' in ort.get_available_providers() else 'cpu')" 2>/dev/null || echo "error")
+if [ "$ORT_CUDA_CHECK" != "cuda" ]; then
+    echo "  [hotfix] CUDAExecutionProvider not available, reinstalling onnxruntime-gpu system-wide..."
+    pip install --quiet --upgrade onnxruntime-gpu 2>/dev/null || true
+    # Verify
+    ORT_CUDA_CHECK2=$(python3 -c "import onnxruntime as ort; print('cuda' if 'CUDAExecutionProvider' in ort.get_available_providers() else 'cpu')" 2>/dev/null || echo "error")
+    echo "  ORT CUDA status after fix: $ORT_CUDA_CHECK2"
+else
+    echo "  [ok] CUDAExecutionProvider available"
+fi
+
 if [ -f "$WORKSPACE/face_swap_worker_api.py" ]; then
     echo "  Starting Face Swap Worker API (Direct ONNX) on port ${WORKER_PORT}..."
+    LD_LIBRARY_PATH="/usr/local/cuda/lib64:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}" \
     PYTHONPATH="$PIP_PKG_DIR:${PYTHONPATH:-}" nohup python3 face_swap_worker_api.py > /var/log/worker_api.log 2>&1 &
 else
     echo "  Starting Worker API (CLI fallback) on port ${WORKER_PORT}..."
+    LD_LIBRARY_PATH="/usr/local/cuda/lib64:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}" \
     PYTHONPATH="$PIP_PKG_DIR:${PYTHONPATH:-}" nohup python3 worker_api.py > /var/log/worker_api.log 2>&1 &
 fi
 WORKER_PID=$!

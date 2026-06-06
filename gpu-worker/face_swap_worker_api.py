@@ -339,8 +339,15 @@ def init_direct_onnx_engine():
             return False
 
         # 1. Load inswapper_128 ONNX session with CUDA
-        logger.info("[ONNX] Loading inswapper_128 model with CUDA...")
-        providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+        logger.info("[ONNX] Loading inswapper_128 model...")
+        # Dynamically detect available providers
+        available = ort.get_available_providers()
+        logger.info(f"[ONNX] Available providers: {available}")
+        if 'CUDAExecutionProvider' in available:
+            providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+        else:
+            providers = ['CPUExecutionProvider']
+            logger.warning("[ONNX] CUDA not available, using CPU only")
         sess_options = ort.SessionOptions()
         sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
@@ -367,6 +374,13 @@ def init_direct_onnx_engine():
 
         # 4. Load InsightFace for face detection + landmarks
         logger.info("[ONNX] Loading InsightFace buffalo_l for detection...")
+        logger.info(f"[ONNX] InsightFace root: {INSIGHTFACE_DIR}")
+        logger.info(f"[ONNX] InsightFace models dir: {os.path.join(INSIGHTFACE_DIR, 'models', 'buffalo_l')}")
+        buffalo_dir = os.path.join(INSIGHTFACE_DIR, 'models', 'buffalo_l')
+        if os.path.exists(buffalo_dir):
+            logger.info(f"[ONNX] buffalo_l contents: {os.listdir(buffalo_dir)}")
+        else:
+            logger.error(f"[ONNX] buffalo_l directory not found: {buffalo_dir}")
         from insightface.app import FaceAnalysis
         insightface_app = FaceAnalysis(
             name='buffalo_l',
