@@ -212,6 +212,20 @@ print('ok' if tv.split('.')[:2] == av.split('.')[:2] else 'mismatch')
     echo "  [DONE] All packages installed to $PIP_PKG_DIR"
 fi
 
+# Ensure critical packages are present even in FAST MODE
+# (handles case where marker exists but package was added later)
+INSIGHTFACE_CHECK=$(python3 -c "import sys; sys.path.insert(0, '$PIP_PKG_DIR'); import insightface; print('ok')" 2>/dev/null || echo "missing")
+if [ "$INSIGHTFACE_CHECK" != "ok" ]; then
+    echo "  [hotfix] Installing missing insightface package..."
+    pip install --quiet --target="$PIP_PKG_DIR" --cache-dir="$PIP_CACHE_DIR" \
+        --upgrade --no-warn-script-location cython 2>/dev/null || true
+    pip install --quiet --target="$PIP_PKG_DIR" --cache-dir="$PIP_CACHE_DIR" \
+        --upgrade --no-warn-script-location insightface 2>/dev/null || true
+    echo "  [ok] insightface installed"
+else
+    echo "  [ok] insightface already available"
+fi
+
 echo "  Python dependencies ready."
 
 # ── [5/9] Critical Compatibility Fixes ───────────────────────────────────────
