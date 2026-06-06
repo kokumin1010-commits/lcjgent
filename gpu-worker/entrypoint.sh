@@ -521,13 +521,31 @@ if [ "$ORT_CUDA_CHECK" != "cuda" ]; then
     rm -rf "$PIP_PKG_DIR/onnxruntime_gpu"* 2>/dev/null || true
     find "$PIP_PKG_DIR" -maxdepth 1 -name 'onnxruntime*' -exec rm -rf {} \; 2>/dev/null || true
     
-    # Step 2: Install onnxruntime-gpu system-wide (not --target)
-    echo "  [2/3] Installing onnxruntime-gpu system-wide..."
-    pip install --quiet --upgrade onnxruntime-gpu 2>/dev/null || \
-    pip install --quiet onnxruntime-gpu==1.18.1 2>/dev/null || true
+    # Step 2: Install cuDNN if missing (onnxruntime-gpu requires it)
+    echo "  [2/4] Checking cuDNN..."
+    if [ ! -f /usr/lib/x86_64-linux-gnu/libcudnn.so.8 ] && [ ! -f /usr/lib/x86_64-linux-gnu/libcudnn.so.9 ]; then
+        echo "  cuDNN not found, installing..."
+        # Try to install cuDNN via pip (nvidia-cudnn-cu12)
+        pip install --quiet nvidia-cudnn-cu12 2>/dev/null || true
+        # Find and link cuDNN libraries
+        CUDNN_PATH=$(python3 -c "import nvidia.cudnn; import os; print(os.path.dirname(nvidia.cudnn.__file__) + '/lib')" 2>/dev/null || echo "")
+        if [ -n "$CUDNN_PATH" ] && [ -d "$CUDNN_PATH" ]; then
+            export LD_LIBRARY_PATH="$CUDNN_PATH:$LD_LIBRARY_PATH"
+            echo "  cuDNN found at: $CUDNN_PATH"
+        fi
+    else
+        echo "  cuDNN already available"
+    fi
     
-    # Step 3: Verify
-    echo "  [3/3] Verifying CUDA provider..."
+    # Step 3: Install onnxruntime-gpu system-wide
+    # Use version 1.17.1 which supports CUDA 12 + cuDNN 8
+    # (newer versions require cuDNN 9 which may not be in the Docker image)
+    echo "  [3/4] Installing onnxruntime-gpu==1.17.1 system-wide..."
+    pip install --quiet "onnxruntime-gpu==1.17.1" 2>/dev/null || \
+    pip install --quiet --upgrade onnxruntime-gpu 2>/dev/null || true
+    
+    # Step 4: Verify
+    echo "  [4/4] Verifying CUDA provider..."
     ORT_CUDA_CHECK2=$(python3 -c "
 import onnxruntime as ort
 providers = ort.get_available_providers()
@@ -539,9 +557,8 @@ print('providers:', providers)
     if echo "$ORT_CUDA_CHECK2" | grep -q "^cuda"; then
         echo "  [ok] CUDAExecutionProvider now available!"
     else
-        echo "  [WARNING] CUDA still not available. Will use CPU fallback."
-        echo "  Trying onnxruntime-gpu with specific CUDA 12 version..."
-        pip install --quiet "onnxruntime-gpu==1.17.1" 2>/dev/null || true
+        echo "  [WARNING] CUDA still not available. Worker will use CPU fallback."
+        echo "  (Performance will be lower but functionality is not affected)"
     fi
 else
     echo "  [ok] CUDAExecutionProvider already available"
