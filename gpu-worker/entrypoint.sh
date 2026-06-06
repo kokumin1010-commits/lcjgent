@@ -83,7 +83,7 @@ fi
 echo "[3/9] Checking system dependencies..."
 
 NEED_APT=0
-for cmd in ffmpeg git-lfs; do
+for cmd in ffmpeg git-lfs unzip; do
     if ! command -v "$cmd" &>/dev/null; then
         echo "  [missing] $cmd"
         NEED_APT=1
@@ -101,6 +101,7 @@ if [ "$NEED_APT" -eq 1 ]; then
         libgl1-mesa-glx \
         libglib2.0-0 \
         git-lfs \
+        unzip \
         > /dev/null 2>&1 || true
     echo "  System packages installed."
 else
@@ -356,7 +357,18 @@ if [ ! -d "$BUFFALO_DIR" ] || [ -z "$(ls -A $BUFFALO_DIR 2>/dev/null)" ]; then
         mkdir -p "$BUFFALO_DIR"
         # buffalo_l.zip contains flat .onnx files (no subdirectory)
         # Must extract directly into buffalo_l/ directory
-        unzip -q -o "$BUFFALO_ZIP" -d "$BUFFALO_DIR" 2>/dev/null || true
+        # Try unzip first, fall back to python3 zipfile module
+        if command -v unzip &>/dev/null; then
+            unzip -q -o "$BUFFALO_ZIP" -d "$BUFFALO_DIR" 2>/dev/null || true
+        else
+            echo "  unzip not found, using python3..."
+            python3 -c "
+import zipfile, sys
+with zipfile.ZipFile('$BUFFALO_ZIP', 'r') as z:
+    z.extractall('$BUFFALO_DIR')
+print('  Extracted with python3')
+" 2>/dev/null || true
+        fi
         rm -f "$BUFFALO_ZIP"
         # Verify extraction
         if [ -n "$(ls -A $BUFFALO_DIR 2>/dev/null)" ]; then
