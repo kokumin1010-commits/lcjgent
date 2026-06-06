@@ -277,17 +277,84 @@ else
         echo "  WARNING: Could not load v4l2loopback (normal for RunPod)."
 fi
 
-# ── [7/9] FaceFusion Model Check ────────────────────────────────────────────
+# ── [7/9] FaceFusion Model Setup & Download ──────────────────────────────────
 
-echo "[7/9] Checking FaceFusion models..."
+echo "[7/9] Setting up FaceFusion models (auto-download if missing)..."
 FACEFUSION_DIR="${FACEFUSION_DIR:-$WORKSPACE/facefusion}"
+INSIGHTFACE_DIR="${INSIGHTFACE_DIR:-$WORKSPACE/insightface_models}"
 MODELS_DIR="$FACEFUSION_DIR/.assets/models"
-if [ -d "$MODELS_DIR" ] && [ "$(ls -A $MODELS_DIR 2>/dev/null)" ]; then
-    MODEL_COUNT=$(ls "$MODELS_DIR/" 2>/dev/null | wc -l)
-    echo "  Models found: $MODEL_COUNT files in $MODELS_DIR"
-else
-    echo "  Models not found. Will download on first use."
+
+# Create directories
+mkdir -p "$MODELS_DIR"
+mkdir -p "$INSIGHTFACE_DIR/models"
+mkdir -p "$FACEFUSION_DIR"
+
+# Create facefusion.py placeholder (for health check compatibility)
+if [ ! -f "$FACEFUSION_DIR/facefusion.py" ]; then
+    echo '# FaceFusion placeholder for health check' > "$FACEFUSION_DIR/facefusion.py"
+    echo "  [created] facefusion.py placeholder"
 fi
+
+# Download inswapper_128.onnx (face swap model, ~540MB)
+INSWAPPER_MODEL="$MODELS_DIR/inswapper_128.onnx"
+if [ ! -f "$INSWAPPER_MODEL" ]; then
+    echo "  [download] inswapper_128.onnx (~540MB)..."
+    wget -q --show-progress -O "$INSWAPPER_MODEL" \
+        "https://github.com/facefusion/facefusion-assets/releases/download/models-3.0.0/inswapper_128.onnx" || {
+        echo "  [ERROR] Failed to download inswapper_128.onnx"
+        rm -f "$INSWAPPER_MODEL"
+    }
+    [ -f "$INSWAPPER_MODEL" ] && echo "  [ok] inswapper_128.onnx downloaded"
+else
+    echo "  [ok] inswapper_128.onnx exists"
+fi
+
+# Download gfpgan_1.4.onnx (face enhancer model, ~350MB)
+GFPGAN_ONNX_MODEL="$MODELS_DIR/gfpgan_1.4.onnx"
+if [ ! -f "$GFPGAN_ONNX_MODEL" ]; then
+    echo "  [download] gfpgan_1.4.onnx (~350MB)..."
+    wget -q --show-progress -O "$GFPGAN_ONNX_MODEL" \
+        "https://github.com/facefusion/facefusion-assets/releases/download/models-3.0.0/gfpgan_1.4.onnx" || {
+        echo "  [ERROR] Failed to download gfpgan_1.4.onnx"
+        rm -f "$GFPGAN_ONNX_MODEL"
+    }
+    [ -f "$GFPGAN_ONNX_MODEL" ] && echo "  [ok] gfpgan_1.4.onnx downloaded"
+else
+    echo "  [ok] gfpgan_1.4.onnx exists"
+fi
+
+# Download InsightFace buffalo_l models (face detection + landmarks)
+BUFFALO_DIR="$INSIGHTFACE_DIR/models/buffalo_l"
+if [ ! -d "$BUFFALO_DIR" ] || [ -z "$(ls -A $BUFFALO_DIR 2>/dev/null)" ]; then
+    echo "  [download] InsightFace buffalo_l models..."
+    BUFFALO_ZIP="/tmp/buffalo_l.zip"
+    wget -q --show-progress -O "$BUFFALO_ZIP" \
+        "https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip" || {
+        echo "  [ERROR] Failed to download buffalo_l.zip"
+        rm -f "$BUFFALO_ZIP"
+    }
+    if [ -f "$BUFFALO_ZIP" ]; then
+        mkdir -p "$BUFFALO_DIR"
+        unzip -q -o "$BUFFALO_ZIP" -d "$INSIGHTFACE_DIR/models/" 2>/dev/null || \
+            unzip -q -o "$BUFFALO_ZIP" -d "$BUFFALO_DIR" 2>/dev/null || true
+        rm -f "$BUFFALO_ZIP"
+        # Verify extraction
+        if [ -n "$(ls -A $BUFFALO_DIR 2>/dev/null)" ]; then
+            echo "  [ok] buffalo_l models extracted"
+        else
+            echo "  [WARNING] buffalo_l extraction may have failed"
+        fi
+    fi
+else
+    BUFFALO_COUNT=$(ls "$BUFFALO_DIR/" 2>/dev/null | wc -l)
+    echo "  [ok] buffalo_l models exist ($BUFFALO_COUNT files)"
+fi
+
+# Summary
+MODEL_COUNT=$(ls "$MODELS_DIR/" 2>/dev/null | wc -l)
+echo "  FaceFusion models: $MODEL_COUNT files in $MODELS_DIR"
+BUFFALO_COUNT=$(ls "$BUFFALO_DIR/" 2>/dev/null | wc -l)
+echo "  InsightFace models: $BUFFALO_COUNT files in $BUFFALO_DIR"
 
 # ── [8/9] MuseTalk Patches ──────────────────────────────────────────────────
 
