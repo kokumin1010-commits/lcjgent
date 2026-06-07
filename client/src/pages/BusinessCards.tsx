@@ -4384,12 +4384,21 @@ function SalesEmailHistorySection() {
     onSuccess: (result) => {
       setReplyCheckDone(true);
       if (result.newReplies > 0) {
-        toast.success(`${result.newReplies}件の新しい返信を検出しました`);
+        toast.success(`${result.newReplies}件の新しい返信を検出しました`, {
+          description: `チェック: ${result.checked}件 / スキャン: ${result.scannedInbox}件`,
+        });
         refetch();
+      } else {
+        toast.info("新しい返信はありませんでした", {
+          description: `チェック: ${result.checked}件 / スキャン: ${result.scannedInbox}件`,
+        });
       }
     },
     onError: (err) => {
       setReplyCheckDone(true);
+      toast.error("返信チェックに失敗しました", {
+        description: err.message,
+      });
       console.error("[Reply Check]", err.message);
     },
   });
