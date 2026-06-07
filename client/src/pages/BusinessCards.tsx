@@ -4302,6 +4302,7 @@ function SalesEmailHistorySection() {
                     <TableHead className="text-xs w-[100px]">会社</TableHead>
                     <TableHead className="text-xs">件名</TableHead>
                     <TableHead className="text-xs w-[70px]">種別</TableHead>
+                    <TableHead className="text-xs w-[60px]">状態</TableHead>
                     <TableHead className="text-xs w-[80px]">開封</TableHead>
                     <TableHead className="text-xs w-[80px]">PDF</TableHead>
                     <TableHead className="text-xs w-[100px]">送信日時</TableHead>
@@ -4335,6 +4336,15 @@ function SalesEmailHistorySection() {
                         <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${sendTypeBadgeColor(log.sendType)}`}>
                           {sendTypeLabel(log.sendType)}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {log.status === "sent" ? (
+                          <Badge className="text-[10px] px-1.5 py-0 bg-green-50 text-green-700 border-green-300" variant="outline">成功</Badge>
+                        ) : log.status === "failed" ? (
+                          <Badge className="text-[10px] px-1.5 py-0 bg-red-50 text-red-700 border-red-300" variant="outline">失敗</Badge>
+                        ) : (
+                          <Badge className="text-[10px] px-1.5 py-0 bg-yellow-50 text-yellow-700 border-yellow-300" variant="outline">{log.status || "不明"}</Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         {log.openCount > 0 ? (

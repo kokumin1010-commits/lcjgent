@@ -280,83 +280,120 @@ export const emailRouter = router({
       pageSize: z.number().min(1).max(100).default(20),
     }))
     .query(async ({ input }) => {
-      if (!ENV.emailUser || !ENV.emailPassword) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "メール設定が未構成です" });
-      }
+      // IMAPの送信済み + salesEmailLogsのバッチ送信を統合表示
+      const allEmails: any[] = [];
+      let imapTotal = 0;
 
-      const client = await getImapClient();
-      try {
-        await client.connect();
-        
-        // Alibaba Cloud の送信済みフォルダ名を試行
-        const sentFolders = ["Sent Messages", "Sent", "已发送", "INBOX.Sent"];
-        let sentFolder = "Sent Messages";
-        
-        const mailboxes = await client.list();
-        for (const mb of mailboxes) {
-          const path = mb.path || "";
-          if (sentFolders.some(f => path.toLowerCase() === f.toLowerCase())) {
-            sentFolder = path;
-            break;
-          }
-        }
-
-        const lock = await client.getMailboxLock(sentFolder);
+      // 1. IMAPの送信済みを取得
+      if (ENV.emailUser && ENV.emailPassword) {
+        const client = await getImapClient();
         try {
-          const mailbox = client.mailbox;
-          const total = mailbox?.exists ?? 0;
-          
-          if (total === 0) {
-            return { emails: [], total: 0, page: input.page, pageSize: input.pageSize };
+          await client.connect();
+          const sentFolders = ["Sent Messages", "Sent", "已发送", "INBOX.Sent"];
+          let sentFolder = "Sent Messages";
+          const mailboxes = await client.list();
+          for (const mb of mailboxes) {
+            const path = mb.path || "";
+            if (sentFolders.some(f => path.toLowerCase() === f.toLowerCase())) {
+              sentFolder = path;
+              break;
+            }
           }
-
-          const start = Math.max(1, total - (input.page * input.pageSize) + 1);
-          const end = Math.max(1, total - ((input.page - 1) * input.pageSize));
-          const range = `${start}:${end}`;
-          
-          const emails: any[] = [];
-          for await (const message of client.fetch(range, {
-            envelope: true,
-            flags: true,
-            uid: true,
-          })) {
-            const envelope = message.envelope;
-            emails.push({
-              uid: message.uid,
-              seq: message.seq,
-              subject: envelope.subject || "(件名なし)",
-              from: envelope.from?.[0] ? {
-                name: envelope.from[0].name || "",
-                address: envelope.from[0].address || "",
-              } : { name: "", address: "" },
-              to: (envelope.to || []).map((t: any) => ({
-                name: t.name || "",
-                address: t.address || "",
-              })),
-              date: envelope.date ? new Date(envelope.date).toISOString() : null,
-              flags: Array.from(message.flags || []),
-            });
+          const lock = await client.getMailboxLock(sentFolder);
+          try {
+            const mailbox = client.mailbox;
+            imapTotal = mailbox?.exists ?? 0;
+            if (imapTotal > 0) {
+              // 最新200件まで取得してDB側と統合ソート
+              const fetchCount = Math.min(imapTotal, 200);
+              const start = Math.max(1, imapTotal - fetchCount + 1);
+              const range = `${start}:${imapTotal}`;
+              for await (const message of client.fetch(range, {
+                envelope: true,
+                flags: true,
+                uid: true,
+              })) {
+                const envelope = message.envelope;
+                allEmails.push({
+                  uid: message.uid,
+                  seq: message.seq,
+                  source: "imap",
+                  subject: envelope.subject || "(件名なし)",
+                  from: envelope.from?.[0] ? {
+                    name: envelope.from[0].name || "",
+                    address: envelope.from[0].address || "",
+                  } : { name: "", address: "" },
+                  to: (envelope.to || []).map((t: any) => ({
+                    name: t.name || "",
+                    address: t.address || "",
+                  })),
+                  date: envelope.date ? new Date(envelope.date).toISOString() : null,
+                  flags: Array.from(message.flags || []),
+                  status: "sent",
+                });
+              }
+            }
+          } finally {
+            lock.release();
           }
-
-          emails.sort((a, b) => {
-            const da = a.date ? new Date(a.date).getTime() : 0;
-            const db = b.date ? new Date(b.date).getTime() : 0;
-            return db - da;
-          });
-
-          return { emails, total, page: input.page, pageSize: input.pageSize };
+        } catch (err: any) {
+          console.error("[Email Router] listSent IMAP error:", err.message);
+          // IMAPエラーでもDB側は表示する
         } finally {
-          lock.release();
+          try { await client.logout(); } catch {}
         }
-      } catch (err: any) {
-        console.error("[Email Router] listSent error:", err);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "送信済みメール取得に失敗しました: " + (err.message || "不明なエラー"),
-        });
-      } finally {
-        try { await client.logout(); } catch {}
       }
+
+      // 2. salesEmailLogsからバッチ送信分を取得
+      try {
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        const { salesEmailLogs } = await import("../drizzle/schema");
+        const { desc, sql } = await import("drizzle-orm");
+        const sesEmails = await db
+          .select()
+          .from(salesEmailLogs)
+          .orderBy(desc(salesEmailLogs.sentAt))
+          .limit(500);
+        for (const log of sesEmails) {
+          allEmails.push({
+            uid: `ses-${log.id}`,
+            seq: 0,
+            source: "ses",
+            subject: log.subject || "(件名なし)",
+            from: {
+              name: "株式会社ライブコマースジャパン",
+              address: ENV.awsSesFromEmail || "info@livecommercejapan.jp",
+            },
+            to: [{
+              name: log.toName || "",
+              address: log.toEmail || "",
+            }],
+            date: log.sentAt ? new Date(log.sentAt).toISOString() : null,
+            flags: [],
+            status: log.status || "sent",
+            sendType: log.sendType,
+            toCompany: log.toCompany,
+            attachPdf: log.attachPdf,
+          });
+        }
+      } catch (dbErr: any) {
+        console.error("[Email Router] listSent DB error:", dbErr.message);
+      }
+
+      // 3. 日付降順でソート
+      allEmails.sort((a, b) => {
+        const da = a.date ? new Date(a.date).getTime() : 0;
+        const db2 = b.date ? new Date(b.date).getTime() : 0;
+        return db2 - da;
+      });
+
+      // 4. ページネーション
+      const total = allEmails.length;
+      const startIdx = (input.page - 1) * input.pageSize;
+      const pageEmails = allEmails.slice(startIdx, startIdx + input.pageSize);
+
+      return { emails: pageEmails, total, page: input.page, pageSize: input.pageSize };
     }),
 
   // ===== 5. メールフォルダ一覧 =====
