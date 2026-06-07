@@ -1,5 +1,5 @@
 import { useSearch, useLocation } from "wouter";
-import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback, Fragment } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
@@ -4642,7 +4642,7 @@ function SalesEmailHistorySection() {
                 </TableHeader>
                 <TableBody>
                   {data.rows.map((log: any) => (
-                    <React.Fragment key={log.id}>
+                    <Fragment key={log.id}>
                     <TableRow className="hover:bg-muted/50">
                       <TableCell className="text-xs">
                         <button
@@ -4878,7 +4878,7 @@ function SalesEmailHistorySection() {
                         </TableCell>
                       </TableRow>
                     )}
-                    </React.Fragment>
+                    </Fragment>
                   ))}
                 </TableBody>
               </Table>
