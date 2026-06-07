@@ -26935,6 +26935,9 @@ export async function getSalesEmailLogsByBusinessCardId(businessCardId: number, 
 export async function getSalesEmailLogs(options?: {
   search?: string;
   sendType?: string;
+  sortBy?: string; // 'sentAt' | 'openCount' | 'replyReceived' | 'pdfDownloadCount'
+  sortOrder?: 'asc' | 'desc';
+  statusFilter?: string; // 'sent' | 'failed' | 'opened' | 'replied'
   limit?: number;
   offset?: number;
 }) {
@@ -26957,6 +26960,27 @@ export async function getSalesEmailLogs(options?: {
     conditions.push(eq(salesEmailLogs.sendType, options.sendType));
   }
 
+  // ステータスフィルター追加
+  if (options?.statusFilter) {
+    switch (options.statusFilter) {
+      case 'opened':
+        conditions.push(sql`\`openCount\` > 0`);
+        break;
+      case 'replied':
+        conditions.push(eq(salesEmailLogs.replyReceived, true));
+        break;
+      case 'sent':
+        conditions.push(eq(salesEmailLogs.status, 'sent'));
+        break;
+      case 'failed':
+        conditions.push(eq(salesEmailLogs.status, 'failed'));
+        break;
+      case 'pdf_downloaded':
+        conditions.push(sql`\`pdfDownloadCount\` > 0`);
+        break;
+    }
+  }
+
   // Try with tracking columns first, fallback to basic columns if not migrated yet
   try {
     let query = db.select({
@@ -26976,6 +27000,8 @@ export async function getSalesEmailLogs(options?: {
       lastOpenedAt: salesEmailLogs.lastOpenedAt,
       pdfDownloadedAt: salesEmailLogs.pdfDownloadedAt,
       pdfDownloadCount: salesEmailLogs.pdfDownloadCount,
+      replyReceived: salesEmailLogs.replyReceived,
+      replyReceivedAt: salesEmailLogs.replyReceivedAt,
     }).from(salesEmailLogs);
     let countQuery = db.select({ count: sql<number>`count(*)` }).from(salesEmailLogs);
     
@@ -26984,9 +27010,29 @@ export async function getSalesEmailLogs(options?: {
       countQuery = countQuery.where(and(...conditions)) as typeof countQuery;
     }
 
+    // ソート設定
+    let orderByClause;
+    const sortOrder = options?.sortOrder === 'asc' ? asc : desc;
+    switch (options?.sortBy) {
+      case 'openCount':
+        orderByClause = [sortOrder(salesEmailLogs.openCount), desc(salesEmailLogs.sentAt)];
+        break;
+      case 'replyReceived':
+        orderByClause = [desc(salesEmailLogs.replyReceived), desc(salesEmailLogs.replyReceivedAt), desc(salesEmailLogs.sentAt)];
+        break;
+      case 'pdfDownloadCount':
+        orderByClause = [sortOrder(salesEmailLogs.pdfDownloadCount), desc(salesEmailLogs.sentAt)];
+        break;
+      case 'openedAt':
+        orderByClause = [desc(salesEmailLogs.lastOpenedAt), desc(salesEmailLogs.sentAt)];
+        break;
+      default:
+        orderByClause = [desc(salesEmailLogs.sentAt)];
+    }
+
     const [rows, countResult] = await Promise.all([
       query
-        .orderBy(desc(salesEmailLogs.sentAt))
+        .orderBy(...orderByClause)
         .limit(options?.limit || 20)
         .offset(options?.offset || 0),
       countQuery,

@@ -87,6 +87,8 @@ import {
   Store,
   ExternalLink,
   ArrowUpDown,
+  ArrowDown,
+  ArrowUp,
   History,
   CheckCircle,
   AlertCircle,
@@ -4210,6 +4212,9 @@ function EmailHistorySection({ email, businessCardId }: { email: string; busines
 function SalesEmailHistorySection() {
   const [search, setSearch] = useState("");
   const [sendTypeFilter, setSendTypeFilter] = useState<string>("_all");
+  const [statusFilter, setStatusFilter] = useState<string>("_all");
+  const [sortBy, setSortBy] = useState<string>("sentAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(0);
   const limit = 20;
   const [, navigate] = useLocation();
@@ -4218,11 +4223,31 @@ function SalesEmailHistorySection() {
     {
       search: search || undefined,
       sendType: sendTypeFilter === "_all" ? undefined : sendTypeFilter,
+      statusFilter: statusFilter === "_all" ? undefined : statusFilter,
+      sortBy,
+      sortOrder,
       limit,
       offset: page * limit,
     },
     { refetchOnWindowFocus: false, staleTime: 30_000, placeholderData: (prev: any) => prev }
   );
+
+  const handleSort = (field: string) => {
+    if (sortBy === field) {
+      setSortOrder(prev => prev === "desc" ? "asc" : "desc");
+    } else {
+      setSortBy(field);
+      setSortOrder("desc");
+    }
+    setPage(0);
+  };
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortBy !== field) return <ArrowUpDown className="h-3 w-3 ml-0.5 opacity-30" />;
+    return sortOrder === "desc" 
+      ? <ArrowDown className="h-3 w-3 ml-0.5 text-blue-600" />
+      : <ArrowUp className="h-3 w-3 ml-0.5 text-blue-600" />;
+  };
 
   const sendTypeLabel = (type: string) => {
     switch (type) {
@@ -4279,6 +4304,19 @@ function SalesEmailHistorySection() {
               <SelectItem value="bulk_all">全件一括</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0); }}>
+            <SelectTrigger className="h-8 w-32 text-xs">
+              <SelectValue placeholder="状態" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_all">全状態</SelectItem>
+              <SelectItem value="opened">開封済</SelectItem>
+              <SelectItem value="replied">返信あり</SelectItem>
+              <SelectItem value="pdf_downloaded">PDFダウンロード済</SelectItem>
+              <SelectItem value="sent">送信成功</SelectItem>
+              <SelectItem value="failed">失敗</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="ghost" size="sm" onClick={() => refetch()} className="h-8">
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
@@ -4306,9 +4344,16 @@ function SalesEmailHistorySection() {
                     <TableHead className="text-xs">件名</TableHead>
                     <TableHead className="text-xs w-[70px]">種別</TableHead>
                     <TableHead className="text-xs w-[60px]">状態</TableHead>
-                    <TableHead className="text-xs w-[80px]">開封</TableHead>
+                    <TableHead className="text-xs w-[80px] cursor-pointer select-none" onClick={() => handleSort("openCount")}>
+                      <span className="flex items-center">開封<SortIcon field="openCount" /></span>
+                    </TableHead>
+                    <TableHead className="text-xs w-[60px] cursor-pointer select-none" onClick={() => handleSort("replyReceived")}>
+                      <span className="flex items-center">返信<SortIcon field="replyReceived" /></span>
+                    </TableHead>
                     <TableHead className="text-xs w-[80px]">PDF</TableHead>
-                    <TableHead className="text-xs w-[100px]">送信日時</TableHead>
+                    <TableHead className="text-xs w-[100px] cursor-pointer select-none" onClick={() => handleSort("sentAt")}>
+                      <span className="flex items-center">送信日時<SortIcon field="sentAt" /></span>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -4357,6 +4402,15 @@ function SalesEmailHistorySection() {
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">未開封</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {log.replyReceived ? (
+                          <Badge className="text-[10px] px-1.5 py-0 bg-orange-50 text-orange-700 border-orange-300" variant="outline">
+                            ✉️ あり
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell>

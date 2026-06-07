@@ -13,6 +13,7 @@ import { sendCoachingToLiver } from "./_core/lineMessaging";
 import { lessonsRouter } from "./lessonsRouter";
 import { blogRouter, autoPostRouter } from "./blogRouter";
 import { locationRouter } from "./locationRouter";
+import { isValidEmailForSending, getInvalidEmailReason } from "./emailValidator";
 import {
   createStaff,
   getAllStaff,
@@ -9630,6 +9631,9 @@ Return ONLY valid JSON, no markdown or explanation.`,
       .input(z.object({
         search: z.string().optional(),
         sendType: z.string().optional(),
+        sortBy: z.string().optional(),
+        sortOrder: z.enum(['asc', 'desc']).optional(),
+        statusFilter: z.string().optional(),
         limit: z.number().optional(),
         offset: z.number().optional(),
       }).nullish())
@@ -9667,6 +9671,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
 
         // メールありの全送信先を収集
         const allRecipients: Array<{ email: string; name: string; company: string; source: string; businessCardId?: number }> = [];
+        const invalidEmails: Array<{ email: string; reason: string; source: string }> = [];
         const seenEmails = new Set<string>();
 
         // 1. 名刺からメールありを取得
@@ -9677,6 +9682,11 @@ Return ONLY valid JSON, no markdown or explanation.`,
               const emailLower = card.email.toLowerCase();
               seenEmails.add(emailLower);
               if (input.skipSent && sentEmailSet.has(emailLower)) continue;
+              // 無効メールフィルタリング
+              if (!isValidEmailForSending(card.email)) {
+                invalidEmails.push({ email: card.email, reason: getInvalidEmailReason(card.email) || "不明", source: "card" });
+                continue;
+              }
               allRecipients.push({
                 email: card.email,
                 name: card.name || "",
@@ -9701,6 +9711,11 @@ Return ONLY valid JSON, no markdown or explanation.`,
                 const emailLower = lead.email.toLowerCase();
                 seenEmails.add(emailLower);
                 if (input.skipSent && sentEmailSet.has(emailLower)) continue;
+                // 無効メールフィルタリング
+                if (!isValidEmailForSending(lead.email)) {
+                  invalidEmails.push({ email: lead.email, reason: getInvalidEmailReason(lead.email) || "不明", source: "lead" });
+                  continue;
+                }
                 allRecipients.push({
                   email: lead.email,
                   name: lead.companyName || "",
@@ -9714,10 +9729,16 @@ Return ONLY valid JSON, no markdown or explanation.`,
           }
         }
 
+        if (invalidEmails.length > 0) {
+          console.log(`[getEmailRecipientsList] Filtered out ${invalidEmails.length} invalid emails`);
+        }
+
         return {
           recipients: allRecipients,
           totalCount: allRecipients.length,
           skippedSent: input.skipSent ? sentEmailSet.size : 0,
+          skippedInvalid: invalidEmails.length,
+          invalidEmails: invalidEmails.slice(0, 20), // 最初の20件のみ返す
           cardCount: allRecipients.filter(r => r.source === "card").length,
           leadCount: allRecipients.filter(r => r.source === "lead").length,
         };
@@ -9964,6 +9985,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
             const allRecipients: Array<{ email: string; name: string; company: string; source: string; businessCardId?: number }> = [];
             const seenEmails = new Set<string>();
 
+            let invalidCount = 0;
             if (input.includeCards) {
               const allCards = await getBusinessCards({ limit: 10000 });
               console.log(`[BG Batch] Cards fetched: ${allCards.length}`);
@@ -9974,6 +9996,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
                   const emailLower = card.email.toLowerCase();
                   seenEmails.add(emailLower);
                   if (input.skipSent && sentEmailSet.has(emailLower)) continue;
+                  // 無効メールフィルタリング
+                  if (!isValidEmailForSending(card.email)) { invalidCount++; continue; }
                   allRecipients.push({ email: card.email, name: card.name || "", company: card.company || "", source: "card", businessCardId: card.id });
                 }
               }
@@ -9994,6 +10018,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
                     const emailLower = lead.email.toLowerCase();
                     seenEmails.add(emailLower);
                     if (input.skipSent && sentEmailSet.has(emailLower)) continue;
+                    // 無効メールフィルタリング
+                    if (!isValidEmailForSending(lead.email)) { invalidCount++; continue; }
                     allRecipients.push({ email: lead.email, name: lead.companyName || "", company: lead.companyName || "", source: "lead" });
                   }
                 }
@@ -10003,7 +10029,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
               }
             }
 
-            console.log(`[BG Batch] Total recipients: ${allRecipients.length}, batchSize: ${input.batchSize}`);
+            console.log(`[BG Batch] Total recipients: ${allRecipients.length}, invalid filtered: ${invalidCount}, batchSize: ${input.batchSize}`);
             jobState.totalRecipients = allRecipients.length;
             jobState.totalBatches = Math.ceil(allRecipients.length / input.batchSize);
 
