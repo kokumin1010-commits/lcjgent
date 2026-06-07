@@ -172,6 +172,16 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
   const [logsPage, setLogsPage] = useState(1);
 
   const utils = trpc.useUtils();
+  // ===== 未返信通知 =====
+  const { data: unrepliedData } = trpc.replyTracking.getUnrepliedCount.useQuery(undefined, { refetchOnWindowFocus: false, refetchInterval: 60000 });
+  const checkRepliesMutation = trpc.replyTracking.checkReplies.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      utils.replyTracking.getUnrepliedCount.invalidate();
+      refetchInbox();
+    },
+    onError: (err) => toast.error("返信チェック失敗: " + err.message),
+  });
 
   // ===== テンプレート・署名クエリ =====
   const { data: templates } = trpc.email.listTemplates.useQuery(undefined, { refetchOnWindowFocus: false });
@@ -851,7 +861,7 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
                     activeTab === "inbox" ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"
                   }`}
                 >
-                  <Inbox className="w-4 h-4" /> 受信トレイ
+                  <Inbox className="w-4 h-4" /> 受信トレイ {unrepliedData?.count ? <span className="ml-1 px-1.5 py-0.5 text-xs bg-red-500 text-white rounded-full">{unrepliedData.count}</span> : null}
                 </button>
                 <button
                   onClick={() => { setActiveTab("sent"); setPage(1); setSelectedUid(null); }}
@@ -882,6 +892,9 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
 
               <Button variant="ghost" size="sm" onClick={() => { activeTab === "inbox" ? refetchInbox() : refetchSent(); }} className="text-gray-400 hover:text-white">
                 <RefreshCw className="w-4 h-4" />
+              <Button size="sm" variant="outline" className="border-orange-600 text-orange-400 hover:bg-orange-600 hover:text-white" onClick={() => checkRepliesMutation.mutate()} disabled={checkRepliesMutation.isPending}>
+                {checkRepliesMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <AlertTriangle className="w-4 h-4 mr-1" />} 返信チェック
+              </Button>
               </Button>
               <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => { resetCompose(); setComposeOpen(true); }}>
                 <Plus className="w-4 h-4 mr-1" /> 新規メール

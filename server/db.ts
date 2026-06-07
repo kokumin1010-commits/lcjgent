@@ -27075,3 +27075,119 @@ export async function getSentEmailAddresses(): Promise<string[]> {
     .where(eq(salesEmailLogs.status, "sent"));
   return results.map(r => r.email);
 }
+
+
+// ===== 返信トラッキング関連 =====
+
+/**
+ * 未返信メール（先方から返信が来たが、こちらが未対応）の件数を取得
+ */
+export async function getUnrepliedCount(): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  try {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(salesEmailLogs)
+      .where(
+        and(
+          eq(salesEmailLogs.status, "sent"),
+          eq(salesEmailLogs.replyReceived, true),
+          eq(salesEmailLogs.repliedByUs, false)
+        )
+      );
+    return (result as any)?.count || 0;
+  } catch (err: any) {
+    if (err.message?.includes("Unknown column")) return 0;
+    throw err;
+  }
+}
+
+/**
+ * 未返信メール一覧を取得
+ */
+export async function getUnrepliedEmails(limit = 50, offset = 0) {
+  const db = await getDb();
+  if (!db) return { rows: [], total: 0 };
+  try {
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(salesEmailLogs)
+      .where(
+        and(
+          eq(salesEmailLogs.status, "sent"),
+          eq(salesEmailLogs.replyReceived, true),
+          eq(salesEmailLogs.repliedByUs, false)
+        )
+      );
+    const rows = await db
+      .select({
+        id: salesEmailLogs.id,
+        toEmail: salesEmailLogs.toEmail,
+        toName: salesEmailLogs.toName,
+        toCompany: salesEmailLogs.toCompany,
+        subject: salesEmailLogs.subject,
+        sentAt: salesEmailLogs.sentAt,
+        replyReceivedAt: salesEmailLogs.replyReceivedAt,
+        businessCardId: salesEmailLogs.businessCardId,
+      })
+      .from(salesEmailLogs)
+      .where(
+        and(
+          eq(salesEmailLogs.status, "sent"),
+          eq(salesEmailLogs.replyReceived, true),
+          eq(salesEmailLogs.repliedByUs, false)
+        )
+      )
+      .orderBy(desc(salesEmailLogs.replyReceivedAt))
+      .limit(limit)
+      .offset(offset);
+    return { rows, total: (countResult as any)?.count || 0 };
+  } catch (err: any) {
+    if (err.message?.includes("Unknown column")) return { rows: [], total: 0 };
+    throw err;
+  }
+}
+
+/**
+ * 返信受信をマーク
+ */
+export async function markReplyReceived(emailId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(salesEmailLogs)
+    .set({ replyReceived: true, replyReceivedAt: new Date() })
+    .where(eq(salesEmailLogs.id, emailId));
+}
+
+/**
+ * こちらからの返信済みをマーク
+ */
+export async function markRepliedByUs(emailId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(salesEmailLogs)
+    .set({ repliedByUs: true, repliedByUsAt: new Date() })
+    .where(eq(salesEmailLogs.id, emailId));
+}
+
+/**
+ * メールアドレスで返信受信をマーク（IMAP返信検知で使用）
+ */
+export async function markReplyReceivedByEmail(toEmail: string) {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db
+    .update(salesEmailLogs)
+    .set({ replyReceived: true, replyReceivedAt: new Date() })
+    .where(
+      and(
+        eq(salesEmailLogs.toEmail, toEmail.toLowerCase()),
+        eq(salesEmailLogs.status, "sent"),
+        eq(salesEmailLogs.replyReceived, false)
+      )
+    );
+  return (result as any)?.[0]?.affectedRows || 0;
+}

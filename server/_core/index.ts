@@ -2395,6 +2395,13 @@ async function startServer() {
             } catch (err: unknown) {
               console.error("[Migration] Add tracking columns error:", err);
             }
+            // Add reply tracking columns
+            try {
+              const { addReplyTrackingToSalesEmailLogs } = await import("../migrations/addReplyTrackingToSalesEmailLogs");
+              await addReplyTrackingToSalesEmailLogs(db);
+            } catch (err: unknown) {
+              console.error("[Migration] Add reply tracking columns error:", err);
+            }
           });
           import("../migrations/addChatMessageEditRevoke").then(({ addChatMessageEditRevoke }) => {
             addChatMessageEditRevoke().catch((err: unknown) => {

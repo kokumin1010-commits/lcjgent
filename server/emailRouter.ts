@@ -15,6 +15,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { ENV } from "./_core/env";
 import nodemailer from "nodemailer";
+import { getUnrepliedCount, getUnrepliedEmails, markReplyReceivedByEmail, markRepliedByUs } from "./db";
 
 // ===== IMAP接続ヘルパー =====
 async function getImapClient() {
@@ -954,5 +955,135 @@ export const emailRouter = router({
         .offset((input.page - 1) * input.pageSize);
 
       return { logs, total, page: input.page, pageSize: input.pageSize };
+    }),
+});
+
+export const replyTrackingRouter = router({
+  // 未返信カウント取得（バッジ表示用）
+  getUnrepliedCount: protectedProcedure.query(async () => {
+    const count = await getUnrepliedCount();
+    return { count };
+  }),
+
+  // 未返信メール一覧取得
+  getUnrepliedEmails: protectedProcedure
+    .input(z.object({
+      page: z.number().min(1).default(1),
+      pageSize: z.number().min(1).max(100).default(20),
+    }))
+    .query(async ({ input }) => {
+      const result = await getUnrepliedEmails(input.pageSize, (input.page - 1) * input.pageSize);
+      return { ...result, page: input.page, pageSize: input.pageSize };
+    }),
+
+  // IMAP受信トレイをスキャンして返信を検出
+  checkReplies: protectedProcedure.mutation(async () => {
+    if (!ENV.emailUser || !ENV.emailPassword) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "メール設定が未構成です" });
+    }
+
+    // 1. salesEmailLogsから送信済みメールアドレスを取得
+    const { getDb } = await import("./db");
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続不可" });
+
+    const { salesEmailLogs } = await import("../drizzle/schema");
+    const { eq, and, desc } = await import("drizzle-orm");
+
+    // 送信済み・未返信のメールアドレスを取得
+    const sentEmails = await db
+      .select({
+        id: salesEmailLogs.id,
+        toEmail: salesEmailLogs.toEmail,
+      })
+      .from(salesEmailLogs)
+      .where(
+        and(
+          eq(salesEmailLogs.status, "sent"),
+          eq(salesEmailLogs.replyReceived, false)
+        )
+      );
+
+    if (sentEmails.length === 0) {
+      return { checked: 0, newReplies: 0, message: "送信済み未返信メールがありません" };
+    }
+
+    // 送信先アドレスのセットを作成
+    const sentAddressSet = new Set(sentEmails.map(e => e.toEmail.toLowerCase()));
+
+    // 2. IMAP受信トレイをスキャンして返信を検出
+    const client = await getImapClient();
+    let newReplies = 0;
+    const repliedAddresses: string[] = [];
+
+    try {
+      await client.connect();
+      const lock = await client.getMailboxLock("INBOX");
+      try {
+        const mailbox = client.mailbox;
+        const total = mailbox?.exists ?? 0;
+        if (total === 0) {
+          return { checked: sentEmails.length, newReplies: 0, message: "受信トレイが空です" };
+        }
+
+        // 最新500件をスキャン（パフォーマンスのため制限）
+        const scanCount = Math.min(total, 500);
+        const start = Math.max(1, total - scanCount + 1);
+        const range = `${start}:${total}`;
+
+        for await (const message of client.fetch(range, {
+          envelope: true,
+          uid: true,
+        })) {
+          const envelope = message.envelope;
+          if (!envelope?.from?.[0]?.address) continue;
+
+          const fromAddress = (envelope.from[0].address || "").toLowerCase();
+
+          // 送信先アドレスからの受信メールを検出
+          if (sentAddressSet.has(fromAddress) && !repliedAddresses.includes(fromAddress)) {
+            repliedAddresses.push(fromAddress);
+          }
+        }
+      } finally {
+        lock.release();
+      }
+    } catch (err: any) {
+      console.error("[Reply Tracking] IMAP scan error:", err.message);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "IMAP受信トレイのスキャンに失敗しました: " + (err.message || "不明なエラー"),
+      });
+    } finally {
+      try { await client.logout(); } catch {}
+    }
+
+    // 3. 検出した返信をDBに反映
+    for (const addr of repliedAddresses) {
+      try {
+        const affected = await markReplyReceivedByEmail(addr);
+        if (affected > 0) newReplies++;
+      } catch (err: any) {
+        console.error(`[Reply Tracking] Error marking reply for ${addr}:`, err.message);
+      }
+    }
+
+    return {
+      checked: sentEmails.length,
+      scannedInbox: Math.min(500, sentEmails.length),
+      newReplies,
+      repliedAddresses,
+      message: newReplies > 0
+        ? `${newReplies}件の新しい返信を検出しました`
+        : "新しい返信はありませんでした",
+    };
+  }),
+
+  // こちらからの返信済みをマーク
+  markReplied: protectedProcedure
+    .input(z.object({ emailLogId: z.number() }))
+    .mutation(async ({ input }) => {
+      await markRepliedByUs(input.emailLogId);
+      return { success: true };
     }),
 });

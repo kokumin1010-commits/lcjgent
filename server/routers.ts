@@ -736,6 +736,7 @@ import { setApplicationRouter } from "./setApplicationRouter";
 import { sampleRequestRouter } from "./sampleRequestRouter";
 import { recruitmentRouter } from "./recruitmentRouter";
 import { emailRouter } from "./emailRouter";
+import { replyTrackingRouter } from "./emailRouter";
 import { adFormRouter } from "./adFormRouter";
 import { tspRouter } from "./tspRouter";
 import { agencyRouter } from "./agencyRouter";
@@ -13721,6 +13722,7 @@ ${conversationText}
   sampleRequest: sampleRequestRouter,
   recruitment: recruitmentRouter,
   email: emailRouter,
+  replyTracking: replyTrackingRouter,
 
   // Liver Management Router (ライバー管理画面用)
   liverManagement: router({

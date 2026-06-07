@@ -6190,6 +6190,11 @@ export const salesEmailLogs = mysqlTable("sales_email_logs", {
   lastOpenedAt: timestamp("lastOpenedAt"), // 最終開封日時
   pdfDownloadedAt: timestamp("pdfDownloadedAt"), // 初回PDFダウンロード日時
   pdfDownloadCount: int("pdfDownloadCount").default(0), // PDFダウンロード回数
+  // 返信トラッキング
+  replyReceived: boolean("replyReceived").default(false), // 返信受信済み
+  replyReceivedAt: timestamp("replyReceivedAt"), // 返信受信日時
+  repliedByUs: boolean("repliedByUs").default(false), // こちらから返信済み
+  repliedByUsAt: timestamp("repliedByUsAt"), // こちらからの返信日時
 });
 export type SalesEmailLog = typeof salesEmailLogs.$inferSelect;
 export type InsertSalesEmailLog = typeof salesEmailLogs.$inferInsert;

@@ -472,6 +472,8 @@ export default function BusinessCards() {
   const emailStatsQuery = trpc.businessCard.getSalesEmailStats.useQuery(undefined, {
     staleTime: 5000,
   });
+  // 未返信通知
+  const { data: unrepliedData } = trpc.replyTracking.getUnrepliedCount.useQuery(undefined, { refetchOnWindowFocus: false, refetchInterval: 60000 });
   const emailStats = emailStatsQuery.data;
 
   // Lead collection state
@@ -1398,6 +1400,7 @@ export default function BusinessCards() {
           <TabsTrigger value="email" className="flex items-center gap-2">
             <Mail className="h-4 w-4" />
             {t.tabEmail}
+            {unrepliedData?.count ? <span className="ml-1 px-1.5 py-0.5 text-xs bg-red-500 text-white rounded-full">{unrepliedData.count}</span> : null}
           </TabsTrigger>
         </TabsList>
 
