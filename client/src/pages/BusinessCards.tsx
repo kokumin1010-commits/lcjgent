@@ -4411,6 +4411,19 @@ function SalesEmailHistorySection() {
     },
   });
 
+  const { data, isLoading, refetch } = trpc.businessCard.getSalesEmailLogs.useQuery(
+    {
+      search: search || undefined,
+      sendType: sendTypeFilter === "_all" ? undefined : sendTypeFilter,
+      statusFilter: statusFilter === "_all" ? undefined : statusFilter,
+      sortBy,
+      sortOrder,
+      limit,
+      offset: page * limit,
+    },
+    { refetchOnWindowFocus: false, staleTime: 30_000, placeholderData: (prev: any) => prev }
+  );
+
   // インライン展開時のIMAP取得
   const expandedLog = data?.rows?.find((r: any) => r.id === expandedEmailId);
   const {
@@ -4486,19 +4499,6 @@ function SalesEmailHistorySection() {
       checkRepliesMutation.mutate();
     }
   }, []);
-
-  const { data, isLoading, refetch } = trpc.businessCard.getSalesEmailLogs.useQuery(
-    {
-      search: search || undefined,
-      sendType: sendTypeFilter === "_all" ? undefined : sendTypeFilter,
-      statusFilter: statusFilter === "_all" ? undefined : statusFilter,
-      sortBy,
-      sortOrder,
-      limit,
-      offset: page * limit,
-    },
-    { refetchOnWindowFocus: false, staleTime: 30_000, placeholderData: (prev: any) => prev }
-  );
 
   const handleSort = (field: string) => {
     if (sortBy === field) {
