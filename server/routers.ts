@@ -9931,6 +9931,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
         attachPdf: z.boolean().default(false),
         includeCards: z.boolean().default(true),
         includeLeads: z.boolean().default(true),
+        leadSource: z.string().optional(), // e.g. "kalodata_tiktok" to filter leads by source
         skipSent: z.boolean().default(true),
         batchSize: z.number().min(5).max(100).default(50),
       }))
@@ -10006,7 +10007,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
 
             if (input.includeLeads) {
               try {
-                const filter = { hasEmail: true, limit: 10000 };
+                const filter: any = { hasEmail: true, limit: 10000 };
+                if (input.leadSource) filter.source = input.leadSource;
                 const params = encodeURIComponent(JSON.stringify({ json: filter }));
                 const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
                 const data = await res.json();
@@ -10180,7 +10182,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
                   toCompany: r.company || "",
                   subject: input.subject.replace(/\{\{displayName\}\}/g, r.name || r.company || "\u3054\u62c5\u5f53\u8005\u69d8"),
                   contentPreview: input.content.substring(0, 200),
-                  sendType: "bulk_all" as const,
+                  sendType: (input.leadSource === "kalodata_tiktok" ? "bulk_kalodata" : r.source === "card" ? "bulk_card" : "bulk_lead") as string,
                   attachPdf: input.attachPdf,
                   status: sendResults[idx] ? "sent" as const : "failed" as const,
                   errorMessage: !sendResults[idx] ? batchErrors[sendResults.slice(0, idx).filter(r => !r).length] : undefined,

@@ -2711,6 +2711,126 @@ export default function BusinessCards() {
             </CardContent>
           </Card>
 
+          {/* Kalodata バッチ送信セクション */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Send className="h-4 w-4 text-purple-500" />
+                Kalodata TikTok Shop 営業メール一括送信
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                メールアドレスが取得済みのKalodataリード全件に営業メールを一括送信します（送信済みはスキップ）
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <span className="text-purple-700">メールあり: <span className="font-bold">{kalodataStats.withEmail}件</span></span>
+                <span className="text-green-600">送信済: <span className="font-bold">{emailStats?.uniqueEmails || 0}件（全体）</span></span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="kalodataAttachPdf"
+                    checked={attachPdf}
+                    onCheckedChange={(checked: boolean | "indeterminate") => setAttachPdf(checked === true)}
+                  />
+                  <label htmlFor="kalodataAttachPdf" className="text-xs text-purple-700 cursor-pointer">
+                    LCJ提案書（PDF）を添付
+                  </label>
+                </div>
+              </div>
+
+              {/* Kalodata バッチ進捗（共通batchProgressを使用） */}
+              {batchProgress && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-purple-700">
+                    <span>
+                      {batchProgress.isRunning ? "送信中..." : "完了"}
+                      {batchProgress.skippedSent > 0 && ` (送信済${batchProgress.skippedSent}件スキップ)`}
+                    </span>
+                    <span>
+                      {batchProgress.totalSent}件送信 / {batchProgress.totalRecipients}件中
+                      {batchProgress.totalErrors > 0 && ` (エラー${batchProgress.totalErrors}件)`}
+                    </span>
+                  </div>
+                  <div className="w-full bg-purple-200 rounded-full h-2.5">
+                    <div
+                      className="bg-purple-600 h-2.5 rounded-full transition-all duration-300"
+                      style={{ width: `${batchProgress.totalRecipients > 0 ? ((batchProgress.totalSent + batchProgress.totalErrors) / batchProgress.totalRecipients) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-purple-600">
+                    バッチ {batchProgress.currentBatch || 0} / {batchProgress.totalBatches || 0}
+                    {batchProgress.isRunning && " ※ページを離れても送信は継続されます"}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button
+                  className="bg-purple-600 hover:bg-purple-700 flex-1"
+                  disabled={
+                    !emailSubject ||
+                    !emailContent ||
+                    kalodataStats.withEmail === 0 ||
+                    (batchProgress?.isRunning || false)
+                  }
+                  onClick={async () => {
+                    if (!emailSubject || !emailContent) {
+                      toast.error("メール配信タブで件名と本文を設定してください");
+                      return;
+                    }
+                    if (!confirm(`Kalodata TikTok Shopリード（メールあり${kalodataStats.withEmail}件）に営業メールを送信します。\n送信済みはスキップされます。\n※ページを離れても送信は継続されます\nよろしいですか？`)) return;
+                    try {
+                      const result = await startBgBatchMutation.mutateAsync({
+                        subject: emailSubject,
+                        content: emailContent,
+                        attachPdf,
+                        includeCards: false,
+                        includeLeads: true,
+                        leadSource: "kalodata_tiktok",
+                        skipSent: true,
+                        batchSize: 50,
+                      });
+                      if (result.success) {
+                        toast.success("Kalodataリードへのバックグラウンド送信を開始しました！");
+                        setBatchProgress({
+                          isRunning: true,
+                          currentOffset: 0,
+                          totalSent: 0,
+                          totalErrors: 0,
+                          totalRecipients: 0,
+                          skippedSent: 0,
+                        });
+                      } else {
+                        toast.error(result.message || "送信開始に失敗しました");
+                      }
+                    } catch (e: any) {
+                      toast.error(`送信開始エラー: ${e.message}`);
+                    }
+                  }}
+                >
+                  {(batchProgress?.isRunning) ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4 mr-2" />
+                  )}
+                  {batchProgress?.isRunning ? "送信中..." : `Kalodata ${kalodataStats.withEmail}件に営業メール送信`}
+                </Button>
+                {batchProgress?.isRunning && (
+                  <Button
+                    variant="destructive"
+                    className="shrink-0"
+                    onClick={stopBatchSend}
+                  >
+                    <XCircle className="h-4 w-4 mr-1" />
+                    中断
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="text-xs text-muted-foreground text-center">
             ※ データソース: <a href="https://www.kalodata.com/shop" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">Kalodata</a> TikTok Shop 日本ランキング
           </div>
