@@ -26374,18 +26374,14 @@ export async function getRecentCallLogs(limit = 100) {
     const uniqueIds = [...new Set(missingIds)];
     const leadMap = new Map<number, { companyName: string; category?: string }>();
     try {
-      // Fetch leads in parallel (max 10 at a time to avoid overload)
+      // Fetch leads from local DB
+      const { getLeadById } = await import("./leadCollector");
       const batchSize = 50;
       for (let i = 0; i < uniqueIds.length; i += batchSize) {
         const batch = uniqueIds.slice(i, i + batchSize);
         const promises = batch.map(async (id) => {
           try {
-            const res = await fetch(
-              `https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeadById?input=${encodeURIComponent(JSON.stringify({ json: { id } }))}`,
-              { signal: AbortSignal.timeout(5000) }
-            );
-            const data = await res.json();
-            const lead = data?.result?.data?.json;
+            const lead = await getLeadById(id);
             if (lead) {
               leadMap.set(id, { companyName: lead.companyName, category: lead.category });
             }

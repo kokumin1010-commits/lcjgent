@@ -5,14 +5,14 @@
  * for Kalodata TikTok leads that don't have contact info yet.
  * 
  * Uses DuckDuckGo search to find shop contact details.
- * Updates leads via salesdash API (btobLeadProspector.updateLead).
+ * Updates leads via local lcjgent leadCollector.
  * 
  * Runs every 30 minutes, processes up to 20 leads per run to avoid rate limiting.
  */
 
 import axios from "axios";
 
-const SALESDASH_API = "https://salesdash.buzzdrop.co.jp/api/trpc";
+// Removed: salesdash dependency - now using local leadCollector
 const DDGS_SEARCH_URL = "https://html.duckduckgo.com/html/";
 const BATCH_SIZE = 100; // leads per run
 const SEARCH_DELAY_MS = 2000; // 2 seconds between searches to avoid rate limiting
@@ -143,21 +143,16 @@ async function searchContactForLead(lead: { id: number; companyName: string; sho
 }
 
 /**
- * Get leads without contact info from salesdash
+ * Get leads without contact info from local DB
  */
 async function getLeadsWithoutContact(): Promise<any[]> {
   try {
-    const params = encodeURIComponent(JSON.stringify({
-      json: { source: "kalodata_tiktok", hasEmail: false, limit: 5000 }
-    }));
-    const res = await axios.get(`${SALESDASH_API}/btobLeadProspector.getLeads?input=${params}`, {
-      timeout: 30000,
-    });
-    const rows = res.data?.result?.data?.json?.rows || [];
+    const { getLeads } = await import("./leadCollector");
+    const result = await getLeads({ source: "kalodata_tiktok", limit: 5000 });
+    const rows = result.rows || [];
     // Filter to only those without REAL contact info
-    // TikTok/Kalodata URLs are not real contact websites, so ignore them
     const isTikTokOrKalodataUrl = (url: string | null | undefined) => {
-      if (!url) return true; // no website = needs search
+      if (!url) return true;
       return url.includes("tiktok.com") || url.includes("kalodata.com");
     };
     return rows.filter((r: any) => !r.email && !r.phone && isTikTokOrKalodataUrl(r.website));
@@ -190,11 +185,8 @@ async function updateLeadContact(leadId: number, data: { email?: string; phone?:
       return false;
     }
     
-    const updateBody = { json: { id: leadId, data } };
-    await axios.post(`${SALESDASH_API}/btobLeadProspector.updateLead`, updateBody, {
-      headers: { "Content-Type": "application/json" },
-      timeout: 10000,
-    });
+    const { updateLead } = await import("./leadCollector");
+    await updateLead(leadId, data);
     return true;
   } catch (error: any) {
     console.error(`[ContactSearch] Failed to update lead ${leadId}:`, error.message);

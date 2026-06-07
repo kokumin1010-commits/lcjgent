@@ -1106,6 +1106,23 @@ export const replyTrackingRouter = router({
       }
     } catch (err: any) {
       console.error("[Reply Tracking] IMAP scan error:", err.message);
+      // フォールバック: IMAP接続失敗時でもDBに保存済みの返信データがあればそれを返す
+      const { salesEmailReplies } = await import("../drizzle/schema");
+      const existingReplies = await db
+        .select({ logId: salesEmailReplies.logId })
+        .from(salesEmailReplies)
+        .limit(1);
+      if (existingReplies.length > 0) {
+        return {
+          checked: sentEmails.length,
+          scannedInbox: 0,
+          newReplies: 0,
+          savedReplies: 0,
+          repliedAddresses: [],
+          message: "IMAP接続に失敗しましたが、保存済みの返信データは閲覧可能です: " + (err.message || ""),
+          imapError: true,
+        };
+      }
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "IMAP受信トレイのスキャンに失敗しました: " + (err.message || "不明なエラー"),

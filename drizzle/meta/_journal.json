@@ -834,6 +834,13 @@
       "when": 1774588731299,
       "tag": "0118_glossy_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "5",
+      "when": 1780850202207,
+      "tag": "0119_fantastic_prowler",
+      "breakpoints": true
     }
   ]
 }

@@ -9087,14 +9087,10 @@ Return ONLY valid JSON, no markdown or explanation.`,
             if (!contactName) contactName = card.name || undefined;
             if (!contactCompany) contactCompany = card.company || undefined;
           } else {
-            // Try salesdash lead API
+            // Try local lead DB
             try {
-              const res = await fetch(
-                `https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeadById?input=${encodeURIComponent(JSON.stringify({ json: { id: input.businessCardId } }))}`,
-                { signal: AbortSignal.timeout(5000) }
-              );
-              const leadData = await res.json();
-              const lead = leadData?.result?.data?.json;
+              const { getLeadById } = await import("./leadCollector");
+              const lead = await getLeadById(input.businessCardId);
               if (lead) {
                 if (!contactName) contactName = lead.companyName || undefined;
                 if (!contactCompany) contactCompany = lead.category || undefined;
@@ -9597,22 +9593,16 @@ Return ONLY valid JSON, no markdown or explanation.`,
         }
 
         // salesdash側のemailSentCountを更新（送信成功したメールアドレスに対して）
+        // lcjgent内のleadsテーブルでemailSentCountをインクリメント
         try {
+          const { getLeads, updateLead } = await import("./leadCollector");
           const sentEmails = input.emails.slice(0, sentCount).map(l => l.email.toLowerCase());
-          // salesdashのgetLeadsで該当リードを取得してemailSentCountをインクリメント
           for (const email of sentEmails) {
             try {
-              const searchParams = encodeURIComponent(JSON.stringify({ json: { search: email, hasEmail: true, limit: 1 } }));
-              const searchRes = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${searchParams}`);
-              const searchData = await searchRes.json();
-              const lead = searchData?.result?.data?.json?.rows?.[0];
+              const result = await getLeads({ search: email, hasEmail: true, limit: 1 });
+              const lead = result.rows[0];
               if (lead) {
-                const updateBody = { json: { id: lead.id, data: { emailSentCount: (lead.emailSentCount || 0) + 1 } } };
-                await fetch("https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.updateLead", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(updateBody),
-                });
+                await updateLead(lead.id, { emailSentCount: (lead.emailSentCount || 0) + 1 });
               }
             } catch (e2: any) {
               console.error(`[emailSentCount update] Failed for ${email}:`, e2.message);
@@ -9749,15 +9739,13 @@ Return ONLY valid JSON, no markdown or explanation.`,
           }
         }
 
-        // 2. Sales Dashリードからメールありを取得
+        // 2. lcjgent内のleadsテーブルからメールありを取得
         if (input.includeLeads) {
           try {
-            const filter = { hasEmail: true, limit: 10000 };
-            const params = encodeURIComponent(JSON.stringify({ json: filter }));
-            const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
-            const data = await res.json();
-            const leads = data?.result?.data?.json?.rows || [];
-            for (const lead of leads) {
+            const { getLeads: getLocalLeads } = await import("./leadCollector");
+            const leadsResult = await getLocalLeads({ hasEmail: true, limit: 5000 });
+            const localLeads = leadsResult.rows || [];
+            for (const lead of localLeads) {
               if (lead.email && !seenEmails.has(lead.email.toLowerCase())) {
                 const emailLower = lead.email.toLowerCase();
                 seenEmails.add(emailLower);
@@ -10058,15 +10046,14 @@ Return ONLY valid JSON, no markdown or explanation.`,
 
             if (input.includeLeads) {
               try {
-                const filter: any = { hasEmail: true, limit: 10000 };
+                const { getLeads: getLocalLeads } = await import("./leadCollector");
+                const filter: any = { hasEmail: true, limit: 5000 };
                 if (input.leadSource) filter.source = input.leadSource;
-                const params = encodeURIComponent(JSON.stringify({ json: filter }));
-                const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
-                const data = await res.json();
-                const leads = data?.result?.data?.json?.rows || [];
-                console.log(`[BG Batch] Leads fetched: ${leads.length}`);
+                const leadsResult = await getLocalLeads(filter);
+                const localLeads = leadsResult.rows || [];
+                console.log(`[BG Batch] Leads fetched: ${localLeads.length}`);
                 const beforeLeads = allRecipients.length;
-                for (const lead of leads) {
+                for (const lead of localLeads) {
                   if (lead.email && !seenEmails.has(lead.email.toLowerCase())) {
                     const emailLower = lead.email.toLowerCase();
                     seenEmails.add(emailLower);
@@ -27768,6 +27755,83 @@ JSON配列のみを出力してください。`;
           batchId: input.batchId || null,
           status: input.status || "completed",
         });
+        return { success: true };
+      }),
+  }),
+  // ============================================================
+  // リード収集パイプライン (lcjgent独立実装)
+  // ============================================================
+  leadCollector: router({
+    collectGoogleMaps: protectedProcedure
+      .input(z.object({
+        keyword: z.string().min(1),
+        prefecture: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { collectFromGoogleMaps } = await import("./leadCollector");
+        return collectFromGoogleMaps(input.keyword, input.prefecture, ctx.user?.name || "system");
+      }),
+    collectGoogleSearch: protectedProcedure
+      .input(z.object({
+        keyword: z.string().min(1),
+        prefecture: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { collectFromGoogleSearch } = await import("./leadCollector");
+        return collectFromGoogleSearch(input.keyword, input.prefecture, ctx.user?.name || "system");
+      }),
+    runFullPipeline: protectedProcedure
+      .input(z.object({
+        keyword: z.string().min(1),
+        prefecture: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { runFullPipeline } = await import("./leadCollector");
+        return runFullPipeline(input.keyword, input.prefecture, ctx.user?.name || "system");
+      }),
+    getLeads: protectedProcedure
+      .input(z.object({
+        status: z.string().optional(),
+        source: z.string().optional(),
+        search: z.string().optional(),
+        hasEmail: z.boolean().optional(),
+        notSent: z.boolean().optional(),
+        limit: z.number().min(1).max(5000).optional(),
+        offset: z.number().min(0).optional(),
+      }).nullish())
+      .query(async ({ input }) => {
+        const { getLeads } = await import("./leadCollector");
+        return getLeads(input || {});
+      }),
+    getLeadStats: protectedProcedure
+      .query(async () => {
+        const { getLeadStats } = await import("./leadCollector");
+        return getLeadStats();
+      }),
+    getLeadById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const { getLeadById } = await import("./leadCollector");
+        return getLeadById(input.id);
+      }),
+    updateLead: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        data: z.object({
+          companyName: z.string().optional(),
+          email: z.string().optional(),
+          phone: z.string().optional(),
+          website: z.string().optional(),
+          category: z.string().optional(),
+          status: z.string().optional(),
+          contactPerson: z.string().optional(),
+          notes: z.string().optional(),
+          emailSentCount: z.number().optional(),
+        }),
+      }))
+      .mutation(async ({ input }) => {
+        const { updateLead } = await import("./leadCollector");
+        await updateLead(input.id, input.data);
         return { success: true };
       }),
   }),

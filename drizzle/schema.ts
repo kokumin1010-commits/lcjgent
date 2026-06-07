@@ -6216,3 +6216,32 @@ export const salesEmailReplies = mysqlTable("sales_email_replies", {
 });
 export type SalesEmailReply = typeof salesEmailReplies.$inferSelect;
 export type InsertSalesEmailReply = typeof salesEmailReplies.$inferInsert;
+
+// ============================================================
+// リードテーブル (Leads) - lcjgent独立管理
+// ============================================================
+export const leads = mysqlTable("leads", {
+  id: int("id").autoincrement().primaryKey(),
+  companyName: varchar("companyName", { length: 500 }).notNull(), // 会社名
+  email: varchar("email", { length: 320 }), // メールアドレス
+  phone: varchar("phone", { length: 50 }), // 電話番号
+  website: varchar("website", { length: 500 }), // ウェブサイト
+  address: varchar("address", { length: 500 }), // 住所
+  category: varchar("category", { length: 255 }), // 業種カテゴリ
+  source: varchar("source", { length: 100 }).notNull().default("google_maps"), // google_maps, google_search, manual, kalodata_tiktok
+  status: varchar("status", { length: 50 }).notNull().default("new"), // new, contacted, responded, converted, rejected
+  contactPerson: varchar("contactPerson", { length: 255 }), // 担当者名
+  notes: text("notes"), // メモ
+  emailSentCount: int("emailSentCount").default(0), // メール送信回数
+  lastEmailSentAt: timestamp("lastEmailSentAt"), // 最終メール送信日時
+  prefecture: varchar("prefecture", { length: 50 }), // 都道府県
+  keyword: varchar("keyword", { length: 255 }), // 収集時のキーワード
+  googlePlaceId: varchar("googlePlaceId", { length: 255 }), // Google Places ID（重複防止）
+  rating: decimal("rating", { precision: 2, scale: 1 }), // Google Maps評価
+  reviewCount: int("reviewCount"), // レビュー数
+  batchId: varchar("batchId", { length: 100 }), // 収集バッチID
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type Lead = typeof leads.$inferSelect;
+export type InsertLead = typeof leads.$inferInsert;

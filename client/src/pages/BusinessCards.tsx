@@ -752,7 +752,7 @@ export default function BusinessCards() {
     try {
       const filter = { notSent: true, hasEmail: true, status: "new", limit: 5000 };
       const params = encodeURIComponent(JSON.stringify({ json: filter }));
-      const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
+      const res = await fetch(`/api/trpc/leadCollector.getLeads?input=${params}`, { credentials: "include" });
       const data = await res.json();
       if (data?.result?.data?.json?.rows) {
         setUnsentLeads(data.result.data.json.rows);
@@ -780,7 +780,7 @@ export default function BusinessCards() {
 
   // Load lead stats from Sales Dash API
   useEffect(() => {
-    fetch("https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeadStats")
+    fetch("/api/trpc/leadCollector.getLeadStats", { credentials: "include" })
       .then((r) => r.json())
       .then((d) => {
         if (d?.result?.data?.json) {
@@ -921,7 +921,7 @@ export default function BusinessCards() {
   };
   const handleSavePhoneMemo = async () => {
     if (!selectedCard) return;
-    // If this is a lead from salesdash, update its status there too
+    // If this is a lead, update its status
     if (selectedCard._isLead && selectedCard._leadId) {
       const statusMap: Record<string, string> = {
         "answered": "contacted",
@@ -951,7 +951,7 @@ export default function BusinessCards() {
       const filter: any = { limit: 200, hasEmail: true };
       if (statusFilter) filter.status = statusFilter;
       const params = encodeURIComponent(JSON.stringify({ json: filter }));
-      const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
+      const res = await fetch(`/api/trpc/leadCollector.getLeads?input=${params}`, { credentials: "include" });
       const data = await res.json();
       if (data?.result?.data?.json?.rows) {
         setLeadResults(data.result.data.json.rows);
@@ -1016,7 +1016,7 @@ export default function BusinessCards() {
       if (kalodataSearch) filter.search = kalodataSearch;
       const params = encodeURIComponent(JSON.stringify({ json: filter }));
       const [res, sentRes] = await Promise.all([
-        fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`),
+        fetch(`/api/trpc/leadCollector.getLeads?input=${params}`, { credentials: "include" }),
         fetch(`/api/trpc/businessCard.getSentEmailAddressList`, { credentials: "include" }),
       ]);
       const data = await res.json();
@@ -1076,21 +1076,22 @@ export default function BusinessCards() {
       const params: any = { keyword: leadKeyword, prefecture: leadPrefecture };
       switch (source) {
         case "google_maps":
-          endpoint = "btobLeadProspector.collectGoogleMaps";
+          endpoint = "leadCollector.collectGoogleMaps";
           break;
         case "google_search":
-          endpoint = "btobLeadProspector.collectGoogleSearch";
+          endpoint = "leadCollector.collectGoogleSearch";
           break;
         case "portals":
-          endpoint = "btobLeadProspector.collectPortals";
+          endpoint = "leadCollector.collectGoogleSearch";
           break;
         case "full_pipeline":
-          endpoint = "btobLeadProspector.runFullPipeline";
+          endpoint = "leadCollector.runFullPipeline";
           break;
       }
-      const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/${endpoint}`, {
+      const res = await fetch(`/api/trpc/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ json: params }),
       });
       const data = await res.json();
@@ -1125,7 +1126,7 @@ export default function BusinessCards() {
         }
 
         // Refresh stats
-        const statsRes = await fetch("https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeadStats");
+        const statsRes = await fetch("/api/trpc/leadCollector.getLeadStats", { credentials: "include" });
         const statsData = await statsRes.json();
         if (statsData?.result?.data?.json) setLeadStats(statsData.result.data.json);
       } else {
@@ -1158,12 +1159,13 @@ export default function BusinessCards() {
     setTimeout(() => loadLeads(leadViewTab === "rejected" ? "rejected" : "new"), 15000);
   };
 
-  // Update lead status on salesdash when marking as handled
+  // Update lead status when marking as handled
   const updateLeadStatus = async (leadId: number, status: string) => {
     try {
-      await fetch("https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.updateLead", {
+      await fetch("/api/trpc/leadCollector.updateLead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ json: { id: leadId, data: { status } } }),
       });
     } catch (e) {
@@ -1187,7 +1189,7 @@ export default function BusinessCards() {
   const handleCallListSave = async () => {
     const currentLead = callListLeads[callListIndex];
     if (!currentLead) return;
-    // Update status on salesdash
+    // Update status on lcjgent
     const statusMap: Record<string, string> = {
       "answered": "contacted",
       "meeting_set": "converted",
@@ -4385,8 +4387,12 @@ function SalesEmailHistorySection() {
 
   // 返信チェック mutation
   const checkRepliesMutation = trpc.replyTracking.checkReplies.useMutation({
-    onSuccess: (result) => {
-      if (result.newReplies > 0) {
+    onSuccess: (result: any) => {
+      if (result.imapError) {
+        toast.warning("IMAP接続に失敗しましたが、保存済みの返信は閲覧可能です", {
+          description: result.message,
+        });
+      } else if (result.newReplies > 0) {
         toast.success(`${result.newReplies}件の新しい返信を検出しました`, {
           description: `チェック: ${result.checked}件 / スキャン: ${result.scannedInbox}件`,
         });
