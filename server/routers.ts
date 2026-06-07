@@ -9387,34 +9387,38 @@ Return ONLY valid JSON, no markdown or explanation.`,
         const db = await getDb();
         if (!db) return { success: false, message: "DB not available" };
         const results: any[] = [];
-        // Step 1: Run migration to add missing columns via raw SQL
-        try {
-          // Check if trackingId column already exists
-          const [rows] = await db.execute(sql`
-            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
-            WHERE TABLE_NAME = 'sales_email_logs' AND COLUMN_NAME = 'trackingId'
-          `) as any;
-          if (rows && rows.length > 0) {
-            results.push({ test: "run_migration", success: true, message: "Columns already exist" });
-          } else {
-            await db.execute(sql`
-              ALTER TABLE sales_email_logs
-              ADD COLUMN trackingId VARCHAR(64) NULL,
-              ADD COLUMN openedAt TIMESTAMP NULL,
-              ADD COLUMN openCount INT DEFAULT 0,
-              ADD COLUMN lastOpenedAt TIMESTAMP NULL,
-              ADD COLUMN pdfDownloadedAt TIMESTAMP NULL,
-              ADD COLUMN pdfDownloadCount INT DEFAULT 0,
-              ADD INDEX idx_trackingId (trackingId)
-            `);
-            results.push({ test: "run_migration", success: true, message: "Columns added successfully" });
+        // Step 1: Add missing columns one by one
+        const columnsToAdd = [
+          { name: "trackingId", sql_def: "VARCHAR(64) NULL" },
+          { name: "openedAt", sql_def: "TIMESTAMP NULL" },
+          { name: "openCount", sql_def: "INT DEFAULT 0" },
+          { name: "lastOpenedAt", sql_def: "TIMESTAMP NULL" },
+          { name: "pdfDownloadedAt", sql_def: "TIMESTAMP NULL" },
+          { name: "pdfDownloadCount", sql_def: "INT DEFAULT 0" },
+        ];
+        for (const col of columnsToAdd) {
+          try {
+            await db.execute(sql.raw(`ALTER TABLE sales_email_logs ADD COLUMN ${col.name} ${col.sql_def}`));
+            results.push({ test: `add_${col.name}`, success: true });
+          } catch (e: any) {
+            const msg = e.message || '';
+            if (msg.includes("Duplicate column")) {
+              results.push({ test: `add_${col.name}`, success: true, message: "already exists" });
+            } else {
+              results.push({ test: `add_${col.name}`, success: false, error: msg.substring(0, 500) });
+            }
           }
+        }
+        // Add index
+        try {
+          await db.execute(sql.raw(`ALTER TABLE sales_email_logs ADD INDEX idx_trackingId (trackingId)`));
+          results.push({ test: "add_index", success: true });
         } catch (e: any) {
-          // If duplicate column error, that's fine
-          if (e.message?.includes("Duplicate column")) {
-            results.push({ test: "run_migration", success: true, message: "Columns already exist (duplicate)" });
+          const msg = e.message || '';
+          if (msg.includes("Duplicate")) {
+            results.push({ test: "add_index", success: true, message: "already exists" });
           } else {
-            results.push({ test: "run_migration", success: false, error: e.message?.substring(0, 300) });
+            results.push({ test: "add_index", success: false, error: msg.substring(0, 500) });
           }
         }
         // Step 2: Check table structure after migration
