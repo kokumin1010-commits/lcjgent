@@ -6200,3 +6200,19 @@ export const salesEmailLogs = mysqlTable("sales_email_logs", {
 });
 export type SalesEmailLog = typeof salesEmailLogs.$inferSelect;
 export type InsertSalesEmailLog = typeof salesEmailLogs.$inferInsert;
+
+// 返信メール保存テーブル（IMAPスキャン結果をキャッシュ）
+export const salesEmailReplies = mysqlTable("sales_email_replies", {
+  id: int("id").autoincrement().primaryKey(),
+  logId: int("logId").notNull(), // sales_email_logs.id への参照
+  fromAddress: varchar("fromAddress", { length: 320 }).notNull(), // 送信元アドレス
+  fromName: varchar("fromName", { length: 255 }), // 送信元名前
+  subject: varchar("subject", { length: 500 }), // 件名
+  body: text("body"), // メール本文
+  receivedAt: timestamp("receivedAt"), // 受信日時
+  imapUid: int("imapUid"), // IMAP UID（重複防止用）
+  imapFolder: varchar("imapFolder", { length: 100 }), // IMAPフォルダ名
+  createdAt: timestamp("createdAt").defaultNow().notNull(), // レコード作成日時
+});
+export type SalesEmailReply = typeof salesEmailReplies.$inferSelect;
+export type InsertSalesEmailReply = typeof salesEmailReplies.$inferInsert;

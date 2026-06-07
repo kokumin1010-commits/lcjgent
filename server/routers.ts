@@ -9455,6 +9455,34 @@ Return ONLY valid JSON, no markdown or explanation.`,
         } catch (e: any) {
           results.push({ test: "drizzle_full_insert", success: false, error: e.message?.substring(0, 300) });
         }
+        // Step 4: Create sales_email_replies table if not exists
+        try {
+          await db.execute(sql.raw(`
+            CREATE TABLE IF NOT EXISTS sales_email_replies (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              logId INT NOT NULL,
+              fromAddress VARCHAR(320) NOT NULL,
+              fromName VARCHAR(255) NULL,
+              subject VARCHAR(500) NULL,
+              body TEXT NULL,
+              receivedAt TIMESTAMP NULL,
+              imapUid INT NULL,
+              imapFolder VARCHAR(100) NULL,
+              createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+              INDEX idx_logId (logId),
+              INDEX idx_fromAddress (fromAddress),
+              INDEX idx_imapUid_folder (imapUid, imapFolder)
+            )
+          `));
+          results.push({ test: "create_sales_email_replies", success: true });
+        } catch (e: any) {
+          const msg = e.message || '';
+          if (msg.includes("already exists")) {
+            results.push({ test: "create_sales_email_replies", success: true, message: "already exists" });
+          } else {
+            results.push({ test: "create_sales_email_replies", success: false, error: msg.substring(0, 500) });
+          }
+        }
         return { success: results.every(r => r.success), results, userId: ctx.user.id };
       }),
     // ===== 営業メール: リードへのテンプレート一斉送信 =====

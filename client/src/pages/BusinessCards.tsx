@@ -4418,15 +4418,15 @@ function SalesEmailHistorySection() {
     { refetchOnWindowFocus: false, staleTime: 30_000, placeholderData: (prev: any) => prev }
   );
 
-  // インライン展開時のIMAP取得
+  // インライン展開時のDBからの返信取得（IMAP不要・即座に返す）
   const expandedLog = data?.rows?.find((r: any) => r.id === expandedEmailId);
   const {
-    data: inlineImapData,
-    isLoading: inlineImapLoading,
-    refetch: refetchInlineImap,
-  } = trpc.email.listByAddress.useQuery(
-    { emailAddress: expandedLog?.toEmail || "", page: 1, pageSize: 50 },
-    { enabled: !!expandedLog?.toEmail }
+    data: inlineReplyData,
+    isLoading: inlineReplyLoading,
+    refetch: refetchInlineReplies,
+  } = trpc.replyTracking.getRepliesByLogId.useQuery(
+    { logId: expandedEmailId || 0 },
+    { enabled: !!expandedEmailId }
   );
 
   // 対応済みマーク mutation
@@ -4479,7 +4479,7 @@ function SalesEmailHistorySection() {
       setReplyBody("");
       setShowReplyForm(false);
       toast.success("メールを送信しました");
-      setTimeout(() => refetchInlineImap(), 2000);
+      setTimeout(() => refetchInlineReplies(), 2000);
     } catch (err: any) {
       toast.error("送信に失敗しました: " + (err.message || "不明なエラー"));
     } finally {
@@ -4789,36 +4789,33 @@ function SalesEmailHistorySection() {
                               </div>
                             </div>
 
-                            {/* 返信メール内容 */}
-                            {inlineImapLoading ? (
+                            {/* 返信メール内容（DBから即座に取得） */}
+                            {inlineReplyLoading ? (
                               <div className="flex items-center justify-center py-4">
                                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
                                 <span className="text-sm text-muted-foreground">返信を取得中...</span>
                               </div>
-                            ) : inlineImapData?.emails && inlineImapData.emails.length > 0 ? (
+                            ) : inlineReplyData?.replies && inlineReplyData.replies.length > 0 ? (
                               <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                                {inlineImapData.emails
-                                  .filter((msg: any) => msg.direction === "received")
-                                  .map((msg: any, idx: number) => (
-                                    <div key={idx} className="bg-white rounded-lg border p-3 shadow-sm">
+                                {inlineReplyData.replies.map((reply: any, idx: number) => (
+                                    <div key={reply.id || idx} className="bg-white rounded-lg border p-3 shadow-sm">
                                       <div className="flex items-center gap-2 mb-1">
                                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-50 text-blue-700 border-blue-300">受信</Badge>
-                                        <span className="text-xs font-medium">{msg.subject || "(件名なし)"}</span>
+                                        <span className="text-xs font-medium">{reply.subject || "(件名なし)"}</span>
                                       </div>
                                       <div className="text-[10px] text-muted-foreground mb-2">
-                                        From: {typeof msg.from === 'object' ? (msg.from?.address || msg.from?.name || '不明') : (msg.from || '不明')} | {msg.date ? new Date(msg.date).toLocaleString("ja-JP") : ""}
+                                        From: {reply.fromName || reply.fromAddress || '不明'} | {reply.receivedAt ? new Date(reply.receivedAt).toLocaleString("ja-JP") : ""}
                                       </div>
                                       <div className="text-xs whitespace-pre-wrap bg-gray-50 rounded p-2 max-h-[200px] overflow-y-auto">
-                                        {msg.text || msg.snippet || "(本文なし)"}
+                                        {reply.body || "(本文なし)"}
                                       </div>
                                     </div>
                                   ))}
-                                {inlineImapData.emails.filter((msg: any) => msg.direction === "received").length === 0 && (
-                                  <div className="text-sm text-muted-foreground text-center py-3">受信メールが見つかりませんでした</div>
-                                )}
                               </div>
                             ) : (
-                              <div className="text-sm text-muted-foreground text-center py-3">受信メールが見つかりませんでした</div>
+                              <div className="text-sm text-muted-foreground text-center py-3">
+                                返信データがまだありません。「返信チェック」ボタンを押してスキャンしてください。
+                              </div>
                             )}
 
                             {/* 返信フォーム */}

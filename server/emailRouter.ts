@@ -15,7 +15,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { ENV } from "./_core/env";
 import nodemailer from "nodemailer";
-import { getUnrepliedCount, getUnrepliedEmails, markReplyReceivedByEmail, markRepliedByUs } from "./db";
+import { getUnrepliedCount, getUnrepliedEmails, markReplyReceivedByEmail, markRepliedByUs, saveEmailReply, getRepliesByLogId } from "./db";
 
 // ===== IMAP接続ヘルパー =====
 async function getImapClient() {
@@ -988,7 +988,7 @@ export const replyTrackingRouter = router({
       return { ...result, page: input.page, pageSize: input.pageSize };
     }),
 
-  // IMAP受信トレイをスキャンして返信を検出
+  // IMAP受信トレイをスキャンして返信を検出し、メール本文もDBに保存
   checkReplies: protectedProcedure.mutation(async () => {
     if (!ENV.emailUser || !ENV.emailPassword) {
       throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "メール設定が未構成です" });
@@ -1017,15 +1017,22 @@ export const replyTrackingRouter = router({
       );
 
     if (sentEmails.length === 0) {
-      return { checked: 0, newReplies: 0, message: "送信済み未返信メールがありません" };
+      return { checked: 0, newReplies: 0, scannedInbox: 0, message: "送信済み未返信メールがありません" };
     }
 
-    // 送信先アドレスのセットを作成
-    const sentAddressSet = new Set(sentEmails.map(e => e.toEmail.toLowerCase()));
+    // 送信先アドレス → logIdのマップを作成
+    const sentAddressMap = new Map<string, number[]>();
+    for (const e of sentEmails) {
+      const addr = e.toEmail.toLowerCase();
+      if (!sentAddressMap.has(addr)) sentAddressMap.set(addr, []);
+      sentAddressMap.get(addr)!.push(e.id);
+    }
+    const sentAddressSet = new Set(sentAddressMap.keys());
 
-    // 2. IMAP受信トレイをスキャンして返信を検出
+    // 2. IMAP受信トレイをスキャンして返信を検出 + 本文取得
     const client = await getImapClient();
     let newReplies = 0;
+    let savedReplies = 0;
     const repliedAddresses: string[] = [];
 
     try {
@@ -1035,17 +1042,20 @@ export const replyTrackingRouter = router({
         const mailbox = client.mailbox;
         const total = mailbox?.exists ?? 0;
         if (total === 0) {
-          return { checked: sentEmails.length, newReplies: 0, message: "受信トレイが空です" };
+          return { checked: sentEmails.length, newReplies: 0, scannedInbox: 0, message: "受信トレイが空です" };
         }
 
-        // 最新500件をスキャン（パフォーマンスのため制限）
+        // 最新500件をスキャン
         const scanCount = Math.min(total, 500);
         const start = Math.max(1, total - scanCount + 1);
         const range = `${start}:${total}`;
 
+        // envelopeとbodyStructure、sourceを取得してメール本文もDBに保存
         for await (const message of client.fetch(range, {
           envelope: true,
           uid: true,
+          bodyStructure: true,
+          source: true,
         })) {
           const envelope = message.envelope;
           if (!envelope?.from?.[0]?.address) continue;
@@ -1053,8 +1063,42 @@ export const replyTrackingRouter = router({
           const fromAddress = (envelope.from[0].address || "").toLowerCase();
 
           // 送信先アドレスからの受信メールを検出
-          if (sentAddressSet.has(fromAddress) && !repliedAddresses.includes(fromAddress)) {
-            repliedAddresses.push(fromAddress);
+          if (sentAddressSet.has(fromAddress)) {
+            if (!repliedAddresses.includes(fromAddress)) {
+              repliedAddresses.push(fromAddress);
+            }
+
+            // メール本文をパースしてDBに保存
+            const logIds = sentAddressMap.get(fromAddress) || [];
+            let bodyText = "";
+            try {
+              if (message.source) {
+                const { simpleParser } = await import("mailparser");
+                const parsed = await simpleParser(message.source);
+                bodyText = parsed.text || parsed.html?.replace(/<[^>]*>/g, "") || "";
+              }
+            } catch (parseErr: any) {
+              console.warn("[Reply Tracking] Body parse error:", parseErr.message);
+            }
+
+            // 各logIdに対して返信を保存
+            for (const logId of logIds) {
+              try {
+                await saveEmailReply({
+                  logId,
+                  fromAddress,
+                  fromName: envelope.from[0].name || undefined,
+                  subject: envelope.subject || undefined,
+                  body: bodyText.slice(0, 5000) || undefined, // 最大5000文字
+                  receivedAt: envelope.date ? new Date(envelope.date) : undefined,
+                  imapUid: message.uid,
+                  imapFolder: "INBOX",
+                });
+                savedReplies++;
+              } catch (saveErr: any) {
+                console.warn(`[Reply Tracking] Save reply error for logId=${logId}:`, saveErr.message);
+              }
+            }
           }
         }
       } finally {
@@ -1070,7 +1114,7 @@ export const replyTrackingRouter = router({
       try { await client.logout(); } catch {}
     }
 
-    // 3. 検出した返信をDBに反映
+    // 3. 検出した返信をDBに反映（replyReceivedフラグ）
     for (const addr of repliedAddresses) {
       try {
         const affected = await markReplyReceivedByEmail(addr);
@@ -1082,14 +1126,23 @@ export const replyTrackingRouter = router({
 
     return {
       checked: sentEmails.length,
-      scannedInbox: Math.min(500, sentEmails.length),
+      scannedInbox: 500,
       newReplies,
+      savedReplies,
       repliedAddresses,
       message: newReplies > 0
-        ? `${newReplies}件の新しい返信を検出しました`
+        ? `${newReplies}件の新しい返信を検出しました（${savedReplies}件保存）`
         : "新しい返信はありませんでした",
     };
   }),
+
+  // DBから返信メールを取得（インライン展開用 - 即座に返す）
+  getRepliesByLogId: protectedProcedure
+    .input(z.object({ logId: z.number() }))
+    .query(async ({ input }) => {
+      const replies = await getRepliesByLogId(input.logId);
+      return { replies };
+    }),
 
   // こちらからの返信済みをマーク
   markReplied: protectedProcedure
