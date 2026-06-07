@@ -4378,7 +4378,6 @@ function SalesEmailHistorySection() {
   const [page, setPage] = useState(0);
   const limit = 20;
   const [, navigate] = useLocation();
-  const [replyCheckDone, setReplyCheckDone] = useState(false);
   const [expandedEmailId, setExpandedEmailId] = useState<number | null>(null);
   const [replyBody, setReplyBody] = useState("");
   const [showReplyForm, setShowReplyForm] = useState(false);
@@ -4387,7 +4386,6 @@ function SalesEmailHistorySection() {
   // 返信チェック mutation
   const checkRepliesMutation = trpc.replyTracking.checkReplies.useMutation({
     onSuccess: (result) => {
-      setReplyCheckDone(true);
       if (result.newReplies > 0) {
         toast.success(`${result.newReplies}件の新しい返信を検出しました`, {
           description: `チェック: ${result.checked}件 / スキャン: ${result.scannedInbox}件`,
@@ -4400,7 +4398,6 @@ function SalesEmailHistorySection() {
       }
     },
     onError: (err) => {
-      setReplyCheckDone(true);
       toast.error("返信チェックに失敗しました", {
         description: err.message,
       });
@@ -4490,12 +4487,6 @@ function SalesEmailHistorySection() {
     }
   };
 
-  // ページ読み込み時に自動で返信チェック実行（1回のみ）
-  useEffect(() => {
-    if (!replyCheckDone && !checkRepliesMutation.isPending) {
-      checkRepliesMutation.mutate();
-    }
-  }, []);
 
   const handleSort = (field: string) => {
     if (sortBy === field) {
