@@ -2591,7 +2591,7 @@ export default function BusinessCards() {
                           <TableCell className="text-xs">
                             {lead.email && lead.email.trim() ? (
                               <div className="flex flex-col gap-0.5">
-                                <a href={`mailto:${lead.email}`} className="text-blue-600 hover:underline">
+                                <a href={`/master/email-thread/${encodeURIComponent(lead.email)}`} className="text-blue-600 hover:underline">
                                   {lead.email}
                                 </a>
                                 {kalodataSentEmails.has(lead.email.toLowerCase()) && (
@@ -4308,17 +4308,17 @@ function EmailHistorySection({ email, businessCardId }: { email: string; busines
     );
   }
 
-  const sendTypeLabel = (type: string) => {
+    const sendTypeLabel = (type: string) => {
     switch (type) {
       case "test": return "テスト";
       case "bulk_card": return "名刺一括";
       case "bulk_lead": return "リード一括";
       case "bulk_unsent": return "未送信一括";
       case "bulk_all": return "全件一括";
+      case "bulk_kalodata": return "Kalodata";
       default: return type;
     }
   };
-
   return (
     <div className="pt-3 border-t space-y-2">
       <p className="text-sm font-medium flex items-center gap-2">
@@ -4377,6 +4377,29 @@ function SalesEmailHistorySection() {
   const [page, setPage] = useState(0);
   const limit = 20;
   const [, navigate] = useLocation();
+  const [replyCheckDone, setReplyCheckDone] = useState(false);
+
+  // 返信チェック mutation
+  const checkRepliesMutation = trpc.replyTracking.checkReplies.useMutation({
+    onSuccess: (result) => {
+      setReplyCheckDone(true);
+      if (result.newReplies > 0) {
+        toast.success(`${result.newReplies}件の新しい返信を検出しました`);
+        refetch();
+      }
+    },
+    onError: (err) => {
+      setReplyCheckDone(true);
+      console.error("[Reply Check]", err.message);
+    },
+  });
+
+  // ページ読み込み時に自動で返信チェック実行（1回のみ）
+  useEffect(() => {
+    if (!replyCheckDone && !checkRepliesMutation.isPending) {
+      checkRepliesMutation.mutate();
+    }
+  }, []);
 
   const { data, isLoading, refetch } = trpc.businessCard.getSalesEmailLogs.useQuery(
     {
@@ -4415,6 +4438,7 @@ function SalesEmailHistorySection() {
       case "bulk_lead": return "リード一括";
       case "bulk_unsent": return "未送信一括";
       case "bulk_all": return "全件一括";
+      case "bulk_kalodata": return "Kalodata";
       default: return type;
     }
   };
@@ -4425,6 +4449,7 @@ function SalesEmailHistorySection() {
       case "bulk_card": return "bg-green-50 text-green-700 border-green-300";
       case "bulk_lead": return "bg-blue-50 text-blue-700 border-blue-300";
       case "bulk_all": return "bg-purple-50 text-purple-700 border-purple-300";
+      case "bulk_kalodata": return "bg-amber-50 text-amber-700 border-amber-300";
       default: return "bg-gray-100 text-gray-700 border-gray-300";
     }
   };
@@ -4461,6 +4486,7 @@ function SalesEmailHistorySection() {
               <SelectItem value="bulk_card">名刺一括</SelectItem>
               <SelectItem value="bulk_lead">リード一括</SelectItem>
               <SelectItem value="bulk_all">全件一括</SelectItem>
+              <SelectItem value="bulk_kalodata">Kalodata</SelectItem>
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0); }}>
@@ -4476,8 +4502,19 @@ function SalesEmailHistorySection() {
               <SelectItem value="failed">失敗</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="ghost" size="sm" onClick={() => refetch()} className="h-8">
+          <Button variant="ghost" size="sm" onClick={() => refetch()} className="h-8" title="履歴を更新">
             <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => checkRepliesMutation.mutate()} 
+            disabled={checkRepliesMutation.isPending}
+            className="h-8 text-xs border-orange-300 text-orange-600 hover:bg-orange-50"
+            title="IMAP受信トレイをスキャンして返信を検出"
+          >
+            {checkRepliesMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Mail className="h-3 w-3 mr-1" />}
+            返信チェック
           </Button>
         </div>
       </CardHeader>
@@ -4531,7 +4568,7 @@ function SalesEmailHistorySection() {
                         >
                           {log.toName || log.toEmail}
                         </button>
-                        <div className="text-[10px] text-muted-foreground truncate max-w-[130px]">{log.toEmail}</div>
+                        <a href={`/master/email-thread/${encodeURIComponent(log.toEmail)}`} className="text-[10px] text-blue-500 hover:underline truncate max-w-[130px] block">{log.toEmail}</a>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground truncate max-w-[100px]">
                         {log.toCompany || "—"}

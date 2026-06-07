@@ -34,6 +34,7 @@ const BrandFinance = lazy(() => import("./pages/BrandFinance"));
 const FinanceManagement = lazy(() => import("./pages/FinanceManagement"));
 const BusinessCards = lazy(() => import("./pages/BusinessCards"));
 const BusinessCardProfile = lazy(() => import("./pages/BusinessCardProfile"));
+const EmailThread = lazy(() => import("./pages/EmailThread"));
 const ChatReport = lazy(() => import("./pages/ChatReport"));
 const LineManagement = lazy(() => import("./pages/LineManagement"));
 const LineFollowUps = lazy(() => import("./pages/LineFollowUps"));
@@ -339,6 +340,9 @@ function Router() {
           <DashboardLayout>
             <BusinessCardProfile />
           </DashboardLayout>
+        </Route>
+        <Route path={"/master/email-thread/:email"}>
+          <EmailThread />
         </Route>
         <Route path={"/master/line"}>
           <DashboardLayout>
