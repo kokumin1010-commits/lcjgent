@@ -10014,12 +10014,12 @@ Return ONLY valid JSON, no markdown or explanation.`,
             }
 
             // Step 2: バッチ送信（2件並列 + 1秒間隔 + リトライ）
-            // レート制限対策: 2件並列送信、1秒間隔、454エラー時は60秒待ってリトライ
-            const CONCURRENCY = useSES ? 5 : 2; // SES: 5件並列, SMTP: 2件並列
-            const DELAY_BETWEEN_CHUNKS_MS = useSES ? 500 : 1000; // SES: 0.5秒, SMTP: 1秒
-            const DELAY_BETWEEN_BATCHES_MS = useSES ? 3000 : 10000; // SES: 3秒, SMTP: 10秒
-            const RATE_LIMIT_RETRY_DELAY_MS = 60000; // レート制限時60秒待機
-            const MAX_RETRIES = 3; // 最大リトライ回数
+            // レート制限対策: 安定送信のため並列数を抑え、間隔を広めに設定
+            const CONCURRENCY = useSES ? 3 : 2; // SES: 3件並列（安定性重視）, SMTP: 2件並列
+            const DELAY_BETWEEN_CHUNKS_MS = useSES ? 1000 : 1500; // SES: 1秒, SMTP: 1.5秒
+            const DELAY_BETWEEN_BATCHES_MS = useSES ? 5000 : 10000; // SES: 5秒, SMTP: 10秒
+            const RATE_LIMIT_RETRY_DELAY_MS = 30000; // レート制限時30秒待機
+            const MAX_RETRIES = 5; // 最大リトライ回数（5回に増加）
             const pathMod = await import("path");
             const pdfPath = input.attachPdf ? pathMod.resolve(process.cwd(), "server/assets/LCJ_proposal_ja_v06.pdf") : "";
             const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -10088,10 +10088,32 @@ Return ONLY valid JSON, no markdown or explanation.`,
                       return true;
                     } catch (sendErr: any) {
                       const errMsg = sendErr.message || '';
-                      if (errMsg.includes('454') || errMsg.includes('too frequently') || errMsg.includes('rate') || errMsg.includes('Throttling')) {
-                        console.warn(`[BG Batch] Rate limited on ${recipient.email}, waiting ${RATE_LIMIT_RETRY_DELAY_MS/1000}s (retry ${retry+1}/${MAX_RETRIES})`);
-                        await sleep(RATE_LIMIT_RETRY_DELAY_MS);
+                      const errName = sendErr.name || '';
+                      // SES & SMTP のレート制限・一時エラーをリトライ
+                      const isRetryable = 
+                        errMsg.includes('454') || 
+                        errMsg.includes('too frequently') || 
+                        errMsg.includes('rate') || 
+                        errMsg.includes('Throttling') ||
+                        errMsg.includes('throttling') ||
+                        errName === 'ThrottlingException' ||
+                        errName === 'TooManyRequestsException' ||
+                        errMsg.includes('Maximum sending rate exceeded') ||
+                        errMsg.includes('ECONNRESET') ||
+                        errMsg.includes('ETIMEDOUT') ||
+                        errMsg.includes('socket hang up') ||
+                        errMsg.includes('network') ||
+                        (sendErr.$metadata?.httpStatusCode === 429);
+                      if (isRetryable) {
+                        const waitTime = RATE_LIMIT_RETRY_DELAY_MS * (retry + 1); // 指数バックオフ
+                        console.warn(`[BG Batch] Retryable error on ${recipient.email}: ${errMsg.substring(0, 100)}, waiting ${waitTime/1000}s (retry ${retry+1}/${MAX_RETRIES})`);
+                        await sleep(waitTime);
                         continue;
+                      }
+                      // 無効なメールアドレスなどの永続エラーはスキップ（throwせずfalse返す）
+                      if (errMsg.includes('MessageRejected') || errMsg.includes('InvalidParameterValue') || errMsg.includes('Invalid email')) {
+                        console.warn(`[BG Batch] Permanent error on ${recipient.email}: ${errMsg.substring(0, 100)}, skipping`);
+                        return false;
                       }
                       throw sendErr;
                     }
@@ -10107,7 +10129,12 @@ Return ONLY valid JSON, no markdown or explanation.`,
                     sendResults.push(true);
                   } else {
                     jobState.errorCount++;
-                    const errMsg = result.status === 'rejected' ? result.reason?.message || 'Unknown error' : 'Failed';
+                    let errMsg = 'Unknown error';
+                    if (result.status === 'rejected') {
+                      errMsg = result.reason?.message || 'Unknown error';
+                    } else if (result.status === 'fulfilled' && result.value === false) {
+                      errMsg = 'Permanent error (invalid email or rejected)';
+                    }
                     batchErrors.push(`${chunk[idx].email}: ${errMsg}`);
                     sendResults.push(false);
                   }
