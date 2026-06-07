@@ -4806,7 +4806,7 @@ function SalesEmailHistorySection() {
                                         <span className="text-xs font-medium">{msg.subject || "(件名なし)"}</span>
                                       </div>
                                       <div className="text-[10px] text-muted-foreground mb-2">
-                                        From: {msg.from || "不明"} | {msg.date ? new Date(msg.date).toLocaleString("ja-JP") : ""}
+                                        From: {typeof msg.from === 'object' ? (msg.from?.address || msg.from?.name || '不明') : (msg.from || '不明')} | {msg.date ? new Date(msg.date).toLocaleString("ja-JP") : ""}
                                       </div>
                                       <div className="text-xs whitespace-pre-wrap bg-gray-50 rounded p-2 max-h-[200px] overflow-y-auto">
                                         {msg.text || msg.snippet || "(本文なし)"}
