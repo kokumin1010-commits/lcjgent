@@ -4611,9 +4611,15 @@ function SalesEmailHistorySection() {
                       </TableCell>
                       <TableCell>
                         {log.replyReceived ? (
-                          <Badge className="text-[10px] px-1.5 py-0 bg-orange-50 text-orange-700 border-orange-300" variant="outline">
-                            ✉️ あり
-                          </Badge>
+                          <button
+                            className="cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => navigate(`/master/email-thread/${encodeURIComponent(log.toEmail)}`)}
+                            title="返信スレッドを表示"
+                          >
+                            <Badge className="text-[10px] px-1.5 py-0 bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100" variant="outline">
+                              ✉️ あり
+                            </Badge>
+                          </button>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}

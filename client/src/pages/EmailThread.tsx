@@ -27,6 +27,7 @@ import {
   ChevronUp,
   Download,
 } from "lucide-react";
+import { toast } from "sonner";
 
 type EmailMessage = {
   uid: number;
@@ -157,6 +158,18 @@ export default function EmailThread() {
 
   const isLoading = imapLoading || salesLoading;
 
+  // 最新の受信メールを自動展開
+  useEffect(() => {
+    if (!isLoading && timeline.length > 0 && expandedUid === null) {
+      const lastReceived = [...timeline].reverse().find(t => t.type === "imap_received");
+      if (lastReceived) {
+        const msg = lastReceived.data as EmailMessage;
+        setExpandedUid(msg.uid);
+        setExpandedFolder(msg.folder || "INBOX");
+      }
+    }
+  }, [isLoading, timeline.length]);
+
   const handleRefresh = () => {
     refetchImap();
     refetchSales();
@@ -175,13 +188,14 @@ export default function EmailThread() {
       setReplyBody("");
       setReplySubject("");
       setShowReplyForm(false);
+      toast.success("メールを送信しました");
       // 少し待ってからリフレッシュ
       setTimeout(() => {
         refetchImap();
         refetchSales();
       }, 2000);
     } catch (err: any) {
-      alert("送信に失敗しました: " + (err.message || "不明なエラー"));
+      toast.error("送信に失敗しました: " + (err.message || "不明なエラー"));
     } finally {
       setSending(false);
     }
@@ -217,7 +231,7 @@ export default function EmailThread() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate("/master/business-cards?tab=kalodata")}
+            onClick={() => navigate("/master/business-cards?tab=email")}
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
             戻る
@@ -442,7 +456,15 @@ export default function EmailThread() {
                   variant="default"
                   onClick={() => {
                     setShowReplyForm(true);
-                    setReplySubject(`Re: ${email}`);
+                    // 最後の受信メールの件名をRe:付きで設定
+                    const lastReceived = [...timeline].reverse().find(t => t.type === "imap_received");
+                    if (lastReceived) {
+                      const msg = lastReceived.data as EmailMessage;
+                      const subj = msg.subject || "";
+                      setReplySubject(subj.startsWith("Re:") ? subj : `Re: ${subj}`);
+                    } else {
+                      setReplySubject(`Re: ${email}`);
+                    }
                   }}
                 >
                   <Send className="h-4 w-4 mr-2" />
