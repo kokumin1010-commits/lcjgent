@@ -9382,32 +9382,63 @@ Return ONLY valid JSON, no markdown or explanation.`,
     // ===== 営業メール: DB INSERT診断 =====
     diagnoseSalesEmailDb: protectedProcedure
       .mutation(async ({ ctx }) => {
-        const { createSalesEmailLog } = await import("./db");
-        const testData = {
-          toEmail: "diagnostic-test@example.com",
-          toName: "診断テスト",
-          toCompany: "診断会社",
-          subject: "DB INSERT診断テスト",
-          contentPreview: "これは診断テストです",
-          sendType: "test" as const,
-          attachPdf: false,
-          status: "sent" as const,
-          sentBy: ctx.user.id,
-          trackingId: nanoid(32),
-        };
+        const { getDb } = await import("./db");
+        const { sql } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) return { success: false, message: "DB not available" };
+        const results: any[] = [];
+        // Test 1: Check table structure
         try {
-          await createSalesEmailLog(testData as any);
-          return { success: true, message: "DB INSERT succeeded", userId: ctx.user.id, userIdType: typeof ctx.user.id };
-        } catch (err: any) {
-          return { 
-            success: false, 
-            message: err.message?.substring(0, 500) || "Unknown error",
-            code: err.code || "N/A",
-            sqlState: err.sqlState || "N/A",
-            userId: ctx.user.id,
-            userIdType: typeof ctx.user.id,
-          };
+          const cols = await db.execute(sql`SHOW COLUMNS FROM sales_email_logs`);
+          results.push({ test: "table_columns", success: true, data: (cols as any)[0]?.map((c: any) => c.Field || c.COLUMN_NAME).join(',') || JSON.stringify(cols).substring(0, 300) });
+        } catch (e: any) {
+          results.push({ test: "table_columns", success: false, error: e.message?.substring(0, 200) });
         }
+        // Test 2: Try raw SQL INSERT
+        try {
+          await db.execute(sql`INSERT INTO sales_email_logs (toEmail, toName, toCompany, subject, sendType, attachPdf, status, sentBy, sentAt) VALUES ('diag-raw@test.com', '診断', '会社', 'テスト', 'test', 0, 'sent', ${ctx.user.id}, NOW())`);
+          results.push({ test: "raw_sql_insert", success: true });
+        } catch (e: any) {
+          results.push({ test: "raw_sql_insert", success: false, error: e.message?.substring(0, 300) });
+        }
+        // Test 3: Try Drizzle ORM INSERT with minimal fields
+        try {
+          const { salesEmailLogs } = await import("../drizzle/schema");
+          await db.insert(salesEmailLogs).values({
+            toEmail: "diag-drizzle@test.com",
+            toName: "テスト",
+            toCompany: "会社",
+            subject: "テスト",
+            sendType: "test",
+            attachPdf: false,
+            status: "sent",
+            sentAt: new Date(),
+          } as any);
+          results.push({ test: "drizzle_minimal_insert", success: true });
+        } catch (e: any) {
+          results.push({ test: "drizzle_minimal_insert", success: false, error: e.message?.substring(0, 300) });
+        }
+        // Test 4: Try Drizzle ORM INSERT with all fields
+        try {
+          const { salesEmailLogs } = await import("../drizzle/schema");
+          await db.insert(salesEmailLogs).values({
+            toEmail: "diag-full@test.com",
+            toName: "テスト",
+            toCompany: "会社",
+            subject: "テスト",
+            contentPreview: "プレビュー",
+            sendType: "test",
+            attachPdf: false,
+            status: "sent",
+            sentBy: ctx.user.id,
+            sentAt: new Date(),
+            trackingId: nanoid(32),
+          } as any);
+          results.push({ test: "drizzle_full_insert", success: true });
+        } catch (e: any) {
+          results.push({ test: "drizzle_full_insert", success: false, error: e.message?.substring(0, 300) });
+        }
+        return { success: results.every(r => r.success), results, userId: ctx.user.id };
       }),
     // ===== 営業メール: リードへのテンプレート一斉送信 =====
     sendEmailToLeads: protectedProcedure
