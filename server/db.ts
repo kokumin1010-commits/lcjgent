@@ -26712,23 +26712,42 @@ export async function createSalesEmailLog(data: InsertSalesEmailLog) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   try {
-    await db.insert(salesEmailLogs).values(data);
+    // Sanitize data before insert to prevent type/length issues
+    const sanitized: any = {
+      toEmail: String(data.toEmail || "").substring(0, 320),
+      toName: data.toName ? String(data.toName).substring(0, 255) : null,
+      toCompany: data.toCompany ? String(data.toCompany).substring(0, 255) : null,
+      subject: String(data.subject || "").substring(0, 500),
+      contentPreview: data.contentPreview ? String(data.contentPreview).substring(0, 500) : null,
+      sendType: String(data.sendType || "bulk").substring(0, 50),
+      attachPdf: Boolean(data.attachPdf),
+      status: String(data.status || "sent").substring(0, 20),
+      errorMessage: data.errorMessage ? String(data.errorMessage).substring(0, 2000) : null,
+      businessCardId: data.businessCardId ? Number(data.businessCardId) : null,
+      sentBy: data.sentBy ? Number(data.sentBy) : null,
+      sentAt: new Date(),
+      trackingId: data.trackingId ? String(data.trackingId).substring(0, 64) : null,
+    };
+    await db.insert(salesEmailLogs).values(sanitized);
   } catch (err: any) {
     const errMsg = err.message || '';
+    const errCode = err.code || '';
+    const errSqlState = err.sqlState || '';
+    console.error(`[SalesEmailLog] INSERT FAILED - code: ${errCode}, sqlState: ${errSqlState}, message: ${errMsg.substring(0, 500)}`);
+    console.error(`[SalesEmailLog] Data keys: ${Object.keys(data).join(',')}, toEmail: ${(data as any).toEmail}, sentBy: ${(data as any).sentBy}, trackingId: ${(data as any).trackingId}`);
     // Unknown columnエラーの場合: 最小限フィールドでフォールバック
     if (errMsg.includes("Unknown column")) {
       const colMatch = errMsg.match(/Unknown column '([^']+)'/);
       console.warn(`[SalesEmailLog] Unknown column detected: ${colMatch ? colMatch[1] : 'unknown'}, attempting fallback insert`);
       const safe: any = {
-        toEmail: (data as any).toEmail,
-        toName: (data as any).toName || "",
-        toCompany: (data as any).toCompany || "",
-        subject: (data as any).subject,
-        sendType: (data as any).sendType,
-        status: (data as any).status,
-        attachPdf: (data as any).attachPdf,
-        businessCardId: (data as any).businessCardId || undefined,
-        errorMessage: (data as any).errorMessage || undefined,
+        toEmail: String((data as any).toEmail || "").substring(0, 320),
+        toName: (data as any).toName ? String((data as any).toName).substring(0, 255) : "",
+        toCompany: (data as any).toCompany ? String((data as any).toCompany).substring(0, 255) : "",
+        subject: String((data as any).subject || "").substring(0, 500),
+        sendType: String((data as any).sendType || "bulk").substring(0, 50),
+        status: String((data as any).status || "sent").substring(0, 20),
+        attachPdf: Boolean((data as any).attachPdf),
+        sentAt: new Date(),
       };
       try {
         await db.insert(salesEmailLogs).values(safe);
@@ -26747,35 +26766,48 @@ export async function createSalesEmailLogsBatch(logs: InsertSalesEmailLog[]) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   if (logs.length === 0) return;
-  // Insert in batches of 100 to avoid query size limits
-  for (let i = 0; i < logs.length; i += 100) {
-    const batch = logs.slice(i, i + 100);
+  // Sanitize all logs before insert
+  const sanitizedLogs = logs.map((log: any) => ({
+    toEmail: String(log.toEmail || "").substring(0, 320),
+    toName: log.toName ? String(log.toName).substring(0, 255) : null,
+    toCompany: log.toCompany ? String(log.toCompany).substring(0, 255) : null,
+    subject: String(log.subject || "").substring(0, 500),
+    contentPreview: log.contentPreview ? String(log.contentPreview).substring(0, 500) : null,
+    sendType: String(log.sendType || "bulk").substring(0, 50),
+    attachPdf: Boolean(log.attachPdf),
+    status: String(log.status || "sent").substring(0, 20),
+    errorMessage: log.errorMessage ? String(log.errorMessage).substring(0, 2000) : null,
+    businessCardId: log.businessCardId ? Number(log.businessCardId) : null,
+    sentBy: log.sentBy ? Number(log.sentBy) : null,
+    sentAt: new Date(),
+    trackingId: log.trackingId ? String(log.trackingId).substring(0, 64) : null,
+  }));
+  // Insert in batches of 50 to avoid query size limits
+  for (let i = 0; i < sanitizedLogs.length; i += 50) {
+    const batch = sanitizedLogs.slice(i, i + 50);
     try {
       await db.insert(salesEmailLogs).values(batch);
     } catch (err: any) {
       const errMsg = err.message || '';
+      const errCode = err.code || '';
+      const errSqlState = err.sqlState || '';
+      console.error(`[SalesEmailLog Batch] INSERT FAILED - code: ${errCode}, sqlState: ${errSqlState}, message: ${errMsg.substring(0, 500)}`);
+      console.error(`[SalesEmailLog Batch] Batch size: ${batch.length}, first email: ${batch[0]?.toEmail}, sentBy: ${batch[0]?.sentBy}`);
       // Unknown columnエラーの場合: 問題カラムを自動除外してリトライ
       if (errMsg.includes("Unknown column")) {
-        // エラーメッセージからカラム名を抽出 (例: "Unknown column 'sentBy' in 'field list'")
         const colMatch = errMsg.match(/Unknown column '([^']+)'/);
         const problemCol = colMatch ? colMatch[1] : null;
         console.warn(`[SalesEmailLog] Unknown column detected: ${problemCol || 'unknown'}, attempting fallback insert`);
-        
-        // 問題カラムを除外してリトライ（複数カラムが問題の場合は最小限のフィールドで再試行）
-        const minimalBatch = batch.map((log: any) => {
-          const safe: any = {
-            toEmail: log.toEmail,
-            toName: log.toName || "",
-            toCompany: log.toCompany || "",
-            subject: log.subject,
-            sendType: log.sendType,
-            status: log.status,
-            attachPdf: log.attachPdf,
-          };
-          // オプションカラムは存在する場合のみ追加（エラーにならないよう試行）
-          return safe;
-        });
-        
+        const minimalBatch = batch.map((log: any) => ({
+          toEmail: String(log.toEmail || "").substring(0, 320),
+          toName: log.toName ? String(log.toName).substring(0, 255) : "",
+          toCompany: log.toCompany ? String(log.toCompany).substring(0, 255) : "",
+          subject: String(log.subject || "").substring(0, 500),
+          sendType: String(log.sendType || "bulk").substring(0, 50),
+          status: String(log.status || "sent").substring(0, 20),
+          attachPdf: Boolean(log.attachPdf),
+          sentAt: new Date(),
+        }));
         try {
           await db.insert(salesEmailLogs).values(minimalBatch as any);
           console.warn(`[SalesEmailLog] Fallback insert succeeded with minimal fields`);
@@ -26784,7 +26816,6 @@ export async function createSalesEmailLogsBatch(logs: InsertSalesEmailLog[]) {
           throw retryErr;
         }
       } else {
-        console.error(`[SalesEmailLog] Insert error: ${errMsg}`);
         throw err;
       }
     }

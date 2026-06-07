@@ -9379,6 +9379,36 @@ Return ONLY valid JSON, no markdown or explanation.`,
           throw new Error(`テスト送信失敗: ${e.message}`);
         }
       }),
+    // ===== 営業メール: DB INSERT診断 =====
+    diagnoseSalesEmailDb: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const { createSalesEmailLog } = await import("./db");
+        const testData = {
+          toEmail: "diagnostic-test@example.com",
+          toName: "診断テスト",
+          toCompany: "診断会社",
+          subject: "DB INSERT診断テスト",
+          contentPreview: "これは診断テストです",
+          sendType: "test" as const,
+          attachPdf: false,
+          status: "sent" as const,
+          sentBy: ctx.user.id,
+          trackingId: nanoid(32),
+        };
+        try {
+          await createSalesEmailLog(testData as any);
+          return { success: true, message: "DB INSERT succeeded", userId: ctx.user.id, userIdType: typeof ctx.user.id };
+        } catch (err: any) {
+          return { 
+            success: false, 
+            message: err.message?.substring(0, 500) || "Unknown error",
+            code: err.code || "N/A",
+            sqlState: err.sqlState || "N/A",
+            userId: ctx.user.id,
+            userIdType: typeof ctx.user.id,
+          };
+        }
+      }),
     // ===== 営業メール: リードへのテンプレート一斉送信 =====
     sendEmailToLeads: protectedProcedure
       .input(z.object({
