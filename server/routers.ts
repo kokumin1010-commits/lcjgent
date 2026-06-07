@@ -9643,6 +9643,11 @@ Return ONLY valid JSON, no markdown or explanation.`,
     getSalesEmailStats: protectedProcedure.query(async () => {
       return await getSalesEmailStats();
     }),
+    // 送信済みメールアドレス一覧を取得（フロントエンドで送信済みチェックに使用）
+    getSentEmailAddressList: protectedProcedure.query(async () => {
+      const emails = await getSentEmailAddresses();
+      return { emails };
+    }),
     getSalesEmailLogsByEmail: protectedProcedure
       .input(z.object({ email: z.string() }))
       .query(async ({ input }) => {

@@ -504,7 +504,8 @@ export default function BusinessCards() {
   const [kalodataPage, setKalodataPage] = useState(0);
   const [kalodataTotal, setKalodataTotal] = useState(0);
   const [kalodataStats, setKalodataStats] = useState<{total: number; withEmail: number; withPhone: number; contacted: number}>({total: 0, withEmail: 0, withPhone: 0, contacted: 0});
-  const [kalodataFilter, setKalodataFilter] = useState<"all" | "withEmail" | "withPhone" | "contacted">("all");
+  const [kalodataFilter, setKalodataFilter] = useState<"all" | "withEmail" | "withPhone" | "contacted" | "sent" | "unsent">("all");
+  const [kalodataSentEmails, setKalodataSentEmails] = useState<Set<string>>(new Set());
   // Contact search state
   const [contactSearchRunning, setContactSearchRunning] = useState(false);
   const [contactSearchStatus, setContactSearchStatus] = useState<{isRunning: boolean; processed: number; total: number; successCount: number; errorCount: number; lastRun?: string} | null>(null);
@@ -1010,18 +1011,33 @@ export default function BusinessCards() {
       const filter: any = { source: "kalodata_tiktok", limit: 5000 };
       if (kalodataSearch) filter.search = kalodataSearch;
       const params = encodeURIComponent(JSON.stringify({ json: filter }));
-      const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
+      const [res, sentRes] = await Promise.all([
+        fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`),
+        fetch(`/api/trpc/businessCard.getSentEmailAddressList`, { credentials: "include" }),
+      ]);
       const data = await res.json();
+      // 送信済みメールアドレスセットを構築
+      let sentSet = new Set<string>();
+      try {
+        const sentData = await sentRes.json();
+        const sentEmails = sentData?.result?.data?.json?.emails || [];
+        sentSet = new Set(sentEmails.map((e: string) => e.toLowerCase()));
+        setKalodataSentEmails(sentSet);
+      } catch (e) {
+        console.error("Failed to load sent emails:", e);
+      }
       if (data?.result?.data?.json?.rows) {
         const rows = data.result.data.json.rows;
         setKalodataLeads(rows);
         setKalodataTotal(rows.length);
         // Calculate stats
+        const withEmail = rows.filter((r: any) => r.email && r.email.trim());
+        const sentCount = withEmail.filter((r: any) => sentSet.has(r.email.toLowerCase())).length;
         setKalodataStats({
           total: rows.length,
-          withEmail: rows.filter((r: any) => r.email && r.email.trim()).length,
+          withEmail: withEmail.length,
           withPhone: rows.filter((r: any) => r.phone && r.phone.trim()).length,
-          contacted: rows.filter((r: any) => r.status === "contacted").length,
+          contacted: sentCount,
         });
       }
     } catch (err) {
@@ -2437,13 +2453,24 @@ export default function BusinessCards() {
                 <p className="text-xl font-bold text-blue-700">{kalodataStats.withPhone}</p>
               </CardContent>
             </Card>
-            <Card className={`bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 cursor-pointer transition-all hover:shadow-md ${kalodataFilter === "contacted" ? "ring-2 ring-amber-500 shadow-md" : ""}`} onClick={() => { setKalodataFilter("contacted"); setKalodataPage(0); }}>
+            <Card className={`bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 cursor-pointer transition-all hover:shadow-md ${kalodataFilter === "sent" ? "ring-2 ring-amber-500 shadow-md" : ""}`} onClick={() => { setKalodataFilter("sent"); setKalodataPage(0); }}>
               <CardContent className="p-3">
-                <p className="text-xs text-amber-600 font-medium">連絡済み</p>
+                <p className="text-xs text-amber-600 font-medium">メール送信済み</p>
                 <p className="text-xl font-bold text-amber-700">{kalodataStats.contacted}</p>
               </CardContent>
             </Card>
           </div>
+          {kalodataStats.contacted > 0 && kalodataStats.withEmail > kalodataStats.contacted && (
+            <div className="flex items-center gap-2 text-xs">
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                送信済み: {kalodataStats.contacted}件
+              </Badge>
+              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                未送信: {kalodataStats.withEmail - kalodataStats.contacted}件
+              </Badge>
+            </div>
+          )}
 
           {/* Search & Actions */}
           <Card>
@@ -2545,6 +2572,8 @@ export default function BusinessCards() {
                         const filteredLeads = kalodataFilter === "all" ? kalodataLeads
                           : kalodataFilter === "withEmail" ? kalodataLeads.filter((l: any) => l.email)
                           : kalodataFilter === "withPhone" ? kalodataLeads.filter((l: any) => l.phone)
+                          : kalodataFilter === "sent" ? kalodataLeads.filter((l: any) => l.email && kalodataSentEmails.has(l.email.toLowerCase()))
+                          : kalodataFilter === "unsent" ? kalodataLeads.filter((l: any) => l.email && !kalodataSentEmails.has(l.email.toLowerCase()))
                           : kalodataLeads.filter((l: any) => l.status === "contacted");
                         return filteredLeads.slice(kalodataPage * 50, (kalodataPage + 1) * 50).map((lead, idx) => (
                         <TableRow key={lead.id}>
@@ -2561,9 +2590,16 @@ export default function BusinessCards() {
                           </TableCell>
                           <TableCell className="text-xs">
                             {lead.email && lead.email.trim() ? (
-                              <a href={`mailto:${lead.email}`} className="text-blue-600 hover:underline">
-                                {lead.email}
-                              </a>
+                              <div className="flex flex-col gap-0.5">
+                                <a href={`mailto:${lead.email}`} className="text-blue-600 hover:underline">
+                                  {lead.email}
+                                </a>
+                                {kalodataSentEmails.has(lead.email.toLowerCase()) && (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] text-green-600">
+                                    <CheckCircle2 className="h-2.5 w-2.5" />送信済み
+                                  </span>
+                                )}
+                              </div>
                             ) : (
                               <span className="text-muted-foreground">未取得</span>
                             )}
@@ -2676,6 +2712,8 @@ export default function BusinessCards() {
                 const filteredTotal = kalodataFilter === "all" ? kalodataTotal
                   : kalodataFilter === "withEmail" ? kalodataStats.withEmail
                   : kalodataFilter === "withPhone" ? kalodataStats.withPhone
+                  : kalodataFilter === "sent" ? kalodataStats.contacted
+                  : kalodataFilter === "unsent" ? (kalodataStats.withEmail - kalodataStats.contacted)
                   : kalodataStats.contacted;
                 return filteredTotal > 50 ? (
                   <div className="flex items-center justify-between pt-2">
@@ -2725,7 +2763,8 @@ export default function BusinessCards() {
             <CardContent className="space-y-3">
               <div className="flex flex-wrap items-center gap-3 text-xs">
                 <span className="text-purple-700">メールあり: <span className="font-bold">{kalodataStats.withEmail}件</span></span>
-                <span className="text-green-600">送信済: <span className="font-bold">{emailStats?.uniqueEmails || 0}件（全体）</span></span>
+                <span className="text-green-600">送信済: <span className="font-bold">{kalodataStats.contacted}件</span></span>
+                <span className="text-orange-600">未送信: <span className="font-bold">{Math.max(0, kalodataStats.withEmail - kalodataStats.contacted)}件</span></span>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
