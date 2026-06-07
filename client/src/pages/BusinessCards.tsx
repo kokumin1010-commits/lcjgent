@@ -1,5 +1,5 @@
 import { useSearch, useLocation } from "wouter";
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
@@ -4642,7 +4642,8 @@ function SalesEmailHistorySection() {
                 </TableHeader>
                 <TableBody>
                   {data.rows.map((log: any) => (
-                    <TableRow key={log.id} className="hover:bg-muted/50">
+                    <React.Fragment key={log.id}>
+                    <TableRow className="hover:bg-muted/50">
                       <TableCell className="text-xs">
                         <button
                           className="text-blue-600 hover:underline cursor-pointer font-medium text-left"
@@ -4741,7 +4742,7 @@ function SalesEmailHistorySection() {
                     </TableRow>
                     {/* インライン展開: 返信内容表示 + 返信フォーム + 対応済みタグ + 前へ次へナビ */}
                     {expandedEmailId === log.id && (
-                      <TableRow>
+                      <TableRow key={`expand-${log.id}`}>
                         <TableCell colSpan={9} className="p-0">
                           <div className="bg-blue-50/50 border-t border-b border-blue-200 p-4">
                             {/* ナビゲーションバー */}
@@ -4877,6 +4878,7 @@ function SalesEmailHistorySection() {
                         </TableCell>
                       </TableRow>
                     )}
+                    </React.Fragment>
                   ))}
                 </TableBody>
               </Table>
