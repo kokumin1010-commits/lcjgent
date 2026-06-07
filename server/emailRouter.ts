@@ -445,44 +445,51 @@ export const emailRouter = router({
         await client.connect();
 
         // 1) 受信メール（INBOX）からアドレスで検索
+        // NOTE: IMAP SEARCHコマンドが一部サーバーで正しく動作しないため、
+        // 最新メールをフェッチしてenvelopeのfromアドレスで手動フィルタリングする
         try {
           const inboxLock = await client.getMailboxLock("INBOX");
           try {
-            // IMAP SEARCH: FROM に該当アドレスを含むメール
-            const inboxUidsResult = await client.search({ from: addr }, { uid: true });
-            const inboxUids = Array.isArray(inboxUidsResult) ? inboxUidsResult : [];
-            if (inboxUids.length > 0) {
-              const uidRange = inboxUids.join(",");
-              for await (const message of client.fetch(uidRange, {
+            const mailbox = client.mailbox;
+            const total = mailbox?.exists ?? 0;
+            if (total > 0) {
+              // 最新1000件をスキャン
+              const scanCount = Math.min(total, 1000);
+              const start = Math.max(1, total - scanCount + 1);
+              const range = `${start}:${total}`;
+              for await (const message of client.fetch(range, {
                 envelope: true,
                 flags: true,
                 uid: true,
-              }, { uid: true })) {
+              })) {
                 const envelope = message.envelope;
-                allEmails.push({
-                  uid: message.uid,
-                  folder: "INBOX",
-                  direction: "received" as const,
-                  subject: envelope.subject || "(件名なし)",
-                  from: envelope.from?.[0] ? {
-                    name: envelope.from[0].name || "",
-                    address: envelope.from[0].address || "",
-                  } : { name: "", address: "" },
-                  to: (envelope.to || []).map((t: any) => ({
-                    name: t.name || "",
-                    address: t.address || "",
-                  })),
-                  date: envelope.date ? new Date(envelope.date).toISOString() : null,
-                  flags: Array.from(message.flags || []),
-                  seen: message.flags?.has("\\Seen") || false,
-                });
+                const fromAddr = (envelope?.from?.[0]?.address || "").toLowerCase();
+                if (fromAddr === addr) {
+                  allEmails.push({
+                    uid: message.uid,
+                    folder: "INBOX",
+                    direction: "received" as const,
+                    subject: envelope.subject || "(件名なし)",
+                    from: envelope.from?.[0] ? {
+                      name: envelope.from[0].name || "",
+                      address: envelope.from[0].address || "",
+                    } : { name: "", address: "" },
+                    to: (envelope.to || []).map((t: any) => ({
+                      name: t.name || "",
+                      address: t.address || "",
+                    })),
+                    date: envelope.date ? new Date(envelope.date).toISOString() : null,
+                    flags: Array.from(message.flags || []),
+                    seen: message.flags?.has("\\Seen") || false,
+                  });
+                }
               }
             }
           } finally {
             inboxLock.release();
           }
         } catch (e: any) {
-          console.warn("[Email Router] listByAddress INBOX search error:", e.message);
+          console.warn("[Email Router] listByAddress INBOX scan error:", e.message);
         }
 
         // 2) 送信済みフォルダからアドレスで検索
@@ -500,34 +507,39 @@ export const emailRouter = router({
 
           const sentLock = await client.getMailboxLock(sentFolder);
           try {
-            // IMAP SEARCH: TO に該当アドレスを含むメール
-            const sentUidsResult = await client.search({ to: addr }, { uid: true });
-            const sentUids = Array.isArray(sentUidsResult) ? sentUidsResult : [];
-            if (sentUids.length > 0) {
-              const uidRange = sentUids.join(",");
-              for await (const message of client.fetch(uidRange, {
+            // フェッチ＋フィルタ方式（IMAP SEARCHが一部サーバーで動作しないため）
+            const sentMailbox = client.mailbox;
+            const sentTotal = sentMailbox?.exists ?? 0;
+            if (sentTotal > 0) {
+              const sentScanCount = Math.min(sentTotal, 500);
+              const sentStart = Math.max(1, sentTotal - sentScanCount + 1);
+              const sentRange = `${sentStart}:${sentTotal}`;
+              for await (const message of client.fetch(sentRange, {
                 envelope: true,
                 flags: true,
                 uid: true,
-              }, { uid: true })) {
+              })) {
                 const envelope = message.envelope;
-                allEmails.push({
-                  uid: message.uid,
-                  folder: sentFolder,
-                  direction: "sent" as const,
-                  subject: envelope.subject || "(件名なし)",
-                  from: envelope.from?.[0] ? {
-                    name: envelope.from[0].name || "",
-                    address: envelope.from[0].address || "",
-                  } : { name: "", address: "" },
-                  to: (envelope.to || []).map((t: any) => ({
-                    name: t.name || "",
-                    address: t.address || "",
-                  })),
-                  date: envelope.date ? new Date(envelope.date).toISOString() : null,
-                  flags: Array.from(message.flags || []),
-                  seen: true,
-                });
+                const toAddrs = (envelope?.to || []).map((t: any) => (t.address || "").toLowerCase());
+                if (toAddrs.includes(addr)) {
+                  allEmails.push({
+                    uid: message.uid,
+                    folder: sentFolder,
+                    direction: "sent" as const,
+                    subject: envelope.subject || "(件名なし)",
+                    from: envelope.from?.[0] ? {
+                      name: envelope.from[0].name || "",
+                      address: envelope.from[0].address || "",
+                    } : { name: "", address: "" },
+                    to: (envelope.to || []).map((t: any) => ({
+                      name: t.name || "",
+                      address: t.address || "",
+                    })),
+                    date: envelope.date ? new Date(envelope.date).toISOString() : null,
+                    flags: Array.from(message.flags || []),
+                    seen: true,
+                  });
+                }
               }
             }
           } finally {
