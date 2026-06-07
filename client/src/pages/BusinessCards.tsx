@@ -2428,9 +2428,6 @@ export default function BusinessCards() {
             </CardContent>
           </Card>
 
-          <div className="text-xs text-muted-foreground text-center">
-            ※ リードデータは <a href="https://salesdash.buzzdrop.co.jp/command-center/japan/eccube?store=KYOGOKU+%E8%87%AA%E7%A4%BEEC&tab=btob&subtab=leads" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Sales Dash BtoB営業司令塔</a> と連携しています
-          </div>
         </TabsContent>
 
         {/* ============================================================ */}
