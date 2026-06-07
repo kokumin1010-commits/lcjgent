@@ -9387,38 +9387,22 @@ Return ONLY valid JSON, no markdown or explanation.`,
         const db = await getDb();
         if (!db) return { success: false, message: "DB not available" };
         const results: any[] = [];
-        // Test 1: Check table structure
+        // Step 1: Run migration to add missing columns
+        try {
+          const { addTrackingToSalesEmailLogs } = await import("../migrations/addTrackingToSalesEmailLogs");
+          await addTrackingToSalesEmailLogs(db);
+          results.push({ test: "run_migration", success: true, message: "Migration executed" });
+        } catch (e: any) {
+          results.push({ test: "run_migration", success: false, error: e.message?.substring(0, 300) });
+        }
+        // Step 2: Check table structure after migration
         try {
           const cols = await db.execute(sql`SHOW COLUMNS FROM sales_email_logs`);
           results.push({ test: "table_columns", success: true, data: (cols as any)[0]?.map((c: any) => c.Field || c.COLUMN_NAME).join(',') || JSON.stringify(cols).substring(0, 300) });
         } catch (e: any) {
           results.push({ test: "table_columns", success: false, error: e.message?.substring(0, 200) });
         }
-        // Test 2: Try raw SQL INSERT
-        try {
-          await db.execute(sql`INSERT INTO sales_email_logs (toEmail, toName, toCompany, subject, sendType, attachPdf, status, sentBy, sentAt) VALUES ('diag-raw@test.com', '診断', '会社', 'テスト', 'test', 0, 'sent', ${ctx.user.id}, NOW())`);
-          results.push({ test: "raw_sql_insert", success: true });
-        } catch (e: any) {
-          results.push({ test: "raw_sql_insert", success: false, error: e.message?.substring(0, 300) });
-        }
-        // Test 3: Try Drizzle ORM INSERT with minimal fields
-        try {
-          const { salesEmailLogs } = await import("../drizzle/schema");
-          await db.insert(salesEmailLogs).values({
-            toEmail: "diag-drizzle@test.com",
-            toName: "テスト",
-            toCompany: "会社",
-            subject: "テスト",
-            sendType: "test",
-            attachPdf: false,
-            status: "sent",
-            sentAt: new Date(),
-          } as any);
-          results.push({ test: "drizzle_minimal_insert", success: true });
-        } catch (e: any) {
-          results.push({ test: "drizzle_minimal_insert", success: false, error: e.message?.substring(0, 300) });
-        }
-        // Test 4: Try Drizzle ORM INSERT with all fields
+        // Step 3: Try Drizzle ORM INSERT with all fields
         try {
           const { salesEmailLogs } = await import("../drizzle/schema");
           await db.insert(salesEmailLogs).values({
