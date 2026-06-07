@@ -92,6 +92,10 @@ import {
   History,
   CheckCircle,
   AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 // ============================================================
@@ -4378,6 +4382,10 @@ function SalesEmailHistorySection() {
   const limit = 20;
   const [, navigate] = useLocation();
   const [replyCheckDone, setReplyCheckDone] = useState(false);
+  const [expandedEmailId, setExpandedEmailId] = useState<number | null>(null);
+  const [replyBody, setReplyBody] = useState("");
+  const [showReplyForm, setShowReplyForm] = useState(false);
+  const [sending, setSending] = useState(false);
 
   // 返信チェック mutation
   const checkRepliesMutation = trpc.replyTracking.checkReplies.useMutation({
@@ -4402,6 +4410,75 @@ function SalesEmailHistorySection() {
       console.error("[Reply Check]", err.message);
     },
   });
+
+  // インライン展開時のIMAP取得
+  const expandedLog = data?.rows?.find((r: any) => r.id === expandedEmailId);
+  const {
+    data: inlineImapData,
+    isLoading: inlineImapLoading,
+    refetch: refetchInlineImap,
+  } = trpc.email.listByAddress.useQuery(
+    { emailAddress: expandedLog?.toEmail || "", page: 1, pageSize: 50 },
+    { enabled: !!expandedLog?.toEmail }
+  );
+
+  // 対応済みマーク mutation
+  const markHandledMutation = trpc.businessCard.markReplyHandled.useMutation({
+    onSuccess: () => { toast.success("対応済みにしました"); refetch(); },
+  });
+  const unmarkHandledMutation = trpc.businessCard.unmarkReplyHandled.useMutation({
+    onSuccess: () => { toast.success("未対応に戻しました"); refetch(); },
+  });
+
+  // 返信送信 mutation
+  const sendEmailMutation = trpc.email.sendEmail.useMutation();
+
+  // 返信ありメール一覧（前へ/次へナビ用）
+  const repliedRows = useMemo(() => {
+    if (!data?.rows) return [];
+    return data.rows.filter((r: any) => r.replyReceived);
+  }, [data?.rows]);
+
+  const currentRepliedIndex = useMemo(() => {
+    return repliedRows.findIndex((r: any) => r.id === expandedEmailId);
+  }, [repliedRows, expandedEmailId]);
+
+  const goToPrevReply = () => {
+    if (currentRepliedIndex > 0) {
+      setExpandedEmailId(repliedRows[currentRepliedIndex - 1].id);
+      setShowReplyForm(false);
+      setReplyBody("");
+    }
+  };
+
+  const goToNextReply = () => {
+    if (currentRepliedIndex < repliedRows.length - 1) {
+      setExpandedEmailId(repliedRows[currentRepliedIndex + 1].id);
+      setShowReplyForm(false);
+      setReplyBody("");
+    }
+  };
+
+  const handleInlineReply = async () => {
+    if (!replyBody.trim() || !expandedLog) return;
+    setSending(true);
+    try {
+      await sendEmailMutation.mutateAsync({
+        to: [expandedLog.toEmail],
+        subject: `Re: ${expandedLog.subject || ""}`,
+        text: replyBody,
+        html: `<div style="font-family: sans-serif; font-size: 14px; line-height: 1.6;">${replyBody.replace(/\n/g, "<br>")}</div>`,
+      });
+      setReplyBody("");
+      setShowReplyForm(false);
+      toast.success("メールを送信しました");
+      setTimeout(() => refetchInlineImap(), 2000);
+    } catch (err: any) {
+      toast.error("送信に失敗しました: " + (err.message || "不明なエラー"));
+    } finally {
+      setSending(false);
+    }
+  };
 
   // ページ読み込み時に自動で返信チェック実行（1回のみ）
   useEffect(() => {
@@ -4506,6 +4583,8 @@ function SalesEmailHistorySection() {
               <SelectItem value="_all">全状態</SelectItem>
               <SelectItem value="opened">開封済</SelectItem>
               <SelectItem value="replied">返信あり</SelectItem>
+              <SelectItem value="unhandled">未対応</SelectItem>
+              <SelectItem value="handled">対応済み</SelectItem>
               <SelectItem value="pdf_downloaded">PDFダウンロード済</SelectItem>
               <SelectItem value="sent">送信成功</SelectItem>
               <SelectItem value="failed">失敗</SelectItem>
@@ -4611,15 +4690,30 @@ function SalesEmailHistorySection() {
                       </TableCell>
                       <TableCell>
                         {log.replyReceived ? (
-                          <button
-                            className="cursor-pointer hover:opacity-80 transition-opacity"
-                            onClick={() => navigate(`/master/email-thread/${encodeURIComponent(log.toEmail)}`)}
-                            title="返信スレッドを表示"
-                          >
-                            <Badge className="text-[10px] px-1.5 py-0 bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100" variant="outline">
-                              ✉️ あり
-                            </Badge>
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              className="cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => {
+                                if (expandedEmailId === log.id) {
+                                  setExpandedEmailId(null);
+                                  setShowReplyForm(false);
+                                  setReplyBody("");
+                                } else {
+                                  setExpandedEmailId(log.id);
+                                  setShowReplyForm(false);
+                                  setReplyBody("");
+                                }
+                              }}
+                              title="返信をインライン表示"
+                            >
+                              <Badge className={`text-[10px] px-1.5 py-0 ${expandedEmailId === log.id ? 'bg-orange-200 text-orange-800 border-orange-400' : 'bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100'}`} variant="outline">
+                                ✉️ あり {expandedEmailId === log.id ? '▲' : '▼'}
+                              </Badge>
+                            </button>
+                            {log.replyHandled && (
+                              <Badge className="text-[10px] px-1 py-0 bg-green-50 text-green-700 border-green-300" variant="outline">済</Badge>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
@@ -4645,6 +4739,144 @@ function SalesEmailHistorySection() {
                         })}
                       </TableCell>
                     </TableRow>
+                    {/* インライン展開: 返信内容表示 + 返信フォーム + 対応済みタグ + 前へ次へナビ */}
+                    {expandedEmailId === log.id && (
+                      <TableRow>
+                        <TableCell colSpan={9} className="p-0">
+                          <div className="bg-blue-50/50 border-t border-b border-blue-200 p-4">
+                            {/* ナビゲーションバー */}
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={goToPrevReply}
+                                  disabled={currentRepliedIndex <= 0}
+                                  className="h-7 px-2 text-xs"
+                                >
+                                  <ChevronLeft className="h-3.5 w-3.5 mr-0.5" />前
+                                </Button>
+                                <span className="text-xs text-muted-foreground">
+                                  {currentRepliedIndex + 1} / {repliedRows.length}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={goToNextReply}
+                                  disabled={currentRepliedIndex >= repliedRows.length - 1}
+                                  className="h-7 px-2 text-xs"
+                                >
+                                  次<ChevronRight className="h-3.5 w-3.5 ml-0.5" />
+                                </Button>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {log.replyHandled ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => unmarkHandledMutation.mutate({ emailId: log.id })}
+                                    className="h-7 text-xs border-green-300 text-green-700 bg-green-50 hover:bg-green-100"
+                                  >
+                                    <CheckCircle className="h-3.5 w-3.5 mr-1" />対応済み
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => markHandledMutation.mutate({ emailId: log.id })}
+                                    className="h-7 text-xs border-gray-300 text-gray-600 hover:bg-gray-100"
+                                  >
+                                    <CheckCircle className="h-3.5 w-3.5 mr-1" />対応済みにする
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => { setExpandedEmailId(null); setShowReplyForm(false); setReplyBody(""); }}
+                                  className="h-7 px-2 text-xs"
+                                >
+                                  ✕ 閉じる
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* 返信メール内容 */}
+                            {inlineImapLoading ? (
+                              <div className="flex items-center justify-center py-4">
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                <span className="text-sm text-muted-foreground">返信を取得中...</span>
+                              </div>
+                            ) : inlineImapData?.emails && inlineImapData.emails.length > 0 ? (
+                              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                {inlineImapData.emails
+                                  .filter((msg: any) => msg.direction === "received")
+                                  .map((msg: any, idx: number) => (
+                                    <div key={idx} className="bg-white rounded-lg border p-3 shadow-sm">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-50 text-blue-700 border-blue-300">受信</Badge>
+                                        <span className="text-xs font-medium">{msg.subject || "(件名なし)"}</span>
+                                      </div>
+                                      <div className="text-[10px] text-muted-foreground mb-2">
+                                        From: {msg.from || "不明"} | {msg.date ? new Date(msg.date).toLocaleString("ja-JP") : ""}
+                                      </div>
+                                      <div className="text-xs whitespace-pre-wrap bg-gray-50 rounded p-2 max-h-[200px] overflow-y-auto">
+                                        {msg.text || msg.snippet || "(本文なし)"}
+                                      </div>
+                                    </div>
+                                  ))}
+                                {inlineImapData.emails.filter((msg: any) => msg.direction === "received").length === 0 && (
+                                  <div className="text-sm text-muted-foreground text-center py-3">受信メールが見つかりませんでした</div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-muted-foreground text-center py-3">受信メールが見つかりませんでした</div>
+                            )}
+
+                            {/* 返信フォーム */}
+                            <div className="mt-3 pt-3 border-t">
+                              {!showReplyForm ? (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => setShowReplyForm(true)}
+                                  className="h-8 text-xs"
+                                >
+                                  <Send className="h-3.5 w-3.5 mr-1" />返信を作成
+                                </Button>
+                              ) : (
+                                <div className="space-y-2">
+                                  <Textarea
+                                    placeholder="返信内容を入力..."
+                                    value={replyBody}
+                                    onChange={(e) => setReplyBody(e.target.value)}
+                                    className="min-h-[80px] text-sm"
+                                  />
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      onClick={handleInlineReply}
+                                      disabled={sending || !replyBody.trim()}
+                                      className="h-7 text-xs"
+                                    >
+                                      {sending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
+                                      送信
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => { setShowReplyForm(false); setReplyBody(""); }}
+                                      className="h-7 text-xs"
+                                    >
+                                      キャンセル
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
                   ))}
                 </TableBody>
               </Table>

@@ -26978,6 +26978,14 @@ export async function getSalesEmailLogs(options?: {
       case 'pdf_downloaded':
         conditions.push(sql`\`pdfDownloadCount\` > 0`);
         break;
+      case 'handled':
+        conditions.push(eq(salesEmailLogs.replyReceived, true));
+        conditions.push(eq(salesEmailLogs.replyHandled, true));
+        break;
+      case 'unhandled':
+        conditions.push(eq(salesEmailLogs.replyReceived, true));
+        conditions.push(eq(salesEmailLogs.replyHandled, false));
+        break;
     }
   }
 
@@ -27002,6 +27010,8 @@ export async function getSalesEmailLogs(options?: {
       pdfDownloadCount: salesEmailLogs.pdfDownloadCount,
       replyReceived: salesEmailLogs.replyReceived,
       replyReceivedAt: salesEmailLogs.replyReceivedAt,
+      replyHandled: salesEmailLogs.replyHandled,
+      replyHandledAt: salesEmailLogs.replyHandledAt,
     }).from(salesEmailLogs);
     let countQuery = db.select({ count: sql<number>`count(*)` }).from(salesEmailLogs);
     
@@ -27236,4 +27246,28 @@ export async function markReplyReceivedByEmail(toEmail: string) {
       )
     );
   return (result as any)?.[0]?.affectedRows || 0;
+}
+
+/**
+ * メールの返信を「対応済み」にマークする
+ */
+export async function markReplyHandled(emailId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(salesEmailLogs)
+    .set({ replyHandled: true, replyHandledAt: new Date() })
+    .where(eq(salesEmailLogs.id, emailId));
+}
+
+/**
+ * メールの「対応済み」マークを解除する
+ */
+export async function unmarkReplyHandled(emailId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(salesEmailLogs)
+    .set({ replyHandled: false, replyHandledAt: null })
+    .where(eq(salesEmailLogs.id, emailId));
 }

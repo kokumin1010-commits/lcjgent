@@ -721,6 +721,8 @@ import {
   getSalesEmailLogs,
   getSalesEmailStats,
   getSentEmailAddresses,
+  markReplyHandled,
+  unmarkReplyHandled,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -9398,6 +9400,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
           { name: "lastOpenedAt", sql_def: "TIMESTAMP NULL" },
           { name: "pdfDownloadedAt", sql_def: "TIMESTAMP NULL" },
           { name: "pdfDownloadCount", sql_def: "INT DEFAULT 0" },
+          { name: "replyHandled", sql_def: "BOOLEAN DEFAULT false" },
+          { name: "replyHandledAt", sql_def: "TIMESTAMP NULL" },
         ];
         for (const col of columnsToAdd) {
           try {
@@ -9657,6 +9661,20 @@ Return ONLY valid JSON, no markdown or explanation.`,
       .input(z.object({ businessCardId: z.number() }))
       .query(async ({ input }) => {
         return await getSalesEmailLogsByBusinessCardId(input.businessCardId);
+      }),
+    // 対応済みマーク
+    markReplyHandled: protectedProcedure
+      .input(z.object({ emailId: z.number() }))
+      .mutation(async ({ input }) => {
+        await markReplyHandled(input.emailId);
+        return { success: true };
+      }),
+    // 対応済みマーク解除
+    unmarkReplyHandled: protectedProcedure
+      .input(z.object({ emailId: z.number() }))
+      .mutation(async ({ input }) => {
+        await unmarkReplyHandled(input.emailId);
+        return { success: true };
       }),
     // ===== メールあり全件送信（2段階API） =====
     // Step 1: 送信先リストを取得（1回だけ呼ぶ）

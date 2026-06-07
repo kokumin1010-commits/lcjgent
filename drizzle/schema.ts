@@ -4439,11 +4439,11 @@ export const stepEmailLogs = mysqlTable("step_email_logs", {
   email: varchar("email", { length: 320 }).notNull(), // 送信先メールアドレス
   status: mysqlEnum("status", ["sent", "failed", "skipped"]).default("sent").notNull(),
   errorMessage: text("errorMessage"), // エラーメッセージ（失敗時）
-  trackingId: varchar("tracking_id", { length: 64 }), // ユニークトラッキングID
-  openedAt: timestamp("opened_at"), // 開封日時
-  openCount: int("open_count").default(0).notNull(), // 開封回数
-  clickedAt: timestamp("clicked_at"), // 初回クリック日時
-  clickCount: int("click_count").default(0).notNull(), // クリック回数
+  trackingId: varchar("trackingId", { length: 64 }), // ユニークトラッキングID
+  openedAt: timestamp("openedAt"), // 開封日時
+  openCount: int("openCount").default(0).notNull(), // 開封回数
+  clickedAt: timestamp("clickedAt"), // 初回クリック日時
+  clickCount: int("clickCount").default(0).notNull(), // クリック回数
   sentAt: timestamp("sentAt").defaultNow().notNull(),
 });
 
@@ -4456,10 +4456,10 @@ export type InsertStepEmailLog = typeof stepEmailLogs.$inferInsert;
  */
 export const stepEmailClicks = mysqlTable("step_email_clicks", {
   id: int("id").autoincrement().primaryKey(),
-  logId: int("log_id").notNull(), // References step_email_logs.id
-  trackingId: varchar("tracking_id", { length: 64 }).notNull(), // References step_email_logs.tracking_id
+  logId: int("logId").notNull(), // References step_email_logs.id
+  trackingId: varchar("trackingId", { length: 64 }).notNull(), // References step_email_logs.tracking_id
   url: text("url").notNull(), // クリックされたURL
-  clickedAt: timestamp("clicked_at").defaultNow().notNull(),
+  clickedAt: timestamp("clickedAt").defaultNow().notNull(),
 });
 
 export type StepEmailClick = typeof stepEmailClicks.$inferSelect;
@@ -6195,6 +6195,8 @@ export const salesEmailLogs = mysqlTable("sales_email_logs", {
   replyReceivedAt: timestamp("replyReceivedAt"), // 返信受信日時
   repliedByUs: boolean("repliedByUs").default(false), // こちらから返信済み
   repliedByUsAt: timestamp("repliedByUsAt"), // こちらからの返信日時
+  replyHandled: boolean("replyHandled").default(false), // 対応済み（不要な返信をマーク）
+  replyHandledAt: timestamp("replyHandledAt"), // 対応済みマーク日時
 });
 export type SalesEmailLog = typeof salesEmailLogs.$inferSelect;
 export type InsertSalesEmailLog = typeof salesEmailLogs.$inferInsert;
