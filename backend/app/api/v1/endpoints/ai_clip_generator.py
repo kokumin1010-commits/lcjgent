@@ -1187,24 +1187,50 @@ def _build_silence_trim_segments(duration: float, silence_periods: list,
     if prev_end < duration:
         keep_segments.append((prev_end, duration))
 
-    # V2.19: 末尾無音トリム —— 字幕データから最後の発話終了時刻を検出し、
-    # それ以降の無音を余韻0.8秒残してカット
+    # V2.20: 末尾無音トリム改善 —— keep_segments範囲内の字幕のみを考慮し、
+    # 文が完了する位置（句読点で終わる字幕）でカットする。
+    # 問題: 以前は全字幕の最後のendを使っていたが、クリップ選定で一部のセグメントが
+    # 除外されている場合、実際の最後の発話が途中で切れる可能性があった。
     if captions:
         last_speech_end = 0.0
-        for cap in (captions or []):
-            cap_end = float(cap.get("end", 0) if isinstance(cap, dict) else 0)
-            if cap_end > last_speech_end:
-                last_speech_end = cap_end
-        if last_speech_end > 0 and keep_segments:
-            # keep_segmentsの最後のセグメントの終了時刻をトリム
+        last_complete_sentence_end = 0.0  # 文末句読点で終わる最後の字幕
+        
+        # keep_segmentsの最後のセグメントの範囲を取得
+        if keep_segments:
             last_seg_start, last_seg_end = keep_segments[-1]
-            trailing_margin = 0.8  # 余韻秒数
-            trim_point = last_speech_end + trailing_margin
+            
+            import re as _re_trim
+            for cap in (captions or []):
+                cap_start = float(cap.get("start", 0) if isinstance(cap, dict) else 0)
+                cap_end = float(cap.get("end", 0) if isinstance(cap, dict) else 0)
+                cap_text = str(cap.get("text", "") if isinstance(cap, dict) else "")
+                
+                # keep_segmentsの最後のセグメント範囲内の字幕のみ考慮
+                if cap_start >= last_seg_start and cap_end <= last_seg_end + 0.5:
+                    if cap_end > last_speech_end:
+                        last_speech_end = cap_end
+                    # 文末句読点（。！？）で終わる字幕を追跡
+                    if _re_trim.search(r'[。！？!?]\s*$', cap_text):
+                        if cap_end > last_complete_sentence_end:
+                            last_complete_sentence_end = cap_end
+            
+            # トリムポイントの決定:
+            # 1. 文が完了する位置があればそこを使う
+            # 2. なければ最後の発話終了時刻を使う
+            effective_end = last_speech_end
+            if last_complete_sentence_end > 0 and last_complete_sentence_end >= last_speech_end - 2.0:
+                # 文末句読点が最後の発話の2秒以内なら、そこでカット
+                effective_end = last_complete_sentence_end
+            
+            trailing_margin = 1.0  # 余韻秒数（少し増やして自然な終わりに）
+            trim_point = effective_end + trailing_margin
             if trim_point < last_seg_end and (last_seg_end - trim_point) > 1.0:
                 # 末尾セグメントをトリム
                 keep_segments[-1] = (last_seg_start, trim_point)
                 total_cut_time += (last_seg_end - trim_point)
-                logger.info(f"[ai-clip] V2.19 trailing trim: last_speech={last_speech_end:.1f}s, "
+                logger.info(f"[ai-clip] V2.20 trailing trim: last_speech={last_speech_end:.1f}s, "
+                            f"last_sentence_end={last_complete_sentence_end:.1f}s, "
+                            f"effective_end={effective_end:.1f}s, "
                             f"trim_at={trim_point:.1f}s, extra_cut={last_seg_end - trim_point:.1f}s")
 
     # V15: 冒頭無音トリム —— 最初の字幕開始前の無音をカット
@@ -1918,10 +1944,70 @@ def _generate_overlay_images(
         overlays.append((cta_path, cta_start, cta_end))
         logger.info(f"[ai-clip] Generated CTA overlay: {cta_text[:30]}")
     
+    # ── V2.20: 結尾矢印アニメーション（最後5秒に左下角への矢印を表示） ──
+    # TikTokライブコマースの慣習: 左下のカートボタンへ誘導する矢印
+    if effective_duration > 5:
+        try:
+            from PIL import Image, ImageDraw
+            
+            arrow_duration = min(5.0, effective_duration - 1.0)  # 最後5秒（または動画が短い場合はそれに合わせる）
+            arrow_start = max(0, effective_duration - arrow_duration)
+            arrow_end = effective_duration - 0.2
+            
+            # 矢印画像を生成（動画と同じサイズの透過PNG）
+            arrow_img = Image.new('RGBA', (video_width, video_height), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(arrow_img)
+            
+            # 矢印の位置: 左下角（TikTokのカートボタン付近）
+            # 画面の左下、底から約15%、左から約15%の位置
+            arrow_center_x = int(video_width * 0.15)
+            arrow_center_y = int(video_height * 0.82)
+            arrow_size = int(min(video_width, video_height) * 0.08)  # 矢印サイズ
+            
+            # 矢印を描画（下向き矢印 ↓ スタイル）
+            # 矢印の軸（縦線）
+            shaft_top = arrow_center_y - arrow_size
+            shaft_bottom = arrow_center_y + int(arrow_size * 0.5)
+            shaft_width = max(6, int(arrow_size * 0.15))
+            draw.line(
+                [(arrow_center_x, shaft_top), (arrow_center_x, shaft_bottom)],
+                fill=(255, 255, 255, 230),
+                width=shaft_width
+            )
+            
+            # 矢印の先端（三角形）
+            head_size = int(arrow_size * 0.5)
+            head_points = [
+                (arrow_center_x, shaft_bottom + head_size),  # 先端
+                (arrow_center_x - head_size, shaft_bottom - int(head_size * 0.3)),  # 左
+                (arrow_center_x + head_size, shaft_bottom - int(head_size * 0.3)),  # 右
+            ]
+            draw.polygon(head_points, fill=(255, 255, 255, 230))
+            
+            # 矢印の周りに光彩エフェクト（薄い白い円）
+            glow_radius = int(arrow_size * 1.2)
+            draw.ellipse(
+                [(arrow_center_x - glow_radius, arrow_center_y - glow_radius),
+                 (arrow_center_x + glow_radius, arrow_center_y + glow_radius)],
+                fill=None,
+                outline=(255, 255, 255, 80),
+                width=max(3, int(arrow_size * 0.08))
+            )
+            
+            arrow_path = os.path.join(tmp_dir, "overlay_arrow_cta.png")
+            arrow_img.save(arrow_path, 'PNG')
+            overlays.append((arrow_path, arrow_start, arrow_end))
+            logger.info(f"[ai-clip] Generated arrow CTA overlay: "
+                        f"pos=({arrow_center_x},{arrow_center_y}), "
+                        f"time={arrow_start:.1f}-{arrow_end:.1f}s")
+        except Exception as arrow_err:
+            logger.warning(f"[ai-clip] Arrow overlay generation failed: {arrow_err}")
+    
     logger.info(f"[ai-clip] Generated {len(overlays)} overlay images "
                 f"(hook={'yes' if hook_text else 'no'}, "
                 f"captions={len(styled_captions or [])}, "
-                f"cta={'yes' if cta_text else 'no'})")
+                f"cta={'yes' if cta_text else 'no'}, "
+                f"arrow={'yes' if effective_duration > 5 else 'no'})")
     return overlays
 
 
@@ -5263,26 +5349,63 @@ def _split_long_segments(segments: list, max_chars: int = 18, max_duration: floa
     
     分割ルール:
     1. 句読点（。、！、？、…）で分割
-    2. max_chars以上のテキストは助詞・接続詞の後で分割
-    3. 分割後の各パートに元セグメントの時間を文字数比例で配分
-    4. 短いセグメント（max_chars以下 かつ max_duration以下）はそのまま
+    2. max_chars以上のテキストは読点（、，）で分割
+    3. それでも長い場合は意味的に自然な位置（助詞・接続助詞の後）で分割
+    4. 分割後の各パートに元セグメントの時間を文字数比例で配分
+    5. 短いセグメント（max_chars以下 かつ max_duration以下）はそのまま
+    
+    V2.20改善:
+    - 助詞パターンを大幅拡張（単独助詞 + 複合助詞 + 接続助詞）
+    - 文法的に不自然な位置での分割を防止（助詞の直前ではなく直後で切る）
+    - 短すぎる断片（4文字未満）は前のチャンクにマージ
+    - 「ので」「から」「けど」「ても」等の接続助詞を優先分割位置に
     """
     import re as _re
     
-    # 助詞・接続詞の後で分割するためのパターン
+    # V2.20: 意味的に自然な分割位置パターン（優先度順）
+    # Pythonのlookbehindは固定長のみ対応なので、文字数別にパターンを分割
+    # 接続助詞・複合助詞の後が最も自然な分割位置
+    _CONJ_2CHAR = _re.compile(r'(?<=ので|から|けど|ても|のに|たら|れば|ると|って|のは|のが|ては|では|には|とは|まで|より|ほど|だけ|しか)')
+    _CONJ_3CHAR = _re.compile(r'(?<=けれど|ながら|ばかり|ことが|ことを|ことは|ために|として|ところ)')
+    _CONJ_4CHAR = _re.compile(r'(?<=について|に対して|によって)')
+    # 単独助詞の後（接続助詞より優先度低い）
     _PARTICLE_SPLIT_PATTERN = _re.compile(
-        r'(?<=[はがをにでもとのへよねけどして])'
+        r'(?<=[はがをにでもとのへよねば])'
     )
     
-    def _split_at_particles(text: str, target_len: int) -> list:
-        """max_chars以上のテキストを助詞の後で分割"""
+    def _split_at_natural_boundary(text: str, target_len: int) -> list:
+        """max_chars以上のテキストを意味的に自然な位置で分割
+        
+        分割優先度:
+        1. 接続助詞・複合助詞の後（最も自然）
+        2. 単独助詞の後
+        3. 強制分割（最終手段）
+        """
         if len(text) <= target_len:
             return [text]
         
-        # Find all possible split positions (after particles)
-        positions = [m.start() for m in _PARTICLE_SPLIT_PATTERN.finditer(text)]
-        if not positions:
-            # No particles found - force split at target_len
+        # Step 1: Try splitting at conjunction/compound particle boundaries first
+        # Collect positions from all conjunction patterns (2/3/4 char lookbehinds)
+        conj_positions = []
+        for pat in [_CONJ_2CHAR, _CONJ_3CHAR, _CONJ_4CHAR]:
+            conj_positions.extend(m.start() for m in pat.finditer(text))
+        conj_positions = sorted(set(conj_positions))
+        # Step 2: Also collect single particle positions as fallback
+        particle_positions = [m.start() for m in _PARTICLE_SPLIT_PATTERN.finditer(text)]
+        
+        # Combine: prefer conjunction positions, then particle positions
+        # Mark each position with priority (0=conjunction=better, 1=particle)
+        all_positions = [(p, 0) for p in conj_positions] + [(p, 1) for p in particle_positions]
+        # Remove duplicates, keep lowest priority (best)
+        seen = {}
+        for pos, pri in all_positions:
+            if pos not in seen or pri < seen[pos]:
+                seen[pos] = pri
+        # Sort by position
+        sorted_positions = sorted(seen.keys())
+        
+        if not sorted_positions:
+            # No natural split points found - force split at target_len
             chunks = []
             for i in range(0, len(text), target_len):
                 chunk = text[i:i+target_len]
@@ -5290,22 +5413,66 @@ def _split_long_segments(segments: list, max_chars: int = 18, max_duration: floa
                     chunks.append(chunk)
             return chunks
         
-        # Greedy split: accumulate chars, split at the last particle position before exceeding target_len
+        # Greedy split: find the best split position near target_len
         chunks = []
         last_cut = 0
-        for pos in positions:
-            segment_so_far = text[last_cut:pos]
-            if len(segment_so_far) >= target_len:
-                # Cut here
-                chunks.append(segment_so_far)
-                last_cut = pos
-        # Remaining text
-        remaining = text[last_cut:]
-        if remaining:
-            if chunks and len(remaining) < 6:  # Too short, merge with previous
-                chunks[-1] += remaining
+        
+        while last_cut < len(text):
+            remaining_text = text[last_cut:]
+            if len(remaining_text) <= target_len:
+                # Remaining text fits in one chunk
+                if chunks and len(remaining_text) < 4:
+                    # Too short, merge with previous
+                    chunks[-1] += remaining_text
+                else:
+                    chunks.append(remaining_text)
+                break
+            
+            # Find best split position: closest to target_len but not exceeding it too much
+            best_pos = None
+            best_score = float('inf')
+            
+            for pos in sorted_positions:
+                if pos <= last_cut:
+                    continue
+                chunk_len = pos - last_cut
+                # Prefer positions that produce chunks close to target_len
+                # but not shorter than 6 chars (too short = unnatural)
+                if chunk_len < 6:
+                    continue
+                # Score: distance from target_len (lower is better)
+                if chunk_len <= target_len:
+                    score = abs(target_len - chunk_len)
+                else:
+                    # Allow up to 5 chars over target_len for conjunction breaks
+                    if chunk_len <= target_len + 5 and pos in conj_positions:
+                        score = (chunk_len - target_len) * 1.5  # Mild penalty for conjunctions
+                    elif chunk_len <= target_len + 3:
+                        score = (chunk_len - target_len) * 3  # Moderate penalty
+                    else:
+                        score = (chunk_len - target_len) * 10  # Heavy penalty
+                
+                # Strong bonus for conjunction positions (much more natural break)
+                if pos in conj_positions:
+                    score -= 8
+                
+                if score < best_score:
+                    best_score = score
+                    best_pos = pos
+            
+            if best_pos is None or best_pos <= last_cut:
+                # No good position found, force split
+                cut_point = last_cut + target_len
+                chunks.append(text[last_cut:cut_point])
+                last_cut = cut_point
             else:
-                chunks.append(remaining)
+                chunks.append(text[last_cut:best_pos])
+                last_cut = best_pos
+        
+        # Post-process: merge very short trailing chunks
+        if len(chunks) > 1 and len(chunks[-1]) < 4:
+            chunks[-2] += chunks[-1]
+            chunks.pop()
         
         return chunks if chunks else [text]
     
@@ -5339,14 +5506,28 @@ def _split_long_segments(segments: list, max_chars: int = 18, max_duration: floa
             else:
                 refined_parts.append(part)
         
-        # Step 3: Split remaining long parts at particle boundaries
+        # Step 3: Split remaining long parts at natural boundaries (improved V2.20)
         final_parts = []
         for part in refined_parts:
             if len(part) > max_chars:
-                chunks = _split_at_particles(part, max_chars)
+                chunks = _split_at_natural_boundary(part, max_chars)
                 final_parts.extend(chunks)
             else:
                 final_parts.append(part)
+        
+        # Step 4: Merge very short fragments (< 4 chars) with adjacent parts
+        if len(final_parts) > 1:
+            merged = [final_parts[0]]
+            for i in range(1, len(final_parts)):
+                if len(final_parts[i]) < 4:
+                    # Merge with previous part (prefer keeping text together)
+                    merged[-1] += final_parts[i]
+                elif len(merged[-1]) < 4:
+                    # Previous was too short, merge current into it
+                    merged[-1] += final_parts[i]
+                else:
+                    merged.append(final_parts[i])
+            final_parts = merged
         
         # If splitting produced nothing useful, force split by character count
         if not final_parts or (len(final_parts) == 1 and len(final_parts[0]) > max_chars):
