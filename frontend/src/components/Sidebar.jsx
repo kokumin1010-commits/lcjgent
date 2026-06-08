@@ -926,18 +926,23 @@ export default function Sidebar({ isOpen, onClose, user, onVideoSelect, onNewAna
                     )}
 
                     {/* ── Separator between sections ── */}
-                    {hasLiveContent && regularVideos.length > 0 && (
+                    {hasLiveContent && (regularVideos.length > 0 || bgUploadTasks.length > 0) && (
                       <div className="w-full border-t border-gray-200 my-1"></div>
                     )}
 
-                    {/* ── Background Upload Progress ── */}
-                    {bgUploadTasks.length > 0 && (
+                    {/* ── Video Analysis Section (with integrated upload progress) ── */}
+                    {(regularVideos.length > 0 || bgUploadTasks.length > 0) && (
                       <>
                         <div className="flex items-center gap-2 w-full px-1 pt-2 pb-1 shrink-0">
-                          <Upload className="w-3.5 h-3.5 text-blue-400" />
-                          <span className="text-xs font-semibold text-blue-500">{window.__t('sidebar_uploading') || 'アップロード'}</span>
-                          <span className="text-[10px] text-blue-400 bg-blue-50 px-1.5 py-0.5 rounded-full font-medium">{bgUploadTasks.length}</span>
+                          <Video className="w-3.5 h-3.5 text-gray-400" />
+                          <span className="text-xs font-semibold text-gray-500">{window.__t('analysisHistory')}</span>
+                          {bgUploadTasks.length > 0 && (
+                            <span className="text-[10px] text-blue-400 bg-blue-50 px-1.5 py-0.5 rounded-full font-medium">
+                              {bgUploadTasks.length} {window.__t('sidebar_uploading') || 'アップロード中'}
+                            </span>
+                          )}
                         </div>
+                        {/* Upload tasks shown at top of history */}
                         {bgUploadTasks.map((task) => (
                           <div key={task.id} className={`w-full px-2.5 py-2.5 rounded-lg mb-1 ${
                             task.status === 'pending_resume'
@@ -1047,19 +1052,6 @@ export default function Sidebar({ isOpen, onClose, user, onVideoSelect, onNewAna
                             )}
                           </div>
                         ))}
-                        {regularVideos.length > 0 && (
-                          <div className="w-full border-t border-gray-200 my-1"></div>
-                        )}
-                      </>
-                    )}
-
-                    {/* ── Video Analysis Section ── */}
-                    {regularVideos.length > 0 && (
-                      <>
-                        <div className="flex items-center gap-2 w-full px-1 pt-2 pb-1 shrink-0">
-                          <Video className="w-3.5 h-3.5 text-gray-400" />
-                          <span className="text-xs font-semibold text-gray-500">{window.__t('analysisHistory')}</span>
-                        </div>
                         {regularVideos.map((video) => (
                           <div className={`group relative w-full flex items-start gap-2.5 cursor-pointer px-2.5 py-3 rounded-lg text-left transition-all duration-200 ease-out border border-transparent ${selectedVideoId === video.id
                             ? "bg-purple-50 border-purple-200"
