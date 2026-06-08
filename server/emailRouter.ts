@@ -1001,14 +1001,16 @@ export const replyTrackingRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続不可" });
 
-    const { salesEmailLogs } = await import("../drizzle/schema");
-    const { eq, and, desc } = await import("drizzle-orm");
+    const { salesEmailLogs, salesEmailReplies } = await import("../drizzle/schema");
+    const { eq, and, desc, sql, or } = await import("drizzle-orm");
+    // 送信済みメールアドレスを取得（未返信 + 返信済みだが本文未保存のもの両方）
 
-    // 送信済み・未返信のメールアドレスを取得
-    const sentEmails = await db
+    // A) 未返信のメール
+    const unrepliedEmails = await db
       .select({
         id: salesEmailLogs.id,
         toEmail: salesEmailLogs.toEmail,
+        replyReceived: salesEmailLogs.replyReceived,
       })
       .from(salesEmailLogs)
       .where(
@@ -1018,8 +1020,40 @@ export const replyTrackingRouter = router({
         )
       );
 
+    // B) 返信済みだが返信本文がDBに保存されていないメール
+    const repliedButNoBody = await db
+      .select({
+        id: salesEmailLogs.id,
+        toEmail: salesEmailLogs.toEmail,
+        replyReceived: salesEmailLogs.replyReceived,
+      })
+      .from(salesEmailLogs)
+      .where(
+        and(
+          eq(salesEmailLogs.status, "sent"),
+          eq(salesEmailLogs.replyReceived, true)
+        )
+      );
+
+    // 返信本文が既にDBにあるlogIdを取得
+    const existingReplyLogIds = new Set<number>();
+    if (repliedButNoBody.length > 0) {
+      const existingReplies = await db
+        .select({ logId: salesEmailReplies.logId })
+        .from(salesEmailReplies);
+      for (const r of existingReplies) {
+        existingReplyLogIds.add(r.logId);
+      }
+    }
+
+    // 返信本文未保存のもののみフィルタ
+    const repliedNeedsScan = repliedButNoBody.filter(e => !existingReplyLogIds.has(e.id));
+
+    // 両方を統合
+    const sentEmails = [...unrepliedEmails, ...repliedNeedsScan];
+
     if (sentEmails.length === 0) {
-      return { checked: 0, newReplies: 0, scannedInbox: 0, message: "送信済み未返信メールがありません" };
+      return { checked: 0, newReplies: 0, scannedInbox: 0, message: "スキャン対象のメールがありません" };
     }
 
     // 送信先アドレス → logIdのマップを作成
@@ -1035,6 +1069,7 @@ export const replyTrackingRouter = router({
     const client = await getImapClient();
     let newReplies = 0;
     let savedReplies = 0;
+    let scanCount = 0;
     const repliedAddresses: string[] = [];
 
     try {
@@ -1047,8 +1082,8 @@ export const replyTrackingRouter = router({
           return { checked: sentEmails.length, newReplies: 0, scannedInbox: 0, message: "受信トレイが空です" };
         }
 
-        // 最新500件をスキャン
-        const scanCount = Math.min(total, 500);
+        // 最新1000件をスキャン（返信本文未保存の古いメールもカバー）
+        scanCount = Math.min(total, 1000);
         const start = Math.max(1, total - scanCount + 1);
         const range = `${start}:${total}`;
 
@@ -1136,7 +1171,7 @@ export const replyTrackingRouter = router({
 
     return {
       checked: sentEmails.length,
-      scannedInbox: 500,
+      scannedInbox: scanCount,
       newReplies,
       savedReplies,
       repliedAddresses,
