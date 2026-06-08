@@ -29,6 +29,8 @@ async function getImapClient() {
       pass: ENV.emailPassword,
     },
     logger: false,
+    greetingTimeout: 15000,
+    socketTimeout: 30000,
   });
   return client;
 }
@@ -1106,27 +1108,18 @@ export const replyTrackingRouter = router({
       }
     } catch (err: any) {
       console.error("[Reply Tracking] IMAP scan error:", err.message);
-      // フォールバック: IMAP接続失敗時でもDBに保存済みの返信データがあればそれを返す
-      const { salesEmailReplies } = await import("../drizzle/schema");
-      const existingReplies = await db
-        .select({ logId: salesEmailReplies.logId })
-        .from(salesEmailReplies)
-        .limit(1);
-      if (existingReplies.length > 0) {
-        return {
-          checked: sentEmails.length,
-          scannedInbox: 0,
-          newReplies: 0,
-          savedReplies: 0,
-          repliedAddresses: [],
-          message: "IMAP接続に失敗しましたが、保存済みの返信データは閲覧可能です: " + (err.message || ""),
-          imapError: true,
-        };
-      }
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "IMAP受信トレイのスキャンに失敗しました: " + (err.message || "不明なエラー"),
-      });
+      // フォールバック: IMAP接続失敗時はエラー情報を正常レスポンスとして返す
+      // （TRPCErrorをthrowするとRailwayタイムアウト時に"Unable to transform response"エラーになるため）
+      try { await client.logout(); } catch {}
+      return {
+        checked: sentEmails.length,
+        scannedInbox: 0,
+        newReplies: 0,
+        savedReplies: 0,
+        repliedAddresses: [] as string[],
+        message: "IMAP接続に失敗しました: " + (err.message || "不明なエラー").slice(0, 200),
+        imapError: true,
+      };
     } finally {
       try { await client.logout(); } catch {}
     }
