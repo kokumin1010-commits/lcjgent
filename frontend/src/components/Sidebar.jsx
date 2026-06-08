@@ -310,6 +310,24 @@ export default function Sidebar({ isOpen, onClose, user, onVideoSelect, onNewAna
     };
   }, [effectiveUser?.isLoggedIn, effectiveUser?.id, effectiveUser?.email, refreshKey]);
 
+  // Auto-cleanup: when a video becomes DONE, dismiss any matching pending_resume upload tasks
+  useEffect(() => {
+    if (!bgUploadTasks.length || !videos.length) return;
+    const doneVideos = videos.filter(v => v.status === 'DONE');
+    if (!doneVideos.length) return;
+    bgUploadTasks.forEach(task => {
+      if (task.status !== 'pending_resume') return;
+      const matchesDone = doneVideos.some(v =>
+        (task.videoId && task.videoId === v.id) ||
+        (task.fileName && task.fileName === v.original_filename)
+      );
+      if (matchesDone) {
+        // Auto-dismiss: video analysis is complete, upload task no longer needed
+        backgroundUploadManager.dismissPendingTask(task.id, (uploadId) => UploadService.clearUploadMetadata(uploadId));
+      }
+    });
+  }, [videos, bgUploadTasks]);
+
   // Auto-refresh sidebar when there are processing videos (QUEUED, STEP_*, UPLOADED)
   useEffect(() => {
     const hasProcessing = videos.some(v =>
@@ -1084,6 +1102,8 @@ export default function Sidebar({ isOpen, onClose, user, onVideoSelect, onNewAna
                                       (t.fileName && t.fileName === video.original_filename)
                                     );
                                     if (!uploadTask || uploadTask.status === 'done') return null;
+                                    // 视频分析完成后，不再显示上传中断状态（自动清理）
+                                    if (video.status === 'DONE' && uploadTask.status === 'pending_resume') return null;
                                     return (
                                       <div className="mb-1">
                                         {uploadTask.status === 'uploading' && (
