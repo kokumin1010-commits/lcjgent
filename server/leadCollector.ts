@@ -746,3 +746,88 @@ function extractPhoneFromText(text: string): string | null {
   const match = text.match(phoneRegex);
   return match ? match[0].replace(/[\s]/g, "") : null;
 }
+
+/**
+ * バルクインポート - 外部ソースからリードを一括インポート
+ */
+export async function bulkImportLeads(leadsData: Array<{
+  companyName: string;
+  email?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  address?: string | null;
+  category?: string | null;
+  source?: string;
+  status?: string;
+  contactPerson?: string | null;
+  notes?: string | null;
+  prefecture?: string | null;
+  keyword?: string | null;
+  googlePlaceId?: string | null;
+  rating?: string | null;
+  reviewCount?: number | null;
+  batchId?: string | null;
+  emailSentCount?: number;
+}>): Promise<{ imported: number; duplicates: number; errors: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  let imported = 0;
+  let duplicates = 0;
+  let errors = 0;
+
+  // バッチ処理（50件ずつ）
+  const batchSize = 50;
+  for (let i = 0; i < leadsData.length; i += batchSize) {
+    const batch = leadsData.slice(i, i + batchSize);
+    for (const lead of batch) {
+      try {
+        // 重複チェック（companyName + source の組み合わせ）
+        const existing = await db
+          .select({ id: leads.id })
+          .from(leads)
+          .where(
+            and(
+              eq(leads.companyName, lead.companyName),
+              eq(leads.source, lead.source || "kalodata_tiktok")
+            )
+          )
+          .limit(1);
+
+        if (existing.length > 0) {
+          duplicates++;
+          continue;
+        }
+
+        await db.insert(leads).values({
+          companyName: lead.companyName,
+          email: lead.email || null,
+          phone: lead.phone || null,
+          website: lead.website || null,
+          address: lead.address || null,
+          category: lead.category || null,
+          source: lead.source || "kalodata_tiktok",
+          status: lead.status || "new",
+          contactPerson: lead.contactPerson || null,
+          notes: lead.notes || null,
+          prefecture: lead.prefecture || null,
+          keyword: lead.keyword || null,
+          googlePlaceId: lead.googlePlaceId || null,
+          rating: lead.rating || null,
+          reviewCount: lead.reviewCount || null,
+          batchId: lead.batchId || null,
+          emailSentCount: lead.emailSentCount || 0,
+        } as any);
+        imported++;
+      } catch (e: any) {
+        errors++;
+        if (errors <= 5) {
+          console.error(`[BulkImport] Error importing ${lead.companyName}:`, e.message);
+        }
+      }
+    }
+  }
+
+  console.log(`[BulkImport] Complete: imported=${imported}, duplicates=${duplicates}, errors=${errors}`);
+  return { imported, duplicates, errors };
+}

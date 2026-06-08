@@ -27847,6 +27847,32 @@ JSON配列のみを出力してください。`;
         await updateLead(input.id, input.data);
         return { success: true };
       }),
+    bulkImport: protectedProcedure
+      .input(z.object({
+        leads: z.array(z.object({
+          companyName: z.string(),
+          email: z.string().nullish(),
+          phone: z.string().nullish(),
+          website: z.string().nullish(),
+          address: z.string().nullish(),
+          category: z.string().nullish(),
+          source: z.string().optional(),
+          status: z.string().optional(),
+          contactPerson: z.string().nullish(),
+          notes: z.string().nullish(),
+          prefecture: z.string().nullish(),
+          keyword: z.string().nullish(),
+          googlePlaceId: z.string().nullish(),
+          rating: z.string().nullish(),
+          reviewCount: z.number().nullish(),
+          batchId: z.string().nullish(),
+          emailSentCount: z.number().optional(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const { bulkImportLeads } = await import("./leadCollector");
+        return bulkImportLeads(input.leads);
+      }),
   }),
 });
 export type AppRouter = typeof appRouter;
