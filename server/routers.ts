@@ -11271,6 +11271,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
             }
           }
           let kgMin = 0, liverMin = 0, totalGmv = 0, streamCount = livestreams.length;
+          // ライバー別集計マップ
+          const monthLiverMap: Record<string, { streamerName: string; durationMin: number; streamCount: number; gmv: number; isKg: boolean }> = {};
           for (const ls of livestreams) {
             // ハイブリッド: livestream_brandsに正確なデータがあればそちらを使用
             const accurateDur = monthAccurateDurations.get(ls.id);
@@ -11279,7 +11281,16 @@ Return ONLY valid JSON, no markdown or explanation.`,
             if (isKg) kgMin += dur; else liverMin += dur;
             // ブランド別GMVがあればそちらを使用
             const accurateGmv = monthAccurateGmvs.get(ls.id);
-            totalGmv += accurateGmv !== undefined && accurateGmv > 0 ? accurateGmv : (ls.gmv || ls.salesAmount || 0);
+            const lsGmv = accurateGmv !== undefined && accurateGmv > 0 ? accurateGmv : (ls.gmv || ls.salesAmount || 0);
+            totalGmv += lsGmv;
+            // ライバー別集計
+            const liverKey = ls.streamerName || 'Unknown';
+            if (!monthLiverMap[liverKey]) {
+              monthLiverMap[liverKey] = { streamerName: liverKey, durationMin: 0, streamCount: 0, gmv: 0, isKg };
+            }
+            monthLiverMap[liverKey].durationMin += dur;
+            monthLiverMap[liverKey].streamCount += 1;
+            monthLiverMap[liverKey].gmv += lsGmv;
           }
 
           // 短視頻の実績を集計
@@ -11298,12 +11309,24 @@ Return ONLY valid JSON, no markdown or explanation.`,
             videoActual = vids.length;
           } catch (e) { /* table may not exist yet */ }
 
+          // ライバー別内訳を配列に変換
+          const monthLiverBreakdown = Object.values(monthLiverMap)
+            .map(v => ({
+              streamerName: v.streamerName,
+              durationHours: Math.round(v.durationMin / 60 * 10) / 10,
+              durationMin: v.durationMin,
+              streamCount: v.streamCount,
+              gmv: v.gmv,
+              isKg: v.isKg,
+            }))
+            .sort((a, b) => b.durationMin - a.durationMin);
           months.push({
             year: y, month: m + 1, // 1-indexed
             kgQuota: totalKgQuota, kgActual: Math.round(kgMin / 60 * 10) / 10,
             liverQuota: totalLiverQuota, liverActual: Math.round(liverMin / 60 * 10) / 10,
             videoQuota: totalVideoQuota, videoActual,
             totalGmv, streamCount,
+            liverBreakdown: monthLiverBreakdown,
           });
         }
 

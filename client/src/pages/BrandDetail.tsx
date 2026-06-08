@@ -1049,6 +1049,7 @@ export default function BrandDetail() {
 
   // ノルマ進捗データ取得
   const [expandedLiverBreakdown, setExpandedLiverBreakdown] = useState<string | null>(null);
+  const [selectedTrendMonth, setSelectedTrendMonth] = useState<{ year: number; month: number } | null>(null);
   const [quotaMonth, setQuotaMonth] = useState(() => {
     const now = new Date();
     // JST: UTC+9
@@ -2774,7 +2775,19 @@ ${proposal.proposalContent}
                   {language === 'ja' ? '📊 月別配信時間 (時間)' : '📊 月度直播时长 (小时)'}
                 </h3>
                 <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={quotaTrend.months} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                  <BarChart data={quotaTrend.months} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}
+                    onClick={(data: any) => {
+                      if (data && data.activePayload && data.activePayload[0]) {
+                        const monthData = data.activePayload[0].payload;
+                        setSelectedTrendMonth(
+                          selectedTrendMonth?.year === monthData.year && selectedTrendMonth?.month === monthData.month
+                            ? null
+                            : { year: monthData.year, month: monthData.month }
+                        );
+                      }
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                     <XAxis dataKey="label" tick={{ fill: '#999', fontSize: 11 }} />
                     <YAxis tick={{ fill: '#999', fontSize: 11 }} />
@@ -2787,6 +2800,56 @@ ${proposal.proposalContent}
                     <Bar dataKey="liverHours" name="達人" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
+                {/* クリック時のライバー別月別時長サマリー */}
+                {selectedTrendMonth && (() => {
+                  const monthData = quotaTrend.months.find((m: any) => m.year === selectedTrendMonth.year && m.month === selectedTrendMonth.month);
+                  if (!monthData || !monthData.liverBreakdown || monthData.liverBreakdown.length === 0) return null;
+                  return (
+                    <div className="mt-3 bg-black/60 rounded-lg p-3 border border-cyan-500/20 animate-in fade-in duration-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-xs font-medium text-cyan-300">
+                          {language === 'ja' ? `${selectedTrendMonth.year}年${selectedTrendMonth.month}月 主播別時長` : `${selectedTrendMonth.year}年${selectedTrendMonth.month}月 主播时长明细`}
+                        </h4>
+                        <button onClick={() => setSelectedTrendMonth(null)} className="text-gray-500 hover:text-gray-300 text-xs">✕</button>
+                      </div>
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-700">
+                            <th className="text-left py-1.5 text-gray-400">{language === 'ja' ? '主播' : '主播'}</th>
+                            <th className="text-center py-1.5 text-gray-400">{language === 'ja' ? '種類' : '类型'}</th>
+                            <th className="text-right py-1.5 text-gray-400">{language === 'ja' ? '回数' : '次数'}</th>
+                            <th className="text-right py-1.5 text-gray-400">{language === 'ja' ? '時長' : '时长'}</th>
+                            <th className="text-right py-1.5 text-gray-400">GMV</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {monthData.liverBreakdown.map((lb: any, idx: number) => (
+                            <tr key={idx} className="border-b border-gray-800/50 hover:bg-white/5">
+                              <td className="py-1.5 text-white font-medium">{lb.streamerName}</td>
+                              <td className="py-1.5 text-center">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] ${lb.isKg ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                                  {lb.isKg ? 'KG老師' : '達人'}
+                                </span>
+                              </td>
+                              <td className="py-1.5 text-right text-gray-300">{lb.streamCount}{language === 'ja' ? '回' : '次'}</td>
+                              <td className="py-1.5 text-right text-cyan-300 font-medium">{lb.durationHours}h</td>
+                              <td className="py-1.5 text-right text-green-400">¥{(lb.gmv || 0).toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t border-gray-600">
+                            <td className="py-1.5 text-gray-300 font-medium">{language === 'ja' ? '合計' : '合计'}</td>
+                            <td></td>
+                            <td className="py-1.5 text-right text-gray-300">{monthData.streamCount}{language === 'ja' ? '回' : '次'}</td>
+                            <td className="py-1.5 text-right text-cyan-300 font-bold">{(monthData.kgHours + monthData.liverHours).toFixed(1)}h</td>
+                            <td className="py-1.5 text-right text-green-400 font-bold">¥{(monthData.gmv || monthData.totalGmv || 0).toLocaleString()}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* 達成率推移 */}
