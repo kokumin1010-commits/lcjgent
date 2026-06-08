@@ -3104,6 +3104,7 @@ function AiReviewLogPanel() {
   const decisionConfig: Record<string, { label: string; icon: any; bg: string; text: string; border: string; ringColor: string }> = {
     approved: { label: t("lr.aiLog.aiApproved"), icon: ShieldCheck, bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", ringColor: "ring-emerald-400" },
     rejected_duplicate: { label: t("lr.aiLog.duplicateRejected"), icon: ShieldX, bg: "bg-red-50", text: "text-red-700", border: "border-red-200", ringColor: "ring-red-400" },
+    rejected_missing_data: { label: "データ欠損却下", icon: ShieldX, bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", ringColor: "ring-orange-400" },
     rejected_ai: { label: t("lr.aiLog.aiRejected"), icon: ShieldX, bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200", ringColor: "ring-rose-400" },
     held: { label: t("lr.aiLog.aiHeld"), icon: ShieldAlert, bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ringColor: "ring-amber-400" },
     skipped: { label: t("lr.aiLog.skipped"), icon: SkipForward, bg: "bg-gray-50", text: "text-gray-600", border: "border-gray-200", ringColor: "ring-gray-400" },
@@ -3126,7 +3127,7 @@ function AiReviewLogPanel() {
     const humanRejected = (statsData.byHumanOverride || []).find((s: any) => s.humanOverride === "rejected")?.count ?? 0;
     return {
       approved: getCount("approved"),
-      rejected: getCount("rejected_duplicate"),
+      rejected: getCount("rejected_duplicate") + getCount("rejected_missing_data"),
       rejectedAi: getCount("rejected_ai"),
       held: getCount("held"),
       skipped: getCount("skipped"),

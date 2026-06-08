@@ -2098,19 +2098,15 @@ export const lineLoginRouter = router({
               console.error(`[Web Receipt BG] Phash failed for receipt ${receiptId}:`, phashErr);
             }
             
-            // 2. 画像ハッシュ重複チェック（バックグラウンド）
+            // 2. 画像ハッシュ重複チェック（フラグ付与のみ、自動拒否は注文番号重複で実施）
             const { checkDuplicateLineReceiptByHash } = await import("./db");
+            let imageHashDuplicate: any = null;
             for (const img of uploadedImages) {
               const duplicate = await checkDuplicateLineReceiptByHash(img.hash, receiptId);
               if (duplicate) {
-                console.log(`[Web Receipt BG] Duplicate image detected for receipt ${receiptId} (matches receipt ${duplicate.id})`);
-                const { updateLineReceiptAiRejection: updateAiRejDup, updateLineReceiptStatus: updateDupStat } = await import("./db");
-                await updateAiRejDup(receiptId, {
-                  aiRejectionReason: `同一画像が既に申請済みです（申請ID: ${duplicate.id}）`,
-                  aiRejectionCategory: "duplicate_image",
-                });
-                await updateDupStat(receiptId, "rejected", 0, `自動却下: 画像ハッシュ重複 (元の申請ID: ${duplicate.id})`);
-                return; // バックグラウンド処理を終了
+                console.log(`[Web Receipt BG] Duplicate image detected for receipt ${receiptId} (matches receipt ${duplicate.id}) - flagging only, rejection by order number`);
+                imageHashDuplicate = duplicate;
+                break;
               }
             }
             
@@ -19419,49 +19415,11 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                 primaryImageUrl
               );
               if (level3Result.isDuplicate) {
-                if (!input.dryRun) {
-                  await updateLineReceiptStatus(candidate.id, "rejected", ctx.user.id,
-                    `[AI自動] Level3: ${level3Result.reason}`);
-                  try {
-                    await createReceiptReviewLog({
-                      receiptType: "line_receipt",
-                      receiptId: candidate.id,
-                      decision: "rejected",
-                      rejectionCategory: "duplicate",
-                      rejectionNote: `AI自動却下(Level3): ${level3Result.reason}`,
-                      totalAmount: candidate.totalAmount ?? undefined,
-                      hasOrderNumber: orderNumber ? "yes" : "no",
-                      imageCount: candidate.imageUrls?.length ?? 1,
-                      fraudScore: candidate.fraudScore ?? undefined,
-                      fraudFlagCount: candidate.fraudFlags?.length ?? 0,
-                      pointsCalculated: candidate.pointsCalculated ?? undefined,
-                      reviewedBy: ctx.user.id,
-                    });
-                  } catch (logErr) {
-                    console.error("[AI AutoApprove] Failed to log Level3 rejection:", logErr);
-                  }
-                  // 同一画像繰り返しアップロード検出 → 不正ユーザー判定
-                  try {
-                    const { countDuplicateImageRejections } = await import("./db");
-                    const dupCount = await countDuplicateImageRejections(candidate.lineUserId);
-                    if (dupCount >= 3) {
-                      // 3回以上同一画像で却下されている → 不正ユーザーとしてブロック
-                      const { updateLineUserBlocked } = await import("./db");
-                      await updateLineUserBlocked(candidate.lineUserId, true);
-                      console.log(`[AI AutoApprove] 不正ユーザー判定: ${candidate.lineUserId} (同一画像重複${dupCount}回)`);
-                      // LINE通知
-                      try {
-                        await pushMsg(candidate.lineUserId, [{ type: "text", text: `⚠️ 同一の画像を繰り返し送信しているため、アカウントが制限されました。\n\n心当たりがない場合はお問い合わせください。` }]);
-                      } catch { /* ignore */ }
-                    }
-                  } catch (fraudErr) {
-                    console.error("[AI AutoApprove] Fraud check error:", fraudErr);
-                  }
-                }
+                // Level3画像重複 → スキップ（人工審核が必要）
                 results.push({
                   id: candidate.id,
-                  action: "rejected_duplicate",
-                  reason: `Level3: ${level3Result.reason}`,
+                  action: "skipped",
+                  reason: `Level3画像重複（人工審核必要）: ${level3Result.reason}`,
                   orderNumber,
                   amount: candidate.totalAmount ?? undefined,
                 });
@@ -19472,12 +19430,41 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             console.error(`[AI AutoApprove] Level3 check error for receipt #${candidate.id}:`, level3Err.message);
           }
           
-          // --- Rule 2: Missing essential data → now handled by LLM instead of skipping ---
-          // Previously skipped receipts without order number or amount.
-          // Now we let LLM judge from the image - it can often read order numbers
-          // and amounts that OCR missed.
+          // --- Rule 2: Missing essential data (order number AND amount) → auto reject ---
           const missingOrderNumber = !orderNumber;
           const missingAmount = !candidate.totalAmount || candidate.totalAmount <= 0;
+          if (missingOrderNumber && missingAmount) {
+            if (!input.dryRun) {
+              await updateLineReceiptStatus(candidate.id, "rejected", ctx.user.id,
+                `[AI自動] データ欠損: 注文番号・金額ともに取得不可`);
+              try {
+                await createReceiptReviewLog({
+                  receiptType: "line_receipt",
+                  receiptId: candidate.id,
+                  decision: "rejected",
+                  rejectionCategory: "missing_data",
+                  rejectionNote: `AI自動却下: 注文番号なし・金額なし`,
+                  totalAmount: candidate.totalAmount ?? undefined,
+                  hasOrderNumber: "no",
+                  imageCount: candidate.imageUrls?.length ?? 1,
+                  fraudScore: candidate.fraudScore ?? undefined,
+                  fraudFlagCount: candidate.fraudFlags?.length ?? 0,
+                  pointsCalculated: candidate.pointsCalculated ?? undefined,
+                  reviewedBy: ctx.user.id,
+                });
+              } catch (logErr) {
+                console.error("[AI AutoApprove] Failed to log missing data rejection:", logErr);
+              }
+            }
+            results.push({
+              id: candidate.id,
+              action: "rejected_missing_data",
+              reason: `データ欠損: 注文番号なし・金額なし`,
+              orderNumber,
+              amount: candidate.totalAmount ?? undefined,
+            });
+            continue;
+          }
           
           // --- Rule 3: Force-submitted (AI-rejected) receipts → skip (needs human review) ---
           if (candidate.isForceSubmitted) {
@@ -20035,6 +20022,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           skipped: results.filter(r => r.action === "skipped").length,
           held: results.filter(r => r.action === "held").length,
           rejectedDuplicate: results.filter(r => r.action === "rejected_duplicate").length,
+          rejectedMissingData: results.filter(r => r.action === "rejected_missing_data").length,
           rejectedAi: results.filter(r => r.action === "rejected_ai").length,
         };
         
@@ -20050,6 +20038,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               aiComment = `✅ 承認: ${r.reason || "条件を満たしています"}${r.confidence ? ` (信頼度: ${r.confidence}%)` : ""}`;
             } else if (r.action === "rejected_duplicate") {
               aiComment = `❌ 重複却下: ${r.reason || "同一注文番号で既に承認済みのレシートが存在します"}`;
+            } else if (r.action === "rejected_missing_data") {
+              aiComment = `❌ データ欠損却下: ${r.reason || "注文番号・金額ともに取得不可"}`;
             } else if (r.action === "rejected_ai") {
               aiComment = `🚫 AI却下: ${r.reason || "信頼度が低いため自動却下されました"}${r.confidence ? ` (信頼度: ${r.confidence}%)` : ""}`;
             } else if (r.action === "held") {
