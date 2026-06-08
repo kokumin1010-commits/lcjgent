@@ -2223,14 +2223,11 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
         select_parts = [f"between(t,{s:.3f},{e:.3f})" for s, e in keep_segments]
         select_expr = "+".join(select_parts)
         vf_parts.append(f"select='{select_expr}'")
-        # V2.20: setptsをspeed_factorと統合して二重適用を防止
-        # 以前: setpts=N/FRAME_RATE/TB + setpts=0.9524*PTS → フレームタイミング不整合
-        # 修正: speed_factorを直接組み込んだ単一のsetptsを使用
-        _speed = getattr(req, 'speed_factor', 1.05)
-        if _speed > 1.0:
-            vf_parts.append(f"setpts=N/(FRAME_RATE*{_speed:.4f})/TB")
-        else:
-            vf_parts.append("setpts=N/FRAME_RATE/TB")
+        # V2.21: 回退setpts統合 - 音視頻同期問題の根本修正
+        # 原因: setpts=N/(FRAME_RATE*speed)/TBと-vsync dropの組み合わせで
+        #   フレームタイムスタンプが破壊され音視頻不同期が発生
+        # 修正: V2.19方式に戻す（select+setpts=N/FRAME_RATE/TB、速度は1bで別途適用）
+        vf_parts.append("setpts=N/FRAME_RATE/TB")
         af_chain = f"aselect='{select_expr}',asetpts=N/SR/TB"
         # V14.2: セグメント境界フェードを完全に無効化
         # 【根本原因】ffmpegのfadeフィルタをチェーンで使うと全フレームが黒になる:
@@ -2250,24 +2247,20 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
         # select+setpts後の出力時間軸に合わせる（字幕ズレ修正）
         overlay_images = _remap_overlay_images_for_silence_trim(overlay_images, keep_segments)
         zoom_keyframes = _remap_zoom_keyframes_for_silence_trim(zoom_keyframes, keep_segments)
-        # V2.20: speed_factorがsetptsに統合されているため、overlay/zoomのタイミングも縮小する
-        _speed_for_duration = getattr(req, 'speed_factor', 1.05)
-        if _speed_for_duration > 1.0:
-            overlay_images = [(p, s / _speed_for_duration, e / _speed_for_duration) for p, s, e in overlay_images]
-            zoom_keyframes = [(t / _speed_for_duration, zf) for t, zf in zoom_keyframes]
-        raw_duration = sum(e - s for s, e in keep_segments)
-        duration = raw_duration / _speed_for_duration if _speed_for_duration > 1.0 else raw_duration
-        logger.info(f"[ai-clip] V2.20 remap: {len(overlay_images)} overlays, "
+        # V2.21: overlay/zoomのタイミング縮小は1bのsetptsで自動的に適用される
+        # （speed_factorのsetpts=0.9524*PTSがoverlay後のPTSを縮小するため）
+        duration = sum(e - s for s, e in keep_segments)
+        logger.info(f"[ai-clip] V2.21 remap: {len(overlay_images)} overlays, "
                     f"{len(zoom_keyframes)} zoom keyframes remapped to trimmed timeline "
-                    f"(raw={raw_duration:.1f}s, speed={_speed_for_duration:.2f}x, output_duration={duration:.1f}s)")
+                    f"(output_duration={duration:.1f}s)")
 
     # ── 1b. Speed factor (V13: TikTok風テンポアップ) ──
     speed_factor = getattr(req, 'speed_factor', 1.05)
     if speed_factor > 1.0:
         if use_silence_trim:
-            # V2.20: silence trimの場合、speed_factorは既にsetptsに組み込み済み
-            # 以前の二重setpts問題を解消: setpts=N/(FRAME_RATE*speed)/TBで統合済み
-            # 音声のみatempoを追加
+            # V2.21: silence trimありの場合も通常通りsetpts+atempoを追加
+            # select+setpts=N/FRAME_RATE/TBで正常帧率に戻した後、速度変更を適用
+            vf_parts.append(f"setpts={1.0/speed_factor:.4f}*PTS")
             af_chain = f"{af_chain},atempo={speed_factor:.4f}"
         else:
             # silence trimなし: 単純にsetpts + atempo
@@ -2396,7 +2389,7 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
             "-c:v", "libx264",
             "-preset", "ultrafast",
             "-crf", "23",
-            # V2.20: 拼接点硬切モード強制 - 補帧/插值を完全に無効化
+            # V2.21: 拼接点硬切モード（-vsync vfrで音視頻同期を保証） - 補帧/插值を完全に無効化
             # -bf 0: B-frame禁止（拼接点で前後フレームを参照しない）
             # -flags +cgop: Closed GOP（各GOPが独立、他のGOPを参照しない）
             # -sc_threshold 0: シーンチェンジ検出を無効化（拼接点で不要なキーフレーム挿入を防止）
@@ -2404,7 +2397,7 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
             "-bf", "0",
             "-flags", "+cgop",
             "-sc_threshold", "0",
-            "-vsync", "drop",
+            "-vsync", "vfr",
             "-c:a", "aac",
             "-b:a", "128k",
             "-movflags", "+faststart",
@@ -2423,11 +2416,11 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
             "-c:v", "libx264",
             "-preset", "ultrafast",
             "-crf", "23",
-            # V2.20: 拼接点硬切モード強制
+            # V2.21: 拼接点硬切モード（-vsync vfrで音視頻同期を保証）
             "-bf", "0",
             "-flags", "+cgop",
             "-sc_threshold", "0",
-            "-vsync", "drop",
+            "-vsync", "vfr",
             "-c:a", "aac",
             "-b:a", "128k",
             "-movflags", "+faststart",
@@ -2444,11 +2437,11 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
             "-c:v", "libx264",
             "-preset", "ultrafast",
             "-crf", "23",
-            # V2.20: 拼接点硬切モード強制
+            # V2.21: 拼接点硬切モード（-vsync vfrで音視頻同期を保証）
             "-bf", "0",
             "-flags", "+cgop",
             "-sc_threshold", "0",
-            "-vsync", "drop",
+            "-vsync", "vfr",
             "-c:a", "aac",
             "-b:a", "128k",
             "-movflags", "+faststart",
@@ -4009,9 +4002,9 @@ async def _run_regeneration(
                 "-filter_complex", fc_str,
                 "-map", "[vout]", "-map", "0:a",
                 "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-                # V2.20: 拼接点硬切モード強制
+                # V2.21: 拼接点硬切モード（-vsync vfrで音視頻同期を保証）
                 "-bf", "0", "-flags", "+cgop", "-sc_threshold", "0",
-                "-vsync", "drop",
+                "-vsync", "vfr",
                 "-c:a", "aac", "-b:a", "128k",
                 "-movflags", "+faststart",
                 output_path,
@@ -4021,9 +4014,9 @@ async def _run_regeneration(
             ffmpeg_cmd = [
                 "ffmpeg", "-y", "-i", video_path,
                 "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-                # V2.20: 拼接点硬切モード強制
+                # V2.21: 拼接点硬切モード（-vsync vfrで音視頻同期を保証）
                 "-bf", "0", "-flags", "+cgop", "-sc_threshold", "0",
-                "-vsync", "drop",
+                "-vsync", "vfr",
                 "-c:a", "aac", "-b:a", "128k",
                 "-movflags", "+faststart",
                 output_path,
@@ -7454,9 +7447,9 @@ async def _run_regeneration_from_source_inner(job_id: str, clip_row, req: RegenF
             "-filter_complex", fc_str,
             "-map", "[vout]", "-map", "0:a",
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-            # V2.20: 拼接点硬切モード強制
+            # V2.21: 拼接点硬切モード（-vsync vfrで音視頻同期を保証）
             "-bf", "0", "-flags", "+cgop", "-sc_threshold", "0",
-            "-vsync", "drop",
+            "-vsync", "vfr",
             "-c:a", "aac", "-b:a", "128k",
             "-movflags", "+faststart",
             output_path,
@@ -7465,9 +7458,9 @@ async def _run_regeneration_from_source_inner(job_id: str, clip_row, req: RegenF
         ffmpeg_cmd = [
             "ffmpeg", "-y", "-i", cut_video_path,
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-            # V2.20: 拼接点硬切モード強制
+            # V2.21: 拼接点硬切モード（-vsync vfrで音視頻同期を保証）
             "-bf", "0", "-flags", "+cgop", "-sc_threshold", "0",
-            "-vsync", "drop",
+            "-vsync", "vfr",
             "-c:a", "aac", "-b:a", "128k",
             "-movflags", "+faststart",
             output_path,
