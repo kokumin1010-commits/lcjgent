@@ -2408,6 +2408,12 @@ async function startServer() {
               console.error("[Migration] Chat message edit/revoke error:", err);
             });
           });
+          // Leads table for independent lead collection pipeline
+          import("../migrations/createLeadsTable").then(({ createLeadsTable }) => {
+            createLeadsTable(db).catch((err: unknown) => {
+              console.error("[Migration] Leads table error:", err);
+            });
+          });
         }
       });
     });
