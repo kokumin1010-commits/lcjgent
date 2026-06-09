@@ -787,6 +787,51 @@ def _detect_silence_periods(video_path: str, noise_db: float = -30.0,
         return []
 
 
+
+# ─── V2.25: Scene Change Detection (ジャンプカット検出) ───────────────────────────────────────
+async def _detect_scene_changes(video_path: str, duration: float,
+                                 threshold: float = 0.3) -> list:
+    """ffmpegのscene detectionを使ってジャンプカットを検出する。
+    Returns: list of timestamps (float) where scene changes occur.
+    フィルタ: 最初0.5秒と最後1秒は除外（フック/CTAの領域）
+    """
+    try:
+        cmd = [
+            "ffmpeg", "-i", video_path,
+            "-vf", f"select='gt(scene,{threshold})',showinfo",
+            "-vsync", "vfr",
+            "-f", "null", "-"
+        ]
+        proc = await asyncio.subprocess.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        _, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=30)
+        stderr_text = stderr_bytes.decode("utf-8", errors="replace")
+        # Parse showinfo output for pts_time
+        import re
+        scene_times = []
+        for line in stderr_text.split("\n"):
+            if "pts_time:" in line:
+                match = re.search(r"pts_time:([\d.]+)", line)
+                if match:
+                    t = float(match.group(1))
+                    # 最初0.5秒と最後1秒は除外
+                    if 0.5 < t < duration - 1.0:
+                        scene_times.append(t)
+        # 近接するシーンチェンジをマージ（0.5秒以内）
+        filtered = []
+        for t in scene_times:
+            if not filtered or t - filtered[-1] > 0.5:
+                filtered.append(t)
+        logger.info(f"[ai-clip] V2.25: Scene detection found {len(filtered)} jump cuts (threshold={threshold})")
+        return filtered
+    except asyncio.TimeoutError:
+        logger.warning("[ai-clip] V2.25: Scene detection timed out")
+        return []
+    except Exception as e:
+        logger.warning(f"[ai-clip] V2.25: Scene detection failed: {e}")
+        return []
+
 # ─── V11: Content Relevance Analysis (GPT) ───────────────────────────────────────────────
 
 async def _analyze_content_relevance(captions: list, product_name: str, duration: float) -> list:
@@ -2240,6 +2285,7 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
     position_y: float = 75,
     overlay_images: list = None,
     video_fps: int = 30,
+    scene_change_times: list = None,
 ) -> list:
     """V2.10: Pillow overlay方式の高度なffmpegフィルタチェーンを構築する。
 
@@ -2377,7 +2423,8 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
                                         f"{len(zoom_keyframes)} zoom keyframes remapped to trimmed timeline "
                     f"(output_duration={duration:.1f}s)")
     else:
-        self_cut_boundaries = []
+        # V2.25: silence cutがなくても、scene change検出結果があればflash適用
+        self_cut_boundaries = scene_change_times or []
     # ── 1b. Speed factor (V13: TikTok風テンポアップ) ──
     speed_factor = getattr(req, 'speed_factor', 1.05)
     if speed_factor > 1.0:
@@ -5250,6 +5297,24 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
                 duration, volume_peaks, captions, max_zoom=req.zoom_intensity
             )
 
+        # ── 5b. V2.25: Scene change detection for jump cut concealment ──
+        # 原始素材中の既存jump cutを検出し、zoom burstで遮蔽する
+        # silence cutがない場合でも、元のクリップにジャンプカットがある可能性がある
+        scene_change_times = []
+        try:
+            scene_change_times = await _detect_scene_changes(video_path, duration)
+            if scene_change_times:
+                logger.info(f"[ai-clip {job_id}] V2.25: Detected {len(scene_change_times)} scene changes in source clip")
+                # 各scene change点にzoom burst (1.12x)を追加
+                for sc_time in scene_change_times:
+                    # 既存のzoom_keyframesと重複しないようにチェック
+                    if not any(abs(sc_time - t) < 0.5 for t, _ in zoom_keyframes):
+                        zoom_keyframes.append((sc_time, 1.12))
+                zoom_keyframes.sort(key=lambda x: x[0])
+                logger.info(f"[ai-clip {job_id}] V2.25: zoom_keyframes updated to {len(zoom_keyframes)} (with scene change bursts)")
+        except Exception as sc_err:
+            logger.warning(f"[ai-clip {job_id}] V2.25: Scene change detection failed (non-fatal): {sc_err}")
+
         # ── 6. Hook generation ── (38%)
         hook_text = None
         if req.enable_hook:
@@ -5390,8 +5455,8 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
             position_y=req.position_y,
             overlay_images=overlay_images,
             video_fps=video_fps,
+            scene_change_times=scene_change_times,
         )
-
         ffmpeg_cmd_str = ' '.join(ffmpeg_cmd)
         logger.info(f"[ai-clip {job_id}] ffmpeg V2 cmd: {ffmpeg_cmd_str}")
         await _update_job(job_id, progress_pct=60, current_step=f"\u30af\u30ea\u30c3\u30d7 {idx+1}/{total}: \u30a8\u30f3\u30b3\u30fc\u30c9\u4e2d (ffmpeg)...")
