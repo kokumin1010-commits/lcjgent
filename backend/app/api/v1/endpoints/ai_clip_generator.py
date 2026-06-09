@@ -8478,3 +8478,1051 @@ def _apply_editing_profile_to_request(req: "GenerateRequest", profile_params: di
     except Exception as e:
         logger.warning(f"[ai-clip] Failed to apply editing profile params: {e}")
         return req
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V3.0: 按产品自动分段模式 (Product-based Auto-Segmentation)
+# ═══════════════════════════════════════════════════════════════════════════════
+# 从完整直播视频中按产品自动分段、提炼卖点字幕、气口剪切后硬切拼接，
+# 输出多个独立clip文件。与现有AI Clip模式并存。
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class GenerateByProductRequest(BaseModel):
+    """V3.0: 按产品自动分段生成リクエスト"""
+    video_id: str = Field(..., description="完整直播视频ID (videos表)")
+    brand_id: Optional[str] = Field(None, description="ブランドID（product_masterフィルタ用）")
+    subtitle_style: str = Field("auto", description="字幕スタイル")
+    enable_silence_cut: bool = Field(True, description="≥1秒の気口/停顿を自動カット")
+    silence_threshold_db: float = Field(-22.0, ge=-60.0, le=-10.0, description="無音検出閾値(dB)")
+    speed_factor: float = Field(1.05, ge=1.0, le=1.3, description="再生速度倍率")
+    position_y: float = Field(75.0, ge=0, le=100, description="字幕Y位置（%）")
+    target_language: str = Field("auto", description="字幕言語 (auto/ja/zh/zh-tw)")
+    # 卖点字幕位置（视频上方）
+    highlight_position_y: float = Field(12.0, ge=0, le=50, description="卖点字幕Y位置（%）- 视频上方")
+    # 气口剪切参数（V3.0: ≥1秒才剪切，比V2更保守）
+    min_silence_duration: float = Field(1.0, ge=0.5, le=3.0, description="最小気口長（秒）- これ以上の停顿をカット")
+    # 卖点字幕显示时间
+    highlight_display_duration: float = Field(4.0, ge=2.0, le=8.0, description="各卖点字幕の表示時間（秒）")
+
+
+# ─── V3.0 API Endpoint ───────────────────────────────────────────────────────
+
+@router.post("/generate-by-product")
+async def generate_by_product(
+    req: GenerateByProductRequest,
+    background_tasks: BackgroundTasks,
+    x_admin_key: Optional[str] = Header(None),
+):
+    """V3.0: 按产品自动分段 - 完整直播视频から产品ごとに独立clip生成"""
+    verify_admin(x_admin_key)
+
+    job_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    job_data = {
+        "job_id": job_id,
+        "status": "queued",
+        "progress_pct": 0,
+        "current_step": "V3.0 按产品分段モード: 準備中...",
+        "clips_completed": 0,
+        "clips_total": 0,
+        "results": [],
+        "error": None,
+        "created_at": now,
+        "updated_at": now,
+        "config": {**req.dict(), "mode": "by_product_v3"},
+    }
+    await _save_job(job_id, job_data)
+    background_tasks.add_task(_run_product_segmentation, job_id, req)
+    return {
+        "job_id": job_id,
+        "status": "queued",
+        "message": "V3.0 按产品自動分段ジョブを開始しました",
+    }
+
+
+# ─── V3.0 Main Pipeline ──────────────────────────────────────────────────────
+
+async def _run_product_segmentation(job_id: str, req: GenerateByProductRequest):
+    """V3.0 按产品分段のメインパイプライン"""
+    try:
+        async with _AI_CLIP_SEMAPHORE:
+            await _run_product_segmentation_inner(job_id, req)
+    except Exception as e:
+        logger.error(f"[ai-clip-v3 {job_id}] Fatal error: {e}", exc_info=True)
+        await _update_job(job_id, status="failed", error=str(e)[:500])
+
+
+async def _run_product_segmentation_inner(job_id: str, req: GenerateByProductRequest):
+    """V3.0 按产品分段の内部実装"""
+    import httpx
+
+    logger.info(f"[ai-clip-v3 {job_id}] Starting V3.0 product segmentation pipeline for video {req.video_id}")
+    await _update_job(job_id, status="processing", progress_pct=1,
+                      current_step="V3.0: 動画情報取得中...")
+
+    # ── 1. Get video info and download URL ──
+    video_url = None
+    original_filename = None
+    try:
+        async with get_session() as session:
+            result = await session.execute(text("""
+                SELECT v.id, v.user_id, v.original_filename, v.compressed_blob_url, u.email
+                FROM videos v
+                LEFT JOIN users u ON v.user_id = u.id
+                WHERE v.id = CAST(:video_id AS uuid)
+            """), {"video_id": req.video_id})
+            row = result.fetchone()
+            if not row:
+                await _update_job(job_id, status="failed", error=f"Video not found: {req.video_id}")
+                return
+            original_filename = row.original_filename or "video.mp4"
+
+            # Prefer compressed version
+            from app.services.storage_service import (
+                generate_download_sas, generate_read_sas_from_url,
+                ACCOUNT_NAME, CONTAINER_NAME,
+            )
+            compressed = getattr(row, 'compressed_blob_url', None)
+            if compressed:
+                try:
+                    full_url = f"https://{ACCOUNT_NAME}.blob.core.windows.net/{CONTAINER_NAME}/{compressed}"
+                    sas_url = generate_read_sas_from_url(full_url, expires_hours=4)
+                    if sas_url:
+                        video_url = sas_url
+                        logger.info(f"[ai-clip-v3 {job_id}] Using compressed video: {compressed[:60]}")
+                except Exception as e:
+                    logger.warning(f"[ai-clip-v3 {job_id}] Compressed SAS failed: {e}")
+
+            if not video_url and row.email:
+                try:
+                    dl_url, _ = await generate_download_sas(
+                        email=row.email,
+                        video_id=req.video_id,
+                        filename=original_filename,
+                        expires_in_minutes=1440,
+                    )
+                    if dl_url:
+                        video_url = dl_url
+                except Exception as e:
+                    logger.warning(f"[ai-clip-v3 {job_id}] Download SAS failed: {e}")
+
+    except Exception as e:
+        await _update_job(job_id, status="failed", error=f"DB error: {str(e)[:200]}")
+        return
+
+    if not video_url:
+        await _update_job(job_id, status="failed", error="動画のダウンロードURLが取得できません")
+        return
+
+    await _update_job(job_id, progress_pct=3, current_step="V3.0: 動画ダウンロード中...")
+
+    # ── 2. Download video ──
+    tmp_dir = tempfile.mkdtemp(prefix=f"ai_clip_v3_{job_id[:8]}_")
+    video_path = os.path.join(tmp_dir, "full_video.mp4")
+    try:
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            async with client.stream("GET", video_url) as resp:
+                resp.raise_for_status()
+                total_bytes = int(resp.headers.get('content-length', 0))
+                downloaded = 0
+                with open(video_path, "wb") as f:
+                    async for chunk in resp.aiter_bytes(chunk_size=131072):
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total_bytes > 0:
+                            dl_pct = 3 + int((downloaded / total_bytes) * 7)
+                            await _update_job(job_id, progress_pct=min(dl_pct, 10),
+                                current_step=f"V3.0: ダウンロード中 {downloaded//1024//1024}MB/{total_bytes//1024//1024}MB")
+
+        file_size = os.path.getsize(video_path)
+        logger.info(f"[ai-clip-v3 {job_id}] Downloaded video: {file_size//1024//1024}MB")
+    except Exception as e:
+        await _update_job(job_id, status="failed", error=f"Download failed: {str(e)[:200]}")
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return
+
+    await _update_job(job_id, progress_pct=10, current_step="V3.0: 動画情報解析中...")
+
+    # ── 3. Get video info (ffprobe) ──
+    probe_cmd = [
+        "ffprobe", "-v", "quiet", "-print_format", "json",
+        "-show_format", "-show_streams", video_path
+    ]
+    probe_result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
+    probe_data = json.loads(probe_result.stdout) if probe_result.returncode == 0 else {}
+    video_width = 1080
+    video_height = 1920
+    video_fps = 30
+    total_duration = 0.0
+    for stream in probe_data.get("streams", []):
+        if stream.get("codec_type") == "video":
+            video_width = int(stream.get("width", 1080))
+            video_height = int(stream.get("height", 1920))
+            r_frame_rate = stream.get("r_frame_rate", "30/1")
+            try:
+                num, den = r_frame_rate.split("/")
+                video_fps = round(int(num) / int(den))
+            except (ValueError, ZeroDivisionError):
+                video_fps = 30
+            video_fps = max(24, min(60, video_fps))
+            if "duration" in stream:
+                total_duration = float(stream["duration"])
+            break
+    if "format" in probe_data and "duration" in probe_data["format"]:
+        total_duration = float(probe_data["format"]["duration"])
+    if total_duration <= 0:
+        await _update_job(job_id, status="failed", error="動画の長さが取得できません")
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return
+
+    logger.info(f"[ai-clip-v3 {job_id}] Video: {video_width}x{video_height}, {total_duration:.1f}s, {video_fps}fps")
+    await _update_job(job_id, progress_pct=12, current_step="V3.0: 全文音声認識中 (Whisper)...")
+
+    # ── 4. Full transcription (Whisper) ──
+    full_captions = await _transcribe_clip(video_path, req.target_language)
+    if not full_captions:
+        await _update_job(job_id, status="failed", error="音声認識に失敗しました（字幕なし）")
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return
+
+    # Split long segments
+    full_captions = _split_long_segments(full_captions)
+    logger.info(f"[ai-clip-v3 {job_id}] Transcription: {len(full_captions)} segments, "
+                f"total text: {sum(len(c.get('text','')) for c in full_captions)} chars")
+    await _update_job(job_id, progress_pct=25, current_step="V3.0: 产品分段検出中...")
+
+    # ── 5. Detect product segments ──
+    product_segments = await _v3_detect_product_segments(
+        job_id, req.video_id, req.brand_id, full_captions, total_duration
+    )
+    if not product_segments:
+        await _update_job(job_id, status="failed", error="产品分段が検出できませんでした")
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return
+
+    clips_total = len(product_segments)
+    await _update_job(job_id, clips_total=clips_total, progress_pct=35,
+                      current_step=f"V3.0: {clips_total}个产品分段を検出、卖点提炼中...")
+    logger.info(f"[ai-clip-v3 {job_id}] Detected {clips_total} product segments")
+
+    # ── 6. Extract highlights for each product ──
+    for i, seg in enumerate(product_segments):
+        try:
+            highlights = await _v3_extract_highlights(
+                seg["transcript"], seg["product_name"], job_id
+            )
+            seg["highlights"] = highlights
+            logger.info(f"[ai-clip-v3 {job_id}] Product '{seg['product_name']}': {len(highlights)} highlights")
+        except Exception as e:
+            logger.warning(f"[ai-clip-v3 {job_id}] Highlight extraction failed for '{seg['product_name']}': {e}")
+            seg["highlights"] = []
+
+    await _update_job(job_id, progress_pct=40, current_step="V3.0: 各产品clip生成開始...")
+
+    # ── 7. Process each product segment into independent clip ──
+    results = []
+    for i, seg in enumerate(product_segments):
+        clip_pct = 40 + int((i / clips_total) * 55)
+        await _update_job(job_id, progress_pct=clip_pct, clips_completed=i,
+                          current_step=f"V3.0: 产品 {i+1}/{clips_total} 「{seg['product_name']}」処理中...")
+
+        try:
+            result = await _v3_process_product_clip(
+                job_id, video_path, seg, req, i, clips_total,
+                video_width, video_height, video_fps, tmp_dir
+            )
+            results.append(result)
+            logger.info(f"[ai-clip-v3 {job_id}] Product clip {i+1}/{clips_total} "
+                        f"'{seg['product_name']}': {result.get('status', 'unknown')}")
+        except Exception as e:
+            logger.error(f"[ai-clip-v3 {job_id}] Product clip {i+1} failed: {e}", exc_info=True)
+            results.append({
+                "product_name": seg["product_name"],
+                "status": "failed",
+                "error": str(e)[:200],
+            })
+        await _update_job(job_id, clips_completed=i + 1, results=results)
+
+    # ── 8. Finalize ──
+    success_count = sum(1 for r in results if r.get("status") == "done")
+    await _update_job(
+        job_id, status="done", progress_pct=100,
+        current_step=f"V3.0 完了: {success_count}/{clips_total}件成功",
+        clips_completed=clips_total, results=results,
+    )
+    logger.info(f"[ai-clip-v3 {job_id}] Pipeline complete: {success_count}/{clips_total} success")
+
+    # Cleanup
+    import shutil
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+# ─── V3.0 Product Segment Detection ──────────────────────────────────────────
+
+async def _v3_detect_product_segments(
+    job_id: str, video_id: str, brand_id: Optional[str],
+    captions: list, total_duration: float
+) -> list:
+    """
+    产品分段検出:
+    1. video_product_exposures テーブルから既存データを取得
+    2. なければ product_master のキーワードで転写テキストをマッチング
+    3. それでもなければ GPT-4o で产品切替点を識別
+    
+    Returns: [{product_name, time_start, time_end, transcript, captions, highlights}]
+    """
+    segments = []
+
+    # ── Strategy 1: Use existing video_product_exposures ──
+    try:
+        async with get_session() as session:
+            result = await session.execute(text("""
+                SELECT product_name, brand_name, time_start, time_end, confidence
+                FROM video_product_exposures
+                WHERE video_id = CAST(:video_id AS uuid)
+                ORDER BY time_start ASC
+            """), {"video_id": video_id})
+            rows = result.fetchall()
+            if rows:
+                for row in rows:
+                    # Get captions within this time range
+                    seg_captions = [c for c in captions
+                                    if float(c.get("start", 0)) >= row.time_start - 1.0
+                                    and float(c.get("end", 0)) <= row.time_end + 1.0]
+                    transcript = " ".join(c.get("text", "") for c in seg_captions).strip()
+                    if transcript and (row.time_end - row.time_start) >= 10.0:
+                        segments.append({
+                            "product_name": row.product_name,
+                            "brand_name": row.brand_name or "",
+                            "time_start": row.time_start,
+                            "time_end": row.time_end,
+                            "transcript": transcript,
+                            "captions": seg_captions,
+                            "confidence": row.confidence or 0.8,
+                            "source": "video_product_exposures",
+                        })
+                if segments:
+                    logger.info(f"[ai-clip-v3 {job_id}] Strategy 1: Found {len(segments)} segments from video_product_exposures")
+                    return segments
+    except Exception as e:
+        logger.warning(f"[ai-clip-v3 {job_id}] Strategy 1 failed: {e}")
+
+    # ── Strategy 2: Match product_master keywords against transcript ──
+    try:
+        products = []
+        async with get_session() as session:
+            pm_sql = "SELECT product_name, brand_name, keywords FROM product_master WHERE is_active = TRUE"
+            if brand_id:
+                pm_sql += " AND brand_name = (SELECT client_name FROM widget_clients WHERE client_id = :brand_id LIMIT 1)"
+            result = await session.execute(text(pm_sql), {"brand_id": brand_id} if brand_id else {})
+            products = result.fetchall()
+
+        if products:
+            # Build full transcript text with timestamps
+            full_text = " ".join(c.get("text", "") for c in captions)
+            matched_products = []
+            for prod in products:
+                keywords = prod.keywords or []
+                product_name = prod.product_name
+                # Check if product name or any keyword appears in transcript
+                found = product_name.lower() in full_text.lower()
+                if not found:
+                    for kw in keywords:
+                        if kw and kw.lower() in full_text.lower():
+                            found = True
+                            break
+                if found:
+                    matched_products.append({
+                        "product_name": product_name,
+                        "brand_name": prod.brand_name or "",
+                        "keywords": keywords,
+                    })
+
+            if matched_products:
+                # Find time ranges for each matched product using keyword positions in captions
+                segments = _v3_find_product_time_ranges(matched_products, captions, total_duration)
+                if segments:
+                    logger.info(f"[ai-clip-v3 {job_id}] Strategy 2: Found {len(segments)} segments from keyword matching")
+                    return segments
+    except Exception as e:
+        logger.warning(f"[ai-clip-v3 {job_id}] Strategy 2 failed: {e}")
+
+    # ── Strategy 3: GPT-4o product detection ──
+    try:
+        segments = await _v3_gpt_detect_products(job_id, captions, total_duration)
+        if segments:
+            logger.info(f"[ai-clip-v3 {job_id}] Strategy 3: GPT detected {len(segments)} product segments")
+            return segments
+    except Exception as e:
+        logger.warning(f"[ai-clip-v3 {job_id}] Strategy 3 (GPT) failed: {e}")
+
+    return segments
+
+
+def _v3_find_product_time_ranges(matched_products: list, captions: list, total_duration: float) -> list:
+    """
+    从转写文本中找到每个产品的时间范围。
+    基于关键词首次出现位置和后续相关内容来确定产品介绍的起止时间。
+    """
+    segments = []
+    used_ranges = []  # Track used time ranges to avoid overlap
+
+    for prod in matched_products:
+        product_name = prod["product_name"]
+        keywords = [product_name] + (prod.get("keywords") or [])
+        keywords_lower = [k.lower() for k in keywords if k]
+
+        # Find all captions mentioning this product
+        mention_indices = []
+        for i, cap in enumerate(captions):
+            cap_text = (cap.get("text") or "").lower()
+            for kw in keywords_lower:
+                if kw in cap_text:
+                    mention_indices.append(i)
+                    break
+
+        if not mention_indices:
+            continue
+
+        # Determine time range: from first mention to last mention + context
+        first_idx = mention_indices[0]
+        last_idx = mention_indices[-1]
+
+        # Extend range: include 2 captions before first mention and 5 after last
+        range_start_idx = max(0, first_idx - 2)
+        range_end_idx = min(len(captions) - 1, last_idx + 5)
+
+        time_start = float(captions[range_start_idx].get("start", 0))
+        time_end = float(captions[range_end_idx].get("end", 0))
+
+        # Minimum segment duration: 10 seconds
+        if time_end - time_start < 10.0:
+            time_end = min(time_start + 30.0, total_duration)
+
+        # Check overlap with existing segments
+        overlap = False
+        for used_start, used_end in used_ranges:
+            if time_start < used_end and time_end > used_start:
+                overlap = True
+                break
+        if overlap:
+            continue
+
+        # Get captions within range
+        seg_captions = [c for c in captions
+                        if float(c.get("start", 0)) >= time_start - 0.5
+                        and float(c.get("end", 0)) <= time_end + 0.5]
+        transcript = " ".join(c.get("text", "") for c in seg_captions).strip()
+
+        if transcript:
+            segments.append({
+                "product_name": product_name,
+                "brand_name": prod.get("brand_name", ""),
+                "time_start": time_start,
+                "time_end": time_end,
+                "transcript": transcript,
+                "captions": seg_captions,
+                "confidence": 0.7,
+                "source": "keyword_match",
+            })
+            used_ranges.append((time_start, time_end))
+
+    # Sort by time
+    segments.sort(key=lambda x: x["time_start"])
+    return segments
+
+
+async def _v3_gpt_detect_products(job_id: str, captions: list, total_duration: float) -> list:
+    """
+    GPT-4oを使って转写テキストから产品切替点を検出する。
+    """
+    import openai
+
+    azure_key = os.getenv("AZURE_OPENAI_KEY", "")
+    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+    azure_model = os.getenv("GPT5_MODEL") or os.getenv("GPT5_DEPLOYMENT") or "gpt-4.1-mini"
+
+    if not azure_key or not azure_endpoint:
+        logger.warning(f"[ai-clip-v3 {job_id}] No Azure OpenAI credentials for GPT detection")
+        return []
+
+    from urllib.parse import urlparse as _urlparse
+    _parsed = _urlparse(azure_endpoint)
+    clean_endpoint = f"{_parsed.scheme}://{_parsed.netloc}/"
+
+    client = openai.AsyncAzureOpenAI(
+        api_key=azure_key,
+        azure_endpoint=clean_endpoint,
+        api_version=os.getenv("GPT5_API_VERSION", "2025-04-01-preview"),
+    )
+
+    # Format captions with timestamps
+    caption_lines = []
+    for cap in captions:
+        s = float(cap.get("start", 0))
+        e = float(cap.get("end", 0))
+        text_content = (cap.get("text") or "").strip()
+        if text_content:
+            caption_lines.append(f"[{s:.1f}-{e:.1f}] {text_content}")
+
+    # Limit to avoid token overflow (keep first 500 lines)
+    if len(caption_lines) > 500:
+        caption_lines = caption_lines[:500]
+
+    transcript_text = "\n".join(caption_lines)
+
+    prompt = f"""あなたはライブコマース動画の分析エキスパートです。
+以下はライブ配信の音声書き起こし（タイムスタンプ付き）です。
+
+この配信で紹介されている各商品/製品を特定し、それぞれの紹介開始時刻と終了時刻を検出してください。
+
+ルール:
+1. 各商品の紹介区間は、商品名が最初に言及された前後から、次の商品に切り替わるまでの範囲とする
+2. 商品名が明確でない場合は、説明内容から推測して名前をつける（例：「保湿クリーム」「ヘアオイル」）
+3. 同じ商品が複数回言及される場合は、最初の連続した紹介区間のみを1つのセグメントとする
+4. 最低10秒以上の紹介区間のみ出力する
+5. 雑談・挨拶・Q&Aのみの区間は除外する
+
+出力形式（JSON配列）:
+[
+  {{"product_name": "商品名", "time_start": 開始秒, "time_end": 終了秒}},
+  ...
+]
+
+音声書き起こし:
+{transcript_text}
+
+JSON配列のみを出力してください。説明は不要です。"""
+
+    try:
+        response = await client.chat.completions.create(
+            model=azure_model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=2000,
+        )
+        content = response.choices[0].message.content.strip()
+
+        # Parse JSON from response
+        if content.startswith("```"):
+            content = content.split("\n", 1)[1] if "\n" in content else content[3:]
+            if content.endswith("```"):
+                content = content[:-3]
+            content = content.strip()
+        if content.startswith("json"):
+            content = content[4:].strip()
+
+        detected = json.loads(content)
+        if not isinstance(detected, list):
+            return []
+
+        segments = []
+        for item in detected:
+            product_name = item.get("product_name", "").strip()
+            time_start = float(item.get("time_start", 0))
+            time_end = float(item.get("time_end", 0))
+
+            if not product_name or time_end - time_start < 10.0:
+                continue
+            if time_start < 0 or time_end > total_duration + 5:
+                continue
+
+            # Get captions within range
+            seg_captions = [c for c in captions
+                            if float(c.get("start", 0)) >= time_start - 1.0
+                            and float(c.get("end", 0)) <= time_end + 1.0]
+            transcript = " ".join(c.get("text", "") for c in seg_captions).strip()
+
+            if transcript:
+                segments.append({
+                    "product_name": product_name,
+                    "brand_name": "",
+                    "time_start": time_start,
+                    "time_end": time_end,
+                    "transcript": transcript,
+                    "captions": seg_captions,
+                    "confidence": 0.6,
+                    "source": "gpt_detection",
+                })
+
+        return segments
+
+    except Exception as e:
+        logger.error(f"[ai-clip-v3 {job_id}] GPT product detection failed: {e}")
+        return []
+
+
+# ─── V3.0 Highlight Extraction ───────────────────────────────────────────────
+
+async def _v3_extract_highlights(transcript: str, product_name: str, job_id: str) -> list:
+    """
+    GPT-4oで产品紹介テキストから卖点（セールスポイント）を提炼する。
+    各卖点にはテキストと推定表示タイミング（相対秒数）を含む。
+    
+    Returns: [{text: "500ml大容量", order: 1}, ...]
+    """
+    import openai
+
+    azure_key = os.getenv("AZURE_OPENAI_KEY", "")
+    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+    azure_model = os.getenv("GPT5_MODEL") or os.getenv("GPT5_DEPLOYMENT") or "gpt-4.1-mini"
+
+    if not azure_key or not azure_endpoint:
+        return _v3_extract_highlights_local(transcript, product_name)
+
+    from urllib.parse import urlparse as _urlparse
+    _parsed = _urlparse(azure_endpoint)
+    clean_endpoint = f"{_parsed.scheme}://{_parsed.netloc}/"
+
+    client = openai.AsyncAzureOpenAI(
+        api_key=azure_key,
+        azure_endpoint=clean_endpoint,
+        api_version=os.getenv("GPT5_API_VERSION", "2025-04-01-preview"),
+    )
+
+    prompt = f"""あなたはライブコマースの卖点コピーライターです。
+以下は「{product_name}」の商品紹介の音声書き起こしです。
+
+この紹介から、視聴者に最もアピールする卖点（セールスポイント）を2〜5個抽出してください。
+
+卖点の例:
+- ブランド名・産地（例: "韓国発コスメ"）
+- 容量・サイズ（例: "500ml大容量"）
+- 効果・効能（例: "24時間保湿持続"）
+- 成分・技術（例: "ヒアルロン酸配合"）
+- 価格・コスパ（例: "1本で3役"）
+- デザイン・特徴（例: "ポンプ式で衛生的"）
+
+ルール:
+1. 各卖点は10文字以内の短いキャッチコピーにする
+2. 紹介テキスト中での出現順序に基づいて並べる
+3. 重複する内容は1つにまとめる
+4. 最低2個、最大5個
+
+出力形式（JSON配列）:
+[
+  {{"text": "卖点テキスト", "order": 1}},
+  {{"text": "卖点テキスト", "order": 2}},
+  ...
+]
+
+商品紹介テキスト:
+{transcript[:2000]}
+
+JSON配列のみを出力してください。"""
+
+    try:
+        response = await client.chat.completions.create(
+            model=azure_model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=500,
+        )
+        content = response.choices[0].message.content.strip()
+
+        # Parse JSON
+        if content.startswith("```"):
+            content = content.split("\n", 1)[1] if "\n" in content else content[3:]
+            if content.endswith("```"):
+                content = content[:-3]
+            content = content.strip()
+        if content.startswith("json"):
+            content = content[4:].strip()
+
+        highlights = json.loads(content)
+        if not isinstance(highlights, list):
+            return _v3_extract_highlights_local(transcript, product_name)
+
+        # Validate and clean
+        result = []
+        for h in highlights:
+            text_content = h.get("text", "").strip()
+            if text_content and len(text_content) <= 15:
+                result.append({"text": text_content, "order": h.get("order", len(result) + 1)})
+
+        return result[:5] if result else _v3_extract_highlights_local(transcript, product_name)
+
+    except Exception as e:
+        logger.warning(f"[ai-clip-v3 {job_id}] GPT highlight extraction failed: {e}")
+        return _v3_extract_highlights_local(transcript, product_name)
+
+
+def _v3_extract_highlights_local(transcript: str, product_name: str) -> list:
+    """
+    ローカルフォールバック: 简单なキーワード抽出で卖点を生成。
+    """
+    highlights = []
+    if product_name:
+        highlights.append({"text": product_name[:10], "order": 1})
+
+    patterns = [
+        (r'(\d+)\s*(ml|ML|g|kg|本|個|枚)', "容量/数量"),
+        (r'(保湿|美白|修復|補修|潤い|ツヤ)', "効果"),
+        (r'(無添加|オーガニック|天然|植物由来)', "成分"),
+        (r'(\d+)%\s*(OFF|オフ|割引)', "価格"),
+    ]
+    for pattern, category in patterns:
+        match = re.search(pattern, transcript)
+        if match:
+            highlights.append({"text": match.group(0)[:10], "order": len(highlights) + 1})
+            if len(highlights) >= 4:
+                break
+
+    return highlights if highlights else [{"text": product_name[:10] or "おすすめ", "order": 1}]
+
+
+# ─── V3.0 Product Clip Processing ────────────────────────────────────────────
+
+async def _v3_process_product_clip(
+    job_id: str, video_path: str, segment: dict,
+    req: GenerateByProductRequest, idx: int, total: int,
+    video_width: int, video_height: int, video_fps: int,
+    parent_tmp_dir: str,
+) -> dict:
+    """
+    单个产品clip的处理流程:
+    1. 从完整视频中切出产品时间段
+    2. 检测气口/停顿（≥1秒）
+    3. 生成卖点字幕overlay（视频上方）
+    4. 生成普通字幕overlay（视频下方）
+    5. ffmpeg合成（气口剪切 + 字幕overlay + 速度调整）
+    6. 上传到blob storage
+    """
+    product_name = segment["product_name"]
+    time_start = segment["time_start"]
+    time_end = segment["time_end"]
+    seg_captions = segment.get("captions", [])
+    highlights = segment.get("highlights", [])
+    segment_duration = time_end - time_start
+
+    clip_tmp_dir = tempfile.mkdtemp(prefix=f"v3_clip_{idx}_", dir=parent_tmp_dir)
+
+    # ── 1. Extract segment from full video ──
+    segment_path = os.path.join(clip_tmp_dir, "segment.mp4")
+    extract_cmd = [
+        "ffmpeg", "-y", "-ss", str(time_start), "-to", str(time_end),
+        "-i", video_path, "-c", "copy", "-avoid_negative_ts", "make_zero",
+        segment_path
+    ]
+    proc = subprocess.run(extract_cmd, capture_output=True, text=True, timeout=120)
+    if proc.returncode != 0 or not os.path.exists(segment_path):
+        # Fallback: re-encode if copy fails
+        extract_cmd = [
+            "ffmpeg", "-y", "-ss", str(time_start), "-to", str(time_end),
+            "-i", video_path, "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-c:a", "aac", "-b:a", "128k", segment_path
+        ]
+        proc = subprocess.run(extract_cmd, capture_output=True, text=True, timeout=300)
+        if proc.returncode != 0:
+            return {"product_name": product_name, "status": "failed",
+                    "error": f"Segment extraction failed: {proc.stderr[:200]}"}
+
+    # ── 2. Detect silence/pauses (>= min_silence_duration) ──
+    silence_periods = []
+    if req.enable_silence_cut:
+        silence_periods = _detect_silence_periods(
+            segment_path, noise_db=req.silence_threshold_db,
+            min_duration=req.min_silence_duration
+        )
+        logger.info(f"[ai-clip-v3 {job_id}] Product '{product_name}': {len(silence_periods)} silence periods detected")
+
+    # ── 3. Calculate keep_segments ──
+    seg_probe = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", segment_path],
+        capture_output=True, text=True, timeout=15
+    )
+    seg_duration = segment_duration
+    try:
+        seg_probe_data = json.loads(seg_probe.stdout)
+        if "format" in seg_probe_data and "duration" in seg_probe_data["format"]:
+            seg_duration = float(seg_probe_data["format"]["duration"])
+    except Exception:
+        pass
+
+    keep_segments = [(0, seg_duration)]
+    if silence_periods:
+        cuttable = [(s, e) for s, e in silence_periods if (e - s) >= req.min_silence_duration]
+        if cuttable:
+            cuttable.sort(key=lambda x: x[0])
+            merged_cuts = []
+            for cs, ce in cuttable:
+                if merged_cuts and cs <= merged_cuts[-1][1]:
+                    merged_cuts[-1] = (merged_cuts[-1][0], max(merged_cuts[-1][1], ce))
+                else:
+                    merged_cuts.append((cs, ce))
+
+            keep_segments = []
+            prev_end = 0
+            for cut_start, cut_end in merged_cuts:
+                if cut_start > prev_end:
+                    keep_segments.append((prev_end, cut_start))
+                prev_end = cut_end
+            if prev_end < seg_duration:
+                keep_segments.append((prev_end, seg_duration))
+
+            if not keep_segments:
+                keep_segments = [(0, seg_duration)]
+
+    # ── 4. Adjust caption timestamps (relative to segment start) ──
+    adjusted_captions = []
+    for cap in seg_captions:
+        adj_cap = dict(cap)
+        adj_cap["start"] = float(cap.get("start", 0)) - time_start
+        adj_cap["end"] = float(cap.get("end", 0)) - time_start
+        adj_cap["start"] = max(0, adj_cap["start"])
+        adj_cap["end"] = min(seg_duration, adj_cap["end"])
+        if adj_cap["end"] > adj_cap["start"]:
+            adjusted_captions.append(adj_cap)
+
+    # ── 5. Generate highlight overlay images (top of video) ──
+    highlight_overlays = []
+    if highlights:
+        highlight_overlays = _v3_generate_highlight_overlays(
+            highlights, adjusted_captions, seg_duration, keep_segments,
+            video_width, video_height, clip_tmp_dir,
+            req.highlight_position_y, req.highlight_display_duration,
+        )
+        logger.info(f"[ai-clip-v3 {job_id}] Generated {len(highlight_overlays)} highlight overlays for '{product_name}'")
+
+    # ── 6. Generate subtitle overlay images (bottom of video) ──
+    font_path = _v3_get_font_path()
+    subtitle_overlays = _generate_overlay_images(
+        styled_captions=adjusted_captions,
+        hook_text=None,
+        cta_text=None,
+        video_width=video_width,
+        video_height=video_height,
+        duration=seg_duration,
+        font_path=font_path,
+        tmp_dir=clip_tmp_dir,
+        position_y=req.position_y,
+        clip_duration=seg_duration,
+        product_name=product_name,
+    )
+
+    # Combine all overlays
+    all_overlays = highlight_overlays + subtitle_overlays
+
+    # ── 7. Build ffmpeg command ──
+    output_path = os.path.join(clip_tmp_dir, "output.mp4")
+
+    # Create a minimal request-like object for _build_advanced_ffmpeg_command compatibility
+    class _V3ReqCompat:
+        def __init__(self, r):
+            self.enable_silence_cut = r.enable_silence_cut
+            self.enable_zoom_pulse = False
+            self.enable_progress_bar = False
+            self.enable_flash_intro = False
+            self.enable_loop_fade = False
+            self.enable_cta = False
+            self.speed_factor = r.speed_factor
+            self.zoom_intensity = 1.0
+            self.silence_threshold_db = r.silence_threshold_db
+
+    v3_compat_req = _V3ReqCompat(req)
+
+    ffmpeg_cmd = _build_advanced_ffmpeg_command(
+        video_path=segment_path,
+        ass_path="",
+        output_path=output_path,
+        video_width=video_width,
+        video_height=video_height,
+        duration=seg_duration,
+        req=v3_compat_req,
+        zoom_keyframes=[],
+        keep_segments=keep_segments,
+        enable_progress_bar=False,
+        enable_flash_intro=False,
+        enable_loop_fade=False,
+        overlay_images=all_overlays,
+        video_fps=video_fps,
+    )
+
+    # ── 8. Execute ffmpeg ──
+    logger.info(f"[ai-clip-v3 {job_id}] Running ffmpeg for '{product_name}' "
+                f"(keep_segments={len(keep_segments)}, overlays={len(all_overlays)})")
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *ffmpeg_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
+        if proc.returncode != 0:
+            stderr_text = stderr.decode()[-500:] if stderr else "unknown error"
+            logger.error(f"[ai-clip-v3 {job_id}] ffmpeg failed for '{product_name}': {stderr_text}")
+            return {"product_name": product_name, "status": "failed",
+                    "error": f"ffmpeg error: {stderr_text[:200]}"}
+    except asyncio.TimeoutError:
+        return {"product_name": product_name, "status": "failed", "error": "ffmpeg timeout (>600s)"}
+
+    if not os.path.exists(output_path) or os.path.getsize(output_path) < 1000:
+        return {"product_name": product_name, "status": "failed", "error": "Output file too small or missing"}
+
+    # ── 9. Upload to blob storage ──
+    clip_id = str(uuid.uuid4())
+    try:
+        download_url, blob_url = await _upload_to_blob(output_path, clip_id, job_id)
+    except Exception as e:
+        return {"product_name": product_name, "status": "failed",
+                "error": f"Upload failed: {str(e)[:200]}"}
+
+    # Get output duration
+    out_probe = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", output_path],
+        capture_output=True, text=True, timeout=15
+    )
+    output_duration = seg_duration
+    try:
+        out_data = json.loads(out_probe.stdout)
+        if "format" in out_data and "duration" in out_data["format"]:
+            output_duration = float(out_data["format"]["duration"])
+    except Exception:
+        pass
+
+    # ── 10. Save export record ──
+    await _save_export_record(clip_id, blob_url, None, output_duration)
+
+    return {
+        "clip_id": clip_id,
+        "product_name": product_name,
+        "brand_name": segment.get("brand_name", ""),
+        "status": "done",
+        "download_url": download_url,
+        "blob_url": blob_url,
+        "duration_sec": round(output_duration, 1),
+        "original_duration_sec": round(segment_duration, 1),
+        "time_range": f"{time_start:.1f}s - {time_end:.1f}s",
+        "highlights": [h.get("text", "") for h in highlights],
+        "silence_cuts": len(silence_periods),
+        "source": segment.get("source", "unknown"),
+    }
+
+
+# ─── V3.0 Highlight Overlay Generation ───────────────────────────────────────
+
+def _v3_generate_highlight_overlays(
+    highlights: list, captions: list, duration: float, keep_segments: list,
+    video_width: int, video_height: int, tmp_dir: str,
+    position_y_pct: float = 12.0, display_duration: float = 4.0,
+) -> list:
+    """
+    卖点字幕overlay画像を生成する。
+    视频上方に配置、各卖点は順番に表示される（逐条出现）。
+    
+    Returns: list of (png_path, start_time, end_time)
+    """
+    from PIL import Image, ImageDraw, ImageFont
+
+    if not highlights:
+        return []
+
+    overlays = []
+    font_path = _v3_get_font_path()
+
+    # Calculate effective duration after silence cuts
+    effective_duration = sum(e - s for s, e in keep_segments) if keep_segments else duration
+
+    # Distribute highlights evenly across the effective duration
+    num_highlights = len(highlights)
+    interval = effective_duration / (num_highlights + 1)
+
+    for i, h in enumerate(highlights):
+        h_text = h.get("text", "").strip()
+        if not h_text:
+            continue
+
+        # Calculate display timing in compressed timeline
+        start_time = interval * (i + 1) - display_duration / 2
+        start_time = max(0.5, start_time)
+        end_time = start_time + display_duration
+
+        # Ensure no overlap with next highlight
+        if i < num_highlights - 1:
+            next_start = interval * (i + 2) - display_duration / 2
+            if end_time > next_start - 0.3:
+                end_time = next_start - 0.3
+
+        # Generate overlay image
+        base_width = 1080
+        scale = min(video_width, video_height) / base_width
+        font_size = max(48, int(64 * scale))
+        padding_x = int(30 * scale)
+        padding_y = int(15 * scale)
+
+        try:
+            font = ImageFont.truetype(font_path, font_size)
+        except Exception:
+            font = ImageFont.load_default()
+
+        # Calculate text size
+        dummy_img = Image.new("RGBA", (1, 1))
+        dummy_draw = ImageDraw.Draw(dummy_img)
+        bbox = dummy_draw.textbbox((0, 0), h_text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+
+        # Create full-frame canvas
+        img_width = text_width + padding_x * 2
+        canvas_width = video_width
+        canvas_height = video_height
+        img = Image.new("RGBA", (canvas_width, canvas_height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        # Background rectangle (semi-transparent dark)
+        y_pos = int(canvas_height * position_y_pct / 100)
+        x_pos = (canvas_width - img_width) // 2
+        img_height = text_height + padding_y * 2
+        bg_rect = [x_pos, y_pos, x_pos + img_width, y_pos + img_height]
+        draw.rounded_rectangle(bg_rect, radius=int(10 * scale), fill=(0, 0, 0, 180))
+
+        # Text with outline
+        text_x = x_pos + padding_x
+        text_y = y_pos + padding_y
+
+        # Draw outline (black)
+        outline_width = max(2, int(3 * scale))
+        for ox in range(-outline_width, outline_width + 1):
+            for oy in range(-outline_width, outline_width + 1):
+                if ox * ox + oy * oy <= outline_width * outline_width:
+                    draw.text((text_x + ox, text_y + oy), h_text, font=font, fill=(0, 0, 0, 255))
+
+        # Draw text (yellow/gold)
+        draw.text((text_x, text_y), h_text, font=font, fill=(255, 215, 0, 255))
+
+        # Save
+        overlay_path = os.path.join(tmp_dir, f"highlight_{i}.png")
+        img.save(overlay_path, "PNG")
+        overlays.append((overlay_path, start_time, end_time))
+
+    return overlays
+
+
+def _v3_get_font_path() -> str:
+    """Get the best available font path for CJK text rendering."""
+    font_candidates = [
+        f'{_EXTRACTED_FONTS_DIR}/NotoSansCJK-JP-Bold.otf',
+        '/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc',
+        '/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc',
+        '/usr/share/fonts/noto-cjk/NotoSansCJK-Bold.ttc',
+        '/usr/share/fonts/truetype/fonts-japanese-gothic.ttf',
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+    ]
+    for fp in font_candidates:
+        if os.path.exists(fp):
+            return fp
+    import glob
+    ttf_files = glob.glob("/usr/share/fonts/**/*.ttf", recursive=True)
+    ttc_files = glob.glob("/usr/share/fonts/**/*.ttc", recursive=True)
+    all_fonts = ttc_files + ttf_files
+    if all_fonts:
+        for f in all_fonts:
+            if "CJK" in f or "japanese" in f.lower() or "noto" in f.lower():
+                return f
+        return all_fonts[0]
+    return ""

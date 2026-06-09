@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import CaptionOverlayPlayer from "./CaptionOverlayPlayer";
+import ProductSegmentationTab from "./ProductSegmentationTab";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -35,7 +36,7 @@ export default function AutoAIClipPanel({ adminKey }) {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [activeTab, setActiveTab] = useState("generate"); // generate, jobs, completed, candidates
+  const [activeTab, setActiveTab] = useState("generate"); // generate, jobs, completed, candidates, byProduct
   const [jobFilter, setJobFilter] = useState("all"); // all, done, error
   const [completedClips, setCompletedClips] = useState([]);
   const [completedLoading, setCompletedLoading] = useState(false);
@@ -458,6 +459,7 @@ export default function AutoAIClipPanel({ adminKey }) {
           { id: "jobs", label: `📋 ジョブ一覧 (${jobs.length})` },
           { id: "completed", label: `🎬 完成動画 (${completedTotal})` },
           { id: "candidates", label: "🎯 候補プレビュー" },
+          { id: "byProduct", label: "🎁 按产品分段 V3" },
         ].map(tab => (
           <button
             key={tab.id}
@@ -1564,6 +1566,10 @@ export default function AutoAIClipPanel({ adminKey }) {
             </div>
           )}
         </div>
+      )}
+      {/* V3.0: 按产品分段 Tab */}
+      {activeTab === "byProduct" && (
+        <ProductSegmentationTab adminKey={adminKey} brands={brands} headers={headers} />
       )}
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
