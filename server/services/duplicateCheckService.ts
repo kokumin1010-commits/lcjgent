@@ -180,6 +180,7 @@ export async function checkLevel3SameImage(
   options: {
     threshold?: number;
     skipPhashCompute?: boolean; // If phash already computed and stored
+    currentOrderNumber?: string; // 当前收据的订单号（用于比较，可选传入避免重复查询）
   } = {}
 ): Promise<Level3Result> {
   const threshold = options.threshold ?? PHASH_SIMILARITY_THRESHOLD;
@@ -230,6 +231,56 @@ export async function checkLevel3SameImage(
     // Get the best match - no need to check status since rejected are already filtered out
     const bestMatch = similar[0];
     const isCrossUser = bestMatch.lineUserId !== lineUserId;
+    
+    // ===== NEW RULE (2026-06-09): 订单号不同时不判定为重复 =====
+    // 即使图片相似，只要订单号不同就不应该拒绝
+    const db = await getDb();
+    if (db) {
+      // 获取匹配收据的订单号
+      const matchedReceipt = await db
+        .select({ orderNumber: lineReceipts.orderNumber, ocrRawText: lineReceipts.ocrRawText })
+        .from(lineReceipts)
+        .where(eq(lineReceipts.id, bestMatch.receiptId))
+        .limit(1);
+      
+      if (matchedReceipt.length > 0) {
+        let matchedOrderNumber = matchedReceipt[0].orderNumber || "";
+        if (!matchedOrderNumber && matchedReceipt[0].ocrRawText) {
+          try {
+            const ocr = typeof matchedReceipt[0].ocrRawText === "string" 
+              ? JSON.parse(matchedReceipt[0].ocrRawText) : matchedReceipt[0].ocrRawText;
+            matchedOrderNumber = String(ocr?.orderNumber || "").trim();
+          } catch { /* ignore */ }
+        }
+        
+        // 获取当前收据的订单号
+        let currentOrderNum = options.currentOrderNumber || "";
+        if (!currentOrderNum) {
+          const currentReceipt = await db
+            .select({ orderNumber: lineReceipts.orderNumber, ocrRawText: lineReceipts.ocrRawText })
+            .from(lineReceipts)
+            .where(eq(lineReceipts.id, receiptId))
+            .limit(1);
+          if (currentReceipt.length > 0) {
+            currentOrderNum = currentReceipt[0].orderNumber || "";
+            if (!currentOrderNum && currentReceipt[0].ocrRawText) {
+              try {
+                const ocr = typeof currentReceipt[0].ocrRawText === "string"
+                  ? JSON.parse(currentReceipt[0].ocrRawText) : currentReceipt[0].ocrRawText;
+                currentOrderNum = String(ocr?.orderNumber || "").trim();
+              } catch { /* ignore */ }
+            }
+          }
+        }
+        
+        // 如果两个收据都有订单号且订单号不同，则不判定为重复
+        if (currentOrderNum && matchedOrderNumber && currentOrderNum !== matchedOrderNumber) {
+          console.log(`[DuplicateCheck] Level3 match found for receipt #${receiptId} → #${bestMatch.receiptId} (distance: ${bestMatch.distance}), but order numbers differ (${currentOrderNum} vs ${matchedOrderNumber}). NOT marking as duplicate.`);
+          return { isDuplicate: false };
+        }
+      }
+    }
+    // ===== END NEW RULE =====
     
     console.log(`[DuplicateCheck] Level3 match found for receipt #${receiptId}: matched #${bestMatch.receiptId} (distance: ${bestMatch.distance}, cross-user: ${isCrossUser})`);
     
