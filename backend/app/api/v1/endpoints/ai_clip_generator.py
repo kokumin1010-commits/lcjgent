@@ -1945,60 +1945,117 @@ def _generate_overlay_images(
         logger.info(f"[ai-clip] Generated CTA overlay: {cta_text[:30]}")
     
     # ── V2.20: 結尾矢印アニメーション（最後5秒に左下角への矢印を表示） ──
-    # TikTokライブコマースの慣習: 左下のカートボタンへ誘導する矢印
+    # V2.22: 動的指示矢印（高コントラスト、警示性強、バウンスアニメーション）
+    # 位置: 字幕の上方（左下方向を指す）→ 元の位置から上移
+    # デザイン: 赤・黄の警告色 + バウンスアニメーション（複数フレームPNGで実現）
     if effective_duration > 5:
         try:
-            from PIL import Image, ImageDraw
+            from PIL import Image, ImageDraw, ImageFilter
             
-            arrow_duration = min(5.0, effective_duration - 1.0)  # 最後5秒（または動画が短い場合はそれに合わせる）
+            arrow_duration = min(5.0, effective_duration - 1.0)
             arrow_start = max(0, effective_duration - arrow_duration)
             arrow_end = effective_duration - 0.2
             
-            # 矢印画像を生成（動画と同じサイズの透過PNG）
-            arrow_img = Image.new('RGBA', (video_width, video_height), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(arrow_img)
+            # V2.22: 矢印位置を字幕の上方に上移
+            # 元: video_height * 0.82 → 新: video_height * 0.58（字幕は75%付近なのでその上）
+            arrow_center_x = int(video_width * 0.13)
+            arrow_center_y = int(video_height * 0.58)  # 上移: 0.82 → 0.58
+            arrow_size = int(min(video_width, video_height) * 0.10)  # サイズ拡大: 0.08 → 0.10
             
-            # 矢印の位置: 左下角（TikTokのカートボタン付近）
-            # 画面の左下、底から約15%、左から約15%の位置
-            arrow_center_x = int(video_width * 0.15)
-            arrow_center_y = int(video_height * 0.82)
-            arrow_size = int(min(video_width, video_height) * 0.08)  # 矢印サイズ
+            # バウンスアニメーション: 4フレームの矢印を生成し、各フレームで少しずつ位置を変える
+            # ffmpegのoverlay enableで時間分割してバウンス感を出す
+            bounce_offsets = [0, -12, -20, -12]  # Yオフセット（ピクセル）
+            frame_duration = 0.25  # 各フレーム 0.25秒
+            total_cycle = frame_duration * len(bounce_offsets)  # 1サイクル = 1秒
             
-            # 矢印を描画（下向き矢印 ↓ スタイル）
-            # 矢印の軸（縦線）
-            shaft_top = arrow_center_y - arrow_size
-            shaft_bottom = arrow_center_y + int(arrow_size * 0.5)
-            shaft_width = max(6, int(arrow_size * 0.15))
-            draw.line(
-                [(arrow_center_x, shaft_top), (arrow_center_x, shaft_bottom)],
-                fill=(255, 255, 255, 230),
-                width=shaft_width
-            )
+            for frame_idx, y_offset in enumerate(bounce_offsets):
+                arrow_img = Image.new('RGBA', (video_width, video_height), (0, 0, 0, 0))
+                draw = ImageDraw.Draw(arrow_img)
+                
+                # バウンス位置計算
+                cur_y = arrow_center_y + y_offset
+                
+                # V2.22: 高コントラスト赤・黄の警告色矢印
+                # 外側の光彩（赤）
+                glow_radius = int(arrow_size * 1.3)
+                for glow_i in range(3):
+                    glow_alpha = 60 - glow_i * 15
+                    glow_r = glow_radius + glow_i * 4
+                    draw.ellipse(
+                        [(arrow_center_x - glow_r, cur_y - glow_r),
+                         (arrow_center_x + glow_r, cur_y + glow_r)],
+                        fill=None,
+                        outline=(255, 50, 50, glow_alpha),
+                        width=max(4, int(arrow_size * 0.06))
+                    )
+                
+                # 矢印本体（左下方向を指す斜め矢印）
+                # 軸: 右上から左下へ
+                shaft_start_x = arrow_center_x + int(arrow_size * 0.6)
+                shaft_start_y = cur_y - int(arrow_size * 0.6)
+                shaft_end_x = arrow_center_x - int(arrow_size * 0.3)
+                shaft_end_y = cur_y + int(arrow_size * 0.3)
+                shaft_width = max(8, int(arrow_size * 0.18))
+                
+                # 矢印軸（黄色の太線）
+                draw.line(
+                    [(shaft_start_x, shaft_start_y), (shaft_end_x, shaft_end_y)],
+                    fill=(255, 220, 0, 255),  # 黄色（高視認性）
+                    width=shaft_width
+                )
+                # 矢印軸の赤いアウトライン
+                draw.line(
+                    [(shaft_start_x, shaft_start_y), (shaft_end_x, shaft_end_y)],
+                    fill=(255, 30, 30, 200),
+                    width=shaft_width + 6
+                )
+                # 黄色の内側線（上書き）
+                draw.line(
+                    [(shaft_start_x, shaft_start_y), (shaft_end_x, shaft_end_y)],
+                    fill=(255, 220, 0, 255),
+                    width=shaft_width
+                )
+                
+                # 矢印の先端（左下方向の三角形）
+                head_size = int(arrow_size * 0.55)
+                # 左下方向の三角形
+                tip_x = shaft_end_x - int(head_size * 0.4)
+                tip_y = shaft_end_y + int(head_size * 0.4)
+                head_points = [
+                    (tip_x, tip_y),  # 先端（左下）
+                    (shaft_end_x + int(head_size * 0.3), shaft_end_y + int(head_size * 0.1)),  # 右
+                    (shaft_end_x - int(head_size * 0.1), shaft_end_y - int(head_size * 0.4)),  # 上
+                ]
+                # 赤いアウトライン
+                draw.polygon(head_points, fill=(255, 30, 30, 240))
+                # 黄色の内側（少し小さく）
+                inner_scale = 0.75
+                cx = sum(p[0] for p in head_points) / 3
+                cy = sum(p[1] for p in head_points) / 3
+                inner_points = [
+                    (int(cx + (p[0] - cx) * inner_scale), int(cy + (p[1] - cy) * inner_scale))
+                    for p in head_points
+                ]
+                draw.polygon(inner_points, fill=(255, 220, 0, 255))
+                
+                # フレーム保存
+                frame_path = os.path.join(tmp_dir, f"overlay_arrow_cta_f{frame_idx}.png")
+                arrow_img.save(frame_path, 'PNG')
+                
+                # 各フレームの表示時間を計算（ループ再生）
+                # arrow_startからarrow_endまで、frame_durationごとにフレームを切り替え
+                t = arrow_start
+                while t < arrow_end:
+                    frame_start = t + frame_idx * frame_duration
+                    frame_end = min(frame_start + frame_duration, arrow_end)
+                    if frame_start >= arrow_end:
+                        break
+                    overlays.append((frame_path, frame_start, frame_end))
+                    t += total_cycle
             
-            # 矢印の先端（三角形）
-            head_size = int(arrow_size * 0.5)
-            head_points = [
-                (arrow_center_x, shaft_bottom + head_size),  # 先端
-                (arrow_center_x - head_size, shaft_bottom - int(head_size * 0.3)),  # 左
-                (arrow_center_x + head_size, shaft_bottom - int(head_size * 0.3)),  # 右
-            ]
-            draw.polygon(head_points, fill=(255, 255, 255, 230))
-            
-            # 矢印の周りに光彩エフェクト（薄い白い円）
-            glow_radius = int(arrow_size * 1.2)
-            draw.ellipse(
-                [(arrow_center_x - glow_radius, arrow_center_y - glow_radius),
-                 (arrow_center_x + glow_radius, arrow_center_y + glow_radius)],
-                fill=None,
-                outline=(255, 255, 255, 80),
-                width=max(3, int(arrow_size * 0.08))
-            )
-            
-            arrow_path = os.path.join(tmp_dir, "overlay_arrow_cta.png")
-            arrow_img.save(arrow_path, 'PNG')
-            overlays.append((arrow_path, arrow_start, arrow_end))
-            logger.info(f"[ai-clip] Generated arrow CTA overlay: "
+            logger.info(f"[ai-clip] V2.22 Generated ANIMATED arrow CTA overlay: "
                         f"pos=({arrow_center_x},{arrow_center_y}), "
+                        f"frames={len(bounce_offsets)}, "
                         f"time={arrow_start:.1f}-{arrow_end:.1f}s")
         except Exception as arrow_err:
             logger.warning(f"[ai-clip] Arrow overlay generation failed: {arrow_err}")
@@ -2197,10 +2254,19 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
     overlay_images: list of (png_path, start_time, end_time) from _generate_overlay_images()
     """
     overlay_images = overlay_images or []
-    
     # Build video filter chain parts (effects only, no text rendering)
     vf_parts = []
-    
+    # ── 0. V2.22: 画面安定化（防抖 + 去闪烁） ──
+    # deshake: 手ぶれ補正（動き検出→逆補正でフレームを安定化）
+    # deflicker: フリッカー（輝度の急激な変化）を平滑化
+    # 適用条件: req.enable_stabilization=True（デフォルトON）
+    enable_stab = getattr(req, 'enable_stabilization', True)
+    if enable_stab:
+        # deshake: rx/ry=16は検索範囲（ピクセル）、edge=1は端をミラーで埋める
+        vf_parts.append("deshake=rx=16:ry=16:edge=1")
+        # deflicker: size=5は前後5フレームの平均で輝度を平滑化
+        vf_parts.append("deflicker=size=5:mode=am")
+        logger.info(f"[ai-clip] V2.22: Stabilization enabled (deshake+deflicker)")
     # ── 1. Silence trimming (select filter) ──
     # V13: keep_segments > 20 の場合、隣接セグメントをマージして20以下にする
     if len(keep_segments) > 20:
@@ -2538,7 +2604,12 @@ def _highlight_keywords(text_content: str, product_name: str = "",
 
 
 def _generate_cta_text(captions: list, clip: dict) -> str:
-    """最後の3秒に表示するCTAテキストを生成"""
+    """最後の3秒に表示するCTAテキストを生成
+    V2.22: CTA話術を強導向性の行動喚起に変更
+    - 目的: 観客を直接「左下角の商品リンク」へ誘導
+    - 曖昧な結語（コメントで質問OK等）を排除
+    - 「今すぐ購入」系の強いCTAのみ使用
+    """
     product_name = clip.get("product_name") or ""
 
     # Try GPT-based CTA generation
@@ -2564,11 +2635,17 @@ def _generate_cta_text(captions: list, clip: dict) -> str:
 
 条件:
 - 15文字以内
-- TikTokの購入導線を意識する（左下のカートボタン、プロフィールリンク）
-- 具体的なアクションを促す（例: 「左下タップで購入」「プロフからチェック」「カートに追加してね」）
+- 必ず「左下」「画面左下」「商品リンク」のいずれかの言葉を含めること
+- 観客に今すぐ購入/クリックするよう強く促すこと（「抢购」「ゲット」「タップ」等の行動動詞を使う）
+- 曖昧な表現（質問OK、フォロー、いいね等）は絶対に使わない
 - 絵文字は使わない（フォント非対応のため）
 - 商品名: {product_name}
 - 動画内容: {transcript}
+
+参考例:
+- 「画面左下の商品リンクから抢购」
+- 「左下タップで今すぐゲット」
+- 「左下から今すぐ購入」
 
 CTAテキストのみ出力（説明不要）:"""
 
@@ -2595,16 +2672,17 @@ CTAテキストのみ出力（説明不要）:"""
     except Exception as e:
         logger.warning(f"[ai-clip] CTA generation via GPT failed: {e}")
 
-    # Fallback CTAs (TikTok購入導線に最適化、絵文字なし)
+    # Fallback CTAs: V2.22 強導向性CTA（全て「左下」への購入誘導に統一）
+    # 曖昧な結語（コメントで質問OK、フォロー、いいね等）を完全排除
     ctas = [
-        "左下タップで購入できます",
-        "プロフィールから購入",
-        "カートに追加してね",
+        "左下の商品リンクから抢购",
+        "左下タップで今すぐゲット",
+        "画面左下から今すぐ購入",
+        "左下から抢购 数量限定",
+        "左下のリンクをタップ",
         "左下から今すぐゲット",
-        "いいね&保存してね",
-        "フォローで最新情報",
-        "コメントで質問OK",
-        "プロフからチェック",
+        "画面左下タップで購入",
+        "左下リンクから即購入",
     ]
     return random.choice(ctas)
 
@@ -2930,6 +3008,8 @@ class GenerateRequest(BaseModel):
     speed_factor: float = Field(1.05, ge=1.0, le=1.3, description="再生速度倍率 (1.0=変更なし, 1.05=TikTok風微速, 1.3=最大)")
     # V12: 編集スタイル学習
     editing_profile_id: Optional[str] = Field(None, description="編集プロファイルID（スタイル学習済みプロファイルを適用）")
+    # V2.22: 画面安定化（防抖・去闪烁）
+    enable_stabilization: bool = Field(True, description="画面安定化（防抖+去闪烁）を有効にするか")
 
 
 class GenerateFromClipRequest(BaseModel):
@@ -2964,6 +3044,8 @@ class GenerateFromClipRequest(BaseModel):
     product_video_urls: Optional[list] = Field(None, description="商品動甾URLリスト（PiPで動甾をオーバーレイ表示する場合に使用）")
     # V12: 編集スタイル学習
     editing_profile_id: Optional[str] = Field(None, description="編集プロファイルID（スタイル学習済みプロファイルを適用）")
+    # V2.22: 画面安定化（防抖・去闪烁）
+    enable_stabilization: bool = Field(True, description="画面安定化（防抖+去闪烁）を有効にするか")
 
 
 class JobStatusResponse(BaseModel):
