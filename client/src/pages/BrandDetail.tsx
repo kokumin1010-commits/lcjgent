@@ -2732,6 +2732,45 @@ ${proposal.proposalContent}
                       </React.Fragment>);
                     })}
                   </tbody>
+                  <tfoot>
+                    <tr className="border-t border-cyan-500/30 bg-cyan-500/5">
+                      <td className="p-3" colSpan={2}>
+                        <span className="text-sm font-bold text-cyan-300">{language === 'ja' ? '合計' : '汇总'}</span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <span className="text-sm font-bold text-cyan-300">
+                          {quotaProgress.liverBreakdown.reduce((sum, lb) => sum + lb.streamCount, 0)}{language === 'ja' ? '回' : '次'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <span className="text-sm font-bold text-cyan-300">
+                          {(() => {
+                            const totalMin = livestreams
+                              .filter(ls => {
+                                if (ls.livestreamDate) {
+                                  const d = new Date(ls.livestreamDate);
+                                  const jstD = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+                                  return jstD.getUTCFullYear() === quotaMonth.year && (jstD.getUTCMonth() + 1) === quotaMonth.month;
+                                }
+                                return false;
+                              })
+                              .reduce((sum, ls) => sum + (ls.duration || 0), 0);
+                            return (Math.round(totalMin / 60 * 10) / 10) + 'h';
+                          })()}
+                        </span>
+                      </td>
+                      <td className="p-3"></td>
+                      <td className="p-3"></td>
+                      <td className="p-3 text-right">
+                        <span className="text-sm font-bold text-amber-400">
+                          ¥{(() => {
+                            const totalGmv = quotaProgress.liverBreakdown.reduce((sum, lb) => sum + (lb.totalGmv || 0), 0);
+                            return totalGmv.toLocaleString();
+                          })()}
+                        </span>
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             )}
