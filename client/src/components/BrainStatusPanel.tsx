@@ -4,14 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Brain, RefreshCw, User, Clock, Zap, BookOpen, Target, AlertTriangle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface BrainStatusPanelProps {
   liverId: number | null;
 }
 
 export default function BrainStatusPanel({ liverId }: BrainStatusPanelProps) {
-  const { toast } = useToast();
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isUpdatingMemory, setIsUpdatingMemory] = useState(false);
 
@@ -23,24 +22,24 @@ export default function BrainStatusPanel({ liverId }: BrainStatusPanelProps) {
 
   const regenerateMutation = trpc.liverManagement.aiCoach.regenerateMasterKnowledge.useMutation({
     onSuccess: () => {
-      toast({ title: "✅ マスターブレイン再生成を開始しました" });
+      toast.success("マスターブレイン再生成を開始しました");
       setIsRegenerating(false);
       refetchStatus();
     },
     onError: (err) => {
-      toast({ title: "❌ エラー", description: err.message, variant: "destructive" });
+      toast.error(err.message || "エラーが発生しました");
       setIsRegenerating(false);
     },
   });
 
   const triggerMemoryMutation = trpc.liverManagement.aiCoach.triggerMemoryUpdate.useMutation({
     onSuccess: () => {
-      toast({ title: "✅ ライバーメモリを更新しました" });
+      toast.success("ライバーメモリを更新しました");
       setIsUpdatingMemory(false);
       refetchMemory();
     },
     onError: (err) => {
-      toast({ title: "❌ エラー", description: err.message, variant: "destructive" });
+      toast.error(err.message || "エラーが発生しました");
       setIsUpdatingMemory(false);
     },
   });
