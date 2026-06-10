@@ -157,14 +157,20 @@ function formatTimeJST(dateStr: string): string {
   if (isNaN(d.getTime())) return dateStr;
   const now = new Date();
   const diff = now.getTime() - d.getTime();
-  if (diff < 60000) return "今";
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}分前`;
-  const jstFormatter = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false });
-  const dayFormatter = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", weekday: "short" });
-  const dateFormatter = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric" });
-  if (diff < 86400000) return jstFormatter.format(d);
-  if (diff < 604800000) return dayFormatter.format(d);
-  return dateFormatter.format(d);
+  // Always show JST time
+  const timeFormatter = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false });
+  const timeStr = timeFormatter.format(d);
+  // Today: show only time (e.g. "15:17")
+  const todayJST = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const msgDateJST = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  if (todayJST === msgDateJST) {
+    if (diff < 60000) return "今";
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}分前`;
+    return timeStr;
+  }
+  // Other days: show "M/D HH:mm" (e.g. "6/2 15:17")
+  const monthDay = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric" }).format(d);
+  return `${monthDay} ${timeStr}`;
 }
 
 // ===== Render rich text content safely =====
