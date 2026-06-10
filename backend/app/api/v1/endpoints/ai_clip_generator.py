@@ -2034,42 +2034,36 @@ def _generate_overlay_images(
                         width=max(4, int(arrow_size * 0.06))
                     )
                 
-                # 矢印本体（左下方向を指す斜め矢印）
-                # 軸: 右上から左下へ
-                shaft_start_x = arrow_center_x + int(arrow_size * 0.6)
-                shaft_start_y = cur_y - int(arrow_size * 0.6)
-                shaft_end_x = arrow_center_x - int(arrow_size * 0.3)
-                shaft_end_y = cur_y + int(arrow_size * 0.3)
+                # 矢印本体（真下方向を指す矢印 → 商品リンクボタンへ誘導）
+                # V2.26: 方向修正 — 斜め↙ → ほぼ真下↓（商品リンクは矢印の真下にある）
+                shaft_start_x = arrow_center_x + int(arrow_size * 0.08)  # ほぼ中央（わずかに右）
+                shaft_start_y = cur_y - int(arrow_size * 0.7)            # 上端
+                shaft_end_x = arrow_center_x - int(arrow_size * 0.08)   # ほぼ中央（わずかに左）
+                shaft_end_y = cur_y + int(arrow_size * 0.7)             # 下端
                 shaft_width = max(8, int(arrow_size * 0.18))
                 
-                # 矢印軸（黄色の太線）
-                draw.line(
-                    [(shaft_start_x, shaft_start_y), (shaft_end_x, shaft_end_y)],
-                    fill=(255, 220, 0, 255),  # 黄色（高視認性）
-                    width=shaft_width
-                )
-                # 矢印軸の赤いアウトライン
+                # 矢印軸の赤いアウトライン（先に描画）
                 draw.line(
                     [(shaft_start_x, shaft_start_y), (shaft_end_x, shaft_end_y)],
                     fill=(255, 30, 30, 200),
                     width=shaft_width + 6
                 )
-                # 黄色の内側線（上書き）
+                # 矢印軸（黄色の太線・上書き）
                 draw.line(
                     [(shaft_start_x, shaft_start_y), (shaft_end_x, shaft_end_y)],
-                    fill=(255, 220, 0, 255),
+                    fill=(255, 220, 0, 255),  # 黄色（高視認性）
                     width=shaft_width
                 )
                 
-                # 矢印の先端（左下方向の三角形）
+                # 矢印の先端（下向き三角形 → 商品リンクを指す）
                 head_size = int(arrow_size * 0.55)
-                # 左下方向の三角形
-                tip_x = shaft_end_x - int(head_size * 0.4)
-                tip_y = shaft_end_y + int(head_size * 0.4)
+                # 真下方向の三角形
+                tip_x = shaft_end_x  # 真下
+                tip_y = shaft_end_y + int(head_size * 0.5)  # 先端は軸の下
                 head_points = [
-                    (tip_x, tip_y),  # 先端（左下）
-                    (shaft_end_x + int(head_size * 0.3), shaft_end_y + int(head_size * 0.1)),  # 右
-                    (shaft_end_x - int(head_size * 0.1), shaft_end_y - int(head_size * 0.4)),  # 上
+                    (tip_x, tip_y),  # 先端（真下）
+                    (shaft_end_x + int(head_size * 0.38), shaft_end_y - int(head_size * 0.05)),  # 右上
+                    (shaft_end_x - int(head_size * 0.38), shaft_end_y - int(head_size * 0.05)),  # 左上
                 ]
                 # 赤いアウトライン
                 draw.polygon(head_points, fill=(255, 30, 30, 240))
@@ -2098,7 +2092,7 @@ def _generate_overlay_images(
                     overlays.append((frame_path, frame_start, frame_end))
                     t += total_cycle
             
-            logger.info(f"[ai-clip] V2.22 Generated ANIMATED arrow CTA overlay: "
+            logger.info(f"[ai-clip] V2.26 Generated ANIMATED arrow CTA overlay (direction=DOWN): "
                         f"pos=({arrow_center_x},{arrow_center_y}), "
                         f"frames={len(bounce_offsets)}, "
                         f"time={arrow_start:.1f}-{arrow_end:.1f}s")
