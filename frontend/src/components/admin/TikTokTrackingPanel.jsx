@@ -163,6 +163,7 @@ export default function TikTokTrackingPanel({ adminKey }) {
   const [accounts, setAccounts] = useState([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
   const [accountFilter, setAccountFilter] = useState("");
+  const [ahFilter, setAhFilter] = useState(false); // AH (aitherhub) videos only
 
   // Fingerprint status
   const [fpStatus, setFpStatus] = useState(null);
@@ -559,10 +560,17 @@ export default function TikTokTrackingPanel({ adminKey }) {
   const matchedCount = videos.filter(v => v.clip_db_id).length;
   const ahEditedCount = videos.filter(v => v.clip_db_id && v.is_aitherhub_edited).length;
 
-  // ── Filter videos by account ──
-  const filteredVideos = accountFilter
-    ? videos.filter(v => v.account_name === accountFilter)
-    : videos;
+  // ── Filter videos by account and AH tag ──
+  const filteredVideos = useMemo(() => {
+    let result = videos;
+    if (accountFilter) {
+      result = result.filter(v => v.account_name === accountFilter);
+    }
+    if (ahFilter) {
+      result = result.filter(v => (v.label || v.title || '').toLowerCase().includes('aitherhub'));
+    }
+    return result;
+  }, [videos, accountFilter, ahFilter]);
 
   // ── Build rows with inline detail panel ──
   // Group videos into rows of 3 (matching xl:grid-cols-3), insert detail panel after selected row
@@ -637,6 +645,17 @@ export default function TikTokTrackingPanel({ adminKey }) {
               ))}
             </select>
           )}
+          {/* AH filter toggle */}
+          <button
+            onClick={() => setAhFilter(!ahFilter)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all shadow-sm border ${
+              ahFilter
+                ? "bg-blue-600 text-white border-blue-600"
+                : "bg-white text-blue-600 border-blue-300 hover:bg-blue-50"
+            }`}
+          >
+            AH のみ
+          </button>
           <button
             onClick={() => { setSubView(subView === "accounts" ? "list" : "accounts"); }}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all shadow-sm ${
@@ -1190,6 +1209,18 @@ export default function TikTokTrackingPanel({ adminKey }) {
           <button
             onClick={() => setAccountFilter("")}
             className="text-xs text-teal-500 hover:text-teal-700 underline"
+          >
+            フィルター解除
+          </button>
+        </div>
+      )}
+      {/* AH filter indicator */}
+      {ahFilter && (
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+          <span className="text-xs text-blue-700">🎯 AH（aitherhub）タグ付き動画のみ表示中（{filteredVideos.length}件）</span>
+          <button
+            onClick={() => setAhFilter(false)}
+            className="text-xs text-blue-500 hover:text-blue-700 underline"
           >
             フィルター解除
           </button>
