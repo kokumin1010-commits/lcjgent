@@ -732,9 +732,9 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] min-h-0 overflow-hidden bg-background">
+    <div className="flex h-[calc(100vh-4rem)] min-h-0 overflow-hidden bg-background -m-4">
       {/* Left Panel - Room List (fixed, no scroll on whole panel) */}
-      <div className={`w-full md:w-80 lg:w-96 border-r flex flex-col min-h-0 shrink-0 ${mobileShowMessages ? "hidden md:flex" : "flex"}`}>
+      <div className={`w-full md:w-[320px] lg:w-[360px] xl:w-96 border-r flex flex-col min-h-0 shrink-0 ${mobileShowMessages ? "hidden md:flex" : "flex"}`}>
         {/* Header with my info */}
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-2">
@@ -789,7 +789,7 @@ export default function Chat() {
         </div>
 
         {/* Room List */}
-        <ScrollArea className="flex-1">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
           {(!rooms || rooms.length === 0) ? (
             <div className="p-8 text-center text-muted-foreground">
               <MessageCircle className="h-12 w-12 mx-auto mb-3 opacity-30" />
@@ -840,7 +840,7 @@ export default function Chat() {
               ))}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </div>
 
       {/* Right Panel - Messages (scrollable) */}
