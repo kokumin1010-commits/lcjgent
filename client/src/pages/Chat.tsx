@@ -214,6 +214,10 @@ export default function Chat() {
   const videoInputRef = useRef<HTMLInputElement>(null);
   const liveTranslateTimer = useRef<any>(null);
 
+  // Refs for mention suggestion (avoid stale closure in useEditor)
+  const roomMembersRef = useRef<any[]>([]);
+  const myInfoRef = useRef<any>(null);
+
   // Tiptap editor
   // Mention suggestion component ref for cleanup
   const mentionSuggestionRef = useRef<{ onKeyDown?: (props: any) => boolean; popup?: TippyInstance[] }>({});
@@ -232,9 +236,10 @@ export default function Chat() {
         },
         suggestion: {
           items: ({ query }: { query: string }) => {
-            const members = (roomDetail?.members || []) as any[];
+            const members = roomMembersRef.current || [];
+            const currentMyInfo = myInfoRef.current;
             return members
-              .filter((m: any) => !(myInfo && m.userId === myInfo.id && m.userType === myInfo.userType))
+              .filter((m: any) => !(currentMyInfo && m.userId === currentMyInfo.id && m.userType === currentMyInfo.userType))
               .filter((m: any) => (m.userName || '').toLowerCase().includes(query.toLowerCase()))
               .slice(0, 8)
               .map((m: any) => ({ id: String(m.userId), label: m.userName || '不明', userType: m.userType }));
@@ -383,6 +388,10 @@ export default function Chat() {
     { query: searchQuery || "" },
     { enabled: showNewChat || showAddMembers }
   );
+
+  // Keep refs in sync for mention suggestion (avoids stale closure in useEditor)
+  useEffect(() => { roomMembersRef.current = roomDetail?.members || []; }, [roomDetail]);
+  useEffect(() => { myInfoRef.current = myInfo || null; }, [myInfo]);
 
   // Mutations
   const sendMessage = trpc.chat.sendMessage.useMutation({
