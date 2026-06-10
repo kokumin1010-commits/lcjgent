@@ -2149,6 +2149,34 @@ ${proposal.proposalContent}
     );
   }
 
+  // 从 livestreams 数据计算实际品牌特定时长（与展开明细一致）
+  const computedKgMin = livestreams
+    .filter(ls => {
+      const isKg = (ls.streamerName || '').includes('KG') || (ls.streamerName || '').includes('老师') || (ls.streamerName || '').includes('kg');
+      if (!isKg) return false;
+      if (ls.livestreamDate) {
+        const d = new Date(ls.livestreamDate);
+        const jstD = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+        return jstD.getUTCFullYear() === quotaMonth.year && (jstD.getUTCMonth() + 1) === quotaMonth.month;
+      }
+      return false;
+    })
+    .reduce((sum, ls) => sum + (ls.duration || 0), 0);
+  const computedLiverMin = livestreams
+    .filter(ls => {
+      const isKg = (ls.streamerName || '').includes('KG') || (ls.streamerName || '').includes('老师') || (ls.streamerName || '').includes('kg');
+      if (isKg) return false;
+      if (ls.livestreamDate) {
+        const d = new Date(ls.livestreamDate);
+        const jstD = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+        return jstD.getUTCFullYear() === quotaMonth.year && (jstD.getUTCMonth() + 1) === quotaMonth.month;
+      }
+      return false;
+    })
+    .reduce((sum, ls) => sum + (ls.duration || 0), 0);
+  const computedKgHours = Math.round(computedKgMin / 60 * 10) / 10;
+  const computedLiverHours = Math.round(computedLiverMin / 60 * 10) / 10;
+
   return (
     <div className="min-h-screen text-white overflow-x-hidden" style={{ background: 'linear-gradient(135deg, #0a0008 0%, #1a0010 25%, #0d0005 50%, #150012 75%, #0a0008 100%)' }}>
       {/* CYBERPUNK RED MATRIX BACKGROUND */}
@@ -2488,12 +2516,12 @@ ${proposal.proposalContent}
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-red-400">{language === 'ja' ? 'KG老师直播' : 'KG老师直播'}</span>
                     <span className="text-xs text-gray-400">
-                      {quotaProgress.actuals.kgLiveHours}h / {quotaProgress.quotas.kgLiveHours}h
+                      {computedKgHours}h / {quotaProgress.quotas.kgLiveHours}h
                     </span>
                   </div>
                   {(() => {
-                    const pct = Math.min(100, Math.round((quotaProgress.actuals.kgLiveHours / quotaProgress.quotas.kgLiveHours) * 100));
-                    const remaining = Math.max(0, quotaProgress.quotas.kgLiveHours - quotaProgress.actuals.kgLiveHours);
+                    const pct = Math.min(100, Math.round((computedKgHours / quotaProgress.quotas.kgLiveHours) * 100));
+                    const remaining = Math.max(0, quotaProgress.quotas.kgLiveHours - computedKgHours);
                     const remainingDisplay = Number(remaining.toFixed(1));
                     return (
                       <>
@@ -2519,12 +2547,12 @@ ${proposal.proposalContent}
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-blue-400">{language === 'ja' ? '達人直播' : '达人直播'}</span>
                     <span className="text-xs text-gray-400">
-                      {quotaProgress.actuals.liverLiveHours}h / {quotaProgress.quotas.liverLiveHours}h
+                      {computedLiverHours}h / {quotaProgress.quotas.liverLiveHours}h
                     </span>
                   </div>
                   {(() => {
-                    const pct = Math.min(100, Math.round((quotaProgress.actuals.liverLiveHours / quotaProgress.quotas.liverLiveHours) * 100));
-                    const remaining = Math.max(0, quotaProgress.quotas.liverLiveHours - quotaProgress.actuals.liverLiveHours);
+                    const pct = Math.min(100, Math.round((computedLiverHours / quotaProgress.quotas.liverLiveHours) * 100));
+                    const remaining = Math.max(0, quotaProgress.quotas.liverLiveHours - computedLiverHours);
                     const remainingDisplay = Number(remaining.toFixed(1));
                     return (
                       <>
@@ -2603,6 +2631,19 @@ ${proposal.proposalContent}
                       const kolProg = quotaProgress.kolProgress?.find((a: any) => a.liverName === lb.streamerName);
                       const quotaHours = kolProg ? kolProg.quotaHours : null;
                       const kolPct = kolProg ? kolProg.progressPercent : null;
+                      // 直播时长直接从livestreams数据计算（品牌特定时长的总和，与展开明细一致）
+                      const actualDurationMin = livestreams
+                        .filter(ls => {
+                          if (ls.streamerName !== lb.streamerName) return false;
+                          if (ls.livestreamDate) {
+                            const d = new Date(ls.livestreamDate);
+                            const jstD = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+                            return jstD.getUTCFullYear() === quotaMonth.year && (jstD.getUTCMonth() + 1) === quotaMonth.month;
+                          }
+                          return false;
+                        })
+                        .reduce((sum, ls) => sum + (ls.duration || 0), 0);
+                      const actualDurationHours = Math.round(actualDurationMin / 60 * 10) / 10;
                       return (<React.Fragment key={idx}>
                         <tr className="border-b border-gray-800/50 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setExpandedLiverBreakdown(expandedLiverBreakdown === lb.streamerName ? null : lb.streamerName)}>
                           <td className="p-3">
@@ -2620,7 +2661,7 @@ ${proposal.proposalContent}
                             <span className="text-sm text-gray-300">{lb.streamCount}{language === 'ja' ? '回' : '次'}</span>
                           </td>
                           <td className="p-3 text-right">
-                            <span className="text-sm font-medium text-cyan-300">{lb.totalDurationHours}h</span>
+                            <span className="text-sm font-medium text-cyan-300">{actualDurationHours}h</span>
                           </td>
                           <td className="p-3 text-right">
                             {quotaHours ? (
@@ -2727,8 +2768,8 @@ ${proposal.proposalContent}
               const dayOfMonth = jst.getUTCDate();
               const daysInMonth = new Date(jst.getUTCFullYear(), jst.getUTCMonth() + 1, 0).getDate();
               const monthPct = Math.round((dayOfMonth / daysInMonth) * 100);
-              const kgPct = quotaProgress.quotas.kgLiveHours > 0 ? Math.round((quotaProgress.actuals.kgLiveHours / quotaProgress.quotas.kgLiveHours) * 100) : -1;
-              const liverPct = quotaProgress.quotas.liverLiveHours > 0 ? Math.round((quotaProgress.actuals.liverLiveHours / quotaProgress.quotas.liverLiveHours) * 100) : -1;
+              const kgPct = quotaProgress.quotas.kgLiveHours > 0 ? Math.round((computedKgHours / quotaProgress.quotas.kgLiveHours) * 100) : -1;
+              const liverPct = quotaProgress.quotas.liverLiveHours > 0 ? Math.round((computedLiverHours / quotaProgress.quotas.liverLiveHours) * 100) : -1;
               const validPcts = [kgPct, liverPct].filter(p => p >= 0);
               const avgPct = validPcts.length > 0 ? Math.round(validPcts.reduce((a, b) => a + b, 0) / validPcts.length) : -1;
               if (avgPct < 0) return null;
@@ -2754,7 +2795,7 @@ ${proposal.proposalContent}
                   </div>
                   {avgPct < monthPct && quotaProgress.quotas.liverLiveHours > 0 && (() => {
                     const remainingDays = daysInMonth - dayOfMonth;
-                    const remainingHours = Math.max(0, quotaProgress.quotas.liverLiveHours - quotaProgress.actuals.liverLiveHours);
+                    const remainingHours = Math.max(0, quotaProgress.quotas.liverLiveHours - computedLiverHours);
                     const dailyNeeded = remainingDays > 0 ? (remainingHours / remainingDays).toFixed(1) : '∞';
                     return (
                       <div className="text-right">
