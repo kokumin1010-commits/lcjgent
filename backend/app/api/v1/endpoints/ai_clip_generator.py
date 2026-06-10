@@ -2356,6 +2356,38 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
         vf_parts.append("deflicker=size=5:mode=am")
         logger.info(f"[ai-clip] V2.23: Stabilization enabled (deflicker only, deshake removed)")
     # ── 1. Silence trimming (select filter) ──
+    # V2.28: 帧境界量子化 — keep_segmentsの全境界を正確なフレーム時刻にスナップ
+    # 問題: silence検出の境界（例: 5.317s）がフレーム時刻（5.300s, 5.333s）と一致しない場合、
+    #   select filterの半開区間で境界フレームが重複選択されたり、1フレーム回溯が発生する。
+    # 修正: 全てのstart/endをフレーム時刻にスナップ（startは次のフレームに切り上げ、endは前のフレームに切り下げ）
+    if len(keep_segments) > 1:
+        frame_dur = 1.0 / video_fps
+        quantized_segments = []
+        for i, (seg_start, seg_end) in enumerate(keep_segments):
+            if i == 0:
+                # 最初のsegment: startはそのまま（動画の先頭）、endは切り下げ
+                q_start = seg_start
+            else:
+                # startを次のフレーム境界に切り上げ（前のsegmentの最後のフレームと重複しない）
+                q_start = math.ceil(seg_start / frame_dur) * frame_dur
+            if i == len(keep_segments) - 1:
+                # 最後のsegment: endはそのまま（動画の末尾）
+                q_end = seg_end
+            else:
+                # endを前のフレーム境界に切り下げ
+                q_end = math.floor(seg_end / frame_dur) * frame_dur
+            # 量子化後にsegmentが有効か確認（最低1フレーム）
+            if q_end - q_start >= frame_dur:
+                quantized_segments.append((round(q_start, 4), round(q_end, 4)))
+            else:
+                # segmentが短すぎる場合はスキップ
+                logger.warning(f"[ai-clip] V2.28: Skipping too-short segment after quantization: "
+                               f"({seg_start:.3f}, {seg_end:.3f}) -> ({q_start:.3f}, {q_end:.3f})")
+        if quantized_segments:
+            keep_segments = quantized_segments
+            logger.info(f"[ai-clip] V2.28: Frame-boundary quantization applied to {len(keep_segments)} segments "
+                        f"(fps={video_fps}, frame_dur={frame_dur:.4f}s)")
+
     # V13: keep_segments > 20 の場合、隣接セグメントをマージして20以下にする
     if len(keep_segments) > 20:
         # 最も短いギャップからマージしてセグメント数を削減
@@ -2393,27 +2425,28 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
         # Step 2: 半開区間selectで境界フレーム重複を防止
         # 最初のsegment: between(t, start, end-epsilon)
         # 中間/最後: gte(t, start) * lt(t, end) ただし最後のsegmentのendは<=
+        # V2.28: select式でフレーム境界量子化済みの値を使用（.4f精度）
         select_parts = []
         for i, (s, e) in enumerate(keep_segments):
             if i == len(keep_segments) - 1:
                 # 最後のsegment: endを含む（動画の最後まで）
-                select_parts.append(f"between(t,{s:.3f},{e:.3f})")
+                select_parts.append(f"between(t,{s:.4f},{e:.4f})")
             else:
                 # 中間segment: endを含まない（次のsegmentのstartとの重複を防止）
                 # gte(t,s)*lt(t,e) = t>=s AND t<e
-                select_parts.append(f"gte(t\\,{s:.3f})*lt(t\\,{e:.3f})")
+                select_parts.append(f"gte(t\\,{s:.4f})*lt(t\\,{e:.4f})")
         select_expr = "+".join(select_parts)
         vf_parts.append(f"select='{select_expr}'")
         # V2.21: 回退setpts統合 - 音視頻同期問題の根本修正
         vf_parts.append("setpts=N/FRAME_RATE/TB")
         
-        # 音声も同様に半開区間で選択
+        # 音声も同様に半開区間で選択（フレーム境界量子化済みの値を使用）
         aselect_parts = []
         for i, (s, e) in enumerate(keep_segments):
             if i == len(keep_segments) - 1:
-                aselect_parts.append(f"between(t,{s:.3f},{e:.3f})")
+                aselect_parts.append(f"between(t,{s:.4f},{e:.4f})")
             else:
-                aselect_parts.append(f"gte(t\\,{s:.3f})*lt(t\\,{e:.3f})")
+                aselect_parts.append(f"gte(t\\,{s:.4f})*lt(t\\,{e:.4f})")
         aselect_expr = "+".join(aselect_parts)
         af_chain = f"aselect='{aselect_expr}',asetpts=N/SR/TB"
         # V14.2: セグメント境界フェードを完全に無効化
