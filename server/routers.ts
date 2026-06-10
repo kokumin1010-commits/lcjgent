@@ -27521,12 +27521,17 @@ JSON配列のみを出力してください。`;
       }),
     // ルーム名変更
     updateRoom: publicProcedure
-      .input(z.object({ roomId: z.number(), name: z.string() }))
+      .input(z.object({ roomId: z.number(), name: z.string().optional(), avatarUrl: z.string().optional() }))
       .mutation(async ({ input, ctx }) => {
         const chatUser = await getChatUser(ctx);
         if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
         const db = await getDb();
-        await db.execute(sqlTag`UPDATE chat_rooms SET name = ${input.name} WHERE id = ${input.roomId}`);
+        if (input.name) {
+          await db.execute(sqlTag`UPDATE chat_rooms SET name = ${input.name} WHERE id = ${input.roomId}`);
+        }
+        if (input.avatarUrl) {
+          await db.execute(sqlTag`UPDATE chat_rooms SET avatarUrl = ${input.avatarUrl} WHERE id = ${input.roomId}`);
+        }
         return { success: true };
       }),
     // 招待リンク経由でグループに参加
@@ -27723,6 +27728,40 @@ JSON配列のみを出力してください。`;
         const code = Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
         await db.execute(sqlTag`UPDATE chat_rooms SET inviteCode = ${code} WHERE id = ${input.roomId}`);
         return { inviteCode: code };
+      }),
+    // ピン留めメッセージ
+    pinMessage: publicProcedure
+      .input(z.object({ roomId: z.number(), messageId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
+        // Ensure pinnedAt column exists
+        try { await db.execute(sqlTag`ALTER TABLE chat_messages ADD COLUMN pinnedAt TIMESTAMP NULL DEFAULT NULL`); } catch (e: any) {}
+        try { await db.execute(sqlTag`ALTER TABLE chat_messages ADD COLUMN pinnedBy VARCHAR(100) NULL DEFAULT NULL`); } catch (e: any) {}
+        await db.execute(sqlTag`UPDATE chat_messages SET pinnedAt = NOW(), pinnedBy = ${chatUser.name} WHERE id = ${input.messageId} AND roomId = ${input.roomId}`);
+        return { success: true };
+      }),
+    unpinMessage: publicProcedure
+      .input(z.object({ roomId: z.number(), messageId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
+        await db.execute(sqlTag`UPDATE chat_messages SET pinnedAt = NULL, pinnedBy = NULL WHERE id = ${input.messageId} AND roomId = ${input.roomId}`);
+        return { success: true };
+      }),
+    getPinnedMessages: publicProcedure
+      .input(z.object({ roomId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const chatUser = await getChatUser(ctx);
+        if (!chatUser) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please login (10001)' });
+        const db = await getDb();
+        // Ensure pinnedAt column exists
+        try { await db.execute(sqlTag`ALTER TABLE chat_messages ADD COLUMN pinnedAt TIMESTAMP NULL DEFAULT NULL`); } catch (e: any) {}
+        try { await db.execute(sqlTag`ALTER TABLE chat_messages ADD COLUMN pinnedBy VARCHAR(100) NULL DEFAULT NULL`); } catch (e: any) {}
+        const result = await db.execute(sqlTag`SELECT id, content, senderName, pinnedBy, pinnedAt, messageType, fileUrl FROM chat_messages WHERE roomId = ${input.roomId} AND pinnedAt IS NOT NULL ORDER BY pinnedAt DESC`);
+        return (result as any)[0] || [];
       }),
   }),
   // Contact Search API - triggers and monitors contact search for leads

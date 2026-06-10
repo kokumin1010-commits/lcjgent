@@ -19,7 +19,7 @@ import {
   Search, X, Edit2, UserPlus, ArrowLeft, Loader2, Check, User,
   Bold, Italic, Strikethrough, UnderlineIcon, List, ListOrdered,
   Quote, Code, Link as LinkIcon, Maximize2, Minimize2, Languages, Copy, Share2, Link2,
-  Camera, FolderOpen, ImagePlus, Trash2, UserMinus, Video, AtSign, Play
+  Camera, FolderOpen, ImagePlus, Trash2, UserMinus, Video, AtSign, Play, Pin, PinOff
 } from "lucide-react";
 import Mention from "@tiptap/extension-mention";
 import { ReactRenderer } from "@tiptap/react";
@@ -215,6 +215,9 @@ export default function Chat() {
   const [editingContent, setEditingContent] = useState("");
   const [replyTo, setReplyTo] = useState<{ id: number; name: string; content: string; type?: 'text' | 'image' | 'file' | 'video'; fileUrl?: string } | null>(null);
   const [mentionIds, setMentionIds] = useState<number[]>([]);
+  const [showPinnedMessages, setShowPinnedMessages] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -439,7 +442,7 @@ export default function Chat() {
     onSuccess: () => {
       setShowEditName(false);
       refetchRooms();
-      toast.success("ルーム名を変更しました");
+      toast.success("ルーム情報を変更しました");
     },
     onError: (err) => toast.error("変更失敗: " + err.message),
   });
@@ -474,9 +477,47 @@ export default function Chat() {
       refetchRooms();
       toast.success("メンバーを除外しました");
     },
-    onError: (err) => toast.error("除外失敗: " + err.message),
+        onError: (err) => toast.error("除外失敗: " + err.message),
   });
-
+  // Pinned messages
+  const { data: pinnedMessages, refetch: refetchPinned } = trpc.chat.getPinnedMessages.useQuery(
+    { roomId: selectedRoomId! },
+    { enabled: !!selectedRoomId }
+  );
+  const pinMessage = trpc.chat.pinMessage.useMutation({
+    onSuccess: () => { refetchPinned(); toast.success("メッセージをピン留めしました"); },
+    onError: (err) => toast.error("ピン留め失敗: " + err.message),
+  });
+  const unpinMessage = trpc.chat.unpinMessage.useMutation({
+    onSuccess: () => { refetchPinned(); toast.success("ピン留めを解除しました"); },
+    onError: (err) => toast.error("解除失敗: " + err.message),
+  });
+  // Avatar upload handler
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedRoomId) return;
+    setUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/chat-file-upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (data.url) {
+        updateRoom.mutate({ roomId: selectedRoomId, avatarUrl: data.url });
+      } else {
+        toast.error("アップロード失敗");
+      }
+    } catch (err: any) {
+      toast.error("アップロード失敗: " + (err.message || ""));
+    } finally {
+      setUploadingAvatar(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  };
   // Auto scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -865,11 +906,21 @@ export default function Chat() {
               <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileShowMessages(false)}>
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className={selectedRoom?.type === "group" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}>
-                  {selectedRoom?.type === "group" ? <Users className="h-3 w-3" /> : (getRoomDisplayName(selectedRoom) || "?").charAt(0)}
-                </AvatarFallback>
-              </Avatar>
+              {/* Group Avatar - clickable to upload */}
+              <div className="relative group cursor-pointer" onClick={() => selectedRoom?.type === "group" && avatarInputRef.current?.click()}>
+                <Avatar className="h-8 w-8">
+                  {selectedRoom?.avatarUrl ? <AvatarImage src={selectedRoom.avatarUrl} /> : null}
+                  <AvatarFallback className={selectedRoom?.type === "group" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}>
+                    {selectedRoom?.type === "group" ? <Users className="h-3 w-3" /> : (getRoomDisplayName(selectedRoom) || "?").charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                {selectedRoom?.type === "group" && (
+                  <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    {uploadingAvatar ? <Loader2 className="h-3 w-3 text-white animate-spin" /> : <Camera className="h-3 w-3 text-white" />}
+                  </div>
+                )}
+                <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+              </div>
               <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setShowMemberList(true)}>
                 <h2 className="font-medium text-sm truncate">{getRoomDisplayName(selectedRoom)}</h2>
                 <p className="text-xs text-muted-foreground hover:text-foreground transition-colors">
@@ -906,9 +957,32 @@ export default function Chat() {
                     </Button>
                   </>
                 )}
+                {/* Pin button - show for all room types */}
+                <Button variant="ghost" size="icon" onClick={() => setShowPinnedMessages(true)} title="ピン留めメッセージ">
+                  <Pin className="h-4 w-4" />
+                  {pinnedMessages && (pinnedMessages as any[]).length > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 bg-orange-500 text-white text-[9px] rounded-full w-3.5 h-3.5 flex items-center justify-center">
+                      {(pinnedMessages as any[]).length}
+                    </span>
+                  )}
+                </Button>
               </div>
-            </div>
-
+                        </div>
+            {/* Pinned message banner */}
+            {pinnedMessages && (pinnedMessages as any[]).length > 0 && (
+              <div
+                className="px-3 py-1.5 bg-amber-50 dark:bg-amber-950/30 border-b flex items-center gap-2 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
+                onClick={() => setShowPinnedMessages(true)}
+              >
+                <Pin className="h-3 w-3 text-amber-600 shrink-0" />
+                <span className="text-xs text-amber-800 dark:text-amber-300 truncate flex-1">
+                  {(pinnedMessages as any[])[0]?.senderName}: {(pinnedMessages as any[])[0]?.content?.replace(/<[^>]+>/g, '').slice(0, 50)}
+                </span>
+                <Badge variant="outline" className="text-[10px] shrink-0 border-amber-300 text-amber-700">
+                  {(pinnedMessages as any[]).length}
+                </Badge>
+              </div>
+            )}
             {/* Messages */}
             <ScrollArea className="flex-1 min-h-0 p-4">
               <div className="space-y-3">
@@ -1314,6 +1388,31 @@ export default function Chat() {
           >
             💬 引用返信
           </button>
+          <div className="border-t my-1" />
+          {(() => {
+            const isPinned = pinnedMessages && (pinnedMessages as any[]).some((p: any) => p.id === contextMenu.msgId);
+            return isPinned ? (
+              <button
+                className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2"
+                onClick={() => {
+                  if (selectedRoomId) unpinMessage.mutate({ roomId: selectedRoomId, messageId: contextMenu.msgId });
+                  setContextMenu(null);
+                }}
+              >
+                <PinOff className="h-4 w-4" /> ピン留め解除
+              </button>
+            ) : (
+              <button
+                className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2"
+                onClick={() => {
+                  if (selectedRoomId) pinMessage.mutate({ roomId: selectedRoomId, messageId: contextMenu.msgId });
+                  setContextMenu(null);
+                }}
+              >
+                <Pin className="h-4 w-4" /> ピン留め
+              </button>
+            );
+          })()}
           {contextMenu.isMe && (
             <>
               <div className="border-t my-1" />
@@ -1344,6 +1443,40 @@ export default function Chat() {
         </div>
       )}
 
+      {/* Pinned Messages Panel */}
+      <Dialog open={showPinnedMessages} onOpenChange={setShowPinnedMessages}>
+        <DialogContent className="sm:max-w-md max-h-[70vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="flex items-center gap-2"><Pin className="h-4 w-4" /> ピン留めメッセージ</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-2">
+            {(!pinnedMessages || (pinnedMessages as any[]).length === 0) ? (
+              <p className="text-center text-muted-foreground py-8 text-sm">ピン留めされたメッセージはありません</p>
+            ) : (
+              (pinnedMessages as any[]).map((msg: any) => (
+                <div key={msg.id} className="border rounded-lg p-3 flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-xs">{msg.senderName}</span>
+                      <span className="text-[10px] text-muted-foreground">ピン: {msg.pinnedBy}</span>
+                    </div>
+                    {msg.messageType === 'image' ? (
+                      <img src={msg.fileUrl} className="max-w-[200px] max-h-[100px] rounded" alt="" />
+                    ) : (
+                      <p className="text-sm text-muted-foreground truncate" dangerouslySetInnerHTML={{ __html: msg.content?.replace(/<[^>]+>/g, '').slice(0, 100) }} />
+                    )}
+                  </div>
+                  <Button variant="ghost" size="icon" className="shrink-0 h-6 w-6" onClick={() => {
+                    if (selectedRoomId) unpinMessage.mutate({ roomId: selectedRoomId, messageId: msg.id });
+                  }}>
+                    <PinOff className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
       {/* New Chat Dialog */}
       <Dialog open={showNewChat} onOpenChange={setShowNewChat}>
         <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col overflow-hidden">
