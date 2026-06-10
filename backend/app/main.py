@@ -182,6 +182,81 @@ app = app_creator.app
 container = app_creator.container
 
 
+# ── Standalone Privacy Policy page for LiveBoost iOS app ──
+# This serves a self-contained HTML page with NO navigation to aitherhub.com
+# to satisfy App Store Guideline 3.1.1 (no links to external paid content)
+@app.get("/privacy")
+async def privacy_policy_page():
+    from fastapi.responses import HTMLResponse
+    html = """<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiveBoost - プライバシーポリシー</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 700px; margin: 0 auto; padding: 40px 20px; background: #fafafa; color: #333; line-height: 1.8; }
+h1 { font-size: 1.8rem; color: #111; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+h2 { font-size: 1.2rem; color: #222; margin-top: 30px; }
+p, li { font-size: 0.95rem; }
+ul { padding-left: 20px; }
+li { margin-bottom: 6px; }
+.updated { color: #888; font-size: 0.85rem; }
+.footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; font-size: 0.85rem; color: #888; }
+</style>
+</head>
+<body>
+<h1>プライバシーポリシー</h1>
+<p class="updated">最終更新日: 2026年6月10日</p>
+
+<h2>1. はじめに</h2>
+<p>Live Commerce Japan（以下「当社」）は、LiveBoostアプリケーション（以下「本アプリ」）をご利用いただくにあたり、お客様のプライバシーを尊重し、個人情報の保護に努めます。本プライバシーポリシーは、当社がどのような情報を収集し、どのように使用・保護するかについて説明します。</p>
+
+<h2>2. 収集する情報</h2>
+<p>本アプリでは、以下の情報を収集します：</p>
+<ul>
+<li><strong>画面録画データ：</strong>ライブコマース配信中の画面録画映像（映像フレーム・音声・タイムスタンプ）</li>
+<li><strong>認証情報：</strong>ログインに使用するメールアドレスとパスワード（暗号化して保存）</li>
+<li><strong>解析結果：</strong>AI解析により生成されたパフォーマンスレポート</li>
+</ul>
+
+<h2>3. 情報の使用目的</h2>
+<p>収集した情報は、以下の目的でのみ使用します：</p>
+<ul>
+<li>ライブコマース配信のAI解析とパフォーマンスレポートの生成</li>
+<li>録画映像の保存と振り返り分析</li>
+<li>サービスの改善と品質向上</li>
+</ul>
+
+<h2>4. 第三者への情報提供</h2>
+<p>AI解析のため、録画データの一部（映像フレーム・音声）をOpenAI, Inc.（米国）のGPT-4 Vision APIに送信します。送信されたデータはOpenAIのデータ利用ポリシーに従い、モデルのトレーニングには使用されません。</p>
+<p>上記を除き、お客様の情報を第三者に販売、貸与、または共有することはありません。ただし、法令に基づく開示要求がある場合を除きます。</p>
+
+<h2>5. データの保存と保護</h2>
+<p>収集したデータは、セキュアなクラウドサーバー（Microsoft Azure、日本東リージョン）に保存され、暗号化された通信（HTTPS/TLS 1.3）を通じて送受信されます。録画データは、サービス提供に必要な期間保存されます。</p>
+
+<h2>6. ユーザーの権利</h2>
+<p>お客様は以下の権利を有します：</p>
+<ul>
+<li>収集されたデータへのアクセスを要求する権利</li>
+<li>データの修正または削除を要求する権利</li>
+<li>アカウントの削除を要求する権利（アプリ内設定から実行可能）</li>
+<li>データ収集への同意を撤回する権利</li>
+</ul>
+
+<h2>7. ポリシーの変更</h2>
+<p>当社は、本プライバシーポリシーを随時更新することがあります。重要な変更がある場合は、本アプリを通じてお知らせします。</p>
+
+<h2>8. お問い合わせ</h2>
+<p>本プライバシーポリシーに関するご質問やお問い合わせは、以下までご連絡ください：</p>
+<p><strong>Live Commerce Japan</strong><br>メール: support@aitherhub.com</p>
+
+<div class="footer">&copy; 2026 Live Commerce Japan. All rights reserved.</div>
+</body>
+</html>"""
+    return HTMLResponse(content=html, status_code=200)
+
+
 # ── OGP proxy for /v/{clip_id} — serves OGP HTML to crawlers, redirects browsers to SPA ──
 @app.get("/v/{clip_id}")
 async def ogp_proxy(clip_id: str, request: Request):
