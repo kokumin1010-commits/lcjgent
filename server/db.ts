@@ -3698,9 +3698,15 @@ export async function importLivestreamProductsFromCsv(
     const productNames = products.map(p => p.productName);
     const resolvedNames = await resolveNumericProductNames(productNames);
     
-    const insertData = products.map(p => ({
+    const insertData = products.map(p => {
+      let finalName = resolvedNames.get(p.productName) || p.productName;
+      // 商品名を490文字に制限（DB varchar(500)対応）
+      if (finalName && finalName.length > 490) {
+        finalName = finalName.substring(0, 490) + '...';
+      }
+      return {
       livestreamId,
-      productName: resolvedNames.get(p.productName) || p.productName,
+      productName: finalName,
       grossRevenue: p.grossRevenue ?? null,
       directGmv: p.directGmv ?? null,
       gmv: p.directGmv ?? null, // Use directGmv as gmv for backward compatibility
@@ -3713,8 +3719,8 @@ export async function importLivestreamProductsFromCsv(
       productImpressions: p.productImpressions ?? null,
       impressions: p.productImpressions ?? null, // Backward compatibility
       productClicks: p.productClicks ?? null,
-    }));
-    
+    };
+    });
     await db.insert(livestreamProducts).values(insertData);
   }
   

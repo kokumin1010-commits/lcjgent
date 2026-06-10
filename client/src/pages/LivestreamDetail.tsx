@@ -317,8 +317,12 @@ export default function LivestreamDetail() {
         return isNaN(num) ? null : num;
       };
       
-      const productName = values[0];
+      let productName = values[0];
       if (!productName || productName === 'Product') continue;
+      // 商品名を500文字に制限（DB varchar(500)対応）
+      if (productName.length > 490) {
+        productName = productName.substring(0, 490) + '...';
+      }
       
       products.push({
         productName,
@@ -360,8 +364,13 @@ export default function LivestreamDetail() {
         }
         
         const headerRow = rows[0] as string[];
-        // 日本語ヘッダーの場合（TikTok商品別Excelファイル形式）
-        const hasJapaneseHeaders = headerRow.some(h => typeof h === 'string' && (h === '商品ID' || h === '商品名'));
+        // ヘッダー検出: 日本語、中国語、英語に対応
+        const hasJapaneseHeaders = headerRow.some(h => typeof h === 'string' && (
+          h === '商品ID' || h === '商品名' || h.includes('商品ID') || h.includes('商品名')
+        ));
+        const hasChineseHeaders = headerRow.some(h => typeof h === 'string' && (
+          h.includes('商品 ID') || h.includes('商品名称') || h.includes('归因') || h.includes('GMV')
+        ));
         
         let products: Array<{
           productName: string;
@@ -376,42 +385,74 @@ export default function LivestreamDetail() {
           productClicks: number | null;
         }> = [];
         
-        if (hasJapaneseHeaders) {
-          // 日本語ヘッダーのカラムインデックスを特定
+        if (hasJapaneseHeaders || hasChineseHeaders) {
           const colIndex: Record<string, number> = {};
-          headerRow.forEach((h, i) => { if (typeof h === 'string') colIndex[h] = i; });
+          headerRow.forEach((h, i) => { if (typeof h === 'string') colIndex[h.trim()] = i; });
+          
+          // ヘッダー名の正規化マッピング（スペースあり/なし両対応）
+          const findCol = (keys: string[]): number | undefined => {
+            for (const key of keys) {
+              if (colIndex[key] !== undefined) return colIndex[key];
+              const normalized = Object.keys(colIndex).find(k => k.replace(/\s/g, '') === key.replace(/\s/g, ''));
+              if (normalized && colIndex[normalized] !== undefined) return colIndex[normalized];
+            }
+            return undefined;
+          };
+          
+          const parseExcelNum = (val: any): number | null => {
+            if (val === null || val === undefined || val === '' || val === '-') return null;
+            const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/[,円\s]/g, ''));
+            return isNaN(num) ? null : num;
+          };
+          
+          // カラムインデックスを検索（日本語・中国語両対応）
+          const productNameCol = findCol(['商品名', '商品名称']);
+          const productIdCol = findCol(['商品ID', '商品 ID']);
+          const gmvCol = findCol(['GMV', '归因 GMV', '归因GMV', 'GMV（税込）']);
+          const salesCountCol = findCol(['商品の販売数', '归因成交件数', '販売数', 'LIVEに起因する商品販売数']);
+          const customerCountCol = findCol(['カスタマー数', '客户数', '顧客数']);
+          const skuOrdersCol = findCol(['SKU注文数', '归因 SKU 订单数', '归因SKU订单数', 'SKU 注文数']);
+          const ordersCol = findCol(['注文', '归因订单数', '归因訂単数', '注文数']);
+          const ctrCol = findCol(['CTR', '点击率']);
+          const ctorCol = findCol(['CTOR', '点击成交转化率']);
+          const impressionsCol = findCol(['商品インプレッション数', '商品曝光次数', 'インプレッション数']);
+          const clicksCol = findCol(['商品クリック数', '商品点击次数', 'クリック数']);
+          const derivedGmvCol = findCol(['派生GMV']);
           
           for (let r = 1; r < rows.length; r++) {
             const row = rows[r] as any[];
             if (!row || row.length < 2) continue;
             
-            // 商品名を優先、なければ商品IDを使用
-            const productName = (colIndex['商品名'] !== undefined ? String(row[colIndex['商品名']] || '') : '') 
-              || (colIndex['商品ID'] !== undefined ? String(row[colIndex['商品ID']] || '') : '');
+            // 商品名を取得（商品名カラム優先、なければ商品IDカラム）
+            let productName = '';
+            if (productNameCol !== undefined) {
+              productName = String(row[productNameCol] || '').trim();
+            }
+            if (!productName && productIdCol !== undefined) {
+              productName = String(row[productIdCol] || '').trim();
+            }
             if (!productName) continue;
             
-            const parseExcelNum = (val: any): number | null => {
-              if (val === null || val === undefined || val === '' || val === '-') return null;
-              const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/[,円\s]/g, ''));
-              return isNaN(num) ? null : num;
-            };
+            // 商品名を500文字に制限（DB varchar(500)対応）
+            if (productName.length > 490) {
+              productName = productName.substring(0, 490) + '...';
+            }
             
-            const gmvVal = parseExcelNum(row[colIndex['GMV']]);
-            const salesCount = parseExcelNum(row[colIndex['商品の販売数']]);
-            const liveSalesCount = parseExcelNum(row[colIndex['LIVEに起因する商品販売数']]);
-            const customerCount = parseExcelNum(row[colIndex['カスタマー数']]);
-            const skuOrders = parseExcelNum(row[colIndex['SKU注文数']]);
-            const orders = parseExcelNum(row[colIndex['注文']]);
-            const ctr = colIndex['CTR'] !== undefined ? String(row[colIndex['CTR']] || '') : null;
-            const ctor = colIndex['CTOR'] !== undefined ? String(row[colIndex['CTOR']] || '') : null;
-            const impressions = parseExcelNum(row[colIndex['商品インプレッション数']]);
-            const clicks = parseExcelNum(row[colIndex['商品クリック数']]);
-            const derivedGmv = parseExcelNum(row[colIndex['派生GMV']]);
+            const gmvVal = gmvCol !== undefined ? parseExcelNum(row[gmvCol]) : null;
+            const salesCount = salesCountCol !== undefined ? parseExcelNum(row[salesCountCol]) : null;
+            const customerCount = customerCountCol !== undefined ? parseExcelNum(row[customerCountCol]) : null;
+            const skuOrders = skuOrdersCol !== undefined ? parseExcelNum(row[skuOrdersCol]) : null;
+            const orders = ordersCol !== undefined ? parseExcelNum(row[ordersCol]) : null;
+            const ctr = ctrCol !== undefined ? String(row[ctrCol] || '') : null;
+            const ctor = ctorCol !== undefined ? String(row[ctorCol] || '') : null;
+            const impressions = impressionsCol !== undefined ? parseExcelNum(row[impressionsCol]) : null;
+            const clicks = clicksCol !== undefined ? parseExcelNum(row[clicksCol]) : null;
+            const derivedGmv = derivedGmvCol !== undefined ? parseExcelNum(row[derivedGmvCol]) : null;
             
             products.push({
               productName,
-              grossRevenue: derivedGmv || gmvVal,  // 派生GMVをgrossRevenueとして使用
-              directGmv: gmvVal,                     // GMVをdirectGmvとして使用
+              grossRevenue: derivedGmv || gmvVal,
+              directGmv: gmvVal,
               itemsSold: salesCount,
               customers: customerCount,
               orders: orders || skuOrders,
@@ -455,7 +496,8 @@ export default function LivestreamDetail() {
       }
     } catch (error) {
       console.error('CSV import error:', error);
-      toast.error('CSVのインポートに失敗しました');
+      const errMsg = error instanceof Error ? error.message : String(error);
+      toast.error(`CSVインポートエラー: ${errMsg.substring(0, 100)}`);
     } finally {
       setIsImportingProductCsv(false);
       e.target.value = '';
