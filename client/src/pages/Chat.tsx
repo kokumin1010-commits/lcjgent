@@ -922,8 +922,23 @@ export default function Chat() {
                         </div>
                       );
                     }
+                    // Check if current user is mentioned in this message
+                    const isMentioned = (() => {
+                      if (!myInfo || isMe) return false;
+                      const mentions = msg.mentions;
+                      if (!mentions) return false;
+                      try {
+                        const mentionArr = typeof mentions === 'string' ? JSON.parse(mentions) : mentions;
+                        return Array.isArray(mentionArr) && mentionArr.includes(myInfo.id);
+                      } catch { return false; }
+                    })();
                     return (
-                      <div key={msg.id} className={`flex gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
+                      <div key={msg.id} className={`flex gap-2 ${isMe ? "flex-row-reverse" : ""} ${isMentioned ? "relative bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300/50 dark:border-yellow-600/30 rounded-lg px-2 py-1 -mx-2" : ""}`}>
+                        {isMentioned && (
+                          <div className="absolute top-1 right-2 text-[9px] text-yellow-600 dark:text-yellow-400 font-medium flex items-center gap-0.5">
+                            <AtSign className="h-2.5 w-2.5" />
+                          </div>
+                        )}
                         <Avatar className="h-7 w-7 shrink-0 mt-0.5">
                           <AvatarFallback className="text-[10px] bg-muted">
                             {(msg.senderName || "?").charAt(0)}
