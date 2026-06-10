@@ -1342,7 +1342,12 @@ export default function TikTokTrackingPanel({ adminKey }) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-1">
                       <div className="min-w-0">
-                        <div className="text-xs font-semibold text-gray-800 truncate">{video.label || video.title || "無題"}</div>
+                        <div className="text-xs font-semibold text-gray-800 truncate flex items-center gap-1">
+                          {((video.label || video.title || '').toLowerCase().includes('aitherhub')) && (
+                            <span className="inline-flex items-center px-1 py-0.5 rounded text-[8px] font-bold bg-blue-100 text-blue-700 flex-shrink-0">AH</span>
+                          )}
+                          <span className="truncate">{(video.label || video.title || '無題').replace('[aitherhub] ', '')}</span>
+                        </div>
                         <div className="text-[10px] text-gray-400 mt-0.5">@{video.account_name || "—"}</div>
                       </div>
                       <div className="flex flex-col items-end gap-0.5 flex-shrink-0">

@@ -242,6 +242,9 @@ async def register_video(req: RegisterVideoRequest, x_admin_key: Optional[str] =
             raise HTTPException(status_code=409, detail="This video is already being tracked")
 
         label_val = req.label or (title[:100] if title else None)
+        # V2.25: auto-tag aitherhub videos
+        if title and 'aitherhub' in title.lower():
+            label_val = f'[aitherhub] {label_val}' if label_val and '[aitherhub]' not in label_val else label_val or '[aitherhub]'
         result = await session.execute(
             text("""
                 INSERT INTO tiktok_tracked_videos
@@ -1030,7 +1033,7 @@ async def _discover_new_videos_internal():
                             {
                                 "url": tiktok_url, "vid": video_id, "account": acc_name,
                                 "title": title, "cover": cover_url, "clip_db_id": clip_db_id,
-                                "label": title[:100] if title else None,
+                                "label": (f'[aitherhub] {title[:100]}' if title and 'aitherhub' in title.lower() else (title[:100] if title else None)),
                                 "posted_at": posted_at, "duration": duration,
                             }
                         )
@@ -1415,7 +1418,7 @@ async def import_account(
                         {
                             "url": tiktok_url, "vid": video_id, "account": account_name,
                             "title": title, "cover": cover_url, "clip_db_id": clip_db_id,
-                            "label": title[:100] if title else None,
+                            "label": (f'[aitherhub] {title[:100]}' if title and 'aitherhub' in title.lower() else (title[:100] if title else None)),
                             "posted_at": posted_at, "duration": duration,
                         }
                     )
@@ -1679,4 +1682,31 @@ async def get_daily_posts_by_account(
             "daily_by_account": daily_by_account,
             "daily_summary": daily_summary,
             "days": min(days, 90),
+        }
+
+
+# ─── V2.25: Batch tag aitherhub videos ───────────────────────────────────────────
+
+@router.post("/tag-aitherhub")
+async def tag_aitherhub_videos(x_admin_key: Optional[str] = Header(None)):
+    """Batch update: tag all videos with 'aitherhub' in title with [aitherhub] prefix in label."""
+    verify_admin(x_admin_key)
+
+    async with get_session() as session:
+        # Find all videos with 'aitherhub' in title that don't already have the tag
+        result = await session.execute(
+            text("""
+                UPDATE tiktok_tracked_videos
+                SET label = '[aitherhub] ' || COALESCE(SUBSTRING(title FROM 1 FOR 100), ''),
+                    updated_at = NOW()
+                WHERE LOWER(title) LIKE '%aitherhub%'
+                  AND (label IS NULL OR label NOT LIKE '%[aitherhub]%')
+                RETURNING id, title
+            """)
+        )
+        updated = result.fetchall()
+
+        return {
+            "tagged_count": len(updated),
+            "tagged_videos": [{"id": r[0], "title": r[1][:60] if r[1] else None} for r in updated],
         }
