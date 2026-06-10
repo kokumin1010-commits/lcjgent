@@ -1785,7 +1785,23 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                       
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-gray-900 truncate">{schedule.title}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-medium text-gray-900 truncate">{schedule.title}</h3>
+                          {brandsData && schedule.brandIds && schedule.brandIds.length > 0 && (
+                            <div className="flex items-center gap-1 flex-shrink-0 flex-wrap">
+                              {schedule.brandIds.map((brandId: number) => {
+                                const brand = (brandsData as any[]).find((b: any) => b.id === brandId);
+                                if (!brand) return null;
+                                return (
+                                  <span key={brandId} className="inline-flex items-center gap-0.5 px-1.5 py-0 bg-gray-100 rounded text-[10px] text-gray-600 whitespace-nowrap">
+                                    {brand.logoUrl && <img src={brand.logoUrl} className="w-3 h-3 rounded-sm object-contain" alt="" />}
+                                    {brand.name}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                         {schedule.liverName && (
                           <p className="text-sm text-gray-500 truncate">
                             {schedule.liverName}
