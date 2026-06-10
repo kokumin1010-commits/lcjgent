@@ -27240,10 +27240,11 @@ JSON配列のみを出力してください。`;
           (SELECT content FROM chat_messages WHERE roomId = cr.id ORDER BY createdAt DESC LIMIT 1) as lastMessage,
           (SELECT senderName FROM chat_messages WHERE roomId = cr.id ORDER BY createdAt DESC LIMIT 1) as lastSenderName,
           (SELECT createdAt FROM chat_messages WHERE roomId = cr.id ORDER BY createdAt DESC LIMIT 1) as lastMessageAt,
-          (SELECT COUNT(*) FROM chat_messages WHERE roomId = cr.id AND createdAt > crm.lastReadAt) as unreadCount
+          (SELECT COUNT(*) FROM chat_messages WHERE roomId = cr.id AND createdAt > COALESCE(MIN(crm.lastReadAt), '1970-01-01')) as unreadCount
         FROM chat_rooms cr
         JOIN chat_room_members crm ON cr.id = crm.roomId AND crm.userType = ${chatUser.userType}
           AND (crm.userId = ${chatUser.id}${legacyId ? sqlTag` OR crm.userId = ${legacyId}` : sqlTag``})
+        GROUP BY cr.id, cr.name, cr.type, cr.avatarUrl, cr.createdAt
         ORDER BY lastMessageAt DESC, cr.createdAt DESC
       `);
       return (rooms as any)[0] || [];
