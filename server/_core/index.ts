@@ -30,6 +30,7 @@ import { startDailyRankingScheduler } from "../dailyRankingScheduler";
 import { startPreBriefingScheduler } from "../preBriefingScheduler";
 import { startFeishuSyncScheduler } from "../feishuSyncScheduler";
 import { startContactSearchScheduler } from "../contactSearchScheduler";
+import { startAiCoachBrainScheduler } from "../aiCoachBrainScheduler";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
 
@@ -2230,6 +2231,8 @@ async function startServer() {
     startFeishuSyncScheduler();
     // Start contact search scheduler (searches contact info for Kalodata leads every 30 minutes)
     startContactSearchScheduler();
+    // Start AI Coach Brain scheduler (regenerates master knowledge every Sunday at JST 03:00)
+    startAiCoachBrainScheduler();
     // Ensure schedules.brandIds column exists (multi-brand support)
     import("../db").then(({ ensureSchedulesBrandIdsColumn }) => {
       ensureSchedulesBrandIdsColumn().catch((err: unknown) => {
@@ -2412,6 +2415,12 @@ async function startServer() {
           import("../migrations/createLeadsTable").then(({ createLeadsTable }) => {
             createLeadsTable(db).catch((err: unknown) => {
               console.error("[Migration] Leads table error:", err);
+            });
+          });
+          // AI Coach Brain - 3層構造の自律型コーチング脳
+          import("../migrations/createAiCoachBrainTables").then(({ createAiCoachBrainTables }) => {
+            createAiCoachBrainTables(db).catch((err: unknown) => {
+              console.error("[Migration] AI Coach Brain tables error:", err);
             });
           });
         }

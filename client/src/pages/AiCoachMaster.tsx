@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MessageSquare, Bot, User, ArrowLeft, Clock, TrendingUp, ChevronDown, ChevronUp, BarChart3, Activity, Package, DollarSign, Timer, Store, Filter, Send, Calendar } from "lucide-react";
+import BrainStatusPanel from "@/components/BrainStatusPanel";
 
 export default function AiCoachMaster() {
   const [selectedLiverId, setSelectedLiverId] = useState<number | null>(null);
@@ -175,11 +176,12 @@ export default function AiCoachMaster() {
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-4">
+          <TabsList className="grid w-full grid-cols-5 mb-4">
             <TabsTrigger value="records">📊 配信記録</TabsTrigger>
             <TabsTrigger value="graph">📈 グラフ</TabsTrigger>
             <TabsTrigger value="timeline">💬 AI履歴</TabsTrigger>
             <TabsTrigger value="rooms">🗂 ルーム</TabsTrigger>
+            <TabsTrigger value="brain">🧠 ブレイン</TabsTrigger>
           </TabsList>
 
           {/* 配信記録タブ（LINEメッセージと同じフォーマット） */}
@@ -594,6 +596,9 @@ export default function AiCoachMaster() {
             ) : (
               <p className="text-center text-muted-foreground text-sm py-8">トークルームがありません</p>
             )}
+          </TabsContent>
+          <TabsContent value="brain">
+            <BrainStatusPanel liverId={selectedLiverId} />
           </TabsContent>
         </Tabs>
       </div>

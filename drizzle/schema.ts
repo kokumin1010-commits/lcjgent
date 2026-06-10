@@ -6245,3 +6245,64 @@ export const leads = mysqlTable("leads", {
 });
 export type Lead = typeof leads.$inferSelect;
 export type InsertLead = typeof leads.$inferInsert;
+
+
+// ============================================================
+// AI Coach Brain - 3層構造の自律型コーチング脳
+// ============================================================
+
+/**
+ * Layer 1: AI Coach Master Knowledge - 全ライバーの集合知（マスターブレイン）
+ * 週1回自動再生成。全ライバーのデータから成功パターン・失敗パターンを集約。
+ * 新人ライバーにも即座に最適なアドバイスができる。
+ */
+export const aiCoachMasterKnowledge = mysqlTable("ai_coach_master_knowledge", {
+  id: int("id").autoincrement().primaryKey(),
+  category: varchar("category", { length: 100 }).notNull(), // pricing, set_composition, timing, communication, growth_stage, brand_strategy
+  content: text("content").notNull(), // AI生成された知識テキスト
+  version: int("version").notNull().default(1),
+  generatedAt: timestamp("generatedAt").defaultNow().notNull(),
+  metadata: json("metadata").$type<Record<string, unknown>>(),
+  isActive: int("isActive").notNull().default(1), // 1=active, 0=archived
+});
+export type AiCoachMasterKnowledge = typeof aiCoachMasterKnowledge.$inferSelect;
+export type InsertAiCoachMasterKnowledge = typeof aiCoachMasterKnowledge.$inferInsert;
+
+/**
+ * Layer 2: AI Coach Liver Memory - ライバー個別のカルテ（個人記憶）
+ * 毎回のコーチング後にAIが自動更新。強み・弱み・目標・過去のアドバイス結果を記録。
+ * ライバーの成長ストーリーを「線」でつなげる。
+ */
+export const aiCoachLiverMemory = mysqlTable("ai_coach_liver_memory", {
+  id: int("id").autoincrement().primaryKey(),
+  liverId: int("liverId").notNull(), // References livers.id (UNIQUE)
+  summary: text("summary").notNull(), // AI生成の総合サマリー
+  strengths: text("strengths"), // 強み（JSON配列 or テキスト）
+  weaknesses: text("weaknesses"), // 弱み・改善点
+  currentGoals: text("currentGoals"), // 現在の目標
+  pastAdviceResults: text("pastAdviceResults"), // 過去のアドバイスとその結果
+  communicationStyle: text("communicationStyle"), // コミュニケーションスタイルの特徴
+  growthPhase: mysqlEnum("growthPhase", ["new", "developing", "intermediate", "advanced", "expert"]).notNull().default("new"),
+  coachingCount: int("coachingCount").notNull().default(0),
+  lastCoachingAt: timestamp("lastCoachingAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type AiCoachLiverMemory = typeof aiCoachLiverMemory.$inferSelect;
+export type InsertAiCoachLiverMemory = typeof aiCoachLiverMemory.$inferInsert;
+
+/**
+ * AI Coach Brain Logs - ブレイン活動ログ
+ * マスター知識の再生成、ライバーメモリの更新などを記録
+ */
+export const aiCoachBrainLogs = mysqlTable("ai_coach_brain_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  action: varchar("action", { length: 100 }).notNull(), // generate_master, update_memory, etc.
+  targetType: varchar("targetType", { length: 50 }).notNull(), // master_knowledge, liver_memory
+  targetId: int("targetId"), // liverId or knowledge id
+  details: text("details"),
+  tokensUsed: int("tokensUsed"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AiCoachBrainLog = typeof aiCoachBrainLogs.$inferSelect;
+export type InsertAiCoachBrainLog = typeof aiCoachBrainLogs.$inferInsert;
