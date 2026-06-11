@@ -100,7 +100,7 @@ function DashboardLayoutContent({
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const deleteAccountMutation = trpc.deleteAccount.useMutation({
+  const deleteAccountMutation = trpc.lineLogin.deleteAccount.useMutation({
     onSuccess: () => {
       window.location.href = "/login";
     },
