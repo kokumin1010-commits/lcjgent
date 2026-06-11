@@ -1174,6 +1174,33 @@ def _build_silence_trim_segments(duration: float, silence_periods: list,
             total_cut_time += (cut_end - cut_start)
 
     # --- Phase 2: Filler/irrelevant content cuts (from GPT analysis) ---
+    # V2.30: 切点をsilence境界に対齐 — GPTが返す字幕ベースの切点は動作の途中に
+    # 当たることがあり、jump cutが発生する。silence（無音）の位置は動作の自然な
+    # 停止点と一致するため、切点をsilence境界に微調整する。
+    silence_boundaries = set()
+    for s_s, s_e in sorted(silence_periods or [], key=lambda x: x[0]):
+        silence_boundaries.add(('start', s_s))
+        silence_boundaries.add(('end', s_e))
+    silence_starts = sorted([t for _, t in silence_boundaries if _ == 'start'])
+    silence_ends = sorted([t for _, t in silence_boundaries if _ == 'end'])
+    
+    def _snap_to_silence(t, search_range=0.5):
+        """V2.30: 指定時刻を最寄りのsilence境界に対齐する。
+        search_range秒以内にsilence境界があればそこにスナップ。
+        なければ元の時刻を返す。"""
+        best_t = t
+        best_dist = search_range
+        # silence_startに近い = その時点で音声が止まる直前
+        # silence_endに近い = その時点で音声が再開する直後
+        # cut_startはsilence_endに合わせる（音声再開地点から残す）
+        # cut_endはsilence_startに合わせる（音声停止地点でカット）
+        for s_t in silence_starts + silence_ends:
+            dist = abs(s_t - t)
+            if dist < best_dist:
+                best_dist = dist
+                best_t = s_t
+        return best_t
+    
     if filler_cut_segments:
         for seg_start, seg_end in sorted(filler_cut_segments, key=lambda x: x[1]-x[0], reverse=True):
             if total_cut_time >= max_cut_time:
@@ -1184,8 +1211,17 @@ def _build_silence_trim_segments(duration: float, silence_periods: list,
             # Don't cut first/last 0.2s
             if seg_start < 0.2 or seg_end > duration - 0.2:
                 continue
+            
+            # V2.30: 切点をsilence境界にスナップ（動作の自然な停止点に合わせる）
+            snapped_start = _snap_to_silence(seg_start, search_range=0.5)
+            snapped_end = _snap_to_silence(seg_end, search_range=0.5)
+            # スナップ後も有効な区間であることを確認
+            if snapped_end > snapped_start + 0.2:
+                seg_start = snapped_start
+                seg_end = snapped_end
+            
             # Content cuts can override caption protection (GPT decided it's irrelevant)
-            actual_cut = seg_len
+            actual_cut = seg_end - seg_start
             if total_cut_time + actual_cut > max_cut_time:
                 seg_end = seg_start + (max_cut_time - total_cut_time)
                 actual_cut = seg_end - seg_start
@@ -2314,34 +2350,139 @@ async def _pre_splice_segments(
             logger.warning(f"[ai-clip] V2.29: Segment {i} extraction error: {e}")
             return (None, 0)
     
-    # Write concat list
-    concat_list_path = os.path.join(splice_dir, "concat_list.txt")
-    with open(concat_list_path, 'w') as f:
-        for p in segment_paths:
-            f.write(f"file '{p}'\n")
-    
-    # Concat all segments
+    # V2.30: Concat with crossfade between segments to smooth cut points
+    # xfade filter adds a short crossfade (0.1s) at each cut point to mask jump cuts
     spliced_path = os.path.join(tmp_dir, "spliced_nosil.mp4")
-    concat_cmd = [
-        "ffmpeg", "-y", "-hide_banner",
-        "-f", "concat", "-safe", "0",
-        "-i", concat_list_path,
-        "-c", "copy",
-        "-movflags", "+faststart",
-        spliced_path
-    ]
+    XFADE_DURATION = 0.1  # 0.1秒の短いcrossfade（自然な過渡、不自然にならない）
+    
+    if len(segment_paths) == 2:
+        # 2セグメント: 単純なxfade
+        # Get duration of first segment
+        probe_cmd = ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", segment_paths[0]]
+        probe_result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=15)
+        seg0_dur = keep_segments[0][1] - keep_segments[0][0]  # fallback
+        try:
+            seg0_dur = float(json.loads(probe_result.stdout)["format"]["duration"])
+        except Exception:
+            pass
+        offset = max(0, seg0_dur - XFADE_DURATION)
+        concat_cmd = [
+            "ffmpeg", "-y", "-hide_banner",
+            "-i", segment_paths[0], "-i", segment_paths[1],
+            "-filter_complex",
+            f"[0:v][1:v]xfade=transition=fade:duration={XFADE_DURATION}:offset={offset:.3f}[v];"
+            f"[0:a][1:a]acrossfade=d={XFADE_DURATION}[a]",
+            "-map", "[v]", "-map", "[a]",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
+            "-c:a", "aac", "-b:a", "128k",
+            "-movflags", "+faststart",
+            spliced_path
+        ]
+    elif len(segment_paths) <= 6:
+        # 3-6セグメント: xfadeチェーン
+        # Get durations of each segment
+        seg_durations = []
+        for i, sp in enumerate(segment_paths):
+            probe_cmd = ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", sp]
+            probe_result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=15)
+            fallback_dur = keep_segments[i][1] - keep_segments[i][0]
+            try:
+                seg_durations.append(float(json.loads(probe_result.stdout)["format"]["duration"]))
+            except Exception:
+                seg_durations.append(fallback_dur)
+        
+        # Build xfade filter chain
+        inputs = "".join(f"-i {sp} " for sp in segment_paths)
+        n = len(segment_paths)
+        vfilter_parts = []
+        afilter_parts = []
+        cumulative_offset = 0.0
+        
+        for i in range(n - 1):
+            if i == 0:
+                vin = "[0:v]"
+            else:
+                vin = f"[v{i}]"
+            next_vin = f"[{i+1}:v]"
+            out_label = f"[v{i+1}]" if i < n - 2 else "[v]"
+            
+            cumulative_offset += seg_durations[i] - XFADE_DURATION
+            offset = max(0, cumulative_offset)
+            vfilter_parts.append(
+                f"{vin}{next_vin}xfade=transition=fade:duration={XFADE_DURATION}:offset={offset:.3f}{out_label}"
+            )
+            
+            if i == 0:
+                ain = "[0:a]"
+            else:
+                ain = f"[a{i}]"
+            next_ain = f"[{i+1}:a]"
+            aout_label = f"[a{i+1}]" if i < n - 2 else "[a]"
+            afilter_parts.append(
+                f"{ain}{next_ain}acrossfade=d={XFADE_DURATION}{aout_label}"
+            )
+        
+        filter_complex = ";".join(vfilter_parts + afilter_parts)
+        concat_cmd = ["ffmpeg", "-y", "-hide_banner"]
+        for sp in segment_paths:
+            concat_cmd.extend(["-i", sp])
+        concat_cmd.extend([
+            "-filter_complex", filter_complex,
+            "-map", "[v]", "-map", "[a]",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
+            "-c:a", "aac", "-b:a", "128k",
+            "-movflags", "+faststart",
+            spliced_path
+        ])
+    else:
+        # 7+セグメント: xfadeが複雑すぎるので、単純concatにフォールバック
+        # （zoom burst + flashで切点を過隠する）
+        concat_list_path = os.path.join(splice_dir, "concat_list.txt")
+        with open(concat_list_path, 'w') as f:
+            for p in segment_paths:
+                f.write(f"file '{p}'\n")
+        concat_cmd = [
+            "ffmpeg", "-y", "-hide_banner",
+            "-f", "concat", "-safe", "0",
+            "-i", concat_list_path,
+            "-c", "copy",
+            "-movflags", "+faststart",
+            spliced_path
+        ]
     try:
         proc = await asyncio.create_subprocess_exec(
             *concat_cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=180)
         if proc.returncode != 0 or not os.path.exists(spliced_path):
-            logger.warning(f"[ai-clip] V2.29: Concat failed: {stderr.decode(errors='replace')[-200:]}")
-            return (None, 0)
+            # V2.30: xfadeが失敗した場合、単純concatにフォールバック
+            logger.warning(f"[ai-clip] V2.30: Crossfade concat failed, falling back to simple concat: {stderr.decode(errors='replace')[-200:]}")
+            concat_list_path = os.path.join(splice_dir, "concat_list.txt")
+            with open(concat_list_path, 'w') as f:
+                for p in segment_paths:
+                    f.write(f"file '{p}'\n")
+            fallback_cmd = [
+                "ffmpeg", "-y", "-hide_banner",
+                "-f", "concat", "-safe", "0",
+                "-i", concat_list_path,
+                "-c", "copy",
+                "-movflags", "+faststart",
+                spliced_path
+            ]
+            proc2 = await asyncio.create_subprocess_exec(
+                *fallback_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr2 = await asyncio.wait_for(proc2.communicate(), timeout=60)
+            if proc2.returncode != 0 or not os.path.exists(spliced_path):
+                logger.warning(f"[ai-clip] V2.30: Fallback concat also failed: {stderr2.decode(errors='replace')[-200:]}")
+                return (None, 0)
+            logger.info(f"[ai-clip] V2.30: Fallback simple concat succeeded")
     except (asyncio.TimeoutError, Exception) as e:
-        logger.warning(f"[ai-clip] V2.29: Concat error: {e}")
+        logger.warning(f"[ai-clip] V2.30: Concat error: {e}")
         return (None, 0)
     
     # Get actual duration of spliced file
@@ -2589,11 +2730,8 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
         # V2.21: overlay/zoomのタイミング縮小は1bのsetptsで自動的に適用される
         # （speed_factorのsetpts=0.9524*PTSがoverlay後のPTSを縮小するため）
         duration = sum(e - s for s, e in keep_segments)
-        # V2.24: 切点遮蔽強化 — zoom burst + 輝度フラッシュでjump cutを完全に隠す
-        # V2.23のzoom burst(1.05x)だけでは不十分だったため、以下を追加:
-        #   1. zoom burstを強化: 1.05x → 1.12x（より明確なズームで位置ジャンプを隠す）
-        #   2. 切点での輝度フラッシュ: eq brightnessで切点前後0.05秒に白フラッシュ
-        #      → 視聴者の目が一瞬眩しくなり、jump cutに気付かない
+        # V2.30: 切点遮蔽強化 — zoom burst + 輝度フラッシュでjump cutを完全に隠す
+        # V2.24: 1.12x → V2.30: 1.15x（さらに強めのズームで動作ジャンプを確実に隠す）
         if len(keep_segments) >= 2:
             cut_boundary_times = []
             output_t = 0.0
@@ -2604,12 +2742,12 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
             # 全ての切点にzoom burstを追加（既存zoomと近くても強制適用）
             for ct in cut_boundary_times:
                 if ct > 0.1 and ct < duration - 0.2:
-                    zoom_keyframes.append((ct - 0.03, 1.12))  # 切点の直前から強めのzoom
+                    zoom_keyframes.append((ct - 0.03, 1.15))  # V2.30: 1.12→1.15x 切点の直前から強めのzoom
             zoom_keyframes.sort(key=lambda x: x[0])
             # 切点輝度フラッシュをvf_partsに追加するための情報を保存
             # （後でzoom pulseの後に追加）
             self_cut_boundaries = cut_boundary_times  # 後で参照
-            logger.info(f"[ai-clip] V2.24: Injected zoom bursts (1.12x) at {len(cut_boundary_times)} cut boundaries "
+            logger.info(f"[ai-clip] V2.30: Injected zoom bursts (1.15x) at {len(cut_boundary_times)} cut boundaries "
                         f"(total zoom_keyframes now: {len(zoom_keyframes)})")
         else:
             self_cut_boundaries = []
@@ -2633,7 +2771,7 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
             af_chain = f"atempo={speed_factor:.4f}"
 
     # ── 2. Zoom Pulse via crop+scale ──
-    # V2.24: 切点zoom burstは短い持続時間(0.15秒, 1.12x)、通常zoomは0.4秒
+    # V2.30: 切点zoom burstは短い持続時間(0.18秒, 1.15x)、通常zoomは0.4秒
     # 重要: crop filter中のtはsetpts=0.9524*PTS後のPTSなので、
     # zoom_keyframesの時間をspeed_factorで割る必要がある
     effective_speed = speed_factor if speed_factor > 1.0 else 1.0
@@ -2642,8 +2780,8 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
         for t_orig, zf in zoom_keyframes:
             # speed_factor適用後の実際のPTS時刻に変換
             t = t_orig / effective_speed
-            # 切点burst (1.12x) は0.15秒、通常zoomは0.4秒
-            pulse_dur = (0.15 if abs(zf - 1.12) < 0.01 else 0.4) / effective_speed
+            # V2.30: 切点burst (1.15x) は0.18秒（V2.24: 0.15秒）、通常zoomは0.4秒
+            pulse_dur = (0.18 if abs(zf - 1.15) < 0.01 else 0.4) / effective_speed
             freq = math.pi / pulse_dur
             parts.append(
                 f"if(between(t,{t:.3f},{t+pulse_dur:.3f}),"
@@ -2663,26 +2801,26 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
         vf_parts.append(crop_f)
         vf_parts.append(f"scale={video_width}:{video_height}")
     # ── 2b. V2.24: 切点輝度フラッシュ (jump cut遮蔽補助) ──
-    # zoom burstだけでは人物の位置ジャンプが見える場合があるため、
-    # 切点前後0.05秒に短い白フラッシュを追加して視聴者の目を眩ませる。
-    # eq=brightnessで実装。各切点で+0.25の輝度ブーストを三角波形で適用。
+    # V2.30: zoom burstだけでは人物の位置ジャンプが見える場合があるため、
+    # 切点前後に白フラッシュを追加して視聴者の目を眩ませる。
+    # eq=brightnessで実装。各切点で+0.35の輝度ブーストを三角波形で適用。
     if self_cut_boundaries:
         # effective_speedは上で定義済み
         flash_parts = []
         for ct in self_cut_boundaries:
             # speed_factor適用後の時刻に変換
             adjusted_ct = ct / effective_speed
-            # 三角波形: 切点の前後0.08秒で輝度が0→0.3→0に変化
-            # (強めのフラッシュでjump cutを確実に隠す)
-            half_dur = 0.08 / effective_speed
+            # V2.30: 三角波形: 切点の前後0.12秒で輝度が0→0.35→0に変化
+            # (V2.24: 0.08秒/0.3 → V2.30: 0.12秒/0.35 より強く長いフラッシュ)
+            half_dur = 0.12 / effective_speed
             flash_parts.append(
                 f"if(between(t,{adjusted_ct-half_dur:.3f},{adjusted_ct+half_dur:.3f}),"
-                f"0.3*(1-abs(t-{adjusted_ct:.3f})/{half_dur:.3f}),0)"
+                f"0.35*(1-abs(t-{adjusted_ct:.3f})/{half_dur:.3f}),0)"
             )
         # 全切点のフラッシュを加算（同時に複数の切点が活性化することはない）
         brightness_expr = "+".join(flash_parts)
         vf_parts.append(f"eq=brightness='{brightness_expr}':eval=frame")
-        logger.info(f"[ai-clip] V2.24: Added brightness flash at {len(self_cut_boundaries)} cut points")
+        logger.info(f"[ai-clip] V2.30: Added brightness flash (0.35/0.12s) at {len(self_cut_boundaries)} cut points")
     # ── 3. Flash intro (multiple variations, softer than before) ──
     if enable_flash_intro:
         flash_variant = random.choice(["soft_flash", "warm_glow", "contrast_pop", "fade_in", "cool_flash"])
