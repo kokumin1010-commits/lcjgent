@@ -213,35 +213,8 @@ function DashboardLayoutContent({
           </SidebarHeader>
 
           <SidebarContent className="gap-0">
-            <SidebarMenu className="px-2 py-1">
-              {menuItems
-                .filter(item => {
-                  // 全スタッフにメニュー表示（adminOnlyフラグがある場合のみadmin限定）
-                  return !item.adminOnly || user?.role === "admin";
-                })
-                .map(item => {
-                  const isActive = location === item.path;
-                  return (
-                    <SidebarMenuItem key={item.path}>
-                      <SidebarMenuButton
-                        isActive={isActive}
-                        onClick={() => setLocation(item.path)}
-                        tooltip={item.label}
-                        className={`h-10 transition-all font-normal`}
-                      >
-                        <item.icon
-                          className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
-                        />
-                        <span>{item.label}</span>
-                        {(item as any).hasBadge && (item as any).badgeType === "adForm" ? <AdFormBadge /> : (item as any).hasBadge && (item as any).badgeType === "chat" ? <ChatBadge /> : (item as any).hasBadge ? <BrandAppBadge /> : null}
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-            </SidebarMenu>
-
-            {/* Language Switcher */}
-            <div className="px-2 py-2 mt-4 border-t">
+            {/* Language Switcher - pinned to top */}
+            <div className="px-2 py-2 border-b">
               <SidebarMenuItem>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -270,6 +243,34 @@ function DashboardLayoutContent({
                 </DropdownMenu>
               </SidebarMenuItem>
             </div>
+            <SidebarMenu className="px-2 py-1">
+              {menuItems
+                .filter(item => {
+                  // 全スタッフにメニュー表示（adminOnlyフラグがある場合のみadmin限定）
+                  return !item.adminOnly || user?.role === "admin";
+                })
+                .map(item => {
+                  const isActive = location === item.path;
+                  return (
+                    <SidebarMenuItem key={item.path}>
+                      <SidebarMenuButton
+                        isActive={isActive}
+                        onClick={() => setLocation(item.path)}
+                        tooltip={item.label}
+                        className={`h-10 transition-all font-normal`}
+                      >
+                        <item.icon
+                          className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
+                        />
+                        <span>{item.label}</span>
+                        {(item as any).hasBadge && (item as any).badgeType === "adForm" ? <AdFormBadge /> : (item as any).hasBadge && (item as any).badgeType === "chat" ? <ChatBadge /> : (item as any).hasBadge ? <BrandAppBadge /> : null}
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+            </SidebarMenu>
+
+
           </SidebarContent>
 
           <SidebarFooter className="p-3">
