@@ -32,6 +32,9 @@ const jaTranslations: Record<string, string> = {
   "nav.livers": "ライバー管理",
   "nav.liverCommand": "ライバー司令塔",
   "nav.logout": "ログアウト",
+  "nav.deleteAccount": "アカウント削除",
+  "nav.deleteAccountConfirm": "本当にアカウントを削除しますか？この操作は取り消せません。",
+  "nav.deleteAccountSuccess": "アカウントが削除されました",
   
   // Dashboard
   "dashboard.title": "ダッシュボード",
@@ -368,8 +371,10 @@ const zhTranslations: Record<string, string> = {
   "nav.calendar": "日历",
   "nav.livers": "主播管理",
   "nav.liverCommand": "主播指挥中心",
-  "nav.logout": "退出登录",
-  
+    "nav.logout": "退出登录",
+  "nav.deleteAccount": "注销账号",
+  "nav.deleteAccountConfirm": "确定要注销账号吗？此操作不可撤销。",
+  "nav.deleteAccountSuccess": "账号已注销",
   // Dashboard
   "dashboard.title": "仪表盘",
   "dashboard.inProgress": "进行中",

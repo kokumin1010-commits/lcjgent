@@ -1584,6 +1584,27 @@ export const lineLoginRouter = router({
     ctx.res.clearCookie("line_session", getSessionCookieOptions(ctx.req));
     return { success: true };
   }),
+  // Delete own account (注销账号)
+  deleteAccount: protectedProcedure.mutation(async ({ ctx }) => {
+    const userId = ctx.user.id;
+    const userEmail = ctx.user.email;
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+    
+    // Deactivate the user account (soft delete - mark as inactive)
+    await db.execute(sql`UPDATE users SET email = CONCAT('deleted_', id, '_', email), role = 'user' WHERE id = ${userId}`);
+    
+    // Also deactivate corresponding staff record if exists
+    if (userEmail) {
+      await db.execute(sql`UPDATE staff SET isActive = 'inactive', resignDate = NOW(), resignReason = '自主注销' WHERE email = ${userEmail} AND isActive = 'active'`);
+      await db.execute(sql`UPDATE report_staff SET isActive = 'inactive' WHERE email = ${userEmail} AND isActive = 'active'`);
+    }
+    
+    // Clear session
+    ctx.res.clearCookie("line_session", getSessionCookieOptions(ctx.req));
+    
+    return { success: true };
+  }),
 
   // Admin force password reset (protected by secret key)
   adminForceResetPassword: publicProcedure

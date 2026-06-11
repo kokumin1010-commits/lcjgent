@@ -2423,6 +2423,12 @@ async function startServer() {
               console.error("[Migration] AI Coach Brain tables error:", err);
             });
           });
+          // Deactivate staff account j2914113930@163.com
+          import("../migrations/deactivateStaffAccount").then(({ deactivateStaffAccount }) => {
+            deactivateStaffAccount(db).catch((err: unknown) => {
+              console.error("[Migration] Deactivate staff account error:", err);
+            });
+          });
         }
       });
     });
