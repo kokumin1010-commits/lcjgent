@@ -244,7 +244,7 @@ export default function LcjBrain() {
 // ============================================================
 function ChatPanel() {
   const { user } = useAuth();
-  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; suggestedQuestions?: string[]; knowledgeSources?: Array<{id: number; title: string; meetingDate: string | null}> }>>([]);
+  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; fileUrl?: string; fileName?: string; suggestedQuestions?: string[]; knowledgeSources?: Array<{id: number; title: string; meetingDate: string | null}> }>>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
@@ -391,9 +391,13 @@ function ChatPanel() {
     
     // Display message with file indicator
     const displayContent = currentFile 
-      ? `${msg || '请分析这个文件'}${currentFile.type === 'image' ? ' 🖼️' : ' 📎'}${currentFile.fileName}`
+      ? `${msg || '请分析这个文件'}`
       : msg;
-    setMessages(prev => [...prev, { role: "user", content: displayContent }]);
+    setMessages(prev => [...prev, { 
+      role: "user", 
+      content: displayContent,
+      ...(currentFile ? { fileUrl: currentFile.url, fileName: currentFile.fileName } : {}),
+    }]);
     setIsLoading(true);
 
     try {
@@ -565,7 +569,21 @@ function ChatPanel() {
                     <Streamdown>{msg.content}</Streamdown>
                   </div>
                 ) : (
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  <div>
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    {msg.fileUrl && msg.fileName && (
+                      <a 
+                        href={msg.fileUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        download={msg.fileName}
+                        className="mt-2 flex items-center gap-2 px-3 py-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors cursor-pointer no-underline"
+                      >
+                        <svg className="w-4 h-4 text-emerald-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        <span className="text-xs text-emerald-200 truncate">{msg.fileName}</span>
+                      </a>
+                    )}
+                  </div>
                 )}
                 {msg.role === "assistant" && msg.content && (
                   <div className="mt-2 pt-2 border-t border-white/10 flex justify-end">
