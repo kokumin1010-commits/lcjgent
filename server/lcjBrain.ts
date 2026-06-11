@@ -774,7 +774,7 @@ ${dataContext || "（暂无相关数据）"}
         });
       } else if (input.fileContent) {
         // ファイル内容をテキストとして添付
-        const fileContext = `\n\n---\n📎 添付ファイル「${input.fileName || 'file'}」の内容:\n${input.fileContent.substring(0, 10000)}\n---`;
+        const fileContext = `\n\n---\n📎 添付ファイル「${input.fileName || 'file'}」の内容:\n${input.fileContent.substring(0, 30000)}\n---`;
         messages.push({ role: "user", content: message + fileContext });
       } else {
         messages.push({ role: "user", content: message });

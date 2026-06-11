@@ -2106,9 +2106,39 @@ async function startServer() {
         });
       }
       
-      // For Excel, Word, PowerPoint, ZIP, PDF and other binary files - upload to storage
-      const binaryFileTypes = [
+      // For Excel files - extract text content for AI analysis
+      const excelMimeTypes = [
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel",
+      ];
+      const excelExtensions = ["xlsx", "xls"];
+      if (excelMimeTypes.includes(file.mimetype) || excelExtensions.includes(fileExt)) {
+        const fileKey = `chat-uploads/${nanoid()}.${fileExt || "xlsx"}`;
+        const result = await storagePut(fileKey, file.buffer, file.mimetype);
+        let textContent = "";
+        try {
+          const XLSX = await import("xlsx");
+          const workbook = XLSX.read(file.buffer, { type: "buffer" });
+          const sheets: string[] = [];
+          for (const sheetName of workbook.SheetNames) {
+            const sheet = workbook.Sheets[sheetName];
+            const csv = XLSX.utils.sheet_to_csv(sheet);
+            sheets.push(`【Sheet: ${sheetName}】\n${csv}`);
+          }
+          textContent = sheets.join("\n\n").slice(0, 50000);
+        } catch (e: any) {
+          console.error("[Excel Parse] Error:", e.message);
+        }
+        return res.json({
+          type: "document",
+          url: result.url,
+          textContent,
+          fileName: decodedFileName,
+          mimeType: file.mimetype,
+        });
+      }
+      // For Word, PowerPoint, ZIP and other binary files - upload to storage
+      const binaryFileTypes = [
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "application/msword",
@@ -2116,7 +2146,7 @@ async function startServer() {
         "application/zip",
         "application/x-zip-compressed",
       ];
-      const binaryExtensions = ["xlsx", "xls", "doc", "docx", "ppt", "pptx", "zip"];
+      const binaryExtensions = ["doc", "docx", "ppt", "pptx", "zip"];
       if (binaryFileTypes.includes(file.mimetype) || binaryExtensions.includes(fileExt)) {
         const fileKey = `chat-uploads/${nanoid()}.${fileExt || "bin"}`;
         const result = await storagePut(fileKey, file.buffer, file.mimetype);

@@ -252,7 +252,7 @@ function ChatPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [attachedFile, setAttachedFile] = useState<{ type: 'image' | 'document'; url?: string; textContent?: string; fileName: string; mimeType: string; previewUrl?: string } | null>(null);
+  const [attachedFile, setAttachedFile] = useState<{ type: 'image' | 'document' | 'file'; url?: string; textContent?: string; fileName: string; mimeType: string; previewUrl?: string } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const chatMutation = trpc.lcjBrain.chat.useMutation();
   const deleteConversation = trpc.lcjBrain.deleteConversation.useMutation();
@@ -720,14 +720,14 @@ function ChatPanel() {
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
             className="px-3 py-3 rounded-xl transition-all bg-gradient-to-br from-emerald-600/20 to-teal-600/20 border border-emerald-500/30 text-emerald-300 hover:from-emerald-600/30 hover:to-teal-600/30 hover:text-emerald-200 disabled:opacity-50"
-            title="图片/文件上传"
+            title="上传文件（图片/Excel/PDF/CSV/文本）"
           >
             {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
           </button>
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*,.pdf,.txt,.md,.json,.csv"
+            accept="image/*,.pdf,.txt,.md,.json,.csv,.xlsx,.xls,.doc,.docx"
             onChange={handleFileUpload}
             className="hidden"
           />
