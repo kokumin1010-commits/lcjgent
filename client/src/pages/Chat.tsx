@@ -174,18 +174,46 @@ function formatTimeJST(dateStr: string): string {
 }
 
 // ===== Render rich text content safely =====
+function linkifyText(text: string): (string | JSX.Element)[] {
+  const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
+  const parts = text.split(urlRegex);
+  return parts.map((part, i) => {
+    if (/^https?:\/\//i.test(part)) {
+      return (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-400 underline hover:text-blue-300 break-all"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+}
+
 function MessageContent({ content, isMe }: { content: string; isMe: boolean }) {
   // Check if content contains HTML tags
   const isHtml = /<[a-z][\s\S]*>/i.test(content);
   if (isHtml) {
+    // Auto-linkify plain URLs in HTML that aren't already wrapped in <a> tags
+    const linkifiedHtml = content.replace(
+      /(?<!["'>])(https?:\/\/[^\s<>"']+)(?![^<]*<\/a>)/gi,
+      '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+    );
     return (
       <div
         className={`prose prose-sm max-w-none break-words text-left ${isMe ? "prose-invert" : ""} [&_p]:my-0.5 [&_ul]:my-0.5 [&_ol]:my-0.5 [&_blockquote]:my-0.5 [&_pre]:my-0.5 [&_a]:text-blue-400 [&_a]:underline [&_.mention]:text-blue-500 [&_.mention]:font-medium [&_.mention]:bg-blue-100 [&_.mention]:dark:bg-blue-900/30 [&_.mention]:rounded [&_.mention]:px-0.5`}
-        dangerouslySetInnerHTML={{ __html: content }}
+        dangerouslySetInnerHTML={{ __html: linkifiedHtml }}
       />
     );
   }
-  return <p className="whitespace-pre-wrap break-words text-left">{content}</p>;
+  // Plain text: auto-detect URLs and make them clickable
+  return <p className="whitespace-pre-wrap break-words text-left">{linkifyText(content)}</p>;
 }
 
 export default function Chat() {
@@ -237,7 +265,7 @@ export default function Chat() {
         heading: false,
       }),
       Underline,
-      Link.configure({ openOnClick: false }),
+      Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
       Placeholder.configure({ placeholder: "メッセージを入力... @でメンション (Shift+Enterで改行)" }),
       Mention.configure({
         HTMLAttributes: {
