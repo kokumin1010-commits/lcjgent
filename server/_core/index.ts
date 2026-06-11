@@ -2459,6 +2459,12 @@ async function startServer() {
               console.error("[Migration] Deactivate staff account error:", err);
             });
           });
+          // Add Brain Memory system (file context persistence + self-learning insights)
+          import("../migrations/addBrainMemory").then(({ runAddBrainMemoryMigration }) => {
+            runAddBrainMemoryMigration().catch((err: unknown) => {
+              console.error("[Migration] addBrainMemory failed:", err);
+            });
+          });
         }
       });
     });

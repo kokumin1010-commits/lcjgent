@@ -269,12 +269,14 @@ function ChatPanel() {
     { enabled: !!activeConversationId }
   );
   
-  // 会話メッセージが読み込まれたらmessagesに反映
+  // 会話メッセージが読み込まれたらmessagesに反映（ファイルコンテキストも復元）
   useEffect(() => {
     if (conversationMessages && activeConversationId) {
-      const msgs = conversationMessages.map(m => ({
+      const msgs = conversationMessages.map((m: any) => ({
         role: m.role as "user" | "assistant",
         content: m.content || "",
+        fileUrl: m.fileUrl || undefined,
+        fileName: m.fileName || undefined,
         suggestedQuestions: m.suggestedQuestions ? JSON.parse(m.suggestedQuestions) : undefined,
       }));
       setMessages(msgs);
@@ -404,6 +406,8 @@ function ChatPanel() {
       const mutationParams: any = { 
         message: msg || `请分析这个文件: ${currentFile?.fileName}`,
         conversationId: activeConversationId || undefined,
+        // 🧠 完全な会話履歴を送信（コンテキスト継続性の核心修正）
+        history: messages.slice(-20).map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
       };
       
       // Attach file data

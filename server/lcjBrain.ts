@@ -660,6 +660,106 @@ async function buildContext(userMessage: string): Promise<BuildContextResult> {
   return { context: contextParts.join("\n\n"), knowledgeSources: knowledgeSourcesList };
 }
 
+
+// ============================================================
+// 🧠 Self-Learning: Insight Extraction & Retrieval
+// ============================================================
+
+/**
+ * 会話からインサイトを自動抽出してDBに保存（fire-and-forget）
+ */
+async function extractAndSaveInsight(userMessage: string, aiResponse: string, conversationId: number | null) {
+  // 短い会話はスキップ（インサイトに値しない）
+  if (userMessage.length < 10 && aiResponse.length < 100) return;
+  
+  try {
+    const result = await invokeLLM({
+      model: "gpt-4.1-nano",
+      messages: [
+        { role: "system", content: `你是一个知识提取器。从以下对话中提取有价值的业务洞察。
+只提取具体的、可重复使用的知识，不要提取一般性的常识。
+如果对话中没有有价值的洞察，返回空数组 []。
+返回JSON数组格式：[{"category": "分类", "insight": "洞察内容", "confidence": 0.8}]
+分类可选：brand_strategy, liver_management, live_commerce_tips, bd_negotiation, data_pattern, operational_sop, market_trend` },
+        { role: "user", content: `用户问：${userMessage.substring(0, 500)}\n\nAI回答：${aiResponse.substring(0, 1000)}` },
+      ],
+    });
+    
+    const content = result.choices?.[0]?.message?.content;
+    if (!content) return;
+    
+    const jsonMatch = (typeof content === "string" ? content : "").match(/\[.*\]/s);
+    if (!jsonMatch) return;
+    
+    const insights = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(insights) || insights.length === 0) return;
+    
+    const db = await getDb();
+    if (!db) return;
+    
+    for (const ins of insights.slice(0, 3)) {
+      if (!ins.insight || ins.insight.length < 5) continue;
+      await db.execute({
+        sql: `INSERT INTO lcj_brain_insights (conversationId, category, insight, confidence) VALUES (?, ?, ?, ?)`,
+        params: [conversationId || null, ins.category || "general", ins.insight, ins.confidence || 0.8],
+      });
+    }
+    console.log(`[LCJ Brain] Extracted ${insights.length} insights from conversation ${conversationId}`);
+  } catch (e: any) {
+    console.error("[LCJ Brain] Insight extraction error:", e.message);
+  }
+}
+
+/**
+ * ユーザーの質問に関連する過去のインサイトを取得
+ */
+async function getRecentInsights(userMessage: string): Promise<string> {
+  const db = await getDb();
+  if (!db) return "";
+  
+  try {
+    // キーワード検索で関連インサイトを取得
+    const searchTerms = userMessage
+      .replace(/[?？。，！\s]+/g, " ")
+      .split(" ")
+      .filter(t => t.length >= 2)
+      .slice(0, 4);
+    
+    let results: any[] = [];
+    
+    if (searchTerms.length > 0) {
+      const likeConditions = searchTerms.map(term => `insight LIKE '%${term.replace(/'/g, "''")}%'`).join(" OR ");
+      results = await db.execute({
+        sql: `SELECT category, insight, confidence, createdAt FROM lcj_brain_insights WHERE ${likeConditions} ORDER BY confidence DESC, createdAt DESC LIMIT 5`,
+        params: [],
+      }) as any;
+      // MySQL2 returns [rows, fields]
+      if (Array.isArray(results) && Array.isArray(results[0])) {
+        results = results[0];
+      }
+    }
+    
+    // キーワード検索で見つからない場合、最新の高信頼度インサイトを取得
+    if (!results || results.length === 0) {
+      results = await db.execute({
+        sql: `SELECT category, insight, confidence, createdAt FROM lcj_brain_insights WHERE confidence >= 0.7 ORDER BY createdAt DESC LIMIT 5`,
+        params: [],
+      }) as any;
+      if (Array.isArray(results) && Array.isArray(results[0])) {
+        results = results[0];
+      }
+    }
+    
+    if (!results || results.length === 0) return "";
+    
+    return results.map((r: any) => `- [${r.category}] ${r.insight}`).join("\n");
+  } catch (e: any) {
+    // テーブルがまだ存在しない場合など
+    console.error("[LCJ Brain] getRecentInsights error:", e.message);
+    return "";
+  }
+}
+
 // ============================================================
 // LCJ Brain ルーター
 // ============================================================
@@ -716,6 +816,14 @@ export const lcjBrainRouter = router({
         // コンテキスト構築に失敗してもチャットは続行
       }
 
+      // 過去のインサイトを取得（自己学習システム）
+      let insightsContext = "";
+      try {
+        insightsContext = await getRecentInsights(message);
+      } catch (e) {
+        // インサイト取得失敗でも続行
+      }
+
       // BD関連キーワード判定
       const lowerMessage = message.toLowerCase();
       const isBDRelated = /BD|招商|话术|谈判|成交|客户|怎么谈|怎么聊|怎么回|怎么说|如何谈|如何说服|报价|纯佣|合作模式/.test(lowerMessage);
@@ -746,10 +854,13 @@ ${bdSection}
 ${dataContext || "（暂无相关数据）"}
 
 ## 重要提醒
-- 所有数字和数据必须来自上面的"当前实际数据"部分
-- 如果用户问的数据不在上面，要说明"系统中暂无此数据"
+- 所有数字和数据必须来自上面的“当前实际数据”部分
+- 如果用户问的数据不在上面，要说明“系统中暂无此数据”
 - 不要编造任何数据或信息
-- 不要把BD话术模板中的示例数据当作真实数据引用`;
+- 不要把BD话术模板中的示例数据当作真实数据引用
+${insightsContext ? `
+## 🧠 経験知識（過去の会話から学んだインサイト）
+${insightsContext}` : ''}`;
 
       // メッセージ履歴を構築
       const messages: Array<{ role: "system" | "user" | "assistant"; content: any }> = [
@@ -845,7 +956,12 @@ ${dataContext || "（暂无相关数据）"}
             }
             const sessionId = `conv_${activeConversationId || Date.now()}`;
             await db.insert(lcjBrainChatLogs).values([
-              { role: "user", content: message, context: context || "chat", sessionId, userId, userName, conversationId: activeConversationId },
+              { 
+                role: "user", content: message, context: context || "chat", sessionId, userId, userName, conversationId: activeConversationId,
+                fileContent: input.fileContent || null,
+                fileUrl: input.imageUrl || null, // imageUrl doubles as file URL
+                fileName: input.fileName || null,
+              },
               { role: "assistant", content: responseText, context: context || "chat", sessionId, userId, userName: "AI", suggestedQuestions: JSON.stringify(suggestedQuestions), conversationId: activeConversationId },
             ]);
             // 会話のupdatedAtを更新
@@ -854,6 +970,8 @@ ${dataContext || "（暂无相关数据）"}
                 .set({ updatedAt: new Date() })
                 .where(eq(lcjBrainConversations.id, activeConversationId));
             }
+            // 🧠 自動インサイト抽出（fire-and-forget）
+            extractAndSaveInsight(message, responseText, activeConversationId).catch(() => {});
           } catch (e) {
             console.error("[LCJ Brain] Failed to save chat log:", e);
           }

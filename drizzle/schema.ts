@@ -5963,6 +5963,9 @@ export const lcjBrainChatLogs = mysqlTable("lcj_brain_chat_logs", {
   content: text("content").notNull(),
   context: varchar("context", { length: 50 }), // chat | diagnosis | training | scripts | scoring
   suggestedQuestions: text("suggestedQuestions"), // JSON array of suggested follow-up questions
+  fileContent: text("fileContent"), // ファイルのテキスト内容（コンテキスト永続化用）
+  fileUrl: varchar("fileUrl", { length: 500 }), // ファイルのダウンロードURL
+  fileName: varchar("fileName", { length: 255 }), // ファイル名
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type LcjBrainChatLog = typeof lcjBrainChatLogs.$inferSelect;
