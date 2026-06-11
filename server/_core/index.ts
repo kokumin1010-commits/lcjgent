@@ -91,8 +91,8 @@ async function startServer() {
   }));
 
   // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use(express.json({ limit: "100mb" }));
+  app.use(express.urlencoded({ limit: "100mb", extended: true }));
 
   // CORS for external LP forms (livecommercejapan.jp)
   app.use((req, res, next) => {
@@ -541,7 +541,7 @@ async function startServer() {
   
   // Voice upload endpoint
   const multer = await import("multer");
-  const upload = multer.default({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+  const upload = multer.default({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
   const { storagePut } = await import("../storage");
   const { nanoid } = await import("nanoid");
   
