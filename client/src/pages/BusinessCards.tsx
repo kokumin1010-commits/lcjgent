@@ -433,9 +433,18 @@ export default function BusinessCards() {
 
   // Card list state
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedCardIds, setSelectedCardIds] = useState<Set<number>>(new Set());
+  const [cardPage, setCardPage] = useState(0);
+  const CARDS_PER_PAGE = 50;
+
+  // Debounce search query to avoid excessive API calls
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
@@ -476,7 +485,8 @@ export default function BusinessCards() {
 
   // 送信済み件数取得（staleTimeを5秒に短縮してリアルタイム更新）
   const emailStatsQuery = trpc.businessCard.getSalesEmailStats.useQuery(undefined, {
-    staleTime: 5000,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
   });
   // 未返信通知
   const { data: unrepliedData } = trpc.replyTracking.getUnrepliedCount.useQuery(undefined, { refetchOnWindowFocus: false, refetchInterval: 60000 });
@@ -516,8 +526,11 @@ export default function BusinessCards() {
 
   // Queries
   const { data: cards = [], isLoading } = trpc.businessCard.list.useQuery({
-    search: searchQuery || undefined,
+    search: debouncedSearch || undefined,
     limit: 2500,
+  }, {
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
   });
 
   // Mutations
@@ -1260,10 +1273,10 @@ export default function BusinessCards() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedCardIds.size === cards.length) {
+    if (selectedCardIds.size === filteredCards.length) {
       setSelectedCardIds(new Set());
     } else {
-      setSelectedCardIds(new Set(cards.map((c) => c.id)));
+      setSelectedCardIds(new Set(filteredCards.map((c) => c.id)));
     }
   };
 
@@ -1281,7 +1294,7 @@ export default function BusinessCards() {
   }, []);
 
   // Filtered cards by company and status
-  const filteredCards = useMemo(() => {
+    const filteredCards = useMemo(() => {
     let result = cards;
     if (companyFilter !== "all") {
       result = result.filter((c) => c.company === companyFilter);
@@ -1294,6 +1307,16 @@ export default function BusinessCards() {
     }
     return result;
   }, [cards, companyFilter, statusFilter, getCardStatus]);
+
+  // Reset page when filters change
+  useEffect(() => { setCardPage(0); }, [companyFilter, statusFilter, debouncedSearch]);
+
+  // Paginated cards for rendering
+  const totalCardPages = Math.ceil(filteredCards.length / CARDS_PER_PAGE);
+  const paginatedCards = useMemo(() => {
+    const start = cardPage * CARDS_PER_PAGE;
+    return filteredCards.slice(start, start + CARDS_PER_PAGE);
+  }, [filteredCards, cardPage]);
 
   const cardsWithEmail = useMemo(() => cards.filter((c) => c.email), [cards]);
   const selectedCardsWithEmail = useMemo(
@@ -1555,7 +1578,7 @@ export default function BusinessCards() {
                     <TableRow>
                       <TableHead className="w-10">
                         <Checkbox
-                          checked={selectedCardIds.size === cards.length && cards.length > 0}
+                          checked={selectedCardIds.size === filteredCards.length && filteredCards.length > 0}
                           onCheckedChange={toggleSelectAll}
                         />
                       </TableHead>
@@ -1569,7 +1592,7 @@ export default function BusinessCards() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredCards.map((card) => (
+                    {paginatedCards.map((card) => (
                       <TableRow key={card.id} className={selectedCardIds.has(card.id) ? "bg-blue-50" : ""}>
                         <TableCell>
                           <Checkbox
@@ -1676,11 +1699,53 @@ export default function BusinessCards() {
                     ))}
                   </TableBody>
                 </Table>
-              </ScrollArea>
+                            </ScrollArea>
+              {/* Pagination Controls */}
+              {totalCardPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t">
+                  <span className="text-sm text-muted-foreground">
+                    {filteredCards.length}件中 {cardPage * CARDS_PER_PAGE + 1}〜{Math.min((cardPage + 1) * CARDS_PER_PAGE, filteredCards.length)}件
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCardPage(0)}
+                      disabled={cardPage === 0}
+                    >
+                      <ChevronLeft className="h-4 w-4" /><ChevronLeft className="h-4 w-4 -ml-2" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCardPage(p => Math.max(0, p - 1))}
+                      disabled={cardPage === 0}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm px-2">{cardPage + 1} / {totalCardPages}</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCardPage(p => Math.min(totalCardPages - 1, p + 1))}
+                      disabled={cardPage >= totalCardPages - 1}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCardPage(totalCardPages - 1)}
+                      disabled={cardPage >= totalCardPages - 1}
+                    >
+                      <ChevronRight className="h-4 w-4" /><ChevronRight className="h-4 w-4 -ml-2" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
           )}
         </TabsContent>
-
         {/* ============================================================ */}
         {/* TAB: 営業ダッシュボード */}
         {/* ============================================================ */}
