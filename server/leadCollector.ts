@@ -48,15 +48,15 @@ interface GoogleSearchResult {
 // 環境変数
 // ============================================================
 function getGoogleMapsApiKey(): string {
-  return process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_SEARCH_API_KEY || "";
+  return process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_SEARCH_API_KEY || "AIzaSyAfU4Scji4IGqP1_kbZFeWSZIXOuVdCcbA";
 }
 
 function getGoogleSearchApiKey(): string {
-  return process.env.GOOGLE_SEARCH_API_KEY || process.env.GOOGLE_MAPS_API_KEY || "";
+  return process.env.GOOGLE_SEARCH_API_KEY || process.env.GOOGLE_MAPS_API_KEY || "AIzaSyAfU4Scji4IGqP1_kbZFeWSZIXOuVdCcbA";
 }
 
 function getGoogleSearchEngineId(): string {
-  return process.env.GOOGLE_SEARCH_ENGINE_ID || "";
+  return process.env.GOOGLE_SEARCH_ENGINE_ID || "B21A3A01952BD4352";
 }
 
 // ============================================================
