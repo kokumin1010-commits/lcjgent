@@ -742,8 +742,8 @@ export default function FinanceManagement() {
     : null;
   const commissionChange = summary && prevSummary
     ? getChangePercent(
-        Number(summary.totalActPartnerCommission) + Number(summary.totalActCreatorCommission),
-        Number(prevSummary.totalActPartnerCommission) + Number(prevSummary.totalActCreatorCommission)
+        Number(summary.totalActCreatorCommission),
+        Number(prevSummary.totalActCreatorCommission)
       )
     : null;
   const ordersChange = summary && prevSummary
@@ -864,12 +864,12 @@ export default function FinanceManagement() {
                           <TrendingUp className="h-3.5 w-3.5" />
                           LCJ手数料
                         </div>
-                        <p className="text-2xl font-bold text-green-600">{formatCurrency(Number(tapSummary.totalEstimatedPartnerCommission) || Number(tapSummary.totalActualPartnerCommission))}</p>
+                        <p className="text-2xl font-bold text-green-600">{formatCurrency(Number(tapSummary.totalActualCreatorCommission) || Number(tapSummary.totalEstimatedCreatorCommission))}</p>
                       </div>
                     </div>
                     <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
-                      <span>見込: {formatCurrency(tapSummary.totalEstimatedPartnerCommission)}</span>
-                      <span>実績: {formatCurrency(tapSummary.totalActualPartnerCommission)}</span>
+                      <span>見込: {formatCurrency(tapSummary.totalEstimatedCreatorCommission)}</span>
+                      <span>実績: {formatCurrency(tapSummary.totalActualCreatorCommission)}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -1039,7 +1039,7 @@ export default function FinanceManagement() {
                                 <td className="py-2 px-3 text-right font-semibold text-violet-600">{formatCurrency(m.totalAffiliateGmv)}</td>
                                 <td className="py-2 px-3 text-right">{formatCurrency(m.totalLiveGmv)}</td>
                                 <td className="py-2 px-3 text-right">{formatCurrency(m.totalVideoGmv)}</td>
-                                <td className="py-2 px-3 text-right text-green-600">{formatCurrency(Number(m.totalEstimatedPartnerCommission) || Number(m.totalActualPartnerCommission))}</td>
+                                <td className="py-2 px-3 text-right text-green-600">{formatCurrency(Number(m.totalActualCreatorCommission) || Number(m.totalEstimatedCreatorCommission))}</td>
                                 <td className="py-2 px-3 text-right">{formatNumber(m.totalOrders)}</td>
                                 <td className="py-2 px-3 text-right">{formatNumber(m.creatorCount)}</td>
                                 <td className="py-2 px-3 text-right">
@@ -1092,7 +1092,7 @@ export default function FinanceManagement() {
                             <div className="text-right">
                               <p className="font-semibold text-sm text-violet-600">{formatCurrency(c.totalAffiliateGmv)}</p>
                               <div className="flex gap-2 text-xs">
-                                <span className="text-green-600">LCJ {formatCurrency(Number(c.totalEstimatedPartnerCommission) || Number(c.totalActualPartnerCommission))}</span>
+                                <span className="text-green-600">LCJ {formatCurrency(Number(c.totalActualCreatorCommission) || Number(c.totalEstimatedCreatorCommission))}</span>
                               </div>
                             </div>
                           </div>
@@ -1132,7 +1132,7 @@ export default function FinanceManagement() {
                             <div className="text-right">
                               <p className="font-semibold text-sm text-violet-600">{formatCurrency(s.totalAffiliateGmv)}</p>
                               <div className="flex gap-2 text-xs">
-                                <span className="text-green-600">LCJ {formatCurrency(Number(s.totalEstimatedPartnerCommission) || Number(s.totalActualPartnerCommission))}</span>
+                                <span className="text-green-600">LCJ {formatCurrency(Number(s.totalActualCreatorCommission) || Number(s.totalEstimatedCreatorCommission))}</span>
                               </div>
                             </div>
                           </div>
@@ -1201,8 +1201,8 @@ export default function FinanceManagement() {
                         <td className="py-2 px-3 text-right font-semibold text-red-600">{formatCurrency(c.totalAffiliateGmv)}</td>
                         <td className="py-2 px-3 text-right">{formatCurrency(c.totalLiveGmv)}</td>
                         <td className="py-2 px-3 text-right">{formatCurrency(c.totalVideoGmv)}</td>
-                        <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(c.totalEstimatedPartnerCommission)}</td>
-                        <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(c.totalActualPartnerCommission)}</td>
+                        <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(c.totalEstimatedCreatorCommission)}</td>
+                        <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(c.totalActualCreatorCommission)}</td>
                         <td className="py-2 px-3 text-right text-orange-600">{formatCurrency(c.totalEstimatedCreatorCommission)}</td>
                         <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.totalActualCreatorCommission)}</td>
                         <td className="py-2 px-3 text-right text-rose-500">{formatCurrency(c.totalGmvRefund)}</td>
@@ -1221,8 +1221,8 @@ export default function FinanceManagement() {
                       <td className="py-2 px-3 text-right text-red-600">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalAffiliateGmv), 0))}</td>
                       <td className="py-2 px-3 text-right">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalLiveGmv), 0))}</td>
                       <td className="py-2 px-3 text-right">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalVideoGmv), 0))}</td>
-                      <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalEstimatedPartnerCommission), 0))}</td>
-                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalActualPartnerCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalEstimatedCreatorCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalActualCreatorCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-orange-600">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalEstimatedCreatorCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-green-600">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalActualCreatorCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-rose-500">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalGmvRefund), 0))}</td>
@@ -1287,8 +1287,8 @@ export default function FinanceManagement() {
                         <td className="py-2 px-3 text-right font-semibold text-red-600">{formatCurrency(s.totalAffiliateGmv)}</td>
                         <td className="py-2 px-3 text-right">{formatCurrency(s.totalLiveGmv)}</td>
                         <td className="py-2 px-3 text-right">{formatCurrency(s.totalVideoGmv)}</td>
-                        <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(s.totalEstimatedPartnerCommission)}</td>
-                        <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(s.totalActualPartnerCommission)}</td>
+                        <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(s.totalEstimatedCreatorCommission)}</td>
+                        <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(s.totalActualCreatorCommission)}</td>
                         <td className="py-2 px-3 text-right text-orange-600">{formatCurrency(s.totalEstimatedCreatorCommission)}</td>
                         <td className="py-2 px-3 text-right text-green-600">{formatCurrency(s.totalActualCreatorCommission)}</td>
                         <td className="py-2 px-3 text-right text-rose-500">{formatCurrency(s.totalGmvRefund)}</td>
@@ -1307,8 +1307,8 @@ export default function FinanceManagement() {
                       <td className="py-2 px-3 text-right text-red-600">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalAffiliateGmv), 0))}</td>
                       <td className="py-2 px-3 text-right">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalLiveGmv), 0))}</td>
                       <td className="py-2 px-3 text-right">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalVideoGmv), 0))}</td>
-                      <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalEstimatedPartnerCommission), 0))}</td>
-                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalActualPartnerCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalEstimatedCreatorCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalActualCreatorCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-orange-600">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalEstimatedCreatorCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-green-600">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalActualCreatorCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-rose-500">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalGmvRefund), 0))}</td>
@@ -1373,8 +1373,8 @@ export default function FinanceManagement() {
                         <td className="py-2 px-3 text-right font-semibold text-red-600">{formatCurrency(p.totalAffiliateGmv)}</td>
                         <td className="py-2 px-3 text-right">{formatCurrency(p.totalLiveGmv)}</td>
                         <td className="py-2 px-3 text-right">{formatCurrency(p.totalVideoGmv)}</td>
-                        <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(p.totalEstimatedPartnerCommission)}</td>
-                        <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(p.totalActualPartnerCommission)}</td>
+                        <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(p.totalEstimatedCreatorCommission)}</td>
+                        <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(p.totalActualCreatorCommission)}</td>
                         <td className="py-2 px-3 text-right text-orange-600">{formatCurrency(p.totalEstimatedCreatorCommission)}</td>
                         <td className="py-2 px-3 text-right text-green-600">{formatCurrency(p.totalActualCreatorCommission)}</td>
                         <td className="py-2 px-3 text-right text-rose-500">{formatCurrency(p.totalGmvRefund)}</td>
@@ -1393,8 +1393,8 @@ export default function FinanceManagement() {
                       <td className="py-2 px-3 text-right text-red-600">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalAffiliateGmv), 0))}</td>
                       <td className="py-2 px-3 text-right">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalLiveGmv), 0))}</td>
                       <td className="py-2 px-3 text-right">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalVideoGmv), 0))}</td>
-                      <td className="py-2 px-3 text-right text-purple-600">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalEstimatedPartnerCommission), 0))}</td>
-                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalActualPartnerCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-purple-600">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalEstimatedCreatorCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalActualCreatorCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-orange-600">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalEstimatedCreatorCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-green-600">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalActualCreatorCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-rose-500">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalGmvRefund), 0))}</td>
@@ -1444,7 +1444,7 @@ export default function FinanceManagement() {
                       <tr key={d.date} className="border-b hover:bg-muted/50">
                         <td className="py-2 px-3 font-medium">{d.date}</td>
                         <td className="py-2 px-3 text-right">{formatCurrency(d.totalSales)}</td>
-                        <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(d.totalActPartnerCommission)}</td>
+                        <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(d.totalActCreatorCommission)}</td>
                         <td className="py-2 px-3 text-right text-green-600">{formatCurrency(d.totalActCreatorCommission)}</td>
                         <td className="py-2 px-3 text-right">{formatNumber(d.orderCount)}</td>
                         <td className="py-2 px-3 text-right">{formatNumber(d.totalQuantity)}</td>
@@ -1455,7 +1455,7 @@ export default function FinanceManagement() {
                     <tr className="border-t-2 font-bold">
                       <td className="py-2 px-3">合計</td>
                       <td className="py-2 px-3 text-right">{formatCurrency((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.totalSales), 0))}</td>
-                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.totalActPartnerCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.totalActCreatorCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-green-600">{formatCurrency((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.totalActCreatorCommission), 0))}</td>
                       <td className="py-2 px-3 text-right">{formatNumber((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.orderCount), 0))}</td>
                       <td className="py-2 px-3 text-right">{formatNumber((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.totalQuantity), 0))}</td>
@@ -1509,7 +1509,7 @@ export default function FinanceManagement() {
                         <tr key={m.month} className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => { setSelectedMonth(m.month); setActiveTab('dashboard'); }}>
                           <td className="py-2 px-3 font-medium">{m.month}</td>
                           <td className="py-2 px-3 text-right font-semibold">{formatCurrency(m.totalSales)}</td>
-                          <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(m.totalActPartnerCommission)}</td>
+                          <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(m.totalActCreatorCommission)}</td>
                           <td className="py-2 px-3 text-right text-green-600">{formatCurrency(m.totalActCreatorCommission)}</td>
                           <td className="py-2 px-3 text-right text-indigo-600">
                             {(() => {
@@ -1539,7 +1539,7 @@ export default function FinanceManagement() {
                     <tr className="border-t-2 font-bold">
                       <td className="py-2 px-3">合計</td>
                       <td className="py-2 px-3 text-right">{formatCurrency(monthly.reduce((s: number, m: any) => s + Number(m.totalSales), 0))}</td>
-                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(monthly.reduce((s: number, m: any) => s + Number(m.totalActPartnerCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(monthly.reduce((s: number, m: any) => s + Number(m.totalActCreatorCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-green-600">{formatCurrency(monthly.reduce((s: number, m: any) => s + Number(m.totalActCreatorCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency((paymentsByMonthQuery.data || []).reduce((s: number, p: any) => s + Number(p.totalPaymentAmount), 0))}</td>
                       <td className="py-2 px-3 text-right" colSpan={2}></td>
@@ -1897,9 +1897,9 @@ export default function FinanceManagement() {
                     <TrendingUp className="h-3.5 w-3.5" />
                     コミッション
                   </div>
-                  <p className="text-2xl font-bold text-green-600">{formatCurrency(Number(tapSummaryQuery.data.totalEstimatedPartnerCommission) || Number(tapSummaryQuery.data.totalActualPartnerCommission))}</p>
+                  <p className="text-2xl font-bold text-green-600">{formatCurrency(Number(tapSummaryQuery.data.totalActualCreatorCommission) || Number(tapSummaryQuery.data.totalEstimatedCreatorCommission))}</p>
                   <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
-                    <span>LCJ: {formatCurrency(Number(tapSummaryQuery.data.totalEstimatedPartnerCommission) || Number(tapSummaryQuery.data.totalActualPartnerCommission))}</span>
+                    <span>LCJ: {formatCurrency(Number(tapSummaryQuery.data.totalActualCreatorCommission) || Number(tapSummaryQuery.data.totalEstimatedCreatorCommission))}</span>
                     <span>C: {formatCurrency(Number(tapSummaryQuery.data.totalEstimatedCreatorCommission) || Number(tapSummaryQuery.data.totalActualCreatorCommission))}</span>
                   </div>
                 </CardContent>
@@ -2019,7 +2019,7 @@ export default function FinanceManagement() {
                             <td className="py-2 px-3 text-right font-semibold text-violet-600">{formatCurrency(m.totalAffiliateGmv)}</td>
                             <td className="py-2 px-3 text-right">{formatCurrency(m.totalLiveGmv)}</td>
                             <td className="py-2 px-3 text-right">{formatCurrency(m.totalVideoGmv)}</td>
-                            <td className="py-2 px-3 text-right text-green-600">{formatCurrency(Number(m.totalEstimatedPartnerCommission) || Number(m.totalActualPartnerCommission))}</td>
+                            <td className="py-2 px-3 text-right text-green-600">{formatCurrency(Number(m.totalActualCreatorCommission) || Number(m.totalEstimatedCreatorCommission))}</td>
                             <td className="py-2 px-3 text-right">{formatNumber(m.totalOrders)}</td>
                             <td className="py-2 px-3 text-right">{formatNumber(m.totalLiveViews)}</td>
                             <td className="py-2 px-3 text-center">
@@ -2080,8 +2080,8 @@ export default function FinanceManagement() {
                             { label: 'アフィリGMV', value: formatCurrency(monthDetailSummaryQuery.data.totalAffiliateGmv), color: 'text-violet-600' },
                             { label: 'LIVE GMV', value: formatCurrency(monthDetailLiveQuery.data?.totalGmv || 0), color: 'text-blue-600' },
                             { label: '動画GMV', value: formatCurrency(monthDetailVideoQuery.data?.totalGmv || 0), color: 'text-cyan-600' },
-                            { label: 'LCJ手数料(見込)', value: formatCurrency(monthDetailSummaryQuery.data.totalEstimatedPartnerCommission), color: 'text-green-600' },
-                            { label: 'LCJ手数料(実績)', value: formatCurrency(monthDetailSummaryQuery.data.totalActualPartnerCommission), color: 'text-emerald-600' },
+                            { label: 'LCJ手数料(見込)', value: formatCurrency(monthDetailSummaryQuery.data.totalEstimatedCreatorCommission), color: 'text-green-600' },
+                            { label: 'LCJ手数料(実績)', value: formatCurrency(monthDetailSummaryQuery.data.totalActualCreatorCommission), color: 'text-emerald-600' },
                             { label: '注文数', value: formatNumber(monthDetailSummaryQuery.data.totalOrders), color: '' },
                             { label: '販売数', value: formatNumber(monthDetailSummaryQuery.data.totalUnitsSold), color: '' },
                             { label: '決済済みGMV', value: formatCurrency(monthDetailSummaryQuery.data.totalSettledGmv), color: 'text-amber-600' },
@@ -2103,7 +2103,7 @@ export default function FinanceManagement() {
                             {monthDetailLiveQuery.data ? (
                               <div className="grid grid-cols-2 gap-2 text-xs">
                                 <div><span className="text-muted-foreground">GMV:</span> <span className="font-medium">{formatCurrency(monthDetailLiveQuery.data.totalGmv)}</span></div>
-                                <div><span className="text-muted-foreground">手数料:</span> <span className="font-medium">{formatCurrency(monthDetailLiveQuery.data.totalPartnerCommission)}</span></div>
+                                <div><span className="text-muted-foreground">手数料:</span> <span className="font-medium">{formatCurrency(monthDetailLiveQuery.data.totalCreatorCommission)}</span></div>
                                 <div><span className="text-muted-foreground">注文数:</span> <span className="font-medium">{formatNumber(monthDetailLiveQuery.data.totalOrders)}</span></div>
                                 <div><span className="text-muted-foreground">視聴数:</span> <span className="font-medium">{formatNumber(monthDetailLiveQuery.data.totalViews)}</span></div>
                                 <div><span className="text-muted-foreground">配信数:</span> <span className="font-medium">{formatNumber(monthDetailLiveQuery.data.totalSessions)}</span></div>
@@ -2116,7 +2116,7 @@ export default function FinanceManagement() {
                             {monthDetailVideoQuery.data ? (
                               <div className="grid grid-cols-2 gap-2 text-xs">
                                 <div><span className="text-muted-foreground">GMV:</span> <span className="font-medium">{formatCurrency(monthDetailVideoQuery.data.totalGmv)}</span></div>
-                                <div><span className="text-muted-foreground">手数料:</span> <span className="font-medium">{formatCurrency(monthDetailVideoQuery.data.totalPartnerCommission)}</span></div>
+                                <div><span className="text-muted-foreground">手数料:</span> <span className="font-medium">{formatCurrency(monthDetailVideoQuery.data.totalCreatorCommission)}</span></div>
                                 <div><span className="text-muted-foreground">注文数:</span> <span className="font-medium">{formatNumber(monthDetailVideoQuery.data.totalOrders)}</span></div>
                                 <div><span className="text-muted-foreground">視聴数:</span> <span className="font-medium">{formatNumber(monthDetailVideoQuery.data.totalViews)}</span></div>
                                 <div><span className="text-muted-foreground">動画数:</span> <span className="font-medium">{formatNumber(monthDetailVideoQuery.data.totalSessions)}</span></div>
@@ -2179,8 +2179,8 @@ export default function FinanceManagement() {
                                 <td className="py-1.5 px-2 text-right font-semibold text-violet-600">{formatCurrency(c.totalAffiliateGmv)}</td>
                                 <td className="py-1.5 px-2 text-right">{formatCurrency(c.totalLiveGmv)}</td>
                                 <td className="py-1.5 px-2 text-right">{formatCurrency(c.totalVideoGmv)}</td>
-                                <td className="py-1.5 px-2 text-right text-green-600">{formatCurrency(c.totalEstimatedPartnerCommission)}</td>
-                                <td className="py-1.5 px-2 text-right text-emerald-600">{formatCurrency(c.totalActualPartnerCommission)}</td>
+                                <td className="py-1.5 px-2 text-right text-green-600">{formatCurrency(c.totalEstimatedCreatorCommission)}</td>
+                                <td className="py-1.5 px-2 text-right text-emerald-600">{formatCurrency(c.totalActualCreatorCommission)}</td>
                                 <td className="py-1.5 px-2 text-right text-orange-600">{formatCurrency(c.totalEstimatedCreatorCommission)}</td>
                                 <td className="py-1.5 px-2 text-right text-orange-500">{formatCurrency(c.totalActualCreatorCommission)}</td>
                                 <td className="py-1.5 px-2 text-right">{formatNumber(c.totalOrders)}</td>
@@ -2228,8 +2228,8 @@ export default function FinanceManagement() {
                                 <td className="py-1.5 px-2 text-right font-semibold text-violet-600">{formatCurrency(s.totalAffiliateGmv)}</td>
                                 <td className="py-1.5 px-2 text-right">{formatCurrency(s.totalLiveGmv)}</td>
                                 <td className="py-1.5 px-2 text-right">{formatCurrency(s.totalVideoGmv)}</td>
-                                <td className="py-1.5 px-2 text-right text-green-600">{formatCurrency(s.totalEstimatedPartnerCommission)}</td>
-                                <td className="py-1.5 px-2 text-right text-emerald-600">{formatCurrency(s.totalActualPartnerCommission)}</td>
+                                <td className="py-1.5 px-2 text-right text-green-600">{formatCurrency(s.totalEstimatedCreatorCommission)}</td>
+                                <td className="py-1.5 px-2 text-right text-emerald-600">{formatCurrency(s.totalActualCreatorCommission)}</td>
                                 <td className="py-1.5 px-2 text-right">{formatNumber(s.totalOrders)}</td>
                                 <td className="py-1.5 px-2 text-right">{formatNumber(s.totalUnitsSold)}</td>
                                 <td className="py-1.5 px-2 text-right text-red-500">{formatCurrency(s.totalGmvRefund)}</td>
@@ -2273,8 +2273,8 @@ export default function FinanceManagement() {
                                 <td className="py-1.5 px-2 text-right font-semibold text-violet-600">{formatCurrency(p.totalAffiliateGmv)}</td>
                                 <td className="py-1.5 px-2 text-right">{formatCurrency(p.totalLiveGmv)}</td>
                                 <td className="py-1.5 px-2 text-right">{formatCurrency(p.totalVideoGmv)}</td>
-                                <td className="py-1.5 px-2 text-right text-green-600">{formatCurrency(p.totalEstimatedPartnerCommission)}</td>
-                                <td className="py-1.5 px-2 text-right text-emerald-600">{formatCurrency(p.totalActualPartnerCommission)}</td>
+                                <td className="py-1.5 px-2 text-right text-green-600">{formatCurrency(p.totalEstimatedCreatorCommission)}</td>
+                                <td className="py-1.5 px-2 text-right text-emerald-600">{formatCurrency(p.totalActualCreatorCommission)}</td>
                                 <td className="py-1.5 px-2 text-right">{formatNumber(p.totalOrders)}</td>
                                 <td className="py-1.5 px-2 text-right">{formatNumber(p.totalUnitsSold)}</td>
                               </tr>
@@ -2330,7 +2330,7 @@ export default function FinanceManagement() {
                             <td className="py-2 px-3 text-right font-semibold text-violet-600">{formatCurrency(c.totalAffiliateGmv)}</td>
                             <td className="py-2 px-3 text-right">{formatCurrency(c.totalLiveGmv)}</td>
                             <td className="py-2 px-3 text-right">{formatCurrency(c.totalVideoGmv)}</td>
-                            <td className="py-2 px-3 text-right text-green-600">{formatCurrency(Number(c.totalEstimatedPartnerCommission) || Number(c.totalActualPartnerCommission))}</td>
+                            <td className="py-2 px-3 text-right text-green-600">{formatCurrency(Number(c.totalActualCreatorCommission) || Number(c.totalEstimatedCreatorCommission))}</td>
                             <td className="py-2 px-3 text-right">{formatNumber(c.totalOrders)}</td>
                             <td className="py-2 px-3 text-right">{formatNumber(c.totalLiveViews)}</td>
                             <td className="py-2 px-3 text-right">{formatNumber(c.totalVideoViews)}</td>
@@ -2381,7 +2381,7 @@ export default function FinanceManagement() {
                             <td className="py-2 px-3 text-right font-semibold text-violet-600">{formatCurrency(s.totalAffiliateGmv)}</td>
                             <td className="py-2 px-3 text-right">{formatCurrency(s.totalLiveGmv)}</td>
                             <td className="py-2 px-3 text-right">{formatCurrency(s.totalVideoGmv)}</td>
-                            <td className="py-2 px-3 text-right text-green-600">{formatCurrency(Number(s.totalEstimatedPartnerCommission) || Number(s.totalActualPartnerCommission))}</td>
+                            <td className="py-2 px-3 text-right text-green-600">{formatCurrency(Number(s.totalActualCreatorCommission) || Number(s.totalEstimatedCreatorCommission))}</td>
                             <td className="py-2 px-3 text-right">{formatNumber(s.totalOrders)}</td>
                             <td className="py-2 px-3 text-right">{formatNumber(s.productCount)}</td>
                           </tr>
@@ -2562,7 +2562,7 @@ export default function FinanceManagement() {
                             <td className="py-2 px-3 text-right font-semibold text-violet-600">{formatCurrency(c.totalAffiliateGmv)}</td>
                             <td className="py-2 px-3 text-right">{formatCurrency(c.totalLiveGmv)}</td>
                             <td className="py-2 px-3 text-right">{formatCurrency(c.totalVideoGmv)}</td>
-                            <td className="py-2 px-3 text-right text-green-600">{formatCurrency(Number(c.totalEstimatedPartnerCommission) || Number(c.totalActualPartnerCommission))}</td>
+                            <td className="py-2 px-3 text-right text-green-600">{formatCurrency(Number(c.totalActualCreatorCommission) || Number(c.totalEstimatedCreatorCommission))}</td>
                             <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(Number(c.totalEstimatedCreatorCommission) || Number(c.totalActualCreatorCommission))}</td>
                             <td className="py-2 px-3 text-right">{formatNumber(c.totalOrders)}</td>
                             <td className="py-2 px-3 text-right">{formatNumber(c.totalLiveViews)}</td>
@@ -2617,7 +2617,7 @@ export default function FinanceManagement() {
                             <td className="py-2 px-3 text-right font-semibold text-violet-600">{formatCurrency(s.totalAffiliateGmv)}</td>
                             <td className="py-2 px-3 text-right">{formatCurrency(s.totalLiveGmv)}</td>
                             <td className="py-2 px-3 text-right">{formatCurrency(s.totalVideoGmv)}</td>
-                            <td className="py-2 px-3 text-right text-green-600">{formatCurrency(Number(s.totalEstimatedPartnerCommission) || Number(s.totalActualPartnerCommission))}</td>
+                            <td className="py-2 px-3 text-right text-green-600">{formatCurrency(Number(s.totalActualCreatorCommission) || Number(s.totalEstimatedCreatorCommission))}</td>
                             <td className="py-2 px-3 text-right">{formatNumber(s.totalOrders)}</td>
                             <td className="py-2 px-3 text-right">{formatNumber(s.productCount)}</td>
                             <td className="py-2 px-3 text-right">{formatNumber(s.creatorCount)}</td>
@@ -2700,7 +2700,7 @@ export default function FinanceManagement() {
                   <Card>
                     <CardContent className="pt-3 pb-2">
                       <div className="text-muted-foreground text-xs mb-1">LCJ手数料</div>
-                      <p className="text-lg font-semibold text-green-600">{formatCurrency(tapLiveSummaryQuery.data.totalPartnerCommission)}</p>
+                      <p className="text-lg font-semibold text-green-600">{formatCurrency(tapLiveSummaryQuery.data.totalCreatorCommission)}</p>
                     </CardContent>
                   </Card>
                   <Card>
@@ -2758,7 +2758,7 @@ export default function FinanceManagement() {
                             <tr key={m.reportMonth} className="border-b hover:bg-muted/50">
                               <td className="py-2 px-3 font-medium">{m.reportMonth}</td>
                               <td className="py-2 px-3 text-right font-semibold text-red-600">{formatCurrency(m.totalGmv)}</td>
-                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(m.totalPartnerCommission)}</td>
+                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(m.totalCreatorCommission)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(m.totalOrders)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(m.totalViews)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(m.totalSessions)}</td>
@@ -2806,7 +2806,7 @@ export default function FinanceManagement() {
                               <td className="py-2 px-3">{i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}</td>
                               <td className="py-2 px-3 font-medium">{c.creatorUsername}</td>
                               <td className="py-2 px-3 text-right font-semibold text-red-600">{formatCurrency(c.totalGmv)}</td>
-                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.totalPartnerCommission)}</td>
+                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.totalCreatorCommission)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(c.totalOrders)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(c.totalViews)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(c.totalSessions)}</td>
@@ -2857,7 +2857,7 @@ export default function FinanceManagement() {
                               <td className="py-2 px-3 font-medium text-xs">{s.creatorUsername}</td>
                               <td className="py-2 px-3 text-xs max-w-[200px] truncate" title={s.liveName}>{s.liveName || s.liveRoomId}</td>
                               <td className="py-2 px-3 text-right font-semibold text-red-600">{formatCurrency(s.totalGmv)}</td>
-                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(s.totalPartnerCommission)}</td>
+                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(s.totalCreatorCommission)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(s.totalOrders)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(s.totalViews)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(s.totalLikes)}</td>
@@ -2923,7 +2923,7 @@ export default function FinanceManagement() {
                         <tbody>
                           {[...(tapCreatorProfitQuery.data as any[])].map((c: any) => {
                             const gmv = Number(c.totalAffiliateGmv) || 0;
-                            const lcjFee = Number(c.totalEstimatedPartnerCommission) || 0;
+                            const lcjFee = Number(c.totalActualCreatorCommission) || Number(c.totalEstimatedCreatorCommission) || 0;
                             const cFee = Number(c.totalEstimatedCreatorCommission) || 0;
                             const brandFee = lcjFee + cFee;
                             const brandRate = gmv > 0 ? (brandFee / gmv * 100) : 0;
@@ -3067,7 +3067,7 @@ export default function FinanceManagement() {
                                               {[...(tapCreatorProductBreakdownQuery.data as any[])].sort((a: any, b: any) => {
                                                 const getVal = (item: any) => {
                                                   const g = Number(item.totalAffiliateGmv) || 0;
-                                                  const l = Number(item.totalEstimatedPartnerCommission) || 0;
+                                                  const l = Number(item.totalActualCreatorCommission) || Number(item.totalEstimatedCreatorCommission) || 0;
                                                   const c = Number(item.totalEstimatedCreatorCommission) || 0;
                                                   const br = l + c;
                                                   switch (drilldownSort.key) {
@@ -3086,7 +3086,7 @@ export default function FinanceManagement() {
                                                 return drilldownSort.dir === 'desc' ? vb - va : va - vb;
                                               }).map((p: any, j: number) => {
                                                 const pGmv = Number(p.totalAffiliateGmv) || 0;
-                                                const pLcj = Number(p.totalEstimatedPartnerCommission) || 0;
+                                                const pLcj = Number(p.totalActualCreatorCommission) || Number(p.totalEstimatedCreatorCommission) || 0;
                                                 const pC = Number(p.totalEstimatedCreatorCommission) || 0;
                                                 const pBrand = pLcj + pC;
                                                 const pBrandRate = pGmv > 0 ? (pBrand / pGmv * 100) : 0;
@@ -3177,7 +3177,7 @@ export default function FinanceManagement() {
                           {[...tapProductsQuery.data]
                             .map((p: any) => {
                               const gmv = Number(p.totalAffiliateGmv) || 0;
-                              const lcjFee = Number(p.totalEstimatedPartnerCommission) || 0;
+                              const lcjFee = Number(p.totalActualCreatorCommission) || Number(p.totalEstimatedCreatorCommission) || 0;
                               const cFee = Number(p.totalEstimatedCreatorCommission) || 0;
                               const brandFee = lcjFee + cFee;
                               const brandRate = gmv > 0 ? (brandFee / gmv * 100) : 0;
@@ -3283,7 +3283,7 @@ export default function FinanceManagement() {
                                                 {[...(tapProductCreatorBreakdownQuery.data as any[])].sort((a: any, b: any) => {
                                                   const getVal = (item: any) => {
                                                     const g = Number(item.totalAffiliateGmv) || 0;
-                                                    const l = Number(item.totalEstimatedPartnerCommission) || 0;
+                                                    const l = Number(item.totalActualCreatorCommission) || Number(item.totalEstimatedCreatorCommission) || 0;
                                                     const c = Number(item.totalEstimatedCreatorCommission) || 0;
                                                     const br = l + c;
                                                     switch (prodDrilldownSort.key) {
@@ -3302,7 +3302,7 @@ export default function FinanceManagement() {
                                                   return prodDrilldownSort.dir === 'desc' ? vb - va : va - vb;
                                                 }).map((cr: any, j: number) => {
                                                   const crGmv = Number(cr.totalAffiliateGmv) || 0;
-                                                  const crLcj = Number(cr.totalEstimatedPartnerCommission) || 0;
+                                                  const crLcj = Number(cr.totalActualCreatorCommission) || Number(cr.totalEstimatedCreatorCommission) || 0;
                                                   const crC = Number(cr.totalEstimatedCreatorCommission) || 0;
                                                   const crBrand = crLcj + crC;
                                                   const crBrandRate = crGmv > 0 ? (crBrand / crGmv * 100) : 0;
@@ -3375,7 +3375,7 @@ export default function FinanceManagement() {
                         products: products.sort((a: any, b: any) => Number(b.totalAffiliateGmv) - Number(a.totalAffiliateGmv)),
                         totalGmv: products.reduce((s: number, p: any) => s + Number(p.totalAffiliateGmv || 0), 0),
                         totalOrders: products.reduce((s: number, p: any) => s + Number(p.totalOrders || 0), 0),
-                        totalLcjFee: products.reduce((s: number, p: any) => s + Number(p.totalEstimatedPartnerCommission || 0), 0),
+                        totalLcjFee: products.reduce((s: number, p: any) => s + (Number(p.totalActualCreatorCommission) || Number(p.totalEstimatedCreatorCommission) || 0), 0),
                       }))
                       .sort((a, b) => b.totalGmv - a.totalGmv);
                     return (
@@ -3419,7 +3419,7 @@ export default function FinanceManagement() {
                                       <td className="py-1 px-2 text-muted-foreground max-w-[100px] truncate" title={p.shopName}>{p.shopName}</td>
                                       <td className="py-1 px-2 text-right font-medium">{formatCurrency(gmv)}</td>
                                       <td className="py-1 px-2 text-right">{formatCurrency(p.totalLiveGmv)}</td>
-                                      <td className="py-1 px-2 text-right text-blue-600">{formatCurrency(p.totalEstimatedPartnerCommission)}</td>
+                                      <td className="py-1 px-2 text-right text-blue-600">{formatCurrency(p.totalEstimatedCreatorCommission)}</td>
                                       <td className="py-1 px-2 text-right">{formatNumber(orders)}</td>
                                       <td className="py-1 px-2 text-right">{cvr.toFixed(2)}%</td>
                                       <td className="py-1 px-2 text-right">{formatCurrency(rpm)}</td>
@@ -3477,8 +3477,8 @@ export default function FinanceManagement() {
                           {[...tapShopsQuery.data]
                             .map((s: any) => {
                               const gmv = Number(s.totalAffiliateGmv) || 0;
-                              const lcjFee = Number(s.totalEstimatedPartnerCommission) || 0;
-                              const lcjFeeActual = Number(s.totalActualPartnerCommission) || 0;
+                              const lcjFee = Number(s.totalActualCreatorCommission) || Number(s.totalEstimatedCreatorCommission) || 0;
+                              const lcjFeeActual = Number(s.totalActualCreatorCommission) || 0;
                               const refund = Number(s.totalGmvRefund) || 0;
                               const settled = Number(s.totalSettledGmv) || 0;
                               const lcjRate = gmv > 0 ? (lcjFee / gmv * 100) : 0;
@@ -3615,7 +3615,7 @@ export default function FinanceManagement() {
                         gmvGrowth: calcGrowth(Number(m.totalAffiliateGmv), Number(prev.totalAffiliateGmv)),
                         ordersGrowth: calcGrowth(Number(m.totalOrders), Number(prev.totalOrders)),
                         creatorsGrowth: calcGrowth(Number(m.creatorCount), Number(prev.creatorCount)),
-                        feeGrowth: calcGrowth(Number(m.totalEstimatedPartnerCommission), Number(prev.totalEstimatedPartnerCommission)),
+                        feeGrowth: calcGrowth(Number(m.totalActualCreatorCommission) || Number(m.totalEstimatedCreatorCommission), Number(prev.totalActualCreatorCommission) || Number(prev.totalEstimatedCreatorCommission)),
                       };
                     }).reverse();
                     return (
@@ -3649,7 +3649,7 @@ export default function FinanceManagement() {
                                   <td className="py-1.5 px-2 font-medium">{m.reportMonth}</td>
                                   <td className="py-1.5 px-2 text-right">{formatCurrency(m.totalAffiliateGmv)}</td>
                                   <td className="py-1.5 px-2 text-right">{renderGrowth(m.gmvGrowth)}</td>
-                                  <td className="py-1.5 px-2 text-right text-blue-600">{formatCurrency(m.totalEstimatedPartnerCommission)}</td>
+                                  <td className="py-1.5 px-2 text-right text-blue-600">{formatCurrency(Number(m.totalActualCreatorCommission) || Number(m.totalEstimatedCreatorCommission))}</td>
                                   <td className="py-1.5 px-2 text-right">{renderGrowth(m.feeGrowth)}</td>
                                   <td className="py-1.5 px-2 text-right">{formatNumber(m.totalOrders)}</td>
                                   <td className="py-1.5 px-2 text-right">{renderGrowth(m.ordersGrowth)}</td>
@@ -3687,7 +3687,7 @@ export default function FinanceManagement() {
                   <Card>
                     <CardContent className="pt-3 pb-2">
                       <div className="text-muted-foreground text-xs mb-1">LCJ手数料</div>
-                      <p className="text-lg font-semibold text-green-600">{formatCurrency(tapVideoSummaryQuery.data.totalPartnerCommission)}</p>
+                      <p className="text-lg font-semibold text-green-600">{formatCurrency(tapVideoSummaryQuery.data.totalCreatorCommission)}</p>
                     </CardContent>
                   </Card>
                   <Card>
@@ -3745,7 +3745,7 @@ export default function FinanceManagement() {
                             <tr key={m.reportMonth} className="border-b hover:bg-muted/50">
                               <td className="py-2 px-3 font-medium">{m.reportMonth}</td>
                               <td className="py-2 px-3 text-right font-semibold text-pink-600">{formatCurrency(m.totalGmv)}</td>
-                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(m.totalPartnerCommission)}</td>
+                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(m.totalCreatorCommission)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(m.totalOrders)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(m.totalViews)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(m.totalVideos)}</td>
@@ -3793,7 +3793,7 @@ export default function FinanceManagement() {
                               <td className="py-2 px-3">{i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}</td>
                               <td className="py-2 px-3 font-medium">{c.creatorUsername}</td>
                               <td className="py-2 px-3 text-right font-semibold text-pink-600">{formatCurrency(c.totalGmv)}</td>
-                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.totalPartnerCommission)}</td>
+                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.totalCreatorCommission)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(c.totalOrders)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(c.totalViews)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(c.totalVideos)}</td>
@@ -3844,7 +3844,7 @@ export default function FinanceManagement() {
                               <td className="py-2 px-3 font-medium text-xs">{v.creatorUsername}</td>
                               <td className="py-2 px-3 text-xs max-w-[200px] truncate" title={v.videoName}>{v.videoName || v.videoId}</td>
                               <td className="py-2 px-3 text-right font-semibold text-pink-600">{formatCurrency(v.totalGmv)}</td>
-                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(v.totalPartnerCommission)}</td>
+                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(v.totalCreatorCommission)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(v.totalOrders)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(v.totalViews)}</td>
                               <td className="py-2 px-3 text-right">{formatNumber(v.totalLikes)}</td>

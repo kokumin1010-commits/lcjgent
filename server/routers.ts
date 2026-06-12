@@ -23698,8 +23698,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             if (dateVal === '概要' || dateVal === '汇总数据' || dateVal === 'Summary' || dateVal === '') continue;
             
             // Support Japanese, English, and Chinese headers
-            const creatorUsername = String(row['クリエイター名'] || row['达人用户名'] || row['Creator username'] || row['Creator name'] || '').trim();
-            const productName = String(row['商品名'] || row['商品信息'] || row['Product name'] || '').trim();
+            const creatorUsername = String(row['クリエイター名'] || row['达人用户名'] || row['达人名称'] || row['Creator username'] || row['Creator name'] || '').trim();
+            const productName = String(row['商品名'] || row['商品信息'] || row['商品名称'] || row['Product name'] || '').trim();
             const shopName = String(row['ショップ名'] || row['店铺名称'] || row['Shop name'] || '').trim();
             const productId = String(row['商品ID'] || row['商品 ID'] || row['Product ID'] || '').trim();
             const shopId = String(row['ショップID'] || row['店铺 ID'] || row['Shop ID'] || '').trim();
@@ -23715,28 +23715,28 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               productName,
               shopId,
               shopName,
-              affiliateGmv: parseNum(row['アフィリエイトGMV'] || row['联盟 GMV'] || row['Affiliate GMV']),
-              videoGmv: parseNum(row['アフィリエイト動画GMV'] || row['联盟视频 GMV'] || row['Video GMV']),
-              liveGmv: parseNum(row['アフィリエイトLIVE GMV'] || row['联盟直播 GMV'] || row['LIVE GMV']),
-              gmvRefund: parseNum(row['GMV（返金）'] || row['直接退款 GMV'] || row['GMV refund']),
-              settledGmv: parseNum(row['決済済みGMV'] || row['Settled GMV']),
-              showcaseRevenue: parseNum(row['収益（ショーケース）'] || row['Showcase revenue']),
-              linkGmv: parseNum(row['リンクGMV'] || row['Link GMV']),
-              orders: parseNum(row['注文'] || row['联盟订单数'] || row['Orders']),
+              affiliateGmv: parseNum(row['アフィリエイトGMV'] || row['联盟 GMV'] || row['联盟GMV'] || row['Affiliate GMV']),
+              videoGmv: parseNum(row['アフィリエイト動画GMV'] || row['联盟视频 GMV'] || row['联盟视频GMV'] || row['Video GMV']),
+              liveGmv: parseNum(row['アフィリエイトLIVE GMV'] || row['联盟直播 GMV'] || row['联盟直播GMV'] || row['LIVE GMV']),
+              gmvRefund: parseNum(row['GMV（返金）'] || row['直接退款 GMV'] || row['GMV（退款）'] || row['GMV refund']),
+              settledGmv: parseNum(row['決済済みGMV'] || row['已结算的 GMV'] || row['已结算的GMV'] || row['Settled GMV']),
+              showcaseRevenue: parseNum(row['収益（ショーケース）'] || row['成交额（商品橱窗）'] || row['Showcase revenue']),
+              linkGmv: parseNum(row['リンクGMV'] || row['链接 GMV'] || row['链接GMV'] || row['Link GMV']),
+              orders: parseNum(row['注文'] || row['联盟订单数'] || row['订单数'] || row['Orders']),
               salesCount: parseNum(row['販売数'] || row['成交件数'] || row['Sales count']),
-              videoViews: parseNum(row['動画視聴数'] || row['Video views']),
-              liveViews: parseNum(row['LIVE視聴数'] || row['LIVE views']),
-              liveCount: parseNum(row['LIVE'] || row['LIVE count']),
-              videoCount: parseNum(row['動画'] || row['Video count']),
-              showcaseProducts: parseNum(row['ショーケースに追加した商品'] || row['Showcase products']),
-              estimatedPartnerCommission: parseNum(row['推定アフィリエイトパートナー手数料額'] || row['Estimated partner commission']),
-              actualPartnerCommission: parseNum(row['実際のアフィリエイトパートナー手数料額'] || row['Actual partner commission']),
-              estimatedCreatorCommission: parseNum(row['クリエイターの推定成果報酬額'] || row['Estimated creator commission']),
-              actualCreatorCommission: parseNum(row['クリエイターの実際の手数料額'] || row['Actual creator commission']),
-              linkSalesCount: parseNum(row['リンクでの商品販売数'] || row['Link sales count']),
-              linkOrders: parseNum(row['リンク注文数'] || row['Link orders']),
-              linkEstimatedPartnerCommission: parseNum(row['リンクパートナーの推定成果報酬額'] || row['Link estimated partner commission']),
-              linkEstimatedCreatorCommission: parseNum(row['リンククリエイターの推定成果報酬額'] || row['Link estimated creator commission']),
+              videoViews: parseNum(row['動画視聴数'] || row['视频播放量'] || row['Video views']),
+              liveViews: parseNum(row['LIVE視聴数'] || row['直播观看次数'] || row['LIVE views']),
+              liveCount: parseNum(row['LIVE'] || row['直播数'] || row['LIVE count']),
+              videoCount: parseNum(row['動画'] || row['视频数'] || row['Video count']),
+              showcaseProducts: parseNum(row['ショーケースに追加した商品'] || row['已添加到商品橱窗的商品数'] || row['Showcase products']),
+              estimatedPartnerCommission: parseNum(row['推定アフィリエイトパートナー手数料額'] || row['预计团长佣金'] || row['Estimated partner commission']),
+              actualPartnerCommission: parseNum(row['実際のアフィリエイトパートナー手数料額'] || row['实际团长佣金'] || row['Actual partner commission']),
+              estimatedCreatorCommission: parseNum(row['クリエイターの推定成果報酬額'] || row['预计达人佣金'] || row['Estimated creator commission']),
+              actualCreatorCommission: parseNum(row['クリエイターの実際の手数料額'] || row['实际达人佣金'] || row['Actual creator commission']),
+              linkSalesCount: parseNum(row['リンクでの商品販売数'] || row['链接成交件数'] || row['Link sales count']),
+              linkOrders: parseNum(row['リンク注文数'] || row['链接订单数'] || row['Link orders']),
+              linkEstimatedPartnerCommission: parseNum(row['リンクパートナーの推定成果報酬額'] || row['链接服务商预计佣金'] || row['Link estimated partner commission']),
+              linkEstimatedCreatorCommission: parseNum(row['リンククリエイターの推定成果報酬額'] || row['链接达人预计佣金'] || row['Link estimated creator commission']),
             });
           }
           
