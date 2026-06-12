@@ -31,6 +31,7 @@ import { startPreBriefingScheduler } from "../preBriefingScheduler";
 import { startFeishuSyncScheduler } from "../feishuSyncScheduler";
 import { startContactSearchScheduler } from "../contactSearchScheduler";
 import { startAiCoachBrainScheduler } from "../aiCoachBrainScheduler";
+import { startLeadAutoCollectScheduler } from "../leadAutoCollectScheduler";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
 
@@ -2263,6 +2264,8 @@ async function startServer() {
     startContactSearchScheduler();
     // Start AI Coach Brain scheduler (regenerates master knowledge every Sunday at JST 03:00)
     startAiCoachBrainScheduler();
+    // Start lead auto-collect scheduler (collects leads from salesdash Google Maps every 2 hours)
+    startLeadAutoCollectScheduler();
     // Ensure schedules.brandIds column exists (multi-brand support)
     import("../db").then(({ ensureSchedulesBrandIdsColumn }) => {
       ensureSchedulesBrandIdsColumn().catch((err: unknown) => {

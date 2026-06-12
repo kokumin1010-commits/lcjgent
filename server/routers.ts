@@ -28017,6 +28017,18 @@ JSON配列のみを出力してください。`;
         const { bulkImportLeads } = await import("./leadCollector");
         return bulkImportLeads(input.leads);
       }),
+    // 自動収集ステータス確認
+    autoCollectStatus: protectedProcedure
+      .query(async () => {
+        const { getLeadAutoCollectStatus } = await import("./leadAutoCollectScheduler");
+        return getLeadAutoCollectStatus();
+      }),
+    // 手動トリガー（テスト用）
+    triggerAutoCollect: protectedProcedure
+      .mutation(async () => {
+        const { triggerLeadAutoCollect } = await import("./leadAutoCollectScheduler");
+        return triggerLeadAutoCollect();
+      }),
   }),
 });
 export type AppRouter = typeof appRouter;
