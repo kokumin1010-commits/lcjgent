@@ -1573,8 +1573,8 @@ export default function BusinessCards() {
             </Card>
           ) : (
             <Card>
-              <ScrollArea className="h-[600px]">
-                <Table>
+              <ScrollArea className="h-[600px] w-full">
+                <Table className="min-w-[900px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-10">
@@ -1588,8 +1588,8 @@ export default function BusinessCards() {
                       <TableHead>{t.position}</TableHead>
                       <TableHead>ステータス</TableHead>
                       <TableHead>{t.email}</TableHead>
-                      <TableHead>{t.phone}</TableHead>
-                      <TableHead className="text-right">操作</TableHead>
+                      <TableHead className="min-w-[140px]">{t.phone}</TableHead>
+                      <TableHead className="text-right min-w-[100px]">操作</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1700,6 +1700,7 @@ export default function BusinessCards() {
                     ))}
                   </TableBody>
                 </Table>
+                <ScrollBar orientation="horizontal" />
                             </ScrollArea>
               {/* Pagination Controls */}
               {totalCardPages > 1 && (
