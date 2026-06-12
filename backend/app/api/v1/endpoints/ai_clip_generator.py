@@ -891,6 +891,7 @@ async def _analyze_content_relevance(captions: list, product_name: str, duration
    - 「谢谢XX」「欢迎XX」「XX来了」「感谢XX的关注」
    - 視聴者の名前を呼ぶ全ての区間
    - 「コメントありがとう」「みんなありがとう」等の視聴者への感謝
+   - 視聴者への謝罪・返答（「XXさんごめん」「XXさんすみません」「XXさんお待たせ」等）
    - 弾幕の質問に答える区間（商品に関する質問への回答は除く）
 
 2. 閑聊・雑談（商品と無関係な話題）：
@@ -1017,6 +1018,20 @@ def _detect_filler_segments_local(captions: list) -> list:
         _re.compile(r'谢谢.*点赞'),  # 谢谢XX点赞
         _re.compile(r'谢谢.*礼物'),  # 谢谢XX的礼物
         _re.compile(r'感谢.*送的'),  # 感谢XX送的
+        # V2.31: 追加 — 視聴者への返答・謝罪・呼びかけ
+        _re.compile(r'.*さんごめん'),  # XXさんごめん
+        _re.compile(r'.*さんすみません'),  # XXさんすみません
+        _re.compile(r'.*さんお待たせ'),  # XXさんお待たせ
+        _re.compile(r'.*さんそうだね'),  # XXさんそうだね
+        _re.compile(r'.*さんそうなんです'),  # XXさんそうなんです
+        _re.compile(r'.*さんね'),  # XXさんね（呼びかけ）
+        _re.compile(r'.*ちゃんごめん'),  # XXちゃんごめん
+        _re.compile(r'.*ちゃんすみません'),  # XXちゃんすみません
+        _re.compile(r'.*ちゃんお待たせ'),  # XXちゃんお待たせ
+        _re.compile(r'ごめんね.*さん'),  # ごめんねXXさん
+        _re.compile(r'.*先生.*ありがとう'),  # XX先生ありがとう
+        _re.compile(r'.*先生.*こんにちは'),  # XX先生こんにちは
+        _re.compile(r'.*先生.*こんばんは'),  # XX先生こんばんは
     ]
 
     filler_segments = []
@@ -3207,6 +3222,54 @@ def _generate_enhanced_ass(styled_captions: list, hook_text: Optional[str],
             ass += f"Dialogue: 1,{hook_start},{hook_end},hook,,0,0,0,,{safe_hook}\n"
 
     # ── Styled captions with animations and highlights ──
+    # V2.31: 字幕テキスト前処理ヘルパー
+    import re as _re_sub
+    _TRAILING_PUNCT = _re_sub.compile(r'[、。！？!?.,，．…]+$')  # 末尾標点除去
+    _SPLIT_PUNCT = _re_sub.compile(r'([、。！？!?，])(?!$)')  # 文中標点で分割（末尾以外）
+    _PUNCT_CHARS = set('、。！？!?，')  # 標点文字セット（分割結果の判定用）
+    _MAX_LINE_CHARS = 15  # 1行あたりの最大文字数（超えたら分割を試みる）
+
+    def _process_subtitle_text(text: str) -> str:
+        """V2.31: 字幕テキストの標点処理
+        1. 末尾標点を除去
+        2. 長い文は標点位置でASS改行に分割
+        """
+        # Step 1: 末尾標点除去
+        text = _TRAILING_PUNCT.sub('', text)
+        if not text:
+            return text
+        # Step 2: 長い文は標点で分割して改行
+        if len(text) > _MAX_LINE_CHARS:
+            # 標点位置でチャンクに分割（標点は前のチャンクに含める）
+            parts = _SPLIT_PUNCT.split(text)
+            if len(parts) >= 3:  # regex split with capture group: [text, punct, text, ...]
+                # チャンクを再構成: 標点をスキップしてテキストのみ取得
+                chunks = []
+                for i_p, part in enumerate(parts):
+                    if len(part) == 1 and part in _PUNCT_CHARS:
+                        # これは標点文字 — スキップ
+                        continue
+                    if part:  # 空文字列もスキップ
+                        chunks.append(part)
+                # チャンクを行にまとめる
+                lines = []
+                current_line = ''
+                for chunk in chunks:
+                    if not chunk:
+                        continue
+                    if current_line and len(current_line) + len(chunk) > _MAX_LINE_CHARS:
+                        lines.append(current_line)
+                        current_line = chunk
+                    else:
+                        current_line += chunk
+                if current_line:
+                    lines.append(current_line)
+                if len(lines) >= 2:
+                    # 各行の末尾標点も除去
+                    lines = [_TRAILING_PUNCT.sub('', l) for l in lines]
+                    text = '\\N'.join(l for l in lines if l)
+        return text
+
     MIN_DISPLAY = 2.5
     for i, cap in enumerate(styled_captions):
         cap_start = float(cap.get("start", 0))
@@ -3215,6 +3278,8 @@ def _generate_enhanced_ass(styled_captions: list, hook_text: Optional[str],
         style = cap.get("style", "box")
         if not cap_text:
             continue
+        # V2.31: 標点処理（末尾除去 + 長文分行）
+        cap_text = _process_subtitle_text(cap_text)
         if cap_end <= cap_start:
             cap_end = cap_start + MIN_DISPLAY
         if cap_end - cap_start < MIN_DISPLAY:
