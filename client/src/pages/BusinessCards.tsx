@@ -1142,6 +1142,9 @@ export default function BusinessCards() {
         const statsRes = await fetch("/api/trpc/leadCollector.getLeadStats", { credentials: "include" });
         const statsData = await statsRes.json();
         if (statsData?.result?.data?.json) setLeadStats(statsData.result.data.json);
+      } else if (data?.error?.json?.message) {
+        // API returned an error (e.g., credentials not configured)
+        setLeadMessage(`エラー: ${data.error.json.message}`);
       } else {
         setLeadMessage("バックグラウンドで収集を開始しました");
         // Record as running
@@ -1882,7 +1885,7 @@ export default function BusinessCards() {
                 </Button>
               </div>
               {leadMessage && (
-                <div className="text-xs p-2 bg-blue-50 rounded border border-blue-200 text-blue-700">
+                <div className={`text-xs p-2 rounded border ${leadMessage.startsWith('エラー') ? 'bg-red-50 border-red-200 text-red-700' : leadMessage.includes('収集完了') ? 'bg-green-50 border-green-200 text-green-700' : 'bg-blue-50 border-blue-200 text-blue-700'}`}>
                   {leadMessage}
                 </div>
               )}
