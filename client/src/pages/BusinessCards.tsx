@@ -765,7 +765,7 @@ export default function BusinessCards() {
     try {
       const filter = { notSent: true, hasEmail: true, status: "new", limit: 5000 };
       const params = encodeURIComponent(JSON.stringify({ json: filter }));
-      const res = await fetch(`/api/trpc/leadCollector.getLeads?input=${params}`, { credentials: "include" });
+      const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
       const data = await res.json();
       if (data?.result?.data?.json?.rows) {
         setUnsentLeads(data.result.data.json.rows);
@@ -793,7 +793,7 @@ export default function BusinessCards() {
 
   // Load lead stats from Sales Dash API
   useEffect(() => {
-    fetch("/api/trpc/leadCollector.getLeadStats", { credentials: "include" })
+    fetch("https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeadStats")
       .then((r) => r.json())
       .then((d) => {
         if (d?.result?.data?.json) {
@@ -964,7 +964,7 @@ export default function BusinessCards() {
       const filter: any = { limit: 200, hasEmail: true };
       if (statusFilter) filter.status = statusFilter;
       const params = encodeURIComponent(JSON.stringify({ json: filter }));
-      const res = await fetch(`/api/trpc/leadCollector.getLeads?input=${params}`, { credentials: "include" });
+      const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`);
       const data = await res.json();
       if (data?.result?.data?.json?.rows) {
         setLeadResults(data.result.data.json.rows);
@@ -1029,7 +1029,7 @@ export default function BusinessCards() {
       if (kalodataSearch) filter.search = kalodataSearch;
       const params = encodeURIComponent(JSON.stringify({ json: filter }));
       const [res, sentRes] = await Promise.all([
-        fetch(`/api/trpc/leadCollector.getLeads?input=${params}`, { credentials: "include" }),
+        fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeads?input=${params}`),
         fetch(`/api/trpc/businessCard.getSentEmailAddressList`, { credentials: "include" }),
       ]);
       const data = await res.json();
@@ -1089,22 +1089,21 @@ export default function BusinessCards() {
       const params: any = { keyword: leadKeyword, prefecture: leadPrefecture };
       switch (source) {
         case "google_maps":
-          endpoint = "leadCollector.collectGoogleMaps";
+          endpoint = "btobLeadProspector.collectGoogleMaps";
           break;
         case "google_search":
-          endpoint = "leadCollector.collectGoogleSearch";
+          endpoint = "btobLeadProspector.collectGoogleSearch";
           break;
         case "portals":
-          endpoint = "leadCollector.collectGoogleSearch";
+          endpoint = "btobLeadProspector.collectPortals";
           break;
         case "full_pipeline":
-          endpoint = "leadCollector.runFullPipeline";
+          endpoint = "btobLeadProspector.runFullPipeline";
           break;
       }
-      const res = await fetch(`/api/trpc/${endpoint}`, {
+      const res = await fetch(`https://salesdash.buzzdrop.co.jp/api/trpc/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ json: params }),
       });
       const data = await res.json();
@@ -1139,7 +1138,7 @@ export default function BusinessCards() {
         }
 
         // Refresh stats
-        const statsRes = await fetch("/api/trpc/leadCollector.getLeadStats", { credentials: "include" });
+        const statsRes = await fetch("https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.getLeadStats");
         const statsData = await statsRes.json();
         if (statsData?.result?.data?.json) setLeadStats(statsData.result.data.json);
       } else if (data?.error?.json?.message) {
@@ -1178,10 +1177,9 @@ export default function BusinessCards() {
   // Update lead status when marking as handled
   const updateLeadStatus = async (leadId: number, status: string) => {
     try {
-      await fetch("/api/trpc/leadCollector.updateLead", {
+      await fetch("https://salesdash.buzzdrop.co.jp/api/trpc/btobLeadProspector.updateLead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ json: { id: leadId, data: { status } } }),
       });
     } catch (e) {
