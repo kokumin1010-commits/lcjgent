@@ -107,7 +107,7 @@ export default function LiverByName() {
   });
   
   // CSVパース関数（TikTok Creator-Live-Recap-Product-List形式）
-  const parseProductCsv = (text: string) => {
+    const parseProductCsv = (text: string) => {
     const lines = text.split('\n').filter(line => line.trim());
     const products: Array<{
       productName: string;
@@ -122,22 +122,12 @@ export default function LiverByName() {
       productClicks: number | null;
     }> = [];
     
-    let dataStartIndex = 0;
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].includes('Product') && lines[i].includes('Gross revenue')) {
-        dataStartIndex = i + 1;
-        break;
-      }
-    }
+    if (lines.length < 2) return products;
     
-    for (let i = dataStartIndex; i < lines.length; i++) {
-      const line = lines[i];
-      if (!line.trim()) continue;
-      
+    const parseCsvLine = (line: string): string[] => {
       const values: string[] = [];
       let current = '';
       let inQuotes = false;
-      
       for (const char of line) {
         if (char === '"') {
           inQuotes = !inQuotes;
@@ -149,42 +139,85 @@ export default function LiverByName() {
         }
       }
       values.push(current.trim());
-      
-      if (values.length < 10) continue;
-      
-      const parseYen = (val: string): number | null => {
-        if (!val || val === '0円' || val === '-') return null;
-        const num = parseInt(val.replace(/[,円\s]/g, ''), 10);
-        return isNaN(num) ? null : num;
-      };
-      
-      const parseNum = (val: string): number | null => {
-        if (!val || val === '-') return null;
-        const num = parseFloat(val.replace(/,/g, ''));
-        return isNaN(num) ? null : num;
-      };
-      
-      let productName = values[0];
-      if (!productName || productName === 'Product') continue;
-      // 商品名を500文字に制限（DB varchar(500)対応）
-      if (productName.length > 490) {
-        productName = productName.substring(0, 490) + '...';
+      return values;
+    };
+    
+    const parseNum = (val: string): number | null => {
+      if (!val || val === '-' || val === '0円') return null;
+      const num = parseFloat(val.replace(/[,円\s]/g, ''));
+      return isNaN(num) ? null : num;
+    };
+    
+    // ヘッダー行を検出（中国語・日本語・英語対応）
+    let headerLineIdx = -1;
+    let headerValues: string[] = [];
+    
+    for (let i = 0; i < Math.min(5, lines.length); i++) {
+      const vals = parseCsvLine(lines[i]);
+      const joined = vals.join('');
+      if (joined.includes('Product') && (joined.includes('Gross revenue') || joined.includes('GMV'))) {
+        headerLineIdx = i; headerValues = vals; break;
       }
-      
-      products.push({
-        productName,
-        grossRevenue: parseYen(values[1]),
-        directGmv: parseYen(values[2]),
-        itemsSold: parseNum(values[3]) as number | null,
-        customers: parseNum(values[4]) as number | null,
-        orders: parseNum(values[5]) as number | null,
-        ctr: values[6] || null,
-        ctor: values[7] || null,
-        productImpressions: parseNum(values[8]) as number | null,
-        productClicks: parseNum(values[9]) as number | null,
-      });
+      if (joined.includes('商品') && (joined.includes('GMV') || joined.includes('归因'))) {
+        headerLineIdx = i; headerValues = vals; break;
+      }
+      if (joined.includes('商品') && (joined.includes('GMV') || joined.includes('販売数') || joined.includes('インプレッション'))) {
+        headerLineIdx = i; headerValues = vals; break;
+      }
     }
     
+    if (headerLineIdx < 0) {
+      headerLineIdx = 0;
+      headerValues = parseCsvLine(lines[0]);
+    }
+    
+    const hdr = headerValues.map(h => h.replace(/\s/g, ''));
+    const findIdx = (keywords: string[]): number => {
+      for (const kw of keywords) {
+        const idx = hdr.findIndex(h => h === kw || h.includes(kw));
+        if (idx >= 0) return idx;
+      }
+      return -1;
+    };
+    
+    let nameIdx = findIdx(['商品名称', '商品名', 'Product']);
+    let idIdx = findIdx(['商品ID', 'ProductID']);
+    let gmvIdx = findIdx(['归因GMV', 'GMV', 'Grossrevenue', 'Directrevenue']);
+    let salesIdx = findIdx(['归因成交件数', '商品の販売数', '販売数', 'Itemssold']);
+    let custIdx = findIdx(['客户数', 'カスタマー数', 'Customers']);
+    let ordIdx = findIdx(['归因订单数', '归因訂單数', '注文', 'Orders']);
+    let impIdx = findIdx(['商品曝光次数', '商品インプレッション数', 'インプレッション', 'Productimpressions']);
+    let clickIdx = findIdx(['商品点击次数', '商品クリック数', 'クリック数', 'Productclicks']);
+    let ctrIdx = findIdx(['CTR', '点击率']);
+    let ctorIdx = findIdx(['CTOR', '点击成交转化率']);
+    
+    if (nameIdx < 0 && headerValues[0]?.includes('Product')) {
+      nameIdx = 0; gmvIdx = 2; salesIdx = 3; custIdx = 4; ordIdx = 5;
+      ctrIdx = 6; ctorIdx = 7; impIdx = 8; clickIdx = 9;
+    }
+    
+    for (let i = headerLineIdx + 1; i < lines.length; i++) {
+      const values = parseCsvLine(lines[i]);
+      if (values.length < 3) continue;
+      let productName = '';
+      if (nameIdx >= 0) productName = (values[nameIdx] || '').trim();
+      if (!productName && idIdx >= 0) productName = (values[idIdx] || '').trim();
+      if (!productName) productName = values[0]?.trim() || '';
+      if (!productName || productName === 'Product' || productName === '商品名称' || productName === '商品名' || productName === '商品ID' || productName === '商品 ID') continue;
+      if (productName.length > 490) productName = productName.substring(0, 490) + '...';
+      products.push({
+        productName,
+        grossRevenue: gmvIdx >= 0 ? parseNum(values[gmvIdx]) : parseNum(values[1]),
+        directGmv: gmvIdx >= 0 ? parseNum(values[gmvIdx]) : parseNum(values[2]),
+        itemsSold: salesIdx >= 0 ? parseNum(values[salesIdx]) : parseNum(values[3]),
+        customers: custIdx >= 0 ? parseNum(values[custIdx]) : parseNum(values[4]),
+        orders: ordIdx >= 0 ? parseNum(values[ordIdx]) : parseNum(values[5]),
+        ctr: ctrIdx >= 0 ? (values[ctrIdx] || null) : (values[6] || null),
+        ctor: ctorIdx >= 0 ? (values[ctorIdx] || null) : (values[7] || null),
+        productImpressions: impIdx >= 0 ? parseNum(values[impIdx]) : parseNum(values[8]),
+        productClicks: clickIdx >= 0 ? parseNum(values[clickIdx]) : parseNum(values[9]),
+      });
+    }
     return products;
   };
   

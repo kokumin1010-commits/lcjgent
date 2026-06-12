@@ -258,7 +258,7 @@ export default function LivestreamDetail() {
   };
 
   // CSVパース関数（TikTok Creator-Live-Recap-Product-List形式）
-  const parseProductCsv = (text: string) => {
+    const parseProductCsv = (text: string) => {
     const lines = text.split('\n').filter(line => line.trim());
     const products: Array<{
       productName: string;
@@ -273,24 +273,13 @@ export default function LivestreamDetail() {
       productClicks: number | null;
     }> = [];
     
-    // ヘッダー行をスキップ（最初の3行はヘッダー）
-    let dataStartIndex = 0;
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].includes('Product') && lines[i].includes('Gross revenue')) {
-        dataStartIndex = i + 1;
-        break;
-      }
-    }
+    if (lines.length < 2) return products;
     
-    for (let i = dataStartIndex; i < lines.length; i++) {
-      const line = lines[i];
-      if (!line.trim()) continue;
-      
-      // CSVパース（カンマ区切り、引用符対応）
+    // CSVパースユーティリティ
+    const parseCsvLine = (line: string): string[] => {
       const values: string[] = [];
       let current = '';
       let inQuotes = false;
-      
       for (const char of line) {
         if (char === '"') {
           inQuotes = !inQuotes;
@@ -302,39 +291,100 @@ export default function LivestreamDetail() {
         }
       }
       values.push(current.trim());
-      
-      if (values.length < 10) continue;
-      
-      const parseYen = (val: string): number | null => {
-        if (!val || val === '0円' || val === '-') return null;
-        const num = parseInt(val.replace(/[,円\s]/g, ''), 10);
-        return isNaN(num) ? null : num;
-      };
-      
-      const parseNum = (val: string): number | null => {
-        if (!val || val === '-') return null;
-        const num = parseFloat(val.replace(/,/g, ''));
-        return isNaN(num) ? null : num;
-      };
-      
-      let productName = values[0];
-      if (!productName || productName === 'Product') continue;
-      // 商品名を500文字に制限（DB varchar(500)対応）
-      if (productName.length > 490) {
-        productName = productName.substring(0, 490) + '...';
+      return values;
+    };
+    
+    const parseNum = (val: string): number | null => {
+      if (!val || val === '-' || val === '0円') return null;
+      const num = parseFloat(val.replace(/[,円\s]/g, ''));
+      return isNaN(num) ? null : num;
+    };
+    
+    // ヘッダー行を検出（中国語・日本語・英語対応）
+    let headerLineIdx = -1;
+    let headerValues: string[] = [];
+    
+    for (let i = 0; i < Math.min(5, lines.length); i++) {
+      const vals = parseCsvLine(lines[i]);
+      const joined = vals.join('');
+      // 英語ヘッダー
+      if (joined.includes('Product') && (joined.includes('Gross revenue') || joined.includes('GMV'))) {
+        headerLineIdx = i;
+        headerValues = vals;
+        break;
       }
+      // 中国語ヘッダー
+      if (joined.includes('商品') && (joined.includes('GMV') || joined.includes('归因'))) {
+        headerLineIdx = i;
+        headerValues = vals;
+        break;
+      }
+      // 日本語ヘッダー
+      if (joined.includes('商品') && (joined.includes('GMV') || joined.includes('販売数') || joined.includes('インプレッション'))) {
+        headerLineIdx = i;
+        headerValues = vals;
+        break;
+      }
+    }
+    
+    if (headerLineIdx < 0) {
+      // ヘッダーが見つからない場合、最初の行をヘッダーとみなす
+      headerLineIdx = 0;
+      headerValues = parseCsvLine(lines[0]);
+    }
+    
+    // カラムインデックスをヘッダー名から検出
+    const hdr = headerValues.map(h => h.replace(/\s/g, ''));
+    const findIdx = (keywords: string[]): number => {
+      for (const kw of keywords) {
+        const idx = hdr.findIndex(h => h === kw || h.includes(kw));
+        if (idx >= 0) return idx;
+      }
+      return -1;
+    };
+    
+    let nameIdx = findIdx(['商品名称', '商品名', 'Product']);
+    let idIdx = findIdx(['商品ID', 'ProductID']);
+    let gmvIdx = findIdx(['归因GMV', 'GMV', 'Grossrevenue', 'Directrevenue']);
+    let salesIdx = findIdx(['归因成交件数', '商品の販売数', '販売数', 'Itemssold']);
+    let custIdx = findIdx(['客户数', 'カスタマー数', 'Customers']);
+    let ordIdx = findIdx(['归因订单数', '归因訂單数', '注文', 'Orders']);
+    let impIdx = findIdx(['商品曝光次数', '商品インプレッション数', 'インプレッション', 'Productimpressions']);
+    let clickIdx = findIdx(['商品点击次数', '商品クリック数', 'クリック数', 'Productclicks']);
+    let ctrIdx = findIdx(['CTR', '点击率']);
+    let ctorIdx = findIdx(['CTOR', '点击成交转化率']);
+    
+    // 英語固定位置フォールバック（従来のフォーマット）
+    if (nameIdx < 0 && headerValues[0]?.includes('Product')) {
+      nameIdx = 0; gmvIdx = 2; salesIdx = 3; custIdx = 4; ordIdx = 5;
+      ctrIdx = 6; ctorIdx = 7; impIdx = 8; clickIdx = 9;
+    }
+    
+    console.log('[parseProductCsv] Header detected at line:', headerLineIdx, 'nameIdx:', nameIdx, 'idIdx:', idIdx, 'gmvIdx:', gmvIdx);
+    
+    for (let i = headerLineIdx + 1; i < lines.length; i++) {
+      const values = parseCsvLine(lines[i]);
+      if (values.length < 3) continue;
+      
+      let productName = '';
+      if (nameIdx >= 0) productName = (values[nameIdx] || '').trim();
+      if (!productName && idIdx >= 0) productName = (values[idIdx] || '').trim();
+      if (!productName) productName = values[0]?.trim() || '';
+      if (!productName || productName === 'Product' || productName === '商品名称' || productName === '商品名' || productName === '商品ID' || productName === '商品 ID') continue;
+      
+      if (productName.length > 490) productName = productName.substring(0, 490) + '...';
       
       products.push({
         productName,
-        grossRevenue: parseYen(values[1]),
-        directGmv: parseYen(values[2]),
-        itemsSold: parseNum(values[3]) as number | null,
-        customers: parseNum(values[4]) as number | null,
-        orders: parseNum(values[5]) as number | null,
-        ctr: values[6] || null,
-        ctor: values[7] || null,
-        productImpressions: parseNum(values[8]) as number | null,
-        productClicks: parseNum(values[9]) as number | null,
+        grossRevenue: gmvIdx >= 0 ? parseNum(values[gmvIdx]) : parseNum(values[1]),
+        directGmv: gmvIdx >= 0 ? parseNum(values[gmvIdx]) : parseNum(values[2]),
+        itemsSold: salesIdx >= 0 ? parseNum(values[salesIdx]) : parseNum(values[3]),
+        customers: custIdx >= 0 ? parseNum(values[custIdx]) : parseNum(values[4]),
+        orders: ordIdx >= 0 ? parseNum(values[ordIdx]) : parseNum(values[5]),
+        ctr: ctrIdx >= 0 ? (values[ctrIdx] || null) : (values[6] || null),
+        ctor: ctorIdx >= 0 ? (values[ctorIdx] || null) : (values[7] || null),
+        productImpressions: impIdx >= 0 ? parseNum(values[impIdx]) : parseNum(values[8]),
+        productClicks: clickIdx >= 0 ? parseNum(values[clickIdx]) : parseNum(values[9]),
       });
     }
     
@@ -358,8 +408,9 @@ export default function LivestreamDetail() {
         
         // Excelの行データを直接読み取り（ヘッダー行で日本語カラム名を検出）
         const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        console.log('[ProductCSV] XLSX parsed, rows:', rows.length, 'headers:', rows[0]);
         if (rows.length < 2) {
-          toast.error('商品データが見つかりませんでした');
+          toast.error('商品データが見つかりませんでした（行数不足）');
           return;
         }
         
@@ -385,6 +436,7 @@ export default function LivestreamDetail() {
           productClicks: number | null;
         }> = [];
         
+        console.log('[ProductCSV] hasJapaneseHeaders:', hasJapaneseHeaders, 'hasChineseHeaders:', hasChineseHeaders);
         if (hasJapaneseHeaders || hasChineseHeaders) {
           const colIndex: Record<string, number> = {};
           headerRow.forEach((h, i) => { if (typeof h === 'string') colIndex[h.trim()] = i; });
@@ -462,17 +514,63 @@ export default function LivestreamDetail() {
               productClicks: clicks,
             });
           }
-        } else {
+                } else {
           // 英語ヘッダーの場合は従来のCSVパースにフォールバック
           const csvText = XLSX.utils.sheet_to_csv(worksheet);
           products = parseProductCsv(csvText);
         }
         
+        // フォールバック: ヘッダー検出が失敗した場合、全カラムをスキャンして再試行
+        if (products.length === 0 && rows.length >= 2) {
+          console.log('[ProductCSV] Fallback: trying universal column scan');
+          const hdr = (rows[0] as string[]).map(h => typeof h === 'string' ? h.replace(/\s/g, '') : '');
+          // 商品名カラムを探す
+          let nameIdx = hdr.findIndex(h => h === '商品名称' || h === '商品名');
+          let idIdx = hdr.findIndex(h => h === '商品ID' || h === 'ProductID');
+          let gmvIdx = hdr.findIndex(h => h.includes('GMV') || h.includes('归因GMV'));
+          let salesIdx = hdr.findIndex(h => h.includes('归因成交件数') || h.includes('販売数'));
+          let custIdx = hdr.findIndex(h => h.includes('客户数') || h.includes('カスタマー'));
+          let ordIdx = hdr.findIndex(h => h.includes('归因订单数') || h.includes('注文'));
+          let impIdx = hdr.findIndex(h => h.includes('商品曝光次数') || h.includes('インプレッション'));
+          let clickIdx = hdr.findIndex(h => h.includes('商品点击次数') || h.includes('クリック数'));
+          let ctrIdx = hdr.findIndex(h => h === 'CTR' || h === '点击率');
+          let ctorIdx = hdr.findIndex(h => h === 'CTOR' || h === '点击成交转化率');
+          
+          const pn = (val: any): number | null => {
+            if (val === null || val === undefined || val === '' || val === '-') return null;
+            const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/[,円\s]/g, ''));
+            return isNaN(num) ? null : num;
+          };
+          
+          for (let r = 1; r < rows.length; r++) {
+            const row = rows[r] as any[];
+            if (!row || row.length < 2) continue;
+            let productName = '';
+            if (nameIdx >= 0) productName = String(row[nameIdx] || '').trim();
+            if (!productName && idIdx >= 0) productName = String(row[idIdx] || '').trim();
+            if (!productName) continue;
+            if (productName.length > 490) productName = productName.substring(0, 490) + '...';
+            products.push({
+              productName,
+              grossRevenue: gmvIdx >= 0 ? pn(row[gmvIdx]) : null,
+              directGmv: gmvIdx >= 0 ? pn(row[gmvIdx]) : null,
+              itemsSold: salesIdx >= 0 ? pn(row[salesIdx]) : null,
+              customers: custIdx >= 0 ? pn(row[custIdx]) : null,
+              orders: ordIdx >= 0 ? pn(row[ordIdx]) : null,
+              ctr: ctrIdx >= 0 ? String(row[ctrIdx] || '') : null,
+              ctor: ctorIdx >= 0 ? String(row[ctorIdx] || '') : null,
+              productImpressions: impIdx >= 0 ? pn(row[impIdx]) : null,
+              productClicks: clickIdx >= 0 ? pn(row[clickIdx]) : null,
+            });
+          }
+          console.log('[ProductCSV] Fallback parsed:', products.length, 'products');
+        }
+        
+        console.log('[ProductCSV] Final products count:', products.length);
         if (products.length === 0) {
           toast.error('商品データが見つかりませんでした');
           return;
         }
-        
         await importProductCsvMutation.mutateAsync({
           livestreamId,
           fileName: file.name,
