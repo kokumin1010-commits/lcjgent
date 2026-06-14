@@ -41,25 +41,30 @@ export const festivalRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
 
-      await db.insert(festivalCompanyApplications).values({
-        companyName: input.companyName,
-        contactName: input.contactName,
-        contactDepartment: input.contactDepartment,
-        contactNameKana: input.contactNameKana,
-        postalCode: input.postalCode,
-        address: input.address,
-        phone: input.phone,
-        email: input.email,
-        websiteUrl: input.websiteUrl,
-        lineOrLark: input.lineOrLark || null,
-        tiktokShopSellerName: input.tiktokShopSellerName,
-        brandIntro: input.brandIntro,
-        tiktokShopUrl: input.tiktokShopUrl || null,
-        matchingProducts: input.matchingProducts || null,
-        targetAudience: input.targetAudience,
-        salesLicense: input.salesLicense,
-        eventYear: "2026",
-      });
+      try {
+        await db.insert(festivalCompanyApplications).values({
+          companyName: input.companyName,
+          contactName: input.contactName,
+          contactDepartment: input.contactDepartment,
+          contactNameKana: input.contactNameKana,
+          postalCode: input.postalCode,
+          address: input.address,
+          phone: input.phone,
+          email: input.email,
+          websiteUrl: input.websiteUrl,
+          lineOrLark: input.lineOrLark || null,
+          tiktokShopSellerName: input.tiktokShopSellerName,
+          brandIntro: input.brandIntro,
+          tiktokShopUrl: input.tiktokShopUrl || null,
+          matchingProducts: input.matchingProducts || null,
+          targetAudience: input.targetAudience,
+          salesLicense: input.salesLicense,
+          eventYear: "2026",
+        });
+      } catch (err: any) {
+        console.error("[Festival] submitCompany DB error:", err.message, err.code, err.sqlState);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `DB書き込みエラー: ${err.code || 'UNKNOWN'} - ${err.message?.substring(0, 100) || 'Unknown error'}` });
+      }
 
       return { success: true, message: "企業申込みを受け付けました" };
     }),
@@ -83,22 +88,27 @@ export const festivalRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
 
-      await db.insert(festivalLiverApplications).values({
-        name: input.name,
-        nameKana: input.nameKana,
-        liverName: input.liverName,
-        agency: input.agency || null,
-        accountInfo: input.accountInfo || null,
-        genre: input.genre || null,
-        email: input.email,
-        phone: input.phone,
-        lineOrLark: input.lineOrLark || null,
-        attendanceSchedule: input.attendanceSchedule,
-        matchingPreference: input.matchingPreference,
-        portraitRightsConsent: "agreed",
-        complianceConsent: "agreed",
-        eventYear: "2026",
-      });
+      try {
+        await db.insert(festivalLiverApplications).values({
+          name: input.name,
+          nameKana: input.nameKana,
+          liverName: input.liverName,
+          agency: input.agency || null,
+          accountInfo: input.accountInfo || null,
+          genre: input.genre || null,
+          email: input.email,
+          phone: input.phone,
+          lineOrLark: input.lineOrLark || null,
+          attendanceSchedule: input.attendanceSchedule,
+          matchingPreference: input.matchingPreference,
+          portraitRightsConsent: "agreed",
+          complianceConsent: "agreed",
+          eventYear: "2026",
+        });
+      } catch (err: any) {
+        console.error("[Festival] submitLiver DB error:", err.message, err.code, err.sqlState);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `DB書き込みエラー: ${err.code || 'UNKNOWN'} - ${err.message?.substring(0, 100) || 'Unknown error'}` });
+      }
 
       return { success: true, message: "ライバー申込みを受け付けました" };
     }),
@@ -120,20 +130,25 @@ export const festivalRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
 
-      await db.insert(festivalGeneralApplications).values({
-        participationType: input.participationType,
-        companyName: input.companyName,
-        department: input.department || null,
-        name: input.name,
-        nameKana: input.nameKana,
-        email: input.email,
-        phone: input.phone,
-        attendanceSchedule: input.attendanceSchedule,
-        visitPurposes: input.visitPurposes,
-        portraitRightsConsent: "agreed",
-        complianceConsent: "agreed",
-        eventYear: "2026",
-      });
+      try {
+        await db.insert(festivalGeneralApplications).values({
+          participationType: input.participationType,
+          companyName: input.companyName,
+          department: input.department || null,
+          name: input.name,
+          nameKana: input.nameKana,
+          email: input.email,
+          phone: input.phone,
+          attendanceSchedule: input.attendanceSchedule,
+          visitPurposes: input.visitPurposes,
+          portraitRightsConsent: "agreed",
+          complianceConsent: "agreed",
+          eventYear: "2026",
+        });
+      } catch (err: any) {
+        console.error("[Festival] submitGeneral DB error:", err.message, err.code, err.sqlState);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `DB書き込みエラー: ${err.code || 'UNKNOWN'} - ${err.message?.substring(0, 100) || 'Unknown error'}` });
+      }
 
       return { success: true, message: "一般来場申込みを受け付けました" };
     }),
