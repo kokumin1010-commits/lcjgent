@@ -62,8 +62,10 @@ export const festivalRouter = router({
           eventYear: "2026",
         });
       } catch (err: any) {
-        console.error("[Festival] submitCompany DB error:", err.message, err.code, err.sqlState);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `DB書き込みエラー: ${err.code || 'UNKNOWN'} - ${err.message?.substring(0, 100) || 'Unknown error'}` });
+        const sqlMsg = err.sqlMessage || err.cause?.message || err.cause?.sqlMessage || '';
+        const errCode = err.code || err.cause?.code || err.errno || 'UNKNOWN';
+        console.error("[Festival] submitCompany DB error:", JSON.stringify({msg: err.message, code: errCode, sqlMsg, sqlState: err.sqlState, errno: err.errno}));
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `DBエラー[${errCode}]: ${sqlMsg || err.message?.substring(0, 200) || 'Unknown'}` });
       }
 
       return { success: true, message: "企業申込みを受け付けました" };
