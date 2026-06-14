@@ -27,6 +27,7 @@ import { startWeeklyReportScheduler } from "../weeklyReportScheduler";
 import { startMonthlyReportScheduler } from "../monthlyReportScheduler";
 import { startPeerBonusResetScheduler } from "../peerBonusResetScheduler";
 import { startDailyRankingScheduler } from "../dailyRankingScheduler";
+import { ensureFestivalTables } from "../ensureFestivalTables";
 import { startPreBriefingScheduler } from "../preBriefingScheduler";
 import { startFeishuSyncScheduler } from "../feishuSyncScheduler";
 import { startContactSearchScheduler } from "../contactSearchScheduler";
@@ -2196,8 +2197,11 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
+  server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
+
+    // Ensure festival tables exist (auto-create if missing)
+    await ensureFestivalTables();
     
     // Start reminder scheduler (runs every 12 hours)
     const TWELVE_HOURS = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
