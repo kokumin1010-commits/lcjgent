@@ -841,6 +841,13 @@
       "when": 1780850202207,
       "tag": "0119_fantastic_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "5",
+      "when": 1781449064363,
+      "tag": "0120_clever_firestar",
+      "breakpoints": true
     }
   ]
 }
