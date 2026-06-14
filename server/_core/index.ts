@@ -936,6 +936,97 @@ async function startServer() {
     }
   });
 
+  // --- Live Commerce Festival 2026 OGP for LINE/SNS crawlers ---
+  app.get("/livecommercefestival/2026", async (req, res, next) => {
+    try {
+      const ua = (req.headers["user-agent"] || "").toLowerCase();
+      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|line/i.test(ua);
+      if (!isBot) return next();
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const title = "LIVE COMMERCE FESTIVAL 2026 | 日本最大級のライブコマース祭典";
+      const description = "2026年9月8日-9日、八芳園（東京・白金台）にて開催。オンライン×オフラインの融合で、コマースライバーと企業のマッチング・セミナー型祭典。出展企業80社+、来場ライバー300名。";
+      const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/cJiTCPRFjIgLnUGK.png";
+      const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(description)}">
+  <link rel="canonical" href="${baseUrl}/livecommercefestival/2026">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="${baseUrl}/livecommercefestival/2026">
+  <meta property="og:image" content="${ogImage}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:site_name" content="LIVE COMMERCE FESTIVAL">
+  <meta property="og:locale" content="ja_JP">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">
+  <meta name="twitter:image" content="${ogImage}">
+</head>
+<body>
+  <h1>LIVE COMMERCE FESTIVAL 2026</h1>
+  <p>${escapeHtml(description)}</p>
+  <p>日時: 2026年9月8日（火）〜 9月9日（水）</p>
+  <p>会場: 八芳園（東京都港区白金台1-1-1）</p>
+  <p>主催: LCF実行委員会 | 共同企画: MOB Inc. × Live Commerce Japan</p>
+</body>
+</html>`;
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.send(html);
+    } catch (e) {
+      return next();
+    }
+  });
+
+  // --- Live Commerce Festival Top OGP ---
+  app.get("/livecommercefestival", async (req, res, next) => {
+    try {
+      const ua = (req.headers["user-agent"] || "").toLowerCase();
+      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|line/i.test(ua);
+      if (!isBot) return next();
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const title = "LIVE COMMERCE FESTIVAL | ライブコマース祭典";
+      const description = "日本最大級のライブコマース祭典。コマースライバーと企業のマッチング・セミナー型イベント。";
+      const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/cJiTCPRFjIgLnUGK.png";
+      const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(description)}">
+  <link rel="canonical" href="${baseUrl}/livecommercefestival">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="${baseUrl}/livecommercefestival">
+  <meta property="og:image" content="${ogImage}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:site_name" content="LIVE COMMERCE FESTIVAL">
+  <meta property="og:locale" content="ja_JP">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">
+  <meta name="twitter:image" content="${ogImage}">
+</head>
+<body>
+  <h1>LIVE COMMERCE FESTIVAL</h1>
+  <p>${escapeHtml(description)}</p>
+</body>
+</html>`;
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.send(html);
+    } catch (e) {
+      return next();
+    }
+  });
+
   // --- Top page prerender for SEO (Organization + WebSite JSON-LD) ---
   app.get("/", async (req, res, next) => {
     try {
