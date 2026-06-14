@@ -23,6 +23,60 @@ const TARGET_GROUP_KEYWORDS = ["所属連絡網", "LCJ所属"];
 
 let schedulerIntervalId: ReturnType<typeof setInterval> | null = null;
 
+// ========== Duplicate Prevention (DB-persisted) ==========
+async function hasAlreadyRunToday(): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  try {
+    // Check if we already sent a daily ranking message today (JST)
+    const jstNow = getJSTDate(new Date());
+    const todayStr = `${jstNow.getUTCFullYear()}-${String(jstNow.getUTCMonth() + 1).padStart(2, '0')}-${String(jstNow.getUTCDate()).padStart(2, '0')}`;
+    const result = await db.execute(sql`
+      SELECT COUNT(*) as cnt FROM daily_ranking_log WHERE run_date = ${todayStr}
+    `);
+    const rows = result[0] as any[];
+    return rows && rows[0] && Number(rows[0].cnt) > 0;
+  } catch (err: any) {
+    // Table might not exist yet, that's ok
+    if (err.message?.includes('doesn\'t exist')) {
+      return false;
+    }
+    console.error(`${LOG_PREFIX} hasAlreadyRunToday error:`, err.message);
+    return false;
+  }
+}
+
+async function markRunToday(): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    const jstNow = getJSTDate(new Date());
+    const todayStr = `${jstNow.getUTCFullYear()}-${String(jstNow.getUTCMonth() + 1).padStart(2, '0')}-${String(jstNow.getUTCDate()).padStart(2, '0')}`;
+    await db.execute(sql`
+      INSERT IGNORE INTO daily_ranking_log (run_date, sent_at) VALUES (${todayStr}, NOW())
+    `);
+  } catch (err: any) {
+    console.error(`${LOG_PREFIX} markRunToday error:`, err.message);
+  }
+}
+
+async function ensureDailyRankingLogTable(): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS daily_ranking_log (
+        id int AUTO_INCREMENT PRIMARY KEY,
+        run_date varchar(10) NOT NULL,
+        sent_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_run_date (run_date)
+      )
+    `);
+  } catch (err: any) {
+    console.error(`${LOG_PREFIX} ensureDailyRankingLogTable error:`, err.message);
+  }
+}
+
 // ========== Types ==========
 interface LivestreamRecord {
   id: number;
@@ -667,7 +721,14 @@ function buildRankingMessage(
 
 export async function runDailyRanking(): Promise<void> {
   console.log(`${LOG_PREFIX} Starting daily ranking generation...`);
-
+  
+  // Duplicate prevention: check if already sent today
+  const alreadyRun = await hasAlreadyRunToday();
+  if (alreadyRun) {
+    console.log(`${LOG_PREFIX} Already sent today's ranking. Skipping to prevent duplicate.`);
+    return;
+  }
+  
   try {
     // 1. Find target LINE group
     const targetGroup = await findTargetLineGroup();
@@ -692,6 +753,7 @@ export async function runDailyRanking(): Promise<void> {
       const dateStr = `${month}/${day}（${weekday}）`;
       const noDataMsg = `━━━━━━━━━━━━━━━━━━━━\n📊 ${dateStr} デイリーランキング\n━━━━━━━━━━━━━━━━━━━━\n\n本日の配信記録はありませんでした。\n明日はみんなで配信しよう！🔥\n\n━━━━━━━━━━━━━━━━━━━━`;
       await pushMessage(targetGroup.lineGroupId, [{ type: "text", text: noDataMsg }]);
+      await markRunToday();
       return;
     }
 
@@ -745,10 +807,10 @@ export async function runDailyRanking(): Promise<void> {
 
     // 9. Send to LINE group
     console.log(`${LOG_PREFIX} Sending ranking to group: ${targetGroup.groupName}`);
-    const success = await pushMessage(targetGroup.lineGroupId, [{ type: "text", text: message }]);
-    
+        const success = await pushMessage(targetGroup.lineGroupId, [{ type: "text", text: message }]);
     if (success) {
       console.log(`${LOG_PREFIX} ✅ Daily ranking sent successfully!`);
+      await markRunToday();
     } else {
       console.error(`${LOG_PREFIX} ❌ Failed to send daily ranking`);
     }
@@ -771,8 +833,11 @@ export function startDailyRankingScheduler(): void {
     console.log(`${LOG_PREFIX} Already running`);
     return;
   }
-
   console.log(`${LOG_PREFIX} Starting scheduler (daily at JST 00:00)`);
+  // Ensure the dedup log table exists
+  ensureDailyRankingLogTable().catch(err => {
+    console.error(`${LOG_PREFIX} Failed to ensure log table:`, err);
+  });
   let lastRunDate = "";
 
   // Check every 15 minutes
