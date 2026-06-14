@@ -153,6 +153,8 @@ const FeaturedProductsAdmin = lazy(() => import("./pages/FeaturedProductsAdmin")
 const LcjBrain = lazy(() => import("./pages/LcjBrain"));
 const Chat = lazy(() => import("./pages/Chat"));
 const ChatInvite = lazy(() => import("./pages/ChatInvite"));
+const LiveCommerceFestivalTop = lazy(() => import("./pages/LiveCommerceFestivalTop"));
+const LiveCommerceFestival = lazy(() => import("./pages/LiveCommerceFestival"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -550,6 +552,10 @@ function Router() {
         {/* Brand Sample LP */}
         <Route path="/recruit" component={Recruit} />
         <Route path="/brand-sample" component={BrandSampleLP} />
+
+        {/* Live Commerce Festival */}
+        <Route path="/livecommercefestival/2026" component={LiveCommerceFestival} />
+        <Route path="/livecommercefestival" component={LiveCommerceFestivalTop} />
 
         {/* Brand Portal */}
         <Route path="/brand/simulation/:shareToken" component={BrandSimulationView} />
