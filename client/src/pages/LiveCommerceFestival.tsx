@@ -88,6 +88,8 @@ export default function LiveCommerceFestival() {
       <SpeakersSection />
       <VenueSection />
       <SponsorSection />
+      <EventScheduleSection />
+      <MatchingSection />
       <ScheduleSection />
       <CTASection />
       <FooterSection />
@@ -542,31 +544,223 @@ function ScheduleSection() {
 }
 
 // ============================================================
+// Event Schedule Section (DAY 1 & DAY 2 Timetable)
+// ============================================================
+function EventScheduleSection() {
+  const reveal = useScrollReveal();
+
+  const day1Program = [
+    { time: '13:00 - 13:30', title: '【オープニングキーノート】', subtitle: '日本のライブコマース市場の未来と本イベントの意義', speaker: 'LCF実行委員会\nゲスト：京極 琉氏、プリンスこうや氏など', purpose: '開会宣言とイベント趣旨の説明。' },
+    { time: '13:45 - 14:30', title: '【TikTok公式セミナー】', subtitle: 'TikTok Shopの最新トレンドと今後の展望', speaker: 'TikTokショップ担当者', purpose: 'ライバー向け・ショップ向けノウハウ提供。プラットフォームの最新アルゴリズムや新機能のアップデート共有。' },
+    { time: '14:45 - 15:30', title: '【トップライブコマーサー対談】', subtitle: '億を売る「勝者のメンタリティ」と配信の裏側', speaker: '京極氏、プリンス氏、カンナ氏', purpose: 'どのようにして視聴者を熱狂させ、コンバージョン（売上）に繋げているか、感情を動かす配信設計について。' },
+    { time: '15:45 - 16:30', title: '【ライバー向け講演】', subtitle: '「ライバー」から「ライブコマーサー」への進化', speaker: '荒谷氏、ムゲン氏、ムカキン氏', purpose: 'ライブコマーサーとライバーの違いを解説。販売スキルの基礎と必要なマインドセットの共有。' },
+    { time: '16:45 - 17:30', title: '【出展企業・TSP向け講演】', subtitle: 'ジャンル別成功事例と売れる座組の作り方', speaker: 'ビューティー系、食品系などのトップクリエイター・代理店', purpose: '商材別の成功事例を展示・解説。企業・TSP・ライバーの最適な協業モデルについて。' },
+    { time: '18:30 - 20:30', title: 'アフターパーティー＆受賞式', subtitle: '', speaker: '-', purpose: 'VIP/BARエリア及びDJブースでのネットワーキング。' },
+  ];
+
+  const day2Program = [
+    { time: '10:00 - 10:45', title: '【ライバー・出展企業向け】', subtitle: '新機能活用事例：抽選機能などで熱狂を生む方法', speaker: 'LCF実行委員会・実践ライバー', purpose: 'プリンスコヤトレカ販売事例などを題材に、新機能（オークション等）を活用した単価アップとエンタメ化の手法を紹介。' },
+    { time: '11:00 - 11:45', title: '【TikTok公式セミナー・応用編】', subtitle: 'ポリシー遵守とアカウントBANを防ぐ安全な運用体制', speaker: 'TikTokショップ担当者', purpose: 'コンプライアンス講習。NGワード、薬機法、安全なTikTok Shop運営のルールについて。' },
+    { time: '12:00 - 12:45', title: '【出展企業向け講演】', subtitle: 'ライバーとのマッチングを成功させる「自社ブランドの伝え方」', speaker: '専門家・トップライバー', purpose: '「ライバー向け商品説明会」のキックオフ。企業が提供すべき情報（成分、ベネフィット、フックとなるワードなど）を解説。' },
+    { time: '13:00 - 14:00', title: 'お昼休憩＆ブース回遊・現場ライブ配信タイム', subtitle: '', speaker: '-', purpose: '企業ブースでの交流、ライバーによるゲリラ配信タイム。' },
+    { time: '14:00 - 16:30', title: '【スポンサー出展企業によるPRセミナー枠】', subtitle: '（1枠20〜30分 × 数社）', speaker: 'ブース出店企業（申込制）', purpose: '各社が自社の主力商品やアフィリエイト条件などをステージ上で直接プレゼンし、ライバーをスカウト。' },
+    { time: '16:45 - 17:30', title: '【クロージングパネル】', subtitle: '著名タレント出演連動番組企画', speaker: 'ゲストタレント、特別審査員、実行委員会', purpose: '著名タレント出演連動番組企画として商品の露出も交えつつ、2日間の総括を行う。' },
+    { time: '17:30 - 18:00', title: 'グランドフィナーレ', subtitle: '', speaker: '全体', purpose: 'イベントの締めくくり、記念撮影など。' },
+  ];
+
+  return (
+    <section className="py-20 px-4">
+      <div ref={reveal.ref} className={`max-w-6xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        <div className="text-center mb-12">
+          <span className="text-amber-400 text-sm tracking-[0.3em] uppercase">Event Schedule</span>
+          <h2 className="text-3xl sm:text-4xl font-bold mt-3">イベントスケジュール</h2>
+          <p className="text-xs text-gray-500 mt-2">※イベント内容及び時間は変更する場合がございます。</p>
+        </div>
+
+        {/* DAY 1 */}
+        <div className="mb-12">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-8 h-8 rounded bg-amber-500/20 flex items-center justify-center">
+              <Calendar className="w-4 h-4 text-amber-400" />
+            </div>
+            <h3 className="text-xl font-bold">
+              <span className="text-amber-400">【DAY 1】</span> 9月8日（火）
+            </h3>
+          </div>
+          <p className="text-sm text-gray-400 mb-4 ml-11">テーマ：プラットフォームの未来とトップランナーの思考</p>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-amber-500/30">
+                  <th className="text-left py-3 px-3 text-amber-400 font-semibold w-[120px]">時間</th>
+                  <th className="text-left py-3 px-3 text-amber-400 font-semibold">コンテンツ名</th>
+                  <th className="text-left py-3 px-3 text-amber-400 font-semibold w-[200px] hidden md:table-cell">登壇者（予定）</th>
+                  <th className="text-left py-3 px-3 text-amber-400 font-semibold hidden lg:table-cell">内容・目的</th>
+                </tr>
+              </thead>
+              <tbody>
+                {day1Program.map((item, i) => (
+                  <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                    <td className="py-3 px-3 text-gray-400 whitespace-nowrap align-top">{item.time}</td>
+                    <td className="py-3 px-3 align-top">
+                      <span className="font-semibold text-white">{item.title}</span>
+                      {item.subtitle && <><br /><span className="text-gray-400">{item.subtitle}</span></>}
+                    </td>
+                    <td className="py-3 px-3 text-gray-400 align-top hidden md:table-cell whitespace-pre-line">{item.speaker}</td>
+                    <td className="py-3 px-3 text-gray-500 align-top hidden lg:table-cell text-xs">{item.purpose}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* DAY 2 */}
+        <div>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-8 h-8 rounded bg-amber-500/20 flex items-center justify-center">
+              <Calendar className="w-4 h-4 text-amber-400" />
+            </div>
+            <h3 className="text-xl font-bold">
+              <span className="text-amber-400">【DAY 2】</span> 9月9日（水）
+            </h3>
+          </div>
+          <p className="text-sm text-gray-400 mb-4 ml-11">テーマ：プラットフォームの未来とトップランナーの思考</p>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-amber-500/30">
+                  <th className="text-left py-3 px-3 text-amber-400 font-semibold w-[120px]">時間</th>
+                  <th className="text-left py-3 px-3 text-amber-400 font-semibold">コンテンツ名（対象）</th>
+                  <th className="text-left py-3 px-3 text-amber-400 font-semibold w-[200px] hidden md:table-cell">登壇者（予定）</th>
+                  <th className="text-left py-3 px-3 text-amber-400 font-semibold hidden lg:table-cell">内容・目的</th>
+                </tr>
+              </thead>
+              <tbody>
+                {day2Program.map((item, i) => (
+                  <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                    <td className="py-3 px-3 text-gray-400 whitespace-nowrap align-top">{item.time}</td>
+                    <td className="py-3 px-3 align-top">
+                      <span className="font-semibold text-white">{item.title}</span>
+                      {item.subtitle && <><br /><span className="text-gray-400">{item.subtitle}</span></>}
+                    </td>
+                    <td className="py-3 px-3 text-gray-400 align-top hidden md:table-cell whitespace-pre-line">{item.speaker}</td>
+                    <td className="py-3 px-3 text-gray-500 align-top hidden lg:table-cell text-xs">{item.purpose}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================
+// Matching Section (ライバー事前マッチングサービス)
+// ============================================================
+function MatchingSection() {
+  const reveal = useScrollReveal();
+
+  const steps = [
+    { step: 'STEP1', title: '商材登録', timing: '（出展申込時）', desc: '最大3SKUの商材情報を委員会へ申請します。ライバーが選定しやすくなるよう、特別報酬率（コミッション）やサンプル提供条件も併せて提示します。' },
+    { step: 'STEP2', title: 'カタログ公開', timing: '（開催1ヶ月前）', desc: '申請された商材のガイドライン審査を実施します。通過した商材を「事前マッチング専用WEBカタログ」にまとめ、来場予定のライバーへ一斉告知します。' },
+    { step: 'STEP3', title: 'エントリー', timing: '（開催3週間前）', desc: 'カタログを閲覧し、販売したい希望商材を選択してエントリーします。同時に、当日の希望配信日時・場所（各ブースまたは特設エリア）を申請します。' },
+    { step: 'STEP4', title: 'マッチング確定', timing: '（開催2週間前）', desc: '応募状況に基づき、出展企業による指名や委員会によるスケジュール調整を実施。全体の配信タイムテーブルを確定させ、双方に通知します。' },
+    { step: 'STEP5', title: '事前準備と連携', timing: '（開催1〜2週間前）', desc: '当日のカート落ちを防ぐため、TikTok Shop上で「TAP」のシステム連携を済ませます。一部ライバーへサンプル品を事前発送し、配信の準備（構成案作成など）を促します。' },
+    { step: 'STEP6', title: '当日配信', timing: '（イベント当日）', desc: 'ライバーは予約した時間に合わせて該当ブース（または特設エリア）へ向かいます。出展者と商品の最終確認や挨拶を行った上で、ライブ配信・販売をスタートします。' },
+  ];
+
+  return (
+    <section className="py-20 px-4 bg-gradient-to-b from-transparent via-amber-950/5 to-transparent">
+      <div ref={reveal.ref} className={`max-w-6xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        <div className="mb-10">
+          <span className="text-amber-400 text-sm tracking-[0.3em] uppercase">TOP LIVER SALES</span>
+          <h2 className="text-2xl sm:text-3xl font-bold mt-2">ライバー事前マッチングサービス</h2>
+          <p className="text-xs text-gray-500 mt-2">※一部の仕様変更する場合がございます。</p>
+        </div>
+
+        <p className="text-gray-300 text-sm mb-8">
+          すべての出店者が、事前ご来場するライバーさんとのマッチングを行う事が可能です。
+        </p>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {steps.map((s, i) => (
+            <div key={i} className="rounded-xl border border-amber-500/30 bg-gradient-to-b from-amber-500/10 to-transparent p-4">
+              <div className="text-amber-400 font-bold text-sm mb-1">{s.step}</div>
+              <div className="font-bold text-white text-sm mb-0.5">{s.title}</div>
+              <div className="text-[10px] text-amber-400/70 mb-2">{s.timing}</div>
+              <p className="text-[11px] text-gray-400 leading-relaxed">{s.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-xs text-gray-500 mt-6">※マッチングは確定ではありません</p>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================
 // CTA Section
 // ============================================================
 function CTASection() {
   return (
-    <section className="py-20 px-4">
-      <div className="max-w-3xl mx-auto text-center">
+    <section id="sponsor" className="py-20 px-4">
+      <div className="max-w-4xl mx-auto text-center">
         <h2 className="text-2xl sm:text-3xl font-bold mb-4">
           ここからうまれるのは、<br />
           新しいスターと、次の「当たり前」です。
         </h2>
-        <p className="text-gray-400 mb-8 text-sm">
-          出展・協賛・来場に関するお問い合わせはこちらから
+        <p className="text-gray-400 mb-10 text-sm">
+          出展・協賛・来場に関するお申し込みはこちらから
         </p>
         
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+        <div className="grid sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
+          {/* 企業申込み */}
           <a
-            href="mailto:info@livecommercejapan.jp?subject=LIVE COMMERCE FESTIVAL 2026 出展お問い合わせ"
-            className="px-8 py-4 bg-gradient-to-r from-amber-500 to-amber-600 text-black font-bold rounded-lg hover:brightness-110 transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2"
+            href="/livecommercefestival/2026/apply/company"
+            className="p-5 rounded-xl border-2 border-amber-500/40 bg-gradient-to-b from-amber-500/10 to-transparent hover:border-amber-500/70 transition-all group"
           >
-            出展・協賛のお問い合わせ
-            <ArrowRight className="w-4 h-4" />
+            <Building2 className="w-8 h-8 text-amber-400 mx-auto mb-3" />
+            <h3 className="font-bold text-lg mb-1">企業様</h3>
+            <p className="text-xs text-gray-400 mb-3">出展・協賛のお申し込み</p>
+            <span className="inline-flex items-center gap-1 text-sm text-amber-400 font-semibold group-hover:gap-2 transition-all">
+              申し込む <ArrowRight className="w-3.5 h-3.5" />
+            </span>
+          </a>
+          
+          {/* ライバー申込み */}
+          <a
+            href="/livecommercefestival/2026/apply/liver"
+            className="p-5 rounded-xl border border-purple-500/30 bg-gradient-to-b from-purple-500/5 to-transparent hover:border-purple-500/60 transition-all group"
+          >
+            <Mic2 className="w-8 h-8 text-purple-400 mx-auto mb-3" />
+            <h3 className="font-bold text-lg mb-1">ライバー</h3>
+            <p className="text-xs text-gray-400 mb-3">ライバー＆インフルエンサー</p>
+            <span className="inline-flex items-center gap-1 text-sm text-purple-400 font-semibold group-hover:gap-2 transition-all">
+              申し込む <ArrowRight className="w-3.5 h-3.5" />
+            </span>
+          </a>
+          
+          {/* 一般参加者 */}
+          <a
+            href="/livecommercefestival/2026/apply/general"
+            className="p-5 rounded-xl border border-white/20 bg-white/[0.02] hover:border-white/40 transition-all group"
+          >
+            <Users className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+            <h3 className="font-bold text-lg mb-1">一般参加</h3>
+            <p className="text-xs text-gray-400 mb-3">来場・見学のお申し込み</p>
+            <span className="inline-flex items-center gap-1 text-sm text-gray-300 font-semibold group-hover:gap-2 transition-all">
+              申し込む <ArrowRight className="w-3.5 h-3.5" />
+            </span>
           </a>
         </div>
         
-        <p className="text-xs text-gray-500 mt-6">
+        <p className="text-xs text-gray-500 mt-8">
           お問い合わせ先: info@livecommercejapan.jp
         </p>
       </div>

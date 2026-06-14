@@ -6309,3 +6309,7 @@ export const aiCoachBrainLogs = mysqlTable("ai_coach_brain_logs", {
 });
 export type AiCoachBrainLog = typeof aiCoachBrainLogs.$inferSelect;
 export type InsertAiCoachBrainLog = typeof aiCoachBrainLogs.$inferInsert;
+
+// Festival Applications
+export { festivalCompanyApplications, festivalLiverApplications, festivalGeneralApplications } from "./festivalSchema";
+export type { FestivalCompanyApplication, InsertFestivalCompanyApplication, FestivalLiverApplication, InsertFestivalLiverApplication, FestivalGeneralApplication, InsertFestivalGeneralApplication } from "./festivalSchema";

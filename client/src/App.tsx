@@ -155,6 +155,9 @@ const Chat = lazy(() => import("./pages/Chat"));
 const ChatInvite = lazy(() => import("./pages/ChatInvite"));
 const LiveCommerceFestivalTop = lazy(() => import("./pages/LiveCommerceFestivalTop"));
 const LiveCommerceFestival = lazy(() => import("./pages/LiveCommerceFestival"));
+const FestivalApplyCompany = lazy(() => import("./pages/FestivalApplyCompany"));
+const FestivalApplyLiver = lazy(() => import("./pages/FestivalApplyLiver"));
+const FestivalApplyGeneral = lazy(() => import("./pages/FestivalApplyGeneral"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -554,6 +557,9 @@ function Router() {
         <Route path="/brand-sample" component={BrandSampleLP} />
 
         {/* Live Commerce Festival */}
+        <Route path="/livecommercefestival/2026/apply/company" component={FestivalApplyCompany} />
+        <Route path="/livecommercefestival/2026/apply/liver" component={FestivalApplyLiver} />
+        <Route path="/livecommercefestival/2026/apply/general" component={FestivalApplyGeneral} />
         <Route path="/livecommercefestival/2026" component={LiveCommerceFestival} />
         <Route path="/livecommercefestival" component={LiveCommerceFestivalTop} />
 

@@ -744,6 +744,7 @@ import { adFormRouter } from "./adFormRouter";
 import { tspRouter } from "./tspRouter";
 import { agencyRouter } from "./agencyRouter";
 import { brandPortalRouter } from "./brandPortalRouter";
+import { festivalRouter } from "./festivalRouter";
 import { adDashboardRouter } from "./adDashboardRouter";
 import { svmRouter } from "./svmRouter";
 import { lcjCoinRouter } from "./lcjCoinRouter";
@@ -28030,6 +28031,7 @@ JSON配列のみを出力してください。`;
         return triggerLeadAutoCollect();
       }),
   }),
+  festival: festivalRouter,
 });
 export type AppRouter = typeof appRouter;
 
