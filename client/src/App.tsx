@@ -158,6 +158,7 @@ const LiveCommerceFestival = lazy(() => import("./pages/LiveCommerceFestival"));
 const FestivalApplyCompany = lazy(() => import("./pages/FestivalApplyCompany"));
 const FestivalApplyLiver = lazy(() => import("./pages/FestivalApplyLiver"));
 const FestivalApplyGeneral = lazy(() => import("./pages/FestivalApplyGeneral"));
+const FestivalAdmin = lazy(() => import("./pages/FestivalAdmin"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -600,6 +601,11 @@ function Router() {
         <Route path="/master/ai-coach">
           <DashboardLayout>
             <AiCoachMaster />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/festival">
+          <DashboardLayout>
+            <FestivalAdmin />
           </DashboardLayout>
         </Route>
         <Route path="/master/lcj-brain">
