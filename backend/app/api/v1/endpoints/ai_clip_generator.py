@@ -2846,8 +2846,10 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
         # V2.21: overlay/zoomのタイミング縮小は1bのsetptsで自動的に適用される
         # （speed_factorのsetpts=0.9524*PTSがoverlay後のPTSを縮小するため）
         duration = sum(e - s for s, e in keep_segments)
-        # V2.30: 切点遮蔽強化 — zoom burst + 輝度フラッシュでjump cutを完全に隠す
-        # V2.24: 1.12x → V2.30: 1.15x（さらに強めのズームで動作ジャンプを確実に隠す）
+        # V2.34.3: 切点遮蔽 — zoom burst + 輝度フラッシュでjump cutを隠す
+        # V2.34.3改訂: 切点密度に応じてzoom burst強度と頻度を動的調整
+        # 問題: 切点が多い場合（高cut_ratio）、全切点にzoom burstを適用すると
+        #   常時ズームが発生し「画面の揺れ（抖动）」として知覚される。
         if len(keep_segments) >= 2:
             cut_boundary_times = []
             output_t = 0.0
@@ -2855,16 +2857,46 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
                 if i > 0:
                     cut_boundary_times.append(output_t)
                 output_t += (seg_end - seg_start)
-            # 全ての切点にzoom burstを追加（既存zoomと近くても強制適用）
-            for ct in cut_boundary_times:
-                if ct > 0.1 and ct < duration - 0.2:
-                    zoom_keyframes.append((ct - 0.03, 1.15))  # V2.30: 1.12→1.15x 切点の直前から強めのzoom
+            # V2.34.3: 切点密度に基づくzoom burst制限
+            cut_density = len(cut_boundary_times) / max(duration, 1.0)
+            if cut_density > 0.3:
+                # 高密度（3秒に1回以上の切点）: zoom burstを完全に無効化
+                max_zoom_bursts = 0
+                zoom_intensity = 1.0
+                logger.info(f"[ai-clip] V2.34.3: High cut density ({cut_density:.2f}/s, {len(cut_boundary_times)} cuts) "
+                            f"→ zoom bursts DISABLED (flash only)")
+            elif cut_density > 0.15:
+                # 中密度（6秒に1回以上）: 最大6個に制限、強度を下げる
+                max_zoom_bursts = 6
+                zoom_intensity = 1.08
+                logger.info(f"[ai-clip] V2.34.3: Medium cut density ({cut_density:.2f}/s, {len(cut_boundary_times)} cuts) "
+                            f"→ limited to {max_zoom_bursts} zoom bursts at {zoom_intensity}x")
+            else:
+                # 低密度（6秒に1回未満）: 従来通り全切点にzoom burst
+                max_zoom_bursts = len(cut_boundary_times)
+                zoom_intensity = 1.12  # V2.34.3: 1.15→1.12 (slightly reduced)
+                logger.info(f"[ai-clip] V2.34.3: Low cut density ({cut_density:.2f}/s, {len(cut_boundary_times)} cuts) "
+                            f"→ all cuts get zoom burst at {zoom_intensity}x")
+            # 切点にzoom burstを追加（制限付き）
+            valid_cuts = [ct for ct in cut_boundary_times if ct > 0.1 and ct < duration - 0.2]
+            if max_zoom_bursts > 0 and valid_cuts:
+                if len(valid_cuts) > max_zoom_bursts:
+                    # 間隔が最も大きい切点を優先選択（大きなジャンプほど目立つため）
+                    intervals = []
+                    for i, ct in enumerate(valid_cuts):
+                        prev = valid_cuts[i-1] if i > 0 else 0.0
+                        intervals.append((ct - prev, ct))
+                    intervals.sort(key=lambda x: x[0], reverse=True)
+                    selected_cuts = sorted([x[1] for x in intervals[:max_zoom_bursts]])
+                else:
+                    selected_cuts = valid_cuts
+                for ct in selected_cuts:
+                    zoom_keyframes.append((ct - 0.03, zoom_intensity))
             zoom_keyframes.sort(key=lambda x: x[0])
             # 切点輝度フラッシュをvf_partsに追加するための情報を保存
-            # （後でzoom pulseの後に追加）
             self_cut_boundaries = cut_boundary_times  # 後で参照
-            logger.info(f"[ai-clip] V2.30: Injected zoom bursts (1.15x) at {len(cut_boundary_times)} cut boundaries "
-                        f"(total zoom_keyframes now: {len(zoom_keyframes)})")
+            logger.info(f"[ai-clip] V2.34.3: Final zoom_keyframes: {len(zoom_keyframes)} "
+                        f"(cut_boundaries: {len(cut_boundary_times)}, applied_bursts: {min(max_zoom_bursts, len(valid_cuts))})")
         else:
             self_cut_boundaries = []
         logger.info(f"[ai-clip] V2.21 remap: {len(overlay_images)} overlays, "
@@ -2887,7 +2919,7 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
             af_chain = f"atempo={speed_factor:.4f}"
 
     # ── 2. Zoom Pulse via crop+scale ──
-    # V2.30: 切点zoom burstは短い持続時間(0.18秒, 1.15x)、通常zoomは0.4秒
+    # V2.34.3: 切点zoom burstは短い持続時間(0.15秒)、通常zoomは0.4秒
     # 重要: crop filter中のtはsetpts=0.9524*PTS後のPTSなので、
     # zoom_keyframesの時間をspeed_factorで割る必要がある
     effective_speed = speed_factor if speed_factor > 1.0 else 1.0
@@ -2896,8 +2928,10 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
         for t_orig, zf in zoom_keyframes:
             # speed_factor適用後の実際のPTS時刻に変換
             t = t_orig / effective_speed
-            # V2.30: 切点burst (1.15x) は0.18秒（V2.24: 0.15秒）、通常zoomは0.4秒
-            pulse_dur = (0.18 if abs(zf - 1.15) < 0.01 else 0.4) / effective_speed
+            # V2.34.3: 切点burst (1.08-1.12x) は0.15秒、通常zoom (1.05-1.08x from audio peaks)は0.4秒
+            # 切点burstの判定: zf > 1.09 (audio peak max_zoomは1.08)
+            is_cut_burst = zf > 1.09
+            pulse_dur = (0.15 if is_cut_burst else 0.4) / effective_speed
             freq = math.pi / pulse_dur
             parts.append(
                 f"if(between(t,{t:.3f},{t+pulse_dur:.3f}),"
@@ -2916,27 +2950,38 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
         )
         vf_parts.append(crop_f)
         vf_parts.append(f"scale={video_width}:{video_height}")
-    # ── 2b. V2.24: 切点輝度フラッシュ (jump cut遮蔽補助) ──
-    # V2.30: zoom burstだけでは人物の位置ジャンプが見える場合があるため、
-    # 切点前後に白フラッシュを追加して視聴者の目を眩ませる。
-    # eq=brightnessで実装。各切点で+0.35の輝度ブーストを三角波形で適用。
+    # ── 2b. V2.34.3: 切点輝度フラッシュ (jump cut遮蔽補助) ──
+    # 切点密度に応じてフラッシュ強度を動的調整
     if self_cut_boundaries:
         # effective_speedは上で定義済み
-        flash_parts = []
-        for ct in self_cut_boundaries:
-            # speed_factor適用後の時刻に変換
-            adjusted_ct = ct / effective_speed
-            # V2.30: 三角波形: 切点の前後0.12秒で輝度が0→0.35→0に変化
-            # (V2.24: 0.08秒/0.3 → V2.30: 0.12秒/0.35 より強く長いフラッシュ)
-            half_dur = 0.12 / effective_speed
-            flash_parts.append(
-                f"if(between(t,{adjusted_ct-half_dur:.3f},{adjusted_ct+half_dur:.3f}),"
-                f"0.35*(1-abs(t-{adjusted_ct:.3f})/{half_dur:.3f}),0)"
-            )
-        # 全切点のフラッシュを加算（同時に複数の切点が活性化することはない）
-        brightness_expr = "+".join(flash_parts)
-        vf_parts.append(f"eq=brightness='{brightness_expr}':eval=frame")
-        logger.info(f"[ai-clip] V2.30: Added brightness flash (0.35/0.12s) at {len(self_cut_boundaries)} cut points")
+        flash_density = len(self_cut_boundaries) / max(duration, 1.0)
+        if flash_density > 0.5:
+            # 非常に高密度: フラッシュも無効化（切点が多すぎて意味がない）
+            logger.info(f"[ai-clip] V2.34.3: Flash DISABLED (density {flash_density:.2f}/s too high)")
+        else:
+            # フラッシュ強度を密度に応じて調整
+            if flash_density > 0.3:
+                flash_brightness = 0.15  # 控えめ
+                flash_half_dur = 0.06  # 短い
+            elif flash_density > 0.15:
+                flash_brightness = 0.25  # 中程度
+                flash_half_dur = 0.08
+            else:
+                flash_brightness = 0.30  # V2.34.3: 0.35→0.30 (少し控えめに)
+                flash_half_dur = 0.10  # V2.34.3: 0.12→0.10
+            flash_parts = []
+            for ct in self_cut_boundaries:
+                adjusted_ct = ct / effective_speed
+                half_dur = flash_half_dur / effective_speed
+                flash_parts.append(
+                    f"if(between(t,{adjusted_ct-half_dur:.3f},{adjusted_ct+half_dur:.3f}),"
+                    f"{flash_brightness:.2f}*(1-abs(t-{adjusted_ct:.3f})/{half_dur:.3f}),0)"
+                )
+            # 全切点のフラッシュを加算（同時に複数の切点が活性化することはない）
+            brightness_expr = "+".join(flash_parts)
+            vf_parts.append(f"eq=brightness='{brightness_expr}':eval=frame")
+            logger.info(f"[ai-clip] V2.34.3: Added brightness flash ({flash_brightness}/{flash_half_dur}s) "
+                        f"at {len(self_cut_boundaries)} cut points (density: {flash_density:.2f}/s)")
     # ── 3. Flash intro (multiple variations, softer than before) ──
     if enable_flash_intro:
         flash_variant = random.choice(["soft_flash", "warm_glow", "contrast_pop", "fade_in", "cool_flash"])
