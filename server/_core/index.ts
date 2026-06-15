@@ -936,17 +936,22 @@ async function startServer() {
     }
   });
 
-  // --- Live Commerce Festival 2026 OGP for LINE/SNS crawlers ---
+  // --- Live Commerce Festival 2026 OGP for ALL requests ---
+  // NOTE: We intercept ALL requests (not just bots) to ensure OGP is always correct.
+  // For non-bot browsers, we serve the SPA with festival-specific OGP meta tags injected.
+  // This ensures LINE's in-app browser, cache crawlers, and all SNS previews get correct OGP.
   app.get("/livecommercefestival/2026", async (req, res, next) => {
     try {
       const ua = (req.headers["user-agent"] || "").toLowerCase();
-      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|line/i.test(ua);
-      if (!isBot) return next();
+      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|line|linebot|linespider|Twitterbot|Slackbot|Discordbot|redditbot|Embedly|Quora Link Preview|outbrain|pinterest|vkShare|W3C_Validator/i.test(ua);
       const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
       const title = "LIVE COMMERCE FESTIVAL 2026 | 日本最大級のライブコマース祭典";
       const description = "2026年9月8日-9日、八芳園（東京・白金台）にて開催。オンライン×オフラインの融合で、コマースライバーと企業のマッチング・セミナー型祭典。出展企業80社+、来場ライバー300名。";
       const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/cJiTCPRFjIgLnUGK.png";
-      const html = `<!DOCTYPE html>
+
+      if (isBot) {
+        // Bot: return minimal HTML with OGP meta tags
+        const html = `<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -976,7 +981,40 @@ async function startServer() {
   <p>主催: LCF実行委員会 | 共同企画: MOB Inc. × Live Commerce Japan</p>
 </body>
 </html>`;
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        return res.send(html);
+      }
+
+      // Non-bot: serve SPA but inject festival OGP meta tags into index.html
+      // This ensures LINE in-app browser and other clients see correct OGP
+      const fs = await import("fs");
+      const path = await import("path");
+      const distPath = process.env.NODE_ENV === "development"
+        ? path.default.resolve(import.meta.dirname, "../..", "client", "index.html")
+        : path.default.resolve(import.meta.dirname, "public", "index.html");
+      
+      let html = "";
+      try {
+        html = fs.default.readFileSync(distPath, "utf-8");
+      } catch {
+        return next();
+      }
+
+      // Replace OGP meta tags in the SPA HTML
+      html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
+      html = html.replace(/<meta name="description"[^>]*\/>/, `<meta name="description" content="${escapeHtml(description)}" />`);
+      html = html.replace(/<meta property="og:title"[^>]*\/>/, `<meta property="og:title" content="${escapeHtml(title)}" />`);
+      html = html.replace(/<meta property="og:description"[^>]*\/>/, `<meta property="og:description" content="${escapeHtml(description)}" />`);
+      html = html.replace(/<meta property="og:url"[^>]*\/>/, `<meta property="og:url" content="${baseUrl}/livecommercefestival/2026" />`);
+      html = html.replace(/<meta property="og:site_name"[^>]*\/>/, `<meta property="og:site_name" content="LIVE COMMERCE FESTIVAL" />`);
+      html = html.replace(/<meta name="twitter:title"[^>]*\/>/, `<meta name="twitter:title" content="${escapeHtml(title)}" />`);
+      html = html.replace(/<meta name="twitter:description"[^>]*\/>/, `<meta name="twitter:description" content="${escapeHtml(description)}" />`);
+      // Add og:image (not present in default index.html)
+      const ogImageMeta = `<meta property="og:image" content="${ogImage}" />\n    <meta property="og:image:width" content="1200" />\n    <meta property="og:image:height" content="630" />\n    <meta name="twitter:image" content="${ogImage}" />`;
+      html = html.replace(/<meta name="twitter:card"[^>]*\/>/, `<meta name="twitter:card" content="summary_large_image" />\n    ${ogImageMeta}`);
+
       res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache");
       return res.send(html);
     } catch (e) {
       return next();
