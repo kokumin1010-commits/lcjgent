@@ -464,9 +464,11 @@ export default function AiVideoGeneratorPage() {
   const getStatusLabel = (status) => {
     const labels = {
       queued: "キューに追加中...",
+      analyzing_product: "🔍 商品を解析中...",
       generating_script: "🧠 AI台本を生成中...",
       generating_audio: "🎙️ 音声を生成中...",
       generating_video: "🎬 動画を生成中...",
+      compositing_showcase: "📷 商品展示を合成中...",
       completed: "✅ 完成！",
       failed: "❌ エラー",
     };

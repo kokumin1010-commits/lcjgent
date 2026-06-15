@@ -259,6 +259,26 @@ async def _run_pipeline(job_id: str, request: VideoGenerateRequest, db_url: str)
         logger.info(f"[AIVideoGen:{job_id}] Video generated: {video_url[:60]}...")
 
         # ═══════════════════════════════════════════
+        # STEP 3.5: Product Showcase Compositing (if enabled)
+        # ═══════════════════════════════════════════
+        if request.showcase_mode and request.product_image_url:
+            job["status"] = "compositing_showcase"
+            job["progress"] = 85
+            job["updated_at"] = datetime.now(timezone.utc).isoformat()
+            try:
+                video_url = await _composite_showcase(
+                    video_url=video_url,
+                    product_image_url=request.product_image_url,
+                    showcase_mode=request.showcase_mode,
+                    showcase_description=request.showcase_description,
+                    duration_sec=duration_sec,
+                )
+                logger.info(f"[AIVideoGen:{job_id}] Showcase composited: {video_url[:60]}...")
+            except Exception as comp_err:
+                logger.warning(f"[AIVideoGen:{job_id}] Showcase compositing failed (using original): {comp_err}")
+                # Non-fatal: continue with original video if compositing fails
+
+        # ═══════════════════════════════════════════
         # STEP 4: Complete
         # ═══════════════════════════════════════════
         job["status"] = "completed"
@@ -480,6 +500,19 @@ async def _generate_script(request: VideoGenerateRequest) -> str:
     }
     tone_desc = tone_instructions.get(request.tone, tone_instructions["energetic"])
 
+    # Build showcase instructions if provided
+    showcase_instruction = ""
+    if request.showcase_mode:
+        mode_desc = {
+            "overlay": "動画中に商品画像がオーバーレイ表示されます（画面の右上に小さく表示）",
+            "split": "画面が左右に分割され、左側にあなた、右側に商品画像が表示されます",
+            "fullscreen": "動画の途中で商品画像が全画面表示される瞬間があります",
+        }
+        showcase_instruction = f"\n\n【商品展示】\n展示モード: {mode_desc.get(request.showcase_mode, request.showcase_mode)}\n"
+        if request.showcase_description:
+            showcase_instruction += f"展示の詳細指示: {request.showcase_description}\n"
+        showcase_instruction += "台本の中で、商品画像が表示されるタイミングに合わせて『こちらをご覧ください』『画面に映っているのが〜』などの自然な誘導を入れてください。"
+
     system_prompt = f"""あなたはライブコマースのトップセールスライバーです。
 商品を紹介する台本を生成してください。
 
@@ -498,7 +531,7 @@ async def _generate_script(request: VideoGenerateRequest) -> str:
 2. 商品紹介（何がすごいのか、どんな悩みを解決するか）
 3. 使用感・効果（実際に使うとどうなるか）
 4. 限定感・緊急性（今買うべき理由）
-5. CTA（「リンクから購入」「コメントで質問」など）"""
+5. CTA（「リンクから購入」「コメントで質問」など）{showcase_instruction}"""
 
     user_prompt = f"""以下の商品の紹介台本を生成してください：
 
@@ -696,6 +729,169 @@ async def _generate_video(audio_url: str, request: VideoGenerateRequest) -> tupl
             raise Exception(f"HeyGen video generation failed: {error_msg}")
 
     raise Exception(f"HeyGen video generation timed out after {max_wait}s")
+
+
+async def _composite_showcase(
+    video_url: str,
+    product_image_url: str,
+    showcase_mode: str,
+    showcase_description: Optional[str],
+    duration_sec: float,
+) -> str:
+    """
+    Composite product image onto the generated video using FFmpeg.
+    
+    Modes:
+      - overlay: Product image shown as picture-in-picture (top-right corner, ~30% width)
+      - split: Left half = person video, right half = product image
+      - fullscreen: Product image shown fullscreen for middle 30% of video duration
+    
+    Returns the new video URL (uploaded to Azure Blob).
+    """
+    import subprocess
+    import tempfile
+    import httpx
+    from app.api.v1.endpoints.digital_human import _upload_video_to_blob, _ensure_sas_url
+
+    logger.info(f"[AIVideoGen:Showcase] Mode={showcase_mode}, image={product_image_url[:60]}...")
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        video_path = os.path.join(tmp_dir, "input.mp4")
+        image_path = os.path.join(tmp_dir, "product.png")
+        output_path = os.path.join(tmp_dir, "output.mp4")
+
+        # Download video
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.get(video_url)
+            resp.raise_for_status()
+            with open(video_path, "wb") as f:
+                f.write(resp.content)
+            logger.info(f"[AIVideoGen:Showcase] Video downloaded: {len(resp.content)} bytes")
+
+        # Download product image
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.get(product_image_url)
+            resp.raise_for_status()
+            with open(image_path, "wb") as f:
+                f.write(resp.content)
+            logger.info(f"[AIVideoGen:Showcase] Product image downloaded: {len(resp.content)} bytes")
+
+        # Get video dimensions
+        probe_cmd = [
+            "ffprobe", "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height",
+            "-of", "csv=p=0",
+            video_path,
+        ]
+        probe_result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
+        try:
+            vw, vh = [int(x) for x in probe_result.stdout.strip().split(",")]
+        except (ValueError, IndexError):
+            vw, vh = 720, 1280  # Default vertical video dimensions
+        logger.info(f"[AIVideoGen:Showcase] Video dimensions: {vw}x{vh}")
+
+        # Build FFmpeg command based on mode
+        if showcase_mode == "overlay":
+            # Picture-in-picture: product image in top-right corner, ~30% of video width
+            # Show from 20% to 80% of video duration
+            overlay_w = int(vw * 0.30)
+            margin = int(vw * 0.03)
+            start_time = duration_sec * 0.15
+            end_time = duration_sec * 0.85
+            ffmpeg_cmd = [
+                "ffmpeg", "-y",
+                "-i", video_path,
+                "-i", image_path,
+                "-filter_complex",
+                f"[1:v]scale={overlay_w}:-1,format=rgba,"
+                f"fade=in:st={start_time}:d=0.5:alpha=1,"
+                f"fade=out:st={end_time - 0.5}:d=0.5:alpha=1[ovrl];"
+                f"[0:v][ovrl]overlay={vw - overlay_w - margin}:{margin}:"
+                f"enable='between(t,{start_time},{end_time})'[outv]",
+                "-map", "[outv]", "-map", "0:a",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-c:a", "copy",
+                "-movflags", "+faststart",
+                output_path,
+            ]
+
+        elif showcase_mode == "split":
+            # Split screen: left = video (50%), right = product image (50%)
+            # The video is resized to fill left half, image fills right half
+            half_w = vw // 2
+            ffmpeg_cmd = [
+                "ffmpeg", "-y",
+                "-i", video_path,
+                "-i", image_path,
+                "-filter_complex",
+                f"[0:v]scale={half_w}:{vh}:force_original_aspect_ratio=increase,"
+                f"crop={half_w}:{vh}[left];"
+                f"[1:v]scale={half_w}:{vh}:force_original_aspect_ratio=increase,"
+                f"crop={half_w}:{vh}[right];"
+                f"[left][right]hstack=inputs=2[outv]",
+                "-map", "[outv]", "-map", "0:a",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-c:a", "copy",
+                "-movflags", "+faststart",
+                output_path,
+            ]
+
+        elif showcase_mode == "fullscreen":
+            # Fullscreen product image shown for middle 30% of video
+            # Video → product image → video transition
+            img_start = duration_sec * 0.35
+            img_end = duration_sec * 0.65
+            ffmpeg_cmd = [
+                "ffmpeg", "-y",
+                "-i", video_path,
+                "-loop", "1", "-i", image_path,
+                "-filter_complex",
+                f"[1:v]scale={vw}:{vh}:force_original_aspect_ratio=increase,"
+                f"crop={vw}:{vh},format=yuv420p,"
+                f"fade=in:st=0:d=0.3,fade=out:st={img_end - img_start - 0.3}:d=0.3[img];"
+                f"[0:v][img]overlay=0:0:"
+                f"enable='between(t,{img_start},{img_end})'[outv]",
+                "-map", "[outv]", "-map", "0:a",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-c:a", "copy",
+                "-movflags", "+faststart",
+                "-shortest",
+                output_path,
+            ]
+        else:
+            logger.warning(f"[AIVideoGen:Showcase] Unknown mode: {showcase_mode}, skipping")
+            return video_url
+
+        # Run FFmpeg
+        logger.info(f"[AIVideoGen:Showcase] Running FFmpeg ({showcase_mode})...")
+        result = subprocess.run(
+            ffmpeg_cmd,
+            capture_output=True,
+            text=True,
+            timeout=180,  # 3 min timeout for compositing
+        )
+
+        if result.returncode != 0:
+            logger.error(f"[AIVideoGen:Showcase] FFmpeg failed: {result.stderr[-500:]}")
+            raise Exception(f"FFmpeg compositing failed: {result.stderr[-200:]}")
+
+        # Check output file exists and has content
+        output_size = os.path.getsize(output_path)
+        if output_size < 1000:
+            raise Exception(f"FFmpeg output too small: {output_size} bytes")
+        logger.info(f"[AIVideoGen:Showcase] Output: {output_size} bytes")
+
+        # Upload composited video to Azure Blob
+        with open(output_path, "rb") as f:
+            video_bytes = f.read()
+
+        blob_id = f"ai-video-gen-showcase-{uuid.uuid4().hex[:10]}"
+        blob_url = await _upload_video_to_blob(video_bytes, blob_id)
+        final_url = _ensure_sas_url(blob_url)
+        logger.info(f"[AIVideoGen:Showcase] Uploaded: {final_url[:60]}...")
+
+        return final_url
 
 
 # ──────────────────────────────────────────────
