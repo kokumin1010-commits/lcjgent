@@ -1482,3 +1482,72 @@ async def reset_stuck_samples(
         "reset_samples": [{"id": r.id, "filename": r.filename} for r in reset_rows]
     }
 
+
+
+# ─── Admin: Synchronous Pair Analysis (resilient to server restarts) ─────────
+@router.post("/analyze-pair-sync")
+async def analyze_pair_sync(
+    req: AnalyzePairRequest,
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+):
+    """Synchronous pair analysis - runs in-request (no background task).
+    More resilient to Railway restarts but blocks until complete.
+    Timeout: 25 minutes (Railway request timeout is ~30min)."""
+    verify_admin(x_admin_key)
+    await _ensure_tables()
+    # Validate both samples exist
+    async with get_session() as session:
+        finished = await session.execute(text("""
+            SELECT id, video_url FROM editing_style_samples
+            WHERE id = :id AND profile_id = :pid
+        """), {"id": req.finished_sample_id, "pid": req.profile_id})
+        finished_row = finished.fetchone()
+        original = await session.execute(text("""
+            SELECT id, video_url FROM editing_style_samples
+            WHERE id = :id AND profile_id = :pid
+        """), {"id": req.original_sample_id, "pid": req.profile_id})
+        original_row = original.fetchone()
+    if not finished_row:
+        raise HTTPException(status_code=404, detail="完成動画サンプルが見つかりません")
+    if not original_row:
+        raise HTTPException(status_code=404, detail="元動画サンプルが見つかりません")
+    # Mark both as analyzing
+    async with get_session() as session:
+        await session.execute(text("""
+            UPDATE editing_style_samples SET analysis_status = 'analyzing'
+            WHERE id IN (:fid, :oid)
+        """), {"fid": req.finished_sample_id, "oid": req.original_sample_id})
+        await session.execute(text("""
+            UPDATE editing_style_samples SET original_video_url = :orig_url
+            WHERE id = :fid
+        """), {"fid": req.finished_sample_id, "orig_url": original_row.video_url})
+        await session.commit()
+    # Run synchronously with 25-minute timeout
+    try:
+        await asyncio.wait_for(
+            _run_pair_analysis(
+                req.profile_id, req.finished_sample_id, req.original_sample_id,
+                finished_row.video_url, original_row.video_url,
+            ),
+            timeout=1500  # 25 minutes
+        )
+        return {"success": True, "message": "ペア分析完了"}
+    except asyncio.TimeoutError:
+        async with get_session() as session:
+            await session.execute(text("""
+                UPDATE editing_style_samples
+                SET analysis_status = 'error', error_message = 'タイムアウト（25分超過・同期モード）'
+                WHERE id IN (:fid, :oid)
+            """), {"fid": req.finished_sample_id, "oid": req.original_sample_id})
+            await session.commit()
+        raise HTTPException(status_code=504, detail="分析タイムアウト（25分超過）")
+    except Exception as e:
+        logger.error(f"[editing-style] Sync pair analysis failed: {e}")
+        async with get_session() as session:
+            await session.execute(text("""
+                UPDATE editing_style_samples
+                SET analysis_status = 'error', error_message = :msg
+                WHERE id IN (:fid, :oid)
+            """), {"fid": req.finished_sample_id, "oid": req.original_sample_id, "msg": str(e)[:500]})
+            await session.commit()
+        raise HTTPException(status_code=500, detail=f"分析エラー: {str(e)[:200]}")
