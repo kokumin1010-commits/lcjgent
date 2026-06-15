@@ -23741,7 +23741,9 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             });
           }
           
-          // UPSERT mode: insert new records or update existing ones (no deletion)
+          // DELETE + INSERT mode: delete old data for this month first, then insert fresh data
+          // This ensures the displayed data always matches the latest uploaded CSV
+          await deleteTiktokTapReportsByMonth(input.brandId, input.reportMonth);
           const insertedCount = await bulkInsertTiktokTapReports(reports);
           
           return {

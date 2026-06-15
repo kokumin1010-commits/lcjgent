@@ -4302,10 +4302,11 @@ export const tiktokTapReports = mysqlTable("tiktok_tap_reports", {
   linkEstimatedPartnerCommission: bigint("linkEstimatedPartnerCommission", { mode: "number" }).default(0), // リンクパートナーの推定成果報酬額
   linkEstimatedCreatorCommission: bigint("linkEstimatedCreatorCommission", { mode: "number" }).default(0), // リンククリエイターの推定成果報酬額
 
-  // タイムスタンプ
+    // タイムスタンプ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
-
+}, (table) => [
+  uniqueIndex("unique_tap_report").on(table.brandId, table.reportMonth, table.creatorUsername, table.productId),
+]);
 export type TiktokTapReport = typeof tiktokTapReports.$inferSelect;
 export type InsertTiktokTapReport = typeof tiktokTapReports.$inferInsert;
 
