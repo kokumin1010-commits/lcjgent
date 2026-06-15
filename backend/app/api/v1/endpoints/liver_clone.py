@@ -323,6 +323,62 @@ class PreviewFrameRequest(BaseModel):
     image_url: str = ""
 
 
+
+
+@router.get("/worker-debug")
+async def worker_debug():
+    """Debug: show worker URL resolution and test connectivity."""
+    import httpx
+    from app.services.face_swap_service import FACE_SWAP_WORKER_URL
+    from app.services.runpod_discovery_service import (
+        HARDCODED_POD_ID, RUNPOD_WORKER_PORT,
+        FACE_SWAP_WORKER_URL as DISC_FACE_SWAP_URL
+    )
+    from app.services.liver_clone_service import LIVER_CLONE_WORKER_URL
+
+    # What URL would discovery return?
+    discovery_url = f"https://{HARDCODED_POD_ID}-{RUNPOD_WORKER_PORT}.proxy.runpod.net" if HARDCODED_POD_ID else None
+
+    result = {
+        "env_FACE_SWAP_WORKER_URL": FACE_SWAP_WORKER_URL or "(empty)",
+        "env_LIVER_CLONE_WORKER_URL": LIVER_CLONE_WORKER_URL or "(empty)",
+        "HARDCODED_POD_ID": HARDCODED_POD_ID or "(empty)",
+        "discovery_url": discovery_url,
+    }
+
+    # Test the discovery URL
+    if discovery_url:
+        test_url = f"{discovery_url}/api/health"
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(test_url, headers={"X-Api-Key": "aitherhub"})
+                result["test_discovery_url"] = test_url
+                result["test_discovery_status"] = resp.status_code
+                result["test_discovery_body"] = resp.text[:200]
+        except Exception as e:
+            result["test_discovery_error"] = str(e)
+
+    # Test the env var URL if set
+    if LIVER_CLONE_WORKER_URL:
+        test_url2 = f"{LIVER_CLONE_WORKER_URL.rstrip('/')}/api/health"
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(test_url2, headers={"X-Api-Key": "aitherhub"})
+                result["test_env_url"] = test_url2
+                result["test_env_status"] = resp.status_code
+                result["test_env_body"] = resp.text[:200]
+        except Exception as e:
+            result["test_env_error"] = str(e)
+
+    # What does the service actually use?
+    try:
+        url = await service.face_swap._get_worker_url()
+        result["service_resolved_url"] = url
+    except Exception as e:
+        result["service_resolve_error"] = str(e)
+
+    return result
+
 @router.post("/preview/frame")
 async def preview_frame(req: PreviewFrameRequest):
     """
