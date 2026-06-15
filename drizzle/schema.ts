@@ -6314,3 +6314,7 @@ export type InsertAiCoachBrainLog = typeof aiCoachBrainLogs.$inferInsert;
 // Festival Applications
 export { festivalCompanyApplications, festivalLiverApplications, festivalGeneralApplications } from "./festivalSchema";
 export type { FestivalCompanyApplication, InsertFestivalCompanyApplication, FestivalLiverApplication, InsertFestivalLiverApplication, FestivalGeneralApplication, InsertFestivalGeneralApplication } from "./festivalSchema";
+
+// 24H爆速商品ラボ
+export { productPipeline, productTestAssignment, productLabSalesData } from "./productLabSchema";
+export type { ProductPipeline, InsertProductPipeline, ProductTestAssignment, InsertProductTestAssignment, ProductLabSalesData, InsertProductLabSalesData } from "./productLabSchema";

@@ -745,6 +745,7 @@ import { tspRouter } from "./tspRouter";
 import { agencyRouter } from "./agencyRouter";
 import { brandPortalRouter } from "./brandPortalRouter";
 import { festivalRouter } from "./festivalRouter";
+import { productLabRouter } from "./productLabRouter";
 import { adDashboardRouter } from "./adDashboardRouter";
 import { svmRouter } from "./svmRouter";
 import { lcjCoinRouter } from "./lcjCoinRouter";
@@ -28034,6 +28035,7 @@ JSON配列のみを出力してください。`;
       }),
   }),
   festival: festivalRouter,
+  productLab: productLabRouter,
 });
 export type AppRouter = typeof appRouter;
 

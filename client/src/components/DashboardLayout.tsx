@@ -33,7 +33,7 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp, ClipboardCheck, Inbox, Coins, Sparkles, Crown, Star, UserX, PartyPopper } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp, ClipboardCheck, Inbox, Coins, Sparkles, Crown, Star, UserX, PartyPopper, FlaskConical } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -261,6 +261,26 @@ function DashboardLayoutContent({
                 </DropdownMenu>
               </SidebarMenuItem>
             </div>
+            {/* 24H爆速商品ラボ - 特別ボタン */}
+            <div className="px-3 py-2">
+              <button
+                onClick={() => setLocation("/master/product-lab")}
+                className={`w-full relative overflow-hidden rounded-xl px-3 py-3 text-sm font-bold transition-all duration-300 group ${
+                  location === "/master/product-lab"
+                    ? "bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600 text-white shadow-lg shadow-pink-500/30 scale-[1.02]"
+                    : "bg-gradient-to-r from-orange-500/90 via-pink-500/90 to-purple-600/90 text-white hover:shadow-lg hover:shadow-pink-500/25 hover:scale-[1.02]"
+                }`}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 via-transparent to-cyan-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                <div className="absolute -inset-1 bg-gradient-to-r from-orange-400 via-pink-500 to-purple-600 opacity-30 blur-lg group-hover:opacity-50 transition-opacity duration-500 -z-10" />
+                <div className="relative flex items-center gap-2">
+                  <FlaskConical className="h-5 w-5 animate-pulse" />
+                  <span className="group-data-[collapsible=icon]:hidden">24H爆速商品ラボ</span>
+                </div>
+                <div className="absolute top-1 right-2 text-[10px] opacity-70 group-data-[collapsible=icon]:hidden">🔥NEW</div>
+              </button>
+            </div>
+
             <SidebarMenu className="px-2 py-1">
               {menuItems
                 .filter(item => {
