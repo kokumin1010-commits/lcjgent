@@ -1,0 +1,5 @@
+Around the 22-second mark, there is a noticeable jump cut in the video. 
+
+*   **Before the cut:** The woman is holding the beauty device to her left cheek, with the red light on. She is speaking, and the Japanese subtitle reads "プラチナ、植物由来エキスが入っていて" (Contains platinum and plant-derived extracts). Her head is angled slightly downwards.
+*   **The Cut (at 00:22):** The video abruptly transitions. It appears as a jump cut where a portion of the footage has been removed. The transition is not smooth; there is a jarring shift in her facial expression, mouth position, and slight head movement, making it look like the video skips or jumps abruptly. It does not appear to repeat a frame, but rather skips forward, creating a discontinuity in her motion.
+*   **After the cut:** The woman is still holding the device to her cheek, but her head position and expression have changed due to the jump. The subtitle immediately changes to "お肌の肌のきみをしっかり整えてくれる" (It will properly condition the texture of your skin). She continues speaking.

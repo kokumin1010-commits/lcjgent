@@ -1481,3 +1481,4 @@ async def reset_stuck_samples(
         "reset_count": reset_count,
         "reset_samples": [{"id": r.id, "filename": r.filename} for r in reset_rows]
     }
+
