@@ -834,8 +834,9 @@ async def _detect_scene_changes(video_path: str, duration: float,
 
 # ─── V11: Content Relevance Analysis (GPT) ───────────────────────────────────────────────
 
-async def _analyze_content_relevance(captions: list, product_name: str, duration: float) -> list:
+async def _analyze_content_relevance(captions: list, product_name: str, duration: float, editing_profile_params: dict = None) -> list:
     """字幕セグメントをGPTで分析し、商品・セールスと無関係な区間を検出する。
+    editing_profile_params: 編集スタイル学習から得られたルール（content_editing_rules等）
     Returns: list of (start, end) tuples for irrelevant segments to cut.
     """
     import openai
@@ -941,6 +942,46 @@ async def _analyze_content_relevance(captions: list, product_name: str, duration
 JSON配列で出力。カットすべき区間がない場合は空配列[]。
 例: [[1.2, 3.5], [8.0, 10.2]]
 ※数値のみ、説明不要"""
+
+    # ── Inject editing profile rules if available ──
+    if editing_profile_params:
+        extra_rules = []
+        # Content editing rules from pair analysis
+        if editing_profile_params.get('content_editing_rules'):
+            rules = editing_profile_params['content_editing_rules']
+            if isinstance(rules, list):
+                rules_text = '\n'.join(f'   - {r}' for r in rules)
+            else:
+                rules_text = f'   - {rules}'
+            extra_rules.append(f"\n【編集スタイル学習からの追加ルール】\n{rules_text}")
+        # Repetition handling rules
+        if editing_profile_params.get('repetition_handling'):
+            rep_rule = editing_profile_params['repetition_handling']
+            extra_rules.append(f"\n【繰り返し処理ルール（学習済み）】\n   {rep_rule}")
+        if editing_profile_params.get('max_repetition_allowed') is not None:
+            max_rep = editing_profile_params['max_repetition_allowed']
+            extra_rules.append(f"   → 同一フレーズの最大許容回数: {max_rep}回")
+        if editing_profile_params.get('repetition_keep_strategy'):
+            strategy = editing_profile_params['repetition_keep_strategy']
+            extra_rules.append(f"   → 保持戦略: {strategy}")
+        # Cut/keep content types
+        if editing_profile_params.get('cut_content_types'):
+            cut_types = editing_profile_params['cut_content_types']
+            if isinstance(cut_types, list):
+                cut_text = ', '.join(cut_types)
+            else:
+                cut_text = str(cut_types)
+            extra_rules.append(f"\n【学習済み: カットすべきコンテンツタイプ】\n   {cut_text}")
+        if editing_profile_params.get('keep_content_types'):
+            keep_types = editing_profile_params['keep_content_types']
+            if isinstance(keep_types, list):
+                keep_text = ', '.join(keep_types)
+            else:
+                keep_text = str(keep_types)
+            extra_rules.append(f"\n【学習済み: 絶対に残すべきコンテンツタイプ】\n   {keep_text}")
+        if extra_rules:
+            prompt += '\n'.join(extra_rules)
+            logger.info(f"[ai-clip] Editing profile rules injected into content analysis prompt")
 
     try:
         response = await client.chat.completions.create(
@@ -5911,7 +5952,7 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
         if getattr(req, 'enable_content_cut', True) and captions:
             await _update_job(job_id, progress_pct=36, current_step=f"クリップ {idx+1}/{total}: コンテンツ関連性分析中 (GPT)...")
             try:
-                filler_cut_segments = await _analyze_content_relevance(captions, product_name, duration)
+                filler_cut_segments = await _analyze_content_relevance(captions, product_name, duration, editing_profile_params)
                 logger.info(f"[ai-clip {job_id}] Content cut: {len(filler_cut_segments)} irrelevant segments detected")
             except Exception as content_err:
                 logger.warning(f"[ai-clip {job_id}] Content relevance analysis failed (non-fatal): {content_err}")

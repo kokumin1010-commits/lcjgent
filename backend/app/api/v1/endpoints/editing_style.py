@@ -1204,8 +1204,9 @@ async def _gpt_analyze_pair_diff(
         api_version=os.getenv("GPT5_API_VERSION", "2025-04-01-preview"),
     )
 
+    # Increase caption limit for better repetition detection (80 segments each)
     orig_lines = []
-    for cap in original_captions[:40]:
+    for cap in original_captions[:80]:
         s = float(cap.get("start", 0))
         e = float(cap.get("end", 0))
         t = cap.get("text", "").strip()
@@ -1213,47 +1214,62 @@ async def _gpt_analyze_pair_diff(
             orig_lines.append(f"[{s:.1f}-{e:.1f}] {t}")
 
     fin_lines = []
-    for cap in finished_captions[:40]:
+    for cap in finished_captions[:80]:
         s = float(cap.get("start", 0))
         e = float(cap.get("end", 0))
         t = cap.get("text", "").strip()
         if t:
             fin_lines.append(f"[{s:.1f}-{e:.1f}] {t}")
 
-    prompt = f"""以下は同じライブ配信の「元の長尺動画」と「編集済み完成動画」のデータです。
-編集者がどのような基準でカットしたかを分析してください。
+    prompt = f"""あなたはプロの動画編集アナリストです。以下は同じライブ配信の「元の長尺動画」と「編集済み完成動画」のデータです。
+編集者がどのような基準でカット・編集したかを詳細に分析してください。
 
 【元動画】
 - 総尺: {original_duration:.1f}秒
 - シーンカット数: {original_scene_count}回
 - 字幕セグメント数: {len(original_captions)}
-
-字幕（冒頭40セグメント）:
-{chr(10).join(orig_lines[:40]) if orig_lines else "(なし)"}
+字幕:
+{chr(10).join(orig_lines) if orig_lines else "(なし)"}
 
 【完成動画】
 - 総尺: {finished_duration:.1f}秒（カット率: {cut_ratio:.1%}）
 - シーンカット数: {finished_scene_count}回
 - 字幕セグメント数: {len(finished_captions)}
+字幕:
+{chr(10).join(fin_lines) if fin_lines else "(なし)"}
 
-字幕（冒頭40セグメント）:
-{chr(10).join(fin_lines[:40]) if fin_lines else "(なし)"}
+【分析タスク - 2段階で分析してください】
 
-【分析タスク】
-編集者のカット基準をJSON形式で出力してください：
+■ STEP 1: 内容対比分析（最重要）
+元動画と完成動画の字幕を照合し、以下を特定してください：
+- 元動画にあって完成動画にない内容 → 「カットされた内容」
+- 完成動画に残っている内容 → 「残された内容」
+- 特に「繰り返し発言」がどう処理されたかに注目
+  （同じ意味の発言が複数回ある場合、編集者は何回目を残したか？）
 
-1. cut_ratio: 実際のカット率 (0.0-1.0)
-2. editing_philosophy: 編集方針 ("aggressive"/"moderate"/"conservative")
-3. silence_handling: 無音の扱い ("strict"/"moderate"/"lenient")
-4. silence_threshold_sec: 無音カットの閾値（秒）
-5. filler_handling: フィラーワードの扱い ("always_cut"/"sometimes_cut"/"keep")
-6. content_filter: コンテンツフィルタ基準 ("strict"/"moderate"/"lenient")
-7. preferred_segment_duration: 好みのセグメント長（秒）
-8. keeps_greetings: 挨拶を残すか (true/false)
-9. keeps_reactions: リアクション・感嘆を残すか (true/false)
-10. transition_preference: カット間のつなぎ ("hard"/"fade"/"mixed")
-11. hook_creation: フック作成方法 ("extract"/"create"/"none")
-12. max_single_segment_sec: 1つのセグメントの最大長（秒）
+■ STEP 2: 編集ルール抽出
+上記の対比結果から、編集者のルールをJSON形式で出力：
+
+{{
+  "cut_ratio": (実際のカット率 0.0-1.0),
+  "editing_philosophy": ("aggressive"/"moderate"/"conservative"),
+  "silence_handling": ("strict"/"moderate"/"lenient"),
+  "silence_threshold_sec": (無音カット閾値・秒),
+  "filler_handling": ("always_cut"/"sometimes_cut"/"keep"),
+  "content_filter": ("strict"/"moderate"/"lenient"),
+  "preferred_segment_duration": (好みのセグメント長・秒),
+  "keeps_greetings": (true/false),
+  "keeps_reactions": (true/false),
+  "transition_preference": ("hard"/"fade"/"mixed"),
+  "hook_creation": ("extract"/"create"/"none"),
+  "max_single_segment_sec": (最大セグメント長・秒),
+  "repetition_handling": ("strict"/"moderate"/"lenient" - 繰り返し発言の処理方針),
+  "max_repetition_allowed": (同じ意味の発言を最大何回まで残すか 1-3),
+  "repetition_keep_strategy": ("first"/"last"/"clearest" - 繰り返しのどれを残すか),
+  "cut_content_types": [(カットされた内容の種類リスト。例: "greeting", "filler", "repetition", "off_topic", "hesitation", "self_correction")],
+  "keep_content_types": [(残された内容の種類リスト。例: "product_intro", "price", "cta", "demonstration", "benefit")],
+  "content_editing_rules": [(具体的な編集ルールを自然言語で3-5個記述。例: "同じCTAは1回だけ残す", "商品説明の繰り返しは最も詳しい1回を残す", "リアクションは短いものだけ残す")]
+}}
 
 JSON形式のみで出力してください。"""
 
@@ -1261,13 +1277,21 @@ JSON形式のみで出力してください。"""
         response = await client.chat.completions.create(
             model=azure_model,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=600,
+            max_tokens=1200,
             temperature=0.2,
         )
         content = response.choices[0].message.content.strip()
-        json_match = re.search(r'\{[^{}]*\}', content, re.DOTALL)
+        # Handle nested JSON with arrays (content_editing_rules, cut_content_types, etc.)
+        # Use greedy match to capture the full JSON object including nested structures
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
         if json_match:
-            return json.loads(json_match.group())
+            try:
+                return json.loads(json_match.group())
+            except json.JSONDecodeError:
+                # Fallback: try non-greedy
+                json_match2 = re.search(r'\{[^{}]*\}', content, re.DOTALL)
+                if json_match2:
+                    return json.loads(json_match2.group())
         return json.loads(content)
     except Exception as e:
         logger.warning(f"[editing-style] GPT pair diff analysis failed: {e}")
@@ -1325,6 +1349,38 @@ async def _aggregate_profile_style(profile_id: str):
             values = [p.get(key) for p in pair_analyses if p.get(key) is not None]
             if values:
                 aggregated[key] = sum(1 for v in values if v) > len(values) / 2
+
+        # New V2.34.11 keys: repetition handling
+        rep_cat_keys = ["repetition_handling", "repetition_keep_strategy"]
+        for key in rep_cat_keys:
+            values = [p.get(key) for p in pair_analyses if p.get(key)]
+            if values:
+                aggregated[key] = max(set(values), key=values.count)
+
+        rep_num_keys = ["max_repetition_allowed"]
+        for key in rep_num_keys:
+            values = [p.get(key) for p in pair_analyses if p.get(key) is not None]
+            if values:
+                aggregated[key] = round(sum(values) / len(values))
+
+        # Aggregate list-type keys: merge all unique values
+        list_keys = ["cut_content_types", "keep_content_types", "content_editing_rules"]
+        for key in list_keys:
+            all_items = []
+            for p in pair_analyses:
+                items = p.get(key, [])
+                if isinstance(items, list):
+                    all_items.extend(items)
+            if all_items:
+                # Deduplicate while preserving order
+                seen = set()
+                unique_items = []
+                for item in all_items:
+                    item_lower = item.lower() if isinstance(item, str) else str(item)
+                    if item_lower not in seen:
+                        seen.add(item_lower)
+                        unique_items.append(item)
+                aggregated[key] = unique_items[:10]  # Max 10 items
 
     if all_analyses:
         numeric_keys_single = ["silence_tolerance_sec", "cut_aggressiveness",
