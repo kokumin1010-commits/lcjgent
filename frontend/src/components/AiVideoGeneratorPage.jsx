@@ -568,7 +568,7 @@ export default function AiVideoGeneratorPage() {
       generating_script: "🧠 AI台本を生成中...",
       generating_audio: "🎙️ 音声を生成中...",
       generating_video: "🎬 動画を生成中...",
-      compositing_showcase: "📷 商品展示を合成中...",
+      compositing_showcase: "🎨 AIが人物×商品の合成画像を生成中...",
       completed: "✅ 完成！",
       failed: "❌ エラー",
     };

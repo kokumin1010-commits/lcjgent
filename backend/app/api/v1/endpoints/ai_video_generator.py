@@ -249,19 +249,45 @@ async def _run_pipeline(job_id: str, request: VideoGenerateRequest, db_url: str)
         job["updated_at"] = datetime.now(timezone.utc).isoformat()
 
         # ═══════════════════════════════════════════
+        # STEP 2.5: AI Showcase Image Generation (if enabled)
+        # Generate composite image of person + product using AI
+        # This becomes the talking photo for HeyGen video generation
+        # ═══════════════════════════════════════════
+        if request.showcase_mode and request.product_image_url and request.person_image_url:
+            job["status"] = "compositing_showcase"
+            job["progress"] = 62
+            job["updated_at"] = datetime.now(timezone.utc).isoformat()
+            try:
+                composite_image_url = await _generate_showcase_image(
+                    person_image_url=request.person_image_url,
+                    product_image_url=request.product_image_url,
+                    showcase_description=request.showcase_description,
+                    showcase_mode=request.showcase_mode,
+                )
+                # Replace person_image_url with the composite image
+                # This way HeyGen will use the composite as the talking photo
+                request.person_image_url = composite_image_url
+                logger.info(f"[AIVideoGen:{job_id}] Showcase image generated: {composite_image_url[:60]}...")
+            except Exception as showcase_err:
+                logger.warning(
+                    f"[AIVideoGen:{job_id}] AI showcase image generation failed (using original person photo): {showcase_err}"
+                )
+                # Non-fatal: continue with original person photo if AI compositing fails
+
+        # ═══════════════════════════════════════════
         # STEP 3: Video Generation (HeyGen)
         # ═══════════════════════════════════════════
         job["status"] = "generating_video"
         job["progress"] = 70
         job["updated_at"] = datetime.now(timezone.utc).isoformat()
-
         video_url, duration_sec = await _generate_video(audio_url, request)
         logger.info(f"[AIVideoGen:{job_id}] Video generated: {video_url[:60]}...")
-
         # ═══════════════════════════════════════════
-        # STEP 3.5: Product Showcase Compositing (if enabled)
+        # STEP 3.5: Product Showcase FFmpeg Compositing (fallback)
+        # Only runs if AI image generation was NOT used (no person_image_url)
+        # or if showcase_mode is set but person photo was not provided
         # ═══════════════════════════════════════════
-        if request.showcase_mode and request.product_image_url:
+        if request.showcase_mode and request.product_image_url and not request.person_image_url:
             job["status"] = "compositing_showcase"
             job["progress"] = 85
             job["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -273,7 +299,7 @@ async def _run_pipeline(job_id: str, request: VideoGenerateRequest, db_url: str)
                     showcase_description=request.showcase_description,
                     duration_sec=duration_sec,
                 )
-                logger.info(f"[AIVideoGen:{job_id}] Showcase composited: {video_url[:60]}...")
+                logger.info(f"[AIVideoGen:{job_id}] Showcase composited (FFmpeg): {video_url[:60]}...")
             except Exception as comp_err:
                 logger.warning(f"[AIVideoGen:{job_id}] Showcase compositing failed (using original): {comp_err}")
                 # Non-fatal: continue with original video if compositing fails
@@ -728,7 +754,167 @@ async def _generate_video(audio_url: str, request: VideoGenerateRequest) -> tupl
             error_msg = status_data.get("error", "Unknown error")
             raise Exception(f"HeyGen video generation failed: {error_msg}")
 
-    raise Exception(f"HeyGen video generation timed out after {max_wait}s")
+        raise Exception(f"HeyGen video generation timed out after {max_wait}s")
+
+
+async def _generate_showcase_image(
+    person_image_url: str,
+    product_image_url: str,
+    showcase_description: Optional[str],
+    showcase_mode: str = "fullscreen",
+) -> str:
+    """
+    Use AI image generation (GPT-image-1 / gpt-4o) to create a composite image
+    where the person is holding/presenting the product based on the user's description.
+    
+    This composite image is then used as the talking photo for HeyGen,
+    so the person in the video appears to be interacting with the product.
+    
+    Returns: URL of the generated composite image (uploaded to Azure Blob with SAS).
+    """
+    import httpx
+    import base64
+    import asyncio
+    from app.services.storage_service import CONNECTION_STRING, CONTAINER_NAME
+    from azure.storage.blob import BlobServiceClient, ContentSettings
+    from app.services.storage_service import generate_read_sas_from_url
+
+    logger.info(f"[AIVideoGen:Showcase] Generating AI composite image...")
+    logger.info(f"[AIVideoGen:Showcase] Person: {person_image_url[:60]}...")
+    logger.info(f"[AIVideoGen:Showcase] Product: {product_image_url[:60]}...")
+    logger.info(f"[AIVideoGen:Showcase] Description: {showcase_description}")
+
+    # Ensure product_image_url has SAS token if it's a blob URL
+    from app.api.v1.endpoints.digital_human import _ensure_sas_url
+    if "blob.core.windows.net" in product_image_url and "?" not in product_image_url:
+        product_image_url = _ensure_sas_url(product_image_url)
+    if "blob.core.windows.net" in person_image_url and "?" not in person_image_url:
+        person_image_url = _ensure_sas_url(person_image_url)
+
+    # Download both images and convert to base64
+    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+        person_resp = await client.get(person_image_url)
+        person_resp.raise_for_status()
+        person_bytes = person_resp.content
+        # Detect content type (OpenAI accepts png, webp, jpg)
+        person_ct = person_resp.headers.get("content-type", "image/jpeg")
+        if "png" in person_ct:
+            person_ext = "png"
+        elif "webp" in person_ct:
+            person_ext = "webp"
+        else:
+            person_ext = "jpg"
+
+        product_resp = await client.get(product_image_url)
+        product_resp.raise_for_status()
+        product_bytes = product_resp.content
+        product_ct = product_resp.headers.get("content-type", "image/jpeg")
+        if "png" in product_ct:
+            product_ext = "png"
+        elif "webp" in product_ct:
+            product_ext = "webp"
+        else:
+            product_ext = "jpg"
+
+    # Build the prompt for image generation
+    mode_instructions = {
+        "overlay": "商品を画面の右上隅に小さく配置し、人物がメインで表示されるようにしてください。",
+        "split": "画面を左右に分割し、左側に人物、右側に商品を配置してください。",
+        "fullscreen": "人物が商品を手に持って紹介しているシーンを生成してください。商品が画面の中心的な要素になるようにしてください。",
+    }
+    base_instruction = mode_instructions.get(showcase_mode, mode_instructions["fullscreen"])
+
+    # User's custom description takes priority
+    if showcase_description and showcase_description.strip():
+        composition_prompt = (
+            f"以下の2枚の画像を参考に、合成画像を生成してください。\n"
+            f"1枚目は人物の写真です。2枚目は商品の写真です。\n\n"
+            f"ユーザーの指示: {showcase_description}\n\n"
+            f"重要な要件:\n"
+            f"- 人物の顔と外見を1枚目の写真から忠実に再現してください\n"
+            f"- 商品の外観を2枚目の写真から忠実に再現してください\n"
+            f"- 自然な照明とプロフェッショナルな構図にしてください\n"
+            f"- 縦型（9:16）のアスペクト比で生成してください\n"
+            f"- 背景はシンプルで清潔感のあるものにしてください"
+        )
+    else:
+        composition_prompt = (
+            f"以下の2枚の画像を参考に、合成画像を生成してください。\n"
+            f"1枚目は人物の写真です。2枚目は商品の写真です。\n\n"
+            f"{base_instruction}\n\n"
+            f"重要な要件:\n"
+            f"- 人物の顔と外見を1枚目の写真から忠実に再現してください\n"
+            f"- 商品の外観を2枚目の写真から忠実に再現してください\n"
+            f"- 自然な照明とプロフェッショナルな構図にしてください\n"
+            f"- 縦型（9:16）のアスペクト比で生成してください\n"
+            f"- 背景はシンプルで清潔感のあるものにしてください"
+        )
+
+    # Use standard OpenAI API for image editing (gpt-image-1 supports multiple reference images)
+    openai_key = os.getenv("OPENAI_API_KEY", "")
+    if not openai_key:
+        raise Exception("OPENAI_API_KEY not configured for image generation")
+
+    from openai import OpenAI as SyncOpenAI
+    import io
+
+    logger.info(f"[AIVideoGen:Showcase] Calling OpenAI images.edit with reference images...")
+
+    def _call_openai_image_edit():
+        """Sync call wrapped for asyncio.to_thread to avoid blocking event loop."""
+        client = SyncOpenAI(api_key=openai_key)
+        # Prepare image files as BytesIO with .name attribute
+        person_file = io.BytesIO(person_bytes)
+        person_file.name = f"person.{person_ext}"
+        product_file = io.BytesIO(product_bytes)
+        product_file.name = f"product.{product_ext}"
+
+        return client.images.edit(
+            model="gpt-image-1",
+            image=[person_file, product_file],
+            prompt=composition_prompt,
+            n=1,
+            size="1024x1536",  # Vertical (close to 9:16)
+        )
+
+    # Run sync OpenAI call in thread pool to avoid blocking
+    response = await asyncio.to_thread(_call_openai_image_edit)
+
+    # Get the generated image
+    if not response.data:
+        raise Exception("Image generation returned no data")
+
+    image_data = response.data[0]
+    if image_data.b64_json:
+        generated_bytes = base64.b64decode(image_data.b64_json)
+    elif image_data.url:
+        # Fallback: download from URL if b64_json not available
+        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as dl_client:
+            dl_resp = await dl_client.get(image_data.url)
+            dl_resp.raise_for_status()
+            generated_bytes = dl_resp.content
+    else:
+        raise Exception("Image generation returned neither b64_json nor url")
+
+    logger.info(f"[AIVideoGen:Showcase] Image generated ({len(generated_bytes)} bytes)")
+
+    # Upload to Azure Blob
+    if not CONNECTION_STRING:
+        raise Exception("Azure storage not configured")
+
+    blob_service = BlobServiceClient.from_connection_string(CONNECTION_STRING)
+    blob_name = f"ai-video-gen/showcase/{uuid.uuid4().hex}.png"
+    blob_client = blob_service.get_blob_client(container=CONTAINER_NAME, blob=blob_name)
+    blob_client.upload_blob(
+        generated_bytes,
+        overwrite=True,
+        content_settings=ContentSettings(content_type="image/png"),
+    )
+    blob_url = blob_client.url
+    signed_url = generate_read_sas_from_url(blob_url, expires_hours=24)
+
+    logger.info(f"[AIVideoGen:Showcase] Composite image uploaded: {signed_url[:60]}...")
+    return signed_url
 
 
 async def _composite_showcase(
