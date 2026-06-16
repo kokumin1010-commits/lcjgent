@@ -1720,15 +1720,14 @@ async def upload_person_photo(
         ext = image.filename.rsplit(".", 1)[-1].lower() if image.filename and "." in image.filename else "jpg"
         blob_name = f"ai-video-gen/persons/{uuid.uuid4().hex}.{ext}"
 
-        # Use Azure Blob SDK directly to upload
+        # Use Azure Blob SDK directly to upload (use same container as storage_service)
         from azure.storage.blob import BlobServiceClient, ContentSettings
-        conn_str = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
-        if not conn_str:
+        from app.services.storage_service import CONNECTION_STRING, CONTAINER_NAME
+        if not CONNECTION_STRING:
             raise HTTPException(status_code=500, detail="Storage not configured")
 
-        blob_service = BlobServiceClient.from_connection_string(conn_str)
-        container_name = os.getenv("AZURE_STORAGE_CONTAINER", "aitherhub-videos")
-        blob_client = blob_service.get_blob_client(container=container_name, blob=blob_name)
+        blob_service = BlobServiceClient.from_connection_string(CONNECTION_STRING)
+        blob_client = blob_service.get_blob_client(container=CONTAINER_NAME, blob=blob_name)
         blob_client.upload_blob(
             content,
             overwrite=True,
