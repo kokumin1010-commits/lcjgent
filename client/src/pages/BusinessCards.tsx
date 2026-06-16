@@ -1945,7 +1945,7 @@ export default function BusinessCards() {
                   <span>← 横スクロールで全列表示 →</span>
                 </div>
                 <div className="overflow-auto max-h-[500px] border rounded-md" style={{ scrollbarWidth: 'auto' }}>
-                  <Table className="min-w-[1100px]">
+                  <Table className="min-w-[1350px]">
                     <TableHeader className="sticky top-0 z-10 bg-white">
                       <TableRow>
                         <TableHead className="min-w-[140px]">会社名</TableHead>
@@ -1954,9 +1954,10 @@ export default function BusinessCards() {
                         <TableHead className="min-w-[110px]">電話</TableHead>
                         <TableHead className="min-w-[60px]">県</TableHead>
                         <TableHead className="min-w-[60px]">状態</TableHead>
-                        <TableHead className="min-w-[100px]">キーワード</TableHead>
-                        <TableHead className="min-w-[60px]">カテゴリ</TableHead>
+                        <TableHead className="min-w-[130px]">キーワード</TableHead>
+                        <TableHead className="min-w-[80px]">カテゴリ</TableHead>
                         <TableHead className="min-w-[60px]">収集元</TableHead>
+                        <TableHead className="min-w-[90px]">収集日</TableHead>
                         <TableHead className="min-w-[80px]">対応</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -2029,6 +2030,9 @@ export default function BusinessCards() {
                                lead.source === "google_search" ? "検索" :
                                lead.source}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }) : "—"}
                           </TableCell>
                           <TableCell>
                             <Button
