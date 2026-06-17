@@ -10954,3 +10954,82 @@ def _v3_get_font_path() -> str:
                 return f
         return all_fonts[0]
     return ""
+
+
+# ─── V2.35 Debug: Test translation pipeline ─────────────────────────────────
+@router.post("/debug/test-translation")
+async def debug_test_translation(
+    x_admin_key: Optional[str] = Header(None),
+):
+    """Debug endpoint to test if translation pipeline works."""
+    verify_admin(x_admin_key)
+    import traceback
+    results = {}
+    
+    # Test 1: Check env vars
+    azure_key = os.getenv("AZURE_OPENAI_KEY", "")
+    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+    elevenlabs_voice_id = os.getenv("ELEVENLABS_VOICE_ID", "")
+    sync_api_key = os.getenv("SYNC_API_KEY", "")
+    results["env_check"] = {
+        "AZURE_OPENAI_KEY": bool(azure_key),
+        "AZURE_OPENAI_ENDPOINT": bool(azure_endpoint),
+        "ELEVENLABS_VOICE_ID": elevenlabs_voice_id[:8] + "..." if elevenlabs_voice_id else "NOT SET",
+        "SYNC_API_KEY": bool(sync_api_key),
+    }
+    
+    # Test 2: Try translating a simple caption
+    test_captions = [
+        {"start": 0.0, "end": 2.0, "text": "カラーケアシャンプー"},
+        {"start": 2.0, "end": 4.0, "text": "ね、やっぱそうだね"},
+    ]
+    try:
+        translated = await _translate_captions_text(test_captions, "zh", "debug-test")
+        results["caption_translation"] = {
+            "status": "success",
+            "original": ["カラーケアシャンプー", "ね、やっぱそうだね"],
+            "translated": [c.get("text", "") for c in translated],
+        }
+    except Exception as e:
+        results["caption_translation"] = {
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc()[-500:],
+        }
+    
+    # Test 3: Try ElevenLabs TTS
+    try:
+        from app.services.elevenlabs_tts_service import ElevenLabsTTSService
+        tts = ElevenLabsTTSService()
+        effective_voice_id = elevenlabs_voice_id
+        if effective_voice_id:
+            audio_bytes = await tts.text_to_speech(
+                text="你好，这是测试",
+                voice_id=effective_voice_id,
+                language_code="zh",
+                output_format="mp3_44100_128",
+            )
+            results["tts_test"] = {
+                "status": "success",
+                "audio_bytes": len(audio_bytes),
+                "voice_id": effective_voice_id[:8] + "...",
+            }
+        else:
+            results["tts_test"] = {"status": "skipped", "reason": "No ELEVENLABS_VOICE_ID set"}
+    except Exception as e:
+        results["tts_test"] = {
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc()[-500:],
+        }
+    
+    # Test 4: Check Sync.so
+    try:
+        from app.services.sync_lip_sync_service import SyncLipSyncService
+        sync = SyncLipSyncService()
+        health = await sync.health_check()
+        results["sync_so_health"] = health
+    except Exception as e:
+        results["sync_so_health"] = {"status": "error", "error": str(e)}
+    
+    return results
