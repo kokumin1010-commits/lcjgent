@@ -9331,6 +9331,11 @@ Return ONLY valid JSON, no markdown or explanation.`,
           subject: `【テスト】${personalizedSubject}`,
           text: textContent,
           html: htmlContent,
+          headers: {
+            'List-Unsubscribe': `<mailto:unsubscribe@livecommercejapan.jp?subject=unsubscribe>`,
+            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          },
+          messageId: `<${trackingId}@livecommercejapan.jp>`,
         };
         if (input.attachPdf) {
           const path = await import("path");
@@ -9630,6 +9635,11 @@ Return ONLY valid JSON, no markdown or explanation.`,
                 subject: personalizedSubject,
                 text: textContent,
                 html: htmlContent,
+                headers: {
+                  'List-Unsubscribe': `<mailto:unsubscribe@livecommercejapan.jp?subject=unsubscribe>`,
+                  'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+                },
+                messageId: `<${trackingId}@livecommercejapan.jp>`,
               };
               // PDF提案書添付
               if (input.attachPdf) {
@@ -9945,6 +9955,11 @@ Return ONLY valid JSON, no markdown or explanation.`,
             subject: personalizedSubject,
             text: textContent,
             html: htmlContent,
+            headers: {
+              'List-Unsubscribe': `<mailto:unsubscribe@livecommercejapan.jp?subject=unsubscribe>`,
+              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            },
+            messageId: `<${trackingId}@livecommercejapan.jp>`,
           };
           if (input.attachPdf) {
             mailOpts.attachments = [{
@@ -10206,6 +10221,11 @@ Return ONLY valid JSON, no markdown or explanation.`,
                     subject: personalizedSubject,
                     text: textContent,
                     html: htmlContent,
+                    headers: {
+                      'List-Unsubscribe': `<mailto:unsubscribe@livecommercejapan.jp?subject=unsubscribe>`,
+                      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+                    },
+                    messageId: `<${trackingId}@livecommercejapan.jp>`,
                   };
                   if (input.attachPdf) {
                     mailOpts.attachments = [{ filename: "LCJ提案書_ライブコマースジャパン.pdf", path: pdfPath }];
