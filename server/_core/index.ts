@@ -144,6 +144,8 @@ async function startServer() {
 
   // Email tracking endpoint
   app.use("/api/track", trackingRouter);
+  // Gmail-friendly alias (avoids 'track' keyword in URL that Gmail may filter)
+  app.use("/api/assets", trackingRouter);
 
   // Dev Safety - File Lock API (Layer 2 of 4-Layer Defense)
   app.use("/api/v1/dev-safety", devSafetyRouter);

@@ -9315,7 +9315,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
           }
         }).join('\n');
         // トラッキングピクセル + PDFダウンロードリンクを埋め込み
-        const trackingPixel = `<img src="https://lcjmall.com/api/track/sales-email/open/${trackingId}" width="1" height="1" style="display:none" alt="" />`;
+        const trackingPixel = `<img src="https://lcjmall.com/api/assets/i/e/${trackingId}.gif" width="1" height="1" border="0" style="height:1px!important;width:1px!important;border-width:0!important;margin-top:0!important;margin-bottom:0!important;margin-right:0!important;margin-left:0!important;padding-top:0!important;padding-bottom:0!important;padding-right:0!important;padding-left:0!important" alt="" />`;
         const pdfDownloadLink = input.attachPdf ? `<p style="margin: 16px 0; text-align: center;"><a href="https://lcjmall.com/api/track/sales-email/pdf/${trackingId}" style="color: #1a56db; text-decoration: underline; font-size: 14px;">📄 提案書をダウンロード（PDF）</a></p>` : '';
         const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;">
           <p style="font-size: 15px;">${displayName} 様</p>
@@ -9619,7 +9619,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
                 }
               }).join('\n');
               // トラッキングピクセル + PDFダウンロードリンクを埋め込み
-              const trackingPixel = `<img src="https://lcjmall.com/api/track/sales-email/open/${trackingId}" width="1" height="1" style="display:none" alt="" />`;
+              const trackingPixel = `<img src="https://lcjmall.com/api/assets/i/e/${trackingId}.gif" width="1" height="1" border="0" style="height:1px!important;width:1px!important;border-width:0!important;margin-top:0!important;margin-bottom:0!important;margin-right:0!important;margin-left:0!important;padding-top:0!important;padding-bottom:0!important;padding-right:0!important;padding-left:0!important" alt="" />`;
               const pdfDownloadLink = input.attachPdf ? `<p style="margin: 16px 0; text-align: center;"><a href="https://lcjmall.com/api/track/sales-email/pdf/${trackingId}" style="color: #1a56db; text-decoration: underline; font-size: 14px;">📄 提案書をダウンロード（PDF）</a></p>` : '';
               const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;">
                 <p style="font-size: 15px;">${lead.displayName || "ご担当者"} 様</p>
@@ -9939,7 +9939,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
               return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
             }
           }).join('\n');
-          const trackingPixel = `<img src="https://lcjmall.com/api/track/sales-email/open/${trackingId}" width="1" height="1" style="display:none" alt="" />`;
+          const trackingPixel = `<img src="https://lcjmall.com/api/assets/i/e/${trackingId}.gif" width="1" height="1" border="0" style="height:1px!important;width:1px!important;border-width:0!important;margin-top:0!important;margin-bottom:0!important;margin-right:0!important;margin-left:0!important;padding-top:0!important;padding-bottom:0!important;padding-right:0!important;padding-left:0!important" alt="" />`;
           const pdfDownloadLink = input.attachPdf ? `<p style="margin: 16px 0; text-align: center;"><a href="https://lcjmall.com/api/track/sales-email/pdf/${trackingId}" style="color: #1a56db; text-decoration: underline; font-size: 14px;">📄 提案書をダウンロード（PDF）</a></p>` : '';
           const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;">
             <p style="font-size: 15px;">${displayName} 様</p>
@@ -10212,7 +10212,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
                     if (line.trim() === '') return '<br>';
                     return `<p style="margin: 8px 0; font-size: 14px;">${line}</p>`;
                   }).join('\n');
-                  const trackingPixel = `<img src="https://lcjmall.com/api/track/sales-email/open/${trackingId}" width="1" height="1" style="display:none" alt="" />`;
+                  const trackingPixel = `<img src="https://lcjmall.com/api/assets/i/e/${trackingId}.gif" width="1" height="1" border="0" style="height:1px!important;width:1px!important;border-width:0!important;margin-top:0!important;margin-bottom:0!important;margin-right:0!important;margin-left:0!important;padding-top:0!important;padding-bottom:0!important;padding-right:0!important;padding-left:0!important" alt="" />`;
                   const pdfDownloadLink = input.attachPdf ? `<p style="margin: 16px 0; text-align: center;"><a href="https://lcjmall.com/api/track/sales-email/pdf/${trackingId}" style="color: #1a56db; text-decoration: underline; font-size: 14px;">📄 提案書をダウンロード（PDF）</a></p>` : '';
                   const htmlContent = `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.8;"><p style="font-size: 15px;">${displayName} 様</p>${htmlLines}${pdfDownloadLink}<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"><p style="font-size: 12px; color: #6b7280;">━━━━━━━━━━━━━━━━━━━━━━<br>株式会社ライブコマースジャパン<br>営業部 大久保<br>Email: info@livecommercejapan.jp<br>━━━━━━━━━━━━━━━━━━━━━━</p>${trackingPixel}</div>`;
                   const mailOpts: any = {

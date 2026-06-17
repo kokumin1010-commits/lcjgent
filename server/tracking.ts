@@ -7,6 +7,58 @@ import { eq, sql } from "drizzle-orm";
 export const trackingRouter = Router();
 
 /**
+ * Disguised tracking endpoint for Gmail compatibility
+ * Gmail blocks obvious tracking pixels (URLs with 'track', 'pixel', 'open' in path)
+ * This endpoint uses a natural-looking image URL pattern
+ * Route: /api/track/i/e/:trackingId  (trackingId ends with .gif)
+ */
+trackingRouter.get("/i/e/:trackingId", async (req, res) => {
+  // Remove .gif extension if present in the param
+  const trackingId = (req.params.trackingId || '').replace(/\.gif$/, '');
+
+  try {
+    const db = await getDb();
+    if (db && trackingId) {
+      const [existing] = await db
+        .select()
+        .from(salesEmailLogs)
+        .where(eq(salesEmailLogs.trackingId, trackingId))
+        .limit(1);
+
+      if (existing) {
+        const now = new Date();
+        await db
+          .update(salesEmailLogs)
+          .set({
+            openedAt: existing.openedAt || now,
+            openCount: (existing.openCount || 0) + 1,
+            lastOpenedAt: now,
+          })
+          .where(eq(salesEmailLogs.trackingId, trackingId));
+      }
+    }
+  } catch (error) {
+    console.error("[Email Tracking] Error recording open:", error);
+  }
+
+  // Return transparent 1x1 pixel GIF
+  const pixel = Buffer.from(
+    "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    "base64"
+  );
+
+  res.set({
+    "Content-Type": "image/gif",
+    "Content-Length": String(pixel.length),
+    "Cache-Control": "no-store, no-cache, must-revalidate, private",
+    "Pragma": "no-cache",
+    "Expires": "0",
+  });
+
+  res.send(pixel);
+});
+
+/**
  * Tracking pixel endpoint
  * Returns a transparent 1x1 pixel GIF and records email open
  */
