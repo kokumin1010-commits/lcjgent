@@ -3,7 +3,7 @@
  * 一括営業メール送信用のSESヘルパー
  * Aliyun SMTPのレート制限を回避するため、SES APIを使用
  */
-import { SESClient, SendRawEmailCommand } from "@aws-sdk/client-ses";
+import { SESClient, SendRawEmailCommand, GetSendQuotaCommand, GetAccountSendingEnabledCommand } from "@aws-sdk/client-ses";
 import { ENV } from "./_core/env";
 
 let sesClient: SESClient | null = null;
@@ -40,14 +40,64 @@ export interface SESEmailOptions {
 }
 
 /**
+ * SES送信クォータ・アカウント状態を取得（診断用）
+ */
+export async function getSESDiagnostics(): Promise<{
+  configured: boolean;
+  region: string;
+  fromEmail: string;
+  sendingEnabled?: boolean;
+  quota?: { max24HourSend: number; sentLast24Hours: number; maxSendRate: number };
+  error?: string;
+}> {
+  const configured = isSESConfigured();
+  if (!configured) {
+    return { configured: false, region: ENV.awsSesRegion, fromEmail: ENV.awsSesFromEmail };
+  }
+  try {
+    const client = getSESClient();
+    const quotaResp = await client.send(new GetSendQuotaCommand({}));
+    let sendingEnabled: boolean | undefined;
+    try {
+      const enabledResp = await client.send(new GetAccountSendingEnabledCommand({}));
+      sendingEnabled = enabledResp.Enabled;
+    } catch (e: any) {
+      console.warn("[SES Diagnostics] GetAccountSendingEnabled failed:", e.message);
+    }
+    return {
+      configured: true,
+      region: ENV.awsSesRegion,
+      fromEmail: ENV.awsSesFromEmail,
+      sendingEnabled,
+      quota: {
+        max24HourSend: quotaResp.Max24HourSend || 0,
+        sentLast24Hours: quotaResp.SentLast24Hours || 0,
+        maxSendRate: quotaResp.MaxSendRate || 0,
+      },
+    };
+  } catch (e: any) {
+    console.error("[SES Diagnostics] Error:", e.message);
+    return {
+      configured: true,
+      region: ENV.awsSesRegion,
+      fromEmail: ENV.awsSesFromEmail,
+      error: e.message,
+    };
+  }
+}
+
+/**
  * SESでメールを送信する
  * Raw Email形式で送信（添付ファイル対応）
  */
 export async function sendEmailViaSES(options: SESEmailOptions): Promise<{ messageId: string; success: boolean }> {
   const client = getSESClient();
+  const fromEmail = options.from || ENV.awsSesFromEmail;
   const from = options.fromName 
-    ? `=?UTF-8?B?${Buffer.from(options.fromName).toString('base64')}?= <${options.from || ENV.awsSesFromEmail}>`
-    : options.from || ENV.awsSesFromEmail;
+    ? `=?UTF-8?B?${Buffer.from(options.fromName).toString('base64')}?= <${fromEmail}>`
+    : fromEmail;
+  
+  console.log(`[SES] Sending email: from=${fromEmail}, to=${options.to}, subject=${options.subject.substring(0, 50)}`);
   
   const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substr(2)}`;
   
@@ -59,6 +109,14 @@ export async function sendEmailViaSES(options: SESEmailOptions): Promise<{ messa
     rawMessage += `Reply-To: ${options.replyTo}\r\n`;
   }
   rawMessage += `MIME-Version: 1.0\r\n`;
+  
+  // Helper to encode base64 with proper line breaks (76 chars per line per RFC 2045)
+  const encodeBase64WithLineBreaks = (input: string | Buffer): string => {
+    const buf = typeof input === 'string' ? Buffer.from(input) : input;
+    const base64 = buf.toString('base64');
+    // Split into 76-char lines
+    return base64.replace(/(.{76})/g, '$1\r\n');
+  };
   
   if (options.attachments && options.attachments.length > 0) {
     rawMessage += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`;
@@ -72,22 +130,22 @@ export async function sendEmailViaSES(options: SESEmailOptions): Promise<{ messa
     rawMessage += `--${altBoundary}\r\n`;
     rawMessage += `Content-Type: text/plain; charset=UTF-8\r\n`;
     rawMessage += `Content-Transfer-Encoding: base64\r\n\r\n`;
-    rawMessage += `${Buffer.from(options.textBody).toString('base64')}\r\n\r\n`;
+    rawMessage += `${encodeBase64WithLineBreaks(options.textBody)}\r\n\r\n`;
     
     // HTML
     rawMessage += `--${altBoundary}\r\n`;
     rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`;
     rawMessage += `Content-Transfer-Encoding: base64\r\n\r\n`;
-    rawMessage += `${Buffer.from(options.htmlBody).toString('base64')}\r\n\r\n`;
+    rawMessage += `${encodeBase64WithLineBreaks(options.htmlBody)}\r\n\r\n`;
     rawMessage += `--${altBoundary}--\r\n\r\n`;
     
     // Attachments
     for (const att of options.attachments) {
       rawMessage += `--${boundary}\r\n`;
-      rawMessage += `Content-Type: ${att.contentType}; name="${att.filename}"\r\n`;
-      rawMessage += `Content-Disposition: attachment; filename="${att.filename}"\r\n`;
+      rawMessage += `Content-Type: ${att.contentType}; name="=?UTF-8?B?${Buffer.from(att.filename).toString('base64')}?="\r\n`;
+      rawMessage += `Content-Disposition: attachment; filename="=?UTF-8?B?${Buffer.from(att.filename).toString('base64')}?="\r\n`;
       rawMessage += `Content-Transfer-Encoding: base64\r\n\r\n`;
-      rawMessage += `${att.content.toString('base64')}\r\n\r\n`;
+      rawMessage += `${encodeBase64WithLineBreaks(att.content)}\r\n\r\n`;
     }
     rawMessage += `--${boundary}--\r\n`;
   } else {
@@ -98,12 +156,12 @@ export async function sendEmailViaSES(options: SESEmailOptions): Promise<{ messa
     rawMessage += `--${altBoundary}\r\n`;
     rawMessage += `Content-Type: text/plain; charset=UTF-8\r\n`;
     rawMessage += `Content-Transfer-Encoding: base64\r\n\r\n`;
-    rawMessage += `${Buffer.from(options.textBody).toString('base64')}\r\n\r\n`;
+    rawMessage += `${encodeBase64WithLineBreaks(options.textBody)}\r\n\r\n`;
     
     rawMessage += `--${altBoundary}\r\n`;
     rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`;
     rawMessage += `Content-Transfer-Encoding: base64\r\n\r\n`;
-    rawMessage += `${Buffer.from(options.htmlBody).toString('base64')}\r\n\r\n`;
+    rawMessage += `${encodeBase64WithLineBreaks(options.htmlBody)}\r\n\r\n`;
     
     rawMessage += `--${altBoundary}--\r\n`;
   }
@@ -112,15 +170,24 @@ export async function sendEmailViaSES(options: SESEmailOptions): Promise<{ messa
     RawMessage: {
       Data: Buffer.from(rawMessage),
     },
-    Source: options.from || ENV.awsSesFromEmail,
+    Source: fromEmail,
     Destinations: [options.to],
   });
   
-  const response = await client.send(command);
-  return {
-    messageId: response.MessageId || "",
-    success: true,
-  };
+  try {
+    const response = await client.send(command);
+    console.log(`[SES] Email sent successfully: messageId=${response.MessageId}, to=${options.to}`);
+    return {
+      messageId: response.MessageId || "",
+      success: true,
+    };
+  } catch (error: any) {
+    console.error(`[SES] Send FAILED: to=${options.to}, error=${error.name}: ${error.message}`);
+    // Re-throw with more context
+    const enhancedError = new Error(`SES送信失敗 (${error.name}): ${error.message}. Region: ${ENV.awsSesRegion}, From: ${fromEmail}`);
+    (enhancedError as any).originalError = error;
+    throw enhancedError;
+  }
 }
 
 /**

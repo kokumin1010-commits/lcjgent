@@ -9399,6 +9399,68 @@ Return ONLY valid JSON, no markdown or explanation.`,
           throw new Error(`テスト送信失敗: ${e.message}`);
         }
       }),
+    // ===== 営業メール: 送信診断 =====
+    diagnoseEmailSending: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const { getSESDiagnostics, isSESConfigured, sendEmailViaSES } = await import("./ses");
+        const { ENV } = await import("./_core/env");
+        const results: any = {
+          timestamp: new Date().toISOString(),
+          sesConfigured: isSESConfigured(),
+          aliyunConfigured: !!(ENV.emailUser && ENV.emailPassword),
+          emailUser: ENV.emailUser ? `${ENV.emailUser.substring(0, 10)}...` : "(not set)",
+          emailSmtpHost: ENV.emailSmtpHost,
+          awsSesRegion: ENV.awsSesRegion,
+          awsSesFromEmail: ENV.awsSesFromEmail,
+        };
+        // SES診断
+        if (results.sesConfigured) {
+          results.sesDiagnostics = await getSESDiagnostics();
+        }
+        // テスト送信（SES）
+        if (results.sesConfigured) {
+          try {
+            const testResult = await sendEmailViaSES({
+              to: ctx.user.email || "yanghao20031024@gmail.com",
+              subject: "[診断] LCJ Mall メール送信テスト (SES)",
+              textBody: "これはメール送信診断のテストメールです。このメールが届いていれば、SES送信は正常に動作しています。送信時刻: " + new Date().toISOString(),
+              htmlBody: "<p>これはメール送信診断のテストメールです。</p><p>このメールが届いていれば、SES送信は正常に動作しています。</p><p>送信時刻: " + new Date().toISOString() + "</p>",
+              from: ENV.awsSesFromEmail,
+              fromName: "LCJ Mall 診断",
+              replyTo: ENV.emailUser || "lcj.inquiry@livecommercejapan.jp",
+            });
+            results.sesTestSend = { success: true, messageId: testResult.messageId };
+          } catch (e: any) {
+            results.sesTestSend = { success: false, error: e.message };
+          }
+        }
+        // テスト送信（Aliyun SMTP）
+        if (results.aliyunConfigured) {
+          try {
+            const nodemailer = await import("nodemailer");
+            const transporter = nodemailer.default.createTransport({
+              host: ENV.emailSmtpHost || "smtp.qiye.aliyun.com",
+              port: 465,
+              secure: true,
+              auth: {
+                user: ENV.emailUser,
+                pass: ENV.emailPassword,
+              },
+            });
+            const info = await transporter.sendMail({
+              from: `"LCJ Mall 診断" <${ENV.emailUser}>`,
+              to: ctx.user.email || "yanghao20031024@gmail.com",
+              subject: "[診断] LCJ Mall Aliyun SMTPテスト",
+              text: "これはAliyun SMTPのテストメールです。届いていればSMTP送信は正常です。送信時刻: " + new Date().toISOString(),
+              html: "<p>これはAliyun SMTPのテストメールです。</p><p>届いていればSMTP送信は正常です。</p><p>送信時刻: " + new Date().toISOString() + "</p>",
+            });
+            results.aliyunTestSend = { success: true, messageId: info.messageId };
+          } catch (e: any) {
+            results.aliyunTestSend = { success: false, error: e.message };
+          }
+        }
+        return results;
+      }),
     // ===== 営業メール: DB INSERT診断 =====
     diagnoseSalesEmailDb: protectedProcedure
       .mutation(async ({ ctx }) => {
