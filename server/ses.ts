@@ -194,5 +194,9 @@ export async function sendEmailViaSES(options: SESEmailOptions): Promise<{ messa
  * SESが利用可能かチェック
  */
 export function isSESConfigured(): boolean {
-  return !!(ENV.awsSesAccessKeyId && ENV.awsSesSecretAccessKey);
+  // DISABLED: livecommercejapan.jp SPF record only authorizes Aliyun (spf.qiye.aliyun.com -all)
+  // SES emails fail SPF check and get rejected by Gmail/Yahoo.
+  // Until SPF/DKIM are configured for SES, force Aliyun SMTP.
+  return false;
+  // Original: return !!(ENV.awsSesAccessKeyId && ENV.awsSesSecretAccessKey);
 }
