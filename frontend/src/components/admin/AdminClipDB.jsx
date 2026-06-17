@@ -3235,10 +3235,16 @@ function AiClipGenerationModal({ clip, onClose, onGenerate, generating, jobStatu
     voice_id: "",
   });
   const [editingProfiles, setEditingProfiles] = useState([]);
+  const [availableVoices, setAvailableVoices] = useState([]);
   useEffect(() => {
     fetch(`${API_BASE}/api/v1/editing-style/profiles`, { headers: { 'X-Admin-Key': adminKey } })
       .then(r => r.json())
       .then(d => setEditingProfiles((d.profiles || []).filter(p => p.status === 'active')))
+      .catch(() => {});
+    // Fetch available ElevenLabs voices for translation
+    fetch(`${API_BASE}/api/v1/ai-video-generator/voices`, { headers: { 'X-Admin-Key': adminKey } })
+      .then(r => r.json())
+      .then(d => setAvailableVoices(d.voices || []))
       .catch(() => {});
   }, [adminKey]);
 
@@ -3405,16 +3411,25 @@ function AiClipGenerationModal({ clip, onClose, onGenerate, generating, jobStatu
                 {options.output_language !== 'original' && (
                   <>
                     <div className="flex items-center justify-between">
-                      <label className="text-xs text-gray-600">音声ID（省略可）</label>
-                      <input
-                        type="text"
+                      <label className="text-xs text-gray-600">音声選択</label>
+                      <select
                         value={options.voice_id}
                         onChange={(e) => setOptions({ ...options, voice_id: e.target.value })}
-                        placeholder="ElevenLabs Voice ID"
-                        className="text-xs border border-blue-200 rounded-lg px-2 py-1 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                        className="text-xs border border-blue-200 rounded-lg px-2 py-1 w-44 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">デフォルト（環境変数）</option>
+                        {availableVoices.filter(v => v.category === 'cloned').map(v => (
+                          <option key={v.voice_id} value={v.voice_id}>🎤 {v.name} {v.language ? `(${v.language})` : ''}</option>
+                        ))}
+                        {availableVoices.filter(v => v.category !== 'cloned').length > 0 && (
+                          <option disabled>── プリメイド ──</option>
+                        )}
+                        {availableVoices.filter(v => v.category !== 'cloned').map(v => (
+                          <option key={v.voice_id} value={v.voice_id}>{v.name} {v.language ? `(${v.language})` : ''}</option>
+                        ))}
+                      </select>
                     </div>
-                    <p className="text-[10px] text-blue-600">💡 字幕+音声+唇形を全て翻訳言語に変換します</p>
+                    <p className="text-[10px] text-blue-600">💡 字幕+音声+唇形を全て翻訳言語に変換。クローン音声を選ぶと主播の声で翻訳されます。</p>
                   </>
                 )}
               </div>
