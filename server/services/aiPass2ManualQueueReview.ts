@@ -151,17 +151,23 @@ export async function runAiPass2ManualQueueReview(config: Pass2Config): Promise<
   const userApprovalRates = new Map<string, number>();
   
   for (const userId of uniqueUserIds) {
+    // FIX: Exclude on_hold receipts from denominator to break the catch-22 cycle
+    // Previously: rate = approved / ALL receipts (including on_hold)
+    // Now: rate = approved / (approved + rejected) — only count decisioned receipts
     const [stats] = await db
       .select({
         total: sql<number>`COUNT(*)`,
         approved: sql<number>`SUM(CASE WHEN ${lineReceipts.status} = 'approved' THEN 1 ELSE 0 END)`,
+        decisioned: sql<number>`SUM(CASE WHEN ${lineReceipts.status} IN ('approved', 'rejected') THEN 1 ELSE 0 END)`,
       })
       .from(lineReceipts)
       .where(eq(lineReceipts.lineUserId, userId));
     
-    const total = Number(stats?.total || 0);
+    const decisioned = Number(stats?.decisioned || 0);
     const approved = Number(stats?.approved || 0);
-    const rate = total > 0 ? Math.round((approved / total) * 100) : 0;
+    // Use decisioned (approved + rejected) as denominator instead of total
+    // This prevents on_hold receipts from dragging down the rate
+    const rate = decisioned > 0 ? Math.round((approved / decisioned) * 100) : 0;
     userApprovalRates.set(userId, rate);
   }
   console.log(`[AI Pass2] User approval rates computed for ${uniqueUserIds.length} users`);
