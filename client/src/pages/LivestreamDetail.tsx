@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, CheckCircle, XCircle, Sparkles, Package, User, Megaphone, HelpCircle, Pencil, Trash2, Save, Upload, X, Calendar, Clock, DollarSign, Eye, ShoppingCart, MousePointer, Heart, MessageCircle, Share2, UserPlus, Timer, Users, TrendingUp, FileSpreadsheet, AlertTriangle, Gift, Tag, Percent, Layers, Plus } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, Sparkles, Package, User, Megaphone, HelpCircle, Pencil, Trash2, Save, Upload, X, Calendar, Clock, DollarSign, Eye, ShoppingCart, MousePointer, Heart, MessageCircle, Share2, UserPlus, Timer, Users, TrendingUp, FileSpreadsheet, AlertTriangle, Gift, Tag, Percent, Layers, Plus, Check, ChevronsUpDown } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +27,27 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
@@ -108,7 +129,68 @@ export default function LivestreamDetail() {
   const isOwnerLiver = !!(liverInfo && livestream && livestream.liverId === liverInfo.id);
   const canEdit = isAdmin || isOwnerLiver;
   
-  const { data: brands } = trpc.brand.list.useQuery();
+    const { data: brands } = trpc.brand.list.useQuery();
+
+  // Brand editing state
+  const [showBrandDialog, setShowBrandDialog] = useState(false);
+  const [editBrands, setEditBrands] = useState<{ brandId: number; brandName: string; durationMinutes: number | null }[]>([]);
+  const [brandSearchOpen, setBrandSearchOpen] = useState(false);
+  const [brandSearchValue, setBrandSearchValue] = useState("");
+  const saveBrandsMutation = trpc.liverManagement.saveLivestreamBrands.useMutation({
+    onSuccess: () => {
+      toast.success("ブランドを保存しました");
+      setShowBrandDialog(false);
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(`ブランド保存エラー: ${error.message}`);
+    },
+  });
+
+  const openBrandDialog = () => {
+    // Initialize with current brands
+    if (livestream?.livestreamBrands && livestream.livestreamBrands.length > 0) {
+      setEditBrands(livestream.livestreamBrands.map((lb: any) => ({
+        brandId: lb.brandId,
+        brandName: lb.brandName,
+        durationMinutes: lb.durationMinutes,
+      })));
+    } else if (livestream?.brand) {
+      setEditBrands([{
+        brandId: livestream.brand.id,
+        brandName: livestream.brand.name,
+        durationMinutes: livestream.duration || null,
+      }]);
+    } else {
+      setEditBrands([]);
+    }
+    setShowBrandDialog(true);
+  };
+
+  const addBrandToList = (brand: { id: number; name: string }) => {
+    if (editBrands.some(b => b.brandId === brand.id)) return;
+    setEditBrands([...editBrands, { brandId: brand.id, brandName: brand.name, durationMinutes: null }]);
+    setBrandSearchOpen(false);
+    setBrandSearchValue("");
+  };
+
+  const removeBrandFromList = (brandId: number) => {
+    setEditBrands(editBrands.filter(b => b.brandId !== brandId));
+  };
+
+  const updateBrandDuration = (brandId: number, minutes: number | null) => {
+    setEditBrands(editBrands.map(b => b.brandId === brandId ? { ...b, durationMinutes: minutes } : b));
+  };
+
+  const handleSaveBrands = () => {
+    saveBrandsMutation.mutate({
+      livestreamId,
+      brands: editBrands.map(b => ({
+        brandId: b.brandId,
+        durationMinutes: b.durationMinutes,
+      })),
+    });
+  };
 
   // Initialize form data when livestream is loaded
   // 編集モードに入った時にセット組みデータを読み込む
@@ -1750,7 +1832,20 @@ export default function LivestreamDetail() {
 
                 {/* Delivered Brand with Duration */}
                 <div>
-                  <span className="text-red-500 font-medium">配信したブランド</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-red-500 font-medium">配信したブランド</span>
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={openBrandDialog}
+                        className="text-yellow-500 hover:text-yellow-400 hover:bg-gray-800 h-7 px-2"
+                      >
+                        <Pencil className="w-3 h-3 mr-1" />
+                        修正
+                      </Button>
+                    )}
+                  </div>
                   {livestream.livestreamBrands && livestream.livestreamBrands.length > 0 ? (
                     <div className="mt-2 space-y-2">
                       {livestream.livestreamBrands.map((lb: any) => (
@@ -2081,6 +2176,117 @@ export default function LivestreamDetail() {
           </Button>
         </div>
       </div>
+      {/* Brand Editing Dialog */}
+      <Dialog open={showBrandDialog} onOpenChange={setShowBrandDialog}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-white">配信ブランドの編集</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              ブランドを追加・削除し、配信時間を設定してください
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Brand list */}
+          <div className="space-y-3 max-h-[300px] overflow-y-auto">
+            {editBrands.length === 0 && (
+              <p className="text-gray-500 text-sm text-center py-4">ブランドが未設定です</p>
+            )}
+            {editBrands.map((b) => (
+              <div key={b.brandId} className="flex items-center gap-3 bg-gray-800/70 rounded-lg px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <span className="text-white text-sm font-medium truncate block">{b.brandName}</span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={b.durationMinutes ?? ""}
+                    onChange={(e) => updateBrandDuration(b.brandId, e.target.value ? parseInt(e.target.value) : null)}
+                    className="w-16 h-8 text-center text-white text-sm bg-gray-700 border-gray-600"
+                  />
+                  <span className="text-gray-400 text-xs">分</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeBrandFromList(b.brandId)}
+                  className="text-gray-400 hover:text-red-400 transition-colors shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Add brand */}
+          <div className="pt-2">
+            <Popover open={brandSearchOpen} onOpenChange={setBrandSearchOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-between bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white"
+                >
+                  <span className="flex items-center gap-2">
+                    <Plus className="w-4 h-4" />
+                    ブランドを追加
+                  </span>
+                  <ChevronsUpDown className="w-4 h-4 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0 bg-gray-900 border-gray-700" align="start">
+                <Command className="bg-gray-900">
+                  <CommandInput
+                    placeholder="ブランド名で検索..."
+                    value={brandSearchValue}
+                    onValueChange={setBrandSearchValue}
+                    className="text-white"
+                  />
+                  <CommandList className="max-h-[200px]">
+                    <CommandEmpty className="text-gray-400 text-sm py-3 text-center">見つかりません</CommandEmpty>
+                    <CommandGroup>
+                      {brands?.filter((brand: any) =>
+                        !editBrands.some(b => b.brandId === brand.id) &&
+                        (brand.name?.toLowerCase().includes(brandSearchValue.toLowerCase()) ||
+                         brand.nameJa?.toLowerCase().includes(brandSearchValue.toLowerCase()))
+                      ).slice(0, 20).map((brand: any) => (
+                        <CommandItem
+                          key={brand.id}
+                          value={brand.name}
+                          onSelect={() => addBrandToList(brand)}
+                          className="text-white hover:bg-gray-800 cursor-pointer"
+                        >
+                          <Check className={`w-4 h-4 mr-2 ${editBrands.some(b => b.brandId === brand.id) ? 'opacity-100' : 'opacity-0'}`} />
+                          {brand.name}
+                          {brand.nameJa && brand.nameJa !== brand.name && (
+                            <span className="text-gray-400 ml-2 text-xs">({brand.nameJa})</span>
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              onClick={() => setShowBrandDialog(false)}
+              className="text-gray-300 hover:text-white hover:bg-gray-800"
+            >
+              キャンセル
+            </Button>
+            <Button
+              onClick={handleSaveBrands}
+              disabled={saveBrandsMutation.isPending}
+              className="bg-yellow-600 hover:bg-yellow-700 text-white"
+            >
+              {saveBrandsMutation.isPending ? "保存中..." : "保存"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
