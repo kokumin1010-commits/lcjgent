@@ -165,7 +165,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
             <Select value={String(form.categoryId || "")} onValueChange={v => setForm({ ...form, categoryId: Number(v) })}>
               <SelectTrigger><SelectValue placeholder="選択..." /></SelectTrigger>
               <SelectContent>
-                {categories.filter((c: any) => c.parentId).map((c: any) => { const parent = categories.find((p: any) => p.id === c.parentId); return <SelectItem key={c.id} value={String(c.id)}>{parent ? parent.name + " / " : ""}{c.name}</SelectItem>; })}
+                {categories.map((c: any) => { const parent = c.parentId ? categories.find((p: any) => p.id === c.parentId) : null; return <SelectItem key={c.id} value={String(c.id)}>{parent ? parent.name + " / " : ""}{c.name}</SelectItem>; })}
               </SelectContent>
             </Select>
           </div>
