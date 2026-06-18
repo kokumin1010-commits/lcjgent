@@ -8,26 +8,32 @@ export const selectionCenterRouter = router({
   // ========== Dashboard ==========
   getDashboard: protectedProcedure.query(async () => {
     const db = (await getDb())!;
-    const [products] = await db.select({ count: sql<number>`count(*)` }).from(selectionProducts).where(isNull(selectionProducts.deletedAt));
-    const [online] = await db.select({ count: sql<number>`count(*)` }).from(selectionProducts).where(and(eq(selectionProducts.status, "online"), isNull(selectionProducts.deletedAt)));
-    const [selections] = await db.select({ count: sql<number>`count(*)` }).from(anchorSelections);
-    const [schedules] = await db.select({ count: sql<number>`count(*)` }).from(scSchedules).where(eq(scSchedules.status, "confirmed"));
-    const [gmvResult] = await db.select({ total: sql<string>`COALESCE(SUM(gmv), 0)` }).from(selectionPerformances);
-    return {
-      totalProducts: products.count,
-      onlineProducts: online.count,
-      totalSelections: selections.count,
-      confirmedSchedules: schedules.count,
-      totalGmv: gmvResult.total,
-    };
+    try {
+      const [prodRows] = await db.execute(sql`SELECT COUNT(*) as count FROM selection_products WHERE deletedAt IS NULL`) as any;
+      const [onlineRows] = await db.execute(sql`SELECT COUNT(*) as count FROM selection_products WHERE status = 'online' AND deletedAt IS NULL`) as any;
+      const [selRows] = await db.execute(sql`SELECT COUNT(*) as count FROM anchor_selections`) as any;
+      const [schedRows] = await db.execute(sql`SELECT COUNT(*) as count FROM sc_schedules WHERE status = 'confirmed'`) as any;
+      const [gmvRows] = await db.execute(sql`SELECT COALESCE(SUM(gmv), 0) as total FROM selection_performances`) as any;
+      return {
+        totalProducts: Number(prodRows[0]?.count || 0),
+        onlineProducts: Number(onlineRows[0]?.count || 0),
+        totalSelections: Number(selRows[0]?.count || 0),
+        confirmedSchedules: Number(schedRows[0]?.count || 0),
+        totalGmv: String(gmvRows[0]?.total || '0'),
+      };
+    } catch (e: any) {
+      console.error('[getDashboard] Error:', e.message);
+      return { totalProducts: 0, onlineProducts: 0, totalSelections: 0, confirmedSchedules: 0, totalGmv: '0' };
+    }
   }),
 
   // ========== Categories ==========
   getCategories: protectedProcedure.query(async () => {
     const db = (await getDb())!;
     try {
-      const result = await db.select().from(selectionCategories).orderBy(asc(selectionCategories.sortOrder));
-      return result;
+      // Use raw SQL as fallback to debug drizzle schema issue
+      const rows = await db.execute(sql`SELECT id, name, parentId, sortOrder, createdAt, updatedAt FROM selection_categories ORDER BY sortOrder ASC`);
+      return (rows as any)[0] || rows;
     } catch (e: any) {
       console.error('[getCategories] Error:', e.message, e.code, e.errno, JSON.stringify(e).substring(0, 500));
       throw new Error(`getCategories failed: ${e.message} | code=${e.code} | errno=${e.errno}`);
