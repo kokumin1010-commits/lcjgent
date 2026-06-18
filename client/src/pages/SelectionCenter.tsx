@@ -385,6 +385,16 @@ function LiverSelectionTab() {
                     <p className="text-sm text-muted-foreground">{product.brandName}</p>
                     <div className="flex items-center gap-3 mt-2 text-sm">
                       <span className="font-medium text-orange-600">¥{Number(product.price || 0).toLocaleString()}</span>
+                      {product.marketPrice && Number(product.marketPrice) > 0 && (
+                        <span className="text-muted-foreground line-through text-xs">¥{Number(product.marketPrice).toLocaleString()}</span>
+                      )}
+                      {product.marketPrice && Number(product.marketPrice) > Number(product.price || 0) && (
+                        <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                          {Math.round((1 - Number(product.price || 0) / Number(product.marketPrice)) * 100)}%OFF
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-sm">
                       <Badge variant="outline" className="text-xs">
                         佣金: {product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`}
                       </Badge>
