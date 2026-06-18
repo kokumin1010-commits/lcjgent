@@ -1,19 +1,26 @@
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "./_core/trpc";
-import { getDb } from "./db";
-import { selectionProducts, selectionCategories, anchorSelections, scSchedules, selectionPerformances, selectionSettlements } from "../drizzle/schema";
-import { eq, and, like, sql, desc, asc, isNull } from "drizzle-orm";
+import mysql from "mysql2/promise";
+
+// Direct mysql2 connection pool (bypass drizzle issues on Railway)
+let _pool: mysql.Pool | null = null;
+function getPool() {
+  if (!_pool && process.env.DATABASE_URL) {
+    _pool = mysql.createPool(process.env.DATABASE_URL);
+  }
+  return _pool!;
+}
 
 export const selectionCenterRouter = router({
   // ========== Dashboard ==========
   getDashboard: protectedProcedure.query(async () => {
-    const db = (await getDb())!;
     try {
-      const [prodRows] = await db.execute(sql`SELECT COUNT(*) as count FROM selection_products WHERE deletedAt IS NULL`) as any;
-      const [onlineRows] = await db.execute(sql`SELECT COUNT(*) as count FROM selection_products WHERE status = 'online' AND deletedAt IS NULL`) as any;
-      const [selRows] = await db.execute(sql`SELECT COUNT(*) as count FROM anchor_selections`) as any;
-      const [schedRows] = await db.execute(sql`SELECT COUNT(*) as count FROM sc_schedules WHERE status = 'confirmed'`) as any;
-      const [gmvRows] = await db.execute(sql`SELECT COALESCE(SUM(gmv), 0) as total FROM selection_performances`) as any;
+      const pool = getPool();
+      const [prodRows] = await pool.query('SELECT COUNT(*) as count FROM selection_products WHERE deletedAt IS NULL') as any;
+      const [onlineRows] = await pool.query("SELECT COUNT(*) as count FROM selection_products WHERE status = 'online' AND deletedAt IS NULL") as any;
+      const [selRows] = await pool.query('SELECT COUNT(*) as count FROM anchor_selections') as any;
+      const [schedRows] = await pool.query("SELECT COUNT(*) as count FROM sc_schedules WHERE status = 'confirmed'") as any;
+      const [gmvRows] = await pool.query('SELECT COALESCE(SUM(gmv), 0) as total FROM selection_performances') as any;
       return {
         totalProducts: Number(prodRows[0]?.count || 0),
         onlineProducts: Number(onlineRows[0]?.count || 0),
@@ -29,13 +36,12 @@ export const selectionCenterRouter = router({
 
   // ========== Categories ==========
   getCategories: protectedProcedure.query(async () => {
-    const db = (await getDb())!;
     try {
-      // Use raw SQL as fallback to debug drizzle schema issue
-      const rows = await db.execute(sql`SELECT id, name, parentId, sortOrder, createdAt, updatedAt FROM selection_categories ORDER BY sortOrder ASC`);
-      return (rows as any)[0] || rows;
+      const pool = getPool();
+      const [rows] = await pool.query('SELECT id, name, parentId, sortOrder, createdAt, updatedAt FROM selection_categories ORDER BY sortOrder ASC');
+      return rows;
     } catch (e: any) {
-      console.error('[getCategories] Error:', e.message, e.code, e.errno, JSON.stringify(e).substring(0, 500));
+      console.error('[getCategories] Error:', e.message, e.code, e.errno);
       throw new Error(`getCategories failed: ${e.message} | code=${e.code} | errno=${e.errno}`);
     }
   }),
@@ -45,8 +51,11 @@ export const selectionCenterRouter = router({
     parentId: z.number().optional(),
     sortOrder: z.number().optional(),
   })).mutation(async ({ input }) => {
-    const db = (await getDb())!;
-    const [result] = await db.insert(selectionCategories).values(input);
+    const pool = getPool();
+    const [result] = await pool.query(
+      'INSERT INTO selection_categories (name, parentId, sortOrder) VALUES (?, ?, ?)',
+      [input.name, input.parentId || null, input.sortOrder || 0]
+    ) as any;
     return { id: result.insertId };
   }),
 
@@ -58,17 +67,16 @@ export const selectionCenterRouter = router({
     page: z.number().default(1),
     pageSize: z.number().default(50),
   })).query(async ({ input }) => {
-    const db = (await getDb())!;
-    const conditions: any[] = [isNull(selectionProducts.deletedAt)];
-    if (input.status) conditions.push(eq(selectionProducts.status, input.status));
-    if (input.categoryId) conditions.push(eq(selectionProducts.categoryId, input.categoryId));
-    if (input.search) {
-      conditions.push(sql`(${selectionProducts.productName} LIKE ${`%${input.search}%`} OR ${selectionProducts.brandName} LIKE ${`%${input.search}%`} OR ${selectionProducts.barcode} LIKE ${`%${input.search}%`})`);
-    }
-    const where = and(...conditions);
-    const items = await db.select().from(selectionProducts).where(where).orderBy(desc(selectionProducts.createdAt)).limit(input.pageSize).offset((input.page - 1) * input.pageSize);
-    const [countResult] = await db.select({ count: sql<number>`count(*)` }).from(selectionProducts).where(where);
-    return { items, total: countResult.count };
+    const pool = getPool();
+    let where = 'WHERE deletedAt IS NULL';
+    const params: any[] = [];
+    if (input.status) { where += ' AND status = ?'; params.push(input.status); }
+    if (input.categoryId) { where += ' AND categoryId = ?'; params.push(input.categoryId); }
+    if (input.search) { where += ' AND (productName LIKE ? OR brandName LIKE ? OR barcode LIKE ?)'; params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`); }
+    const offset = (input.page - 1) * input.pageSize;
+    const [items] = await pool.query(`SELECT * FROM selection_products ${where} ORDER BY createdAt DESC LIMIT ? OFFSET ?`, [...params, input.pageSize, offset]) as any;
+    const [countResult] = await pool.query(`SELECT COUNT(*) as count FROM selection_products ${where}`, params) as any;
+    return { items, total: Number(countResult[0]?.count || 0) };
   }),
 
   createProduct: protectedProcedure.input(z.object({
@@ -90,11 +98,11 @@ export const selectionCenterRouter = router({
     stock: z.number().optional(),
     supplierContact: z.string().optional(),
   })).mutation(async ({ input, ctx }) => {
-    const db = (await getDb())!;
-    const [result] = await db.insert(selectionProducts).values({
-      ...input,
-      createdBy: (ctx.user as any)?.id || 0,
-    } as any);
+    const pool = getPool();
+    const [result] = await pool.query(
+      `INSERT INTO selection_products (productName, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [input.productName, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, (ctx.user as any)?.id || 0]
+    ) as any;
     return { id: result.insertId };
   }),
 
@@ -118,9 +126,19 @@ export const selectionCenterRouter = router({
     stock: z.number().optional(),
     supplierContact: z.string().optional(),
   })).mutation(async ({ input }) => {
-    const db = (await getDb())!;
+    const pool = getPool();
     const { id, ...data } = input;
-    await db.update(selectionProducts).set(data as any).where(eq(selectionProducts.id, id));
+    const setClauses: string[] = [];
+    const params: any[] = [];
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        setClauses.push(`${key} = ?`);
+        params.push(key === 'images' || key === 'videos' ? JSON.stringify(value) : value);
+      }
+    }
+    if (setClauses.length === 0) return { success: true };
+    params.push(id);
+    await pool.query(`UPDATE selection_products SET ${setClauses.join(', ')} WHERE id = ?`, params);
     return { success: true };
   }),
 
@@ -128,27 +146,30 @@ export const selectionCenterRouter = router({
     id: z.number(),
     status: z.enum(["draft", "online", "offline"]),
   })).mutation(async ({ input }) => {
-    const db = (await getDb())!;
-    await db.update(selectionProducts).set({ status: input.status }).where(eq(selectionProducts.id, input.id));
+    const pool = getPool();
+    await pool.query('UPDATE selection_products SET status = ? WHERE id = ?', [input.status, input.id]);
     return { success: true };
   }),
 
   deleteProduct: protectedProcedure.input(z.object({
     id: z.number(),
   })).mutation(async ({ input }) => {
-    const db = (await getDb())!;
-    // Soft delete
-    await db.update(selectionProducts).set({ deletedAt: new Date() } as any).where(eq(selectionProducts.id, input.id));
+    const pool = getPool();
+    await pool.query('UPDATE selection_products SET deletedAt = NOW() WHERE id = ?', [input.id]);
     return { success: true };
   }),
 
   // ========== Schedules ==========
   getSchedules: protectedProcedure.query(async () => {
-    const db = (await getDb())!;
-    const schedules = await db.select().from(scSchedules).orderBy(desc(scSchedules.liveDate));
-    const productIds = [...new Set(schedules.map(s => s.productId))];
-    const products = productIds.length > 0 ? await db.select().from(selectionProducts).where(sql`${selectionProducts.id} IN (${sql.join(productIds.map(id => sql`${id}`), sql`,`)})`) : [];
-    return schedules.map(s => ({ ...s, product: products.find(p => p.id === s.productId) }));
+    const pool = getPool();
+    const [schedules] = await pool.query('SELECT * FROM sc_schedules ORDER BY liveDate DESC') as any;
+    const productIds = [...new Set(schedules.map((s: any) => s.productId))];
+    let products: any[] = [];
+    if (productIds.length > 0) {
+      const [prods] = await pool.query(`SELECT * FROM selection_products WHERE id IN (${productIds.map(() => '?').join(',')})`, productIds) as any;
+      products = prods;
+    }
+    return schedules.map((s: any) => ({ ...s, product: products.find((p: any) => p.id === s.productId) }));
   }),
 
   createSchedule: protectedProcedure.input(z.object({
@@ -160,11 +181,11 @@ export const selectionCenterRouter = router({
     durationMinutes: z.number().optional(),
     slotOrder: z.number().optional(),
   })).mutation(async ({ input, ctx }) => {
-    const db = (await getDb())!;
-    const [result] = await db.insert(scSchedules).values({
-      ...input,
-      createdBy: (ctx.user as any)?.id || 0,
-    } as any);
+    const pool = getPool();
+    const [result] = await pool.query(
+      'INSERT INTO sc_schedules (anchorId, productId, liveDate, startTime, endTime, durationMinutes, slotOrder, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [input.anchorId, input.productId, input.liveDate, input.startTime || null, input.endTime || null, input.durationMinutes || null, input.slotOrder || null, (ctx.user as any)?.id || 0]
+    ) as any;
     return { id: result.insertId };
   }),
 
@@ -176,19 +197,30 @@ export const selectionCenterRouter = router({
     durationMinutes: z.number().optional(),
     slotOrder: z.number().optional(),
   })).mutation(async ({ input }) => {
-    const db = (await getDb())!;
+    const pool = getPool();
     const { id, ...data } = input;
-    await db.update(scSchedules).set(data as any).where(eq(scSchedules.id, id));
+    const setClauses: string[] = [];
+    const params: any[] = [];
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) { setClauses.push(`${key} = ?`); params.push(value); }
+    }
+    if (setClauses.length === 0) return { success: true };
+    params.push(id);
+    await pool.query(`UPDATE sc_schedules SET ${setClauses.join(', ')} WHERE id = ?`, params);
     return { success: true };
   }),
 
   // ========== Performances ==========
   getPerformances: protectedProcedure.query(async () => {
-    const db = (await getDb())!;
-    const perfs = await db.select().from(selectionPerformances).orderBy(desc(selectionPerformances.liveDate));
-    const productIds = [...new Set(perfs.map(p => p.productId))];
-    const products = productIds.length > 0 ? await db.select().from(selectionProducts).where(sql`${selectionProducts.id} IN (${sql.join(productIds.map(id => sql`${id}`), sql`,`)})`) : [];
-    return perfs.map(p => ({ ...p, product: products.find(pr => pr.id === p.productId) }));
+    const pool = getPool();
+    const [perfs] = await pool.query('SELECT * FROM selection_performances ORDER BY liveDate DESC') as any;
+    const productIds = [...new Set(perfs.map((p: any) => p.productId))];
+    let products: any[] = [];
+    if (productIds.length > 0) {
+      const [prods] = await pool.query(`SELECT * FROM selection_products WHERE id IN (${productIds.map(() => '?').join(',')})`, productIds) as any;
+      products = prods;
+    }
+    return perfs.map((p: any) => ({ ...p, product: products.find((pr: any) => pr.id === p.productId) }));
   }),
 
   createPerformance: protectedProcedure.input(z.object({
@@ -203,15 +235,19 @@ export const selectionCenterRouter = router({
     remark: z.string().optional(),
     status: z.enum(["draft", "confirmed"]).optional(),
   })).mutation(async ({ input }) => {
-    const db = (await getDb())!;
-    const [result] = await db.insert(selectionPerformances).values(input as any);
+    const pool = getPool();
+    const [result] = await pool.query(
+      'INSERT INTO selection_performances (productId, liverId, scheduleId, liveDate, gmv, salesCount, avgViewers, commissionAmount, remark, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [input.productId, input.liverId, input.scheduleId || null, input.liveDate, input.gmv || '0', input.salesCount || 0, input.avgViewers || 0, input.commissionAmount || '0', input.remark || null, input.status || 'draft']
+    ) as any;
     return { id: result.insertId };
   }),
 
   // ========== Settlements ==========
   getSettlements: protectedProcedure.query(async () => {
-    const db = (await getDb())!;
-    return db.select().from(selectionSettlements).orderBy(desc(selectionSettlements.createdAt));
+    const pool = getPool();
+    const [rows] = await pool.query('SELECT * FROM selection_settlements ORDER BY createdAt DESC') as any;
+    return rows;
   }),
 
   generateSettlement: protectedProcedure.input(z.object({
@@ -219,27 +255,17 @@ export const selectionCenterRouter = router({
     periodStart: z.string(),
     periodEnd: z.string(),
   })).mutation(async ({ input, ctx }) => {
-    const db = (await getDb())!;
-    // Get all confirmed performances for this liver in the period
-    const perfs = await db.select().from(selectionPerformances).where(
-      and(
-        eq(selectionPerformances.liverId, input.liverId),
-        eq(selectionPerformances.status, "confirmed"),
-        sql`${selectionPerformances.liveDate} >= ${input.periodStart}`,
-        sql`${selectionPerformances.liveDate} <= ${input.periodEnd}`,
-      )
-    );
-    const totalGmv = perfs.reduce((sum, p) => sum + Number(p.gmv || 0), 0);
-    const totalCommission = perfs.reduce((sum, p) => sum + Number(p.commissionAmount || 0), 0);
-    const [result] = await db.insert(selectionSettlements).values({
-      liverId: input.liverId,
-      periodStart: input.periodStart,
-      periodEnd: input.periodEnd,
-      totalGmv: String(totalGmv),
-      totalCommission: String(totalCommission),
-      settledPerformanceIds: perfs.map(p => p.id),
-      createdBy: (ctx.user as any)?.id || 0,
-    } as any);
+    const pool = getPool();
+    const [perfs] = await pool.query(
+      "SELECT * FROM selection_performances WHERE liverId = ? AND status = 'confirmed' AND liveDate >= ? AND liveDate <= ?",
+      [input.liverId, input.periodStart, input.periodEnd]
+    ) as any;
+    const totalGmv = perfs.reduce((sum: number, p: any) => sum + Number(p.gmv || 0), 0);
+    const totalCommission = perfs.reduce((sum: number, p: any) => sum + Number(p.commissionAmount || 0), 0);
+    const [result] = await pool.query(
+      'INSERT INTO selection_settlements (liverId, periodStart, periodEnd, totalGmv, totalCommission, settledPerformanceIds, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [input.liverId, input.periodStart, input.periodEnd, String(totalGmv), String(totalCommission), JSON.stringify(perfs.map((p: any) => p.id)), (ctx.user as any)?.id || 0]
+    ) as any;
     return { id: result.insertId, totalGmv: String(totalGmv), totalCommission: String(totalCommission) };
   }),
 
@@ -247,10 +273,12 @@ export const selectionCenterRouter = router({
     id: z.number(),
     status: z.enum(["pending", "confirmed", "paid"]),
   })).mutation(async ({ input }) => {
-    const db = (await getDb())!;
-    const updates: any = { status: input.status };
-    if (input.status === "paid") updates.paidAt = new Date();
-    await db.update(selectionSettlements).set(updates).where(eq(selectionSettlements.id, input.id));
+    const pool = getPool();
+    if (input.status === "paid") {
+      await pool.query('UPDATE selection_settlements SET status = ?, paidAt = NOW() WHERE id = ?', [input.status, input.id]);
+    } else {
+      await pool.query('UPDATE selection_settlements SET status = ? WHERE id = ?', [input.status, input.id]);
+    }
     return { success: true };
   }),
 
@@ -258,39 +286,36 @@ export const selectionCenterRouter = router({
   getLiverAvailableProducts: publicProcedure.input(z.object({
     search: z.string().optional(),
   })).query(async ({ input }) => {
-    const db = (await getDb())!;
-    const conditions: any[] = [eq(selectionProducts.status, "online"), isNull(selectionProducts.deletedAt)];
-    if (input.search) {
-      conditions.push(sql`(${selectionProducts.productName} LIKE ${`%${input.search}%`} OR ${selectionProducts.brandName} LIKE ${`%${input.search}%`} OR ${selectionProducts.barcode} LIKE ${`%${input.search}%`})`);
-    }
-    return db.select().from(selectionProducts).where(and(...conditions)).orderBy(desc(selectionProducts.createdAt));
+    const pool = getPool();
+    let where = "WHERE status = 'online' AND deletedAt IS NULL";
+    const params: any[] = [];
+    if (input.search) { where += ' AND (productName LIKE ? OR brandName LIKE ? OR barcode LIKE ?)'; params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`); }
+    const [rows] = await pool.query(`SELECT * FROM selection_products ${where} ORDER BY createdAt DESC`, params) as any;
+    return rows;
   }),
 
   liverSelectProduct: publicProcedure.input(z.object({
     productId: z.number(),
     liverId: z.number(),
   })).mutation(async ({ input }) => {
-    const db = (await getDb())!;
-    // Check if already selected
-    const existing = await db.select().from(anchorSelections).where(
-      and(eq(anchorSelections.productId, input.productId), eq(anchorSelections.liverId, input.liverId))
-    );
+    const pool = getPool();
+    const [existing] = await pool.query('SELECT id FROM anchor_selections WHERE productId = ? AND liverId = ?', [input.productId, input.liverId]) as any;
     if (existing.length > 0) throw new Error("既に選品済みです");
-    const [result] = await db.insert(anchorSelections).values(input as any);
+    const [result] = await pool.query('INSERT INTO anchor_selections (productId, liverId) VALUES (?, ?)', [input.productId, input.liverId]) as any;
     return { id: result.insertId };
   }),
 
   getLiverMySelections: publicProcedure.input(z.object({
     liverId: z.number(),
   })).query(async ({ input }) => {
-    const db = (await getDb())!;
+    const pool = getPool();
     if (!input.liverId) return [];
-    const selections = await db.select().from(anchorSelections).where(eq(anchorSelections.liverId, input.liverId)).orderBy(desc(anchorSelections.createdAt));
-    const productIds = selections.map(s => s.productId);
+    const [selections] = await pool.query('SELECT * FROM anchor_selections WHERE liverId = ? ORDER BY createdAt DESC', [input.liverId]) as any;
+    const productIds = selections.map((s: any) => s.productId);
     if (productIds.length === 0) return [];
-    const products = await db.select().from(selectionProducts).where(sql`${selectionProducts.id} IN (${sql.join(productIds.map(id => sql`${id}`), sql`,`)})`);
-    return selections.map(s => {
-      const p = products.find(pr => pr.id === s.productId);
+    const [products] = await pool.query(`SELECT * FROM selection_products WHERE id IN (${productIds.map(() => '?').join(',')})`, productIds) as any;
+    return selections.map((s: any) => {
+      const p = products.find((pr: any) => pr.id === s.productId);
       return { ...s, productName: p?.productName, brandName: p?.brandName, commissionType: p?.commissionType, commissionValue: p?.commissionValue };
     });
   }),
@@ -298,12 +323,12 @@ export const selectionCenterRouter = router({
   getLiverMyPerformance: publicProcedure.input(z.object({
     liverId: z.number(),
   })).query(async ({ input }) => {
-    const db = (await getDb())!;
+    const pool = getPool();
     if (!input.liverId) return [];
-    const perfs = await db.select().from(selectionPerformances).where(eq(selectionPerformances.liverId, input.liverId)).orderBy(desc(selectionPerformances.liveDate));
-    const productIds = [...new Set(perfs.map(p => p.productId))];
+    const [perfs] = await pool.query('SELECT * FROM selection_performances WHERE liverId = ? ORDER BY liveDate DESC', [input.liverId]) as any;
+    const productIds = [...new Set(perfs.map((p: any) => p.productId))];
     if (productIds.length === 0) return perfs;
-    const products = await db.select().from(selectionProducts).where(sql`${selectionProducts.id} IN (${sql.join(productIds.map(id => sql`${id}`), sql`,`)})`);
-    return perfs.map(p => ({ ...p, productName: products.find(pr => pr.id === p.productId)?.productName }));
+    const [products] = await pool.query(`SELECT * FROM selection_products WHERE id IN (${productIds.map(() => '?').join(',')})`, productIds) as any;
+    return perfs.map((p: any) => ({ ...p, productName: products.find((pr: any) => pr.id === p.productId)?.productName }));
   }),
 });
