@@ -79,7 +79,7 @@ function ProductsTab() {
                   <td className="p-3 font-medium max-w-[200px] truncate">{product.productName}</td>
                   <td className="p-3 text-muted-foreground text-xs font-mono">{product.barcode || "-"}</td>
                   <td className="p-3 text-muted-foreground">{product.brandName}</td>
-                  <td className="p-3">{category?.name || "-"}</td>
+                  <td className="p-3">{category ? (categoriesQuery.data?.find((p: any) => p.id === category.parentId)?.name ? categoriesQuery.data.find((p: any) => p.id === category.parentId).name + " / " + category.name : category.name) : "-"}</td>
                   <td className="p-3 text-right">¥{Number(product.price || 0).toLocaleString()}</td>
                   <td className="p-3 text-right">
                     {product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`}
@@ -165,7 +165,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
             <Select value={String(form.categoryId || "")} onValueChange={v => setForm({ ...form, categoryId: Number(v) })}>
               <SelectTrigger><SelectValue placeholder="選択..." /></SelectTrigger>
               <SelectContent>
-                {categories.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                {categories.filter((c: any) => c.parentId).map((c: any) => { const parent = categories.find((p: any) => p.id === c.parentId); return <SelectItem key={c.id} value={String(c.id)}>{parent ? parent.name + " / " : ""}{c.name}</SelectItem>; })}
               </SelectContent>
             </Select>
           </div>
