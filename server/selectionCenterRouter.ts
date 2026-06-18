@@ -429,4 +429,47 @@ export const selectionCenterRouter = router({
     const [products] = await pool.query(`SELECT * FROM selection_products WHERE id IN (${productIds.map(() => '?').join(',')})`, productIds) as any;
     return perfs.map((p: any) => ({ ...p, productName: products.find((pr: any) => pr.id === p.productId)?.productName }));
   }),
+
+  // Get active livers for dropdown
+  getLivers: publicProcedure.query(async () => {
+    const pool = getPool();
+    try {
+      const [rows] = await pool.query('SELECT id, name FROM livers WHERE isActive = 1 ORDER BY name ASC') as any;
+      return rows;
+    } catch (e) {
+      // livers table might not exist in this DB
+      return [];
+    }
+  }),
+
+  // Get all selections (admin view)
+  getSelections: protectedProcedure.query(async () => {
+    const pool = getPool();
+    const [selections] = await pool.query('SELECT * FROM anchor_selections ORDER BY createdAt DESC') as any;
+    if (selections.length === 0) return [];
+    const productIds = [...new Set(selections.map((s: any) => s.productId))];
+    const liverIds = [...new Set(selections.map((s: any) => s.liverId))];
+    const [products] = await pool.query(`SELECT id, productName, brandName, commissionType, commissionValue FROM selection_products WHERE id IN (${productIds.map(() => '?').join(',')})`, productIds) as any;
+    let livers: any[] = [];
+    if (liverIds.length > 0) {
+      try {
+        const [liverRows] = await pool.query(`SELECT id, name FROM livers WHERE id IN (${liverIds.map(() => '?').join(',')})`, liverIds) as any;
+        livers = liverRows;
+      } catch (e) { /* livers table might not exist in this DB */ }
+    }
+    return selections.map((s: any) => {
+      const p = products.find((pr: any) => pr.id === s.productId);
+      const l = livers.find((lr: any) => lr.id === s.liverId);
+      return { ...s, productName: p?.productName, brandName: p?.brandName, commissionType: p?.commissionType, commissionValue: p?.commissionValue, liverName: l?.name || `ID:${s.liverId}` };
+    });
+  }),
+
+  // Delete a selection
+  deleteSelection: protectedProcedure.input(z.object({
+    id: z.number(),
+  })).mutation(async ({ input }) => {
+    const pool = getPool();
+    await pool.query('DELETE FROM anchor_selections WHERE id = ?', [input.id]);
+    return { success: true };
+  }),
 });

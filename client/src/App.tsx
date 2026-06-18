@@ -80,7 +80,6 @@ const LiverForgotPassword = lazy(() => import("./pages/LiverForgotPassword"));
 const LiverResetPassword = lazy(() => import("./pages/LiverResetPassword"));
 const LiverProductSelect = lazy(() => import("./pages/LiverProductSelect"));
 const LiverProductCatalog = lazy(() => import("./pages/LiverProductCatalog"));
-const LiverSelectionCenter = lazy(() => import("./pages/LiverSelectionCenter"));
 const LiverDashboard = lazy(() => import("./pages/LiverDashboard"));
 const LiverAiCoach = lazy(() => import("./pages/LiverAiCoach"));
 const LiverLineSetup = lazy(() => import("./pages/LiverLineSetup"));
@@ -541,11 +540,6 @@ function Router() {
         <Route path={"/liver/products/:brandId"}>
           <ProtectedLiverRoute>
             <LiverProductSelect />
-          </ProtectedLiverRoute>
-        </Route>
-        <Route path={"/liver/selection-center"}>
-          <ProtectedLiverRoute>
-            <LiverSelectionCenter />
           </ProtectedLiverRoute>
         </Route>
         

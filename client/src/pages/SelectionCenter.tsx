@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle } from "lucide-react";
+import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 // ==================== Products Tab ====================
@@ -109,7 +109,7 @@ function ProductsTab() {
               );
             })}
             {(!productsQuery.data?.items || productsQuery.data.items.length === 0) && (
-              <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">商品がありません</td></tr>
+              <tr><td colSpan={9} className="p-8 text-center text-muted-foreground">商品がありません</td></tr>
             )}
           </tbody>
         </table>
@@ -216,6 +216,158 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ==================== 主播選品 Tab ====================
+function LiverSelectionTab() {
+  const [search, setSearch] = useState("");
+  const [selectedLiverId, setSelectedLiverId] = useState<string>("");
+
+  const productsQuery = trpc.selectionCenter.getLiverAvailableProducts.useQuery({
+    search: search || undefined,
+  });
+  const liversQuery = trpc.selectionCenter.getLivers.useQuery();
+  const selectionsQuery = trpc.selectionCenter.getSelections.useQuery();
+
+  const selectMutation = trpc.selectionCenter.liverSelectProduct.useMutation({
+    onSuccess: () => {
+      selectionsQuery.refetch();
+      toast.success("選品しました！");
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+
+  const deleteMutation = trpc.selectionCenter.deleteSelection.useMutation({
+    onSuccess: () => {
+      selectionsQuery.refetch();
+      toast.success("選品を取消しました");
+    },
+  });
+
+  // Get product IDs already selected by the current liver
+  const selectedProductIds = useMemo(() => {
+    if (!selectedLiverId || !selectionsQuery.data) return new Set<number>();
+    return new Set(
+      selectionsQuery.data
+        .filter((s: any) => s.liverId === Number(selectedLiverId))
+        .map((s: any) => s.productId)
+    );
+  }, [selectedLiverId, selectionsQuery.data]);
+
+  return (
+    <div className="space-y-6">
+      {/* Liver selector and search */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Label className="whitespace-nowrap font-medium">主播:</Label>
+          <Select value={selectedLiverId} onValueChange={setSelectedLiverId}>
+            <SelectTrigger className="w-[200px]"><SelectValue placeholder="主播を選択..." /></SelectTrigger>
+            <SelectContent>
+              {(liversQuery.data || []).map((liver: any) => (
+                <SelectItem key={liver.id} value={String(liver.id)}>{liver.name}</SelectItem>
+              ))}
+              {(!liversQuery.data || liversQuery.data.length === 0) && (
+                <SelectItem value="__none" disabled>主播がいません</SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="商品名・ブランド名で検索..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+        </div>
+      </div>
+
+      {/* Available products grid */}
+      <div>
+        <h4 className="text-sm font-medium text-muted-foreground mb-3">公開中の商品（{productsQuery.data?.length || 0}件）</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {productsQuery.data?.map((product: any) => (
+            <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex justify-between items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold truncate">{product.productName}</h3>
+                    <p className="text-sm text-muted-foreground">{product.brandName}</p>
+                    <div className="flex items-center gap-3 mt-2 text-sm">
+                      <span className="font-medium text-orange-600">¥{Number(product.price || 0).toLocaleString()}</span>
+                      <Badge variant="outline" className="text-xs">
+                        佣金: {product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`}
+                      </Badge>
+                    </div>
+                    {product.sellingPoints && (
+                      <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{product.sellingPoints}</p>
+                    )}
+                  </div>
+                  <div>
+                    {!selectedLiverId ? (
+                      <Button size="sm" variant="outline" disabled className="text-xs">主播を選択</Button>
+                    ) : selectedProductIds.has(product.id) ? (
+                      <Button size="sm" variant="secondary" disabled><Check className="h-4 w-4 mr-1" />選品済</Button>
+                    ) : (
+                      <Button size="sm" onClick={() => selectMutation.mutate({ productId: product.id, liverId: Number(selectedLiverId) })} disabled={selectMutation.isPending}>
+                        選品する
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {(!productsQuery.data || productsQuery.data.length === 0) && (
+            <div className="col-span-full text-center py-12 text-muted-foreground">
+              公開中の商品がありません。「商品管理」タブで商品を公開してください。
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Current selections list */}
+      {selectionsQuery.data && selectionsQuery.data.length > 0 && (
+        <div>
+          <h4 className="text-sm font-medium text-muted-foreground mb-3">選品一覧（{selectionsQuery.data.length}件）</h4>
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="text-left p-3 font-medium">主播</th>
+                  <th className="text-left p-3 font-medium">商品名</th>
+                  <th className="text-left p-3 font-medium">ブランド</th>
+                  <th className="text-center p-3 font-medium">佣金</th>
+                  <th className="text-center p-3 font-medium">ステータス</th>
+                  <th className="text-center p-3 font-medium">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectionsQuery.data.map((s: any) => (
+                  <tr key={s.id} className="border-t hover:bg-muted/30">
+                    <td className="p-3 font-medium">{s.liverName}</td>
+                    <td className="p-3">{s.productName || "-"}</td>
+                    <td className="p-3 text-muted-foreground">{s.brandName || "-"}</td>
+                    <td className="p-3 text-center">
+                      {s.commissionType === "percentage" ? `${s.commissionValue}%` : `¥${s.commissionValue}`}
+                    </td>
+                    <td className="p-3 text-center">
+                      <Badge variant={s.status === "approved" ? "default" : s.status === "rejected" ? "destructive" : "secondary"}>
+                        {s.status === "approved" ? "承認済" : s.status === "rejected" ? "却下" : "保留中"}
+                      </Badge>
+                    </td>
+                    <td className="p-3 text-center">
+                      <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate({ id: s.id })}>
+                        <X className="h-3.5 w-3.5 text-red-500" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -465,11 +617,13 @@ export default function SelectionCenter() {
       <Tabs defaultValue="products" className="space-y-4">
         <TabsList>
           <TabsTrigger value="products"><Package className="h-4 w-4 mr-1" />商品管理</TabsTrigger>
+          <TabsTrigger value="liver-selection"><ShoppingBag className="h-4 w-4 mr-1" />主播選品</TabsTrigger>
           <TabsTrigger value="schedules"><Calendar className="h-4 w-4 mr-1" />排期管理</TabsTrigger>
           <TabsTrigger value="performances"><TrendingUp className="h-4 w-4 mr-1" />帯貨データ</TabsTrigger>
           <TabsTrigger value="settlements"><DollarSign className="h-4 w-4 mr-1" />結算管理</TabsTrigger>
         </TabsList>
         <TabsContent value="products"><ProductsTab /></TabsContent>
+        <TabsContent value="liver-selection"><LiverSelectionTab /></TabsContent>
         <TabsContent value="schedules"><SchedulesTab /></TabsContent>
         <TabsContent value="performances"><PerformancesTab /></TabsContent>
         <TabsContent value="settlements"><SettlementsTab /></TabsContent>
