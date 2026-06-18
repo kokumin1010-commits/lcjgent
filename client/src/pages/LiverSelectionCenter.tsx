@@ -19,8 +19,8 @@ export default function LiverSelectionCenter() {
   const productsQuery = trpc.selectionCenter.getLiverAvailableProducts.useQuery({
     search: search || undefined,
   });
-  const mySelectionsQuery = trpc.selectionCenter.getLiverMySelections.useQuery({ anchorId });
-  const myPerformanceQuery = trpc.selectionCenter.getLiverMyPerformance.useQuery({ anchorId });
+  const mySelectionsQuery = trpc.selectionCenter.getLiverMySelections.useQuery({ liverId: anchorId });
+  const myPerformanceQuery = trpc.selectionCenter.getLiverMyPerformance.useQuery({ liverId: anchorId });
 
   const selectMutation = trpc.selectionCenter.liverSelectProduct.useMutation({
     onSuccess: () => {
@@ -75,7 +75,7 @@ export default function LiverSelectionCenter() {
                       {selectedProductIds.has(product.id) ? (
                         <Button size="sm" variant="secondary" disabled><Check className="h-4 w-4 mr-1" />選品済</Button>
                       ) : (
-                        <Button size="sm" onClick={() => selectMutation.mutate({ productId: product.id, anchorId })} disabled={selectMutation.isPending}>
+                        <Button size="sm" onClick={() => selectMutation.mutate({ productId: product.id, liverId: anchorId })} disabled={selectMutation.isPending}>
                           選品する
                         </Button>
                       )}

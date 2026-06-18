@@ -1,93 +1,100 @@
-import { mysqlTable, int, varchar, text, decimal, timestamp, mysqlEnum, json } from "drizzle-orm/mysql-core";
+import { mysqlTable, int, varchar, text, decimal, timestamp, mysqlEnum, json, date } from "drizzle-orm/mysql-core";
 
-// 選品商品プール
+// 選品商品プール (actual DB structure)
 export const selectionProducts = mysqlTable("selection_products", {
   id: int("id").primaryKey().autoincrement(),
-  productName: varchar("productName", { length: 500 }).notNull(),
-  barcode: varchar("barcode", { length: 100 }),
   brandName: varchar("brandName", { length: 255 }).notNull(),
+  brandId: int("brandId"),
+  productName: varchar("productName", { length: 500 }).notNull(),
   categoryId: int("categoryId"),
-  price: decimal("price", { precision: 10, scale: 2 }),
-  marketPrice: decimal("marketPrice", { precision: 10, scale: 2 }),
-  commissionType: mysqlEnum("commissionType", ["percentage", "fixed"]).default("percentage"),
-  commissionValue: decimal("commissionValue", { precision: 10, scale: 2 }),
-  imageUrl: text("imageUrl"),
-  productLink: text("productLink"),
+  price: decimal("price", { precision: 12, scale: 2 }),
+  marketPrice: decimal("marketPrice", { precision: 12, scale: 2 }),
+  costPrice: decimal("costPrice", { precision: 12, scale: 2 }),
+  commissionType: mysqlEnum("commissionType", ["percentage", "fixed"]).notNull().default("percentage"),
+  commissionValue: decimal("commissionValue", { precision: 10, scale: 2 }).default("0"),
+  stock: int("stock").default(0),
+  images: json("images"),
+  videos: json("videos"),
   sellingPoints: text("sellingPoints"),
-  stock: int("stock"),
+  productLink: varchar("productLink", { length: 500 }),
   supplierContact: varchar("supplierContact", { length: 255 }),
-  status: mysqlEnum("status", ["draft", "online", "offline"]).default("draft"),
+  description: text("description"),
+  status: mysqlEnum("status", ["draft", "online", "offline"]).notNull().default("draft"),
+  createdBy: int("createdBy").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  deletedAt: timestamp("deletedAt"),
+  barcode: varchar("barcode", { length: 100 }),
 });
 
-// 選品カテゴリ
+// 選品カテゴリ (actual DB structure)
 export const selectionCategories = mysqlTable("selection_categories", {
   id: int("id").primaryKey().autoincrement(),
-  name: varchar("name", { length: 255 }).notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
   parentId: int("parentId"),
-  sortOrder: int("sortOrder").default(0),
+  sortOrder: int("sortOrder").notNull().default(0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
-// 主播選品記録
+// 主播選品記録 (actual DB structure)
 export const anchorSelections = mysqlTable("anchor_selections", {
   id: int("id").primaryKey().autoincrement(),
+  liverId: int("liverId").notNull(),
   productId: int("productId").notNull(),
-  anchorId: int("anchorId").notNull(),
-  status: mysqlEnum("status", ["selected", "scheduled", "completed", "cancelled"]).default("selected"),
-  scheduledDate: varchar("scheduledDate", { length: 20 }),
-  notes: text("notes"),
+  status: mysqlEnum("status", ["selected", "scheduled", "completed"]).notNull().default("selected"),
+  selectedAt: timestamp("selectedAt").defaultNow().notNull(),
+  remark: text("remark"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
-// 排期管理
-export const selectionSchedules = mysqlTable("selection_schedules", {
+// 排期管理 (actual DB: sc_schedules)
+export const scSchedules = mysqlTable("sc_schedules", {
   id: int("id").primaryKey().autoincrement(),
-  productId: int("productId").notNull(),
   anchorId: int("anchorId").notNull(),
-  liveDate: varchar("liveDate", { length: 20 }).notNull(),
+  productId: int("productId").notNull(),
+  liveDate: date("liveDate").notNull(),
   startTime: varchar("startTime", { length: 10 }),
   endTime: varchar("endTime", { length: 10 }),
+  durationMinutes: int("durationMinutes"),
   slotOrder: int("slotOrder"),
   status: mysqlEnum("status", ["pending", "confirmed", "done", "cancelled"]).default("pending"),
-  notes: text("notes"),
+  createdBy: int("createdBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
-// 帯貨データ（パフォーマンス）
+// 帯貨データ（パフォーマンス） (actual DB structure)
 export const selectionPerformances = mysqlTable("selection_performances", {
   id: int("id").primaryKey().autoincrement(),
-  productId: int("productId").notNull(),
-  anchorId: int("anchorId").notNull(),
   scheduleId: int("scheduleId"),
-  liveDate: varchar("liveDate", { length: 20 }).notNull(),
+  liverId: int("liverId").notNull(),
+  productId: int("productId").notNull(),
+  liveDate: varchar("liveDate", { length: 10 }).notNull(),
   gmv: decimal("gmv", { precision: 12, scale: 2 }).default("0"),
   salesCount: int("salesCount").default(0),
-  viewerCount: int("viewerCount").default(0),
-  clickCount: int("clickCount").default(0),
-  conversionRate: decimal("conversionRate", { precision: 5, scale: 2 }),
-  commissionAmount: decimal("commissionAmount", { precision: 10, scale: 2 }).default("0"),
-  status: mysqlEnum("status", ["draft", "confirmed"]).default("draft"),
-  rawData: json("rawData"),
+  avgViewers: int("avgViewers"),
+  commissionAmount: decimal("commissionAmount", { precision: 12, scale: 2 }).default("0"),
+  remark: text("remark"),
+  status: mysqlEnum("status", ["draft", "confirmed"]).notNull().default("draft"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
-// 結算管理
+// 結算管理 (actual DB structure)
 export const selectionSettlements = mysqlTable("selection_settlements", {
   id: int("id").primaryKey().autoincrement(),
-  anchorId: int("anchorId").notNull(),
-  periodStart: varchar("periodStart", { length: 20 }).notNull(),
-  periodEnd: varchar("periodEnd", { length: 20 }).notNull(),
-  totalGmv: decimal("totalGmv", { precision: 12, scale: 2 }).default("0"),
-  totalCommission: decimal("totalCommission", { precision: 10, scale: 2 }).default("0"),
-  itemCount: int("itemCount").default(0),
-  status: mysqlEnum("status", ["pending", "confirmed", "paid"]).default("pending"),
+  liverId: int("liverId").notNull(),
+  periodStart: varchar("periodStart", { length: 10 }).notNull(),
+  periodEnd: varchar("periodEnd", { length: 10 }).notNull(),
+  totalGmv: decimal("totalGmv", { precision: 14, scale: 2 }).default("0"),
+  totalCommission: decimal("totalCommission", { precision: 12, scale: 2 }).default("0"),
+  settledPerformanceIds: json("settledPerformanceIds"),
+  status: mysqlEnum("status", ["pending", "confirmed", "paid"]).notNull().default("pending"),
   paidAt: timestamp("paidAt"),
-  notes: text("notes"),
+  remark: text("remark"),
+  createdBy: int("createdBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

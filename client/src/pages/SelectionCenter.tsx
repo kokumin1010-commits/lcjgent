@@ -307,7 +307,7 @@ function PerformancesTab() {
             {performancesQuery.data?.map((perf: any) => (
               <tr key={perf.id} className="border-t hover:bg-muted/30">
                 <td className="p-3">{perf.liveDate}</td>
-                <td className="p-3">{perf.anchorId}</td>
+                <td className="p-3">{perf.liverId}</td>
                 <td className="p-3">{perf.product?.productName || "-"}</td>
                 <td className="p-3 text-right">¥{Number(perf.gmv || 0).toLocaleString()}</td>
                 <td className="p-3 text-right">{perf.salesCount || 0}</td>
@@ -367,7 +367,7 @@ function SettlementsTab() {
           <tbody>
             {settlementsQuery.data?.map((s: any) => (
               <tr key={s.id} className="border-t hover:bg-muted/30">
-                <td className="p-3">{s.anchorId}</td>
+                <td className="p-3">{s.liverId}</td>
                 <td className="p-3">{s.periodStart} ~ {s.periodEnd}</td>
                 <td className="p-3 text-right">¥{Number(s.totalGmv || 0).toLocaleString()}</td>
                 <td className="p-3 text-right">¥{Number(s.totalCommission || 0).toLocaleString()}</td>
@@ -403,7 +403,7 @@ function SettlementsTab() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowGenerate(false)}>キャンセル</Button>
-            <Button onClick={() => generateMutation.mutate({ anchorId: Number(genForm.anchorId), periodStart: genForm.periodStart, periodEnd: genForm.periodEnd })} disabled={generateMutation.isPending || !genForm.anchorId || !genForm.periodStart || !genForm.periodEnd}>
+            <Button onClick={() => generateMutation.mutate({ liverId: Number(genForm.anchorId), periodStart: genForm.periodStart, periodEnd: genForm.periodEnd })} disabled={generateMutation.isPending || !genForm.anchorId || !genForm.periodStart || !genForm.periodEnd}>
               {generateMutation.isPending ? "生成中..." : "生成"}
             </Button>
           </DialogFooter>
