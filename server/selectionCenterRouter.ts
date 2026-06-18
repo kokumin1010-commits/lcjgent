@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "./_core/trpc";
 import mysql from "mysql2/promise";
+import { storagePut } from "./storage";
+import { nanoid } from "nanoid";
 
 // Direct mysql2 connection pool (bypass drizzle issues on Railway)
 let _pool: mysql.Pool | null = null;
@@ -471,5 +473,18 @@ export const selectionCenterRouter = router({
     const pool = getPool();
     await pool.query('DELETE FROM anchor_selections WHERE id = ?', [input.id]);
     return { success: true };
+  }),
+
+  // ========== Image Upload ==========
+  uploadProductImage: protectedProcedure.input(z.object({
+    fileName: z.string(),
+    mimeType: z.string(),
+    base64Data: z.string(),
+  })).mutation(async ({ input }) => {
+    const buffer = Buffer.from(input.base64Data, "base64");
+    const ext = input.fileName.split(".").pop() || "jpg";
+    const fileKey = `selection-products/${Date.now()}-${nanoid(8)}.${ext}`;
+    const { url, key } = await storagePut(fileKey, buffer, input.mimeType);
+    return { url, key };
   }),
 });

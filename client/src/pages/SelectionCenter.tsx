@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X } from "lucide-react";
+import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 // ==================== Products Tab ====================
@@ -60,6 +60,7 @@ function ProductsTab() {
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
+              <th className="text-left p-3 font-medium w-12">画像</th>
               <th className="text-left p-3 font-medium">商品名</th>
               <th className="text-left p-3 font-medium">バーコード</th>
               <th className="text-left p-3 font-medium">ブランド</th>
@@ -76,6 +77,18 @@ function ProductsTab() {
               const category = categoriesQuery.data?.find((c: any) => c.id === product.categoryId);
               return (
                 <tr key={product.id} className="border-t hover:bg-muted/30">
+                  <td className="p-3">
+                    {(() => {
+                      const imgs = product.images ? (typeof product.images === 'string' ? JSON.parse(product.images) : product.images) : [];
+                      return imgs.length > 0 ? (
+                        <img src={imgs[0]} alt="" className="w-10 h-10 rounded object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">
+                          <Package className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td className="p-3 font-medium max-w-[200px] truncate">{product.productName}</td>
                   <td className="p-3 text-muted-foreground text-xs font-mono">{product.barcode || "-"}</td>
                   <td className="p-3 text-muted-foreground">{product.brandName}</td>
@@ -109,7 +122,7 @@ function ProductsTab() {
               );
             })}
             {(!productsQuery.data?.items || productsQuery.data.items.length === 0) && (
-              <tr><td colSpan={9} className="p-8 text-center text-muted-foreground">商品がありません</td></tr>
+              <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">商品がありません</td></tr>
             )}
           </tbody>
         </table>
@@ -137,9 +150,50 @@ function ProductsTab() {
 
 function ProductFormDialog({ open, onClose, product, categories, onSubmit, loading }: any) {
   const [form, setForm] = useState<any>(product || {});
+  const [uploading, setUploading] = useState(false);
   const isEdit = !!product;
 
   useState(() => { if (product) setForm(product); });
+
+  const uploadMutation = trpc.selectionCenter.uploadProductImage.useMutation();
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setUploading(true);
+    try {
+      const currentImages: string[] = form.images ? (typeof form.images === 'string' ? JSON.parse(form.images) : form.images) : [];
+      for (const file of files) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(",")[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const result = await uploadMutation.mutateAsync({
+          fileName: file.name,
+          mimeType: file.type,
+          base64Data: base64,
+        });
+        currentImages.push(result.url);
+      }
+      setForm({ ...form, images: currentImages });
+      toast.success(`${files.length}枚の画像をアップロードしました`);
+    } catch (err: any) {
+      toast.error(err?.message || "画像のアップロードに失敗しました");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const removeImage = (index: number) => {
+    const currentImages: string[] = form.images ? (typeof form.images === 'string' ? JSON.parse(form.images) : form.images) : [];
+    currentImages.splice(index, 1);
+    setForm({ ...form, images: [...currentImages] });
+  };
+
+  const imageList: string[] = form.images ? (typeof form.images === 'string' ? JSON.parse(form.images) : form.images) : [];
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -148,6 +202,43 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
           <DialogTitle>{isEdit ? "商品編集" : "商品追加"}</DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-4">
+          {/* Image Upload Section */}
+          <div className="col-span-2">
+            <Label>商品画像</Label>
+            <div className="mt-2 flex flex-wrap gap-3">
+              {imageList.map((url: string, idx: number) => (
+                <div key={idx} className="relative group w-20 h-20 rounded-lg border overflow-hidden">
+                  <img src={url} alt={`商品画像 ${idx + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(idx)}
+                    className="absolute top-0.5 right-0.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+              <label className="w-20 h-20 rounded-lg border-2 border-dashed border-muted-foreground/30 flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors">
+                {uploading ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                ) : (
+                  <>
+                    <ImagePlus className="w-5 h-5 text-muted-foreground" />
+                    <span className="text-[10px] text-muted-foreground mt-1">追加</span>
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleImageUpload}
+                  disabled={uploading}
+                />
+              </label>
+            </div>
+          </div>
+
           <div className="col-span-2">
             <Label>商品名 *</Label>
             <Input value={form.productName || ""} onChange={e => setForm({ ...form, productName: e.target.value })} />
@@ -210,7 +301,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>キャンセル</Button>
-          <Button onClick={() => onSubmit(form)} disabled={loading || !form.productName || !form.brandName}>
+          <Button onClick={() => onSubmit(form)} disabled={loading || uploading || !form.productName || !form.brandName}>
             {loading ? "保存中..." : isEdit ? "更新" : "追加"}
           </Button>
         </DialogFooter>
