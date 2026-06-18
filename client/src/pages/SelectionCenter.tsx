@@ -42,7 +42,7 @@ function ProductsTab() {
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="商品名・ブランド名で検索..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder="商品名・ブランド名・バーコードで検索..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
@@ -61,6 +61,7 @@ function ProductsTab() {
           <thead className="bg-muted/50">
             <tr>
               <th className="text-left p-3 font-medium">商品名</th>
+              <th className="text-left p-3 font-medium">バーコード</th>
               <th className="text-left p-3 font-medium">ブランド</th>
               <th className="text-left p-3 font-medium">カテゴリ</th>
               <th className="text-right p-3 font-medium">価格</th>
@@ -76,6 +77,7 @@ function ProductsTab() {
               return (
                 <tr key={product.id} className="border-t hover:bg-muted/30">
                   <td className="p-3 font-medium max-w-[200px] truncate">{product.productName}</td>
+                  <td className="p-3 text-muted-foreground text-xs font-mono">{product.barcode || "-"}</td>
                   <td className="p-3 text-muted-foreground">{product.brandName}</td>
                   <td className="p-3">{category?.name || "-"}</td>
                   <td className="p-3 text-right">¥{Number(product.price || 0).toLocaleString()}</td>
@@ -149,6 +151,10 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
           <div className="col-span-2">
             <Label>商品名 *</Label>
             <Input value={form.productName || ""} onChange={e => setForm({ ...form, productName: e.target.value })} />
+          </div>
+          <div className="col-span-2">
+            <Label>商品バーコード</Label>
+            <Input value={form.barcode || ""} onChange={e => setForm({ ...form, barcode: e.target.value })} placeholder="JANコード / EANコード" />
           </div>
           <div>
             <Label>ブランド名 *</Label>

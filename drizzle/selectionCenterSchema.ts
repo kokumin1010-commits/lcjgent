@@ -4,6 +4,7 @@ import { mysqlTable, int, varchar, text, decimal, timestamp, mysqlEnum, json } f
 export const selectionProducts = mysqlTable("selection_products", {
   id: int("id").primaryKey().autoincrement(),
   productName: varchar("productName", { length: 500 }).notNull(),
+  barcode: varchar("barcode", { length: 100 }),
   brandName: varchar("brandName", { length: 255 }).notNull(),
   categoryId: int("categoryId"),
   price: decimal("price", { precision: 10, scale: 2 }),

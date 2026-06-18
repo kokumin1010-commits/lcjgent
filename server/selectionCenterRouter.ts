@@ -47,7 +47,7 @@ export const selectionCenterRouter = router({
     if (input.status) conditions.push(eq(selectionProducts.status, input.status));
     if (input.categoryId) conditions.push(eq(selectionProducts.categoryId, input.categoryId));
     if (input.search) {
-      conditions.push(sql`(${selectionProducts.productName} LIKE ${`%${input.search}%`} OR ${selectionProducts.brandName} LIKE ${`%${input.search}%`})`);
+      conditions.push(sql`(${selectionProducts.productName} LIKE ${`%${input.search}%`} OR ${selectionProducts.brandName} LIKE ${`%${input.search}%`} OR ${selectionProducts.barcode} LIKE ${`%${input.search}%`})`);
     }
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const items = await (await getDb())!.select().from(selectionProducts).where(where).orderBy(desc(selectionProducts.createdAt)).limit(input.pageSize).offset((input.page - 1) * input.pageSize);
@@ -57,6 +57,7 @@ export const selectionCenterRouter = router({
 
   createProduct: protectedProcedure.input(z.object({
     productName: z.string(),
+    barcode: z.string().optional(),
     brandName: z.string(),
     categoryId: z.number().optional(),
     price: z.string().optional(),
@@ -76,6 +77,7 @@ export const selectionCenterRouter = router({
   updateProduct: protectedProcedure.input(z.object({
     id: z.number(),
     productName: z.string().optional(),
+    barcode: z.string().optional(),
     brandName: z.string().optional(),
     categoryId: z.number().optional(),
     price: z.string().optional(),
@@ -208,7 +210,7 @@ export const selectionCenterRouter = router({
   })).query(async ({ input }) => {
     const conditions: any[] = [eq(selectionProducts.status, "online")];
     if (input.search) {
-      conditions.push(sql`(${selectionProducts.productName} LIKE ${`%${input.search}%`} OR ${selectionProducts.brandName} LIKE ${`%${input.search}%`})`);
+      conditions.push(sql`(${selectionProducts.productName} LIKE ${`%${input.search}%`} OR ${selectionProducts.brandName} LIKE ${`%${input.search}%`} OR ${selectionProducts.barcode} LIKE ${`%${input.search}%`})`);
     }
     return (await getDb())!.select().from(selectionProducts).where(and(...conditions)).orderBy(desc(selectionProducts.createdAt));
   }),

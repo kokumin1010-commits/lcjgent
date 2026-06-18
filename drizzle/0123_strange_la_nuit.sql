@@ -1,0 +1,1 @@
+ALTER TABLE `selection_products` ADD `barcode` varchar(100);

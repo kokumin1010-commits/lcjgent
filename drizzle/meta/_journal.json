@@ -862,6 +862,13 @@
       "when": 1781760262656,
       "tag": "0122_huge_jubilee",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "5",
+      "when": 1781763193242,
+      "tag": "0123_strange_la_nuit",
+      "breakpoints": true
     }
   ]
 }
