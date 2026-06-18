@@ -25,7 +25,13 @@ export const selectionCenterRouter = router({
   // ========== Categories ==========
   getCategories: protectedProcedure.query(async () => {
     const db = (await getDb())!;
-    return db.select().from(selectionCategories).orderBy(asc(selectionCategories.sortOrder));
+    try {
+      const result = await db.select().from(selectionCategories).orderBy(asc(selectionCategories.sortOrder));
+      return result;
+    } catch (e: any) {
+      console.error('[getCategories] Error:', e.message, e.code, e.errno, JSON.stringify(e).substring(0, 500));
+      throw new Error(`getCategories failed: ${e.message} | code=${e.code} | errno=${e.errno}`);
+    }
   }),
 
   createCategory: protectedProcedure.input(z.object({
