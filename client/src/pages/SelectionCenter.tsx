@@ -10,11 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 // ==================== Products Tab ====================
 function ProductsTab() {
-  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -29,13 +28,13 @@ function ProductsTab() {
 
   const categoriesQuery = trpc.selectionCenter.getCategories.useQuery();
   const createMutation = trpc.selectionCenter.createProduct.useMutation({
-    onSuccess: () => { productsQuery.refetch(); setShowCreateDialog(false); toast({ title: "商品を追加しました" }); },
+    onSuccess: () => { productsQuery.refetch(); setShowCreateDialog(false); toast.success("商品を追加しました"); },
   });
   const updateMutation = trpc.selectionCenter.updateProduct.useMutation({
-    onSuccess: () => { productsQuery.refetch(); setEditProduct(null); toast({ title: "商品を更新しました" }); },
+    onSuccess: () => { productsQuery.refetch(); setEditProduct(null); toast.success("商品を更新しました"); },
   });
   const statusMutation = trpc.selectionCenter.updateProductStatus.useMutation({
-    onSuccess: () => { productsQuery.refetch(); toast({ title: "ステータスを更新しました" }); },
+    onSuccess: () => { productsQuery.refetch(); toast.success("ステータスを更新しました"); },
   });
 
   return (
@@ -216,10 +215,9 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
 
 // ==================== Schedules Tab ====================
 function SchedulesTab() {
-  const { toast } = useToast();
   const schedulesQuery = trpc.selectionCenter.getSchedules.useQuery();
   const updateMutation = trpc.selectionCenter.updateSchedule.useMutation({
-    onSuccess: () => { schedulesQuery.refetch(); toast({ title: "排期を更新しました" }); },
+    onSuccess: () => { schedulesQuery.refetch(); toast.success("排期を更新しました"); },
   });
 
   return (
@@ -327,7 +325,6 @@ function PerformancesTab() {
 
 // ==================== Settlements Tab ====================
 function SettlementsTab() {
-  const { toast } = useToast();
   const [showGenerate, setShowGenerate] = useState(false);
   const [genForm, setGenForm] = useState({ anchorId: "", periodStart: "", periodEnd: "" });
 
@@ -336,11 +333,11 @@ function SettlementsTab() {
     onSuccess: (data) => {
       settlementsQuery.refetch();
       setShowGenerate(false);
-      toast({ title: `結算書を生成しました（GMV: ¥${Number(data.totalGmv).toLocaleString()}, 佣金: ¥${Number(data.totalCommission).toLocaleString()}）` });
+      toast.success(`結算書を生成しました（GMV: ¥${Number(data.totalGmv).toLocaleString()}, 佣金: ¥${Number(data.totalCommission).toLocaleString()}）`);
     },
   });
   const statusMutation = trpc.selectionCenter.updateSettlementStatus.useMutation({
-    onSuccess: () => { settlementsQuery.refetch(); toast({ title: "ステータスを更新しました" }); },
+    onSuccess: () => { settlementsQuery.refetch(); toast.success("ステータスを更新しました"); },
   });
 
   return (

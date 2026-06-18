@@ -6,10 +6,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Search, ShoppingBag, TrendingUp, Check } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export default function LiverSelectionCenter() {
-  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("browse");
 
@@ -26,10 +25,10 @@ export default function LiverSelectionCenter() {
   const selectMutation = trpc.selectionCenter.liverSelectProduct.useMutation({
     onSuccess: () => {
       mySelectionsQuery.refetch();
-      toast({ title: "選品しました！" });
+      toast.success("選品しました！");
     },
     onError: (err) => {
-      toast({ title: "エラー", description: err.message, variant: "destructive" });
+      toast.error(err.message);
     },
   });
 
