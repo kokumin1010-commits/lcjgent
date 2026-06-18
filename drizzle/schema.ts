@@ -6318,3 +6318,6 @@ export type { FestivalCompanyApplication, InsertFestivalCompanyApplication, Fest
 // 24H爆速商品ラボ
 export { productPipeline, productTestAssignment, productLabSalesData } from "./productLabSchema";
 export type { ProductPipeline, InsertProductPipeline, ProductTestAssignment, InsertProductTestAssignment, ProductLabSalesData, InsertProductLabSalesData } from "./productLabSchema";
+
+// Selection Center
+export * from "./selectionCenterSchema";

@@ -33,7 +33,7 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp, ClipboardCheck, Inbox, Coins, Sparkles, Crown, Star, UserX, PartyPopper, FlaskConical } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp, ClipboardCheck, Inbox, Coins, Sparkles, Crown, Star, UserX, PartyPopper, FlaskConical, ShoppingBag } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -135,6 +135,7 @@ function DashboardLayoutContent({
     { icon: Sparkles, label: "LCJ Brain（BD引擎）", path: "/master/lcj-brain" },
     { icon: Crown, label: "メガチャンネル管理", path: "/master/mega-channel" },
     { icon: Star, label: "重点商品管理", path: "/master/featured-products" },
+    { icon: ShoppingBag, label: "選品センター", path: "/master/selection-center" },
     { icon: BarChart3, label: "広告司令塔", path: "/master/ad-dashboard" },
     { icon: Video, label: "短動画マトリックス", path: "/master/short-video" },
     { icon: Building2, label: "事務所管理", path: "/master/agencies" },

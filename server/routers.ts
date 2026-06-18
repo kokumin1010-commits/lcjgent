@@ -13,6 +13,7 @@ import { sendCoachingToLiver } from "./_core/lineMessaging";
 import { lessonsRouter } from "./lessonsRouter";
 import { blogRouter, autoPostRouter } from "./blogRouter";
 import { locationRouter } from "./locationRouter";
+import { selectionCenterRouter } from "./selectionCenterRouter";
 import { isValidEmailForSending, getInvalidEmailReason } from "./emailValidator";
 import {
   createStaff,
@@ -28118,6 +28119,7 @@ JSON配列のみを出力してください。`;
   }),
   festival: festivalRouter,
   productLab: productLabRouter,
+  selectionCenter: selectionCenterRouter,
 });
 export type AppRouter = typeof appRouter;
 

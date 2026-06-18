@@ -855,6 +855,13 @@
       "when": 1781521849844,
       "tag": "0121_motionless_blizzard",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "5",
+      "when": 1781760262656,
+      "tag": "0122_huge_jubilee",
+      "breakpoints": true
     }
   ]
 }

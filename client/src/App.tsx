@@ -80,6 +80,7 @@ const LiverForgotPassword = lazy(() => import("./pages/LiverForgotPassword"));
 const LiverResetPassword = lazy(() => import("./pages/LiverResetPassword"));
 const LiverProductSelect = lazy(() => import("./pages/LiverProductSelect"));
 const LiverProductCatalog = lazy(() => import("./pages/LiverProductCatalog"));
+const LiverSelectionCenter = lazy(() => import("./pages/LiverSelectionCenter"));
 const LiverDashboard = lazy(() => import("./pages/LiverDashboard"));
 const LiverAiCoach = lazy(() => import("./pages/LiverAiCoach"));
 const LiverLineSetup = lazy(() => import("./pages/LiverLineSetup"));
@@ -160,6 +161,7 @@ const FestivalApplyLiver = lazy(() => import("./pages/FestivalApplyLiver"));
 const FestivalApplyGeneral = lazy(() => import("./pages/FestivalApplyGeneral"));
 const FestivalAdmin = lazy(() => import("./pages/FestivalAdmin"));
 const ProductLab = lazy(() => import("./pages/ProductLab"));
+const SelectionCenter = lazy(() => import("./pages/SelectionCenter"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -541,6 +543,11 @@ function Router() {
             <LiverProductSelect />
           </ProtectedLiverRoute>
         </Route>
+        <Route path={"/liver/selection-center"}>
+          <ProtectedLiverRoute>
+            <LiverSelectionCenter />
+          </ProtectedLiverRoute>
+        </Route>
         
         <Route path="/master/brand-applications">
           <DashboardLayout>
@@ -612,6 +619,11 @@ function Router() {
         <Route path="/master/product-lab">
           <DashboardLayout>
             <ProductLab />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/selection-center">
+          <DashboardLayout>
+            <SelectionCenter />
           </DashboardLayout>
         </Route>
         <Route path="/master/lcj-brain">
