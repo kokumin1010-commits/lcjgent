@@ -12,6 +12,104 @@ function getPool() {
 }
 
 export const selectionCenterRouter = router({
+  // ========== Setup / Migration ==========
+  setupTables: protectedProcedure.mutation(async () => {
+    const pool = getPool();
+    const createStatements = [
+      `CREATE TABLE IF NOT EXISTS selection_categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        parentId INT DEFAULT NULL,
+        sortOrder INT DEFAULT 0,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS selection_products (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        productName VARCHAR(255) NOT NULL,
+        barcode VARCHAR(100) DEFAULT NULL,
+        brandName VARCHAR(255) DEFAULT NULL,
+        brandId INT DEFAULT NULL,
+        categoryId INT DEFAULT NULL,
+        price DECIMAL(10,2) DEFAULT NULL,
+        marketPrice DECIMAL(10,2) DEFAULT NULL,
+        costPrice DECIMAL(10,2) DEFAULT NULL,
+        commissionType ENUM('percentage','fixed') DEFAULT 'percentage',
+        commissionValue DECIMAL(10,2) DEFAULT NULL,
+        images JSON DEFAULT NULL,
+        videos JSON DEFAULT NULL,
+        productLink VARCHAR(500) DEFAULT NULL,
+        sellingPoints TEXT DEFAULT NULL,
+        description TEXT DEFAULT NULL,
+        stock INT DEFAULT 0,
+        supplierContact VARCHAR(255) DEFAULT NULL,
+        status ENUM('draft','online','offline') DEFAULT 'draft',
+        createdBy INT DEFAULT 0,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        deletedAt TIMESTAMP DEFAULT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS anchor_selections (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        productId INT NOT NULL,
+        liverId INT NOT NULL,
+        status ENUM('pending','approved','rejected') DEFAULT 'pending',
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS sc_schedules (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        anchorId INT NOT NULL,
+        productId INT NOT NULL,
+        liveDate DATE NOT NULL,
+        startTime VARCHAR(10) DEFAULT NULL,
+        endTime VARCHAR(10) DEFAULT NULL,
+        durationMinutes INT DEFAULT NULL,
+        slotOrder INT DEFAULT NULL,
+        status ENUM('pending','confirmed','done','cancelled') DEFAULT 'pending',
+        createdBy INT DEFAULT 0,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS selection_performances (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        productId INT NOT NULL,
+        liverId INT NOT NULL,
+        scheduleId INT DEFAULT NULL,
+        liveDate DATE NOT NULL,
+        gmv DECIMAL(12,2) DEFAULT 0,
+        salesCount INT DEFAULT 0,
+        avgViewers INT DEFAULT 0,
+        commissionAmount DECIMAL(10,2) DEFAULT 0,
+        remark TEXT DEFAULT NULL,
+        status ENUM('draft','confirmed') DEFAULT 'draft',
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS selection_settlements (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        liverId INT NOT NULL,
+        periodStart DATE NOT NULL,
+        periodEnd DATE NOT NULL,
+        totalGmv DECIMAL(12,2) DEFAULT 0,
+        totalCommission DECIMAL(10,2) DEFAULT 0,
+        settledPerformanceIds JSON DEFAULT NULL,
+        status ENUM('pending','confirmed','paid') DEFAULT 'pending',
+        paidAt TIMESTAMP DEFAULT NULL,
+        createdBy INT DEFAULT 0,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+    ];
+    const results: string[] = [];
+    for (const stmt of createStatements) {
+      try {
+        await pool.query(stmt);
+        const tableName = stmt.match(/CREATE TABLE IF NOT EXISTS (\w+)/)?.[1];
+        results.push(`OK: ${tableName}`);
+      } catch (e: any) {
+        results.push(`FAIL: ${e.message}`);
+      }
+    }
+    return { results };
+  }),
+
   // ========== Dashboard ==========
   getDashboard: protectedProcedure.query(async () => {
     try {
