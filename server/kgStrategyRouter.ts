@@ -1,0 +1,374 @@
+/**
+ * KG Strategy Dashboard Router
+ * - GPM自動計算 & 推移
+ * - 滚動7天GMV（流量池レベル）
+ * - 大目標進捗（9月10億等）
+ * - 商品別GPM分析
+ * - 配信履歴（GPM付き）
+ */
+import { router, publicProcedure } from "./_core/trpc";
+import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { getDb } from "./db";
+import { brandLivestreams, livestreamProducts, liverGoals } from "../drizzle/schema";
+import { eq, desc, and, sql, isNull, gte, lte } from "drizzle-orm";
+
+// ===== Helper Functions =====
+
+function getJSTNow(): Date {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000);
+}
+
+function getJSTDateString(date: Date): string {
+  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  return jst.toISOString().split("T")[0];
+}
+
+function getJSTMonthRange(month: string): { startDate: Date; endDate: Date } {
+  const [year, monthNum] = month.split("-").map(Number);
+  const startDate = new Date(Date.UTC(year, monthNum - 1, 1, 0, 0, 0) - 9 * 60 * 60 * 1000);
+  const lastDay = new Date(year, monthNum, 0).getDate();
+  const endDate = new Date(Date.UTC(year, monthNum - 1, lastDay, 23, 59, 59) - 9 * 60 * 60 * 1000);
+  return { startDate, endDate };
+}
+
+/**
+ * 流量池レベル判定（TikTok基準）
+ * 滚動7天GMVに基づくレベル
+ */
+function getTrafficPoolLevel(rolling7DayGmv: number): {
+  level: number;
+  name: string;
+  color: string;
+  nextThreshold: number;
+  amountToNext: number;
+} {
+  const levels = [
+    { level: 1, name: "E1 起步池", threshold: 0, color: "#6b7280" },
+    { level: 2, name: "E2 成長池", threshold: 1000000, color: "#3b82f6" },
+    { level: 3, name: "E3 優質池", threshold: 5000000, color: "#8b5cf6" },
+    { level: 4, name: "E4 爆發池", threshold: 10000000, color: "#f59e0b" },
+    { level: 5, name: "E5 頂級池", threshold: 50000000, color: "#ef4444" },
+    { level: 6, name: "E6 超級池", threshold: 100000000, color: "#ec4899" },
+  ];
+
+  let current = levels[0];
+  let next = levels[1];
+
+  for (let i = levels.length - 1; i >= 0; i--) {
+    if (rolling7DayGmv >= levels[i].threshold) {
+      current = levels[i];
+      next = levels[i + 1] || levels[i];
+      break;
+    }
+  }
+
+  return {
+    level: current.level,
+    name: current.name,
+    color: current.color,
+    nextThreshold: next.threshold,
+    amountToNext: Math.max(0, next.threshold - rolling7DayGmv),
+  };
+}
+
+export const kgStrategyRouter = router({
+  // ===== 戦略ダッシュボード全データ取得 =====
+  getStrategyData: publicProcedure
+    .input(z.object({
+      liverId: z.number(),
+      yearMonth: z.string().regex(/^\d{4}-\d{2}$/),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+
+      const { liverId, yearMonth } = input;
+      const { startDate, endDate } = getJSTMonthRange(yearMonth);
+
+      // 1. 当月の全配信データ取得
+      const monthStreams = await db
+        .select()
+        .from(brandLivestreams)
+        .where(and(
+          eq(brandLivestreams.liverId, liverId),
+          isNull(brandLivestreams.deletedAt),
+          gte(brandLivestreams.livestreamDate, startDate),
+          lte(brandLivestreams.livestreamDate, endDate),
+        ))
+        .orderBy(desc(brandLivestreams.livestreamDate));
+
+      // 2. 滚動7天GMV計算（直近7日）
+      const now = new Date();
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      
+      const last7DaysStreams = await db
+        .select({
+          id: brandLivestreams.id,
+          salesAmount: brandLivestreams.salesAmount,
+          gmv: brandLivestreams.gmv,
+          livestreamDate: brandLivestreams.livestreamDate,
+        })
+        .from(brandLivestreams)
+        .where(and(
+          eq(brandLivestreams.liverId, liverId),
+          isNull(brandLivestreams.deletedAt),
+          gte(brandLivestreams.livestreamDate, sevenDaysAgo),
+        ));
+
+      const rolling7DayGmv = last7DaysStreams.reduce((sum, s) => 
+        sum + Number(s.gmv || s.salesAmount || 0), 0
+      );
+
+      // 3. GPM計算（各配信ごと + 月平均）
+      const streamsWithGpm = monthStreams.map(s => {
+        const gmv = Number(s.gmv || s.salesAmount || 0);
+        const impressions = Number(s.impressions || 0);
+        const gpm = impressions > 0 ? Math.round((gmv / impressions) * 1000) : 0;
+        return {
+          id: s.id,
+          livestreamDate: s.livestreamDate,
+          livestreamStartTime: s.livestreamStartTime,
+          livestreamEndTime: s.livestreamEndTime,
+          duration: s.duration,
+          viewerCount: s.viewerCount,
+          salesAmount: s.salesAmount,
+          gmv: s.gmv,
+          impressions: s.impressions,
+          peakViewers: s.peakViewers,
+          orderCount: s.orderCount,
+          gpm,
+        };
+      });
+
+      const totalGmv = monthStreams.reduce((sum, s) => sum + Number(s.gmv || s.salesAmount || 0), 0);
+      const totalImpressions = monthStreams.reduce((sum, s) => sum + Number(s.impressions || 0), 0);
+      const monthlyAvgGpm = totalImpressions > 0 ? Math.round((totalGmv / totalImpressions) * 1000) : 0;
+
+      // 4. GPM推移（日別）
+      const dailyGpmMap: Record<string, { gmv: number; impressions: number; date: string }> = {};
+      for (const s of monthStreams) {
+        if (!s.livestreamDate) continue;
+        const dateStr = getJSTDateString(s.livestreamDate);
+        if (!dailyGpmMap[dateStr]) {
+          dailyGpmMap[dateStr] = { gmv: 0, impressions: 0, date: dateStr };
+        }
+        dailyGpmMap[dateStr].gmv += Number(s.gmv || s.salesAmount || 0);
+        dailyGpmMap[dateStr].impressions += Number(s.impressions || 0);
+      }
+      const gpmTrend = Object.values(dailyGpmMap)
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map(d => ({
+          date: d.date,
+          gpm: d.impressions > 0 ? Math.round((d.gmv / d.impressions) * 1000) : 0,
+          gmv: d.gmv,
+          impressions: d.impressions,
+        }));
+
+      // 5. 流量池レベル
+      const trafficPool = getTrafficPoolLevel(rolling7DayGmv);
+
+      // 6. 大目標進捗（liverGoalsから取得）
+      const [yearStr, monthStr] = yearMonth.split("-");
+      const yearNum = parseInt(yearStr, 10);
+      const monthNum = parseInt(monthStr, 10);
+      const goals = await db
+        .select()
+        .from(liverGoals)
+        .where(and(
+          eq(liverGoals.liverId, liverId),
+          eq(liverGoals.year, yearNum),
+          eq(liverGoals.month, monthNum),
+        ))
+        .limit(1);
+      
+      const goal = goals[0] || null;
+      const salesGoal = goal?.salesGoal || 0;
+      const salesProgress = salesGoal > 0 ? Math.round((totalGmv / salesGoal) * 100) : 0;
+
+      // 7. 商品別GPM（当月の全商品データ）
+      const livestreamIds = monthStreams.map(s => s.id);
+      let productGpmData: Array<{
+        productName: string;
+        totalGmv: number;
+        totalImpressions: number;
+        gpm: number;
+        salesCount: number;
+      }> = [];
+
+      if (livestreamIds.length > 0) {
+        // バッチで取得
+        const batchSize = 100;
+        let allProducts: Array<{
+          productName: string;
+          grossRevenue: number | null;
+          directGmv: number | null;
+          gmv: number | null;
+          productImpressions: number | null;
+          itemsSold: number | null;
+        }> = [];
+
+        for (let i = 0; i < livestreamIds.length; i += batchSize) {
+          const batch = livestreamIds.slice(i, i + batchSize);
+          const products = await db
+            .select({
+              productName: livestreamProducts.productName,
+              grossRevenue: livestreamProducts.grossRevenue,
+              directGmv: livestreamProducts.directGmv,
+              gmv: livestreamProducts.gmv,
+              productImpressions: livestreamProducts.productImpressions,
+              itemsSold: livestreamProducts.itemsSold,
+            })
+            .from(livestreamProducts)
+            .where(sql`${livestreamProducts.livestreamId} IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
+          allProducts = allProducts.concat(products);
+        }
+
+        // 商品名でグループ化
+        const productMap: Record<string, { gmv: number; impressions: number; count: number }> = {};
+        for (const p of allProducts) {
+          const name = (p.productName || "").trim();
+          if (!name) continue;
+          const gmv = Number(p.grossRevenue || p.directGmv || p.gmv || 0);
+          const impressions = Number(p.productImpressions || 0);
+          if (!productMap[name]) {
+            productMap[name] = { gmv: 0, impressions: 0, count: 0 };
+          }
+          productMap[name].gmv += gmv;
+          productMap[name].impressions += impressions;
+          productMap[name].count += Number(p.itemsSold || 0);
+        }
+
+        productGpmData = Object.entries(productMap)
+          .map(([name, data]) => ({
+            productName: name,
+            totalGmv: data.gmv,
+            totalImpressions: data.impressions,
+            gpm: data.impressions > 0 ? Math.round((data.gmv / data.impressions) * 1000) : 0,
+            salesCount: data.count,
+          }))
+          .sort((a, b) => b.gpm - a.gpm)
+          .slice(0, 10);
+      }
+
+      // 8. 時間帯別GPM分析
+      const hourlyGpm: Record<number, { gmv: number; impressions: number; count: number }> = {};
+      for (let i = 0; i < 24; i++) {
+        hourlyGpm[i] = { gmv: 0, impressions: 0, count: 0 };
+      }
+      for (const s of monthStreams) {
+        if (!s.livestreamDate) continue;
+        const jstDate = new Date(s.livestreamDate.getTime() + 9 * 60 * 60 * 1000);
+        const hour = jstDate.getUTCHours();
+        hourlyGpm[hour].gmv += Number(s.gmv || s.salesAmount || 0);
+        hourlyGpm[hour].impressions += Number(s.impressions || 0);
+        hourlyGpm[hour].count += 1;
+      }
+      const hourlyGpmData = Object.entries(hourlyGpm)
+        .filter(([_, data]) => data.count > 0)
+        .map(([hour, data]) => ({
+          hour: parseInt(hour),
+          gpm: data.impressions > 0 ? Math.round((data.gmv / data.impressions) * 1000) : 0,
+          avgGmv: Math.round(data.gmv / data.count),
+          count: data.count,
+        }));
+
+      return {
+        // 基本統計
+        summary: {
+          totalGmv,
+          totalImpressions,
+          monthlyAvgGpm,
+          streamCount: monthStreams.length,
+          totalDuration: monthStreams.reduce((sum, s) => sum + Number(s.duration || 0), 0),
+        },
+        // 滚動7天GMV & 流量池
+        rolling7Day: {
+          gmv: rolling7DayGmv,
+          streamCount: last7DaysStreams.length,
+          trafficPool,
+        },
+        // 目標進捗
+        goalProgress: {
+          salesGoal,
+          currentSales: totalGmv,
+          progress: salesProgress,
+          streamCountGoal: goal?.streamCountGoal || 0,
+          currentStreamCount: monthStreams.length,
+        },
+        // GPM推移
+        gpmTrend,
+        // 配信履歴（GPM付き）
+        streams: streamsWithGpm,
+        // 商品別GPM
+        productGpm: productGpmData,
+        // 時間帯別GPM
+        hourlyGpm: hourlyGpmData,
+      };
+    }),
+
+  // ===== 大目標設定・取得 =====
+  getBigGoal: publicProcedure
+    .input(z.object({ liverId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return null;
+
+      // 9月10億目標
+      const targetMonth = "2026-09";
+      const targetYear = 2026;
+      const targetMonthNum = 9;
+      const goals = await db
+        .select()
+        .from(liverGoals)
+        .where(and(
+          eq(liverGoals.liverId, input.liverId),
+          eq(liverGoals.year, targetYear),
+          eq(liverGoals.month, targetMonthNum),
+        ))
+        .limit(1);
+
+      if (!goals[0]) {
+        return {
+          targetMonth,
+          salesGoal: 1000000000, // デフォルト10億
+          label: "9月 月GMV 10億円",
+        };
+      }
+
+      return {
+        targetMonth,
+        salesGoal: goals[0].salesGoal || 1000000000,
+        label: "9月 月GMV 10億円",
+      };
+    }),
+
+  // ===== 大目標の累計進捗（全月合計） =====
+  getBigGoalProgress: publicProcedure
+    .input(z.object({ liverId: z.number(), targetMonth: z.string() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return null;
+
+      // 対象月の売上を取得
+      const { startDate, endDate } = getJSTMonthRange(input.targetMonth);
+      
+      const result = await db
+        .select({
+          totalGmv: sql<number>`COALESCE(SUM(COALESCE(${brandLivestreams.gmv}, ${brandLivestreams.salesAmount}, 0)), 0)`,
+          streamCount: sql<number>`COUNT(*)`,
+        })
+        .from(brandLivestreams)
+        .where(and(
+          eq(brandLivestreams.liverId, input.liverId),
+          isNull(brandLivestreams.deletedAt),
+          gte(brandLivestreams.livestreamDate, startDate),
+          lte(brandLivestreams.livestreamDate, endDate),
+        ));
+
+      return {
+        totalGmv: Number(result[0]?.totalGmv || 0),
+        streamCount: Number(result[0]?.streamCount || 0),
+      };
+    }),
+});

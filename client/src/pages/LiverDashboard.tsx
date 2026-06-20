@@ -22,7 +22,13 @@ import {
   ChevronRight,
   Edit2,
   Check,
-  X
+  X,
+  Activity,
+  BarChart3,
+  Waves,
+  Eye,
+  Package,
+  Timer,
 } from "lucide-react";
 import MegaChannelBanner from "@/components/MegaChannelBanner";
 import {
@@ -35,6 +41,7 @@ import {
   Title,
   Tooltip,
   Legend,
+  Filler,
 } from 'chart.js';
 import { Bar, Line } from 'react-chartjs-2';
 
@@ -46,7 +53,8 @@ ChartJS.register(
   PointElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  Filler
 );
 
 function getYearMonth(date: Date): string {
@@ -73,6 +81,7 @@ function nextYearMonth(ym: string): string {
 export default function LiverDashboard() {
   const [, navigate] = useLocation();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [liverId, setLiverId] = useState<number | null>(null);
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [goalInput, setGoalInput] = useState("");
   const [streamCountGoalInput, setStreamCountGoalInput] = useState("");
@@ -85,7 +94,7 @@ export default function LiverDashboard() {
   const isCurrentMonth = selectedYearMonth === currentYearMonthStr;
   const isFutureMonth = selectedYearMonth > currentYearMonthStr;
   
-  // Check authentication
+  // Check authentication and get liverId
   useEffect(() => {
     const token = localStorage.getItem("liver_session_token");
     if (!token) {
@@ -93,12 +102,37 @@ export default function LiverDashboard() {
       return;
     }
     setIsAuthenticated(true);
+    // Decode liverId from token (JWT payload)
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      setLiverId(payload.liverId || payload.id || null);
+    } catch {
+      // fallback
+    }
   }, [navigate]);
   
-  // Fetch dashboard stats for selected month
+  // Fetch existing dashboard stats
   const { data: stats, isLoading, refetch } = trpc.liver.getDashboardStats.useQuery(
     { yearMonth: selectedYearMonth },
     { enabled: isAuthenticated }
+  );
+
+  // Fetch strategy data (GPM, rolling 7-day, etc.)
+  const { data: strategy } = trpc.kgStrategy.getStrategyData.useQuery(
+    { liverId: liverId || 0, yearMonth: selectedYearMonth },
+    { enabled: isAuthenticated && !!liverId }
+  );
+
+  // Fetch big goal
+  const { data: bigGoal } = trpc.kgStrategy.getBigGoal.useQuery(
+    { liverId: liverId || 0 },
+    { enabled: isAuthenticated && !!liverId }
+  );
+
+  // Fetch big goal progress
+  const { data: bigGoalProgress } = trpc.kgStrategy.getBigGoalProgress.useQuery(
+    { liverId: liverId || 0, targetMonth: bigGoal?.targetMonth || "2026-09" },
+    { enabled: isAuthenticated && !!liverId && !!bigGoal }
   );
   
   // Set goal mutation
@@ -136,6 +170,16 @@ export default function LiverDashboard() {
   };
   
   const formatCurrency = (amount: number) => {
+    if (amount >= 100000000) return `¥${(amount / 100000000).toFixed(2)}億`;
+    if (amount >= 10000000) return `¥${(amount / 10000).toFixed(0)}万`;
+    return new Intl.NumberFormat("ja-JP", {
+      style: "currency",
+      currency: "JPY",
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const formatCurrencyFull = (amount: number) => {
     return new Intl.NumberFormat("ja-JP", {
       style: "currency",
       currency: "JPY",
@@ -162,6 +206,51 @@ export default function LiverDashboard() {
   const remainingDays = stats?.progress?.remainingDays || 0;
   const dailyPaceNeeded = stats?.progress?.dailyPaceNeeded || 0;
   
+  // GPM trend chart data
+  const gpmChartData = {
+    labels: strategy?.gpmTrend?.map(d => {
+      const parts = d.date.split("-");
+      return `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+    }) || [],
+    datasets: [
+      {
+        label: "GPM (¥/千曝光)",
+        data: strategy?.gpmTrend?.map(d => d.gpm) || [],
+        borderColor: "rgb(168, 85, 247)",
+        backgroundColor: "rgba(168, 85, 247, 0.1)",
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 4,
+        pointBackgroundColor: "rgb(168, 85, 247)",
+      },
+    ],
+  };
+
+  const gpmChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (context: { parsed: { y: number } }) => `GPM: ¥${formatNumber(context.parsed.y)}`,
+        },
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: { color: "#9ca3af" },
+        grid: { color: "rgba(255, 255, 255, 0.05)" },
+      },
+      x: {
+        ticks: { color: "#9ca3af" },
+        grid: { display: false },
+      },
+    },
+  };
+
   // Chart data for past 6 months
   const chartData = {
     labels: stats?.past6Months?.map(m => {
@@ -192,12 +281,10 @@ export default function LiverDashboard() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: {
-        display: false,
-      },
+      legend: { display: false },
       tooltip: {
         callbacks: {
-          label: (context: { parsed: { y: number } }) => formatCurrency(context.parsed.y),
+          label: (context: { parsed: { y: number } }) => formatCurrencyFull(context.parsed.y),
         },
       },
     },
@@ -213,35 +300,13 @@ export default function LiverDashboard() {
           },
           color: "#9ca3af",
         },
-        grid: {
-          color: "rgba(255, 255, 255, 0.1)",
-        },
+        grid: { color: "rgba(255, 255, 255, 0.1)" },
       },
       x: {
-        ticks: {
-          color: "#9ca3af",
-        },
-        grid: {
-          display: false,
-        },
+        ticks: { color: "#9ca3af" },
+        grid: { display: false },
       },
     },
-  };
-  
-  // Hourly stats chart
-  const hourlyChartData = {
-    labels: stats?.hourlyStats?.map(h => `${h.hour}時`) || [],
-    datasets: [
-      {
-        label: "売上/分",
-        data: stats?.hourlyStats?.map(h => h.count > 0 ? Math.round(h.sales / h.count / 60) : 0) || [],
-        backgroundColor: "rgba(34, 197, 94, 0.5)",
-        borderColor: "rgb(34, 197, 94)",
-        borderWidth: 2,
-        fill: true,
-        tension: 0.4,
-      },
-    ],
   };
   
   return (
@@ -258,15 +323,100 @@ export default function LiverDashboard() {
           </button>
           <h1 className="text-lg font-bold flex items-center gap-2">
             <Zap className="w-5 h-5 text-yellow-400" />
-            パワーダッシュボード
+            戦略コマンドセンター
           </h1>
           <div className="w-20" />
         </div>
       </header>
       
-      <main className="container mx-auto px-4 py-6 space-y-6">
+      <main className="container mx-auto px-4 py-6 space-y-5">
         {/* Mega Channel Banner */}
         <MegaChannelBanner />
+
+        {/* ===== BIG GOAL PROGRESS BAR ===== */}
+        {bigGoal && (
+          <Card className="bg-gradient-to-r from-amber-900/40 via-red-900/40 to-purple-900/40 border-amber-600/50 overflow-hidden relative">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-500/10 via-transparent to-transparent" />
+            <CardContent className="pt-4 pb-4 relative">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Target className="w-5 h-5 text-amber-400" />
+                  <span className="text-sm font-bold text-amber-300">{bigGoal.label}</span>
+                </div>
+                <span className="text-xs text-white/60">
+                  {bigGoalProgress ? `${Math.round((bigGoalProgress.totalGmv / bigGoal.salesGoal) * 100)}%` : "---"}
+                </span>
+              </div>
+              <div className="relative h-6 bg-gray-800/80 rounded-full overflow-hidden">
+                <div 
+                  className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-500 via-red-500 to-purple-500 rounded-full transition-all duration-1000"
+                  style={{ width: `${Math.min(100, bigGoalProgress ? (bigGoalProgress.totalGmv / bigGoal.salesGoal) * 100 : 0)}%` }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xs font-bold text-white drop-shadow-md">
+                    {bigGoalProgress ? formatCurrency(bigGoalProgress.totalGmv) : "---"} / {formatCurrency(bigGoal.salesGoal)}
+                  </span>
+                </div>
+              </div>
+              {bigGoalProgress && bigGoalProgress.totalGmv < bigGoal.salesGoal && (
+                <div className="text-xs text-white/50 mt-1 text-right">
+                  残り {formatCurrency(bigGoal.salesGoal - bigGoalProgress.totalGmv)}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ===== STRATEGY KPI CARDS ===== */}
+        {strategy && (
+          <div className="grid grid-cols-3 gap-3">
+            {/* GPM */}
+            <Card className="bg-gradient-to-br from-purple-900/50 to-gray-800 border-purple-700/50">
+              <CardContent className="pt-3 pb-3 px-3">
+                <div className="flex items-center gap-1 mb-1">
+                  <Activity className="w-3.5 h-3.5 text-purple-400" />
+                  <span className="text-[10px] text-purple-300">GPM</span>
+                </div>
+                <div className="text-lg font-bold text-purple-300">
+                  ¥{formatNumber(strategy.summary.monthlyAvgGpm)}
+                </div>
+                <div className="text-[10px] text-white/40">千曝光あたり</div>
+              </CardContent>
+            </Card>
+
+            {/* 滚動7天GMV */}
+            <Card className="bg-gradient-to-br from-blue-900/50 to-gray-800 border-blue-700/50">
+              <CardContent className="pt-3 pb-3 px-3">
+                <div className="flex items-center gap-1 mb-1">
+                  <Waves className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="text-[10px] text-blue-300">7天GMV</span>
+                </div>
+                <div className="text-lg font-bold text-blue-300">
+                  {formatCurrency(strategy.rolling7Day.gmv)}
+                </div>
+                <div className="text-[10px] text-white/40">{strategy.rolling7Day.streamCount}配信</div>
+              </CardContent>
+            </Card>
+
+            {/* 流量池 */}
+            <Card className="bg-gradient-to-br from-gray-800 to-gray-900 border-gray-600/50" style={{ borderColor: `${strategy.rolling7Day.trafficPool.color}50` }}>
+              <CardContent className="pt-3 pb-3 px-3">
+                <div className="flex items-center gap-1 mb-1">
+                  <BarChart3 className="w-3.5 h-3.5" style={{ color: strategy.rolling7Day.trafficPool.color }} />
+                  <span className="text-[10px]" style={{ color: strategy.rolling7Day.trafficPool.color }}>流量池</span>
+                </div>
+                <div className="text-sm font-bold" style={{ color: strategy.rolling7Day.trafficPool.color }}>
+                  {strategy.rolling7Day.trafficPool.name}
+                </div>
+                {strategy.rolling7Day.trafficPool.amountToNext > 0 && (
+                  <div className="text-[10px] text-white/40">
+                    次まで{formatCurrency(strategy.rolling7Day.trafficPool.amountToNext)}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Month Selector */}
         <div className="flex items-center justify-center gap-3">
@@ -383,7 +533,7 @@ export default function LiverDashboard() {
                 <div className="text-center">
                   <div className="text-sm text-white mb-1">目標</div>
                   <div className="text-2xl font-bold text-white">
-                    {salesGoal > 0 ? formatCurrency(salesGoal) : "未設定"}
+                    {salesGoal > 0 ? formatCurrencyFull(salesGoal) : "未設定"}
                   </div>
                 </div>
                 
@@ -404,7 +554,7 @@ export default function LiverDashboard() {
                     <div className="text-center">
                       <div className="text-sm text-white">現在</div>
                       <div className="text-3xl font-bold text-red-400">
-                        {formatCurrency(currentSales)}
+                        {formatCurrencyFull(currentSales)}
                       </div>
                     </div>
                     
@@ -416,7 +566,7 @@ export default function LiverDashboard() {
                             あと
                           </div>
                           <div className="text-lg font-bold text-orange-400">
-                            {formatCurrency(remainingSales)}
+                            {formatCurrencyFull(remainingSales)}
                           </div>
                         </div>
                         <div className="text-center">
@@ -425,7 +575,7 @@ export default function LiverDashboard() {
                             残り{remainingDays}日
                           </div>
                           <div className="text-lg font-bold text-blue-400">
-                            {formatCurrency(dailyPaceNeeded)}/日
+                            {formatCurrencyFull(dailyPaceNeeded)}/日
                           </div>
                         </div>
                       </div>
@@ -435,7 +585,7 @@ export default function LiverDashboard() {
                       <div className="text-center">
                         <div className="text-sm text-white">達成率</div>
                         <div className={`text-2xl font-bold ${salesProgress >= 100 ? "text-green-400" : "text-orange-400"}`}>
-                          {salesProgress >= 100 ? "🎉 目標達成！" : `${salesProgress}% (残り ${formatCurrency(remainingSales)})`}
+                          {salesProgress >= 100 ? "🎉 目標達成！" : `${salesProgress}% (残り ${formatCurrencyFull(remainingSales)})`}
                         </div>
                       </div>
                     )}
@@ -445,8 +595,190 @@ export default function LiverDashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* ===== GPM TREND CHART ===== */}
+        {strategy && strategy.gpmTrend.length > 0 && (
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2 text-white">
+                <Activity className="w-5 h-5 text-purple-400" />
+                GPM推移（{formatYearMonthLabel(selectedYearMonth)}）
+              </CardTitle>
+              <div className="text-xs text-white/50">
+                GPM = GMV / 曝光数 × 1000（千次曝光あたりの売上）
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="h-48">
+                <Line data={gpmChartData} options={gpmChartOptions as any} />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ===== STREAM HISTORY WITH GPM ===== */}
+        {strategy && strategy.streams.length > 0 && (
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2 text-white">
+                <Clock className="w-5 h-5 text-green-400" />
+                配信履歴（{formatYearMonthLabel(selectedYearMonth)}）
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {strategy.streams.map((stream) => {
+                const streamDate = new Date(stream.livestreamDate);
+                const jstDate = new Date(streamDate.getTime() + 9 * 60 * 60 * 1000);
+                const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
+                const dayOfWeek = dayNames[jstDate.getUTCDay()];
+                const month = jstDate.getUTCMonth() + 1;
+                const day = jstDate.getUTCDate();
+                
+                // Format time
+                const startTime = stream.livestreamStartTime 
+                  ? new Date(stream.livestreamStartTime).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" })
+                  : `${jstDate.getUTCHours()}:${String(jstDate.getUTCMinutes()).padStart(2, "0")}`;
+                const endTime = stream.livestreamEndTime
+                  ? new Date(stream.livestreamEndTime).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" })
+                  : "";
+                
+                const gmv = Number(stream.gmv || stream.salesAmount || 0);
+                const duration = Number(stream.duration || 0);
+                const durationHours = duration > 0 ? (duration / 60).toFixed(1) : "---";
+                const viewers = Number(stream.viewerCount || 0);
+                
+                return (
+                  <div 
+                    key={stream.id}
+                    className="bg-gray-900/60 border border-gray-700/50 rounded-xl p-4 hover:border-gray-600/50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between">
+                      {/* Left: Date + Time */}
+                      <div className="flex items-start gap-3">
+                        <div className="text-center bg-gray-800 rounded-lg px-2.5 py-1.5 min-w-[50px]">
+                          <div className="text-lg font-bold text-white">{month}/{day}</div>
+                          <div className="text-xs text-white/60">{dayOfWeek}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-white/80">
+                            {startTime}{endTime ? ` - ${endTime}` : ""}
+                          </div>
+                          <div className="flex items-center gap-3 mt-1 text-xs text-white/50">
+                            <span className="flex items-center gap-1">
+                              <Timer className="w-3 h-3" />{durationHours}h
+                            </span>
+                            {viewers > 0 && (
+                              <span className="flex items-center gap-1">
+                                <Eye className="w-3 h-3" />{formatNumber(viewers)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Right: GMV + GPM */}
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-green-400">
+                          {formatCurrencyFull(gmv)}
+                        </div>
+                        {stream.gpm > 0 && (
+                          <div className="flex items-center justify-end gap-1 mt-0.5">
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-medium">
+                              GPM ¥{formatNumber(stream.gpm)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
         
-        {/* Growth Tracker - with month label */}
+        {/* ===== PRODUCT GPM RANKING ===== */}
+        {strategy && strategy.productGpm.length > 0 && (
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2 text-white">
+                <Package className="w-5 h-5 text-amber-400" />
+                商品別GPMランキング（{formatYearMonthLabel(selectedYearMonth)}）
+              </CardTitle>
+              <div className="text-xs text-white/50">
+                GPMが高い商品 = 少ない曝光で多く売れる効率的な商品
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {strategy.productGpm.map((product, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                      index === 0 ? "bg-amber-500 text-black" :
+                      index === 1 ? "bg-gray-400 text-black" :
+                      index === 2 ? "bg-amber-700 text-white" :
+                      "bg-gray-700 text-white"
+                    }`}>
+                      {index + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate text-white">{product.productName}</div>
+                      <div className="text-xs text-white/40">
+                        売上: {formatCurrency(product.totalGmv)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-purple-300">
+                        GPM ¥{formatNumber(product.gpm)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ===== HOURLY GPM HEATMAP ===== */}
+        {strategy && strategy.hourlyGpm.length > 0 && (
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2 text-white">
+                <Clock className="w-5 h-5 text-cyan-400" />
+                時間帯別GPM（{formatYearMonthLabel(selectedYearMonth)}）
+              </CardTitle>
+              <div className="text-xs text-white/50">
+                GPMが高い時間帯 = 流量池が活発な時間
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-4 gap-2">
+                {strategy.hourlyGpm
+                  .sort((a, b) => b.gpm - a.gpm)
+                  .map((h, idx) => {
+                    const maxGpm = Math.max(...strategy.hourlyGpm.map(x => x.gpm));
+                    const intensity = maxGpm > 0 ? h.gpm / maxGpm : 0;
+                    return (
+                      <div
+                        key={h.hour}
+                        className="rounded-lg p-2 text-center border border-gray-700/50"
+                        style={{
+                          backgroundColor: `rgba(168, 85, 247, ${0.1 + intensity * 0.5})`,
+                          borderColor: idx === 0 ? "rgba(168, 85, 247, 0.8)" : undefined,
+                        }}
+                      >
+                        <div className="text-xs text-white/60">{h.hour}時</div>
+                        <div className="text-sm font-bold text-white">¥{formatNumber(h.gpm)}</div>
+                        <div className="text-[10px] text-white/40">{h.count}回</div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* Growth Tracker */}
         <div className="grid grid-cols-2 gap-4">
           <Card className="bg-gray-800 border-gray-700">
             <CardContent className="pt-4">
@@ -463,10 +795,10 @@ export default function LiverDashboard() {
               </div>
               <div className="text-xs text-white/50">前月比</div>
               <div className="text-xs text-white/40 mt-1">
-                {formatYearMonthLabel(selectedYearMonth)}: {formatCurrency(currentSales)}
+                {formatYearMonthLabel(selectedYearMonth)}: {formatCurrencyFull(currentSales)}
               </div>
               <div className="text-xs text-white/30">
-                {formatYearMonthLabel(prevYearMonth(selectedYearMonth))}: {formatCurrency(stats?.previousMonth?.sales || 0)}
+                {formatYearMonthLabel(prevYearMonth(selectedYearMonth))}: {formatCurrencyFull(stats?.previousMonth?.sales || 0)}
               </div>
             </CardContent>
           </Card>
@@ -500,7 +832,7 @@ export default function LiverDashboard() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2 text-white">
               <TrendingUp className="w-5 h-5 text-red-400" />
-              売上推移（{formatYearMonthLabel(selectedYearMonth)}を含む過去6ヶ月）
+              売上推移（過去6ヶ月）
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -535,7 +867,7 @@ export default function LiverDashboard() {
                       <div className="text-sm font-medium truncate text-white">{product.productName}</div>
                     </div>
                     <div className="text-sm font-bold text-red-400">
-                      {formatCurrency(product.totalSales || 0)}
+                      {formatCurrencyFull(product.totalSales || 0)}
                     </div>
                   </div>
                 ))}
@@ -547,58 +879,6 @@ export default function LiverDashboard() {
             )}
           </CardContent>
         </Card>
-        
-        {/* Best Hour */}
-        {stats?.bestHour && (
-          <Card className="bg-gradient-to-br from-green-900/50 to-gray-800 border-green-700/50">
-            <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2 text-white">
-              <Clock className="w-5 h-5 text-green-400" />
-              ゴールデンタイム発見！（{formatYearMonthLabel(selectedYearMonth)}）
-            </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center">
-                <div className="text-4xl font-bold text-green-400 mb-2">
-                  {stats.bestHour.hour}:00 〜 {stats.bestHour.hour + 1}:00
-                </div>
-                <div className="text-sm text-white">
-                  この時間帯の配信が最も売上が高い！
-                </div>
-                <div className="text-lg font-bold text-white mt-2">
-                  平均売上: {formatCurrency(stats.bestHour.count > 0 ? Math.round(stats.bestHour.sales / stats.bestHour.count) : 0)}/配信
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        
-        {/* Hourly Stats Chart */}
-        {stats?.hourlyStats && stats.hourlyStats.length > 0 && (
-          <Card className="bg-gray-800 border-gray-700">
-            <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2 text-white">
-              <Clock className="w-5 h-5 text-green-400" />
-              時間帯別売上効率（{formatYearMonthLabel(selectedYearMonth)}）
-            </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-48">
-                <Line data={hourlyChartData} options={{
-                  ...chartOptions,
-                  plugins: {
-                    ...chartOptions.plugins,
-                    tooltip: {
-                      callbacks: {
-                        label: (context: { parsed: { y: number } }) => `${formatCurrency(context.parsed.y)}/分`,
-                      },
-                    },
-                  },
-                } as any} />
-              </div>
-            </CardContent>
-          </Card>
-        )}
         
         {/* Highlights */}
         <Card className="bg-gradient-to-br from-yellow-900/30 to-gray-800 border-yellow-700/50">
@@ -617,7 +897,7 @@ export default function LiverDashboard() {
                 <div>
                   <div className="text-sm text-white/70">最高売上配信</div>
                   <div className="font-bold">
-                    <span className="text-white">{new Date(stats.highlights.bestStream.date).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })} - {formatCurrency(stats.highlights.bestStream.sales || 0)}</span>
+                    <span className="text-white">{new Date(stats.highlights.bestStream.date).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })} - {formatCurrencyFull(stats.highlights.bestStream.sales || 0)}</span>
                   </div>
                 </div>
               </div>
