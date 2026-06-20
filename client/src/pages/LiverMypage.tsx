@@ -45,7 +45,8 @@ import {
   TrendingDown,
   MessageCircle,
   ShieldCheck,
-  ShieldAlert
+  ShieldAlert,
+  ArrowUpDown
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -97,6 +98,8 @@ export default function LiverMypage() {
   const [lineLinkTimeLeft, setLineLinkTimeLeft] = useState<number>(0);
   const [showSetsSection, setShowSetsSection] = useState(false);
   const [showProductsSection, setShowProductsSection] = useState(false);
+  const [setSortBy, setSetSortBy] = useState<'revenue' | 'quantity' | 'date' | 'discount'>('revenue');
+  const [productSortBy, setProductSortBy] = useState<'gmv' | 'quantity' | 'efficiency'>('gmv');
   const [expandedBrandId, setExpandedBrandId] = useState<number | null>(null);
   const [goalSalesInput, setGoalSalesInput] = useState('');
   const [goalStreamCountInput, setGoalStreamCountInput] = useState('');
@@ -1418,14 +1421,44 @@ export default function LiverMypage() {
                       <p className="text-[10px] text-white/60">{language === 'ja' ? '平均お得率' : language === 'zh-TW' ? '平均折扣率' : language === 'en' ? 'Avg Discount' : '平均折扣率'}</p>
                     </div>
                   </div>
+
+                  {/* ソート切替 */}
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <ArrowUpDown className="h-3 w-3 text-white/40" />
+                    {[
+                      { key: 'revenue' as const, label: language === 'ja' ? '売上順' : 'Revenue' },
+                      { key: 'quantity' as const, label: language === 'ja' ? '販売数順' : 'Qty' },
+                      { key: 'discount' as const, label: language === 'ja' ? '割引率順' : 'Discount' },
+                      { key: 'date' as const, label: language === 'ja' ? '新しい順' : 'Newest' },
+                    ].map(opt => (
+                      <button
+                        key={opt.key}
+                        onClick={() => setSetSortBy(opt.key)}
+                        className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${
+                          setSortBy === opt.key
+                            ? 'bg-amber-500/30 text-amber-400 border border-amber-500/50'
+                            : 'bg-gray-700/30 text-white/50 border border-gray-600/30 hover:text-white/70'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                   
                   {/* セット一覧 */}
                   <div className="space-y-2">
-                    {setAnalysis.sets.map((set: any) => (
+                    {[...setAnalysis.sets].sort((a: any, b: any) => {
+                      if (setSortBy === 'revenue') return (b.totalRevenue || 0) - (a.totalRevenue || 0);
+                      if (setSortBy === 'quantity') return (b.quantitySold || 0) - (a.quantitySold || 0);
+                      if (setSortBy === 'discount') return (b.discountRate || 0) - (a.discountRate || 0);
+                      if (setSortBy === 'date') return new Date(b.livestreamDate || 0).getTime() - new Date(a.livestreamDate || 0).getTime();
+                      return 0;
+                    }).map((set: any, setIdx: number) => (
                       <div key={set.id} className="bg-gray-700/20 border border-gray-600/30 rounded-lg p-3">
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-amber-400/70 w-4">#{setIdx + 1}</span>
                               <Tag className="h-3 w-3 text-amber-400 flex-shrink-0" />
                               <p className="text-sm font-semibold text-white break-words">{set.setName}</p>
                             </div>
@@ -1616,6 +1649,31 @@ export default function LiverMypage() {
                     </div>
                   </div>
 
+                  {/* ソート切替 */}
+                  <div className="flex items-center gap-1 flex-wrap mb-2">
+                    <ArrowUpDown className="h-3 w-3 text-white/40" />
+                    {[
+                      { key: 'gmv' as const, label: language === 'ja' ? '売上順' : 'GMV' },
+                      { key: 'quantity' as const, label: language === 'ja' ? '販売数順' : 'Qty' },
+                      { key: 'efficiency' as const, label: language === 'ja' ? '効率順' : 'Efficiency' },
+                    ].map(opt => (
+                      <button
+                        key={opt.key}
+                        onClick={() => setProductSortBy(opt.key)}
+                        className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${
+                          productSortBy === opt.key
+                            ? 'bg-orange-500/30 text-orange-400 border border-orange-500/50'
+                            : 'bg-gray-700/30 text-white/50 border border-gray-600/30 hover:text-white/70'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                    <span className="text-[9px] text-white/30 ml-1">
+                      {productSortBy === 'efficiency' ? '(売上/販売数 = 単価効率)' : ''}
+                    </span>
+                  </div>
+
                   {/* 商品テーブル */}
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
@@ -1625,11 +1683,20 @@ export default function LiverMypage() {
                           <th className="text-left py-1.5 px-1 text-gray-400 font-medium">{lt("mypage.productName") || "商品名"}</th>
                           <th className="text-right py-1.5 px-1 text-gray-400 font-medium">GMV</th>
                           <th className="text-right py-1.5 px-1 text-gray-400 font-medium">{lt("mypage.soldCount") || "販売数"}</th>
-                          <th className="text-right py-1.5 px-1 text-gray-400 font-medium">{lt("mypage.streamCount") || "配信回数"}</th>
+                          <th className="text-right py-1.5 px-1 text-gray-400 font-medium">{productSortBy === 'efficiency' ? '単価' : (lt("mypage.streamCount") || "配信回数")}</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {monthlyProducts.map((product, idx) => {
+                        {[...monthlyProducts].sort((a, b) => {
+                          if (productSortBy === 'gmv') return b.totalGmv - a.totalGmv;
+                          if (productSortBy === 'quantity') return b.totalItemsSold - a.totalItemsSold;
+                          if (productSortBy === 'efficiency') {
+                            const effA = a.totalItemsSold > 0 ? a.totalGmv / a.totalItemsSold : 0;
+                            const effB = b.totalItemsSold > 0 ? b.totalGmv / b.totalItemsSold : 0;
+                            return effB - effA;
+                          }
+                          return 0;
+                        }).map((product, idx) => {
                           const maxGmv = monthlyProducts[0]?.totalGmv || 1;
                           const barWidth = (product.totalGmv / maxGmv) * 100;
                           return (
@@ -1653,7 +1720,9 @@ export default function LiverMypage() {
                                 {product.totalItemsSold.toLocaleString()}
                               </td>
                               <td className="py-1.5 px-1 text-right text-gray-400">
-                                {product.count}
+                                {productSortBy === 'efficiency'
+                                  ? `¥${product.totalItemsSold > 0 ? Math.round(product.totalGmv / product.totalItemsSold).toLocaleString() : '0'}`
+                                  : product.count}
                               </td>
                             </tr>
                           );
