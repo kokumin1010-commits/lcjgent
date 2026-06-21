@@ -1046,26 +1046,72 @@ export default function LiverDashboard() {
                         {isLoadingStreamProducts ? (
                           <div className="text-xs text-white/50 text-center py-2">読み込み中...</div>
                         ) : streamProducts && streamProducts.length > 0 ? (
-                          <div className="space-y-1.5">
-                            <div className="text-[10px] text-white/40 mb-1">商品別売上（GMV順）</div>
-                            {streamProducts.map((p: any, idx: number) => (
-                              <div
-                                key={idx}
-                                className="flex items-center justify-between gap-2 py-1 px-2 rounded bg-gray-800/60 hover:bg-gray-700/60 cursor-pointer"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedProductName(selectedProductName === p.productName ? null : p.productName);
-                                }}
-                              >
-                                <span className="text-xs text-white/90 break-words leading-tight flex-1" style={{maxWidth: '60%'}}>
-                                  {p.productName.length > 50 ? p.productName.slice(0, 50) + '…' : p.productName}
-                                </span>
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                  <span className="text-xs font-bold text-green-400">{formatCurrency(p.gmv)}</span>
-                                  <span className="text-[10px] text-white/50">{p.itemsSold}個</span>
+                          <div className="space-y-3">
+                            {/* 紹介チャンス: インプレ高×売上0 */}
+                            {(() => {
+                              const missedOpportunities = streamProducts
+                                .filter((p: any) => p.impressions >= 100 && p.gmv === 0)
+                                .sort((a: any, b: any) => b.impressions - a.impressions)
+                                .slice(0, 5);
+                              if (missedOpportunities.length === 0) return null;
+                              return (
+                                <div className="bg-gradient-to-r from-orange-900/30 to-red-900/20 border border-orange-500/40 rounded-lg p-2.5">
+                                  <div className="flex items-center gap-1.5 mb-1.5">
+                                    <span className="text-[11px]">\u26a1</span>
+                                    <span className="text-[11px] font-bold text-orange-300">紹介チャンス（インプレ高 × 売上0）</span>
+                                  </div>
+                                  <div className="text-[9px] text-white/40 mb-1.5">TikTokが推しているのに紹介されていない商品 → 次回優先紹介推奨</div>
+                                  <div className="space-y-1">
+                                    {missedOpportunities.map((p: any, idx: number) => (
+                                      <div
+                                        key={`missed-${idx}`}
+                                        className="flex items-center justify-between gap-2 py-1 px-2 rounded bg-orange-900/20 hover:bg-orange-800/30 cursor-pointer"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedProductName(selectedProductName === p.productName ? null : p.productName);
+                                        }}
+                                      >
+                                        <span className="text-xs text-orange-200 break-words leading-tight flex-1" style={{maxWidth: '55%'}}>
+                                          {p.productName.length > 40 ? p.productName.slice(0, 40) + '…' : p.productName}
+                                        </span>
+                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-medium">
+                                            曝光{formatNumber(p.impressions)}
+                                          </span>
+                                          <span className="text-[10px] text-red-400 font-bold">¥0</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })()}
+
+                            {/* 商品別売上（GMV順） */}
+                            <div>
+                              <div className="text-[10px] text-white/40 mb-1">商品別売上（GMV順）</div>
+                              {streamProducts.filter((p: any) => p.gmv > 0).slice(0, 15).map((p: any, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-center justify-between gap-2 py-1 px-2 rounded bg-gray-800/60 hover:bg-gray-700/60 cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedProductName(selectedProductName === p.productName ? null : p.productName);
+                                  }}
+                                >
+                                  <span className="text-xs text-white/90 break-words leading-tight flex-1" style={{maxWidth: '50%'}}>
+                                    {p.productName.length > 40 ? p.productName.slice(0, 40) + '…' : p.productName}
+                                  </span>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    {p.impressions > 0 && (
+                                      <span className="text-[9px] text-white/40">曝光{formatNumber(p.impressions)}</span>
+                                    )}
+                                    <span className="text-xs font-bold text-green-400">{formatCurrency(p.gmv)}</span>
+                                    <span className="text-[10px] text-white/50">{p.itemsSold}個</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         ) : (
                           <div className="text-xs text-white/50 text-center py-2">商品データなし</div>
