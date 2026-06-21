@@ -424,6 +424,49 @@ export default function LiverDashboard() {
           </div>
         )}
 
+        {/* ===== 🔥 WEEKLY TOP SELLERS - FIRST VIEW ===== */}
+        {weeklyTopProducts && weeklyTopProducts.length > 0 && (
+          <Card className="bg-gradient-to-br from-orange-900/30 to-gray-800 border-orange-600/40">
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-5 h-5 text-orange-400" />
+                  <span className="text-sm font-bold text-orange-300">直近7日間 売れ筋TOP5</span>
+                </div>
+                <span className="text-[10px] text-white/40">次の配信で出すべき商品</span>
+              </div>
+              <div className="space-y-1.5">
+                {weeklyTopProducts.slice(0, 5).map((product, index) => (
+                  <div key={index} className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-gray-800/60">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
+                      index === 0 ? "bg-amber-500 text-black" :
+                      index === 1 ? "bg-gray-400 text-black" :
+                      index === 2 ? "bg-amber-700 text-white" :
+                      "bg-gray-700 text-white"
+                    }`}>
+                      {index + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium truncate text-white">{product.productName}</div>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <div className="text-right">
+                        <div className="text-xs font-bold text-red-400">{formatCurrency(product.totalGmv)}</div>
+                      </div>
+                      <div className="text-right min-w-[40px]">
+                        <div className="text-[10px] text-white/60">{formatNumber(product.totalItemsSold)}個</div>
+                      </div>
+                      <div className="text-right min-w-[50px]">
+                        <div className="text-[10px] font-medium text-emerald-400">@¥{formatNumber(product.avgUnitPrice)}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Month Selector */}
         <div className="flex items-center justify-center gap-3">
           <Button
@@ -622,52 +665,26 @@ export default function LiverDashboard() {
           </Card>
         )}
 
-        {/* ===== WEEKLY TOP 10 PRODUCTS ===== */}
-        {weeklyTopProducts && weeklyTopProducts.length > 0 && (
+        {/* ===== WEEKLY TOP 6-10 PRODUCTS (remaining) ===== */}
+        {weeklyTopProducts && weeklyTopProducts.length > 5 && (
           <Card className="bg-gray-800 border-gray-700">
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2 text-white">
-                <Flame className="w-5 h-5 text-orange-400" />
-                直近7日間 売れ筋TOP10
+              <CardTitle className="text-sm flex items-center gap-2 text-white/70">
+                <Package className="w-4 h-4 text-gray-400" />
+                売れ筋 6〜10位
               </CardTitle>
-              <div className="text-xs text-white/50">
-                配信前に「次何を出すべきか」即判断
-              </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {/* Header row */}
-                <div className="grid grid-cols-12 gap-2 text-[10px] text-white/40 border-b border-gray-700 pb-1 px-1">
-                  <div className="col-span-1">#</div>
-                  <div className="col-span-5">商品名</div>
-                  <div className="col-span-2 text-right">GMV</div>
-                  <div className="col-span-2 text-right">販売数</div>
-                  <div className="col-span-2 text-right">実売単価</div>
-                </div>
-                {weeklyTopProducts.map((product, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 items-center py-1.5 px-1 rounded hover:bg-gray-700/30">
-                    <div className="col-span-1">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                        index === 0 ? "bg-amber-500 text-black" :
-                        index === 1 ? "bg-gray-400 text-black" :
-                        index === 2 ? "bg-amber-700 text-white" :
-                        "bg-gray-700 text-white"
-                      }`}>
-                        {index + 1}
-                      </div>
+              <div className="space-y-1">
+                {weeklyTopProducts.slice(5, 10).map((product, index) => (
+                  <div key={index} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-gray-700/30">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold bg-gray-700 text-white flex-shrink-0">
+                      {index + 6}
                     </div>
-                    <div className="col-span-5 min-w-0">
-                      <div className="text-xs font-medium truncate text-white">{product.productName}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] truncate text-white/80">{product.productName}</div>
                     </div>
-                    <div className="col-span-2 text-right">
-                      <div className="text-xs font-bold text-red-400">{formatCurrency(product.totalGmv)}</div>
-                    </div>
-                    <div className="col-span-2 text-right">
-                      <div className="text-xs text-white/70">{formatNumber(product.totalItemsSold)}個</div>
-                    </div>
-                    <div className="col-span-2 text-right">
-                      <div className="text-xs text-emerald-400">¥{formatNumber(product.avgUnitPrice)}</div>
-                    </div>
+                    <div className="text-xs font-bold text-red-400 flex-shrink-0">{formatCurrency(product.totalGmv)}</div>
                   </div>
                 ))}
               </div>
