@@ -360,34 +360,84 @@ export default function LiverDashboard() {
         {/* Mega Channel Banner - hidden */}
         {/* <MegaChannelBanner /> */}
 
-        {/* ===== BIG GOAL PROGRESS BAR ===== */}
-        {bigGoal && (
-          <Card className="bg-gradient-to-r from-amber-900/40 via-red-900/40 to-purple-900/40 border-amber-600/50 overflow-hidden relative">
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-500/10 via-transparent to-transparent" />
-            <CardContent className="pt-4 pb-4 relative">
+        {/* ===== CURRENT MONTH GMV PROGRESS + LONG-TERM GOAL ===== */}
+        {strategy && (
+          <Card className="bg-gradient-to-r from-green-900/40 via-blue-900/30 to-purple-900/30 border-green-600/50 overflow-hidden relative">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-green-500/10 via-transparent to-transparent" />
+            <CardContent className="pt-4 pb-3 relative">
+              {/* Current Month Main Progress */}
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <Target className="w-5 h-5 text-amber-400" />
-                  <span className="text-sm font-bold text-amber-300">{bigGoal.label}</span>
+                  <Target className="w-5 h-5 text-green-400" />
+                  <span className="text-sm font-bold text-green-300">
+                    {formatYearMonthLabel(selectedYearMonth)} 月GMV目標
+                  </span>
                 </div>
-                <span className="text-xs text-white/60">
-                  {bigGoalProgress ? `${Math.round((bigGoalProgress.totalGmv / bigGoal.salesGoal) * 100)}%` : "---"}
+                <span className="text-sm font-bold text-white">
+                  {salesGoal > 0 ? `${Math.min(Math.round((currentSales / salesGoal) * 100), 999)}%` : "---"}
                 </span>
               </div>
-              <div className="relative h-6 bg-gray-800/80 rounded-full overflow-hidden">
+              
+              {/* Progress Bar */}
+              <div className="relative h-7 bg-gray-800/80 rounded-full overflow-hidden">
                 <div 
-                  className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-500 via-red-500 to-purple-500 rounded-full transition-all duration-1000"
-                  style={{ width: `${Math.min(100, bigGoalProgress ? (bigGoalProgress.totalGmv / bigGoal.salesGoal) * 100 : 0)}%` }}
+                  className="absolute inset-y-0 left-0 bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 rounded-full transition-all duration-1000"
+                  style={{ width: `${salesGoal > 0 ? Math.min(100, (currentSales / salesGoal) * 100) : 0}%` }}
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-xs font-bold text-white drop-shadow-md">
-                    {bigGoalProgress ? formatCurrency(bigGoalProgress.totalGmv) : "---"} / {formatCurrency(bigGoal.salesGoal)}
+                    {formatCurrency(currentSales)} / {salesGoal > 0 ? formatCurrency(salesGoal) : "未設定"}
                   </span>
                 </div>
               </div>
-              {bigGoalProgress && bigGoalProgress.totalGmv < bigGoal.salesGoal && (
-                <div className="text-xs text-white/50 mt-1 text-right">
-                  残り {formatCurrency(bigGoal.salesGoal - bigGoalProgress.totalGmv)}
+              
+              {/* Remaining info */}
+              {salesGoal > 0 && isCurrentMonth && (
+                <div className="flex items-center justify-between mt-2 text-xs">
+                  <span className="text-white/60">
+                    残り{remainingDays}日 / 残り{formatCurrency(Math.max(0, salesGoal - currentSales))}
+                  </span>
+                  <span className="text-blue-300 font-medium">
+                    {dailyPaceNeeded > 0 ? `${formatCurrency(dailyPaceNeeded)}/日ペース` : ""}
+                  </span>
+                </div>
+              )}
+              {salesGoal === 0 && (
+                <div className="text-xs text-white/50 mt-2 text-center">
+                  ↓ 下の「ゴール進捗」から月目標を設定してください
+                </div>
+              )}
+              
+              {/* Long-term goal sub-label */}
+              {bigGoal && (
+                <div className="mt-3 pt-2 border-t border-white/10 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-amber-400">🚀</span>
+                    <span className="text-[11px] text-amber-300 font-medium">{bigGoal.label}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const monthlyPace = strategy.summary.totalGmv;
+                      const multiplier = monthlyPace > 0 ? (bigGoal.salesGoal / monthlyPace) : 0;
+                      return (
+                        <>
+                          <span className="text-[10px] text-white/50">
+                            現ペース: 月{formatCurrency(monthlyPace)}
+                          </span>
+                          {multiplier > 1 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 font-bold">
+                              {multiplier.toFixed(1)}倍必要
+                            </span>
+                          )}
+                          {multiplier <= 1 && multiplier > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-300 font-bold">
+                              達成ペース
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
               )}
             </CardContent>
