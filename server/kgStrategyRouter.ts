@@ -456,4 +456,134 @@ export const kgStrategyRouter = router({
         streamCount: Number(result[0]?.streamCount || 0),
       };
     }),
+
+  // ===== 今日のおすすめ構成（鉄板・急上昇・最近出してない） =====
+  getProductRecommendations: publicProcedure
+    .input(z.object({ liverId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return null;
+
+      const now = getJSTNow();
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+      const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+
+      // 直近7日間の配信を取得
+      const recentStreams = await db
+        .select({ id: brandLivestreams.id, livestreamDate: brandLivestreams.livestreamDate })
+        .from(brandLivestreams)
+        .where(and(
+          eq(brandLivestreams.liverId, input.liverId),
+          isNull(brandLivestreams.deletedAt),
+          gte(brandLivestreams.livestreamDate, sevenDaysAgo),
+        ));
+
+      if (recentStreams.length === 0) return null;
+
+      // 前週（7-14日前）の配信を取得
+      const prevWeekStreams = await db
+        .select({ id: brandLivestreams.id })
+        .from(brandLivestreams)
+        .where(and(
+          eq(brandLivestreams.liverId, input.liverId),
+          isNull(brandLivestreams.deletedAt),
+          gte(brandLivestreams.livestreamDate, fourteenDaysAgo),
+          lte(brandLivestreams.livestreamDate, sevenDaysAgo),
+        ));
+
+      // 直近3日間の配信を特定
+      const last3DayStreams = recentStreams.filter(
+        s => s.livestreamDate && new Date(s.livestreamDate).getTime() >= threeDaysAgo.getTime()
+      );
+
+      // 商品データを取得するヘルパー
+      async function getProductsForStreams(streamIds: number[]): Promise<Record<string, { totalGmv: number; totalItemsSold: number }>> {
+        if (streamIds.length === 0) return {};
+        const productMap: Record<string, { totalGmv: number; totalItemsSold: number }> = {};
+        const batchSize = 100;
+        for (let i = 0; i < streamIds.length; i += batchSize) {
+          const batch = streamIds.slice(i, i + batchSize);
+          const products = await db
+            .select({
+              productName: livestreamProducts.productName,
+              grossRevenue: livestreamProducts.grossRevenue,
+              directGmv: livestreamProducts.directGmv,
+              gmv: livestreamProducts.gmv,
+              itemsSold: livestreamProducts.itemsSold,
+              quantity: livestreamProducts.quantity,
+            })
+            .from(livestreamProducts)
+            .where(sql`${livestreamProducts.livestreamId} IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
+          for (const p of products) {
+            const name = (p.productName || "").trim();
+            if (!name) continue;
+            const gmv = Number(p.grossRevenue || p.directGmv || p.gmv || 0);
+            const itemsSold = Number(p.itemsSold || p.quantity || 0);
+            if (!productMap[name]) productMap[name] = { totalGmv: 0, totalItemsSold: 0 };
+            productMap[name].totalGmv += gmv;
+            productMap[name].totalItemsSold += itemsSold;
+          }
+        }
+        return productMap;
+      }
+
+      // 今週と前週の商品データを取得
+      const thisWeekProducts = await getProductsForStreams(recentStreams.map(s => s.id));
+      const prevWeekProducts = await getProductsForStreams(prevWeekStreams.map(s => s.id));
+      const last3DayProducts = await getProductsForStreams(last3DayStreams.map(s => s.id));
+
+      // 🔥 鉄板: 今週TOP3（GMV順）
+      const staples = Object.entries(thisWeekProducts)
+        .filter(([_, d]) => d.totalGmv > 0)
+        .sort((a, b) => b[1].totalGmv - a[1].totalGmv)
+        .slice(0, 3)
+        .map(([name]) => name);
+
+      // 📈 急上昇: 前週比で伸びてる商品（前週にもあった商品で、GMVが+20%以上）
+      const rising: Array<{ name: string; growthPct: number }> = [];
+      for (const [name, data] of Object.entries(thisWeekProducts)) {
+        if (data.totalGmv <= 0) continue;
+        const prev = prevWeekProducts[name];
+        if (prev && prev.totalGmv > 0) {
+          const growth = ((data.totalGmv - prev.totalGmv) / prev.totalGmv) * 100;
+          if (growth >= 20) {
+            rising.push({ name, growthPct: Math.round(growth) });
+          }
+        } else if (!prev && data.totalGmv >= 100000) {
+          // 前週になかった新商品で売上10万以上 = 新星
+          rising.push({ name, growthPct: 999 });
+        }
+      }
+      rising.sort((a, b) => b.growthPct - a.growthPct);
+      const topRising = rising
+        .filter(r => !staples.includes(r.name))
+        .slice(0, 3);
+
+      // 🆕 最近出してない: 今週売れてるけど直近3日間に出してない商品
+      const forgotten: Array<{ name: string; daysSince: number }> = [];
+      const allThisWeekNames = Object.entries(thisWeekProducts)
+        .filter(([_, d]) => d.totalGmv > 50000) // 売上5万以上の商品のみ
+        .map(([name]) => name);
+
+      for (const name of allThisWeekNames) {
+        if (staples.includes(name)) continue; // 鉄板は除外
+        if (!last3DayProducts[name] || last3DayProducts[name].totalGmv === 0) {
+          forgotten.push({ name, daysSince: 3 });
+        }
+      }
+      // GMV順でソート
+      forgotten.sort((a, b) => {
+        const gmvA = thisWeekProducts[a.name]?.totalGmv || 0;
+        const gmvB = thisWeekProducts[b.name]?.totalGmv || 0;
+        return gmvB - gmvA;
+      });
+      const topForgotten = forgotten.slice(0, 3);
+
+      return {
+        staples, // 鉄板TOP3
+        rising: topRising, // 急上昇TOP3
+        forgotten: topForgotten, // 最近出してないTOP3
+      };
+    }),
 });
