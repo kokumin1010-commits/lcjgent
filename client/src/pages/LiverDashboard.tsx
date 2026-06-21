@@ -495,6 +495,35 @@ export default function LiverDashboard() {
           </div>
         )}
 
+        {/* ===== ⚡ MISSED OPPORTUNITIES (TOP LEVEL) ===== */}
+        {recommendations && recommendations.missedOpportunities && recommendations.missedOpportunities.length > 0 && (
+          <Card className="bg-gradient-to-r from-orange-900/30 via-red-900/20 to-gray-900 border-orange-500/40">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base">\u26a1</span>
+                <span className="text-sm font-bold text-orange-300">紹介チャンス（インプレ高 × 売上0）</span>
+                <span className="text-[10px] text-white/40 ml-auto">過去7日集計</span>
+              </div>
+              <div className="text-[9px] text-white/40 mb-2">TikTokが推しているのに紹介されていない商品 → 次の配信で優先紹介推奨</div>
+              <div className="space-y-1.5">
+                {recommendations.missedOpportunities.map((item: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between gap-2 py-1.5 px-3 rounded-lg bg-orange-900/20 border border-orange-600/20">
+                    <span className="text-xs text-orange-100 break-words leading-tight flex-1" style={{maxWidth: '65%'}}>
+                      {item.name.length > 45 ? item.name.slice(0, 45) + '…' : item.name}
+                    </span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-medium">
+                        曝光{formatNumber(item.impressions)}
+                      </span>
+                      <span className="text-[10px] text-red-400 font-bold">¥0</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* ===== ⚡ TODAY'S RECOMMENDED LINEUP ===== */}
         {recommendations && (recommendations.staples.length > 0 || recommendations.rising.length > 0 || recommendations.forgotten.length > 0) && (
           <Card className="bg-gradient-to-br from-yellow-900/20 via-gray-800 to-blue-900/20 border-yellow-500/30">
@@ -537,11 +566,12 @@ export default function LiverDashboard() {
                     <div className="space-y-1 pl-6">
                       {recommendations.staples.map((item: any, i: number) => (
                         <div key={i} className="flex items-baseline justify-between gap-2">
-                          <span className="text-xs text-white/90 break-words leading-tight" style={{maxWidth: '70%'}}>
-                            {item.name.length > 50 ? item.name.slice(0, 50) + '…' : item.name}
+                          <span className="text-xs text-white/90 break-words leading-tight" style={{maxWidth: '55%'}}>
+                            {item.name.length > 45 ? item.name.slice(0, 45) + '…' : item.name}
                           </span>
-                          <span className="text-[10px] text-orange-300 whitespace-nowrap font-bold">
-                            ¥{item.gmv.toLocaleString()}
+                          <span className="text-[10px] whitespace-nowrap">
+                            {item.unitPrice > 0 && <span className="text-white/40 mr-1">@¥{item.unitPrice.toLocaleString()}</span>}
+                            <span className="text-orange-300 font-bold">¥{item.gmv.toLocaleString()}</span>
                           </span>
                         </div>
                       ))}
@@ -558,11 +588,12 @@ export default function LiverDashboard() {
                     <div className="space-y-1 pl-6">
                       {recommendations.rising.map((item: any, i: number) => (
                         <div key={i} className="flex items-baseline justify-between gap-2">
-                          <span className="text-xs text-white/90 break-words leading-tight" style={{maxWidth: '60%'}}>
-                            {item.name.length > 50 ? item.name.slice(0, 50) + '…' : item.name}
+                          <span className="text-xs text-white/90 break-words leading-tight" style={{maxWidth: '50%'}}>
+                            {item.name.length > 40 ? item.name.slice(0, 40) + '…' : item.name}
                           </span>
                           <span className="text-[10px] whitespace-nowrap">
                             <span className="text-green-400 font-bold">{item.growthPct >= 999 ? 'NEW' : `+${item.growthPct}%`}</span>
+                            {item.unitPrice > 0 && <span className="text-white/40 ml-1">@¥{item.unitPrice.toLocaleString()}</span>}
                             <span className="text-white/50 ml-1">¥{item.gmv.toLocaleString()}</span>
                           </span>
                         </div>
@@ -580,11 +611,12 @@ export default function LiverDashboard() {
                     <div className="space-y-1 pl-6">
                       {recommendations.gpmEfficient.map((item: any, i: number) => (
                         <div key={i} className="flex items-baseline justify-between gap-2">
-                          <span className="text-xs text-white/90 break-words leading-tight" style={{maxWidth: '55%'}}>
-                            {item.name.length > 50 ? item.name.slice(0, 50) + '…' : item.name}
+                          <span className="text-xs text-white/90 break-words leading-tight" style={{maxWidth: '45%'}}>
+                            {item.name.length > 40 ? item.name.slice(0, 40) + '…' : item.name}
                           </span>
                           <span className="text-[10px] whitespace-nowrap">
                             <span className="text-purple-400 font-bold">GPM ¥{item.gpm.toLocaleString()}</span>
+                            {item.unitPrice > 0 && <span className="text-white/40 ml-1">@¥{item.unitPrice.toLocaleString()}</span>}
                             <span className="text-white/50 ml-1">売上¥{item.gmv.toLocaleString()}</span>
                           </span>
                         </div>
@@ -602,11 +634,12 @@ export default function LiverDashboard() {
                     <div className="space-y-1 pl-6">
                       {recommendations.forgotten.map((item: any, i: number) => (
                         <div key={i} className="flex items-baseline justify-between gap-2">
-                          <span className="text-xs text-white/90 break-words leading-tight" style={{maxWidth: '60%'}}>
-                            {item.name.length > 50 ? item.name.slice(0, 50) + '…' : item.name}
+                          <span className="text-xs text-white/90 break-words leading-tight" style={{maxWidth: '50%'}}>
+                            {item.name.length > 40 ? item.name.slice(0, 40) + '…' : item.name}
                           </span>
                           <span className="text-[10px] whitespace-nowrap">
                             <span className="text-blue-400 font-bold">{item.daysSince}日未紹介</span>
+                            {item.unitPrice > 0 && <span className="text-white/40 ml-1">@¥{item.unitPrice.toLocaleString()}</span>}
                             <span className="text-white/50 ml-1">¥{item.gmv.toLocaleString()}</span>
                           </span>
                         </div>

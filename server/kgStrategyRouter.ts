@@ -542,22 +542,22 @@ export const kgStrategyRouter = router({
         .filter(([_, d]) => d.totalGmv > 0)
         .sort((a, b) => b[1].totalGmv - a[1].totalGmv)
         .slice(0, 3)
-        .map(([name, d]) => ({ name, gmv: d.totalGmv, itemsSold: d.totalItemsSold }));
+        .map(([name, d]) => ({ name, gmv: d.totalGmv, itemsSold: d.totalItemsSold, unitPrice: d.totalItemsSold > 0 ? Math.round(d.totalGmv / d.totalItemsSold) : 0 }));
       const stapleNames = staples.map(s => s.name);
 
       // 📈 急上昇: 前週比で伸びてる商品（前週にもあった商品で、GMVが+20%以上）
-      const rising: Array<{ name: string; growthPct: number; gmv: number }> = [];
+      const rising: Array<{ name: string; growthPct: number; gmv: number; unitPrice: number }> = [];
       for (const [name, data] of Object.entries(thisWeekProducts)) {
         if (data.totalGmv <= 0) continue;
         const prev = prevWeekProducts[name];
         if (prev && prev.totalGmv > 0) {
           const growth = ((data.totalGmv - prev.totalGmv) / prev.totalGmv) * 100;
           if (growth >= 20) {
-            rising.push({ name, growthPct: Math.round(growth), gmv: data.totalGmv });
+            rising.push({ name, growthPct: Math.round(growth), gmv: data.totalGmv, unitPrice: data.totalItemsSold > 0 ? Math.round(data.totalGmv / data.totalItemsSold) : 0 });
           }
         } else if (!prev && data.totalGmv >= 100000) {
           // 前週になかった新商品で売上10万以上 = 新星
-          rising.push({ name, growthPct: 999, gmv: data.totalGmv });
+          rising.push({ name, growthPct: 999, gmv: data.totalGmv, unitPrice: data.totalItemsSold > 0 ? Math.round(data.totalGmv / data.totalItemsSold) : 0 });
         }
       }
       rising.sort((a, b) => b.growthPct - a.growthPct);
@@ -566,7 +566,7 @@ export const kgStrategyRouter = router({
         .slice(0, 3);
 
       // 🆕 最近出してない: 今週売れてるけど直近3日間に出してない商品
-      const forgotten: Array<{ name: string; daysSince: number; gmv: number }> = [];
+      const forgotten: Array<{ name: string; daysSince: number; gmv: number; unitPrice: number }> = [];
       const allThisWeekNames = Object.entries(thisWeekProducts)
         .filter(([_, d]) => d.totalGmv > 50000) // 売上5万以上の商品のみ
         .map(([name]) => name);
@@ -574,7 +574,8 @@ export const kgStrategyRouter = router({
       for (const name of allThisWeekNames) {
         if (stapleNames.includes(name)) continue; // 鉄板は除外
         if (!last3DayProducts[name] || last3DayProducts[name].totalGmv === 0) {
-          forgotten.push({ name, daysSince: 3, gmv: thisWeekProducts[name].totalGmv });
+          const fData = thisWeekProducts[name];
+          forgotten.push({ name, daysSince: 3, gmv: fData.totalGmv, unitPrice: fData.totalItemsSold > 0 ? Math.round(fData.totalGmv / fData.totalItemsSold) : 0 });
         }
       }
       // GMV順でソート
@@ -582,13 +583,13 @@ export const kgStrategyRouter = router({
       const topForgotten = forgotten.slice(0, 3);
 
       // 💎 GPM効率: 商品別GPMが高い商品（鉄板と被らないTOP3）
-      const gpmEfficient: Array<{ name: string; gpm: number; gmv: number }> = [];
+      const gpmEfficient: Array<{ name: string; gpm: number; gmv: number; unitPrice: number }> = [];
       for (const [name, data] of Object.entries(thisWeekProducts)) {
         if (data.totalGmv <= 0 || data.totalImpressions <= 0) continue;
         if (stapleNames.includes(name)) continue; // 鉄板は除外
         const gpm = Math.round((data.totalGmv / data.totalImpressions) * 1000);
         if (gpm > 0) {
-          gpmEfficient.push({ name, gpm, gmv: data.totalGmv });
+          gpmEfficient.push({ name, gpm, gmv: data.totalGmv, unitPrice: data.totalItemsSold > 0 ? Math.round(data.totalGmv / data.totalItemsSold) : 0 });
         }
       }
       gpmEfficient.sort((a, b) => b.gpm - a.gpm);
@@ -651,6 +652,13 @@ export const kgStrategyRouter = router({
         .sort((a, b) => b.gpm - a.gpm)
         .slice(0, 3);
 
+      // ⚡ 紹介チャンス: インプレ高×売上0（直近7日全体から集計）
+      const missedOpportunities = Object.entries(thisWeekProducts)
+        .filter(([_, d]) => d.totalImpressions >= 200 && d.totalGmv === 0)
+        .sort((a, b) => b[1].totalImpressions - a[1].totalImpressions)
+        .slice(0, 5)
+        .map(([name, d]) => ({ name, impressions: d.totalImpressions }));
+
       return {
         staples, // 鉄板TOP3（GMV付き）
         rising: topRising, // 急上昇TOP3（GMV付き）
@@ -658,6 +666,7 @@ export const kgStrategyRouter = router({
         forgotten: topForgotten, // 最近出してないTOP3（GMV付き）
         declining: topDeclining, // 落ちてきたTOP3
         bestTimes, // ベストタイムTOP3
+        missedOpportunities, // 紹介チャンス（インプレ高×売上0）
       };
     }),
 
