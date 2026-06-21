@@ -90,6 +90,7 @@ export default function LiverDashboard() {
   const now = useMemo(() => new Date(), []);
   const currentYearMonthStr = useMemo(() => getYearMonth(now), [now]);
   const [selectedYearMonth, setSelectedYearMonth] = useState(currentYearMonthStr);
+  const [showAllStreams, setShowAllStreams] = useState(false);
   
   const isCurrentMonth = selectedYearMonth === currentYearMonthStr;
   const isFutureMonth = selectedYearMonth > currentYearMonthStr;
@@ -434,11 +435,33 @@ export default function LiverDashboard() {
         {recommendations && (recommendations.staples.length > 0 || recommendations.rising.length > 0 || recommendations.forgotten.length > 0) && (
           <Card className="bg-gradient-to-br from-yellow-900/20 via-gray-800 to-blue-900/20 border-yellow-500/30">
             <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 mb-3">
                 <Zap className="w-5 h-5 text-yellow-400" />
                 <span className="text-sm font-bold text-yellow-300">今日のおすすめ構成</span>
                 <span className="text-[10px] text-white/40 ml-auto">0.5秒で配信戦略が決まる</span>
               </div>
+
+              {/* ⏰ ベストタイム */}
+              {recommendations.bestTimes && recommendations.bestTimes.length > 0 && (
+                <div className="mb-3 p-2 rounded-lg bg-cyan-900/30 border border-cyan-500/20">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm">⏰</span>
+                    <span className="text-[11px] text-cyan-400 font-bold">次の配信ベストタイム</span>
+                    <span className="ml-auto text-sm font-bold text-cyan-300">
+                      {recommendations.bestTimes[0].hour}時台
+                    </span>
+                    <span className="text-[10px] text-cyan-400/70">
+                      GPM ¥{recommendations.bestTimes[0].gpm.toLocaleString()} / 平均¥{recommendations.bestTimes[0].avgGmv.toLocaleString()}
+                    </span>
+                  </div>
+                  {recommendations.bestTimes.length > 1 && (
+                    <div className="mt-1 pl-6 text-[10px] text-white/50">
+                      他: {recommendations.bestTimes.slice(1).map((t: any) => `${t.hour}時(GPM¥${t.gpm.toLocaleString()})`).join(' / ')}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-3">
                 {/* 🔥 鉄板 */}
                 {recommendations.staples.length > 0 && (
@@ -447,9 +470,16 @@ export default function LiverDashboard() {
                       <span className="text-sm">🔥</span>
                       <span className="text-[11px] text-orange-400 font-bold">鉄板（必ず出す）</span>
                     </div>
-                    <div className="space-y-0.5 pl-6">
-                      {recommendations.staples.map((name: string, i: number) => (
-                        <div key={i} className="text-xs text-white/90">{name}</div>
+                    <div className="space-y-1 pl-6">
+                      {recommendations.staples.map((item: any, i: number) => (
+                        <div key={i} className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs text-white/90 break-words leading-tight" style={{maxWidth: '70%'}}>
+                            {item.name.length > 50 ? item.name.slice(0, 50) + '…' : item.name}
+                          </span>
+                          <span className="text-[10px] text-orange-300 whitespace-nowrap font-bold">
+                            ¥{item.gmv.toLocaleString()}
+                          </span>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -461,11 +491,16 @@ export default function LiverDashboard() {
                       <span className="text-sm">📈</span>
                       <span className="text-[11px] text-green-400 font-bold">波来てる（タイミング逃すな）</span>
                     </div>
-                    <div className="space-y-0.5 pl-6">
+                    <div className="space-y-1 pl-6">
                       {recommendations.rising.map((item: any, i: number) => (
-                        <div key={i} className="text-xs text-white/90">
-                          {item.name}
-                          <span className="text-green-400 ml-1 text-[10px] font-bold">({item.growthPct >= 999 ? 'NEW' : `+${item.growthPct}%`})</span>
+                        <div key={i} className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs text-white/90 break-words leading-tight" style={{maxWidth: '60%'}}>
+                            {item.name.length > 50 ? item.name.slice(0, 50) + '…' : item.name}
+                          </span>
+                          <span className="text-[10px] whitespace-nowrap">
+                            <span className="text-green-400 font-bold">{item.growthPct >= 999 ? 'NEW' : `+${item.growthPct}%`}</span>
+                            <span className="text-white/50 ml-1">¥{item.gmv.toLocaleString()}</span>
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -478,11 +513,16 @@ export default function LiverDashboard() {
                       <span className="text-sm">💎</span>
                       <span className="text-[11px] text-purple-400 font-bold">効率◎（流量池上げたい時）</span>
                     </div>
-                    <div className="space-y-0.5 pl-6">
+                    <div className="space-y-1 pl-6">
                       {recommendations.gpmEfficient.map((item: any, i: number) => (
-                        <div key={i} className="text-xs text-white/90">
-                          {item.name}
-                          <span className="text-purple-400 ml-1 text-[10px] font-bold">(GPM ¥{item.gpm.toLocaleString()})</span>
+                        <div key={i} className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs text-white/90 break-words leading-tight" style={{maxWidth: '55%'}}>
+                            {item.name.length > 50 ? item.name.slice(0, 50) + '…' : item.name}
+                          </span>
+                          <span className="text-[10px] whitespace-nowrap">
+                            <span className="text-purple-400 font-bold">GPM ¥{item.gpm.toLocaleString()}</span>
+                            <span className="text-white/50 ml-1">売上¥{item.gmv.toLocaleString()}</span>
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -495,11 +535,16 @@ export default function LiverDashboard() {
                       <span className="text-sm">🆕</span>
                       <span className="text-[11px] text-blue-400 font-bold">忘れてない？（マンネリ防止）</span>
                     </div>
-                    <div className="space-y-0.5 pl-6">
+                    <div className="space-y-1 pl-6">
                       {recommendations.forgotten.map((item: any, i: number) => (
-                        <div key={i} className="text-xs text-white/90">
-                          {item.name}
-                          <span className="text-blue-400 ml-1 text-[10px] font-bold">({item.daysSince}日未紹介)</span>
+                        <div key={i} className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs text-white/90 break-words leading-tight" style={{maxWidth: '60%'}}>
+                            {item.name.length > 50 ? item.name.slice(0, 50) + '…' : item.name}
+                          </span>
+                          <span className="text-[10px] whitespace-nowrap">
+                            <span className="text-blue-400 font-bold">{item.daysSince}日未紹介</span>
+                            <span className="text-white/50 ml-1">¥{item.gmv.toLocaleString()}</span>
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -512,11 +557,16 @@ export default function LiverDashboard() {
                       <span className="text-sm">📉</span>
                       <span className="text-[11px] text-red-400 font-bold">落ちてる（出し方変えろ）</span>
                     </div>
-                    <div className="space-y-0.5 pl-6">
+                    <div className="space-y-1 pl-6">
                       {recommendations.declining.map((item: any, i: number) => (
-                        <div key={i} className="text-xs text-white/90">
-                          {item.name}
-                          <span className="text-red-400 ml-1 text-[10px] font-bold">({item.declinePct}%)</span>
+                        <div key={i} className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs text-white/90 break-words leading-tight" style={{maxWidth: '55%'}}>
+                            {item.name.length > 50 ? item.name.slice(0, 50) + '…' : item.name}
+                          </span>
+                          <span className="text-[10px] whitespace-nowrap">
+                            <span className="text-red-400 font-bold">{item.declinePct}%</span>
+                            <span className="text-white/50 ml-1">前週¥{item.prevWeekGmv.toLocaleString()}→¥{item.thisWeekGmv.toLocaleString()}</span>
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -805,7 +855,7 @@ export default function LiverDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {strategy.streams.map((stream) => {
+              {(showAllStreams ? strategy.streams : strategy.streams.slice(0, 5)).map((stream) => {
                 const streamDate = new Date(stream.livestreamDate);
                 const jstDate = new Date(streamDate.getTime() + 9 * 60 * 60 * 1000);
                 const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
@@ -872,6 +922,14 @@ export default function LiverDashboard() {
                   </div>
                 );
               })}
+              {strategy.streams.length > 5 && (
+                <button
+                  onClick={() => setShowAllStreams(!showAllStreams)}
+                  className="w-full py-2 text-xs text-white/60 hover:text-white/90 transition-colors border border-gray-700/50 rounded-lg hover:bg-gray-700/30"
+                >
+                  {showAllStreams ? `▲ 折りたたむ` : `▼ 他${strategy.streams.length - 5}件を表示`}
+                </button>
+              )}
             </CardContent>
           </Card>
         )}

@@ -537,58 +537,55 @@ export const kgStrategyRouter = router({
       const prevWeekProducts = await getProductsForStreams(prevWeekStreams.map(s => s.id));
       const last3DayProducts = await getProductsForStreams(last3DayStreams.map(s => s.id));
 
-      // 🔥 鉄板: 今週TOP3（GMV順）
+      // 🔥 鉄板: 今週TOP3（GMV順）- GMV付き
       const staples = Object.entries(thisWeekProducts)
         .filter(([_, d]) => d.totalGmv > 0)
         .sort((a, b) => b[1].totalGmv - a[1].totalGmv)
         .slice(0, 3)
-        .map(([name]) => name);
+        .map(([name, d]) => ({ name, gmv: d.totalGmv, itemsSold: d.totalItemsSold }));
+      const stapleNames = staples.map(s => s.name);
 
       // 📈 急上昇: 前週比で伸びてる商品（前週にもあった商品で、GMVが+20%以上）
-      const rising: Array<{ name: string; growthPct: number }> = [];
+      const rising: Array<{ name: string; growthPct: number; gmv: number }> = [];
       for (const [name, data] of Object.entries(thisWeekProducts)) {
         if (data.totalGmv <= 0) continue;
         const prev = prevWeekProducts[name];
         if (prev && prev.totalGmv > 0) {
           const growth = ((data.totalGmv - prev.totalGmv) / prev.totalGmv) * 100;
           if (growth >= 20) {
-            rising.push({ name, growthPct: Math.round(growth) });
+            rising.push({ name, growthPct: Math.round(growth), gmv: data.totalGmv });
           }
         } else if (!prev && data.totalGmv >= 100000) {
           // 前週になかった新商品で売上10万以上 = 新星
-          rising.push({ name, growthPct: 999 });
+          rising.push({ name, growthPct: 999, gmv: data.totalGmv });
         }
       }
       rising.sort((a, b) => b.growthPct - a.growthPct);
       const topRising = rising
-        .filter(r => !staples.includes(r.name))
+        .filter(r => !stapleNames.includes(r.name))
         .slice(0, 3);
 
       // 🆕 最近出してない: 今週売れてるけど直近3日間に出してない商品
-      const forgotten: Array<{ name: string; daysSince: number }> = [];
+      const forgotten: Array<{ name: string; daysSince: number; gmv: number }> = [];
       const allThisWeekNames = Object.entries(thisWeekProducts)
         .filter(([_, d]) => d.totalGmv > 50000) // 売上5万以上の商品のみ
         .map(([name]) => name);
 
       for (const name of allThisWeekNames) {
-        if (staples.includes(name)) continue; // 鉄板は除外
+        if (stapleNames.includes(name)) continue; // 鉄板は除外
         if (!last3DayProducts[name] || last3DayProducts[name].totalGmv === 0) {
-          forgotten.push({ name, daysSince: 3 });
+          forgotten.push({ name, daysSince: 3, gmv: thisWeekProducts[name].totalGmv });
         }
       }
       // GMV順でソート
-      forgotten.sort((a, b) => {
-        const gmvA = thisWeekProducts[a.name]?.totalGmv || 0;
-        const gmvB = thisWeekProducts[b.name]?.totalGmv || 0;
-        return gmvB - gmvA;
-      });
+      forgotten.sort((a, b) => b.gmv - a.gmv);
       const topForgotten = forgotten.slice(0, 3);
 
       // 💎 GPM効率: 商品別GPMが高い商品（鉄板と被らないTOP3）
       const gpmEfficient: Array<{ name: string; gpm: number; gmv: number }> = [];
       for (const [name, data] of Object.entries(thisWeekProducts)) {
         if (data.totalGmv <= 0 || data.totalImpressions <= 0) continue;
-        if (staples.includes(name)) continue; // 鉄板は除外
+        if (stapleNames.includes(name)) continue; // 鉄板は除外
         const gpm = Math.round((data.totalGmv / data.totalImpressions) * 1000);
         if (gpm > 0) {
           gpmEfficient.push({ name, gpm, gmv: data.totalGmv });
@@ -597,30 +594,70 @@ export const kgStrategyRouter = router({
       gpmEfficient.sort((a, b) => b.gpm - a.gpm);
       const topGpmEfficient = gpmEfficient.slice(0, 3);
 
-      // 📉 落ちてきた: 前週比でGMVが-30%以上落ちてる商品
-      const declining: Array<{ name: string; declinePct: number; thisWeekGmv: number }> = [];
+      // 📉 落ちてきた: 前週比でGMVが-20%以上落ちてる商品
+      const declining: Array<{ name: string; declinePct: number; thisWeekGmv: number; prevWeekGmv: number }> = [];
       for (const [name, prevData] of Object.entries(prevWeekProducts)) {
         if (prevData.totalGmv < 50000) continue; // 前週5万未満は無視
         const thisData = thisWeekProducts[name];
         if (!thisData || thisData.totalGmv <= 0) {
           // 今週全く売れてない = -100%
-          declining.push({ name, declinePct: -100, thisWeekGmv: 0 });
+          declining.push({ name, declinePct: -100, thisWeekGmv: 0, prevWeekGmv: prevData.totalGmv });
         } else {
           const change = ((thisData.totalGmv - prevData.totalGmv) / prevData.totalGmv) * 100;
-          if (change <= -30) {
-            declining.push({ name, declinePct: Math.round(change), thisWeekGmv: thisData.totalGmv });
+          if (change <= -20) {
+            declining.push({ name, declinePct: Math.round(change), thisWeekGmv: thisData.totalGmv, prevWeekGmv: prevData.totalGmv });
           }
         }
       }
       declining.sort((a, b) => a.declinePct - b.declinePct); // 最も落ちてる順
       const topDeclining = declining.slice(0, 3);
 
+      // ⏰ ベストタイム: 直近の配信データから最もGPMが高い時間帯を算出
+      const hourlyGpm: Record<number, { totalGmv: number; totalImpressions: number; count: number }> = {};
+      for (const stream of recentStreams) {
+        if (!stream.livestreamDate) continue;
+        const hour = new Date(new Date(stream.livestreamDate).getTime() + 9 * 60 * 60 * 1000).getUTCHours();
+        // この配信のGMVとimpressionsを取得
+        const streamProducts = await db
+          .select({
+            grossRevenue: livestreamProducts.grossRevenue,
+            directGmv: livestreamProducts.directGmv,
+            gmv: livestreamProducts.gmv,
+            productImpressions: livestreamProducts.productImpressions,
+            impressions: livestreamProducts.impressions,
+          })
+          .from(livestreamProducts)
+          .where(eq(livestreamProducts.livestreamId, stream.id));
+        let streamGmv = 0;
+        let streamImpressions = 0;
+        for (const p of streamProducts) {
+          streamGmv += Number(p.grossRevenue || p.directGmv || p.gmv || 0);
+          streamImpressions += Number(p.productImpressions || p.impressions || 0);
+        }
+        if (!hourlyGpm[hour]) hourlyGpm[hour] = { totalGmv: 0, totalImpressions: 0, count: 0 };
+        hourlyGpm[hour].totalGmv += streamGmv;
+        hourlyGpm[hour].totalImpressions += streamImpressions;
+        hourlyGpm[hour].count += 1;
+      }
+      // GPMが最も高い時間帯TOP3
+      const bestTimes = Object.entries(hourlyGpm)
+        .filter(([_, d]) => d.totalImpressions > 0 && d.totalGmv > 0)
+        .map(([hour, d]) => ({
+          hour: Number(hour),
+          gpm: Math.round((d.totalGmv / d.totalImpressions) * 1000),
+          avgGmv: Math.round(d.totalGmv / d.count),
+          count: d.count,
+        }))
+        .sort((a, b) => b.gpm - a.gpm)
+        .slice(0, 3);
+
       return {
-        staples, // 鉄板TOP3
-        rising: topRising, // 急上昇TOP3
+        staples, // 鉄板TOP3（GMV付き）
+        rising: topRising, // 急上昇TOP3（GMV付き）
         gpmEfficient: topGpmEfficient, // GPM効率TOP3
-        forgotten: topForgotten, // 最近出してないTOP3
+        forgotten: topForgotten, // 最近出してないTOP3（GMV付き）
         declining: topDeclining, // 落ちてきたTOP3
+        bestTimes, // ベストタイムTOP3
       };
     }),
 });
