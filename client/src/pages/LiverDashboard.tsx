@@ -433,62 +433,92 @@ export default function LiverDashboard() {
         {/* ===== ⚡ TODAY'S RECOMMENDED LINEUP ===== */}
         {recommendations && (recommendations.staples.length > 0 || recommendations.rising.length > 0 || recommendations.forgotten.length > 0) && (
           <Card className="bg-gradient-to-br from-yellow-900/20 via-gray-800 to-blue-900/20 border-yellow-500/30">
-            <CardContent className="pt-4 pb-3">
-              <div className="flex items-center gap-2 mb-3">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-2 mb-4">
                 <Zap className="w-5 h-5 text-yellow-400" />
                 <span className="text-sm font-bold text-yellow-300">今日のおすすめ構成</span>
+                <span className="text-[10px] text-white/40 ml-auto">0.5秒で配信戦略が決まる</span>
               </div>
-              <div className="space-y-2">
-                {/* 鉄板 */}
+              <div className="space-y-3">
+                {/* 🔥 鉄板 */}
                 {recommendations.staples.length > 0 && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-sm flex-shrink-0">🔥</span>
-                    <div className="min-w-0">
-                      <span className="text-[10px] text-orange-400 font-bold">鉄板</span>
-                      <div className="text-xs text-white/90 truncate">
-                        {recommendations.staples.map((name, i) => (
-                          <span key={i}>
-                            {i > 0 && <span className="text-white/30"> / </span>}
-                            {name.length > 15 ? name.slice(0, 15) + '…' : name}
-                          </span>
-                        ))}
-                      </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-sm">🔥</span>
+                      <span className="text-[11px] text-orange-400 font-bold">鉄板（必ず出す）</span>
+                    </div>
+                    <div className="space-y-0.5 pl-6">
+                      {recommendations.staples.map((name: string, i: number) => (
+                        <div key={i} className="text-xs text-white/90">{name}</div>
+                      ))}
                     </div>
                   </div>
                 )}
-                {/* 急上昇 */}
+                {/* 📈 波来てる */}
                 {recommendations.rising.length > 0 && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-sm flex-shrink-0">📈</span>
-                    <div className="min-w-0">
-                      <span className="text-[10px] text-green-400 font-bold">波来てる</span>
-                      <div className="text-xs text-white/90 truncate">
-                        {recommendations.rising.map((item, i) => (
-                          <span key={i}>
-                            {i > 0 && <span className="text-white/30"> / </span>}
-                            {item.name.length > 12 ? item.name.slice(0, 12) + '…' : item.name}
-                            <span className="text-green-400 text-[10px]">({item.growthPct >= 999 ? 'NEW' : `+${item.growthPct}%`})</span>
-                          </span>
-                        ))}
-                      </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-sm">📈</span>
+                      <span className="text-[11px] text-green-400 font-bold">波来てる（タイミング逃すな）</span>
+                    </div>
+                    <div className="space-y-0.5 pl-6">
+                      {recommendations.rising.map((item: any, i: number) => (
+                        <div key={i} className="text-xs text-white/90">
+                          {item.name}
+                          <span className="text-green-400 ml-1 text-[10px] font-bold">({item.growthPct >= 999 ? 'NEW' : `+${item.growthPct}%`})</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
-                {/* 最近出してない */}
+                {/* 💎 GPM効率 */}
+                {recommendations.gpmEfficient && recommendations.gpmEfficient.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-sm">💎</span>
+                      <span className="text-[11px] text-purple-400 font-bold">効率◎（流量池上げたい時）</span>
+                    </div>
+                    <div className="space-y-0.5 pl-6">
+                      {recommendations.gpmEfficient.map((item: any, i: number) => (
+                        <div key={i} className="text-xs text-white/90">
+                          {item.name}
+                          <span className="text-purple-400 ml-1 text-[10px] font-bold">(GPM ¥{item.gpm.toLocaleString()})</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* 🆕 忘れてない？ */}
                 {recommendations.forgotten.length > 0 && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-sm flex-shrink-0">🆕</span>
-                    <div className="min-w-0">
-                      <span className="text-[10px] text-blue-400 font-bold">忘れてない？</span>
-                      <div className="text-xs text-white/90 truncate">
-                        {recommendations.forgotten.map((item, i) => (
-                          <span key={i}>
-                            {i > 0 && <span className="text-white/30"> / </span>}
-                            {item.name.length > 12 ? item.name.slice(0, 12) + '…' : item.name}
-                            <span className="text-blue-400 text-[10px]">({item.daysSince}日未紹介)</span>
-                          </span>
-                        ))}
-                      </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-sm">🆕</span>
+                      <span className="text-[11px] text-blue-400 font-bold">忘れてない？（マンネリ防止）</span>
+                    </div>
+                    <div className="space-y-0.5 pl-6">
+                      {recommendations.forgotten.map((item: any, i: number) => (
+                        <div key={i} className="text-xs text-white/90">
+                          {item.name}
+                          <span className="text-blue-400 ml-1 text-[10px] font-bold">({item.daysSince}日未紹介)</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* 📉 落ちてきた */}
+                {recommendations.declining && recommendations.declining.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-sm">📉</span>
+                      <span className="text-[11px] text-red-400 font-bold">落ちてる（出し方変えろ）</span>
+                    </div>
+                    <div className="space-y-0.5 pl-6">
+                      {recommendations.declining.map((item: any, i: number) => (
+                        <div key={i} className="text-xs text-white/90">
+                          {item.name}
+                          <span className="text-red-400 ml-1 text-[10px] font-bold">({item.declinePct}%)</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

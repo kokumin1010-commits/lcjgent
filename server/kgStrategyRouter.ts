@@ -497,10 +497,10 @@ export const kgStrategyRouter = router({
         s => s.livestreamDate && new Date(s.livestreamDate).getTime() >= threeDaysAgo.getTime()
       );
 
-      // 商品データを取得するヘルパー
-      async function getProductsForStreams(streamIds: number[]): Promise<Record<string, { totalGmv: number; totalItemsSold: number }>> {
+      // 商品データを取得するヘルパー（GPM計算用にimpressions含む）
+      async function getProductsForStreams(streamIds: number[]): Promise<Record<string, { totalGmv: number; totalItemsSold: number; totalImpressions: number }>> {
         if (streamIds.length === 0) return {};
-        const productMap: Record<string, { totalGmv: number; totalItemsSold: number }> = {};
+        const productMap: Record<string, { totalGmv: number; totalItemsSold: number; totalImpressions: number }> = {};
         const batchSize = 100;
         for (let i = 0; i < streamIds.length; i += batchSize) {
           const batch = streamIds.slice(i, i + batchSize);
@@ -512,6 +512,8 @@ export const kgStrategyRouter = router({
               gmv: livestreamProducts.gmv,
               itemsSold: livestreamProducts.itemsSold,
               quantity: livestreamProducts.quantity,
+              productImpressions: livestreamProducts.productImpressions,
+              impressions: livestreamProducts.impressions,
             })
             .from(livestreamProducts)
             .where(sql`${livestreamProducts.livestreamId} IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
@@ -520,9 +522,11 @@ export const kgStrategyRouter = router({
             if (!name) continue;
             const gmv = Number(p.grossRevenue || p.directGmv || p.gmv || 0);
             const itemsSold = Number(p.itemsSold || p.quantity || 0);
-            if (!productMap[name]) productMap[name] = { totalGmv: 0, totalItemsSold: 0 };
+            const impressions = Number(p.productImpressions || p.impressions || 0);
+            if (!productMap[name]) productMap[name] = { totalGmv: 0, totalItemsSold: 0, totalImpressions: 0 };
             productMap[name].totalGmv += gmv;
             productMap[name].totalItemsSold += itemsSold;
+            productMap[name].totalImpressions += impressions;
           }
         }
         return productMap;
@@ -580,10 +584,43 @@ export const kgStrategyRouter = router({
       });
       const topForgotten = forgotten.slice(0, 3);
 
+      // 💎 GPM効率: 商品別GPMが高い商品（鉄板と被らないTOP3）
+      const gpmEfficient: Array<{ name: string; gpm: number; gmv: number }> = [];
+      for (const [name, data] of Object.entries(thisWeekProducts)) {
+        if (data.totalGmv <= 0 || data.totalImpressions <= 0) continue;
+        if (staples.includes(name)) continue; // 鉄板は除外
+        const gpm = Math.round((data.totalGmv / data.totalImpressions) * 1000);
+        if (gpm > 0) {
+          gpmEfficient.push({ name, gpm, gmv: data.totalGmv });
+        }
+      }
+      gpmEfficient.sort((a, b) => b.gpm - a.gpm);
+      const topGpmEfficient = gpmEfficient.slice(0, 3);
+
+      // 📉 落ちてきた: 前週比でGMVが-30%以上落ちてる商品
+      const declining: Array<{ name: string; declinePct: number; thisWeekGmv: number }> = [];
+      for (const [name, prevData] of Object.entries(prevWeekProducts)) {
+        if (prevData.totalGmv < 50000) continue; // 前週5万未満は無視
+        const thisData = thisWeekProducts[name];
+        if (!thisData || thisData.totalGmv <= 0) {
+          // 今週全く売れてない = -100%
+          declining.push({ name, declinePct: -100, thisWeekGmv: 0 });
+        } else {
+          const change = ((thisData.totalGmv - prevData.totalGmv) / prevData.totalGmv) * 100;
+          if (change <= -30) {
+            declining.push({ name, declinePct: Math.round(change), thisWeekGmv: thisData.totalGmv });
+          }
+        }
+      }
+      declining.sort((a, b) => a.declinePct - b.declinePct); // 最も落ちてる順
+      const topDeclining = declining.slice(0, 3);
+
       return {
         staples, // 鉄板TOP3
         rising: topRising, // 急上昇TOP3
+        gpmEfficient: topGpmEfficient, // GPM効率TOP3
         forgotten: topForgotten, // 最近出してないTOP3
+        declining: topDeclining, // 落ちてきたTOP3
       };
     }),
 });
