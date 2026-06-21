@@ -330,8 +330,8 @@ export default function LiverDashboard() {
       </header>
       
       <main className="container mx-auto px-4 py-6 space-y-5">
-        {/* Mega Channel Banner */}
-        <MegaChannelBanner />
+        {/* Mega Channel Banner - hidden */}
+        {/* <MegaChannelBanner /> */}
 
         {/* ===== BIG GOAL PROGRESS BAR ===== */}
         {bigGoal && (
