@@ -1286,8 +1286,8 @@ export default function LiverMypage() {
         />
 
 
-        {/* Mega Channel Status */}
-        <MegaChannelBanner />
+        {/* Mega Channel Status - KG(liverId:120005)は非表示 */}
+        {liverInfo?.id !== 120005 && <MegaChannelBanner />}
         {/* 今週の重点商品セクション */}
         {myFeaturedProducts && myFeaturedProducts.length > 0 && (
           <div className="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border border-yellow-700/50 rounded-xl p-4">

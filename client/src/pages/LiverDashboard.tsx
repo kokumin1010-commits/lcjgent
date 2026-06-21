@@ -91,6 +91,8 @@ export default function LiverDashboard() {
   const currentYearMonthStr = useMemo(() => getYearMonth(now), [now]);
   const [selectedYearMonth, setSelectedYearMonth] = useState(currentYearMonthStr);
   const [showAllStreams, setShowAllStreams] = useState(false);
+  const [expandedStreamId, setExpandedStreamId] = useState<number | null>(null);
+  const [selectedProductName, setSelectedProductName] = useState<string | null>(null);
   
   const isCurrentMonth = selectedYearMonth === currentYearMonthStr;
   const isFutureMonth = selectedYearMonth > currentYearMonthStr;
@@ -148,6 +150,18 @@ export default function LiverDashboard() {
     { enabled: isAuthenticated && !!liverId }
   );
   
+  // Fetch stream products (for accordion expansion)
+  const { data: streamProducts, isLoading: isLoadingStreamProducts } = trpc.kgStrategy.getStreamProducts.useQuery(
+    { livestreamId: expandedStreamId || 0 },
+    { enabled: !!expandedStreamId }
+  );
+
+  // Fetch product history (for product name tap)
+  const { data: productHistory, isLoading: isLoadingProductHistory } = trpc.kgStrategy.getProductHistory.useQuery(
+    { liverId: liverId || 0, productName: selectedProductName || "" },
+    { enabled: !!liverId && !!selectedProductName }
+  );
+
   // Set goal mutation
   const setGoalMutation = trpc.liver.setGoal.useMutation({
     onSuccess: () => {
@@ -590,29 +604,81 @@ export default function LiverDashboard() {
               </div>
               <div className="space-y-1.5">
                 {weeklyTopProducts.slice(0, 5).map((product, index) => (
-                  <div key={index} className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-gray-800/60">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
-                      index === 0 ? "bg-amber-500 text-black" :
-                      index === 1 ? "bg-gray-400 text-black" :
-                      index === 2 ? "bg-amber-700 text-white" :
-                      "bg-gray-700 text-white"
-                    }`}>
-                      {index + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium truncate text-white">{product.productName}</div>
-                    </div>
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <div className="text-right">
-                        <div className="text-xs font-bold text-red-400">{formatCurrency(product.totalGmv)}</div>
+                  <div key={index}>
+                    <div
+                      className={`flex items-center gap-2 py-1.5 px-2 rounded-lg cursor-pointer transition-colors ${
+                        selectedProductName === product.productName ? 'bg-orange-800/40 border border-orange-500/50' : 'bg-gray-800/60 hover:bg-gray-700/60'
+                      }`}
+                      onClick={() => setSelectedProductName(selectedProductName === product.productName ? null : product.productName)}
+                    >
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
+                        index === 0 ? "bg-amber-500 text-black" :
+                        index === 1 ? "bg-gray-400 text-black" :
+                        index === 2 ? "bg-amber-700 text-white" :
+                        "bg-gray-700 text-white"
+                      }`}>
+                        {index + 1}
                       </div>
-                      <div className="text-right min-w-[40px]">
-                        <div className="text-[10px] text-white/60">{formatNumber(product.totalItemsSold)}個</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium truncate text-white">{product.productName}</div>
                       </div>
-                      <div className="text-right min-w-[50px]">
-                        <div className="text-[10px] font-medium text-emerald-400">@¥{formatNumber(product.avgUnitPrice)}</div>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <div className="text-right">
+                          <div className="text-xs font-bold text-red-400">{formatCurrency(product.totalGmv)}</div>
+                        </div>
+                        <div className="text-right min-w-[40px]">
+                          <div className="text-[10px] text-white/60">{formatNumber(product.totalItemsSold)}個</div>
+                        </div>
+                        <div className="text-right min-w-[50px]">
+                          <div className="text-[10px] font-medium text-emerald-400">@¥{formatNumber(product.avgUnitPrice)}</div>
+                        </div>
                       </div>
                     </div>
+                    {/* Product History Accordion */}
+                    {selectedProductName === product.productName && (
+                      <div className="mt-1 ml-8 p-2 rounded-lg bg-gray-800/80 border border-gray-700/50">
+                        {isLoadingProductHistory ? (
+                          <div className="text-xs text-white/50 text-center py-2">履歴を読み込み中...</div>
+                        ) : productHistory ? (
+                          <div>
+                            {/* Consecutive days / days since last label */}
+                            <div className="flex items-center gap-2 mb-2">
+                              {productHistory.consecutiveDays > 0 && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 font-bold">
+                                  🔥 連続{productHistory.consecutiveDays}日出してる
+                                </span>
+                              )}
+                              {productHistory.daysSinceLast > 0 && productHistory.daysSinceLast <= 30 && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 font-bold">
+                                  {productHistory.daysSinceLast}日ぶり
+                                </span>
+                              )}
+                            </div>
+                            {productHistory.history.length > 0 ? (
+                              <div className="space-y-1">
+                                <div className="text-[10px] text-white/40">過去30日の配信履歴</div>
+                                {productHistory.history.slice(0, 7).map((h: any, i: number) => (
+                                  <div key={i} className="flex items-center justify-between text-[11px] py-0.5">
+                                    <span className="text-white/70">{h.livestreamDate}</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-green-400 font-bold">{formatCurrency(h.gmv)}</span>
+                                      <span className="text-white/50">{h.itemsSold}個</span>
+                                    </div>
+                                  </div>
+                                ))}
+                                {productHistory.history.length > 7 && (
+                                  <div className="text-[10px] text-white/40 text-center">他{productHistory.history.length - 7}件</div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-xs text-white/50 text-center py-1">過去30日の履歴なし</div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-white/50 text-center py-1">履歴なし</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -876,10 +942,12 @@ export default function LiverDashboard() {
                 const durationHours = duration > 0 ? (duration / 60).toFixed(1) : "---";
                 const viewers = Number(stream.viewerCount || 0);
                 
+                const isExpanded = expandedStreamId === stream.id;
                 return (
                   <div 
                     key={stream.id}
-                    className="bg-gray-900/60 border border-gray-700/50 rounded-xl p-4 hover:border-gray-600/50 transition-colors"
+                    className={`bg-gray-900/60 border rounded-xl p-4 transition-colors cursor-pointer ${isExpanded ? 'border-green-600/60 bg-gray-900/80' : 'border-gray-700/50 hover:border-gray-600/50'}`}
+                    onClick={() => setExpandedStreamId(isExpanded ? null : stream.id)}
                   >
                     <div className="flex items-start justify-between">
                       {/* Left: Date + Time */}
@@ -905,7 +973,7 @@ export default function LiverDashboard() {
                         </div>
                       </div>
                       
-                      {/* Right: GMV + GPM */}
+                      {/* Right: GMV + GPM + expand indicator */}
                       <div className="text-right">
                         <div className="text-lg font-bold text-green-400">
                           {formatCurrencyFull(gmv)}
@@ -917,8 +985,43 @@ export default function LiverDashboard() {
                             </span>
                           </div>
                         )}
+                        <div className="text-[10px] text-white/40 mt-1">
+                          {isExpanded ? '▲ 商品を閉じる' : '▼ 商品を見る'}
+                        </div>
                       </div>
                     </div>
+                    {/* Expanded: Stream Products */}
+                    {isExpanded && (
+                      <div className="mt-3 pt-3 border-t border-gray-700/50" onClick={(e) => e.stopPropagation()}>
+                        {isLoadingStreamProducts ? (
+                          <div className="text-xs text-white/50 text-center py-2">読み込み中...</div>
+                        ) : streamProducts && streamProducts.length > 0 ? (
+                          <div className="space-y-1.5">
+                            <div className="text-[10px] text-white/40 mb-1">商品別売上（GMV順）</div>
+                            {streamProducts.map((p: any, idx: number) => (
+                              <div
+                                key={idx}
+                                className="flex items-center justify-between gap-2 py-1 px-2 rounded bg-gray-800/60 hover:bg-gray-700/60 cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedProductName(selectedProductName === p.productName ? null : p.productName);
+                                }}
+                              >
+                                <span className="text-xs text-white/90 break-words leading-tight flex-1" style={{maxWidth: '60%'}}>
+                                  {p.productName.length > 50 ? p.productName.slice(0, 50) + '…' : p.productName}
+                                </span>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <span className="text-xs font-bold text-green-400">{formatCurrency(p.gmv)}</span>
+                                  <span className="text-[10px] text-white/50">{p.itemsSold}個</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-white/50 text-center py-2">商品データなし</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}

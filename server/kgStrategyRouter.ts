@@ -11,7 +11,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
 import { brandLivestreams, livestreamProducts, liverGoals } from "../drizzle/schema";
-import { eq, desc, and, sql, isNull, gte, lte } from "drizzle-orm";
+import { eq, desc, and, sql, isNull, gte, lte, like } from "drizzle-orm";
 
 // ===== Helper Functions =====
 
@@ -658,6 +658,149 @@ export const kgStrategyRouter = router({
         forgotten: topForgotten, // 最近出してないTOP3（GMV付き）
         declining: topDeclining, // 落ちてきたTOP3
         bestTimes, // ベストタイムTOP3
+      };
+    }),
+
+  // ===== 配信別商品データ取得 =====
+  getStreamProducts: publicProcedure
+    .input(z.object({ livestreamId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+
+      const products = await db
+        .select({
+          productName: livestreamProducts.productName,
+          grossRevenue: livestreamProducts.grossRevenue,
+          directGmv: livestreamProducts.directGmv,
+          gmv: livestreamProducts.gmv,
+          itemsSold: livestreamProducts.itemsSold,
+          quantity: livestreamProducts.quantity,
+          unitPrice: livestreamProducts.unitPrice,
+          productImpressions: livestreamProducts.productImpressions,
+          productClicks: livestreamProducts.productClicks,
+        })
+        .from(livestreamProducts)
+        .where(eq(livestreamProducts.livestreamId, input.livestreamId));
+
+      // GMV降順でソート
+      return products
+        .map(p => ({
+          productName: (p.productName || "").trim(),
+          gmv: Number(p.grossRevenue || p.directGmv || p.gmv || 0),
+          itemsSold: Number(p.itemsSold || p.quantity || 0),
+          unitPrice: Number(p.unitPrice || 0),
+          impressions: Number(p.productImpressions || 0),
+          clicks: Number(p.productClicks || 0),
+        }))
+        .filter(p => p.productName.length > 0)
+        .sort((a, b) => b.gmv - a.gmv);
+    }),
+
+  // ===== 商品別過去配信履歴 =====
+  getProductHistory: publicProcedure
+    .input(z.object({
+      liverId: z.number(),
+      productName: z.string(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { history: [], consecutiveDays: 0, daysSinceLast: 0 };
+
+      const now = getJSTNow();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      // 直近30日間の配信を取得
+      const streams = await db
+        .select({
+          id: brandLivestreams.id,
+          livestreamDate: brandLivestreams.livestreamDate,
+          gmv: brandLivestreams.gmv,
+          salesAmount: brandLivestreams.salesAmount,
+        })
+        .from(brandLivestreams)
+        .where(and(
+          eq(brandLivestreams.liverId, input.liverId),
+          isNull(brandLivestreams.deletedAt),
+          gte(brandLivestreams.livestreamDate, thirtyDaysAgo),
+        ))
+        .orderBy(desc(brandLivestreams.livestreamDate));
+
+      if (streams.length === 0) return { history: [], consecutiveDays: 0, daysSinceLast: 0 };
+
+      // 各配信から該当商品を検索（部分一致）
+      const history: Array<{
+        livestreamId: number;
+        livestreamDate: string;
+        gmv: number;
+        itemsSold: number;
+      }> = [];
+
+      for (const stream of streams) {
+        const products = await db
+          .select({
+            productName: livestreamProducts.productName,
+            grossRevenue: livestreamProducts.grossRevenue,
+            directGmv: livestreamProducts.directGmv,
+            gmv: livestreamProducts.gmv,
+            itemsSold: livestreamProducts.itemsSold,
+            quantity: livestreamProducts.quantity,
+          })
+          .from(livestreamProducts)
+          .where(and(
+            eq(livestreamProducts.livestreamId, stream.id),
+            like(livestreamProducts.productName, `%${input.productName}%`),
+          ));
+
+        if (products.length > 0) {
+          // 同じ配信で同じ商品が複数ある場合は合算
+          let totalGmv = 0;
+          let totalItems = 0;
+          for (const p of products) {
+            totalGmv += Number(p.grossRevenue || p.directGmv || p.gmv || 0);
+            totalItems += Number(p.itemsSold || p.quantity || 0);
+          }
+          history.push({
+            livestreamId: stream.id,
+            livestreamDate: stream.livestreamDate ? getJSTDateString(stream.livestreamDate) : "",
+            gmv: totalGmv,
+            itemsSold: totalItems,
+          });
+        }
+      }
+
+      // 連続配信日数を計算（今日から遡って連続何日出してるか）
+      let consecutiveDays = 0;
+      if (history.length > 0) {
+        const today = getJSTDateString(now);
+        const historyDates = [...new Set(history.map(h => h.livestreamDate))].sort().reverse();
+        
+        // 最新の配信日から遡って連続日数を計算
+        let checkDate = new Date(historyDates[0] + "T00:00:00Z");
+        for (const dateStr of historyDates) {
+          const d = new Date(dateStr + "T00:00:00Z");
+          const diffDays = Math.round((checkDate.getTime() - d.getTime()) / (24 * 60 * 60 * 1000));
+          if (diffDays <= 1) {
+            consecutiveDays++;
+            checkDate = d;
+          } else {
+            break;
+          }
+        }
+      }
+
+      // 最後に出した日からの日数
+      let daysSinceLast = 0;
+      if (history.length > 0) {
+        const lastDate = new Date(history[0].livestreamDate + "T00:00:00Z");
+        const todayDate = new Date(getJSTDateString(now) + "T00:00:00Z");
+        daysSinceLast = Math.round((todayDate.getTime() - lastDate.getTime()) / (24 * 60 * 60 * 1000));
+      }
+
+      return {
+        history,
+        consecutiveDays,
+        daysSinceLast,
       };
     }),
 });
