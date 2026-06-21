@@ -307,6 +307,91 @@ export const kgStrategyRouter = router({
       };
     }),
 
+  // ===== 直近7日間 売れ筋TOP10 =====
+  getWeeklyTopProducts: publicProcedure
+    .input(z.object({ liverId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+
+      // 直近7日間の配信を取得
+      const now = getJSTNow();
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      const recentStreams = await db
+        .select({ id: brandLivestreams.id })
+        .from(brandLivestreams)
+        .where(and(
+          eq(brandLivestreams.liverId, input.liverId),
+          isNull(brandLivestreams.deletedAt),
+          gte(brandLivestreams.livestreamDate, sevenDaysAgo),
+        ));
+
+      if (recentStreams.length === 0) return [];
+
+      const streamIds = recentStreams.map(s => s.id);
+
+      // 配信IDに紐づく商品データを取得
+      const batchSize = 100;
+      let allProducts: Array<{
+        productName: string;
+        grossRevenue: number | null;
+        directGmv: number | null;
+        gmv: number | null;
+        itemsSold: number | null;
+        quantity: number | null;
+      }> = [];
+
+      for (let i = 0; i < streamIds.length; i += batchSize) {
+        const batch = streamIds.slice(i, i + batchSize);
+        const products = await db
+          .select({
+            productName: livestreamProducts.productName,
+            grossRevenue: livestreamProducts.grossRevenue,
+            directGmv: livestreamProducts.directGmv,
+            gmv: livestreamProducts.gmv,
+            itemsSold: livestreamProducts.itemsSold,
+            quantity: livestreamProducts.quantity,
+          })
+          .from(livestreamProducts)
+          .where(sql`${livestreamProducts.livestreamId} IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
+        allProducts = allProducts.concat(products);
+      }
+
+      // 商品名でグループ化して集計
+      const productMap: Record<string, { totalGmv: number; totalItemsSold: number }> = {};
+
+      for (const p of allProducts) {
+        const name = (p.productName || "").trim();
+        if (!name) continue;
+
+        const gmv = Number(p.grossRevenue || p.directGmv || p.gmv || 0);
+        const itemsSold = Number(p.itemsSold || p.quantity || 0);
+
+        if (!productMap[name]) {
+          productMap[name] = { totalGmv: 0, totalItemsSold: 0 };
+        }
+        productMap[name].totalGmv += gmv;
+        productMap[name].totalItemsSold += itemsSold;
+      }
+
+      // TOP10を売上順で返す
+      const top10 = Object.entries(productMap)
+        .filter(([_, data]) => data.totalGmv > 0)
+        .map(([name, data]) => ({
+          productName: name,
+          totalGmv: data.totalGmv,
+          totalItemsSold: data.totalItemsSold,
+          avgUnitPrice: data.totalItemsSold > 0
+            ? Math.round(data.totalGmv / data.totalItemsSold)
+            : 0,
+        }))
+        .sort((a, b) => b.totalGmv - a.totalGmv)
+        .slice(0, 10);
+
+      return top10;
+    }),
+
   // ===== 大目標設定・取得 =====
   getBigGoal: publicProcedure
     .input(z.object({ liverId: z.number() }))

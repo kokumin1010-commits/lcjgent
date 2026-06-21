@@ -134,6 +134,12 @@ export default function LiverDashboard() {
     { liverId: liverId || 0, targetMonth: bigGoal?.targetMonth || "2026-09" },
     { enabled: isAuthenticated && !!liverId && !!bigGoal }
   );
+
+  // Fetch weekly top products (直近7日間売れ筋TOP10)
+  const { data: weeklyTopProducts } = trpc.kgStrategy.getWeeklyTopProducts.useQuery(
+    { liverId: liverId || 0 },
+    { enabled: isAuthenticated && !!liverId }
+  );
   
   // Set goal mutation
   const setGoalMutation = trpc.liver.setGoal.useMutation({
@@ -611,6 +617,59 @@ export default function LiverDashboard() {
             <CardContent>
               <div className="h-48">
                 <Line data={gpmChartData} options={gpmChartOptions as any} />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ===== WEEKLY TOP 10 PRODUCTS ===== */}
+        {weeklyTopProducts && weeklyTopProducts.length > 0 && (
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2 text-white">
+                <Flame className="w-5 h-5 text-orange-400" />
+                直近7日間 売れ筋TOP10
+              </CardTitle>
+              <div className="text-xs text-white/50">
+                配信前に「次何を出すべきか」即判断
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {/* Header row */}
+                <div className="grid grid-cols-12 gap-2 text-[10px] text-white/40 border-b border-gray-700 pb-1 px-1">
+                  <div className="col-span-1">#</div>
+                  <div className="col-span-5">商品名</div>
+                  <div className="col-span-2 text-right">GMV</div>
+                  <div className="col-span-2 text-right">販売数</div>
+                  <div className="col-span-2 text-right">実売単価</div>
+                </div>
+                {weeklyTopProducts.map((product, index) => (
+                  <div key={index} className="grid grid-cols-12 gap-2 items-center py-1.5 px-1 rounded hover:bg-gray-700/30">
+                    <div className="col-span-1">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                        index === 0 ? "bg-amber-500 text-black" :
+                        index === 1 ? "bg-gray-400 text-black" :
+                        index === 2 ? "bg-amber-700 text-white" :
+                        "bg-gray-700 text-white"
+                      }`}>
+                        {index + 1}
+                      </div>
+                    </div>
+                    <div className="col-span-5 min-w-0">
+                      <div className="text-xs font-medium truncate text-white">{product.productName}</div>
+                    </div>
+                    <div className="col-span-2 text-right">
+                      <div className="text-xs font-bold text-red-400">{formatCurrency(product.totalGmv)}</div>
+                    </div>
+                    <div className="col-span-2 text-right">
+                      <div className="text-xs text-white/70">{formatNumber(product.totalItemsSold)}個</div>
+                    </div>
+                    <div className="col-span-2 text-right">
+                      <div className="text-xs text-emerald-400">¥{formatNumber(product.avgUnitPrice)}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
