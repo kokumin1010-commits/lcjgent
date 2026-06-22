@@ -653,10 +653,17 @@ export const kgStrategyRouter = router({
         .slice(0, 3);
 
       // ⚡ 紹介チャンス: インプレ高×売上0（直近7日全体から集計、全件返却）
+      // 単価は前週データから取得（直近7日は売上0なので前週のデータを参照）
       const missedOpportunities = Object.entries(thisWeekProducts)
         .filter(([_, d]) => d.totalImpressions >= 200 && d.totalGmv === 0)
         .sort((a, b) => b[1].totalImpressions - a[1].totalImpressions)
-        .map(([name, d]) => ({ name, impressions: d.totalImpressions }));
+        .map(([name, d]) => {
+          const prevData = prevWeekProducts[name];
+          const unitPrice = prevData && prevData.totalItemsSold > 0
+            ? Math.round(prevData.totalGmv / prevData.totalItemsSold)
+            : 0;
+          return { name, impressions: d.totalImpressions, unitPrice };
+        });
 
       return {
         staples, // 鉄板TOP3（GMV付き）
