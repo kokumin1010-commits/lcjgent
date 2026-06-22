@@ -272,14 +272,30 @@ function ChatPanel() {
   // 会話メッセージが読み込まれたらmessagesに反映（ファイルコンテキストも復元）
   useEffect(() => {
     if (conversationMessages && activeConversationId) {
-      const msgs = conversationMessages.map((m: any) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content || "",
-        fileUrl: m.fileUrl || undefined,
-        fileName: m.fileName || undefined,
-        suggestedQuestions: m.suggestedQuestions ? JSON.parse(m.suggestedQuestions) : undefined,
-      }));
-      setMessages(msgs);
+      try {
+        const msgs = conversationMessages.map((m: any) => {
+          let parsedQuestions: string[] | undefined;
+          if (m.suggestedQuestions) {
+            try {
+              parsedQuestions = JSON.parse(m.suggestedQuestions);
+              if (!Array.isArray(parsedQuestions)) parsedQuestions = undefined;
+            } catch {
+              parsedQuestions = undefined;
+            }
+          }
+          return {
+            role: m.role as "user" | "assistant",
+            content: m.content || "",
+            fileUrl: m.fileUrl || undefined,
+            fileName: m.fileName || undefined,
+            suggestedQuestions: parsedQuestions,
+          };
+        });
+        setMessages(msgs);
+      } catch (e) {
+        console.error("[ChatPanel] Failed to parse conversation messages:", e);
+        setMessages([]);
+      }
     }
   }, [conversationMessages, activeConversationId]);
 
@@ -425,8 +441,8 @@ function ChatPanel() {
         suggestedQuestions: result.suggestedQuestions || [],
         knowledgeSources: result.knowledgeSources || [],
       }]);
-      // 新しい会話が作成された場合、IDを保存
-      if (result.conversationId && !activeConversationId) {
+      // サーバーから返された会話IDを常に同期（所有権チェック失敗時の新規作成にも対応）
+      if (result.conversationId) {
         setActiveConversationId(result.conversationId);
       }
       refetchConversations();
@@ -570,7 +586,7 @@ function ChatPanel() {
               }`}>
                 {msg.role === "assistant" ? (
                   <div className="prose prose-invert prose-sm max-w-none [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_pre]:bg-white/5 [&_pre]:rounded-lg [&_pre]:p-3 [&_code]:text-xs">
-                    <Streamdown>{msg.content}</Streamdown>
+                    <Streamdown>{msg.content || ""}</Streamdown>
                   </div>
                 ) : (
                   <div>
@@ -614,7 +630,7 @@ function ChatPanel() {
               </div>
             </div>
             {/* 後続質問ボタン */}
-            {msg.role === "assistant" && msg.suggestedQuestions && msg.suggestedQuestions.length > 0 && (
+            {msg.role === "assistant" && Array.isArray(msg.suggestedQuestions) && msg.suggestedQuestions.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2 ml-2">
                 {msg.suggestedQuestions.map((q, qi) => (
                   <button
@@ -630,7 +646,7 @@ function ChatPanel() {
               </div>
             )}
             {/* 知識庫参照リンク */}
-            {msg.role === "assistant" && msg.knowledgeSources && msg.knowledgeSources.length > 0 && (
+            {msg.role === "assistant" && Array.isArray(msg.knowledgeSources) && msg.knowledgeSources.length > 0 && (
               <div className="mt-2 ml-2 pt-2 border-t border-white/10">
                 <p className="text-xs text-white/50 mb-1">📚 参照元知識庫:</p>
                 {msg.knowledgeSources.map((src) => (
