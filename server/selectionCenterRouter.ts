@@ -451,7 +451,7 @@ export const selectionCenterRouter = router({
     if (selections.length === 0) return [];
     const productIds = [...new Set(selections.map((s: any) => s.productId))];
     const liverIds = [...new Set(selections.map((s: any) => s.liverId))];
-    const [products] = await pool.query(`SELECT id, productName, brandName, commissionType, commissionValue FROM selection_products WHERE id IN (${productIds.map(() => '?').join(',')})`, productIds) as any;
+    const [products] = await pool.query(`SELECT id, productName, brandName, commissionType, commissionValue, price FROM selection_products WHERE id IN (${productIds.map(() => '?').join(',')})`, productIds) as any;
     let livers: any[] = [];
     if (liverIds.length > 0) {
       try {
@@ -462,7 +462,7 @@ export const selectionCenterRouter = router({
     return selections.map((s: any) => {
       const p = products.find((pr: any) => pr.id === s.productId);
       const l = livers.find((lr: any) => lr.id === s.liverId);
-      return { ...s, productName: p?.productName, brandName: p?.brandName, commissionType: p?.commissionType, commissionValue: p?.commissionValue, liverName: l?.name || `ID:${s.liverId}` };
+      return { ...s, productName: p?.productName, brandName: p?.brandName, commissionType: p?.commissionType, commissionValue: p?.commissionValue, price: p?.price, liverName: l?.name || `ID:${s.liverId}` };
     });
   }),
 
