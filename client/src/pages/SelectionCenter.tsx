@@ -416,6 +416,11 @@ function LiverSelectionTab() {
                     <div className="flex items-center gap-2 mt-1 text-sm">
                       <Badge variant="outline" className="text-xs">
                         佣金: {product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`}
+                        {product.commissionType === "percentage" && product.price && product.commissionValue && (
+                          <span className="ml-1 text-orange-600 font-medium">
+                            (¥{Math.round(Number(product.price) * Number(product.commissionValue) / 100).toLocaleString()})
+                          </span>
+                        )}
                       </Badge>
                     </div>
                     {product.sellingPoints && (
