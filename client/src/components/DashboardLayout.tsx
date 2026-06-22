@@ -135,7 +135,6 @@ function DashboardLayoutContent({
     { icon: Sparkles, label: "LCJ Brain（BD引擎）", path: "/master/lcj-brain" },
     { icon: Crown, label: "メガチャンネル管理", path: "/master/mega-channel" },
     { icon: Star, label: "重点商品管理", path: "/master/featured-products" },
-    { icon: ShoppingBag, label: "選品センター", path: "/master/selection-center" },
     { icon: BarChart3, label: "広告司令塔", path: "/master/ad-dashboard" },
     { icon: Video, label: "短動画マトリックス", path: "/master/short-video" },
     { icon: Building2, label: "事務所管理", path: "/master/agencies" },
@@ -279,6 +278,21 @@ function DashboardLayoutContent({
                   <span className="group-data-[collapsible=icon]:hidden">24H爆速商品ラボ</span>
                 </div>
                 <div className="absolute top-1 right-2 text-[10px] opacity-70 group-data-[collapsible=icon]:hidden">🔥NEW</div>
+              </button>
+            </div>
+
+            {/* 選品センター - 24H爆速商品ラボの直下 */}
+            <div className="px-3 pb-2">
+              <button
+                onClick={() => setLocation("/master/selection-center")}
+                className={`w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                  location === "/master/selection-center"
+                    ? "bg-primary/10 text-primary border border-primary/20"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                }`}
+              >
+                <ShoppingBag className="h-4 w-4" />
+                <span className="group-data-[collapsible=icon]:hidden">選品センター</span>
               </button>
             </div>
 
