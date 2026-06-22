@@ -1304,6 +1304,24 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
       }
     }),
 
+  /** DEBUG: check chat_logs table state */
+  debugChatState: protectedProcedure
+    .query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return { error: "no db" };
+      try {
+        const [totalLogs] = await db.select({ count: count() }).from(lcjBrainChatLogs);
+        const [totalConvs] = await db.select({ count: count() }).from(lcjBrainConversations);
+        const [userLogs] = await db.select({ count: count() }).from(lcjBrainChatLogs).where(eq(lcjBrainChatLogs.userId, ctx.user!.id));
+        const [userConvs] = await db.select({ count: count() }).from(lcjBrainConversations).where(eq(lcjBrainConversations.userId, ctx.user!.id));
+        const recentLogs = await db.select({ id: lcjBrainChatLogs.id, conversationId: lcjBrainChatLogs.conversationId, userId: lcjBrainChatLogs.userId, sessionId: lcjBrainChatLogs.sessionId, role: lcjBrainChatLogs.role }).from(lcjBrainChatLogs).orderBy(desc(lcjBrainChatLogs.createdAt)).limit(5);
+        const nullConvLogs = await db.select({ count: count() }).from(lcjBrainChatLogs).where(isNull(lcjBrainChatLogs.conversationId));
+        return { userId: ctx.user!.id, totalLogs: totalLogs.count, totalConvs: totalConvs.count, userLogs: userLogs.count, userConvs: userConvs.count, nullConvLogs: nullConvLogs[0].count, recentLogs };
+      } catch (e: any) {
+        return { error: e.message };
+      }
+    }),
+
   /** 管理者用：チャットログ一覧取得（パスワード保護 + ユーザーフィルタ） */
   getChatLogs: protectedProcedure
     .input(z.object({
