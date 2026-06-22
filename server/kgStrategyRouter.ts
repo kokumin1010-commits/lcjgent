@@ -664,12 +664,12 @@ export const kgStrategyRouter = router({
       // 過去30日の全配信から単価を取得 + brandProductsテーブルから定価を取得
       const priceMap: Record<string, number> = {};
       if (missedNames.length > 0) {
-        // 1) 過去30日の配信から売上実績で単価算出
+        // 1) 過去30日の全ライバーの配信から売上実績で単価算出（同じ商品が他ライバーで売れている可能性）
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         const allStreams30d = await db
           .select({ id: brandLivestreams.id })
           .from(brandLivestreams)
-          .where(sql`${brandLivestreams.liverId} = ${input.liverId} AND ${brandLivestreams.livestreamDate} >= ${thirtyDaysAgo}`);
+          .where(sql`${brandLivestreams.livestreamDate} >= ${thirtyDaysAgo} AND ${brandLivestreams.deletedAt} IS NULL`);
         const allProducts30d = await getProductsForStreams(allStreams30d.map(s => s.id));
         for (const name of missedNames) {
           const data = allProducts30d[name];
