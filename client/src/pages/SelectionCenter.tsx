@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,9 @@ function ProductsTab() {
   });
   const statusMutation = trpc.selectionCenter.updateProductStatus.useMutation({
     onSuccess: () => { productsQuery.refetch(); toast.success("ステータスを更新しました"); },
+  });
+  const deleteProductMutation = trpc.selectionCenter.deleteProduct.useMutation({
+    onSuccess: () => { productsQuery.refetch(); toast.success("商品を削除しました"); },
   });
 
   return (
@@ -116,6 +119,9 @@ function ProductsTab() {
                           <Eye className="h-3.5 w-3.5 text-orange-600" />
                         </Button>
                       )}
+                      <Button variant="ghost" size="sm" onClick={() => { if (confirm("この商品を削除しますか？")) deleteProductMutation.mutate({ id: product.id }); }}>
+                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -153,7 +159,11 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
   const [uploading, setUploading] = useState(false);
   const isEdit = !!product;
 
-  useState(() => { if (product) setForm(product); });
+  useEffect(() => {
+    if (open) {
+      setForm(product || {});
+    }
+  }, [open, product]);
 
   const uploadMutation = trpc.selectionCenter.uploadProductImage.useMutation();
 
