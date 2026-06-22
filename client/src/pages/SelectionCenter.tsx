@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode } from "lucide-react";
+import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 
 // ==================== Products Tab ====================
@@ -567,58 +567,72 @@ function LiverSelectionTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Selections list button */}
-      {selectionsQuery.data && selectionsQuery.data.length > 0 && (
-        <div className="flex justify-end">
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Eye className="h-4 w-4 mr-1" />
-                選品一覧（{selectionsQuery.data.length}件）
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>選品一覧（{selectionsQuery.data.length}件）</DialogTitle>
-              </DialogHeader>
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="text-left p-3 font-medium">主播</th>
-                      <th className="text-left p-3 font-medium">商品名</th>
-                      <th className="text-left p-3 font-medium">ブランド</th>
-                      <th className="text-center p-3 font-medium">佣金</th>
-                      <th className="text-center p-3 font-medium">ステータス</th>
-                      <th className="text-center p-3 font-medium">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectionsQuery.data.map((s: any) => (
-                      <tr key={s.id} className="border-t hover:bg-muted/30">
-                        <td className="p-3 font-medium">{s.liverName}</td>
-                        <td className="p-3">{s.productName || "-"}</td>
-                        <td className="p-3 text-muted-foreground">{s.brandName || "-"}</td>
-                        <td className="p-3 text-center">
-                          {s.commissionType === "percentage" ? `${s.commissionValue}%` : `¥${s.commissionValue}`}
-                        </td>
-                        <td className="p-3 text-center">
-                          <Badge variant={s.status === "approved" ? "default" : s.status === "rejected" ? "destructive" : "secondary"}>
-                            {s.status === "approved" ? "承認済" : s.status === "rejected" ? "却下" : "保留中"}
-                          </Badge>
-                        </td>
-                        <td className="p-3 text-center">
-                          <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate({ id: s.id })}>
-                            <X className="h-3.5 w-3.5 text-red-500" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </DialogContent>
-          </Dialog>
+
+    </div>
+  );
+}
+
+// ==================== Selections Tab ====================
+function SelectionsTab() {
+  const selectionsQuery = trpc.selectionCenter.getSelections.useQuery();
+  const deleteMutation = trpc.selectionCenter.deleteSelection.useMutation({
+    onSuccess: () => {
+      selectionsQuery.refetch();
+      toast.success("選品を取消しました");
+    },
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">選品一覧（{selectionsQuery.data?.length || 0}件）</h3>
+      </div>
+      {selectionsQuery.isLoading ? (
+        <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+      ) : !selectionsQuery.data || selectionsQuery.data.length === 0 ? (
+        <Card><CardContent className="p-8 text-center text-muted-foreground">選品データがありません</CardContent></Card>
+      ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left p-3 font-medium">主播</th>
+                <th className="text-left p-3 font-medium">商品名</th>
+                <th className="text-left p-3 font-medium">ブランド</th>
+                <th className="text-center p-3 font-medium">販売価格</th>
+                <th className="text-center p-3 font-medium">佣金</th>
+                <th className="text-center p-3 font-medium">ステータス</th>
+                <th className="text-center p-3 font-medium">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectionsQuery.data.map((s: any) => (
+                <tr key={s.id} className="border-t hover:bg-muted/30">
+                  <td className="p-3 font-medium">{s.liverName}</td>
+                  <td className="p-3">{s.productName || "-"}</td>
+                  <td className="p-3 text-muted-foreground">{s.brandName || "-"}</td>
+                  <td className="p-3 text-center text-orange-600 font-medium">
+                    {s.price ? `¥${Number(s.price).toLocaleString()}` : "-"}
+                  </td>
+                  <td className="p-3 text-center">
+                    {s.commissionType === "percentage"
+                      ? <span>{s.commissionValue}% <span className="text-orange-600">(¥{Math.round(Number(s.price || 0) * Number(s.commissionValue || 0) / 100).toLocaleString()})</span></span>
+                      : `¥${s.commissionValue}`}
+                  </td>
+                  <td className="p-3 text-center">
+                    <Badge variant={s.status === "approved" ? "default" : s.status === "rejected" ? "destructive" : "secondary"}>
+                      {s.status === "approved" ? "承認済" : s.status === "rejected" ? "却下" : "保留中"}
+                    </Badge>
+                  </td>
+                  <td className="p-3 text-center">
+                    <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate({ id: s.id })}>
+                      <X className="h-3.5 w-3.5 text-red-500" />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -881,12 +895,14 @@ export default function SelectionCenter() {
           <TabsTrigger value="schedules"><Calendar className="h-4 w-4 mr-1" />排期管理</TabsTrigger>
           <TabsTrigger value="performances"><TrendingUp className="h-4 w-4 mr-1" />帯貨データ</TabsTrigger>
           <TabsTrigger value="settlements"><DollarSign className="h-4 w-4 mr-1" />結算管理</TabsTrigger>
+          <TabsTrigger value="selections"><ClipboardList className="h-4 w-4 mr-1" />選品一覧</TabsTrigger>
         </TabsList>
         <TabsContent value="products"><ProductsTab /></TabsContent>
         <TabsContent value="liver-selection"><LiverSelectionTab /></TabsContent>
         <TabsContent value="schedules"><SchedulesTab /></TabsContent>
         <TabsContent value="performances"><PerformancesTab /></TabsContent>
         <TabsContent value="settlements"><SettlementsTab /></TabsContent>
+        <TabsContent value="selections"><SelectionsTab /></TabsContent>
       </Tabs>
     </div>
   );
