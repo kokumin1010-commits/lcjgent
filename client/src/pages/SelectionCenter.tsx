@@ -314,6 +314,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
 function LiverSelectionTab() {
   const [search, setSearch] = useState("");
   const [selectedLiverId, setSelectedLiverId] = useState<string>("");
+  const [detailProduct, setDetailProduct] = useState<any>(null);
 
   const productsQuery = trpc.selectionCenter.getLiverAvailableProducts.useQuery({
     search: search || undefined,
@@ -377,7 +378,7 @@ function LiverSelectionTab() {
         <h4 className="text-sm font-medium text-muted-foreground mb-3">公開中の商品（{productsQuery.data?.length || 0}件）</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {productsQuery.data?.map((product: any) => (
-            <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow">
+            <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer" onClick={() => setDetailProduct(product)}>
               {/* Product Image */}
               {(() => {
                 try {
@@ -421,7 +422,7 @@ function LiverSelectionTab() {
                       <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{product.sellingPoints}</p>
                     )}
                   </div>
-                  <div>
+                  <div onClick={(e) => e.stopPropagation()}>
                     {!selectedLiverId ? (
                       <Button size="sm" variant="outline" disabled className="text-xs">主播を選択</Button>
                     ) : selectedProductIds.has(product.id) ? (
@@ -443,6 +444,123 @@ function LiverSelectionTab() {
           )}
         </div>
       </div>
+
+      {/* Product Detail Dialog */}
+      <Dialog open={!!detailProduct} onOpenChange={(open) => { if (!open) setDetailProduct(null); }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{detailProduct?.productName}</DialogTitle>
+          </DialogHeader>
+          {detailProduct && (
+            <div className="space-y-4">
+              {/* Images */}
+              {(() => {
+                try {
+                  const imgs = typeof detailProduct.images === 'string' ? JSON.parse(detailProduct.images) : detailProduct.images;
+                  if (Array.isArray(imgs) && imgs.length > 0) {
+                    return (
+                      <div className="grid grid-cols-2 gap-2">
+                        {imgs.map((img: string, idx: number) => (
+                          <div key={idx} className="aspect-square overflow-hidden rounded-lg bg-muted">
+                            <img src={img} alt={`${detailProduct.productName} ${idx + 1}`} className="w-full h-full object-cover" />
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return null;
+                } catch { return null; }
+              })()}
+
+              {/* Basic Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground text-xs">ブランド</Label>
+                  <p className="font-medium">{detailProduct.brandName || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">バーコード</Label>
+                  <p className="font-medium">{detailProduct.barcode || '-'}</p>
+                </div>
+              </div>
+
+              {/* Price Info */}
+              <div className="bg-muted/50 rounded-lg p-4">
+                <h4 className="text-sm font-semibold mb-2">価格情報</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground text-xs">販売価格</Label>
+                    <p className="font-bold text-orange-600 text-lg">¥{Number(detailProduct.price || 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">市場価格</Label>
+                    <p className="font-medium text-muted-foreground line-through">¥{Number(detailProduct.marketPrice || 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">割引率</Label>
+                    <p className="font-bold text-red-600">
+                      {detailProduct.marketPrice && Number(detailProduct.marketPrice) > Number(detailProduct.price || 0)
+                        ? `${Math.round((1 - Number(detailProduct.price || 0) / Number(detailProduct.marketPrice)) * 100)}%OFF`
+                        : '-'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Commission */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground text-xs">佣金</Label>
+                  <p className="font-medium">
+                    {detailProduct.commissionType === 'percentage' ? `${detailProduct.commissionValue}%` : `¥${detailProduct.commissionValue}`}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">在庫</Label>
+                  <p className="font-medium">{detailProduct.stock || 0}</p>
+                </div>
+              </div>
+
+              {/* Selling Points */}
+              {detailProduct.sellingPoints && (
+                <div>
+                  <Label className="text-muted-foreground text-xs">セールスポイント</Label>
+                  <p className="text-sm mt-1 whitespace-pre-wrap">{detailProduct.sellingPoints}</p>
+                </div>
+              )}
+
+              {/* Description */}
+              {detailProduct.description && (
+                <div>
+                  <Label className="text-muted-foreground text-xs">商品説明</Label>
+                  <p className="text-sm mt-1 whitespace-pre-wrap">{detailProduct.description}</p>
+                </div>
+              )}
+
+              {/* Product Link */}
+              {detailProduct.productLink && (
+                <div>
+                  <Label className="text-muted-foreground text-xs">商品リンク</Label>
+                  <a href={detailProduct.productLink} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all">{detailProduct.productLink}</a>
+                </div>
+              )}
+
+              {/* Select button */}
+              <div className="flex justify-end pt-2">
+                {!selectedLiverId ? (
+                  <Button variant="outline" disabled>主播を選択してください</Button>
+                ) : selectedProductIds.has(detailProduct.id) ? (
+                  <Button variant="secondary" disabled><Check className="h-4 w-4 mr-1" />選品済</Button>
+                ) : (
+                  <Button onClick={() => { selectMutation.mutate({ productId: detailProduct.id, liverId: Number(selectedLiverId) }); setDetailProduct(null); }} disabled={selectMutation.isPending}>
+                    選品する
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Current selections list */}
       {selectionsQuery.data && selectionsQuery.data.length > 0 && (
