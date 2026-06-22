@@ -1455,8 +1455,8 @@ def _build_silence_trim_segments(duration: float, silence_periods: list,
         merged_keep = [keep_segments[0]]
         for i in range(1, len(keep_segments)):
             gap = keep_segments[i][0] - merged_keep[-1][1]
-            # ギャップが0.15秒未満ならマージ（カットする意味がない）
-            if gap < 0.15:
+            # V2.36: ギャップが0.4秒未満ならマージ（自然な間を保持、息苦しいペースを防止）
+            if gap < 0.4:
                 merged_keep[-1] = (merged_keep[-1][0], keep_segments[i][1])
             else:
                 merged_keep.append(keep_segments[i])
@@ -2575,11 +2575,42 @@ async def _pre_splice_segments(
             spliced_path
         ])
     else:
-        # 7+セグメント: xfadeが複雑すぎるので、単純concatにフォールバック
-        # （zoom burst + flashで切点を過隠する）
+        # 7+セグメント: xfadeが複雑すぎるので、concat + オーディオクロスフェードで対応
+        # 各セグメントの先頭/末尾に短いフェードをかけてからconcatする
+        FADE_MS = 50  # 50msの短いフェードでポップノイズを防止
+        faded_segment_paths = []
+        for i, sp in enumerate(segment_paths):
+            faded_path = os.path.join(splice_dir, f"seg_faded_{i}.mp4")
+            # Get segment duration for fade out position
+            probe_cmd = ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", sp]
+            probe_result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=15)
+            seg_dur = keep_segments[i][1] - keep_segments[i][0] if i < len(keep_segments) else 5.0
+            try:
+                seg_dur = float(json.loads(probe_result.stdout)["format"]["duration"])
+            except Exception:
+                pass
+            fade_out_start = max(0, seg_dur - FADE_MS / 1000.0)
+            # Apply audio fade in/out to each segment to prevent pops
+            fade_cmd = [
+                "ffmpeg", "-y", "-hide_banner",
+                "-i", sp,
+                "-af", f"afade=t=in:st=0:d={FADE_MS/1000.0},afade=t=out:st={fade_out_start:.3f}:d={FADE_MS/1000.0}",
+                "-c:v", "copy",
+                "-c:a", "aac", "-b:a", "128k",
+                "-movflags", "+faststart",
+                faded_path
+            ]
+            try:
+                fade_proc = subprocess.run(fade_cmd, capture_output=True, timeout=30)
+                if fade_proc.returncode == 0 and os.path.exists(faded_path):
+                    faded_segment_paths.append(faded_path)
+                else:
+                    faded_segment_paths.append(sp)  # fallback to original
+            except Exception:
+                faded_segment_paths.append(sp)
         concat_list_path = os.path.join(splice_dir, "concat_list.txt")
         with open(concat_list_path, 'w') as f:
-            for p in segment_paths:
+            for p in faded_segment_paths:
                 f.write(f"file '{p}'\n")
         concat_cmd = [
             "ffmpeg", "-y", "-hide_banner",
@@ -2963,12 +2994,13 @@ def _build_advanced_ffmpeg_command(video_path: str, ass_path: str, output_path: 
         bar_w_expr = f"t/{duration:.2f}*iw"
         vf_parts.append(f"drawbox=x=0:y={bar_y}:w='{bar_w_expr}':h={bar_height}:color=red@0.9:t=fill")
 
-    # ── 6. Loop fade (DISABLED - causes black screen while speaker is still talking) ──
-    # Previously: fade=t=out at the end of the video
-    # Removed because it cuts off the speaker mid-sentence
-    # if enable_loop_fade and duration > 5:
-    #     fade_start = max(0, duration - 1.5)
-    #     vf_parts.append(f"fade=t=out:st={fade_start:.2f}:d=1.5")
+    # ── 6. Loop fade (V2.36: Re-enabled with gentle approach) ──
+    # Use a short 0.8s partial fade (alpha=0.6, not full black) at the very end
+    # This creates a "loop" feel without cutting off speech
+    if enable_loop_fade and duration > 5:
+        fade_start = max(0, duration - 0.8)
+        # Partial fade: fade to 60% opacity (not full black) in last 0.8s
+        vf_parts.append(f"fade=t=out:st={fade_start:.2f}:d=0.8:alpha=1")
 
     # ── Assemble ffmpeg command ──
     # Strategy: Always use -filter_complex to combine video effects + overlay images.
@@ -3172,14 +3204,15 @@ def _generate_cta_text(captions: list, clip: dict) -> str:
 条件:
 - 15文字以内
 - 必ず「左下」「画面左下」「商品リンク」のいずれかの言葉を含めること
-- 観客に今すぐ購入/クリックするよう強く促すこと（「抢购」「ゲット」「タップ」等の行動動詞を使う）
+- 観客に今すぐ購入/クリックするよう強く促すこと（「購入」「ゲット」「タップ」等の行動動詞を使う）
+- 日本語のみ使用すること（中国語の文字は絶対に使わない。「抢购」等は禁止）
 - 曖昧な表現（質問OK、フォロー、いいね等）は絶対に使わない
 - 絵文字は使わない（フォント非対応のため）
 - 商品名: {product_name}
 - 動画内容: {transcript}
 
 参考例:
-- 「画面左下の商品リンクから抢购」
+- 「画面左下の商品リンクから購入」
 - 「左下タップで今すぐゲット」
 - 「左下から今すぐ購入」
 
@@ -3211,10 +3244,10 @@ CTAテキストのみ出力（説明不要）:"""
     # Fallback CTAs: V2.22 強導向性CTA（全て「左下」への購入誘導に統一）
     # 曖昧な結語（コメントで質問OK、フォロー、いいね等）を完全排除
     ctas = [
-        "左下の商品リンクから抢购",
+        "左下の商品リンクから購入",
         "左下タップで今すぐゲット",
         "画面左下から今すぐ購入",
-        "左下から抢购 数量限定",
+        "左下から購入 数量限定",
         "左下のリンクをタップ",
         "左下から今すぐゲット",
         "画面左下タップで購入",
@@ -3767,7 +3800,7 @@ class GenerateRequest(BaseModel):
     enable_keyword_highlight: bool = Field(True, description="キーワードハイライト")
     enable_subtitle_animation: bool = Field(True, description="字幕出現アニメーション")
     zoom_intensity: float = Field(1.08, ge=1.0, le=1.3, description="ズーム倍率 (1.0=なし, 1.3=最大)")
-    silence_threshold_db: float = Field(-22.0, ge=-60.0, le=-10.0, description="無音検出閾値(dB) V2.18: -25→-22に変更してより積極的に検出")
+    silence_threshold_db: float = Field(-28.0, ge=-60.0, le=-10.0, description="無音検出閾値(dB) V2.36: -22→-28に変更して自然な間を保持")
     # V13: テンポアップ（TikTok風の微妙なスピードアップ）
     speed_factor: float = Field(1.05, ge=1.0, le=1.3, description="再生速度倍率 (1.0=変更なし, 1.05=TikTok風微速, 1.3=最大)")
     # V12: 編集スタイル学習
@@ -3802,7 +3835,7 @@ class GenerateFromClipRequest(BaseModel):
     enable_keyword_highlight: bool = Field(True, description="キーワードハイライト")
     enable_subtitle_animation: bool = Field(True, description="字幕出現アニメーション")
     zoom_intensity: float = Field(1.08, ge=1.0, le=1.3, description="ズーム倍率")
-    silence_threshold_db: float = Field(-22.0, ge=-60.0, le=-10.0, description="無音検出閾値(dB) V2.18: -25→-22に変更してより積極的に検出")
+    silence_threshold_db: float = Field(-28.0, ge=-60.0, le=-10.0, description="無音検出閾値(dB) V2.36: -22→-28に変更して自然な間を保持")
     # V13: テンポアップ
     speed_factor: float = Field(1.05, ge=1.0, le=1.3, description="再生速度倍率 (1.0=変更なし, 1.05=TikTok風微速, 1.3=最大)")
     # V3: 映像モード選択
@@ -5930,7 +5963,7 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
         if req.enable_silence_cut:
             await _update_job(job_id, progress_pct=18, current_step=f"クリップ {idx+1}/{total}: 無音区間検出中...")
             silence_periods = _detect_silence_periods(
-                video_path, noise_db=req.silence_threshold_db, min_duration=0.25  # V2.27: 0.25s以上の無音を検出（0.3s以上を完全削除）
+                video_path, noise_db=req.silence_threshold_db, min_duration=0.5  # V2.36: 0.5s以上の無音のみ検出（自然な息継ぎを保持）
             )
             await _update_job(job_id, progress_pct=20, current_step=f"クリップ {idx+1}/{total}: 無音{len(silence_periods)}区間検出")
 
@@ -6905,6 +6938,13 @@ async def _generate_hook(captions: list, clip: dict, req: GenerateRequest) -> st
 
         if result:
             result = result.strip('"\'「」『』【】').strip()
+            # V2.36: 句読点を除去（フックに不要）
+            result = result.replace('、', '').replace('。', '').replace(',', '').replace('.', '')
+            # V2.36: 「が変わる」等の主語なしフラグメントを検出
+            if result.startswith('が') or result.startswith('も') or result.startswith('は'):
+                # 主語が欠落している→フォールバック
+                logger.warning(f"[ai-clip] Hook starts with particle '{result[:2]}', falling back")
+                return _generate_simple_hook(product_name, transcript)
             # 絶対に15文字以内に制限
             if len(result) > 15:
                 result = result[:15]
@@ -9915,7 +9955,7 @@ class GenerateByProductRequest(BaseModel):
     brand_id: Optional[str] = Field(None, description="ブランドID（product_masterフィルタ用）")
     subtitle_style: str = Field("auto", description="字幕スタイル")
     enable_silence_cut: bool = Field(True, description="≥1秒の気口/停顿を自動カット")
-    silence_threshold_db: float = Field(-22.0, ge=-60.0, le=-10.0, description="無音検出閾値(dB)")
+    silence_threshold_db: float = Field(-28.0, ge=-60.0, le=-10.0, description="無音検出閾値(dB) V2.36")
     speed_factor: float = Field(1.05, ge=1.0, le=1.3, description="再生速度倍率")
     position_y: float = Field(75.0, ge=0, le=100, description="字幕Y位置（%）")
     target_language: str = Field("auto", description="字幕言語 (auto/ja/zh/zh-tw)")
