@@ -207,6 +207,7 @@ export const brands = mysqlTable("brands", {
   larkShopId: varchar("larkShopId", { length: 255 }), // 飞书店铺ID
   larkIntro: text("larkIntro"), // 品牌介绍
   larkSyncedAt: timestamp("larkSyncedAt"), // 最終飞书同期日時
+  hasTikTokBackend: boolean("hasTikTokBackend").default(false).notNull(), // TikTok Shop後台操作権限があるか
   createdBy: int("createdBy").notNull(), // User ID who created the brand
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

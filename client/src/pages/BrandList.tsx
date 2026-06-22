@@ -710,6 +710,11 @@ export default function BrandList() {
                         Lark
                       </Badge>
                     )}
+                    {(brand as any).hasTikTokBackend && (
+                      <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs">
+                        TikTok後台
+                      </Badge>
+                    )}
                   </div>
                   
                   {/* 飛書データ: Tier + カテゴリ + 担当者 */}

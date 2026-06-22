@@ -168,14 +168,14 @@ export const selectionCenterRouter = router({
     pageSize: z.number().default(50),
   })).query(async ({ input }) => {
     const pool = getPool();
-    let where = 'WHERE deletedAt IS NULL';
+    let where = 'WHERE sp.deletedAt IS NULL';
     const params: any[] = [];
-    if (input.status) { where += ' AND status = ?'; params.push(input.status); }
-    if (input.categoryId) { where += ' AND categoryId = ?'; params.push(input.categoryId); }
-    if (input.search) { where += ' AND (productName LIKE ? OR brandName LIKE ? OR barcode LIKE ?)'; params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`); }
+    if (input.status) { where += ' AND sp.status = ?'; params.push(input.status); }
+    if (input.categoryId) { where += ' AND sp.categoryId = ?'; params.push(input.categoryId); }
+    if (input.search) { where += ' AND (sp.productName LIKE ? OR sp.brandName LIKE ? OR sp.barcode LIKE ?)'; params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`); }
     const offset = (input.page - 1) * input.pageSize;
-    const [items] = await pool.query(`SELECT * FROM selection_products ${where} ORDER BY createdAt DESC LIMIT ? OFFSET ?`, [...params, input.pageSize, offset]) as any;
-    const [countResult] = await pool.query(`SELECT COUNT(*) as count FROM selection_products ${where}`, params) as any;
+    const [items] = await pool.query(`SELECT sp.*, b.hasTikTokBackend FROM selection_products sp LEFT JOIN brands b ON sp.brandId = b.id ${where} ORDER BY sp.createdAt DESC LIMIT ? OFFSET ?`, [...params, input.pageSize, offset]) as any;
+    const [countResult] = await pool.query(`SELECT COUNT(*) as count FROM selection_products sp ${where}`, params) as any;
     return { items, total: Number(countResult[0]?.count || 0) };
   }),
 
@@ -387,10 +387,10 @@ export const selectionCenterRouter = router({
     search: z.string().optional(),
   })).query(async ({ input }) => {
     const pool = getPool();
-    let where = "WHERE status = 'online' AND deletedAt IS NULL";
+    let where = "WHERE sp.status = 'online' AND sp.deletedAt IS NULL";
     const params: any[] = [];
-    if (input.search) { where += ' AND (productName LIKE ? OR brandName LIKE ? OR barcode LIKE ?)'; params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`); }
-    const [rows] = await pool.query(`SELECT * FROM selection_products ${where} ORDER BY createdAt DESC`, params) as any;
+    if (input.search) { where += ' AND (sp.productName LIKE ? OR sp.brandName LIKE ? OR sp.barcode LIKE ?)'; params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`); }
+    const [rows] = await pool.query(`SELECT sp.*, b.hasTikTokBackend FROM selection_products sp LEFT JOIN brands b ON sp.brandId = b.id ${where} ORDER BY sp.createdAt DESC`, params) as any;
     return rows;
   }),
 

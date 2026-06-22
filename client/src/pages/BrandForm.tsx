@@ -162,6 +162,7 @@ export default function BrandForm() {
     memo: "",
     businessManagerId: null as number | null,
     operationsManagerId: null as number | null,
+    hasTikTokBackend: false,
   });
 
   const [businessCards, setBusinessCards] = useState<{ url: string; key: string }[]>([]);
@@ -203,6 +204,7 @@ export default function BrandForm() {
         memo: brand.memo || "",
         businessManagerId: (brand as any).businessManagerId || null,
         operationsManagerId: (brand as any).operationsManagerId || null,
+        hasTikTokBackend: (brand as any).hasTikTokBackend || false,
       });
       
       if (brand.businessCardUrls && brand.businessCardKeys) {
@@ -219,7 +221,7 @@ export default function BrandForm() {
     }
   }, [brand]);
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: string, value: string | boolean | number | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -286,6 +288,7 @@ export default function BrandForm() {
         logoUrl: logo?.url || undefined,
         logoKey: logo?.key || undefined,
         memo: formData.memo || undefined,
+        hasTikTokBackend: formData.hasTikTokBackend,
       };
 
       if (isEdit) {
@@ -480,6 +483,22 @@ export default function BrandForm() {
                   placeholder="例: SHOP-001"
                 />
               </div>
+            </div>
+
+            {/* TikTok Shop Backend Access */}
+            <div className="flex items-center gap-3 py-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.hasTikTokBackend}
+                  onChange={(e) => handleInputChange("hasTikTokBackend", e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span className="text-sm font-medium">TikTok Shop後台操作権限あり</span>
+              </label>
+              {formData.hasTikTokBackend && (
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">後台✓</span>
+              )}
             </div>
 
             {/* Business Cards */}

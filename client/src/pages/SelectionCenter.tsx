@@ -94,7 +94,12 @@ function ProductsTab() {
                   </td>
                   <td className="p-3 font-medium max-w-[200px] truncate">{product.productName}</td>
                   <td className="p-3 text-muted-foreground text-xs font-mono">{product.barcode || "-"}</td>
-                  <td className="p-3 text-muted-foreground">{product.brandName}</td>
+                  <td className="p-3 text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      {product.brandName}
+                      {product.hasTikTokBackend && <span className="inline-block text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium whitespace-nowrap">後台✓</span>}
+                    </span>
+                  </td>
                   <td className="p-3">{category ? (categoriesQuery.data?.find((p: any) => p.id === category.parentId)?.name ? categoriesQuery.data.find((p: any) => p.id === category.parentId).name + " / " + category.name : category.name) : "-"}</td>
                   <td className="p-3 text-right">¥{Number(product.price || 0).toLocaleString()}</td>
                   <td className="p-3 text-right">
@@ -411,7 +416,10 @@ function LiverSelectionTab() {
                 <div className="flex justify-between items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold truncate">{product.productName}</h3>
-                    <p className="text-sm text-muted-foreground">{product.brandName}</p>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      {product.brandName}
+                      {product.hasTikTokBackend && <span className="inline-block text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium">後台✓</span>}
+                    </p>
                     <div className="flex items-center gap-2 mt-2 text-sm flex-wrap">
                       <span className="font-bold text-orange-600 text-base">¥{Number(product.price || 0).toLocaleString()}</span>
                       {product.marketPrice && Number(product.marketPrice) > 0 && Number(product.marketPrice) !== Number(product.price || 0) && (

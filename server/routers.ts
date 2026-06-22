@@ -4536,6 +4536,7 @@ ${staffDetails.map(s => `\n【${s.staffName}】(${s.reportCount}件)\n${s.allWor
           memo: z.string().optional(),
           businessManagerId: z.number().nullable().optional(),
           operationsManagerId: z.number().nullable().optional(),
+          hasTikTokBackend: z.boolean().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -4617,6 +4618,7 @@ ${staffDetails.map(s => `\n【${s.staffName}】(${s.reportCount}件)\n${s.allWor
           memo: z.string().optional(),
           businessManagerId: z.number().nullable().optional(),
           operationsManagerId: z.number().nullable().optional(),
+          hasTikTokBackend: z.boolean().optional(),
         })
       )
       .mutation(async ({ input }) => {
