@@ -652,11 +652,10 @@ export const kgStrategyRouter = router({
         .sort((a, b) => b.gpm - a.gpm)
         .slice(0, 3);
 
-      // ⚡ 紹介チャンス: インプレ高×売上0（直近7日全体から集計）
+      // ⚡ 紹介チャンス: インプレ高×売上0（直近7日全体から集計、全件返却）
       const missedOpportunities = Object.entries(thisWeekProducts)
         .filter(([_, d]) => d.totalImpressions >= 200 && d.totalGmv === 0)
         .sort((a, b) => b[1].totalImpressions - a[1].totalImpressions)
-        .slice(0, 5)
         .map(([name, d]) => ({ name, impressions: d.totalImpressions }));
 
       return {

@@ -93,6 +93,7 @@ export default function LiverDashboard() {
   const [showAllStreams, setShowAllStreams] = useState(false);
   const [expandedStreamId, setExpandedStreamId] = useState<number | null>(null);
   const [selectedProductName, setSelectedProductName] = useState<string | null>(null);
+  const [showAllMissed, setShowAllMissed] = useState(false);
   
   const isCurrentMonth = selectedYearMonth === currentYearMonthStr;
   const isFutureMonth = selectedYearMonth > currentYearMonthStr;
@@ -506,7 +507,7 @@ export default function LiverDashboard() {
               </div>
               <div className="text-[9px] text-white/40 mb-2">TikTokが推しているのに紹介されていない商品 → 次の配信で優先紹介推奨</div>
               <div className="space-y-1.5">
-                {recommendations.missedOpportunities.map((item: any, i: number) => (
+                {(showAllMissed ? recommendations.missedOpportunities : recommendations.missedOpportunities.slice(0, 5)).map((item: any, i: number) => (
                   <div key={i} className="flex items-center justify-between gap-2 py-1.5 px-3 rounded-lg bg-orange-900/20 border border-orange-600/20">
                     <span className="text-xs text-orange-100 break-words leading-tight flex-1" style={{maxWidth: '65%'}}>
                       {item.name.length > 45 ? item.name.slice(0, 45) + '…' : item.name}
@@ -520,6 +521,14 @@ export default function LiverDashboard() {
                   </div>
                 ))}
               </div>
+              {recommendations.missedOpportunities.length > 5 && (
+                <button
+                  onClick={() => setShowAllMissed(!showAllMissed)}
+                  className="mt-2 w-full text-center text-[11px] text-orange-400 hover:text-orange-300 py-1.5 rounded-lg bg-orange-900/10 border border-orange-600/20"
+                >
+                  {showAllMissed ? `▲ 閉じる` : `▼ もっと見る（他${recommendations.missedOpportunities.length - 5}件）`}
+                </button>
+              )}
             </CardContent>
           </Card>
         )}
