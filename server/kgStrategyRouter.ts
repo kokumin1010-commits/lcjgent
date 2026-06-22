@@ -498,9 +498,9 @@ export const kgStrategyRouter = router({
       );
 
       // 商品データを取得するヘルパー（GPM計算用にimpressions含む）
-      async function getProductsForStreams(streamIds: number[]): Promise<Record<string, { totalGmv: number; totalItemsSold: number; totalImpressions: number }>> {
+      async function getProductsForStreams(streamIds: number[]): Promise<Record<string, { totalGmv: number; totalItemsSold: number; totalImpressions: number; latestUnitPrice: number }>> {
         if (streamIds.length === 0) return {};
-        const productMap: Record<string, { totalGmv: number; totalItemsSold: number; totalImpressions: number }> = {};
+        const productMap: Record<string, { totalGmv: number; totalItemsSold: number; totalImpressions: number; latestUnitPrice: number }> = {};
         const batchSize = 100;
         for (let i = 0; i < streamIds.length; i += batchSize) {
           const batch = streamIds.slice(i, i + batchSize);
@@ -514,6 +514,7 @@ export const kgStrategyRouter = router({
               quantity: livestreamProducts.quantity,
               productImpressions: livestreamProducts.productImpressions,
               impressions: livestreamProducts.impressions,
+              unitPrice: livestreamProducts.unitPrice,
             })
             .from(livestreamProducts)
             .where(sql`${livestreamProducts.livestreamId} IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
@@ -523,10 +524,12 @@ export const kgStrategyRouter = router({
             const gmv = Number(p.grossRevenue || p.directGmv || p.gmv || 0);
             const itemsSold = Number(p.itemsSold || p.quantity || 0);
             const impressions = Number(p.productImpressions || p.impressions || 0);
-            if (!productMap[name]) productMap[name] = { totalGmv: 0, totalItemsSold: 0, totalImpressions: 0 };
+            const uPrice = Number(p.unitPrice || 0);
+            if (!productMap[name]) productMap[name] = { totalGmv: 0, totalItemsSold: 0, totalImpressions: 0, latestUnitPrice: 0 };
             productMap[name].totalGmv += gmv;
             productMap[name].totalItemsSold += itemsSold;
             productMap[name].totalImpressions += impressions;
+            if (uPrice > 0) productMap[name].latestUnitPrice = uPrice;
           }
         }
         return productMap;
@@ -653,17 +656,38 @@ export const kgStrategyRouter = router({
         .slice(0, 3);
 
       // ⚡ 紹介チャンス: インプレ高×売上0（直近7日全体から集計、全件返却）
-      // 単価は前週データから取得（直近7日は売上0なので前週のデータを参照）
+      // 単価は過去30日の全配信から同じ商品名の売上実績を参照
+      const missedNames = Object.entries(thisWeekProducts)
+        .filter(([_, d]) => d.totalImpressions >= 200 && d.totalGmv === 0)
+        .map(([name]) => name);
+      
+      // 過去30日の全配信から単価を取得
+      const priceMap: Record<string, number> = {};
+      if (missedNames.length > 0) {
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const allStreams30d = await db
+          .select({ id: brandLivestreams.id })
+          .from(brandLivestreams)
+          .where(sql`${brandLivestreams.liverId} = ${liverId} AND ${brandLivestreams.livestreamDate} >= ${thirtyDaysAgo}`);
+        const allProducts30d = await getProductsForStreams(allStreams30d.map(s => s.id));
+        for (const name of missedNames) {
+          const data = allProducts30d[name];
+          if (data && data.totalItemsSold > 0) {
+            priceMap[name] = Math.round(data.totalGmv / data.totalItemsSold);
+          } else if (data && data.latestUnitPrice > 0) {
+            priceMap[name] = data.latestUnitPrice;
+          }
+        }
+      }
+      
       const missedOpportunities = Object.entries(thisWeekProducts)
         .filter(([_, d]) => d.totalImpressions >= 200 && d.totalGmv === 0)
         .sort((a, b) => b[1].totalImpressions - a[1].totalImpressions)
-        .map(([name, d]) => {
-          const prevData = prevWeekProducts[name];
-          const unitPrice = prevData && prevData.totalItemsSold > 0
-            ? Math.round(prevData.totalGmv / prevData.totalItemsSold)
-            : 0;
-          return { name, impressions: d.totalImpressions, unitPrice };
-        });
+        .map(([name, d]) => ({
+          name,
+          impressions: d.totalImpressions,
+          unitPrice: priceMap[name] || 0,
+        }));
 
       return {
         staples, // 鉄板TOP3（GMV付き）
