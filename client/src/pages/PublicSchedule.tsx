@@ -2524,6 +2524,9 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                             >
                               <Check className={cn("mr-2 h-4 w-4", newSchedule.brandIds.includes(brand.id) ? "opacity-100" : "opacity-0")} />
                               <span className="flex-1">{brand.name || brand.brandName}</span>
+                              {brand.hasTikTokBackend && (
+                                <span className="ml-1 text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">TikTok後台</span>
+                              )}
                               {brand.hasQuota && (
                                 <span className="ml-1 text-[10px] bg-cyan-100 text-cyan-700 px-1.5 py-0.5 rounded-full">ノルマ</span>
                               )}

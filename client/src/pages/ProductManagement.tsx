@@ -962,9 +962,12 @@ export default function ProductManagement() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">未設定</SelectItem>
-                        {brands?.map((brand) => (
+                        {brands?.map((brand: any) => (
                           <SelectItem key={brand.id} value={String(brand.id)}>
-                            {brand.name}
+                            <span className="flex items-center gap-1.5">
+                              <span>{brand.name}</span>
+                              {brand.hasTikTokBackend && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">TikTok後台</span>}
+                            </span>
                           </SelectItem>
                         ))}
                       </SelectContent>

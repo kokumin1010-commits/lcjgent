@@ -1190,7 +1190,7 @@ export default function LiverSelfRecord() {
                       <CommandList className="max-h-60">
                         <CommandEmpty className="text-white py-4 text-center text-sm">{t("record.brandNotFound")}</CommandEmpty>
                         <CommandGroup>
-                          {brands?.map((brand: { id: number; name: string }) => {
+                          {brands?.map((brand: { id: number; name: string; hasTikTokBackend?: boolean }) => {
                             const isSelected = selectedBrandIds.includes(brand.id.toString());
                             return (
                               <CommandItem
@@ -1223,7 +1223,8 @@ export default function LiverSelfRecord() {
                                 <CheckCircle
                                   className={`mr-2 h-4 w-4 ${isSelected ? "text-green-500 opacity-100" : "opacity-0"}`}
                                 />
-                                {brand.name}
+                                <span className="flex-1 truncate">{brand.name}</span>
+                                {(brand as any).hasTikTokBackend && <span className="ml-1 shrink-0 text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded">TikTok後台</span>}
                               </CommandItem>
                             );
                           })}
@@ -1303,7 +1304,7 @@ export default function LiverSelfRecord() {
                   <p className="text-xs text-white/60">{tr.brandDurationHint}</p>
                   <div className="space-y-2">
                     {selectedBrandIds.map(id => {
-                      const brand = brands?.find((b: { id: number; name: string }) => b.id.toString() === id);
+                      const brand = brands?.find((b: { id: number; name: string; hasTikTokBackend?: boolean }) => b.id.toString() === id);
                       const duration = brandDurations[id] || "";
                       const hasDuration = duration !== "" && parseInt(duration) > 0;
                       return brand ? (
@@ -1315,6 +1316,7 @@ export default function LiverSelfRecord() {
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             <Tag className={`h-4 w-4 shrink-0 ${hasDuration ? 'text-green-400' : 'text-red-400'}`} />
                             <span className="text-white text-sm font-medium truncate">{brand.name}</span>
+                            {(brand as any).hasTikTokBackend && <span className="shrink-0 text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded">TikTok後台</span>}
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             <Input

@@ -289,7 +289,7 @@ export default function FeaturedProductsAdmin() {
                 >
                   <option value="">選択してください</option>
                   {brandsQuery.data?.map((brand: any) => (
-                    <option key={brand.id} value={brand.name}>{brand.name}</option>
+                    <option key={brand.id} value={brand.name}>{brand.name}{brand.hasTikTokBackend ? ' 【TikTok後台】' : ''}</option>
                   ))}
                 </select>
               </div>

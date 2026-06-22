@@ -1463,7 +1463,10 @@ export default function LiverRecord() {
                   <SelectContent className="bg-white border-gray-300 text-black max-h-60">
                     {brands?.map((brand) => (
                       <SelectItem key={brand.id} value={brand.id.toString()}>
-                        {brand.name} {brand.nameJa && `(${brand.nameJa})`}
+                        <span className="flex items-center gap-1.5">
+                          <span>{brand.name} {brand.nameJa && `(${brand.nameJa})`}</span>
+                          {(brand as any).hasTikTokBackend && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">TikTok後台</span>}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>

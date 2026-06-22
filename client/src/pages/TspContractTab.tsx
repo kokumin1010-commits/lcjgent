@@ -689,7 +689,8 @@ export default function TspContractTab() {
                             }}
                           >
                             <Check className={cn("mr-2 h-4 w-4", form.brandId === String(b.id) ? "opacity-100" : "opacity-0")} />
-                            {b.name}{b.companyName ? ` (${b.companyName})` : ""}
+                            <span className="flex-1">{b.name}{b.companyName ? ` (${b.companyName})` : ""}</span>
+                            {b.hasTikTokBackend && <span className="ml-1 shrink-0 text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">TikTok後台</span>}
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -892,7 +893,8 @@ export default function TspContractTab() {
                               }}
                             >
                               <Check className={cn("mr-2 h-4 w-4", editingContract.brandId === b.id ? "opacity-100" : "opacity-0")} />
-                              {b.name}{b.companyName ? ` (${b.companyName})` : ""}
+                              <span className="flex-1">{b.name}{b.companyName ? ` (${b.companyName})` : ""}</span>
+                              {b.hasTikTokBackend && <span className="ml-1 shrink-0 text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">TikTok後台</span>}
                             </CommandItem>
                           ))}
                         </CommandGroup>

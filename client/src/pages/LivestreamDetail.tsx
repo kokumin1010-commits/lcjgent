@@ -2256,10 +2256,11 @@ export default function LivestreamDetail() {
                           className="text-white hover:bg-gray-800 cursor-pointer"
                         >
                           <Check className={`w-4 h-4 mr-2 ${editBrands.some(b => b.brandId === brand.id) ? 'opacity-100' : 'opacity-0'}`} />
-                          {brand.name}
+                          <span className="flex-1 truncate">{brand.name}</span>
                           {brand.nameJa && brand.nameJa !== brand.name && (
-                            <span className="text-gray-400 ml-2 text-xs">({brand.nameJa})</span>
+                            <span className="text-gray-400 ml-1 text-xs shrink-0">({brand.nameJa})</span>
                           )}
+                          {brand.hasTikTokBackend && <span className="ml-1 shrink-0 text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded">TikTok後台</span>}
                         </CommandItem>
                       ))}
                     </CommandGroup>

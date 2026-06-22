@@ -273,9 +273,12 @@ export default function LivestreamEdit() {
                     <SelectValue placeholder={tr.selectBrand} />
                   </SelectTrigger>
                   <SelectContent className="bg-gray-900 border-gray-700">
-                    {brands?.map((brand) => (
+                    {brands?.map((brand: any) => (
                       <SelectItem key={brand.id} value={brand.id.toString()}>
-                        {brand.name}
+                        <span className="flex items-center gap-1.5">
+                          <span>{brand.name}</span>
+                          {brand.hasTikTokBackend && <span className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded">TikTok後台</span>}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
