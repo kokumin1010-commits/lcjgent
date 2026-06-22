@@ -668,7 +668,7 @@ export const kgStrategyRouter = router({
         const allStreams30d = await db
           .select({ id: brandLivestreams.id })
           .from(brandLivestreams)
-          .where(sql`${brandLivestreams.liverId} = ${liverId} AND ${brandLivestreams.livestreamDate} >= ${thirtyDaysAgo}`);
+          .where(sql`${brandLivestreams.liverId} = ${input.liverId} AND ${brandLivestreams.livestreamDate} >= ${thirtyDaysAgo}`);
         const allProducts30d = await getProductsForStreams(allStreams30d.map(s => s.id));
         for (const name of missedNames) {
           const data = allProducts30d[name];
