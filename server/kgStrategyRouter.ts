@@ -10,7 +10,7 @@ import { router, publicProcedure } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
-import { brandLivestreams, livestreamProducts, liverGoals } from "../drizzle/schema";
+import { brandLivestreams, livestreamProducts, liverGoals, brandProducts } from "../drizzle/schema";
 import { eq, desc, and, sql, isNull, gte, lte, like } from "drizzle-orm";
 
 // ===== Helper Functions =====
@@ -661,9 +661,10 @@ export const kgStrategyRouter = router({
         .filter(([_, d]) => d.totalImpressions >= 200 && d.totalGmv === 0)
         .map(([name]) => name);
       
-      // 過去30日の全配信から単価を取得
+      // 過去30日の全配信から単価を取得 + brandProductsテーブルから定価を取得
       const priceMap: Record<string, number> = {};
       if (missedNames.length > 0) {
+        // 1) 過去30日の配信から売上実績で単価算出
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         const allStreams30d = await db
           .select({ id: brandLivestreams.id })
@@ -676,6 +677,30 @@ export const kgStrategyRouter = router({
             priceMap[name] = Math.round(data.totalGmv / data.totalItemsSold);
           } else if (data && data.latestUnitPrice > 0) {
             priceMap[name] = data.latestUnitPrice;
+          }
+        }
+        
+        // 2) まだ単価がない商品はbrandProductsテーブルから定価/特別価格を取得
+        const missingPriceNames = missedNames.filter(n => !priceMap[n]);
+        if (missingPriceNames.length > 0) {
+          const allBrandProducts = await db
+            .select({
+              productName: brandProducts.productName,
+              listPrice: brandProducts.listPrice,
+              specialPrice: brandProducts.specialPrice,
+            })
+            .from(brandProducts)
+            .where(isNull(brandProducts.deletedAt));
+          for (const bp of allBrandProducts) {
+            const bpName = (bp.productName || '').trim();
+            for (const missedName of missingPriceNames) {
+              if (missedName.includes(bpName) || bpName.includes(missedName.slice(0, 20))) {
+                const price = Number(bp.specialPrice || bp.listPrice || 0);
+                if (price > 0 && !priceMap[missedName]) {
+                  priceMap[missedName] = price;
+                }
+              }
+            }
           }
         }
       }
