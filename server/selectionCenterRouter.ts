@@ -475,6 +475,21 @@ export const selectionCenterRouter = router({
     return { success: true };
   }),
 
+  // ========== Barcode Lookup ==========
+  getProductByBarcode: publicProcedure.input(z.object({
+    barcode: z.string().min(1),
+  })).query(async ({ input }) => {
+    const pool = getPool();
+    const [rows] = await pool.query('SELECT * FROM selection_products WHERE barcode = ? LIMIT 1', [input.barcode.trim()]) as any;
+    if (rows.length === 0) return null;
+    const product = rows[0];
+    // Parse images JSON if needed
+    if (product.images && typeof product.images === 'string') {
+      try { product.images = JSON.parse(product.images); } catch { product.images = []; }
+    }
+    return product;
+  }),
+
   // ========== Image Upload ==========
   uploadProductImage: protectedProcedure.input(z.object({
     fileName: z.string(),

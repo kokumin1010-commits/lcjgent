@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2 } from "lucide-react";
+import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode } from "lucide-react";
 import { toast } from "sonner";
 
 // ==================== Products Tab ====================
@@ -831,6 +831,12 @@ export default function SelectionCenter() {
           <Package className="h-6 w-6" />
           選品センター
         </h1>
+        <a href="/barcode-scanner" target="_blank" rel="noopener noreferrer">
+          <Button variant="outline" size="sm">
+            <ScanBarcode className="h-4 w-4 mr-1" />
+            バーコード検索
+          </Button>
+        </a>
       </div>
 
       {/* Dashboard Cards */}
