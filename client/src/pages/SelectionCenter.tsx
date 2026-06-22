@@ -379,15 +379,23 @@ function LiverSelectionTab() {
           {productsQuery.data?.map((product: any) => (
             <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow">
               {/* Product Image */}
-              {product.images && JSON.parse(product.images || '[]').length > 0 && (
-                <div className="w-full aspect-[16/9] overflow-hidden bg-muted">
-                  <img
-                    src={JSON.parse(product.images)[0]}
-                    alt={product.productName}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              )}
+              {(() => {
+                try {
+                  const imgs = typeof product.images === 'string' ? JSON.parse(product.images) : product.images;
+                  if (Array.isArray(imgs) && imgs.length > 0) {
+                    return (
+                      <div className="w-full aspect-[16/9] overflow-hidden bg-muted">
+                        <img
+                          src={imgs[0]}
+                          alt={product.productName}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    );
+                  }
+                  return null;
+                } catch { return null; }
+              })()}
               <CardContent className="p-4">
                 <div className="flex justify-between items-start gap-3">
                   <div className="flex-1 min-w-0">
