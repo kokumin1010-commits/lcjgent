@@ -174,7 +174,16 @@ export const selectionCenterRouter = router({
     if (input.categoryId) { where += ' AND sp.categoryId = ?'; params.push(input.categoryId); }
     if (input.search) { where += ' AND (sp.productName LIKE ? OR sp.brandName LIKE ? OR sp.barcode LIKE ?)'; params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`); }
     const offset = (input.page - 1) * input.pageSize;
-    const [items] = await pool.query(`SELECT sp.*, b.hasTikTokBackend FROM selection_products sp LEFT JOIN brands b ON sp.brandId = b.id ${where} ORDER BY sp.createdAt DESC LIMIT ? OFFSET ?`, [...params, input.pageSize, offset]) as any;
+    let items: any[];
+    try {
+      const [rows] = await pool.query(`SELECT sp.*, b.hasTikTokBackend FROM selection_products sp LEFT JOIN brands b ON sp.brandId = b.id ${where} ORDER BY sp.createdAt DESC LIMIT ? OFFSET ?`, [...params, input.pageSize, offset]) as any;
+      items = rows;
+    } catch (e: any) {
+      // Fallback if hasTikTokBackend column doesn't exist yet
+      console.warn('[getProducts] JOIN fallback:', e.message);
+      const [rows] = await pool.query(`SELECT sp.* FROM selection_products sp ${where} ORDER BY sp.createdAt DESC LIMIT ? OFFSET ?`, [...params, input.pageSize, offset]) as any;
+      items = rows;
+    }
     const [countResult] = await pool.query(`SELECT COUNT(*) as count FROM selection_products sp ${where}`, params) as any;
     return { items, total: Number(countResult[0]?.count || 0) };
   }),
@@ -390,7 +399,16 @@ export const selectionCenterRouter = router({
     let where = "WHERE sp.status = 'online' AND sp.deletedAt IS NULL";
     const params: any[] = [];
     if (input.search) { where += ' AND (sp.productName LIKE ? OR sp.brandName LIKE ? OR sp.barcode LIKE ?)'; params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`); }
-    const [rows] = await pool.query(`SELECT sp.*, b.hasTikTokBackend FROM selection_products sp LEFT JOIN brands b ON sp.brandId = b.id ${where} ORDER BY sp.createdAt DESC`, params) as any;
+    let rows: any[];
+    try {
+      const [result] = await pool.query(`SELECT sp.*, b.hasTikTokBackend FROM selection_products sp LEFT JOIN brands b ON sp.brandId = b.id ${where} ORDER BY sp.createdAt DESC`, params) as any;
+      rows = result;
+    } catch (e: any) {
+      // Fallback if hasTikTokBackend column doesn't exist yet
+      console.warn('[getLiverAvailableProducts] JOIN fallback:', e.message);
+      const [result] = await pool.query(`SELECT sp.* FROM selection_products sp ${where} ORDER BY sp.createdAt DESC`, params) as any;
+      rows = result;
+    }
     return rows;
   }),
 

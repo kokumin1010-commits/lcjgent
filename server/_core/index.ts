@@ -28,6 +28,7 @@ import { startMonthlyReportScheduler } from "../monthlyReportScheduler";
 import { startPeerBonusResetScheduler } from "../peerBonusResetScheduler";
 import { startDailyRankingScheduler } from "../dailyRankingScheduler";
 import { ensureFestivalTables } from "../ensureFestivalTables";
+import { ensureBrandsColumns } from "../ensureBrandsColumns";
 import { startPreBriefingScheduler } from "../preBriefingScheduler";
 import { startFeishuSyncScheduler } from "../feishuSyncScheduler";
 import { startContactSearchScheduler } from "../contactSearchScheduler";
@@ -2333,6 +2334,8 @@ async function startServer() {
 
     // Ensure festival tables exist (auto-create if missing)
     await ensureFestivalTables();
+    // Ensure brands table has all required columns
+    await ensureBrandsColumns();
     
     // Start reminder scheduler (runs every 12 hours)
     const TWELVE_HOURS = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
