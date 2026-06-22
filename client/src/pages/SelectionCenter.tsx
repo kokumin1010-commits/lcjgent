@@ -567,46 +567,58 @@ function LiverSelectionTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Current selections list */}
+      {/* Selections list button */}
       {selectionsQuery.data && selectionsQuery.data.length > 0 && (
-        <div>
-          <h4 className="text-sm font-medium text-muted-foreground mb-3">選品一覧（{selectionsQuery.data.length}件）</h4>
-          <div className="border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left p-3 font-medium">主播</th>
-                  <th className="text-left p-3 font-medium">商品名</th>
-                  <th className="text-left p-3 font-medium">ブランド</th>
-                  <th className="text-center p-3 font-medium">佣金</th>
-                  <th className="text-center p-3 font-medium">ステータス</th>
-                  <th className="text-center p-3 font-medium">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectionsQuery.data.map((s: any) => (
-                  <tr key={s.id} className="border-t hover:bg-muted/30">
-                    <td className="p-3 font-medium">{s.liverName}</td>
-                    <td className="p-3">{s.productName || "-"}</td>
-                    <td className="p-3 text-muted-foreground">{s.brandName || "-"}</td>
-                    <td className="p-3 text-center">
-                      {s.commissionType === "percentage" ? `${s.commissionValue}%` : `¥${s.commissionValue}`}
-                    </td>
-                    <td className="p-3 text-center">
-                      <Badge variant={s.status === "approved" ? "default" : s.status === "rejected" ? "destructive" : "secondary"}>
-                        {s.status === "approved" ? "承認済" : s.status === "rejected" ? "却下" : "保留中"}
-                      </Badge>
-                    </td>
-                    <td className="p-3 text-center">
-                      <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate({ id: s.id })}>
-                        <X className="h-3.5 w-3.5 text-red-500" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="flex justify-end">
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Eye className="h-4 w-4 mr-1" />
+                選品一覧（{selectionsQuery.data.length}件）
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>選品一覧（{selectionsQuery.data.length}件）</DialogTitle>
+              </DialogHeader>
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left p-3 font-medium">主播</th>
+                      <th className="text-left p-3 font-medium">商品名</th>
+                      <th className="text-left p-3 font-medium">ブランド</th>
+                      <th className="text-center p-3 font-medium">佣金</th>
+                      <th className="text-center p-3 font-medium">ステータス</th>
+                      <th className="text-center p-3 font-medium">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectionsQuery.data.map((s: any) => (
+                      <tr key={s.id} className="border-t hover:bg-muted/30">
+                        <td className="p-3 font-medium">{s.liverName}</td>
+                        <td className="p-3">{s.productName || "-"}</td>
+                        <td className="p-3 text-muted-foreground">{s.brandName || "-"}</td>
+                        <td className="p-3 text-center">
+                          {s.commissionType === "percentage" ? `${s.commissionValue}%` : `¥${s.commissionValue}`}
+                        </td>
+                        <td className="p-3 text-center">
+                          <Badge variant={s.status === "approved" ? "default" : s.status === "rejected" ? "destructive" : "secondary"}>
+                            {s.status === "approved" ? "承認済" : s.status === "rejected" ? "却下" : "保留中"}
+                          </Badge>
+                        </td>
+                        <td className="p-3 text-center">
+                          <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate({ id: s.id })}>
+                            <X className="h-3.5 w-3.5 text-red-500" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
     </div>
