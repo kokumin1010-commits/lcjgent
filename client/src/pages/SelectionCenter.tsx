@@ -402,13 +402,13 @@ function LiverSelectionTab() {
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold truncate">{product.productName}</h3>
                     <p className="text-sm text-muted-foreground">{product.brandName}</p>
-                    <div className="flex items-center gap-3 mt-2 text-sm">
-                      <span className="font-medium text-orange-600">¥{Number(product.price || 0).toLocaleString()}</span>
-                      {product.marketPrice && Number(product.marketPrice) > 0 && (
+                    <div className="flex items-center gap-2 mt-2 text-sm flex-wrap">
+                      <span className="font-bold text-orange-600 text-base">¥{Number(product.price || 0).toLocaleString()}</span>
+                      {product.marketPrice && Number(product.marketPrice) > 0 && Number(product.marketPrice) !== Number(product.price || 0) && (
                         <span className="text-muted-foreground line-through text-xs">¥{Number(product.marketPrice).toLocaleString()}</span>
                       )}
                       {product.marketPrice && Number(product.marketPrice) > Number(product.price || 0) && (
-                        <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                        <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 shrink-0">
                           {Math.round((1 - Number(product.price || 0) / Number(product.marketPrice)) * 100)}%OFF
                         </Badge>
                       )}
