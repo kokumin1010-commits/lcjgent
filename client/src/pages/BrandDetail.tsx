@@ -2075,8 +2075,8 @@ ${proposal.proposalContent}
     aiExtractMutation.mutate({ imageUrl: selectedImageForAi });
   };
 
-  // Calculate GMV totals from livestreams data
-  const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.gmv || ls.salesAmount || 0), 0);
+  // Calculate GMV totals from livestreams data (CSV商品別売上インポート済みのみ)
+  const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
   const currentMonth = new Date().toISOString().slice(0, 7);
   const currentMonthData = monthlyGmvSummary.find(m => m.month === currentMonth);
   const monthlyGmvValue = currentMonthData?.gmv || 0;
@@ -2686,7 +2686,11 @@ ${proposal.proposalContent}
                             )}
                           </td>
                           <td className="p-3 text-right">
-                            <span className="text-sm font-medium text-green-400">¥{lb.totalGmv.toLocaleString()}</span>
+                            {lb.totalGmv > 0 ? (
+                              <span className="text-sm font-medium text-green-400">¥{lb.totalGmv.toLocaleString()}</span>
+                            ) : (
+                              <span className="text-xs text-gray-600">-</span>
+                            )}
                           </td>
                         </tr>
                         {expandedLiverBreakdown === lb.streamerName && (
@@ -2716,7 +2720,11 @@ ${proposal.proposalContent}
                                       </div>
                                       <div className="flex items-center gap-4">
                                         <span className="text-xs text-cyan-300">{ls.duration ? `${ls.duration}分` : '-'}</span>
-                                        <span className="text-xs text-green-400">¥{(ls.gmv || ls.salesAmount || 0).toLocaleString()}</span>
+                                        {(ls.gmv || 0) > 0 ? (
+                                          <span className="text-xs text-green-400">¥{(ls.gmv || 0).toLocaleString()}</span>
+                                        ) : (
+                                          <span className="text-xs text-gray-600">-</span>
+                                        )}
                                         <ExternalLink className="h-3 w-3 text-gray-500" />
                                       </div>
                                     </div>
@@ -2762,12 +2770,14 @@ ${proposal.proposalContent}
                       <td className="p-3"></td>
                       <td className="p-3"></td>
                       <td className="p-3 text-right">
-                        <span className="text-sm font-bold text-amber-400">
-                          ¥{(() => {
-                            const totalGmv = quotaProgress.liverBreakdown.reduce((sum, lb) => sum + (lb.totalGmv || 0), 0);
-                            return totalGmv.toLocaleString();
-                          })()}
-                        </span>
+                        {(() => {
+                          const totalGmv = quotaProgress.liverBreakdown.reduce((sum, lb) => sum + (lb.totalGmv || 0), 0);
+                          return totalGmv > 0 ? (
+                            <span className="text-sm font-bold text-amber-400">¥{totalGmv.toLocaleString()}</span>
+                          ) : (
+                            <span className="text-xs text-gray-600">-</span>
+                          );
+                        })()}
                       </td>
                     </tr>
                   </tfoot>
@@ -3816,7 +3826,7 @@ ${proposal.proposalContent}
               });
 
               // Calculate summary
-              const summaryGmv = filteredLivestreams.reduce((sum, ls) => sum + (ls.gmv || ls.salesAmount || 0), 0);
+              const summaryGmv = filteredLivestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
               const summarySalesCount = filteredLivestreams.reduce((sum, ls) => sum + (ls.salesCount || 0), 0);
               const summaryDuration = filteredLivestreams.reduce((sum, ls) => sum + (ls.duration || 0), 0);
               const summaryImpressions = filteredLivestreams.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
@@ -3846,7 +3856,7 @@ ${proposal.proposalContent}
                   return true;
                 });
               })();
-              const prevGmv = prevPeriodLivestreams.reduce((sum, ls) => sum + (ls.gmv || ls.salesAmount || 0), 0);
+              const prevGmv = prevPeriodLivestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
               const gmvGrowth = prevGmv > 0 ? ((summaryGmv - prevGmv) / prevGmv * 100) : null;
 
               // Account breakdown
@@ -3854,7 +3864,7 @@ ${proposal.proposalContent}
               const accountGmvMap = new Map<string, number>();
               filteredLivestreams.forEach(ls => {
                 if (ls.streamerName) {
-                  accountGmvMap.set(ls.streamerName, (accountGmvMap.get(ls.streamerName) || 0) + (ls.gmv || ls.salesAmount || 0));
+                  accountGmvMap.set(ls.streamerName, (accountGmvMap.get(ls.streamerName) || 0) + (ls.gmv || 0));
                 }
               });
 
@@ -4028,7 +4038,7 @@ ${proposal.proposalContent}
                           {ls.salesCount?.toLocaleString() || "-"}
                         </td>
                         <td className="py-3 px-2 text-right text-pink-400 font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                          {formatCurrency(ls.gmv || ls.salesAmount)}
+                          {(ls.gmv || 0) > 0 ? formatCurrency(ls.gmv) : '-'}
                         </td>
                         <td className="py-3 px-2 text-right text-orange-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {ls.cartAddCount?.toLocaleString() || "-"}
@@ -7052,7 +7062,7 @@ ${proposal.proposalContent}
                           {ls.livestreamDate ? new Date(ls.livestreamDate).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' }) : ''} - {ls.streamerName || (language === 'zh' ? '未知主播' : '不明')}
                         </div>
                         <div className="text-xs text-gray-500">
-                          GMV: ¥{(ls.gmv || ls.salesAmount || 0).toLocaleString()}
+                          GMV: {(ls.gmv || 0) > 0 ? `¥${(ls.gmv || 0).toLocaleString()}` : '-'}
                         </div>
                       </div>
                     </label>

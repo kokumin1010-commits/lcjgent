@@ -11086,9 +11086,9 @@ Return ONLY valid JSON, no markdown or explanation.`,
           const accurateDur = accurateDurations.get(ls.id);
           const dur = accurateDur !== undefined ? accurateDur : (ls.duration || 0);
           liverMap[key].totalDurationMin += dur;
-          // ブランド別GMVがあればそちらを使用
+          // GMVはCSV商品別売上インポート後のlivestream_brands.gmvのみ使用（フォールバックなし）
           const accurateGmv = accurateGmvs.get(ls.id);
-          liverMap[key].totalGmv += accurateGmv !== undefined && accurateGmv > 0 ? accurateGmv : (ls.gmv || ls.salesAmount || 0);
+          liverMap[key].totalGmv += (accurateGmv !== undefined && accurateGmv > 0) ? accurateGmv : 0;
           liverMap[key].streamCount += 1;
           totalDurationMin += dur;
         }
@@ -11384,9 +11384,9 @@ Return ONLY valid JSON, no markdown or explanation.`,
             const dur = accurateDur !== undefined ? accurateDur : (ls.duration || 0);
             const isKg = (ls.streamerName || '').includes('KG') || (ls.streamerName || '').includes('老师') || (ls.streamerName || '').includes('kg');
             if (isKg) kgMin += dur; else liverMin += dur;
-            // ブランド別GMVがあればそちらを使用
+            // GMVはCSV商品別売上インポート後のlivestream_brands.gmvのみ使用（フォールバックなし）
             const accurateGmv = monthAccurateGmvs.get(ls.id);
-            const lsGmv = accurateGmv !== undefined && accurateGmv > 0 ? accurateGmv : (ls.gmv || ls.salesAmount || 0);
+            const lsGmv = (accurateGmv !== undefined && accurateGmv > 0) ? accurateGmv : 0;
             totalGmv += lsGmv;
             // ライバー別集計
             const liverKey = ls.streamerName || 'Unknown';
@@ -11578,10 +11578,10 @@ Return ONLY valid JSON, no markdown or explanation.`,
           const isKg = (ls.streamerName || '').includes('KG') || (ls.streamerName || '').includes('老师') || (ls.streamerName || '').includes('kg');
           if (isKg) brandLivestreamMap[ls.brandId].kgMin += dur;
           else brandLivestreamMap[ls.brandId].liverMin += dur;
-          // ブランド別GMVを使用（livestream_brands.gmv優先）
+          // GMVはCSV商品別売上インポート後のlivestream_brands.gmvのみ使用（フォールバックなし）
           const gmvKey = `${ls.brandId}_${ls.id}`;
           const storedBrandGmv = brandGmvFromLbMap.get(gmvKey);
-          brandLivestreamMap[ls.brandId].gmv += (storedBrandGmv !== undefined && storedBrandGmv > 0) ? storedBrandGmv : (ls.gmv || ls.salesAmount || 0);
+          brandLivestreamMap[ls.brandId].gmv += (storedBrandGmv !== undefined && storedBrandGmv > 0) ? storedBrandGmv : 0;
           brandLivestreamMap[ls.brandId].count += 1;
         }
         // Step 2: livestream_brandsから副ブランド配信を追加集計

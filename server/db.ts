@@ -1192,12 +1192,12 @@ export async function getLivestreamsByBrandId(brandId: number) {
     // ブランド別の配信時間を取得（livestream_brandsから）
     const brandDuration = brandDurationMap.get(ls.id);
     
-    // GMV: livestream_brands.gmv → brand_livestreams.gmv → salesAmount
-    const effectiveGmv = storedBrandGmv || ls.gmv || ls.salesAmount || 0;
+    // GMV: CSV商品別売上インポート後のlivestream_brands.gmvのみ使用（フォールバックなし）
+    const effectiveGmv = (storedBrandGmv != null && storedBrandGmv > 0) ? storedBrandGmv : 0;
     
     return {
       ...ls,
-      // ブランド別GMV（livestream_brands.gmvから、なければ全体GMV）
+      // ブランド別GMV（CSVインポート済みのlivestream_brands.gmvのみ）
       gmv: effectiveGmv,
       salesAmount: effectiveGmv,
       // ブランド別配信時間
@@ -1271,9 +1271,9 @@ export async function getLivestreamStatsByBrandId(brandId: number) {
   let totalSales = 0;
   let totalDuration = 0;
   for (const ls of allLivestreams) {
-    // livestream_brands.gmv → brand_livestreams.gmv → salesAmount
+    // GMV: CSV商品別売上インポート後のlivestream_brands.gmvのみ使用
     const storedBrandGmv = brandGmvMap.get(ls.id);
-    totalSales += storedBrandGmv || ls.gmv || ls.salesAmount || 0;
+    totalSales += (storedBrandGmv != null && storedBrandGmv > 0) ? storedBrandGmv : 0;
     // ブランド別配信時間
     const brandDuration = brandDurationMap.get(ls.id);
     totalDuration += brandDuration || ls.duration || 0;
