@@ -42,6 +42,11 @@ async function ensureConversationsTable() {
       INDEX idx_updatedAt (updatedAt)
     )`);
     await db.execute(sql`ALTER TABLE lcj_brain_chat_logs ADD COLUMN IF NOT EXISTS conversationId INT DEFAULT NULL`);
+    // Ensure file-related columns exist
+    await db.execute(sql`ALTER TABLE lcj_brain_chat_logs ADD COLUMN IF NOT EXISTS fileContent TEXT DEFAULT NULL`);
+    await db.execute(sql`ALTER TABLE lcj_brain_chat_logs ADD COLUMN IF NOT EXISTS fileUrl VARCHAR(500) DEFAULT NULL`);
+    await db.execute(sql`ALTER TABLE lcj_brain_chat_logs ADD COLUMN IF NOT EXISTS fileName VARCHAR(255) DEFAULT NULL`);
+    await db.execute(sql`ALTER TABLE lcj_brain_chat_logs ADD COLUMN IF NOT EXISTS suggestedQuestions TEXT DEFAULT NULL`);
     // Auto-link orphaned messages: match by sessionId pattern 'conv_X' where X is a valid conversationId
     await db.execute(sql`
       UPDATE lcj_brain_chat_logs l
@@ -1442,6 +1447,7 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
   getConversationMessages: protectedProcedure
     .input(z.object({ conversationId: z.number() }))
     .query(async ({ input, ctx }) => {
+      await ensureConversationsTable();
       const db = await getDb();
       if (!db || !ctx.user?.id) return [];
       try {
