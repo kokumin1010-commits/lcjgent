@@ -92,7 +92,13 @@ function ProductsTab() {
                       );
                     })()}
                   </td>
-                  <td className="p-3 font-medium max-w-[200px] truncate">{product.productName}</td>
+                  <td className="p-3 font-medium max-w-[200px] truncate">
+                    <div className="flex items-center gap-1">
+                      {product.productName}
+                      {!!product.talentExclusive && <span className="inline-block text-[10px] bg-purple-100 text-purple-700 px-1 py-0.5 rounded font-medium whitespace-nowrap">達人限定</span>}
+                    </div>
+                    {product.productId && <span className="text-xs text-muted-foreground">ID: {product.productId}</span>}
+                  </td>
                   <td className="p-3 text-muted-foreground text-xs font-mono">{product.barcode || "-"}</td>
                   <td className="p-3 text-muted-foreground">
                     <span className="flex items-center gap-1">
@@ -163,6 +169,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
   const [form, setForm] = useState<any>(product || {});
   const [uploading, setUploading] = useState(false);
   const isEdit = !!product;
+  const brandsQuery = trpc.brand.list.useQuery();
 
   useEffect(() => {
     if (open) {
@@ -258,13 +265,37 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
             <Label>商品名 *</Label>
             <Input value={form.productName || ""} onChange={e => setForm({ ...form, productName: e.target.value })} />
           </div>
-          <div className="col-span-2">
+          <div>
+            <Label>商品ID</Label>
+            <Input value={form.productId || ""} onChange={e => setForm({ ...form, productId: e.target.value })} placeholder="TikTok Shop商品IDなど" />
+          </div>
+          <div>
             <Label>商品バーコード</Label>
             <Input value={form.barcode || ""} onChange={e => setForm({ ...form, barcode: e.target.value })} placeholder="JANコード / EANコード" />
           </div>
           <div>
             <Label>ブランド名 *</Label>
-            <Input value={form.brandName || ""} onChange={e => setForm({ ...form, brandName: e.target.value })} />
+            <Select value={String(form.brandId || "")} onValueChange={v => {
+              const brand = (brandsQuery.data || []).find((b: any) => String(b.id) === v);
+              setForm({ ...form, brandId: Number(v), brandName: brand?.name || "" });
+            }}>
+              <SelectTrigger><SelectValue placeholder="ブランドを選択..." /></SelectTrigger>
+              <SelectContent>
+                {(brandsQuery.data || []).map((b: any) => (
+                  <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2 pt-5">
+            <input
+              type="checkbox"
+              id="talentExclusive"
+              checked={!!form.talentExclusive}
+              onChange={e => setForm({ ...form, talentExclusive: e.target.checked ? 1 : 0 })}
+              className="w-4 h-4 rounded border-gray-300"
+            />
+            <Label htmlFor="talentExclusive" className="cursor-pointer">達人限定</Label>
           </div>
           <div>
             <Label>カテゴリ</Label>
@@ -316,7 +347,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>キャンセル</Button>
-          <Button onClick={() => onSubmit(form)} disabled={loading || uploading || !form.productName || !form.brandName}>
+          <Button onClick={() => onSubmit(form)} disabled={loading || uploading || !form.productName || !form.brandId}>
             {loading ? "保存中..." : isEdit ? "更新" : "追加"}
           </Button>
         </DialogFooter>

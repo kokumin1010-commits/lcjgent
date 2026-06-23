@@ -2606,6 +2606,12 @@ async function startServer() {
               console.error("[Migration] addBrainMemory failed:", err);
             });
           });
+          // Selection Center: productId + talentExclusive columns
+          import("../migrations/addSelectionProductFields").then(({ addSelectionProductFields }) => {
+            addSelectionProductFields(db).catch((err: unknown) => {
+              console.error("[Migration] Selection product fields error:", err);
+            });
+          });
         }
       });
     });

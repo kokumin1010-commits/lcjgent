@@ -190,6 +190,7 @@ export const selectionCenterRouter = router({
 
   createProduct: protectedProcedure.input(z.object({
     productName: z.string(),
+    productId: z.string().optional(),
     barcode: z.string().optional(),
     brandName: z.string(),
     brandId: z.number().optional(),
@@ -206,11 +207,12 @@ export const selectionCenterRouter = router({
     description: z.string().optional(),
     stock: z.number().optional(),
     supplierContact: z.string().optional(),
+    talentExclusive: z.number().optional(),
   })).mutation(async ({ input, ctx }) => {
     const pool = getPool();
     const [result] = await pool.query(
-      `INSERT INTO selection_products (productName, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [input.productName, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, (ctx.user as any)?.id || 0]
+      `INSERT INTO selection_products (productName, productId, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, talentExclusive, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [input.productName, input.productId || null, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, input.talentExclusive || 0, (ctx.user as any)?.id || 0]
     ) as any;
     return { id: result.insertId };
   }),
@@ -218,6 +220,7 @@ export const selectionCenterRouter = router({
   updateProduct: protectedProcedure.input(z.object({
     id: z.number(),
     productName: z.string().optional(),
+    productId: z.string().optional(),
     barcode: z.string().optional(),
     brandName: z.string().optional(),
     brandId: z.number().optional(),
@@ -234,6 +237,7 @@ export const selectionCenterRouter = router({
     description: z.string().optional(),
     stock: z.number().optional(),
     supplierContact: z.string().optional(),
+    talentExclusive: z.number().optional(),
   })).mutation(async ({ input }) => {
     const pool = getPool();
     const { id, ...data } = input;

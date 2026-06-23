@@ -1,4 +1,4 @@
-import { mysqlTable, int, varchar, text, decimal, timestamp, mysqlEnum, json, date } from "drizzle-orm/mysql-core";
+import { mysqlTable, int, varchar, text, decimal, timestamp, mysqlEnum, json, date, tinyint } from "drizzle-orm/mysql-core";
 
 // 選品商品プール (actual DB structure)
 export const selectionProducts = mysqlTable("selection_products", {
@@ -25,6 +25,8 @@ export const selectionProducts = mysqlTable("selection_products", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   deletedAt: timestamp("deletedAt"),
   barcode: varchar("barcode", { length: 100 }),
+  productId: varchar("productId", { length: 100 }),
+  talentExclusive: tinyint("talentExclusive").default(0),
 });
 
 // 選品カテゴリ (actual DB structure)
