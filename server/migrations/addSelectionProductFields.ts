@@ -32,4 +32,20 @@ export async function addSelectionProductFields(db: any) {
   } catch (err: any) {
     if (!err.message?.includes("Duplicate column")) throw err;
   }
+
+  // Add exclusiveLiverIds column (JSON array of liver IDs)
+  try {
+    const [cols3] = await db.execute(sql`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'selection_products' 
+      AND COLUMN_NAME = 'exclusiveLiverIds'
+    `);
+    if (!cols3 || (Array.isArray(cols3) && cols3.length === 0)) {
+      await db.execute(sql`ALTER TABLE selection_products ADD COLUMN exclusiveLiverIds JSON DEFAULT NULL`);
+      console.log("[Migration] Added selection_products.exclusiveLiverIds column");
+    }
+  } catch (err: any) {
+    if (!err.message?.includes("Duplicate column")) throw err;
+  }
 }

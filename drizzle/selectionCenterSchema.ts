@@ -27,6 +27,7 @@ export const selectionProducts = mysqlTable("selection_products", {
   barcode: varchar("barcode", { length: 100 }),
   productId: varchar("productId", { length: 100 }),
   talentExclusive: tinyint("talentExclusive").default(0),
+  exclusiveLiverIds: json("exclusiveLiverIds"),
 });
 
 // 選品カテゴリ (actual DB structure)

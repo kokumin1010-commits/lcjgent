@@ -27,6 +27,8 @@ function ProductsTab() {
   });
 
   const categoriesQuery = trpc.selectionCenter.getCategories.useQuery();
+  const liversQuery2 = trpc.selectionCenter.getLivers.useQuery();
+  const liversData = liversQuery2.data || [];
   const createMutation = trpc.selectionCenter.createProduct.useMutation({
     onSuccess: () => { productsQuery.refetch(); setShowCreateDialog(false); toast.success("商品を追加しました"); },
   });
@@ -92,12 +94,20 @@ function ProductsTab() {
                       );
                     })()}
                   </td>
-                  <td className="p-3 font-medium max-w-[200px] truncate">
-                    <div className="flex items-center gap-1">
-                      {product.productName}
+                  <td className="p-3 font-medium max-w-[200px]">
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span className="truncate">{product.productName}</span>
                       {!!product.talentExclusive && <span className="inline-block text-[10px] bg-purple-100 text-purple-700 px-1 py-0.5 rounded font-medium whitespace-nowrap">達人限定</span>}
                     </div>
-                    {product.productId && <span className="text-xs text-muted-foreground">ID: {product.productId}</span>}
+                    {product.productId && <span className="text-xs text-muted-foreground block">ID: {product.productId}</span>}
+                    {!!product.talentExclusive && product.exclusiveLiverIds && (() => {
+                      const ids = typeof product.exclusiveLiverIds === 'string' ? JSON.parse(product.exclusiveLiverIds) : product.exclusiveLiverIds;
+                      if (!ids || ids.length === 0) return null;
+                      return <div className="flex flex-wrap gap-0.5 mt-0.5">{ids.map((id: number) => {
+                        const liver = (liversData || []).find((l: any) => l.id === id);
+                        return liver ? <span key={id} className="text-[10px] bg-purple-50 text-purple-600 px-1 rounded">{liver.name}</span> : null;
+                      })}</div>;
+                    })()}
                   </td>
                   <td className="p-3 text-muted-foreground text-xs font-mono">{product.barcode || "-"}</td>
                   <td className="p-3 text-muted-foreground">
@@ -170,10 +180,16 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
   const [uploading, setUploading] = useState(false);
   const isEdit = !!product;
   const brandsQuery = trpc.brand.list.useQuery();
+  const liversQuery = trpc.selectionCenter.getLivers.useQuery();
 
   useEffect(() => {
     if (open) {
-      setForm(product || {});
+      const p = product ? { ...product } : {};
+      // Parse exclusiveLiverIds from JSON string if needed
+      if (p.exclusiveLiverIds && typeof p.exclusiveLiverIds === 'string') {
+        try { p.exclusiveLiverIds = JSON.parse(p.exclusiveLiverIds); } catch { p.exclusiveLiverIds = []; }
+      }
+      setForm(p);
     }
   }, [open, product]);
 
@@ -287,15 +303,53 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-2 pt-5">
-            <input
-              type="checkbox"
-              id="talentExclusive"
-              checked={!!form.talentExclusive}
-              onChange={e => setForm({ ...form, talentExclusive: e.target.checked ? 1 : 0 })}
-              className="w-4 h-4 rounded border-gray-300"
-            />
-            <Label htmlFor="talentExclusive" className="cursor-pointer">達人限定</Label>
+          <div className="col-span-2 space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="talentExclusive"
+                checked={!!form.talentExclusive}
+                onChange={e => {
+                  const checked = e.target.checked;
+                  setForm({ ...form, talentExclusive: checked ? 1 : 0, exclusiveLiverIds: checked ? (form.exclusiveLiverIds || []) : [] });
+                }}
+                className="w-4 h-4 rounded border-gray-300"
+              />
+              <Label htmlFor="talentExclusive" className="cursor-pointer">達人限定</Label>
+            </div>
+            {!!form.talentExclusive && (
+              <div className="pl-6 space-y-2">
+                <Label className="text-xs text-muted-foreground">限定主播を選択:</Label>
+                <div className="flex flex-wrap gap-1 min-h-[32px] p-2 border rounded-md bg-muted/30">
+                  {(form.exclusiveLiverIds || []).map((liverId: number) => {
+                    const liver = (liversQuery.data || []).find((l: any) => l.id === liverId);
+                    return liver ? (
+                      <span key={liverId} className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                        {liver.name}
+                        <button type="button" onClick={() => setForm({ ...form, exclusiveLiverIds: (form.exclusiveLiverIds || []).filter((id: number) => id !== liverId) })} className="hover:text-purple-900">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ) : null;
+                  })}
+                </div>
+                <Select key={`liver-picker-${(form.exclusiveLiverIds || []).length}`} onValueChange={v => {
+                  const id = Number(v);
+                  if (!form.exclusiveLiverIds?.includes(id)) {
+                    setForm({ ...form, exclusiveLiverIds: [...(form.exclusiveLiverIds || []), id] });
+                  }
+                }}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="主播を追加..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(liversQuery.data || []).filter((l: any) => !(form.exclusiveLiverIds || []).includes(l.id)).map((l: any) => (
+                      <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <div>
             <Label>カテゴリ</Label>

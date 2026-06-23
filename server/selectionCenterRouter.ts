@@ -208,11 +208,12 @@ export const selectionCenterRouter = router({
     stock: z.number().optional(),
     supplierContact: z.string().optional(),
     talentExclusive: z.number().optional(),
+    exclusiveLiverIds: z.array(z.number()).optional(),
   })).mutation(async ({ input, ctx }) => {
     const pool = getPool();
     const [result] = await pool.query(
-      `INSERT INTO selection_products (productName, productId, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, talentExclusive, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [input.productName, input.productId || null, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, input.talentExclusive || 0, (ctx.user as any)?.id || 0]
+      `INSERT INTO selection_products (productName, productId, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, talentExclusive, exclusiveLiverIds, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [input.productName, input.productId || null, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, input.talentExclusive || 0, input.exclusiveLiverIds ? JSON.stringify(input.exclusiveLiverIds) : null, (ctx.user as any)?.id || 0]
     ) as any;
     return { id: result.insertId };
   }),
@@ -238,6 +239,7 @@ export const selectionCenterRouter = router({
     stock: z.number().optional(),
     supplierContact: z.string().optional(),
     talentExclusive: z.number().optional(),
+    exclusiveLiverIds: z.array(z.number()).nullable().optional(),
   })).mutation(async ({ input }) => {
     const pool = getPool();
     const { id, ...data } = input;
@@ -246,7 +248,7 @@ export const selectionCenterRouter = router({
     for (const [key, value] of Object.entries(data)) {
       if (value !== undefined) {
         setClauses.push(`${key} = ?`);
-        params.push(key === 'images' || key === 'videos' ? JSON.stringify(value) : value);
+        params.push(key === 'images' || key === 'videos' || key === 'exclusiveLiverIds' ? JSON.stringify(value) : value);
       }
     }
     if (setClauses.length === 0) return { success: true };
