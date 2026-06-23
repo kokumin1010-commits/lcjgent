@@ -15,8 +15,7 @@ import { cn } from "@/lib/utils";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+// Popover/Command removed - using inline expandable list for mobile compatibility
 import { ChevronsUpDown } from "lucide-react";
 
 // toJST removed - use Intl API with timeZone: 'Asia/Tokyo' instead
@@ -957,14 +956,14 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
               <DropdownMenuContent align="end" className="w-48">
                 {!agencyCode && (
                   <>
-                    <DropdownMenuItem onClick={() => navigate("/login")}>
+                    <DropdownMenuItem onClick={() => navigate("/login?redirect=/s")}>
                       <LogIn className="h-4 w-4 mr-2" />
                       管理者ログイン
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                   </>
                 )}
-                <DropdownMenuItem onClick={() => navigate("/liver/login")}>
+                <DropdownMenuItem onClick={() => navigate("/liver/login?redirect=/s")}>
                   <LogIn className="h-4 w-4 mr-2" />
                   ライバーログイン
                 </DropdownMenuItem>
@@ -1641,7 +1640,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
             openAddModal();
           } else {
             toast.info("予定を追加するにはログインが必要です");
-            navigate("/login");
+            navigate("/liver/login?redirect=/s");
           }
         }}
         className="fixed bottom-6 right-6 w-14 h-14 bg-white rounded-full shadow-lg border border-gray-200 flex items-center justify-center hover:shadow-xl transition-shadow z-20"
@@ -1735,7 +1734,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                         handleAddFromSheet();
                       } else {
                         toast.info("予定を追加するにはログインが必要です");
-                        navigate("/login");
+                        navigate("/liver/login?redirect=/s");
                       }
                     }}
                     className="w-8 h-8 bg-black rounded-full flex items-center justify-center"
@@ -2499,45 +2498,60 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                 <div className="w-5 h-5 text-blue-500">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
                 </div>
-                <Popover open={brandPopoverOpen} onOpenChange={setBrandPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" className="border-0 p-0 h-auto focus:ring-0 flex-1 justify-between font-normal hover:bg-transparent">
-                      <span className={newSchedule.brandIds.length > 0 ? "text-gray-900" : "text-gray-500"}>
-                        {newSchedule.brandIds.length > 0
-                          ? selectedBrands.map((b: any) => b.name || b.brandName).join(", ")
-                          : "ブランドを選択 *"}
-                      </span>
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-72 p-0" align="start">
-                    <Command>
-                      <CommandInput placeholder="ブランド名で検索..." />
-                      <CommandList>
-                        <CommandEmpty>見つかりません</CommandEmpty>
-                        <CommandGroup>
-                          {sortedBrands.map((brand: any) => (
-                            <CommandItem
-                              key={brand.id}
-                              value={brand.name || brand.brandName}
-                              onSelect={() => toggleBrand(brand.id)}
-                            >
-                              <Check className={cn("mr-2 h-4 w-4", newSchedule.brandIds.includes(brand.id) ? "opacity-100" : "opacity-0")} />
-                              <span className="flex-1">{brand.name || brand.brandName}</span>
-                              {brand.hasTikTokBackend && (
-                                <span className="ml-1 text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">TikTok後台</span>
-                              )}
-                              {brand.hasQuota && (
-                                <span className="ml-1 text-[10px] bg-cyan-100 text-cyan-700 px-1.5 py-0.5 rounded-full">ノルマ</span>
-                              )}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+                <button
+                  type="button"
+                  onClick={() => setBrandPopoverOpen(!brandPopoverOpen)}
+                  className="flex-1 flex items-center justify-between p-0 h-auto text-left"
+                >
+                  <span className={newSchedule.brandIds.length > 0 ? "text-gray-900" : "text-gray-500"}>
+                    {newSchedule.brandIds.length > 0
+                      ? selectedBrands.map((b: any) => b.name || b.brandName).join(", ")
+                      : "ブランドを選択 *"}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </button>
               </div>
+              {/* Inline brand list - expands below trigger for mobile compatibility */}
+              {brandPopoverOpen && (
+                <div className="mt-2 ml-8 border rounded-lg bg-gray-50 max-h-48 overflow-y-auto">
+                  <div className="p-2 sticky top-0 bg-gray-50 z-10">
+                    <input
+                      type="text"
+                      placeholder="ブランド名で検索..."
+                      className="w-full px-2 py-1.5 text-sm border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      onChange={(e) => {
+                        const val = e.target.value.toLowerCase();
+                        const container = e.target.closest('.border.rounded-lg');
+                        container?.querySelectorAll('[data-brand-item]').forEach((item: any) => {
+                          const name = item.getAttribute('data-brand-name') || '';
+                          item.style.display = name.toLowerCase().includes(val) ? '' : 'none';
+                        });
+                      }}
+                    />
+                  </div>
+                  <div className="px-1 pb-1">
+                    {sortedBrands.map((brand: any) => (
+                      <button
+                        key={brand.id}
+                        type="button"
+                        data-brand-item
+                        data-brand-name={brand.name || brand.brandName}
+                        onClick={() => toggleBrand(brand.id)}
+                        className="w-full flex items-center gap-2 px-2 py-2 text-sm rounded-md hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                      >
+                        <Check className={cn("h-4 w-4 shrink-0", newSchedule.brandIds.includes(brand.id) ? "opacity-100 text-blue-600" : "opacity-0")} />
+                        <span className="flex-1 text-left">{brand.name || brand.brandName}</span>
+                        {brand.hasTikTokBackend && (
+                          <span className="ml-1 text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">TikTok後台</span>
+                        )}
+                        {brand.hasQuota && (
+                          <span className="ml-1 text-[10px] bg-cyan-100 text-cyan-700 px-1.5 py-0.5 rounded-full">ノルマ</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {/* 選択したブランドのノルマ残り表示 */}
               {selectedBrands.filter((b: any) => b.hasQuota && b.kolProgress?.length > 0).map((selectedBrand: any) => (
                 <div key={selectedBrand.id} className="mt-2 ml-8 p-2 bg-blue-50 rounded-lg">
