@@ -7,6 +7,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "./_core/trpc";
 import { getDb } from "./db";
 import { invokeLLM } from "./_core/llm";
+import { LCJ_BRAIN_TOOLS, executeToolCall } from "./lcjBrainTools";
 import {
   brands,
   brandContracts,
@@ -777,7 +778,7 @@ async function getRecentInsights(userMessage: string): Promise<string> {
 // ============================================================
 
 export const lcjBrainRouter = router({
-  /** AI対話（メイン機能） */
+  /** AI対話（メイン機能） - Tool Calling Architecture */
   chat: protectedProcedure
     .input(z.object({
       message: z.string().min(1),
@@ -795,7 +796,6 @@ export const lcjBrainRouter = router({
       await ensureConversationsTable();
       const { message, history, context } = input;
       const userId = ctx.user?.id || null;
-      
       // staffテーブルからユーザー名を取得（users.nameは全員同じになる問題を回避）
       let userName = "unknown";
       if (ctx.user?.email) {
@@ -816,18 +816,6 @@ export const lcjBrainRouter = router({
         userName = ctx.user.name;
       }
 
-      // 実データコンテキストを構築
-      let dataContext = "";
-      let knowledgeSources: KnowledgeSource[] = [];
-      try {
-        const buildResult = await buildContext(message);
-        dataContext = buildResult.context;
-        knowledgeSources = buildResult.knowledgeSources;
-      } catch (e: any) {
-        console.error("[LCJ Brain] buildContext error:", e.message);
-        // コンテキスト構築に失敗してもチャットは続行
-      }
-
       // 過去のインサイトを取得（自己学習システム）
       let insightsContext = "";
       try {
@@ -839,55 +827,48 @@ export const lcjBrainRouter = router({
       // BD関連キーワード判定
       const lowerMessage = message.toLowerCase();
       const isBDRelated = /BD|招商|话术|谈判|成交|客户|怎么谈|怎么聊|怎么回|怎么说|如何谈|如何说服|报价|纯佣|合作模式/.test(lowerMessage);
-      
-      // システムプロンプト構築（BD知識はBD関連質問時のみ含める）
-      const bdSection = isBDRelated ? `
-## BD招商宝典知识（仅在BD相关问题时参考）
-${BD_KNOWLEDGE_BASE}
-` : '';
-      
-      const systemPrompt = `你是LCJ Brain，Live Commerce Japan（LCJ）的AI大脑。你连接着LCJ的所有数据（品牌、主播、直播实绩、合同、短视频等），能够基于实际数据给出精准的分析和建议。
+      const bdSection = isBDRelated ? `\n## BD招商宝典知识（仅在BD相关问题时参考）\n${BD_KNOWLEDGE_BASE}\n` : '';
+
+      // Tool Calling用システムプロンプト
+      const systemPrompt = `你是LCJ Brain，Live Commerce Japan（LCJ）的AI大脑。你连接着LCJ的所有数据系统，能够通过工具实时查询品牌、主播、直播实绩、合同、短视频、日报、任务、名刺、广告、商城、知识库等全部数据。
 
 ## 你的角色
 - LCJ的智能数据助手，帮助团队基于实际数据做出更好的决策
-- 你连接着公司的「知识库」，包含历史会议纪要、日报、SOP等。当用户问到相关内容时，优先引用知识库中的信息。
-- 所有回答必须基于实际数据，不能编造数据
-- 如果数据不足，要明确说明"当前数据中没有相关信息"
+- 你可以通过工具函数查询任何需要的数据，不需要猜测
+- 所有回答必须基于工具返回的实际数据，不能编造数据
+- 如果工具返回空结果，要明确说明"当前数据中没有相关信息"
 - 当引用知识库内容时，请标注来源（例如："根据5月21日运营&商务内部会议纪要..."）
 
+## 工具使用原则
+1. 根据用户问题，主动调用相关工具获取数据
+2. 可以多次调用不同工具来组合分析
+3. 如果第一次查询结果不够，可以用不同参数再次查询
+4. 优先使用精确查询（如指定品牌ID、日期范围）
+
 ## 回答原则
-1. 基于实际数据回答，引用具体数字
+1. 基于工具返回的实际数据回答，引用具体数字
 2. 语言简洁有力，专业且有条理
 3. 回答用中文（除非用户用日语提问则用日语回答）
-4. 严格区分「实际数据」和「建议/分析」，不要把话术模板当作实际数据
+4. 严格区分「实际数据」和「建议/分析」
 5. 不要在回答中输出BD话术模板或营销话术，除非用户明确要求话术建议
 ${bdSection}
-## 当前实际数据
-${dataContext || "（暂无相关数据）"}
-
 ## 重要提醒
-- 所有数字和数据必须来自上面的“当前实际数据”部分
-- 如果用户问的数据不在上面，要说明“系统中暂无此数据”
+- 所有数字和数据必须来自工具查询结果
 - 不要编造任何数据或信息
 - 不要把BD话术模板中的示例数据当作真实数据引用
-${insightsContext ? `
-## 🧠 経験知識（過去の会話から学んだインサイト）
-${insightsContext}` : ''}`;
+${insightsContext ? `\n## 🧠 経験知識（過去の会話から学んだインサイト）\n${insightsContext}` : ''}`;
 
       // メッセージ履歴を構築
-      const messages: Array<{ role: "system" | "user" | "assistant"; content: any }> = [
+      const messages: any[] = [
         { role: "system", content: systemPrompt },
       ];
-
       // 過去の会話履歴を追加（最新10件まで）
       const recentHistory = history.slice(-10);
       for (const msg of recentHistory) {
         messages.push({ role: msg.role, content: msg.content });
       }
-
       // ユーザーの新しいメッセージ（画像/ファイル添付対応）
       if (input.imageUrl) {
-        // Vision対応: 画像URLを含むマルチモーダルメッセージ
         messages.push({
           role: "user",
           content: [
@@ -896,7 +877,6 @@ ${insightsContext}` : ''}`;
           ],
         });
       } else if (input.fileContent) {
-        // ファイル内容をテキストとして添付
         const fileContext = `\n\n---\n📎 添付ファイル「${input.fileName || 'file'}」の内容:\n${input.fileContent.substring(0, 30000)}\n---`;
         messages.push({ role: "user", content: message + fileContext });
       } else {
@@ -904,17 +884,82 @@ ${insightsContext}` : ''}`;
       }
 
       try {
-        const result = await invokeLLM({
-          model: input.imageUrl ? "gpt-4.1-mini" : "gpt-4.1-mini",
-          messages,
-        });
+        // ====== Tool Calling Loop ======
+        const toolsUsed: string[] = [];
+        const MAX_TOOL_ROUNDS = 6; // 最大ツール呼び出しラウンド数
+        let finalContent = "";
 
-        const aiContent = result.choices?.[0]?.message?.content;
-        const responseText = typeof aiContent === "string" 
-          ? aiContent 
-          : Array.isArray(aiContent) 
-            ? aiContent.map(p => (p as any).text || "").join("") 
-            : "申し訳ありません。回答を生成できませんでした。";
+        for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+          const result = await invokeLLM({
+            model: "gpt-4.1-mini",
+            messages,
+            tools: LCJ_BRAIN_TOOLS,
+            tool_choice: round === 0 ? "auto" : "auto",
+          });
+
+          const choice = result.choices?.[0];
+          if (!choice) {
+            finalContent = "申し訳ありません。回答を生成できませんでした。";
+            break;
+          }
+
+          const assistantMsg = choice.message;
+
+          // ツール呼び出しがある場合
+          if (assistantMsg.tool_calls && assistantMsg.tool_calls.length > 0) {
+            // assistantメッセージをそのまま追加（tool_callsを含む）
+            messages.push({
+              role: "assistant",
+              content: assistantMsg.content || "",
+              tool_calls: assistantMsg.tool_calls,
+            });
+
+            // 各ツール呼び出しを実行
+            for (const tc of assistantMsg.tool_calls) {
+              toolsUsed.push(tc.function.name);
+              let toolResult: string;
+              try {
+                toolResult = await executeToolCall(tc);
+                // 結果が大きすぎる場合は切り詰め
+                if (toolResult.length > 15000) {
+                  toolResult = toolResult.substring(0, 15000) + "\n...(データが大きいため一部省略)";
+                }
+              } catch (e: any) {
+                toolResult = JSON.stringify({ error: e.message });
+              }
+              // toolメッセージを追加
+              messages.push({
+                role: "tool",
+                tool_call_id: tc.id,
+                content: toolResult,
+              });
+            }
+            // 次のラウンドへ（AIがさらにツールを呼ぶか、最終回答を生成する）
+            continue;
+          }
+
+          // ツール呼び出しがない場合 = 最終回答
+          const aiContent = assistantMsg.content;
+          finalContent = typeof aiContent === "string"
+            ? aiContent
+            : Array.isArray(aiContent)
+              ? aiContent.map((p: any) => p.text || "").join("")
+              : "申し訳ありません。回答を生成できませんでした。";
+          break;
+        }
+
+        // 最終回答がない場合（ループ上限に達した場合）
+        if (!finalContent) {
+          // 最後のラウンドでツールなしの最終回答を強制
+          const finalResult = await invokeLLM({
+            model: "gpt-4.1-mini",
+            messages,
+          });
+          const fc = finalResult.choices?.[0]?.message?.content;
+          finalContent = typeof fc === "string" ? fc : "データの取得は完了しましたが、回答の生成に失敗しました。";
+        }
+
+        const responseText = finalContent;
 
         // 後続質問を生成
         let suggestedQuestions: string[] = [];
@@ -941,7 +986,6 @@ ${insightsContext}` : ''}`;
         let activeConversationId = input.conversationId || null;
         if (db) {
           try {
-            // 会話IDが指定されている場合、所有権を確認
             if (activeConversationId && userId) {
               const [ownedConv] = await db.select({ id: lcjBrainConversations.id })
                 .from(lcjBrainConversations)
@@ -951,11 +995,9 @@ ${insightsContext}` : ''}`;
                 ))
                 .limit(1);
               if (!ownedConv) {
-                // 他人の会話には書き込ませない、新規会話を作成
                 activeConversationId = null;
               }
             }
-            // 会話IDがない場合、新しい会話を作成
             if (!activeConversationId && userId) {
               const title = message.length > 50 ? message.substring(0, 50) + "..." : message;
               const [newConv] = await db.insert(lcjBrainConversations).values({
@@ -968,15 +1010,14 @@ ${insightsContext}` : ''}`;
             }
             const sessionId = `conv_${activeConversationId || Date.now()}`;
             await db.insert(lcjBrainChatLogs).values([
-              { 
+              {
                 role: "user", content: message, context: context || "chat", sessionId, userId, userName, conversationId: activeConversationId,
                 fileContent: input.fileContent || null,
-                fileUrl: input.imageUrl || null, // imageUrl doubles as file URL
+                fileUrl: input.imageUrl || null,
                 fileName: input.fileName || null,
               },
               { role: "assistant", content: responseText, context: context || "chat", sessionId, userId, userName: "AI", suggestedQuestions: JSON.stringify(suggestedQuestions), conversationId: activeConversationId },
             ]);
-            // 会話のupdatedAtを更新
             if (activeConversationId) {
               await db.update(lcjBrainConversations)
                 .set({ updatedAt: new Date() })
@@ -991,16 +1032,18 @@ ${insightsContext}` : ''}`;
 
         return {
           response: responseText,
-          dataSourcesUsed: dataContext ? dataContext.split("##").length - 1 : 0,
+          dataSourcesUsed: toolsUsed.length,
+          toolsUsed,
           suggestedQuestions,
           conversationId: activeConversationId,
-          knowledgeSources,
+          knowledgeSources: [] as KnowledgeSource[],
         };
       } catch (error: any) {
         console.error("[LCJ Brain] AI error:", error.message);
         return {
           response: `エラーが発生しました: ${error.message}`,
           dataSourcesUsed: 0,
+          toolsUsed: [],
           suggestedQuestions: [],
         };
       }

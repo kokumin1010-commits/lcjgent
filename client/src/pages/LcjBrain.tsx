@@ -244,7 +244,7 @@ export default function LcjBrain() {
 // ============================================================
 function ChatPanel() {
   const { user } = useAuth();
-  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; fileUrl?: string; fileName?: string; suggestedQuestions?: string[]; knowledgeSources?: Array<{id: number; title: string; meetingDate: string | null}> }>>([]);
+  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; fileUrl?: string; fileName?: string; suggestedQuestions?: string[]; knowledgeSources?: Array<{id: number; title: string; meetingDate: string | null}>; toolsUsed?: string[] }>>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
@@ -440,6 +440,7 @@ function ChatPanel() {
         content: result.response,
         suggestedQuestions: result.suggestedQuestions || [],
         knowledgeSources: result.knowledgeSources || [],
+        toolsUsed: result.toolsUsed || [],
       }]);
       // サーバーから返された会話IDを常に同期（所有権チェック失敗時の新規作成にも対応）
       if (result.conversationId) {
@@ -642,6 +643,17 @@ function ChatPanel() {
                     <ChevronRight className="w-3 h-3" />
                     {q}
                   </button>
+                ))}
+              </div>
+            )}
+            {/* Tool Calling使用表示 */}
+            {msg.role === "assistant" && Array.isArray(msg.toolsUsed) && msg.toolsUsed.length > 0 && (
+              <div className="mt-2 ml-2 flex flex-wrap gap-1.5 items-center">
+                <span className="text-xs text-white/40">🔧 データ取得:</span>
+                {[...new Set(msg.toolsUsed)].map((tool, ti) => (
+                  <span key={ti} className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/20">
+                    {tool.replace(/_/g, ' ')}
+                  </span>
                 ))}
               </div>
             )}
@@ -2148,6 +2160,7 @@ function DataSourcesPanel() {
         { name: "ブランド管理", path: "/master/brands", connected: true, description: "全ブランド一覧・詳細・ステータス" },
         { name: "契約管理", path: "/master/brands", connected: true, description: "ブランド契約情報・ノルマ・進捗" },
         { name: "商品マスター", path: "/master/mall?tab=products", connected: true, description: "ブランド商品一覧" },
+        { name: "広告実績", path: "/master/ad-dashboard", connected: true, description: "ブランド別広告パフォーマンス" },
       ]
     },
     {
@@ -2157,6 +2170,7 @@ function DataSourcesPanel() {
         { name: "配信実績", path: "/master/sales-check", connected: true, description: "GMV・売上・時間・視聴者数" },
         { name: "ライバー月別実績", path: "/master/livers-dashboard", connected: true, description: "ライバー別の月次パフォーマンス" },
         { name: "業績ランキング", path: "/master/livers-dashboard", connected: true, description: "近3ヶ月のライバー業績比較" },
+        { name: "短動画管理", path: "/master/short-video", connected: true, description: "短動画投稿・パフォーマンス" },
       ]
     },
     {
@@ -2171,45 +2185,42 @@ function DataSourcesPanel() {
       items: [
         { name: "BD知識ベース", path: "/master/lcj-brain", connected: true, description: "話術・交渉テクニック・FAQ" },
         { name: "知識庫（会議纪要）", path: "/master/lcj-brain?tab=knowledge", connected: true, description: "会議記録・RAG検索" },
-        { name: "ブランド応募", path: "/master/brand-applications", connected: false, description: "ブランド応募フォーム提出データ" },
+        { name: "名刺管理", path: "/master/business-cards", connected: true, description: "名刺スキャンデータ" },
+        { name: "営業活動", path: "/master/sales-activities", connected: true, description: "営業活動・コール履歴" },
       ]
     },
     {
       category: "タスク・日報",
       items: [
-        { name: "タスク管理", path: "/master/tasks", connected: false, description: "スタッフタスク・進捗管理" },
-        { name: "日報", path: "/master/reports", connected: false, description: "日報データ・活動記録" },
-        { name: "スタッフ管理", path: "/master/staff", connected: false, description: "スタッフ情報・出勤" },
+        { name: "タスク管理", path: "/master/tasks", connected: true, description: "スタッフタスク・進捗管理" },
+        { name: "日報", path: "/master/reports", connected: true, description: "日報データ・活動記録" },
+        { name: "スタッフ管理", path: "/master/staff", connected: true, description: "スタッフ情報・出勤" },
       ]
     },
     {
       category: "EC・MALL",
       items: [
-        { name: "MALL管理", path: "/master/mall", connected: false, description: "注文・会員・売上データ" },
-        { name: "ポイント申請", path: "/master/point-requests", connected: false, description: "ポイント申請・承認" },
-        { name: "レシート管理", path: "/master/receipts", connected: false, description: "レシート審査データ" },
-        { name: "紹介コード", path: "/master/referral", connected: false, description: "紹介コード実績" },
-        { name: "LCJコイン", path: "/master/lcj-coin", connected: false, description: "コイン残高・取引" },
+        { name: "MALL注文", path: "/master/mall", connected: true, description: "注文・会員・売上データ" },
+        { name: "MALL商品", path: "/master/mall?tab=products", connected: true, description: "商品一覧・在庫" },
+        { name: "ポイント管理", path: "/master/point-requests", connected: true, description: "ポイント残高・取引" },
+        { name: "レシート管理", path: "/master/receipts", connected: true, description: "レシート審査データ" },
+        { name: "LCJコイン", path: "/master/lcj-coin", connected: true, description: "コイン残高・取引" },
       ]
     },
     {
       category: "マーケティング",
       items: [
-        { name: "短動画管理", path: "/master/short-video", connected: false, description: "短動画投稿・パフォーマンス" },
-        { name: "ブログ管理", path: "/master/blog", connected: false, description: "ブログ記事データ" },
-        { name: "広告ダッシュボード", path: "/master/ad-dashboard", connected: false, description: "広告パフォーマンス" },
-        { name: "ABテスト", path: "/master/ab-test", connected: false, description: "テスト結果・分析" },
-        { name: "ステップメール", path: "/master/step-email", connected: false, description: "メール配信状況" },
+        { name: "広告ダッシュボード", path: "/master/ad-dashboard", connected: true, description: "広告パフォーマンス" },
+        { name: "TikTok広告", path: "/master/ad-dashboard", connected: true, description: "TikTok TAP/CAP レポート" },
+        { name: "ステップメール", path: "/master/step-email", connected: true, description: "メール配信状況" },
       ]
     },
     {
       category: "その他",
       items: [
-        { name: "財務", path: "/master/finance", connected: false, description: "財務データ" },
-        { name: "人事", path: "/master/hr", connected: false, description: "人事データ" },
-        { name: "LINE管理", path: "/master/line", connected: false, description: "LINE連携状況" },
-        { name: "エージェンシー", path: "/master/agencies", connected: false, description: "事務所データ" },
-        { name: "名刺管理", path: "/master/business-cards", connected: false, description: "名刺スキャンデータ" },
+        { name: "LINE管理", path: "/master/line", connected: true, description: "LINEユーザー・メッセージ" },
+        { name: "選品センター", path: "/master/selection", connected: true, description: "選品商品・24H商品ラボ" },
+        { name: "メガチャンネル", path: "/master/mega-channel", connected: true, description: "メガチャンネル設定" },
       ]
     },
   ];
@@ -2285,8 +2296,8 @@ function DataSourcesPanel() {
       {/* Note */}
       <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl p-4">
         <p className="text-sm text-violet-200/80">
-          💡 <strong>接続済み</strong>のデータは、AI対話で質問するとリアルタイムに参照されます。
-          未接続のデータは今後順次追加予定です。
+          🧠 <strong>Tool Callingアーキテクチャ</strong>：AIが質問内容を分析し、必要なデータを自動的に取得します。
+          複数データソースを組み合わせた横断分析も可能です。
         </p>
       </div>
     </div>

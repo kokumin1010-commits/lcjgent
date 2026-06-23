@@ -204,6 +204,8 @@ const hasFileUrl = (content: MessageContent | MessageContent[]): boolean => {
  */
 const normalizeMessageAsync = async (message: Message) => {
   const { role, name, tool_call_id } = message;
+  // Preserve tool_calls for assistant messages (needed for tool calling loops)
+  const tool_calls = (message as any).tool_calls;
 
   if (role === "tool" || role === "function") {
     const content = ensureArray(message.content)
@@ -227,6 +229,7 @@ const normalizeMessageAsync = async (message: Message) => {
       role,
       name,
       content: contentParts,
+      ...(tool_calls ? { tool_calls } : {}),
     };
   }
 
@@ -239,6 +242,7 @@ const normalizeMessageAsync = async (message: Message) => {
       role,
       name,
       content: contentParts[0].text,
+      ...(tool_calls ? { tool_calls } : {}),
     };
   }
 
@@ -246,6 +250,7 @@ const normalizeMessageAsync = async (message: Message) => {
     role,
     name,
     content: contentParts,
+    ...(tool_calls ? { tool_calls } : {}),
   };
 };
 
