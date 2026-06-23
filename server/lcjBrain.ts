@@ -42,6 +42,13 @@ async function ensureConversationsTable() {
       INDEX idx_updatedAt (updatedAt)
     )`);
     await db.execute(sql`ALTER TABLE lcj_brain_chat_logs ADD COLUMN IF NOT EXISTS conversationId INT DEFAULT NULL`);
+    // Auto-link orphaned messages: match by sessionId pattern 'conv_X' where X is a valid conversationId
+    await db.execute(sql`
+      UPDATE lcj_brain_chat_logs l
+      INNER JOIN lcj_brain_conversations c ON l.sessionId = CONCAT('conv_', c.id)
+      SET l.conversationId = c.id
+      WHERE l.conversationId IS NULL AND l.sessionId LIKE 'conv_%'
+    `);
   } catch (e) { /* table exists */ }
   // Knowledge base table (NO FULLTEXT INDEX - causes insert failures on some MySQL providers)
   try {
@@ -1448,10 +1455,61 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
           .limit(1);
         if (!conv) return []; // 他人の会話にはアクセスさせない
         
-        const messages = await db.select()
+        // Primary: lookup by conversationId
+        let messages = await db.select()
           .from(lcjBrainChatLogs)
           .where(eq(lcjBrainChatLogs.conversationId, input.conversationId))
           .orderBy(lcjBrainChatLogs.createdAt);
+        
+        // Fallback: if no messages found, try by sessionId pattern (conv_X)
+        if (messages.length === 0) {
+          const sessionPattern = `conv_${input.conversationId}`;
+          messages = await db.select()
+            .from(lcjBrainChatLogs)
+            .where(and(
+              eq(lcjBrainChatLogs.sessionId, sessionPattern),
+              eq(lcjBrainChatLogs.userId, ctx.user.id)
+            ))
+            .orderBy(lcjBrainChatLogs.createdAt);
+          // Auto-link found messages to the conversation
+          if (messages.length > 0) {
+            await db.update(lcjBrainChatLogs)
+              .set({ conversationId: input.conversationId })
+              .where(eq(lcjBrainChatLogs.sessionId, sessionPattern));
+          }
+        }
+        
+        // Fallback 2: try matching by title (first user message) + userId + timestamp proximity
+        if (messages.length === 0 && conv.title) {
+          const titleSearch = conv.title.endsWith('...') ? conv.title.slice(0, -3) : conv.title;
+          const nearMessages = await db.select()
+            .from(lcjBrainChatLogs)
+            .where(and(
+              eq(lcjBrainChatLogs.userId, ctx.user.id),
+              isNull(lcjBrainChatLogs.conversationId),
+              like(lcjBrainChatLogs.content, `${titleSearch}%`),
+              eq(lcjBrainChatLogs.role, 'user')
+            ))
+            .orderBy(lcjBrainChatLogs.createdAt)
+            .limit(1);
+          if (nearMessages.length > 0) {
+            // Found the first message, get all messages from that session
+            const sessionId = nearMessages[0].sessionId;
+            if (sessionId) {
+              messages = await db.select()
+                .from(lcjBrainChatLogs)
+                .where(eq(lcjBrainChatLogs.sessionId, sessionId))
+                .orderBy(lcjBrainChatLogs.createdAt);
+              // Auto-link these messages to the conversation
+              if (messages.length > 0) {
+                await db.update(lcjBrainChatLogs)
+                  .set({ conversationId: input.conversationId })
+                  .where(eq(lcjBrainChatLogs.sessionId, sessionId));
+              }
+            }
+          }
+        }
+        
         return messages;
       } catch (error: any) {
         console.error("[LCJ Brain] getConversationMessages error:", error.message);
