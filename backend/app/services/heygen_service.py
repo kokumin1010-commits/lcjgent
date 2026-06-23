@@ -813,8 +813,15 @@ class HeyGenService:
             )
             resp.raise_for_status()
             data = resp.json()
-        looks = data.get("data", {}).get("looks", [])
-        logger.info(f"[HeyGen] Found {len(looks)} Digital Twin looks")
+        # Handle different response structures from HeyGen API
+        raw_data = data.get("data", data)
+        if isinstance(raw_data, list):
+            looks = raw_data
+        elif isinstance(raw_data, dict):
+            looks = raw_data.get("looks", raw_data.get("avatars", []))
+        else:
+            looks = []
+        logger.info(f"[HeyGen] Found {len(looks)} Digital Twin looks (raw type: {type(raw_data).__name__})")
         return looks
 
     async def generate_video_v3(
