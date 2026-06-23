@@ -2623,12 +2623,9 @@ async function startServer() {
       });
     });
 
-    // One-time fix: Correct remainingAmount for past purchases where FIFO was not applied
-    import("../db").then(({ fixRemainingAmountForPastPurchases }) => {
-      fixRemainingAmountForPastPurchases().catch((err: unknown) => {
-        console.error("[Migration] Failed to fix remainingAmount for past purchases:", err);
-      });
-    });
+    // REMOVED: fixRemainingAmountForPastPurchases was running on every deploy and incorrectly
+    // marking post-purchase earn transactions as expired, resetting balances.
+    // This was a one-time migration that should not run repeatedly.
 
     // CRM tables migration (call_logs, sales_activities, business_cards CRM columns)
     import("../db").then(({ migrateCallLogsTable, migrateSalesActivitiesTable, migrateBusinessCardsCrmColumns }) => {
