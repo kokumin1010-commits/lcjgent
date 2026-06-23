@@ -189,6 +189,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
       if (p.exclusiveLiverIds && typeof p.exclusiveLiverIds === 'string') {
         try { p.exclusiveLiverIds = JSON.parse(p.exclusiveLiverIds); } catch { p.exclusiveLiverIds = []; }
       }
+      if (!p.exclusiveLiverIds) p.exclusiveLiverIds = [];
       setForm(p);
     }
   }, [open, product]);
@@ -197,22 +198,17 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
+    if (!files.length) return;
     setUploading(true);
     try {
       const currentImages: string[] = form.images ? (typeof form.images === 'string' ? JSON.parse(form.images) : form.images) : [];
       for (const file of files) {
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve((reader.result as string).split(",")[1]);
-          reader.onerror = reject;
+        const reader = new FileReader();
+        const base64 = await new Promise<string>((resolve) => {
+          reader.onload = () => resolve(reader.result as string);
           reader.readAsDataURL(file);
         });
-        const result = await uploadMutation.mutateAsync({
-          fileName: file.name,
-          mimeType: file.type,
-          base64Data: base64,
-        });
+        const result = await uploadMutation.mutateAsync({ imageData: base64, fileName: file.name });
         currentImages.push(result.url);
       }
       setForm({ ...form, images: currentImages });
@@ -233,15 +229,44 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
 
   const imageList: string[] = form.images ? (typeof form.images === 'string' ? JSON.parse(form.images) : form.images) : [];
 
+  // Only submit relevant fields (exclude DB metadata like createdAt, updatedAt, status, etc.)
+  const handleSubmit = () => {
+    const submitData: any = {
+      productName: form.productName,
+      productId: form.productId || undefined,
+      barcode: form.barcode || undefined,
+      brandName: form.brandName || undefined,
+      brandId: form.brandId || undefined,
+      categoryId: form.categoryId || undefined,
+      price: form.price ? String(form.price) : undefined,
+      marketPrice: form.marketPrice ? String(form.marketPrice) : undefined,
+      costPrice: form.costPrice ? String(form.costPrice) : undefined,
+      commissionType: form.commissionType || undefined,
+      commissionValue: form.commissionValue ? String(form.commissionValue) : undefined,
+      images: form.images || undefined,
+      videos: form.videos || undefined,
+      productLink: form.productLink || undefined,
+      sellingPoints: form.sellingPoints || undefined,
+      description: form.description || undefined,
+      stock: form.stock != null && form.stock !== "" ? Number(form.stock) : undefined,
+      supplierContact: form.supplierContact || undefined,
+      talentExclusive: form.talentExclusive ? 1 : 0,
+      exclusiveLiverIds: form.talentExclusive ? (form.exclusiveLiverIds || []) : [],
+    };
+    // Remove undefined values for cleaner payload
+    Object.keys(submitData).forEach(k => { if (submitData[k] === undefined) delete submitData[k]; });
+    onSubmit(submitData);
+  };
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "商品編集" : "商品追加"}</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-4">
           {/* Image Upload Section */}
-          <div className="col-span-2">
+          <div>
             <Label>商品画像</Label>
             <div className="mt-2 flex flex-wrap gap-3">
               {imageList.map((url: string, idx: number) => (
@@ -277,33 +302,107 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
             </div>
           </div>
 
-          <div className="col-span-2">
+          {/* 商品名 - full width */}
+          <div>
             <Label>商品名 *</Label>
             <Input value={form.productName || ""} onChange={e => setForm({ ...form, productName: e.target.value })} />
           </div>
-          <div>
-            <Label>商品ID</Label>
-            <Input value={form.productId || ""} onChange={e => setForm({ ...form, productId: e.target.value })} placeholder="TikTok Shop商品IDなど" />
+
+          {/* 商品ID + バーコード - 2 columns */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>商品ID</Label>
+              <Input value={form.productId || ""} onChange={e => setForm({ ...form, productId: e.target.value })} placeholder="TikTok Shop商品ID" />
+            </div>
+            <div>
+              <Label>商品バーコード</Label>
+              <Input value={form.barcode || ""} onChange={e => setForm({ ...form, barcode: e.target.value })} placeholder="JANコード / EANコード" />
+            </div>
           </div>
-          <div>
-            <Label>商品バーコード</Label>
-            <Input value={form.barcode || ""} onChange={e => setForm({ ...form, barcode: e.target.value })} placeholder="JANコード / EANコード" />
+
+          {/* ブランド + カテゴリ - 2 columns */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>ブランド名 *</Label>
+              <Select value={String(form.brandId || "")} onValueChange={v => {
+                const brand = (brandsQuery.data || []).find((b: any) => String(b.id) === v);
+                setForm({ ...form, brandId: Number(v), brandName: brand?.name || "" });
+              }}>
+                <SelectTrigger><SelectValue placeholder="ブランドを選択..." /></SelectTrigger>
+                <SelectContent>
+                  {(brandsQuery.data || []).map((b: any) => (
+                    <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>カテゴリ</Label>
+              <Select value={String(form.categoryId || "")} onValueChange={v => setForm({ ...form, categoryId: Number(v) })}>
+                <SelectTrigger><SelectValue placeholder="選択..." /></SelectTrigger>
+                <SelectContent>
+                  {categories.map((c: any) => { const parent = c.parentId ? categories.find((p: any) => p.id === c.parentId) : null; return <SelectItem key={c.id} value={String(c.id)}>{parent ? parent.name + " / " : ""}{c.name}</SelectItem>; })}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div>
-            <Label>ブランド名 *</Label>
-            <Select value={String(form.brandId || "")} onValueChange={v => {
-              const brand = (brandsQuery.data || []).find((b: any) => String(b.id) === v);
-              setForm({ ...form, brandId: Number(v), brandName: brand?.name || "" });
-            }}>
-              <SelectTrigger><SelectValue placeholder="ブランドを選択..." /></SelectTrigger>
-              <SelectContent>
-                {(brandsQuery.data || []).map((b: any) => (
-                  <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+          {/* 販売価格 + 市場価格 - 2 columns */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>販売価格</Label>
+              <Input type="number" value={form.price || ""} onChange={e => setForm({ ...form, price: e.target.value })} />
+            </div>
+            <div>
+              <Label>市場価格</Label>
+              <Input type="number" value={form.marketPrice || ""} onChange={e => setForm({ ...form, marketPrice: e.target.value })} />
+            </div>
           </div>
-          <div className="col-span-2 space-y-2">
+
+          {/* 佣金タイプ + 佣金値 - 2 columns */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>佣金タイプ</Label>
+              <Select value={form.commissionType || "percentage"} onValueChange={v => setForm({ ...form, commissionType: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentage">パーセント (%)</SelectItem>
+                  <SelectItem value="fixed">固定額 (¥)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>佣金値</Label>
+              <Input type="number" value={form.commissionValue || ""} onChange={e => setForm({ ...form, commissionValue: e.target.value })} />
+            </div>
+          </div>
+
+          {/* 在庫数 + 商品リンク - 2 columns */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>在庫数</Label>
+              <Input type="number" value={form.stock || ""} onChange={e => setForm({ ...form, stock: Number(e.target.value) })} />
+            </div>
+            <div>
+              <Label>商品リンク</Label>
+              <Input value={form.productLink || ""} onChange={e => setForm({ ...form, productLink: e.target.value })} />
+            </div>
+          </div>
+
+          {/* セールスポイント - full width */}
+          <div>
+            <Label>セールスポイント</Label>
+            <Textarea value={form.sellingPoints || ""} onChange={e => setForm({ ...form, sellingPoints: e.target.value })} rows={3} />
+          </div>
+
+          {/* サプライヤー連絡先 - full width */}
+          <div>
+            <Label>サプライヤー連絡先</Label>
+            <Input value={form.supplierContact || ""} onChange={e => setForm({ ...form, supplierContact: e.target.value })} />
+          </div>
+
+          {/* 達人限定 section - bordered card */}
+          <div className="border rounded-lg p-4 space-y-3">
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -315,24 +414,28 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
                 }}
                 className="w-4 h-4 rounded border-gray-300"
               />
-              <Label htmlFor="talentExclusive" className="cursor-pointer">達人限定</Label>
+              <Label htmlFor="talentExclusive" className="cursor-pointer font-medium">達人限定</Label>
             </div>
             {!!form.talentExclusive && (
-              <div className="pl-6 space-y-2">
+              <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">限定主播を選択:</Label>
-                <div className="flex flex-wrap gap-1 min-h-[32px] p-2 border rounded-md bg-muted/30">
-                  {(form.exclusiveLiverIds || []).map((liverId: number) => {
-                    const liver = (liversQuery.data || []).find((l: any) => l.id === liverId);
-                    return liver ? (
-                      <span key={liverId} className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
-                        {liver.name}
-                        <button type="button" onClick={() => setForm({ ...form, exclusiveLiverIds: (form.exclusiveLiverIds || []).filter((id: number) => id !== liverId) })} className="hover:text-purple-900">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ) : null;
-                  })}
-                </div>
+                {/* Selected livers display */}
+                {(form.exclusiveLiverIds || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {(form.exclusiveLiverIds || []).map((liverId: number) => {
+                      const liver = (liversQuery.data || []).find((l: any) => l.id === liverId);
+                      return liver ? (
+                        <span key={liverId} className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                          {liver.name}
+                          <button type="button" onClick={() => setForm({ ...form, exclusiveLiverIds: (form.exclusiveLiverIds || []).filter((id: number) => id !== liverId) })} className="hover:text-purple-900">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+                {/* Liver picker dropdown */}
                 <Select key={`liver-picker-${(form.exclusiveLiverIds || []).length}`} onValueChange={v => {
                   const id = Number(v);
                   if (!form.exclusiveLiverIds?.includes(id)) {
@@ -351,57 +454,10 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
               </div>
             )}
           </div>
-          <div>
-            <Label>カテゴリ</Label>
-            <Select value={String(form.categoryId || "")} onValueChange={v => setForm({ ...form, categoryId: Number(v) })}>
-              <SelectTrigger><SelectValue placeholder="選択..." /></SelectTrigger>
-              <SelectContent>
-                {categories.map((c: any) => { const parent = c.parentId ? categories.find((p: any) => p.id === c.parentId) : null; return <SelectItem key={c.id} value={String(c.id)}>{parent ? parent.name + " / " : ""}{c.name}</SelectItem>; })}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>販売価格</Label>
-            <Input type="number" value={form.price || ""} onChange={e => setForm({ ...form, price: e.target.value })} />
-          </div>
-          <div>
-            <Label>市場価格</Label>
-            <Input type="number" value={form.marketPrice || ""} onChange={e => setForm({ ...form, marketPrice: e.target.value })} />
-          </div>
-          <div>
-            <Label>佣金タイプ</Label>
-            <Select value={form.commissionType || "percentage"} onValueChange={v => setForm({ ...form, commissionType: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="percentage">パーセント (%)</SelectItem>
-                <SelectItem value="fixed">固定額 (¥)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>佣金値</Label>
-            <Input type="number" value={form.commissionValue || ""} onChange={e => setForm({ ...form, commissionValue: e.target.value })} />
-          </div>
-          <div>
-            <Label>在庫数</Label>
-            <Input type="number" value={form.stock || ""} onChange={e => setForm({ ...form, stock: Number(e.target.value) })} />
-          </div>
-          <div>
-            <Label>商品リンク</Label>
-            <Input value={form.productLink || ""} onChange={e => setForm({ ...form, productLink: e.target.value })} />
-          </div>
-          <div className="col-span-2">
-            <Label>セールスポイント</Label>
-            <Textarea value={form.sellingPoints || ""} onChange={e => setForm({ ...form, sellingPoints: e.target.value })} rows={3} />
-          </div>
-          <div className="col-span-2">
-            <Label>サプライヤー連絡先</Label>
-            <Input value={form.supplierContact || ""} onChange={e => setForm({ ...form, supplierContact: e.target.value })} />
-          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>キャンセル</Button>
-          <Button onClick={() => onSubmit(form)} disabled={loading || uploading || !form.productName || !form.brandId}>
+          <Button onClick={handleSubmit} disabled={loading || uploading || !form.productName || !form.brandId}>
             {loading ? "保存中..." : isEdit ? "更新" : "追加"}
           </Button>
         </DialogFooter>
@@ -409,6 +465,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
     </Dialog>
   );
 }
+
 
 // ==================== 主播選品 Tab ====================
 function LiverSelectionTab() {
