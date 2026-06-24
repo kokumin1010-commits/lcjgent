@@ -204,11 +204,14 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
       const currentImages: string[] = form.images ? (typeof form.images === 'string' ? JSON.parse(form.images) : form.images) : [];
       for (const file of files) {
         const reader = new FileReader();
-        const base64 = await new Promise<string>((resolve) => {
+        const dataUrl = await new Promise<string>((resolve) => {
           reader.onload = () => resolve(reader.result as string);
           reader.readAsDataURL(file);
         });
-        const result = await uploadMutation.mutateAsync({ imageData: base64, fileName: file.name });
+        // Extract base64 data and mimeType from data URL (format: data:image/png;base64,xxxxx)
+        const [header, base64Data] = dataUrl.split(',');
+        const mimeType = header.match(/data:(.*?);/)?.[1] || file.type || 'image/jpeg';
+        const result = await uploadMutation.mutateAsync({ base64Data, fileName: file.name, mimeType });
         currentImages.push(result.url);
       }
       setForm({ ...form, images: currentImages });
