@@ -9,7 +9,7 @@ import {
   ChevronRight, BarChart3, Lightbulb, Shield, GraduationCap,
   ClipboardList, Star, AlertTriangle, CheckCircle2, ArrowRight,
   History, Search, MicOff, Volume2, Plus, Trash2, MessageSquare, PanelLeftClose, PanelLeft,
-  Upload, FolderOpen, Calendar, Tag, Eye, X, Loader2, Database, ExternalLink, CheckCircle, XCircle, Copy, Check
+  Upload, FolderOpen, Calendar, Tag, Eye, X, Loader2, Database, ExternalLink, CheckCircle, XCircle, Copy, Check, Download, FileDown
 } from "lucide-react";
 
 // ============================================================
@@ -244,7 +244,7 @@ export default function LcjBrain() {
 // ============================================================
 function ChatPanel() {
   const { user } = useAuth();
-  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; fileUrl?: string; fileName?: string; suggestedQuestions?: string[]; knowledgeSources?: Array<{id: number; title: string; meetingDate: string | null}>; toolsUsed?: string[] }>>([]);
+  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; fileUrl?: string; fileName?: string; suggestedQuestions?: string[]; knowledgeSources?: Array<{id: number; title: string; meetingDate: string | null}>; toolsUsed?: string[]; generatedFiles?: Array<{type: string; url: string; fileName: string; title?: string}> }>>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
@@ -441,6 +441,7 @@ function ChatPanel() {
         suggestedQuestions: result.suggestedQuestions || [],
         knowledgeSources: result.knowledgeSources || [],
         toolsUsed: result.toolsUsed || [],
+        generatedFiles: result.generatedFiles || [],
       }]);
       // サーバーから返された会話IDを常に同期（所有権チェック失敗時の新規作成にも対応）
       if (result.conversationId) {
@@ -630,6 +631,34 @@ function ChatPanel() {
                 )}
               </div>
             </div>
+            {/* 生成ファイルダウンロード */}
+            {msg.role === "assistant" && Array.isArray(msg.generatedFiles) && msg.generatedFiles.length > 0 && (
+              <div className="mt-2 ml-2 space-y-2">
+                {msg.generatedFiles.map((file, fi) => (
+                  <a
+                    key={fi}
+                    href={file.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download={file.fileName}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-violet-500/10 to-indigo-500/10 border border-violet-500/20 hover:border-violet-400/40 hover:from-violet-500/15 hover:to-indigo-500/15 transition-all group no-underline"
+                  >
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${file.type === 'ppt' ? 'bg-orange-500/20' : 'bg-blue-500/20'}`}>
+                      {file.type === 'ppt' ? (
+                        <svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h2v2H9v-2zm0-4h4" /></svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white/90 truncate">{file.title || file.fileName}</p>
+                      <p className="text-xs text-white/50">{file.type === 'ppt' ? 'PowerPoint 文件' : 'Word 文件'} ・ クリックでダウンロード</p>
+                    </div>
+                    <svg className="w-5 h-5 text-white/40 group-hover:text-white/70 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  </a>
+                ))}
+              </div>
+            )}
             {/* 後続質問ボタン */}
             {msg.role === "assistant" && Array.isArray(msg.suggestedQuestions) && msg.suggestedQuestions.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2 ml-2">

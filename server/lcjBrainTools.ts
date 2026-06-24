@@ -57,6 +57,7 @@ import {
 import { eq, desc, and, gte, lte, isNull, sql, like, or, count, sum, asc } from "drizzle-orm";
 import type { Tool, ToolCall, InvokeResult } from "./_core/llm";
 import { ENV } from "./_core/env";
+import { generatePPT, generateWord, aiGeneratePptContent, aiGenerateDocContent } from "./lcjBrainDocGen";
 
 // ============================================================
 // Tool Definitions (JSON Schema format for OpenAI API)
@@ -304,6 +305,40 @@ export const LCJ_BRAIN_TOOLS: Tool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "generate_ppt",
+      description: "PPTプレゼンテーションを生成してダウンロードリンクを返す。ユーザーがPPT/プレゼン/スライド作成を要求した場合に使用。AIが自動でスライド内容を構成し、PPTXファイルを生成する。",
+      parameters: {
+        type: "object",
+        properties: {
+          topic: { type: "string", description: "PPTのテーマ・タイトル（例: 'MYTREX品牌合作提案', '6月直播业绩报告'）" },
+          requirements: { type: "string", description: "ユーザーの具体的な要求（例: '包含GMV数据和主播排名', '突出合作优势'）" },
+          theme: { type: "string", description: "テーマスタイル: 'dark'(深色科技风), 'light'(浅色简约), 'corporate'(商务蓝)。デフォルト: corporate" },
+          contextData: { type: "string", description: "PPTに含めるべきデータ（前のツール呼び出しで取得したデータを要約して渡す）" },
+        },
+        required: ["topic"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generate_document",
+      description: "長文テキストドキュメントを生成する。BD話術、品牌合作提案、直播脚本、レポート、分析文書など。Markdown形式で表示し、Wordファイルとしてもダウンロード可能。",
+      parameters: {
+        type: "object",
+        properties: {
+          topic: { type: "string", description: "文書のテーマ（例: 'MYTREX品牌BD话术', '6月直播业绩分析报告'）" },
+          docType: { type: "string", description: "文書タイプ: 'bd_script'(BD話術), 'proposal'(品牌提案), 'live_script'(直播脚本), 'report'(分析レポート), 'general'(一般文書)。デフォルト: general" },
+          requirements: { type: "string", description: "ユーザーの具体的な要求" },
+          contextData: { type: "string", description: "文書に含めるべきデータ（前のツール呼び出しで取得したデータを要約して渡す）" },
+        },
+        required: ["topic"],
+      },
+    },
+  },
 ];
 
 // ============================================================
@@ -351,6 +386,10 @@ export async function executeToolCall(toolCall: ToolCall): Promise<string> {
         return JSON.stringify(await toolGetLcjCoinData(args));
       case "get_tiktok_reports":
         return JSON.stringify(await toolGetTiktokReports(args));
+      case "generate_ppt":
+        return JSON.stringify(await toolGeneratePpt(args));
+      case "generate_document":
+        return JSON.stringify(await toolGenerateDocument(args));
       default:
         return JSON.stringify({ error: `Unknown tool: ${name}` });
     }
@@ -1171,4 +1210,69 @@ export async function invokeLLMWithTools(params: {
     throw new Error(`LLM invoke failed: ${response.status} – ${errorText.substring(0, 200)}`);
   }
   return (await response.json()) as InvokeResult;
+}
+
+
+// ============================================================
+// Document Generation Tool Implementations
+// ============================================================
+
+async function toolGeneratePpt(args: { topic: string; requirements?: string; theme?: string; contextData?: string }) {
+  try {
+    const contextData = args.contextData || args.requirements || "";
+    const userRequest = `${args.topic}${args.requirements ? ` - 要求: ${args.requirements}` : ""}`;
+    
+    // Use AI to generate structured PPT content
+    const pptContent = await aiGeneratePptContent(userRequest, contextData);
+    if (args.theme) pptContent.theme = args.theme as any;
+    
+    // Generate the actual PPTX file
+    const result = await generatePPT(pptContent);
+    
+    return {
+      success: true,
+      type: "ppt",
+      url: result.url,
+      fileName: result.fileName,
+      title: pptContent.title,
+      slideCount: pptContent.slides.length,
+      message: `PPT「${pptContent.title}」を生成しました（${pptContent.slides.length}ページ）。ダウンロードリンクを提供します。`,
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message, message: "PPT生成に失敗しました。" };
+  }
+}
+
+async function toolGenerateDocument(args: { topic: string; docType?: string; requirements?: string; contextData?: string }) {
+  try {
+    const contextData = args.contextData || args.requirements || "";
+    const docType = args.docType || "general";
+    const docTypeNames: Record<string, string> = {
+      bd_script: "BD話術",
+      proposal: "品牌合作提案",
+      live_script: "直播脚本",
+      report: "分析レポート",
+      general: "文書",
+    };
+    const userRequest = `${args.topic}${args.requirements ? ` - 要求: ${args.requirements}` : ""}`;
+    
+    // Use AI to generate structured document content
+    const { markdown, docRequest } = await aiGenerateDocContent(userRequest, contextData, docTypeNames[docType] || "文書");
+    
+    // Generate Word file
+    const wordResult = await generateWord(docRequest);
+    
+    return {
+      success: true,
+      type: "document",
+      markdown,
+      wordUrl: wordResult.url,
+      wordFileName: wordResult.fileName,
+      title: docRequest.title,
+      docType,
+      message: `${docTypeNames[docType] || "文書"}「${docRequest.title}」を生成しました。Markdown形式で表示し、Wordファイルもダウンロード可能です。`,
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message, message: "文書生成に失敗しました。" };
+  }
 }
