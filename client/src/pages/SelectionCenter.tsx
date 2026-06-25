@@ -962,7 +962,7 @@ function PerformancesTab() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{product.productName}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {product.livestreamCount}回配信 ・ 平均単価 ¥{product.avgUnitPrice.toLocaleString()}
+                        {product.livestreamCount}回配信 ・ 平均単価 ¥{product.totalItemsSold > 0 ? Math.round(product.totalGmv / product.totalItemsSold).toLocaleString() : '0'}
                       </p>
                     </div>
                     <div className="flex items-center gap-4 text-right text-xs">
@@ -1010,14 +1010,16 @@ function PerformancesTab() {
                           </thead>
                           <tbody>
                             {product.history.map((h, idx) => {
-                              const prevPrice = idx < product.history.length - 1 ? product.history[idx + 1].unitPrice : null;
-                              const priceChange = prevPrice && h.unitPrice ? h.unitPrice - prevPrice : null;
+                              const calcPrice = h.itemsSold > 0 ? Math.round(h.gmv / h.itemsSold) : (h.unitPrice || 0);
+                              const prevH = idx < product.history.length - 1 ? product.history[idx + 1] : null;
+                              const prevPrice = prevH ? (prevH.itemsSold > 0 ? Math.round(prevH.gmv / prevH.itemsSold) : (prevH.unitPrice || 0)) : null;
+                              const priceChange = prevPrice && calcPrice ? calcPrice - prevPrice : null;
                               return (
                                 <tr key={`${h.livestreamId}-${idx}`} className="border-t hover:bg-muted/30">
                                   <td className="p-2">{h.date ? new Date(h.date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) : '-'}</td>
                                   <td className="p-2">{h.streamerName || '-'}</td>
                                   <td className="p-2 text-right font-medium">
-                                    ¥{h.unitPrice.toLocaleString()}
+                                    ¥{calcPrice.toLocaleString()}
                                     {priceChange !== null && priceChange !== 0 && (
                                       <span className={`ml-1 text-[10px] ${priceChange > 0 ? 'text-red-400' : 'text-green-400'}`}>
                                         {priceChange > 0 ? '↑' : '↓'}{Math.abs(priceChange).toLocaleString()}
@@ -1184,6 +1186,10 @@ function SettlementsTab() {
 
 // ==================== Main Page ====================
 export default function SelectionCenter() {
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tab') || 'products';
+  });
   const dashboardQuery = trpc.selectionCenter.getDashboard.useQuery();
   const d = dashboardQuery.data;
 
@@ -1237,7 +1243,12 @@ export default function SelectionCenter() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="products" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(val) => {
+        setActiveTab(val);
+        const params = new URLSearchParams(window.location.search);
+        params.set('tab', val);
+        window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+      }} className="space-y-4">
         <TabsList>
           <TabsTrigger value="products"><Package className="h-4 w-4 mr-1" />商品管理</TabsTrigger>
           <TabsTrigger value="liver-selection"><ShoppingBag className="h-4 w-4 mr-1" />主播選品</TabsTrigger>
