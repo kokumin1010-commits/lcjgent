@@ -871,6 +871,7 @@ function PerformancesTab() {
   const [activeSubTab, setActiveSubTab] = useState<"products" | "daily" | "imports">("products");
   const [expandedLivestream, setExpandedLivestream] = useState<number | null>(null);
   const [selectedStreamer, setSelectedStreamer] = useState<string>("Ryu kyogoku");
+  const [sortMode, setSortMode] = useState<"potential" | "gmv" | "impressions">("potential");
   
   const streamerNamesQuery = trpc.selectionCenter.getStreamerNames.useQuery();
   const streamerFilter = selectedStreamer && selectedStreamer !== '__all__' ? selectedStreamer : undefined;
@@ -887,10 +888,26 @@ function PerformancesTab() {
     { enabled: !!expandedLivestream }
   );
 
-  const products = performanceQuery.data || [];
+  const rawProducts = performanceQuery.data || [];
   const importHistory = importHistoryQuery.data || [];
   const dailyData = dailyViewQuery.data || [];
   const streamerNames = streamerNamesQuery.data || [];
+
+  // Sort products based on selected mode
+  const products = [...rawProducts].sort((a, b) => {
+    if (sortMode === 'potential') {
+      // Potential score: (impressions * clicks) / (gmv + 1) - higher = more potential
+      const scoreA = (a.totalImpressions * a.totalClicks) / (a.totalGmv + 1);
+      const scoreB = (b.totalImpressions * b.totalClicks) / (b.totalGmv + 1);
+      return scoreB - scoreA;
+    } else if (sortMode === 'gmv') {
+      return b.totalGmv - a.totalGmv;
+    } else {
+      return b.totalImpressions - a.totalImpressions;
+    }
+  });
+  // Top 3 potential products get badge
+  const potentialTop3 = sortMode === 'potential' ? products.slice(0, 3).map(p => p.productName) : [];
 
   return (
     <div className="space-y-4">
@@ -940,8 +957,8 @@ function PerformancesTab() {
 
       {activeSubTab === "products" && (
         <>
-          {/* Search */}
-          <div className="flex gap-2">
+          {/* Search + Sort */}
+          <div className="flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
@@ -950,6 +967,32 @@ function PerformancesTab() {
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
               />
+            </div>
+            <div className="flex gap-1">
+              <Button
+                variant={sortMode === 'potential' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSortMode('potential')}
+                className="text-xs"
+              >
+                🎯 ポテンシャル順
+              </Button>
+              <Button
+                variant={sortMode === 'gmv' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSortMode('gmv')}
+                className="text-xs"
+              >
+                GMV順
+              </Button>
+              <Button
+                variant={sortMode === 'impressions' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSortMode('impressions')}
+                className="text-xs"
+              >
+                インプ順
+              </Button>
             </div>
           </div>
 
@@ -995,8 +1038,13 @@ function PerformancesTab() {
                     onClick={() => setExpandedProduct(isExpanded ? null : product.productName)}
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium text-sm truncate">{product.productName}</p>
+                        {potentialTop3.includes(product.productName) && (
+                          <Badge className="text-[10px] px-1.5 py-0 h-4 shrink-0 bg-emerald-600 text-white">
+                            🎯 ライブ推奨
+                          </Badge>
+                        )}
                         {(product as any).impressionSpike && (
                           <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
                             🔥 インプ急上昇
