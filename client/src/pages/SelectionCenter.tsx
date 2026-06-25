@@ -868,15 +868,22 @@ function SchedulesTab() {
 function PerformancesTab() {
   const [search, setSearch] = useState("");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
-  const [activeSubTab, setActiveSubTab] = useState<"products" | "imports">("products");
+  const [activeSubTab, setActiveSubTab] = useState<"products" | "daily" | "imports">("products");
+  const [expandedLivestream, setExpandedLivestream] = useState<number | null>(null);
   
   const performanceQuery = trpc.selectionCenter.getProductPerformanceHistory.useQuery({
     search: search || undefined,
   });
   const importHistoryQuery = trpc.selectionCenter.getAllImportHistory.useQuery({});
+  const dailyViewQuery = trpc.selectionCenter.getDailyPerformanceView.useQuery({});
+  const dailyProductsQuery = trpc.selectionCenter.getDailyViewProducts.useQuery(
+    { livestreamId: expandedLivestream! },
+    { enabled: !!expandedLivestream }
+  );
 
   const products = performanceQuery.data || [];
   const importHistory = importHistoryQuery.data || [];
+  const dailyData = dailyViewQuery.data || [];
 
   return (
     <div className="space-y-4">
@@ -893,6 +900,13 @@ function PerformancesTab() {
           onClick={() => setActiveSubTab("products")}
         >
           <BarChart3 className="h-4 w-4 mr-1" />商品パフォーマンス
+        </Button>
+        <Button 
+          variant={activeSubTab === "daily" ? "default" : "ghost"} 
+          size="sm"
+          onClick={() => setActiveSubTab("daily")}
+        >
+          <Calendar className="h-4 w-4 mr-1" />日別ビュー
         </Button>
         <Button 
           variant={activeSubTab === "imports" ? "default" : "ghost"} 
@@ -960,7 +974,24 @@ function PerformancesTab() {
                     onClick={() => setExpandedProduct(isExpanded ? null : product.productName)}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{product.productName}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm truncate">{product.productName}</p>
+                        {(product as any).impressionSpike && (
+                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                            🔥 インプ急上昇
+                          </Badge>
+                        )}
+                        {(product as any).clickSpike && (
+                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 shrink-0 bg-orange-500">
+                            🔥 クリック急上昇
+                          </Badge>
+                        )}
+                        {(product as any).highImpLowSales && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 shrink-0 border-yellow-500 text-yellow-500">
+                            ⚠️ 高インプ低売上
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {product.livestreamCount}回配信 ・ 平均単価 ¥{product.totalItemsSold > 0 ? Math.round(product.totalGmv / product.totalItemsSold).toLocaleString() : '0'}
                       </p>
@@ -1050,6 +1081,143 @@ function PerformancesTab() {
             )}
           </div>
         </>
+      )}
+
+      {activeSubTab === "daily" && (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">日付別の配信パフォーマンス一覧（クリックで商品詳細を表示）</p>
+          
+          {/* Daily summary cards */}
+          {dailyData.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Card>
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">配信回数</p>
+                  <p className="text-xl font-bold">{dailyData.length}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">総合GMV</p>
+                  <p className="text-xl font-bold text-yellow-500">¥{dailyData.reduce((s, d) => s + d.totalGmv, 0).toLocaleString()}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">総合インプ</p>
+                  <p className="text-xl font-bold">{dailyData.reduce((s, d) => s + d.totalImpressions, 0).toLocaleString()}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">平均商品数/配信</p>
+                  <p className="text-xl font-bold">{dailyData.length > 0 ? Math.round(dailyData.reduce((s, d) => s + d.productCount, 0) / dailyData.length) : 0}</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Daily list */}
+          <div className="space-y-2">
+            {dailyData.map((day) => {
+              const isExpanded = expandedLivestream === day.livestreamId;
+              return (
+                <div key={day.livestreamId} className="border rounded-lg overflow-hidden">
+                  <div 
+                    className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/30 transition-colors"
+                    onClick={() => setExpandedLivestream(isExpanded ? null : day.livestreamId)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm">
+                          {day.date ? new Date(day.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' }) : '-'}
+                        </p>
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                          {day.streamerName || '不明'}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                          {day.productCount}商品
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 text-right text-xs">
+                      <div>
+                        <p className="text-muted-foreground">GMV</p>
+                        <p className="font-semibold text-yellow-500">¥{day.totalGmv.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">販売数</p>
+                        <p className="font-semibold">{day.totalItems.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">インプ</p>
+                        <p className="font-semibold">{day.totalImpressions.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">クリック</p>
+                        <p className="font-semibold">{day.totalClicks.toLocaleString()}</p>
+                      </div>
+                      <div className="w-5">
+                        <svg className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Expanded: products for this day */}
+                  {isExpanded && (
+                    <div className="border-t bg-muted/20">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead className="bg-muted/40">
+                            <tr>
+                              <th className="text-left p-2 font-medium">商品名</th>
+                              <th className="text-right p-2 font-medium">単価</th>
+                              <th className="text-right p-2 font-medium">GMV</th>
+                              <th className="text-right p-2 font-medium">販売数</th>
+                              <th className="text-right p-2 font-medium">インプ</th>
+                              <th className="text-right p-2 font-medium">クリック</th>
+                              <th className="text-right p-2 font-medium">CTR</th>
+                              <th className="text-right p-2 font-medium">CTOR</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dailyProductsQuery.isLoading ? (
+                              <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">読み込み中...</td></tr>
+                            ) : (dailyProductsQuery.data || []).map((p, idx) => {
+                              const calcPrice = p.itemsSold > 0 ? Math.round(p.gmv / p.itemsSold) : (p.unitPrice || 0);
+                              return (
+                                <tr key={idx} className="border-t hover:bg-muted/30">
+                                  <td className="p-2 max-w-[200px] truncate">{p.productName}</td>
+                                  <td className="p-2 text-right">¥{calcPrice.toLocaleString()}</td>
+                                  <td className="p-2 text-right text-yellow-500 font-medium">¥{p.gmv.toLocaleString()}</td>
+                                  <td className="p-2 text-right">{p.itemsSold.toLocaleString()}</td>
+                                  <td className="p-2 text-right">{p.impressions.toLocaleString()}</td>
+                                  <td className="p-2 text-right">{p.clicks.toLocaleString()}</td>
+                                  <td className="p-2 text-right">{p.ctr ? `${(parseFloat(p.ctr) * 100).toFixed(1)}%` : '-'}</td>
+                                  <td className="p-2 text-right">{p.ctor ? `${(parseFloat(p.ctor) * 100).toFixed(1)}%` : '-'}</td>
+                                </tr>
+                              );
+                            })}
+                            {!dailyProductsQuery.isLoading && (dailyProductsQuery.data || []).length === 0 && (
+                              <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">商品データなし</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {dailyData.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                {dailyViewQuery.isLoading ? 'データ読み込み中...' : '日別データがありません。'}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {activeSubTab === "imports" && (

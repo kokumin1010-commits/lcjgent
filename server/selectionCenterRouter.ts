@@ -634,13 +634,49 @@ export const selectionCenterRouter = router({
       });
     }
     
-    // Calculate avg unit price
+    // Calculate avg unit price and anomaly detection
     const results = Array.from(productMap.values()).map(p => {
       const pricesWithValues = p.history.filter(h => h.unitPrice > 0);
       p.avgUnitPrice = pricesWithValues.length > 0 
         ? Math.round(pricesWithValues.reduce((sum, h) => sum + h.unitPrice, 0) / pricesWithValues.length)
         : 0;
-      return p;
+      
+      // Anomaly detection: compare last 7 days vs prior 7 days
+      const sortedHistory = [...p.history].sort((a, b) => 
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      const now = new Date();
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+      
+      const recent = sortedHistory.filter(h => new Date(h.date) >= sevenDaysAgo);
+      const prior = sortedHistory.filter(h => {
+        const d = new Date(h.date);
+        return d >= fourteenDaysAgo && d < sevenDaysAgo;
+      });
+      
+      let impressionSpike = false;
+      let clickSpike = false;
+      let highImpLowSales = false;
+      
+      if (recent.length > 0 && prior.length > 0) {
+        const recentAvgImp = recent.reduce((s, h) => s + h.impressions, 0) / recent.length;
+        const priorAvgImp = prior.reduce((s, h) => s + h.impressions, 0) / prior.length;
+        const recentAvgClicks = recent.reduce((s, h) => s + h.clicks, 0) / recent.length;
+        const priorAvgClicks = prior.reduce((s, h) => s + h.clicks, 0) / prior.length;
+        
+        // >50% increase = spike
+        if (priorAvgImp > 0 && recentAvgImp > priorAvgImp * 1.5) impressionSpike = true;
+        if (priorAvgClicks > 0 && recentAvgClicks > priorAvgClicks * 1.5) clickSpike = true;
+      }
+      
+      // High impressions but low GMV (top 30% impressions but bottom 30% GMV conversion)
+      if (p.totalImpressions > 1000 && p.totalItemsSold > 0) {
+        const conversionRate = p.totalGmv / p.totalImpressions;
+        if (conversionRate < 0.5) highImpLowSales = true; // Less than ¥0.5 GMV per impression
+      }
+      
+      return { ...p, impressionSpike, clickSpike, highImpLowSales };
     });
     
     // Sort by total GMV descending
@@ -704,6 +740,82 @@ export const selectionCenterRouter = router({
       const [rows] = await pool.query(fallbackQuery, params) as any;
       return rows;
     }
+  }),
+
+  // ========== Daily Performance View (日別ビュー) ==========
+  getDailyPerformanceView: protectedProcedure.input(z.object({
+    brandId: z.number().optional(),
+  })).query(async ({ input }) => {
+    const pool = getPool();
+    let where = '1=1';
+    const params: any[] = [];
+    if (input.brandId) {
+      where += ' AND bl.brandId = ?';
+      params.push(input.brandId);
+    }
+    
+    // Group by livestream (each livestream = one date + streamer combo)
+    const [rows] = await pool.query(`
+      SELECT 
+        bl.id as livestreamId,
+        bl.livestreamDate,
+        bl.streamerName,
+        bl.brandId,
+        SUM(lp.directGmv) as totalGmv,
+        SUM(lp.itemsSold) as totalItems,
+        SUM(lp.productImpressions) as totalImpressions,
+        SUM(lp.productClicks) as totalClicks,
+        COUNT(DISTINCT lp.productName) as productCount
+      FROM livestream_products lp
+      JOIN brand_livestreams bl ON lp.livestreamId = bl.id
+      WHERE ${where}
+      GROUP BY bl.id
+      ORDER BY bl.livestreamDate DESC
+    `, params) as any;
+    
+    return rows.map((r: any) => ({
+      livestreamId: r.livestreamId,
+      date: r.livestreamDate ? new Date(r.livestreamDate).toISOString() : '',
+      streamerName: r.streamerName || '',
+      brandId: r.brandId,
+      totalGmv: Number(r.totalGmv || 0),
+      totalItems: Number(r.totalItems || 0),
+      totalImpressions: Number(r.totalImpressions || 0),
+      totalClicks: Number(r.totalClicks || 0),
+      productCount: Number(r.productCount || 0),
+    }));
+  }),
+
+  // ========== Daily View Detail (products for a specific livestream) ==========
+  getDailyViewProducts: protectedProcedure.input(z.object({
+    livestreamId: z.number(),
+  })).query(async ({ input }) => {
+    const pool = getPool();
+    const [rows] = await pool.query(`
+      SELECT 
+        lp.productName,
+        lp.directGmv,
+        lp.itemsSold,
+        lp.productImpressions,
+        lp.productClicks,
+        lp.ctr,
+        lp.ctor,
+        lp.unitPrice
+      FROM livestream_products lp
+      WHERE lp.livestreamId = ?
+      ORDER BY lp.directGmv DESC
+    `, [input.livestreamId]) as any;
+    
+    return rows.map((r: any) => ({
+      productName: r.productName,
+      gmv: Number(r.directGmv || 0),
+      itemsSold: Number(r.itemsSold || 0),
+      impressions: Number(r.productImpressions || 0),
+      clicks: Number(r.productClicks || 0),
+      ctr: r.ctr || '',
+      ctor: r.ctor || '',
+      unitPrice: Number(r.unitPrice || 0),
+    }));
   }),
 
   // ========== Add fileUrl column migration ==========
