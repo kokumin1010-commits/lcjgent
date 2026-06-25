@@ -8493,6 +8493,7 @@ Respond with a JSON object.`,
         z.object({
           livestreamId: z.number(),
           fileName: z.string().optional(),
+          fileBase64: z.string().optional(), // Original CSV/XLSX file as base64 for download
           products: z.array(
             z.object({
               productName: z.string(),
@@ -8550,6 +8551,23 @@ Respond with a JSON object.`,
         // Calculate total GMV
         const totalGmv = input.products.reduce((sum, p) => sum + (p.directGmv || 0), 0);
         
+        // Upload original file to S3 if provided
+        let fileUrl: string | null = null;
+        if (input.fileBase64) {
+          try {
+            const { storagePut } = await import('./storage');
+            const { nanoid } = await import('nanoid');
+            const ext = (input.fileName || 'file.xlsx').split('.').pop() || 'xlsx';
+            const fileKey = `csv-imports/${input.livestreamId}/${Date.now()}-${nanoid(6)}.${ext}`;
+            const buffer = Buffer.from(input.fileBase64, 'base64');
+            const mimeType = ext === 'csv' ? 'text/csv' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+            const result = await storagePut(fileKey, buffer, mimeType);
+            fileUrl = result.url;
+          } catch (e: any) {
+            console.error('[importProductCsv] Failed to upload file to S3:', e.message);
+          }
+        }
+        
         // Create import history record
         await createCsvImportHistory({
           livestreamId: input.livestreamId,
@@ -8559,6 +8577,29 @@ Respond with a JSON object.`,
           importedBy: importerId,
           importedByName: importerName,
         });
+        
+        // Save fileUrl to the import history record if available
+        if (fileUrl) {
+          try {
+            const db = await import('./db').then(m => m.getDb());
+            if (db) {
+              const { csvImportHistory } = await import('../drizzle/schema');
+              const { desc, eq } = await import('drizzle-orm');
+              // Get the latest record for this livestream
+              const latest = await db.select().from(csvImportHistory)
+                .where(eq(csvImportHistory.livestreamId, input.livestreamId))
+                .orderBy(desc(csvImportHistory.id))
+                .limit(1);
+              if (latest.length > 0) {
+                await db.execute(
+                  `UPDATE csv_import_history SET fileUrl = '${fileUrl}' WHERE id = ${latest[0].id}`
+                );
+              }
+            }
+          } catch (e: any) {
+            console.error('[importProductCsv] Failed to save fileUrl:', e.message);
+          }
+        }
         
         return { success: true, importedCount: count };
       }),

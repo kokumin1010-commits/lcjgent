@@ -653,9 +653,14 @@ export default function LivestreamDetail() {
           toast.error('商品データが見つかりませんでした');
           return;
         }
+        // Convert file to base64 for S3 storage
+        const fileBase64 = btoa(
+          new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+        );
         await importProductCsvMutation.mutateAsync({
           livestreamId,
           fileName: file.name,
+          fileBase64,
           products,
         });
       } else {
@@ -668,9 +673,12 @@ export default function LivestreamDetail() {
           return;
         }
         
+        // Convert CSV text to base64 for S3 storage
+        const csvBase64 = btoa(unescape(encodeURIComponent(text)));
         await importProductCsvMutation.mutateAsync({
           livestreamId,
           fileName: file.name,
+          fileBase64: csvBase64,
           products,
         });
       }
@@ -1519,6 +1527,12 @@ export default function LivestreamDetail() {
                                 {new Date(history.createdAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })} ・ {history.productCount}商品 ・ ¥{(history.totalGmv || 0).toLocaleString()}
                               </p>
                             </div>
+                            <div className="flex items-center gap-1">
+                            {(history as any).fileUrl && (
+                              <a href={(history as any).fileUrl} download className="inline-flex items-center justify-center h-7 px-2 text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                              </a>
+                            )}
                             {canEdit && (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
@@ -1545,6 +1559,7 @@ export default function LivestreamDetail() {
                                 </AlertDialogContent>
                               </AlertDialog>
                             )}
+                            </div>
                           </div>
                         ))}
                       </div>

@@ -526,4 +526,197 @@ export const selectionCenterRouter = router({
     const { url, key } = await storagePut(fileKey, buffer, input.mimeType);
     return { url, key };
   }),
+
+  // ========== Product Performance History (全商品パフォーマンス一覧) ==========
+  getProductPerformanceHistory: protectedProcedure.input(z.object({
+    brandId: z.number().optional(),
+    search: z.string().optional(),
+  })).query(async ({ input }) => {
+    const pool = getPool();
+    
+    // Get all products grouped by productName with daily breakdown
+    // Each row = one product in one livestream (one CSV upload)
+    let where = '1=1';
+    const params: any[] = [];
+    if (input.brandId) {
+      where += ' AND bl.brandId = ?';
+      params.push(input.brandId);
+    }
+    if (input.search) {
+      where += ' AND lp.productName LIKE ?';
+      params.push(`%${input.search}%`);
+    }
+    
+    // Get detailed per-livestream data for all products
+    const [rows] = await pool.query(`
+      SELECT 
+        lp.productName,
+        lp.directGmv,
+        lp.grossRevenue,
+        lp.itemsSold,
+        lp.customers,
+        lp.unitPrice,
+        lp.productImpressions,
+        lp.productClicks,
+        lp.ctr,
+        lp.ctor,
+        bl.livestreamDate,
+        bl.streamerName,
+        bl.id as livestreamId,
+        bl.brandId
+      FROM livestream_products lp
+      JOIN brand_livestreams bl ON lp.livestreamId = bl.id
+      WHERE ${where}
+      ORDER BY lp.productName ASC, bl.livestreamDate DESC
+    `, params) as any;
+    
+    // Group by productName
+    const productMap = new Map<string, {
+      productName: string;
+      totalGmv: number;
+      totalItemsSold: number;
+      totalImpressions: number;
+      totalClicks: number;
+      avgUnitPrice: number;
+      livestreamCount: number;
+      history: Array<{
+        date: string;
+        streamerName: string;
+        livestreamId: number;
+        gmv: number;
+        itemsSold: number;
+        unitPrice: number;
+        impressions: number;
+        clicks: number;
+        ctr: string;
+        ctor: string;
+      }>;
+    }>();
+    
+    for (const row of rows) {
+      const name = row.productName;
+      if (!productMap.has(name)) {
+        productMap.set(name, {
+          productName: name,
+          totalGmv: 0,
+          totalItemsSold: 0,
+          totalImpressions: 0,
+          totalClicks: 0,
+          avgUnitPrice: 0,
+          livestreamCount: 0,
+          history: [],
+        });
+      }
+      const product = productMap.get(name)!;
+      const gmv = Number(row.directGmv || row.grossRevenue || 0);
+      const itemsSold = Number(row.itemsSold || 0);
+      const impressions = Number(row.productImpressions || 0);
+      const clicks = Number(row.productClicks || 0);
+      const unitPrice = Number(row.unitPrice || 0);
+      
+      product.totalGmv += gmv;
+      product.totalItemsSold += itemsSold;
+      product.totalImpressions += impressions;
+      product.totalClicks += clicks;
+      product.livestreamCount++;
+      
+      product.history.push({
+        date: row.livestreamDate ? new Date(row.livestreamDate).toISOString() : '',
+        streamerName: row.streamerName || '',
+        livestreamId: row.livestreamId,
+        gmv,
+        itemsSold,
+        unitPrice,
+        impressions,
+        clicks,
+        ctr: row.ctr || '',
+        ctor: row.ctor || '',
+      });
+    }
+    
+    // Calculate avg unit price
+    const results = Array.from(productMap.values()).map(p => {
+      const pricesWithValues = p.history.filter(h => h.unitPrice > 0);
+      p.avgUnitPrice = pricesWithValues.length > 0 
+        ? Math.round(pricesWithValues.reduce((sum, h) => sum + h.unitPrice, 0) / pricesWithValues.length)
+        : 0;
+      return p;
+    });
+    
+    // Sort by total GMV descending
+    results.sort((a, b) => b.totalGmv - a.totalGmv);
+    
+    return results;
+  }),
+
+  // ========== CSV Import History with Download ==========
+  getAllImportHistory: protectedProcedure.input(z.object({
+    brandId: z.number().optional(),
+  })).query(async ({ input }) => {
+    const pool = getPool();
+    
+    let query = `
+      SELECT 
+        cih.id,
+        cih.livestreamId,
+        cih.fileName,
+        cih.productCount,
+        cih.totalGmv,
+        cih.importedByName,
+        cih.createdAt,
+        cih.fileUrl,
+        bl.livestreamDate,
+        bl.streamerName,
+        bl.brandId
+      FROM csv_import_history cih
+      JOIN brand_livestreams bl ON cih.livestreamId = bl.id
+    `;
+    const params: any[] = [];
+    if (input.brandId) {
+      query += ' WHERE bl.brandId = ?';
+      params.push(input.brandId);
+    }
+    query += ' ORDER BY cih.createdAt DESC';
+    
+    try {
+      const [rows] = await pool.query(query, params) as any;
+      return rows;
+    } catch (e: any) {
+      // fileUrl column might not exist yet - fallback without it
+      const fallbackQuery = `
+        SELECT 
+          cih.id,
+          cih.livestreamId,
+          cih.fileName,
+          cih.productCount,
+          cih.totalGmv,
+          cih.importedByName,
+          cih.createdAt,
+          NULL as fileUrl,
+          bl.livestreamDate,
+          bl.streamerName,
+          bl.brandId
+        FROM csv_import_history cih
+        JOIN brand_livestreams bl ON cih.livestreamId = bl.id
+        ${input.brandId ? 'WHERE bl.brandId = ?' : ''}
+        ORDER BY cih.createdAt DESC
+      `;
+      const [rows] = await pool.query(fallbackQuery, params) as any;
+      return rows;
+    }
+  }),
+
+  // ========== Add fileUrl column migration ==========
+  migrateAddFileUrl: protectedProcedure.mutation(async () => {
+    const pool = getPool();
+    try {
+      await pool.query(`ALTER TABLE csv_import_history ADD COLUMN fileUrl VARCHAR(500) DEFAULT NULL`);
+      return { success: true, message: 'fileUrl column added' };
+    } catch (e: any) {
+      if (e.message.includes('Duplicate column')) {
+        return { success: true, message: 'fileUrl column already exists' };
+      }
+      return { success: false, message: e.message };
+    }
+  }),
 });

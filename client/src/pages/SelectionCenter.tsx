@@ -866,48 +866,234 @@ function SchedulesTab() {
 
 // ==================== Performances Tab ====================
 function PerformancesTab() {
-  const performancesQuery = trpc.selectionCenter.getPerformances.useQuery();
+  const [search, setSearch] = useState("");
+  const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<"products" | "imports">("products");
+  
+  const performanceQuery = trpc.selectionCenter.getProductPerformanceHistory.useQuery({
+    search: search || undefined,
+  });
+  const importHistoryQuery = trpc.selectionCenter.getAllImportHistory.useQuery({});
+
+  const products = performanceQuery.data || [];
+  const importHistory = importHistoryQuery.data || [];
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">帯貨データ</h3>
+        <h3 className="text-lg font-semibold">帯貨データ・全商品パフォーマンス</h3>
       </div>
-      <div className="border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="text-left p-3 font-medium">配信日</th>
-              <th className="text-left p-3 font-medium">主播ID</th>
-              <th className="text-left p-3 font-medium">商品</th>
-              <th className="text-right p-3 font-medium">GMV</th>
-              <th className="text-right p-3 font-medium">販売数</th>
-              <th className="text-right p-3 font-medium">佣金</th>
-              <th className="text-center p-3 font-medium">ステータス</th>
-            </tr>
-          </thead>
-          <tbody>
-            {performancesQuery.data?.map((perf: any) => (
-              <tr key={perf.id} className="border-t hover:bg-muted/30">
-                <td className="p-3">{perf.liveDate}</td>
-                <td className="p-3">{perf.liverId}</td>
-                <td className="p-3">{perf.product?.productName || "-"}</td>
-                <td className="p-3 text-right">¥{Number(perf.gmv || 0).toLocaleString()}</td>
-                <td className="p-3 text-right">{perf.salesCount || 0}</td>
-                <td className="p-3 text-right">¥{Number(perf.commissionAmount || 0).toLocaleString()}</td>
-                <td className="p-3 text-center">
-                  <Badge variant={perf.status === "confirmed" ? "default" : "secondary"}>
-                    {perf.status === "confirmed" ? "確定" : "下書き"}
-                  </Badge>
-                </td>
-              </tr>
-            ))}
-            {(!performancesQuery.data || performancesQuery.data.length === 0) && (
-              <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">帯貨データがありません</td></tr>
+      
+      {/* Sub-tabs */}
+      <div className="flex gap-2 border-b pb-2">
+        <Button 
+          variant={activeSubTab === "products" ? "default" : "ghost"} 
+          size="sm"
+          onClick={() => setActiveSubTab("products")}
+        >
+          <BarChart3 className="h-4 w-4 mr-1" />商品パフォーマンス
+        </Button>
+        <Button 
+          variant={activeSubTab === "imports" ? "default" : "ghost"} 
+          size="sm"
+          onClick={() => setActiveSubTab("imports")}
+        >
+          <ClipboardList className="h-4 w-4 mr-1" />インポート履歴
+        </Button>
+      </div>
+
+      {activeSubTab === "products" && (
+        <>
+          {/* Search */}
+          <div className="flex gap-2">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="商品名で検索..." 
+                value={search} 
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
+
+          {/* Summary cards */}
+          {products.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Card>
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">全商品数</p>
+                  <p className="text-xl font-bold">{products.length}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">累計GMV</p>
+                  <p className="text-xl font-bold text-yellow-500">¥{products.reduce((s, p) => s + p.totalGmv, 0).toLocaleString()}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">累計販売数</p>
+                  <p className="text-xl font-bold">{products.reduce((s, p) => s + p.totalItemsSold, 0).toLocaleString()}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">累計インプ</p>
+                  <p className="text-xl font-bold">{products.reduce((s, p) => s + p.totalImpressions, 0).toLocaleString()}</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Product list */}
+          <div className="space-y-2">
+            {products.map((product) => {
+              const isExpanded = expandedProduct === product.productName;
+              return (
+                <div key={product.productName} className="border rounded-lg overflow-hidden">
+                  {/* Product summary row */}
+                  <div 
+                    className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/30 transition-colors"
+                    onClick={() => setExpandedProduct(isExpanded ? null : product.productName)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{product.productName}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {product.livestreamCount}回配信 ・ 平均単価 ¥{product.avgUnitPrice.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4 text-right text-xs">
+                      <div>
+                        <p className="text-muted-foreground">GMV</p>
+                        <p className="font-semibold text-yellow-500">¥{product.totalGmv.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">販売数</p>
+                        <p className="font-semibold">{product.totalItemsSold.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">インプ</p>
+                        <p className="font-semibold">{product.totalImpressions.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">クリック</p>
+                        <p className="font-semibold">{product.totalClicks.toLocaleString()}</p>
+                      </div>
+                      <div className="w-5">
+                        <svg className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Expanded: daily breakdown */}
+                  {isExpanded && (
+                    <div className="border-t bg-muted/20">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead className="bg-muted/40">
+                            <tr>
+                              <th className="text-left p-2 font-medium">配信日</th>
+                              <th className="text-left p-2 font-medium">主播</th>
+                              <th className="text-right p-2 font-medium">販売単価</th>
+                              <th className="text-right p-2 font-medium">売上(GMV)</th>
+                              <th className="text-right p-2 font-medium">販売数</th>
+                              <th className="text-right p-2 font-medium">インプ</th>
+                              <th className="text-right p-2 font-medium">クリック</th>
+                              <th className="text-right p-2 font-medium">CTR</th>
+                              <th className="text-right p-2 font-medium">CTOR</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {product.history.map((h, idx) => {
+                              const prevPrice = idx < product.history.length - 1 ? product.history[idx + 1].unitPrice : null;
+                              const priceChange = prevPrice && h.unitPrice ? h.unitPrice - prevPrice : null;
+                              return (
+                                <tr key={`${h.livestreamId}-${idx}`} className="border-t hover:bg-muted/30">
+                                  <td className="p-2">{h.date ? new Date(h.date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) : '-'}</td>
+                                  <td className="p-2">{h.streamerName || '-'}</td>
+                                  <td className="p-2 text-right font-medium">
+                                    ¥{h.unitPrice.toLocaleString()}
+                                    {priceChange !== null && priceChange !== 0 && (
+                                      <span className={`ml-1 text-[10px] ${priceChange > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                        {priceChange > 0 ? '↑' : '↓'}{Math.abs(priceChange).toLocaleString()}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-2 text-right text-yellow-500 font-medium">¥{h.gmv.toLocaleString()}</td>
+                                  <td className="p-2 text-right">{h.itemsSold.toLocaleString()}</td>
+                                  <td className="p-2 text-right">{h.impressions.toLocaleString()}</td>
+                                  <td className="p-2 text-right">{h.clicks.toLocaleString()}</td>
+                                  <td className="p-2 text-right">{h.ctr ? `${(parseFloat(h.ctr) * 100).toFixed(1)}%` : '-'}</td>
+                                  <td className="p-2 text-right">{h.ctor ? `${(parseFloat(h.ctor) * 100).toFixed(1)}%` : '-'}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {products.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                {performanceQuery.isLoading ? 'データ読み込み中...' : '帯貨データがありません。配信詳細ページからCSVをインポートしてください。'}
+              </div>
             )}
-          </tbody>
-        </table>
-      </div>
+          </div>
+        </>
+      )}
+
+      {activeSubTab === "imports" && (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">全てのCSVインポート履歴（ダウンロード可能）</p>
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="text-left p-3 font-medium">ファイル名</th>
+                  <th className="text-left p-3 font-medium">配信日</th>
+                  <th className="text-left p-3 font-medium">主播</th>
+                  <th className="text-right p-3 font-medium">商品数</th>
+                  <th className="text-right p-3 font-medium">GMV</th>
+                  <th className="text-left p-3 font-medium">インポート者</th>
+                  <th className="text-left p-3 font-medium">日時</th>
+                  <th className="text-center p-3 font-medium">DL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {importHistory.map((h: any) => (
+                  <tr key={h.id} className="border-t hover:bg-muted/30">
+                    <td className="p-3 text-xs max-w-[200px] truncate">{h.fileName}</td>
+                    <td className="p-3 text-xs">{h.livestreamDate ? new Date(h.livestreamDate).toLocaleDateString('ja-JP') : '-'}</td>
+                    <td className="p-3 text-xs">{h.streamerName || '-'}</td>
+                    <td className="p-3 text-right">{h.productCount}</td>
+                    <td className="p-3 text-right text-yellow-500">¥{Number(h.totalGmv || 0).toLocaleString()}</td>
+                    <td className="p-3 text-xs">{h.importedByName}</td>
+                    <td className="p-3 text-xs">{new Date(h.createdAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}</td>
+                    <td className="p-3 text-center">
+                      {h.fileUrl ? (
+                        <a href={h.fileUrl} download className="text-blue-400 hover:text-blue-300 underline text-xs">DL</a>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">-</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {importHistory.length === 0 && (
+                  <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">インポート履歴がありません</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
