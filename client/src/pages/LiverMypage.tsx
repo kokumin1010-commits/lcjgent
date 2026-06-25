@@ -2404,11 +2404,18 @@ export default function LiverMypage() {
                             </p>
                             <ChevronRight className="h-4 w-4 text-white" />
                           </div>
-                          {salesDiffPercent !== null && (
-                            <p className={`text-[10px] ${salesDiff! >= 0 ? "text-green-400" : "text-red-400"}`}>
-                              {salesDiff! >= 0 ? "▲" : "▼"} {Math.abs(salesDiffPercent)}%
-                            </p>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {salesDiffPercent !== null && (
+                              <p className={`text-[10px] ${salesDiff! >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                {salesDiff! >= 0 ? "▲" : "▼"} {Math.abs(salesDiffPercent)}%
+                              </p>
+                            )}
+                            {duration > 0 && currentSales > 0 && (
+                              <p className="text-[10px] text-cyan-400 font-medium">
+                                ¥{Math.round(currentSales / duration).toLocaleString()}/h
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
                       {ls.brandName && (
