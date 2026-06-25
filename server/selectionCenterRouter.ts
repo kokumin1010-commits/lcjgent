@@ -531,6 +531,7 @@ export const selectionCenterRouter = router({
   getProductPerformanceHistory: protectedProcedure.input(z.object({
     brandId: z.number().optional(),
     search: z.string().optional(),
+    streamerName: z.string().optional(),
   })).query(async ({ input }) => {
     const pool = getPool();
     
@@ -541,6 +542,10 @@ export const selectionCenterRouter = router({
     if (input.brandId) {
       where += ' AND bl.brandId = ?';
       params.push(input.brandId);
+    }
+    if (input.streamerName) {
+      where += ' AND TRIM(bl.streamerName) = ?';
+      params.push(input.streamerName.trim());
     }
     if (input.search) {
       where += ' AND lp.productName LIKE ?';
@@ -745,6 +750,7 @@ export const selectionCenterRouter = router({
   // ========== Daily Performance View (日別ビュー) ==========
   getDailyPerformanceView: protectedProcedure.input(z.object({
     brandId: z.number().optional(),
+    streamerName: z.string().optional(),
   })).query(async ({ input }) => {
     const pool = getPool();
     let where = '1=1';
@@ -752,6 +758,10 @@ export const selectionCenterRouter = router({
     if (input.brandId) {
       where += ' AND bl.brandId = ?';
       params.push(input.brandId);
+    }
+    if (input.streamerName) {
+      where += ' AND TRIM(bl.streamerName) = ?';
+      params.push(input.streamerName.trim());
     }
     
     // Group by livestream (each livestream = one date + streamer combo)
@@ -784,6 +794,19 @@ export const selectionCenterRouter = router({
       totalClicks: Number(r.totalClicks || 0),
       productCount: Number(r.productCount || 0),
     }));
+  }),
+
+  // ========== Get unique streamer names for filter ==========
+  getStreamerNames: protectedProcedure.query(async () => {
+    const pool = getPool();
+    const [rows] = await pool.query(`
+      SELECT DISTINCT TRIM(streamerName) as name, COUNT(*) as count
+      FROM brand_livestreams
+      WHERE streamerName IS NOT NULL AND streamerName != ''
+      GROUP BY TRIM(streamerName)
+      ORDER BY count DESC
+    `) as any;
+    return rows.map((r: any) => ({ name: r.name, count: Number(r.count) }));
   }),
 
   // ========== Daily View Detail (products for a specific livestream) ==========

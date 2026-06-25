@@ -870,12 +870,18 @@ function PerformancesTab() {
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [activeSubTab, setActiveSubTab] = useState<"products" | "daily" | "imports">("products");
   const [expandedLivestream, setExpandedLivestream] = useState<number | null>(null);
+  const [selectedStreamer, setSelectedStreamer] = useState<string>("Ryu kyogoku");
   
+  const streamerNamesQuery = trpc.selectionCenter.getStreamerNames.useQuery();
+  const streamerFilter = selectedStreamer && selectedStreamer !== '__all__' ? selectedStreamer : undefined;
   const performanceQuery = trpc.selectionCenter.getProductPerformanceHistory.useQuery({
     search: search || undefined,
+    streamerName: streamerFilter,
   });
   const importHistoryQuery = trpc.selectionCenter.getAllImportHistory.useQuery({});
-  const dailyViewQuery = trpc.selectionCenter.getDailyPerformanceView.useQuery({});
+  const dailyViewQuery = trpc.selectionCenter.getDailyPerformanceView.useQuery({
+    streamerName: streamerFilter,
+  });
   const dailyProductsQuery = trpc.selectionCenter.getDailyViewProducts.useQuery(
     { livestreamId: expandedLivestream! },
     { enabled: !!expandedLivestream }
@@ -884,12 +890,27 @@ function PerformancesTab() {
   const products = performanceQuery.data || [];
   const importHistory = importHistoryQuery.data || [];
   const dailyData = dailyViewQuery.data || [];
+  const streamerNames = streamerNamesQuery.data || [];
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header with streamer filter */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-lg font-semibold">帯貨データ・全商品パフォーマンス</h3>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">ストリーマー:</span>
+          <Select value={selectedStreamer} onValueChange={(v) => { setSelectedStreamer(v); setExpandedProduct(null); setExpandedLivestream(null); }}>
+            <SelectTrigger className="w-[180px] h-8 text-xs">
+              <SelectValue placeholder="全員" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">全員（{streamerNames.reduce((s, n) => s + n.count, 0)}配信）</SelectItem>
+              {streamerNames.map((s) => (
+                <SelectItem key={s.name} value={s.name}>{s.name}（{s.count}配信）</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       
       {/* Sub-tabs */}
