@@ -100,6 +100,11 @@ function ProductsTab() {
                       {!!product.talentExclusive && <span className="inline-block text-[10px] bg-purple-100 text-purple-700 px-1 py-0.5 rounded font-medium whitespace-nowrap">達人限定</span>}
                     </div>
                     {product.productId && <span className="text-xs text-muted-foreground block">ID: {product.productId}</span>}
+                    {(() => {
+                      const tags: string[] = product.tags ? (typeof product.tags === 'string' ? JSON.parse(product.tags) : product.tags) : [];
+                      if (tags.length === 0) return null;
+                      return <div className="flex flex-wrap gap-0.5 mt-0.5">{tags.map((t: string) => <span key={t} className="text-[10px] bg-purple-100 text-purple-700 px-1 py-0.5 rounded font-medium">{t}</span>)}</div>;
+                    })()}
                     {!!product.talentExclusive && product.exclusiveLiverIds && (() => {
                       const ids = typeof product.exclusiveLiverIds === 'string' ? JSON.parse(product.exclusiveLiverIds) : product.exclusiveLiverIds;
                       if (!ids || ids.length === 0) return null;
@@ -350,6 +355,25 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
             </div>
           </div>
 
+          {/* 品類タグ */}
+          <div>
+            <Label>品類タグ</Label>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {["引流款","福利款","爆品款","穿插福利款","KG品牌款","利润款","惊喜款","预告款"].map(tag => {
+                const tags: string[] = form.tags ? (typeof form.tags === 'string' ? JSON.parse(form.tags) : form.tags) : [];
+                const isSelected = tags.includes(tag);
+                return (
+                  <button key={tag} type="button" onClick={() => {
+                    const newTags = isSelected ? tags.filter((t: string) => t !== tag) : [...tags, tag];
+                    setForm({ ...form, tags: newTags });
+                  }} className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${isSelected ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}>
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* 販売価格 + 市場価格 - 2 columns */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -475,6 +499,7 @@ function LiverSelectionTab() {
   const [search, setSearch] = useState("");
   const [selectedLiverId, setSelectedLiverId] = useState<string>("");
   const [detailProduct, setDetailProduct] = useState<any>(null);
+  const [tagFilter, setTagFilter] = useState<string>("");
 
   const productsQuery = trpc.selectionCenter.getLiverAvailableProducts.useQuery({
     search: search || undefined,
@@ -533,11 +558,27 @@ function LiverSelectionTab() {
         </div>
       </div>
 
+      {/* Tag filter */}
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => setTagFilter("")} className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${!tagFilter ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}>全て</button>
+        {["引流款","福利款","爆品款","穿插福利款","KG品牌款","利润款","惊喜款","预告款"].map(tag => (
+          <button key={tag} onClick={() => setTagFilter(tagFilter === tag ? "" : tag)} className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${tagFilter === tag ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}>{tag}</button>
+        ))}
+      </div>
+
       {/* Available products grid */}
       <div>
-        <h4 className="text-sm font-medium text-muted-foreground mb-3">公開中の商品（{productsQuery.data?.length || 0}件）</h4>
+        <h4 className="text-sm font-medium text-muted-foreground mb-3">公開中の商品（{productsQuery.data?.filter((p: any) => {
+          if (!tagFilter) return true;
+          const tags: string[] = p.tags ? (typeof p.tags === 'string' ? JSON.parse(p.tags) : p.tags) : [];
+          return tags.includes(tagFilter);
+        }).length || 0}件）</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {productsQuery.data?.map((product: any) => (
+          {productsQuery.data?.filter((p: any) => {
+            if (!tagFilter) return true;
+            const tags: string[] = p.tags ? (typeof p.tags === 'string' ? JSON.parse(p.tags) : p.tags) : [];
+            return tags.includes(tagFilter);
+          }).map((product: any) => (
             <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer" onClick={() => setDetailProduct(product)}>
               {/* Product Image */}
               {(() => {
@@ -586,6 +627,18 @@ function LiverSelectionTab() {
                         )}
                       </Badge>
                     </div>
+                    {/* Tag badges */}
+                    {(() => {
+                      const tags: string[] = product.tags ? (typeof product.tags === 'string' ? JSON.parse(product.tags) : product.tags) : [];
+                      if (tags.length === 0) return null;
+                      return (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {tags.map((tag: string) => (
+                            <span key={tag} className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-700 border border-purple-200">{tag}</span>
+                          ))}
+                        </div>
+                      );
+                    })()}
                     {product.sellingPoints && (
                       <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{product.sellingPoints}</p>
                     )}
