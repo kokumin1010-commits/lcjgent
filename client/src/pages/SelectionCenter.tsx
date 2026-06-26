@@ -810,61 +810,180 @@ function SelectionsTab() {
 // ==================== Schedules Tab ====================
 function SchedulesTab() {
   const schedulesQuery = trpc.selectionCenter.getSchedules.useQuery();
+  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 200, status: 'online' });
+  const liversQuery = trpc.selectionCenter.getLivers.useQuery();
   const updateMutation = trpc.selectionCenter.updateSchedule.useMutation({
     onSuccess: () => { schedulesQuery.refetch(); toast.success("排期を更新しました"); },
   });
+  const createMutation = trpc.selectionCenter.createSchedule.useMutation({
+    onSuccess: () => { schedulesQuery.refetch(); toast.success("排期を追加しました"); setShowCreateDialog(false); resetForm(); },
+  });
+
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [formAnchorId, setFormAnchorId] = useState<string>("");
+  const [formProductId, setFormProductId] = useState<string>("");
+  const [formLiveDate, setFormLiveDate] = useState<string>("");
+  const [formStartTime, setFormStartTime] = useState<string>("");
+  const [formEndTime, setFormEndTime] = useState<string>("");
+  const [formSlotOrder, setFormSlotOrder] = useState<string>("");
+
+  const resetForm = () => {
+    setFormAnchorId(""); setFormProductId(""); setFormLiveDate(""); setFormStartTime(""); setFormEndTime(""); setFormSlotOrder("");
+  };
+
+  const handleCreate = () => {
+    if (!formAnchorId || !formProductId || !formLiveDate) {
+      toast.error("主播、商品、配信日は必須です"); return;
+    }
+    createMutation.mutate({
+      anchorId: Number(formAnchorId),
+      productId: Number(formProductId),
+      liveDate: formLiveDate,
+      startTime: formStartTime || undefined,
+      endTime: formEndTime || undefined,
+      slotOrder: formSlotOrder ? Number(formSlotOrder) : undefined,
+    });
+  };
+
+  // Group schedules by date
+  const groupedSchedules = useMemo(() => {
+    if (!schedulesQuery.data) return {};
+    const groups: Record<string, any[]> = {};
+    schedulesQuery.data.forEach((s: any) => {
+      const date = s.liveDate?.split('T')[0] || s.liveDate;
+      if (!groups[date]) groups[date] = [];
+      groups[date].push(s);
+    });
+    return groups;
+  }, [schedulesQuery.data]);
+
+  const getLiverName = (anchorId: number) => {
+    const liver = liversQuery.data?.find((l: any) => l.id === anchorId);
+    return liver?.name || `ID: ${anchorId}`;
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">排期管理</h3>
+        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+          <DialogTrigger asChild>
+            <Button size="sm"><Plus className="h-4 w-4 mr-1" />排期追加</Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>排期追加</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>主播 *</Label>
+                <Select value={formAnchorId} onValueChange={setFormAnchorId}>
+                  <SelectTrigger><SelectValue placeholder="主播を選択" /></SelectTrigger>
+                  <SelectContent>
+                    {liversQuery.data?.map((liver: any) => (
+                      <SelectItem key={liver.id} value={String(liver.id)}>{liver.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>商品 *</Label>
+                <Select value={formProductId} onValueChange={setFormProductId}>
+                  <SelectTrigger><SelectValue placeholder="商品を選択" /></SelectTrigger>
+                  <SelectContent>
+                    {productsQuery.data?.products?.map((p: any) => (
+                      <SelectItem key={p.id} value={String(p.id)}>{p.productName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>配信日 *</Label>
+                <Input type="date" value={formLiveDate} onChange={(e) => setFormLiveDate(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>開始時間</Label>
+                  <Input type="time" value={formStartTime} onChange={(e) => setFormStartTime(e.target.value)} />
+                </div>
+                <div>
+                  <Label>終了時間</Label>
+                  <Input type="time" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <Label>順番</Label>
+                <Input type="number" placeholder="1, 2, 3..." value={formSlotOrder} onChange={(e) => setFormSlotOrder(e.target.value)} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>キャンセル</Button>
+              <Button onClick={handleCreate} disabled={createMutation.isPending}>
+                {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                追加
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
-      <div className="border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="text-left p-3 font-medium">配信日</th>
-              <th className="text-left p-3 font-medium">主播ID</th>
-              <th className="text-left p-3 font-medium">商品</th>
-              <th className="text-center p-3 font-medium">時間帯</th>
-              <th className="text-center p-3 font-medium">順番</th>
-              <th className="text-center p-3 font-medium">ステータス</th>
-              <th className="text-center p-3 font-medium">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {schedulesQuery.data?.map((schedule: any) => (
-              <tr key={schedule.id} className="border-t hover:bg-muted/30">
-                <td className="p-3">{schedule.liveDate}</td>
-                <td className="p-3">{schedule.anchorId}</td>
-                <td className="p-3">{schedule.product?.productName || "-"}</td>
-                <td className="p-3 text-center">{schedule.startTime || "-"} ~ {schedule.endTime || "-"}</td>
-                <td className="p-3 text-center">{schedule.slotOrder || "-"}</td>
-                <td className="p-3 text-center">
-                  <Badge variant={schedule.status === "confirmed" ? "default" : schedule.status === "done" ? "secondary" : "outline"}>
-                    {schedule.status === "pending" ? "未確認" : schedule.status === "confirmed" ? "確認済" : schedule.status === "done" ? "完了" : "キャンセル"}
-                  </Badge>
-                </td>
-                <td className="p-3 text-center">
-                  {schedule.status === "pending" && (
-                    <Button size="sm" variant="ghost" onClick={() => updateMutation.mutate({ id: schedule.id, status: "confirmed" })}>
-                      <CheckCircle className="h-3.5 w-3.5 text-green-600" />
-                    </Button>
-                  )}
-                  {schedule.status === "confirmed" && (
-                    <Button size="sm" variant="ghost" onClick={() => updateMutation.mutate({ id: schedule.id, status: "done" })}>
-                      完了
-                    </Button>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {(!schedulesQuery.data || schedulesQuery.data.length === 0) && (
-              <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">排期データがありません</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+
+      {Object.keys(groupedSchedules).length > 0 ? (
+        Object.entries(groupedSchedules).sort(([a], [b]) => b.localeCompare(a)).map(([date, items]) => (
+          <div key={date} className="border rounded-lg overflow-hidden">
+            <div className="bg-muted/50 px-4 py-2 font-medium flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              {date}
+              <Badge variant="outline" className="ml-auto">{items.length}件</Badge>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-muted/30">
+                <tr>
+                  <th className="text-left p-3 font-medium">主播</th>
+                  <th className="text-left p-3 font-medium">商品</th>
+                  <th className="text-center p-3 font-medium">時間帯</th>
+                  <th className="text-center p-3 font-medium">順番</th>
+                  <th className="text-center p-3 font-medium">ステータス</th>
+                  <th className="text-center p-3 font-medium">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.sort((a: any, b: any) => (a.slotOrder || 99) - (b.slotOrder || 99)).map((schedule: any) => (
+                  <tr key={schedule.id} className="border-t hover:bg-muted/30">
+                    <td className="p-3 font-medium">{getLiverName(schedule.anchorId)}</td>
+                    <td className="p-3">{schedule.product?.productName || "-"}</td>
+                    <td className="p-3 text-center">{schedule.startTime || "-"} ~ {schedule.endTime || "-"}</td>
+                    <td className="p-3 text-center">{schedule.slotOrder || "-"}</td>
+                    <td className="p-3 text-center">
+                      <Badge variant={schedule.status === "confirmed" ? "default" : schedule.status === "done" ? "secondary" : "outline"}>
+                        {schedule.status === "pending" ? "未確認" : schedule.status === "confirmed" ? "確認済" : schedule.status === "done" ? "完了" : "キャンセル"}
+                      </Badge>
+                    </td>
+                    <td className="p-3 text-center space-x-1">
+                      {schedule.status === "pending" && (
+                        <Button size="sm" variant="ghost" onClick={() => updateMutation.mutate({ id: schedule.id, status: "confirmed" })}>
+                          <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                        </Button>
+                      )}
+                      {schedule.status === "confirmed" && (
+                        <Button size="sm" variant="ghost" onClick={() => updateMutation.mutate({ id: schedule.id, status: "done" })}>
+                          完了
+                        </Button>
+                      )}
+                      {(schedule.status === "pending" || schedule.status === "confirmed") && (
+                        <Button size="sm" variant="ghost" onClick={() => updateMutation.mutate({ id: schedule.id, status: "cancelled" })}>
+                          <X className="h-3.5 w-3.5 text-red-500" />
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))
+      ) : (
+        <div className="border rounded-lg p-8 text-center text-muted-foreground">
+          排期データがありません。「排期追加」ボタンから新しい排期を作成してください。
+        </div>
+      )}
     </div>
   );
 }
