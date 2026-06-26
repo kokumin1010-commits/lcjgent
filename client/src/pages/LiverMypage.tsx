@@ -1483,6 +1483,11 @@ export default function LiverMypage() {
                                 <span className="text-white/40 ml-2 flex-shrink-0">¥{Number(item.originalPrice || 0).toLocaleString()}</span>
                               </div>
                             ))}
+                            <div className="flex items-center justify-end mt-1 pt-1 border-t border-gray-600/10">
+                              <span className="text-[11px] font-semibold text-cyan-400">
+                                合計 {set.items.reduce((sum: number, item: any) => sum + (Number(item.quantity) || 1), 0)}点
+                              </span>
+                            </div>
                           </div>
                         )}
                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-600/20">
