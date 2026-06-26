@@ -903,7 +903,8 @@ function SchedulesTab() {
     if (!schedulesQuery.data) return {};
     const groups: Record<string, any[]> = {};
     schedulesQuery.data.forEach((s: any) => {
-      const date = s.liveDate?.split('T')[0] || s.liveDate;
+      const rawDate = s.liveDate instanceof Date ? s.liveDate.toISOString() : String(s.liveDate || '');
+      const date = rawDate.split('T')[0] || rawDate;
       if (!groups[date]) groups[date] = [];
       groups[date].push(s);
     });
