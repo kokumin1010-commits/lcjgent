@@ -713,6 +713,11 @@ function LiverSelectionTab() {
                 </div>
               )}
 
+              {/* Brand Performance History */}
+              {detailProduct.brandName && (
+                <BrandPerformancePanel brandName={detailProduct.brandName} productName={detailProduct.productName} />
+              )}
+
               {/* Select button */}
               <div className="flex justify-end pt-2">
                 {!selectedLiverId ? (
@@ -1417,6 +1422,94 @@ function SettlementsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ==================== Brand Performance Panel (for detail dialog) ====================
+function BrandPerformancePanel({ brandName, productName }: { brandName: string; productName: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const perfQuery = trpc.selectionCenter.getBrandPerformanceSummary.useQuery(
+    { brandName },
+    { enabled: expanded }
+  );
+
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-colors text-left"
+      >
+        <div className="flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-blue-600" />
+          <span className="text-sm font-semibold text-blue-900">帯貨履歴データ</span>
+          <Badge variant="outline" className="text-[10px]">{brandName}</Badge>
+        </div>
+        <span className="text-xs text-muted-foreground">{expanded ? '▲ 閉じる' : '▼ 展開'}</span>
+      </button>
+      {expanded && (
+        <div className="p-3 space-y-3">
+          {perfQuery.isLoading && (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+              <span className="ml-2 text-sm text-muted-foreground">データ取得中...</span>
+            </div>
+          )}
+          {perfQuery.data && !perfQuery.data.found && (
+            <p className="text-sm text-muted-foreground text-center py-3">このブランドの帯貨データはまだありません</p>
+          )}
+          {perfQuery.data?.found && perfQuery.data.summary && (
+            <>
+              {/* Summary cards */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-orange-50 rounded p-2 text-center">
+                  <p className="text-[10px] text-muted-foreground">GMV</p>
+                  <p className="text-sm font-bold text-orange-600">¥{perfQuery.data.summary.totalGmv.toLocaleString()}</p>
+                </div>
+                <div className="bg-blue-50 rounded p-2 text-center">
+                  <p className="text-[10px] text-muted-foreground">インプ</p>
+                  <p className="text-sm font-bold text-blue-600">{perfQuery.data.summary.totalImpressions.toLocaleString()}</p>
+                </div>
+                <div className="bg-green-50 rounded p-2 text-center">
+                  <p className="text-[10px] text-muted-foreground">CTR</p>
+                  <p className="text-sm font-bold text-green-600">{perfQuery.data.summary.avgCtr}%</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-purple-50 rounded p-2 text-center">
+                  <p className="text-[10px] text-muted-foreground">販売数</p>
+                  <p className="text-sm font-bold text-purple-600">{perfQuery.data.summary.totalSales.toLocaleString()}</p>
+                </div>
+                <div className="bg-pink-50 rounded p-2 text-center">
+                  <p className="text-[10px] text-muted-foreground">クリック</p>
+                  <p className="text-sm font-bold text-pink-600">{perfQuery.data.summary.totalClicks.toLocaleString()}</p>
+                </div>
+                <div className="bg-gray-50 rounded p-2 text-center">
+                  <p className="text-[10px] text-muted-foreground">配信回数</p>
+                  <p className="text-sm font-bold">{perfQuery.data.summary.totalStreams}</p>
+                </div>
+              </div>
+              {/* Top products */}
+              {perfQuery.data.products.length > 0 && (
+                <div>
+                  <h5 className="text-xs font-semibold text-muted-foreground mb-1">商品別実績 (TOP {Math.min(perfQuery.data.products.length, 10)})</h5>
+                  <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                    {perfQuery.data.products.slice(0, 10).map((p: any, idx: number) => (
+                      <div key={idx} className="flex items-center justify-between text-xs p-1.5 rounded hover:bg-muted/50">
+                        <span className="truncate flex-1 mr-2">{p.productName}</span>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-orange-600 font-medium">¥{p.totalGmv.toLocaleString()}</span>
+                          <span className="text-muted-foreground">{p.streamCount}回</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

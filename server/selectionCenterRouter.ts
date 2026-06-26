@@ -841,6 +841,81 @@ export const selectionCenterRouter = router({
     }));
   }),
 
+  // ========== Brand Performance Summary (for 主播選品) ==========
+  getBrandPerformanceSummary: protectedProcedure.input(z.object({
+    brandName: z.string(),
+  })).query(async ({ input }) => {
+    const pool = getPool();
+    const searchTerm = `%${input.brandName.trim()}%`;
+    const [rows] = await pool.query(`
+      SELECT 
+        lp.productName,
+        lp.directGmv,
+        lp.grossRevenue,
+        lp.itemsSold,
+        lp.productImpressions,
+        lp.productClicks,
+        lp.ctr,
+        lp.ctor,
+        lp.unitPrice,
+        bl.livestreamDate,
+        bl.streamerName
+      FROM livestream_products lp
+      JOIN brand_livestreams bl ON lp.livestreamId = bl.id
+      WHERE lp.productName LIKE ?
+      ORDER BY bl.livestreamDate DESC
+      LIMIT 500
+    `, [searchTerm]) as any;
+    if (rows.length === 0) return { found: false, products: [], summary: null };
+    const productMap = new Map<string, {
+      productName: string;
+      totalGmv: number;
+      totalSales: number;
+      totalImpressions: number;
+      totalClicks: number;
+      streamCount: number;
+      avgUnitPrice: number;
+      lastStreamDate: string;
+    }>();
+    let totalGmv = 0, totalSales = 0, totalImpressions = 0, totalClicks = 0, totalStreams = 0;
+    for (const row of rows) {
+      const name = row.productName;
+      const gmv = Number(row.directGmv || row.grossRevenue || 0);
+      const sales = Number(row.itemsSold || 0);
+      const imp = Number(row.productImpressions || 0);
+      const clicks = Number(row.productClicks || 0);
+      totalGmv += gmv;
+      totalSales += sales;
+      totalImpressions += imp;
+      totalClicks += clicks;
+      totalStreams++;
+      if (!productMap.has(name)) {
+        productMap.set(name, {
+          productName: name, totalGmv: 0, totalSales: 0, totalImpressions: 0,
+          totalClicks: 0, streamCount: 0, avgUnitPrice: 0, lastStreamDate: '',
+        });
+      }
+      const p = productMap.get(name)!;
+      p.totalGmv += gmv;
+      p.totalSales += sales;
+      p.totalImpressions += imp;
+      p.totalClicks += clicks;
+      p.streamCount++;
+      if (!p.lastStreamDate || new Date(row.livestreamDate) > new Date(p.lastStreamDate)) {
+        p.lastStreamDate = row.livestreamDate ? new Date(row.livestreamDate).toISOString() : '';
+      }
+      if (Number(row.unitPrice) > 0) p.avgUnitPrice = Number(row.unitPrice);
+    }
+    const products = Array.from(productMap.values()).sort((a, b) => b.totalGmv - a.totalGmv).slice(0, 20);
+    return {
+      found: true,
+      summary: { totalGmv, totalSales, totalImpressions, totalClicks, totalStreams,
+        avgCtr: totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(1) : '0',
+      },
+      products,
+    };
+  }),
+
   // ========== Add fileUrl column migration ==========
   migrateAddFileUrl: protectedProcedure.mutation(async () => {
     const pool = getPool();
