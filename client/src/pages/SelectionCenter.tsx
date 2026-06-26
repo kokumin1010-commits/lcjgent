@@ -810,7 +810,7 @@ function SelectionsTab() {
 // ==================== Schedules Tab ====================
 function SchedulesTab() {
   const schedulesQuery = trpc.selectionCenter.getSchedules.useQuery();
-  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 200, status: 'online' });
+  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 200 });
   const liversQuery = trpc.selectionCenter.getLivers.useQuery();
   const updateMutation = trpc.selectionCenter.updateSchedule.useMutation({
     onSuccess: () => { schedulesQuery.refetch(); toast.success("排期を更新しました"); },
@@ -889,7 +889,7 @@ function SchedulesTab() {
                 <Select value={formProductId} onValueChange={setFormProductId}>
                   <SelectTrigger><SelectValue placeholder="商品を選択" /></SelectTrigger>
                   <SelectContent>
-                    {productsQuery.data?.products?.map((p: any) => (
+                    {productsQuery.data?.items?.map((p: any) => (
                       <SelectItem key={p.id} value={String(p.id)}>{p.productName}</SelectItem>
                     ))}
                   </SelectContent>
