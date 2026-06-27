@@ -359,7 +359,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
           <div>
             <Label>品類タグ</Label>
             <div className="flex flex-wrap gap-2 mt-1">
-              {["引流款","福利款","爆品款","穿插福利款","KG品牌款","利润款","惊喜款","预告款"].map(tag => {
+              {["引流款","福利款","爆品款","KG品牌款","利润款","惊喜款","预告款"].map(tag => {
                 const tags: string[] = form.tags ? (typeof form.tags === 'string' ? JSON.parse(form.tags) : form.tags) : [];
                 const isSelected = tags.includes(tag);
                 return (
@@ -561,7 +561,7 @@ function LiverSelectionTab() {
       {/* Tag filter */}
       <div className="flex flex-wrap gap-2">
         <button onClick={() => setTagFilter("")} className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${!tagFilter ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}>全て</button>
-        {["引流款","福利款","爆品款","穿插福利款","KG品牌款","利润款","惊喜款","预告款"].map(tag => (
+        {["引流款","福利款","爆品款","KG品牌款","利润款","惊喜款","预告款"].map(tag => (
           <button key={tag} onClick={() => setTagFilter(tagFilter === tag ? "" : tag)} className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${tagFilter === tag ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}>{tag}</button>
         ))}
       </div>
