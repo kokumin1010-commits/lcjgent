@@ -260,6 +260,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
       supplierContact: form.supplierContact || undefined,
       talentExclusive: form.talentExclusive ? 1 : 0,
       exclusiveLiverIds: form.talentExclusive ? (form.exclusiveLiverIds || []) : [],
+      tags: form.tags && form.tags.length > 0 ? form.tags : [],
     };
     // Remove undefined values for cleaner payload
     Object.keys(submitData).forEach(k => { if (submitData[k] === undefined) delete submitData[k]; });
