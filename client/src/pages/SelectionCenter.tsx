@@ -11,9 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 // ==================== Products Tab ====================
 function ProductsTab() {
+  const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -30,16 +32,16 @@ function ProductsTab() {
   const liversQuery2 = trpc.selectionCenter.getLivers.useQuery();
   const liversData = liversQuery2.data || [];
   const createMutation = trpc.selectionCenter.createProduct.useMutation({
-    onSuccess: () => { productsQuery.refetch(); setShowCreateDialog(false); toast.success("商品を追加しました"); },
+    onSuccess: () => { productsQuery.refetch(); setShowCreateDialog(false); toast.success(t("sc.productAdded")); },
   });
   const updateMutation = trpc.selectionCenter.updateProduct.useMutation({
-    onSuccess: () => { productsQuery.refetch(); setEditProduct(null); toast.success("商品を更新しました"); },
+    onSuccess: () => { productsQuery.refetch(); setEditProduct(null); toast.success(t("sc.productUpdated")); },
   });
   const statusMutation = trpc.selectionCenter.updateProductStatus.useMutation({
-    onSuccess: () => { productsQuery.refetch(); toast.success("ステータスを更新しました"); },
+    onSuccess: () => { productsQuery.refetch(); toast.success(t("sc.statusUpdated")); },
   });
   const deleteProductMutation = trpc.selectionCenter.deleteProduct.useMutation({
-    onSuccess: () => { productsQuery.refetch(); toast.success("商品を削除しました"); },
+    onSuccess: () => { productsQuery.refetch(); toast.success(t("sc.productDeleted")); },
   });
 
   return (
@@ -47,34 +49,34 @@ function ProductsTab() {
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="商品名・ブランド名・バーコードで検索..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder={t("sc.searchPlaceholder")} value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">全て</SelectItem>
-            <SelectItem value="draft">下書き</SelectItem>
-            <SelectItem value="online">公開中</SelectItem>
-            <SelectItem value="offline">非公開</SelectItem>
+            <SelectItem value="all">{t("sc.all")}</SelectItem>
+            <SelectItem value="draft">{t("sc.draft")}</SelectItem>
+            <SelectItem value="online">{t("sc.online")}</SelectItem>
+            <SelectItem value="offline">{t("sc.offline")}</SelectItem>
           </SelectContent>
         </Select>
-        <Button onClick={() => setShowCreateDialog(true)}><Plus className="h-4 w-4 mr-1" />商品追加</Button>
+        <Button onClick={() => setShowCreateDialog(true)}><Plus className="h-4 w-4 mr-1" />{t("sc.addProduct")}</Button>
       </div>
 
       <div className="border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
-              <th className="text-left p-3 font-medium w-12">画像</th>
-              <th className="text-left p-3 font-medium">商品名</th>
-              <th className="text-left p-3 font-medium">バーコード</th>
-              <th className="text-left p-3 font-medium">ブランド</th>
-              <th className="text-left p-3 font-medium">カテゴリ</th>
-              <th className="text-right p-3 font-medium">価格</th>
-              <th className="text-right p-3 font-medium">佣金</th>
-              <th className="text-center p-3 font-medium">在庫</th>
-              <th className="text-center p-3 font-medium">ステータス</th>
-              <th className="text-center p-3 font-medium">操作</th>
+              <th className="text-left p-3 font-medium w-12">{t("sc.image")}</th>
+              <th className="text-left p-3 font-medium">{t("sc.productName")}</th>
+              <th className="text-left p-3 font-medium">{t("sc.barcode")}</th>
+              <th className="text-left p-3 font-medium">{t("sc.brand")}</th>
+              <th className="text-left p-3 font-medium">{t("sc.category")}</th>
+              <th className="text-right p-3 font-medium">{t("sc.price")}</th>
+              <th className="text-right p-3 font-medium">{t("sc.commission")}</th>
+              <th className="text-center p-3 font-medium">{t("sc.stock")}</th>
+              <th className="text-center p-3 font-medium">{t("sc.status")}</th>
+              <th className="text-center p-3 font-medium">{t("sc.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -97,7 +99,7 @@ function ProductsTab() {
                   <td className="p-3 font-medium max-w-[200px]">
                     <div className="flex items-center gap-1 flex-wrap">
                       <span className="truncate">{product.productName}</span>
-                      {!!product.talentExclusive && <span className="inline-block text-[10px] bg-purple-100 text-purple-700 px-1 py-0.5 rounded font-medium whitespace-nowrap">達人限定</span>}
+                      {!!product.talentExclusive && <span className="inline-block text-[10px] bg-purple-100 text-purple-700 px-1 py-0.5 rounded font-medium whitespace-nowrap">{t("sc.talentExclusive")}</span>}
                     </div>
                     {product.productId && <span className="text-xs text-muted-foreground block">ID: {product.productId}</span>}
                     {(() => {
@@ -118,7 +120,7 @@ function ProductsTab() {
                   <td className="p-3 text-muted-foreground">
                     <span className="flex items-center gap-1">
                       {product.brandName}
-                      {product.hasTikTokBackend && <span className="inline-block text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium whitespace-nowrap">後台✓</span>}
+                      {product.hasTikTokBackend && <span className="inline-block text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium whitespace-nowrap">{t("sc.tiktokBackend")}</span>}
                     </span>
                   </td>
                   <td className="p-3">{category ? (categoriesQuery.data?.find((p: any) => p.id === category.parentId)?.name ? categoriesQuery.data.find((p: any) => p.id === category.parentId).name + " / " + category.name : category.name) : "-"}</td>
@@ -129,7 +131,7 @@ function ProductsTab() {
                   <td className="p-3 text-center">{product.stock ?? "-"}</td>
                   <td className="p-3 text-center">
                     <Badge variant={product.status === "online" ? "default" : product.status === "draft" ? "secondary" : "outline"}>
-                      {product.status === "online" ? "公開中" : product.status === "draft" ? "下書き" : "非公開"}
+                      {product.status === "online" ? t("sc.online") : product.status === "draft" ? t("sc.draft") : t("sc.offline")}
                     </Badge>
                   </td>
                   <td className="p-3 text-center">
@@ -145,7 +147,7 @@ function ProductsTab() {
                           <Eye className="h-3.5 w-3.5 text-orange-600" />
                         </Button>
                       )}
-                      <Button variant="ghost" size="sm" onClick={() => { if (confirm("この商品を削除しますか？")) deleteProductMutation.mutate({ id: product.id }); }}>
+                      <Button variant="ghost" size="sm" onClick={() => { if (confirm(t("sc.deleteConfirm"))) deleteProductMutation.mutate({ id: product.id }); }}>
                         <Trash2 className="h-3.5 w-3.5 text-red-500" />
                       </Button>
                     </div>
@@ -154,12 +156,12 @@ function ProductsTab() {
               );
             })}
             {(!productsQuery.data?.items || productsQuery.data.items.length === 0) && (
-              <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">商品がありません</td></tr>
+              <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">{t("sc.noProducts")}</td></tr>
             )}
           </tbody>
         </table>
       </div>
-      <p className="text-sm text-muted-foreground">全{productsQuery.data?.total || 0}件</p>
+      <p className="text-sm text-muted-foreground">{t("sc.totalItems").replace("{count}", String(productsQuery.data?.total || 0))}</p>
 
       {/* Create/Edit Dialog */}
       <ProductFormDialog
@@ -181,6 +183,7 @@ function ProductsTab() {
 }
 
 function ProductFormDialog({ open, onClose, product, categories, onSubmit, loading }: any) {
+  const { t } = useLanguage();
   const [form, setForm] = useState<any>(product || {});
   const [uploading, setUploading] = useState(false);
   const isEdit = !!product;
@@ -220,9 +223,9 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
         currentImages.push(result.url);
       }
       setForm({ ...form, images: currentImages });
-      toast.success(`${files.length}枚の画像をアップロードしました`);
+      toast.success(`${files.length}${t("sc.form.imageUploaded")}`);
     } catch (err: any) {
-      toast.error(err?.message || "画像のアップロードに失敗しました");
+      toast.error(err?.message || t("sc.form.imageUploadFailed"));
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -271,16 +274,16 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "商品編集" : "商品追加"}</DialogTitle>
+          <DialogTitle>{isEdit ? t("sc.form.editTitle") : t("sc.form.addTitle")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           {/* Image Upload Section */}
           <div>
-            <Label>商品画像</Label>
+            <Label>{t("sc.form.productImage")}</Label>
             <div className="mt-2 flex flex-wrap gap-3">
               {imageList.map((url: string, idx: number) => (
                 <div key={idx} className="relative group w-20 h-20 rounded-lg border overflow-hidden">
-                  <img src={url} alt={`商品画像 ${idx + 1}`} className="w-full h-full object-cover" />
+                  <img src={url} alt={`${t("sc.form.imageAlt")} ${idx + 1}`} className="w-full h-full object-cover" />
                   <button
                     type="button"
                     onClick={() => removeImage(idx)}
@@ -296,7 +299,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
                 ) : (
                   <>
                     <ImagePlus className="w-5 h-5 text-muted-foreground" />
-                    <span className="text-[10px] text-muted-foreground mt-1">追加</span>
+                    <span className="text-[10px] text-muted-foreground mt-1">{t("sc.form.addImage")}</span>
                   </>
                 )}
                 <input
@@ -313,31 +316,31 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
 
           {/* 商品名 - full width */}
           <div>
-            <Label>商品名 *</Label>
+            <Label>{t("sc.form.productNameLabel")}</Label>
             <Input value={form.productName || ""} onChange={e => setForm({ ...form, productName: e.target.value })} />
           </div>
 
           {/* 商品ID + バーコード - 2 columns */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>商品ID</Label>
-              <Input value={form.productId || ""} onChange={e => setForm({ ...form, productId: e.target.value })} placeholder="TikTok Shop商品ID" />
+              <Label>{t("sc.form.productId")}</Label>
+              <Input value={form.productId || ""} onChange={e => setForm({ ...form, productId: e.target.value })} placeholder={t("sc.form.productIdPlaceholder")} />
             </div>
             <div>
-              <Label>商品バーコード</Label>
-              <Input value={form.barcode || ""} onChange={e => setForm({ ...form, barcode: e.target.value })} placeholder="JANコード / EANコード" />
+              <Label>{t("sc.form.barcode")}</Label>
+              <Input value={form.barcode || ""} onChange={e => setForm({ ...form, barcode: e.target.value })} placeholder={t("sc.form.barcodePlaceholder")} />
             </div>
           </div>
 
           {/* ブランド + カテゴリ - 2 columns */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>ブランド名 *</Label>
+              <Label>{t("sc.form.brandName")}</Label>
               <Select value={String(form.brandId || "")} onValueChange={v => {
                 const brand = (brandsQuery.data || []).find((b: any) => String(b.id) === v);
                 setForm({ ...form, brandId: Number(v), brandName: brand?.name || "" });
               }}>
-                <SelectTrigger><SelectValue placeholder="ブランドを選択..." /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("sc.form.brandPlaceholder")} /></SelectTrigger>
                 <SelectContent>
                   {(brandsQuery.data || []).map((b: any) => (
                     <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
@@ -346,9 +349,9 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
               </Select>
             </div>
             <div>
-              <Label>カテゴリ</Label>
+              <Label>{t("sc.form.category")}</Label>
               <Select value={String(form.categoryId || "")} onValueChange={v => setForm({ ...form, categoryId: Number(v) })}>
-                <SelectTrigger><SelectValue placeholder="選択..." /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("sc.form.categoryPlaceholder")} /></SelectTrigger>
                 <SelectContent>
                   {categories.map((c: any) => { const parent = c.parentId ? categories.find((p: any) => p.id === c.parentId) : null; return <SelectItem key={c.id} value={String(c.id)}>{parent ? parent.name + " / " : ""}{c.name}</SelectItem>; })}
                 </SelectContent>
@@ -358,7 +361,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
 
           {/* 品類タグ */}
           <div>
-            <Label>品類タグ</Label>
+            <Label>{t("sc.form.tags")}</Label>
             <div className="flex flex-wrap gap-2 mt-1">
               {["引流款","福利款","爆品款","KG品牌款","利润款","惊喜款","预告款"].map(tag => {
                 const tags: string[] = form.tags ? (typeof form.tags === 'string' ? JSON.parse(form.tags) : form.tags) : [];
@@ -378,11 +381,11 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
           {/* 販売価格 + 市場価格 - 2 columns */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>販売価格</Label>
+              <Label>{t("sc.form.sellingPrice")}</Label>
               <Input type="number" value={form.price || ""} onChange={e => setForm({ ...form, price: e.target.value })} />
             </div>
             <div>
-              <Label>市場価格</Label>
+              <Label>{t("sc.form.marketPrice")}</Label>
               <Input type="number" value={form.marketPrice || ""} onChange={e => setForm({ ...form, marketPrice: e.target.value })} />
             </div>
           </div>
@@ -390,17 +393,17 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
           {/* 佣金タイプ + 佣金値 - 2 columns */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>佣金タイプ</Label>
+              <Label>{t("sc.form.commissionType")}</Label>
               <Select value={form.commissionType || "percentage"} onValueChange={v => setForm({ ...form, commissionType: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="percentage">パーセント (%)</SelectItem>
-                  <SelectItem value="fixed">固定額 (¥)</SelectItem>
+                  <SelectItem value="percentage">{t("sc.form.commissionPercentage")}</SelectItem>
+                  <SelectItem value="fixed">{t("sc.form.commissionFixed")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label>佣金値</Label>
+              <Label>{t("sc.form.commissionValue")}</Label>
               <Input type="number" value={form.commissionValue || ""} onChange={e => setForm({ ...form, commissionValue: e.target.value })} />
             </div>
           </div>
@@ -408,24 +411,24 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
           {/* 在庫数 + 商品リンク - 2 columns */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>在庫数</Label>
+              <Label>{t("sc.form.stock")}</Label>
               <Input type="number" value={form.stock || ""} onChange={e => setForm({ ...form, stock: Number(e.target.value) })} />
             </div>
             <div>
-              <Label>商品リンク</Label>
+              <Label>{t("sc.form.productLink")}</Label>
               <Input value={form.productLink || ""} onChange={e => setForm({ ...form, productLink: e.target.value })} />
             </div>
           </div>
 
           {/* セールスポイント - full width */}
           <div>
-            <Label>セールスポイント</Label>
+            <Label>{t("sc.form.sellingPoints")}</Label>
             <Textarea value={form.sellingPoints || ""} onChange={e => setForm({ ...form, sellingPoints: e.target.value })} rows={3} />
           </div>
 
           {/* サプライヤー連絡先 - full width */}
           <div>
-            <Label>サプライヤー連絡先</Label>
+            <Label>{t("sc.form.supplierContact")}</Label>
             <Input value={form.supplierContact || ""} onChange={e => setForm({ ...form, supplierContact: e.target.value })} />
           </div>
 
@@ -442,11 +445,11 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
                 }}
                 className="w-4 h-4 rounded border-gray-300"
               />
-              <Label htmlFor="talentExclusive" className="cursor-pointer font-medium">達人限定</Label>
+              <Label htmlFor="talentExclusive" className="cursor-pointer font-medium">{t("sc.form.talentExclusive")}</Label>
             </div>
             {!!form.talentExclusive && (
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">限定主播を選択:</Label>
+                <Label className="text-xs text-muted-foreground">{t("sc.liver.selectPlaceholder")}</Label>
                 {/* Selected livers display */}
                 {(form.exclusiveLiverIds || []).length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
@@ -471,7 +474,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
                   }
                 }}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="主播を追加..." />
+                    <SelectValue placeholder={t("sc.liver.selectPlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
                     {(liversQuery.data || []).filter((l: any) => !(form.exclusiveLiverIds || []).includes(l.id)).map((l: any) => (
@@ -484,9 +487,9 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>キャンセル</Button>
+          <Button variant="outline" onClick={onClose}>{t("sc.form.cancel")}</Button>
           <Button onClick={handleSubmit} disabled={loading || uploading || !form.productName || !form.brandId}>
-            {loading ? "保存中..." : isEdit ? "更新" : "追加"}
+            {loading ? t("sc.form.saving") : isEdit ? t("sc.form.update") : t("sc.form.addImage")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -497,6 +500,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
 
 // ==================== 主播選品 Tab ====================
 function LiverSelectionTab() {
+  const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const [selectedLiverId, setSelectedLiverId] = useState<string>("");
   const [detailProduct, setDetailProduct] = useState<any>(null);
@@ -511,7 +515,7 @@ function LiverSelectionTab() {
   const selectMutation = trpc.selectionCenter.liverSelectProduct.useMutation({
     onSuccess: () => {
       selectionsQuery.refetch();
-      toast.success("選品しました！");
+      toast.success(t("sc.liver.selectionSuccess"));
     },
     onError: (err) => {
       toast.error(err.message);
@@ -521,7 +525,7 @@ function LiverSelectionTab() {
   const deleteMutation = trpc.selectionCenter.deleteSelection.useMutation({
     onSuccess: () => {
       selectionsQuery.refetch();
-      toast.success("選品を取消しました");
+      toast.success(t("sc.liver.selectionCancelled"));
     },
   });
 
@@ -540,28 +544,28 @@ function LiverSelectionTab() {
       {/* Liver selector and search */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <Label className="whitespace-nowrap font-medium">主播:</Label>
+          <Label className="whitespace-nowrap font-medium">{t("sc.liver.label")}</Label>
           <Select value={selectedLiverId} onValueChange={setSelectedLiverId}>
-            <SelectTrigger className="w-[200px]"><SelectValue placeholder="主播を選択..." /></SelectTrigger>
+            <SelectTrigger className="w-[200px]"><SelectValue placeholder={t("sc.liver.selectPlaceholder")} /></SelectTrigger>
             <SelectContent>
               {(liversQuery.data || []).map((liver: any) => (
                 <SelectItem key={liver.id} value={String(liver.id)}>{liver.name}</SelectItem>
               ))}
               {(!liversQuery.data || liversQuery.data.length === 0) && (
-                <SelectItem value="__none" disabled>主播がいません</SelectItem>
+                <SelectItem value="__none" disabled>{t("sc.liver.noLivers")}</SelectItem>
               )}
             </SelectContent>
           </Select>
         </div>
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="商品名・ブランド名で検索..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder={t("sc.liver.searchPlaceholder")} value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
       </div>
 
       {/* Tag filter */}
       <div className="flex flex-wrap gap-2">
-        <button onClick={() => setTagFilter("")} className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${!tagFilter ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}>全て</button>
+        <button onClick={() => setTagFilter("")} className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${!tagFilter ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}>{t("sc.all")}</button>
         {["引流款","福利款","爆品款","KG品牌款","利润款","惊喜款","预告款"].map(tag => (
           <button key={tag} onClick={() => setTagFilter(tagFilter === tag ? "" : tag)} className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${tagFilter === tag ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}>{tag}</button>
         ))}
@@ -569,11 +573,11 @@ function LiverSelectionTab() {
 
       {/* Available products grid */}
       <div>
-        <h4 className="text-sm font-medium text-muted-foreground mb-3">公開中の商品（{productsQuery.data?.filter((p: any) => {
+        <h4 className="text-sm font-medium text-muted-foreground mb-3">{t("sc.liver.onlineProducts").replace("{count}", String(productsQuery.data?.filter((p: any) => {
           if (!tagFilter) return true;
           const tags: string[] = p.tags ? (typeof p.tags === 'string' ? JSON.parse(p.tags) : p.tags) : [];
           return tags.includes(tagFilter);
-        }).length || 0}件）</h4>
+        }).length || 0))}</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {productsQuery.data?.filter((p: any) => {
             if (!tagFilter) return true;
@@ -605,7 +609,7 @@ function LiverSelectionTab() {
                     <h3 className="font-semibold truncate">{product.productName}</h3>
                     <p className="text-sm text-muted-foreground flex items-center gap-1">
                       {product.brandName}
-                      {product.hasTikTokBackend && <span className="inline-block text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium">後台✓</span>}
+                      {product.hasTikTokBackend && <span className="inline-block text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium">{t("sc.tiktokBackend")}</span>}
                     </p>
                     <div className="flex items-center gap-2 mt-2 text-sm flex-wrap">
                       <span className="font-bold text-orange-600 text-base">¥{Number(product.price || 0).toLocaleString()}</span>
@@ -620,7 +624,7 @@ function LiverSelectionTab() {
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-sm">
                       <Badge variant="outline" className="text-xs">
-                        佣金: {product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`}
+                        {t("sc.commission")}: {product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`}
                         {product.commissionType === "percentage" && product.price && product.commissionValue && (
                           <span className="ml-1 text-orange-600 font-medium">
                             (¥{Math.round(Number(product.price) * Number(product.commissionValue) / 100).toLocaleString()})
@@ -646,12 +650,12 @@ function LiverSelectionTab() {
                   </div>
                   <div onClick={(e) => e.stopPropagation()}>
                     {!selectedLiverId ? (
-                      <Button size="sm" variant="outline" disabled className="text-xs">主播を選択</Button>
+                      <Button size="sm" variant="outline" disabled className="text-xs">{t("sc.liver.selectLiver")}</Button>
                     ) : selectedProductIds.has(product.id) ? (
-                      <Button size="sm" variant="secondary" disabled><Check className="h-4 w-4 mr-1" />選品済</Button>
+                      <Button size="sm" variant="secondary" disabled><Check className="h-4 w-4 mr-1" />{t("sc.liver.selected")}</Button>
                     ) : (
                       <Button size="sm" onClick={() => selectMutation.mutate({ productId: product.id, liverId: Number(selectedLiverId) })} disabled={selectMutation.isPending}>
-                        選品する
+                        {t("sc.liver.select")}
                       </Button>
                     )}
                   </div>
@@ -661,7 +665,7 @@ function LiverSelectionTab() {
           ))}
           {(!productsQuery.data || productsQuery.data.length === 0) && (
             <div className="col-span-full text-center py-12 text-muted-foreground">
-              公開中の商品がありません。「商品管理」タブで商品を公開してください。
+              {t("sc.liver.noOnlineProducts")}
             </div>
           )}
         </div>
@@ -697,29 +701,29 @@ function LiverSelectionTab() {
               {/* Basic Info */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-muted-foreground text-xs">ブランド</Label>
+                  <Label className="text-muted-foreground text-xs">{t("sc.liver.brandLabel")}</Label>
                   <p className="font-medium">{detailProduct.brandName || '-'}</p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground text-xs">バーコード</Label>
+                  <Label className="text-muted-foreground text-xs">{t("sc.liver.barcodeLabel")}</Label>
                   <p className="font-medium">{detailProduct.barcode || '-'}</p>
                 </div>
               </div>
 
               {/* Price Info */}
               <div className="bg-muted/50 rounded-lg p-4">
-                <h4 className="text-sm font-semibold mb-2">価格情報</h4>
+                <h4 className="text-sm font-semibold mb-2">{t("sc.liver.priceInfo")}</h4>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <Label className="text-muted-foreground text-xs">販売価格</Label>
+                    <Label className="text-muted-foreground text-xs">{t("sc.liver.sellingPrice")}</Label>
                     <p className="font-bold text-orange-600 text-lg">¥{Number(detailProduct.price || 0).toLocaleString()}</p>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground text-xs">市場価格</Label>
+                    <Label className="text-muted-foreground text-xs">{t("sc.liver.marketPrice")}</Label>
                     <p className="font-medium text-muted-foreground line-through">¥{Number(detailProduct.marketPrice || 0).toLocaleString()}</p>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground text-xs">割引率</Label>
+                    <Label className="text-muted-foreground text-xs">{t("sc.liver.discount")}</Label>
                     <p className="font-bold text-red-600">
                       {detailProduct.marketPrice && Number(detailProduct.marketPrice) > Number(detailProduct.price || 0)
                         ? `${Math.round((1 - Number(detailProduct.price || 0) / Number(detailProduct.marketPrice)) * 100)}%OFF`
@@ -732,13 +736,13 @@ function LiverSelectionTab() {
               {/* Commission */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-muted-foreground text-xs">佣金</Label>
+                  <Label className="text-muted-foreground text-xs">{t("sc.liver.commission")}</Label>
                   <p className="font-medium">
                     {detailProduct.commissionType === 'percentage' ? `${detailProduct.commissionValue}%` : `¥${detailProduct.commissionValue}`}
                   </p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground text-xs">在庫</Label>
+                  <Label className="text-muted-foreground text-xs">{t("sc.liver.stock")}</Label>
                   <p className="font-medium">{detailProduct.stock || 0}</p>
                 </div>
               </div>
@@ -746,7 +750,7 @@ function LiverSelectionTab() {
               {/* Selling Points */}
               {detailProduct.sellingPoints && (
                 <div>
-                  <Label className="text-muted-foreground text-xs">セールスポイント</Label>
+                  <Label className="text-muted-foreground text-xs">{t("sc.liver.sellingPoints")}</Label>
                   <p className="text-sm mt-1 whitespace-pre-wrap">{detailProduct.sellingPoints}</p>
                 </div>
               )}
@@ -754,7 +758,7 @@ function LiverSelectionTab() {
               {/* Description */}
               {detailProduct.description && (
                 <div>
-                  <Label className="text-muted-foreground text-xs">商品説明</Label>
+                  <Label className="text-muted-foreground text-xs">{t("sc.liver.description")}</Label>
                   <p className="text-sm mt-1 whitespace-pre-wrap">{detailProduct.description}</p>
                 </div>
               )}
@@ -762,7 +766,7 @@ function LiverSelectionTab() {
               {/* Product Link */}
               {detailProduct.productLink && (
                 <div>
-                  <Label className="text-muted-foreground text-xs">商品リンク</Label>
+                  <Label className="text-muted-foreground text-xs">{t("sc.liver.productLink")}</Label>
                   <a href={detailProduct.productLink} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all">{detailProduct.productLink}</a>
                 </div>
               )}
@@ -775,12 +779,12 @@ function LiverSelectionTab() {
               {/* Select button */}
               <div className="flex justify-end pt-2">
                 {!selectedLiverId ? (
-                  <Button variant="outline" disabled>主播を選択してください</Button>
+                  <Button variant="outline" disabled>{t("sc.liver.selectLiverFirst")}</Button>
                 ) : selectedProductIds.has(detailProduct.id) ? (
-                  <Button variant="secondary" disabled><Check className="h-4 w-4 mr-1" />選品済</Button>
+                  <Button variant="secondary" disabled><Check className="h-4 w-4 mr-1" />{t("sc.liver.selected")}</Button>
                 ) : (
                   <Button onClick={() => { selectMutation.mutate({ productId: detailProduct.id, liverId: Number(selectedLiverId) }); setDetailProduct(null); }} disabled={selectMutation.isPending}>
-                    選品する
+                    {t("sc.liver.select")}
                   </Button>
                 )}
               </div>
@@ -796,35 +800,36 @@ function LiverSelectionTab() {
 
 // ==================== Selections Tab ====================
 function SelectionsTab() {
+  const { t } = useLanguage();
   const selectionsQuery = trpc.selectionCenter.getSelections.useQuery();
   const deleteMutation = trpc.selectionCenter.deleteSelection.useMutation({
     onSuccess: () => {
       selectionsQuery.refetch();
-      toast.success("選品を取消しました");
+      toast.success(t("sc.selections.cancelled"));
     },
   });
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">選品一覧（{selectionsQuery.data?.length || 0}件）</h3>
+        <h3 className="text-lg font-semibold">{t("sc.selections.title").replace("{count}", String(selectionsQuery.data?.length || 0))}</h3>
       </div>
       {selectionsQuery.isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
       ) : !selectionsQuery.data || selectionsQuery.data.length === 0 ? (
-        <Card><CardContent className="p-8 text-center text-muted-foreground">選品データがありません</CardContent></Card>
+        <Card><CardContent className="p-8 text-center text-muted-foreground">{t("sc.selections.noData")}</CardContent></Card>
       ) : (
         <div className="border rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
-                <th className="text-left p-3 font-medium">主播</th>
-                <th className="text-left p-3 font-medium">商品名</th>
-                <th className="text-left p-3 font-medium">ブランド</th>
-                <th className="text-center p-3 font-medium">販売価格</th>
-                <th className="text-center p-3 font-medium">佣金</th>
-                <th className="text-center p-3 font-medium">ステータス</th>
-                <th className="text-center p-3 font-medium">操作</th>
+                <th className="text-left p-3 font-medium">{t("sc.perf.liverCol")}</th>
+                <th className="text-left p-3 font-medium">{t("sc.selections.productName")}</th>
+                <th className="text-left p-3 font-medium">{t("sc.selections.brand")}</th>
+                <th className="text-center p-3 font-medium">{t("sc.selections.price")}</th>
+                <th className="text-center p-3 font-medium">{t("sc.selections.commission")}</th>
+                <th className="text-center p-3 font-medium">{t("sc.status")}</th>
+                <th className="text-center p-3 font-medium">{t("sc.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -843,7 +848,7 @@ function SelectionsTab() {
                   </td>
                   <td className="p-3 text-center">
                     <Badge variant={s.status === "approved" ? "default" : s.status === "rejected" ? "destructive" : "secondary"}>
-                      {s.status === "approved" ? "承認済" : s.status === "rejected" ? "却下" : "保留中"}
+                      {s.status === "approved" ? t("sc.selections.approved") : s.status === "rejected" ? t("sc.selections.rejected") : t("sc.selections.pending")}
                     </Badge>
                   </td>
                   <td className="p-3 text-center">
@@ -863,14 +868,15 @@ function SelectionsTab() {
 
 // ==================== Schedules Tab ====================
 function SchedulesTab() {
+  const { t } = useLanguage();
   const schedulesQuery = trpc.selectionCenter.getSchedules.useQuery();
   const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 200 });
   const liversQuery = trpc.selectionCenter.getLivers.useQuery();
   const updateMutation = trpc.selectionCenter.updateSchedule.useMutation({
-    onSuccess: () => { schedulesQuery.refetch(); toast.success("排期を更新しました"); },
+    onSuccess: () => { schedulesQuery.refetch(); toast.success(t("sc.schedules.updated")); },
   });
   const createMutation = trpc.selectionCenter.createSchedule.useMutation({
-    onSuccess: () => { schedulesQuery.refetch(); toast.success("排期を追加しました"); setShowCreateDialog(false); resetForm(); },
+    onSuccess: () => { schedulesQuery.refetch(); toast.success(t("sc.schedules.created")); setShowCreateDialog(false); resetForm(); },
   });
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -887,7 +893,7 @@ function SchedulesTab() {
 
   const handleCreate = () => {
     if (!formAnchorId || !formProductId || !formLiveDate) {
-      toast.error("主播、商品、配信日は必須です"); return;
+      toast.error(t("sc.schedules.validationError")); return;
     }
     createMutation.mutate({
       anchorId: Number(formAnchorId),
@@ -920,18 +926,18 @@ function SchedulesTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">排期管理</h3>
+        <h3 className="text-lg font-semibold">{t("sc.schedules.title")}</h3>
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogTrigger asChild>
-            <Button size="sm"><Plus className="h-4 w-4 mr-1" />排期追加</Button>
+            <Button size="sm"><Plus className="h-4 w-4 mr-1" />{t("sc.schedules.add")}</Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
-            <DialogHeader><DialogTitle>排期追加</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{t("sc.schedules.addTitle")}</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label>主播 *</Label>
+                <Label>{t("sc.schedules.liver")}</Label>
                 <Select value={formAnchorId} onValueChange={setFormAnchorId}>
-                  <SelectTrigger><SelectValue placeholder="主播を選択" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t("sc.schedules.selectLiver")} /></SelectTrigger>
                   <SelectContent>
                     {liversQuery.data?.map((liver: any) => (
                       <SelectItem key={liver.id} value={String(liver.id)}>{liver.name}</SelectItem>
@@ -940,9 +946,9 @@ function SchedulesTab() {
                 </Select>
               </div>
               <div>
-                <Label>商品 *</Label>
+                <Label>{t("sc.schedules.product")}</Label>
                 <Select value={formProductId} onValueChange={setFormProductId}>
-                  <SelectTrigger><SelectValue placeholder="商品を選択" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t("sc.schedules.selectProduct")} /></SelectTrigger>
                   <SelectContent>
                     {productsQuery.data?.items?.map((p: any) => (
                       <SelectItem key={p.id} value={String(p.id)}>{p.productName}</SelectItem>
@@ -951,29 +957,29 @@ function SchedulesTab() {
                 </Select>
               </div>
               <div>
-                <Label>配信日 *</Label>
+                <Label>{t("sc.schedules.streamDate")}</Label>
                 <Input type="date" value={formLiveDate} onChange={(e) => setFormLiveDate(e.target.value)} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>開始時間</Label>
+                  <Label>{t("sc.schedules.startTime")}</Label>
                   <Input type="time" value={formStartTime} onChange={(e) => setFormStartTime(e.target.value)} />
                 </div>
                 <div>
-                  <Label>終了時間</Label>
+                  <Label>{t("sc.schedules.endTime")}</Label>
                   <Input type="time" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} />
                 </div>
               </div>
               <div>
-                <Label>順番</Label>
+                <Label>{t("sc.schedules.order")}</Label>
                 <Input type="number" placeholder="1, 2, 3..." value={formSlotOrder} onChange={(e) => setFormSlotOrder(e.target.value)} />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>キャンセル</Button>
+              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>{t("sc.schedules.cancel")}</Button>
               <Button onClick={handleCreate} disabled={createMutation.isPending}>
                 {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                追加
+                {t("sc.schedules.create")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -986,17 +992,17 @@ function SchedulesTab() {
             <div className="bg-muted/50 px-4 py-2 font-medium flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               {date}
-              <Badge variant="outline" className="ml-auto">{items.length}件</Badge>
+              <Badge variant="outline" className="ml-auto">{items.length}{t("sc.schedules.items")}</Badge>
             </div>
             <table className="w-full text-sm">
               <thead className="bg-muted/30">
                 <tr>
-                  <th className="text-left p-3 font-medium">主播</th>
-                  <th className="text-left p-3 font-medium">商品</th>
-                  <th className="text-center p-3 font-medium">時間帯</th>
-                  <th className="text-center p-3 font-medium">順番</th>
-                  <th className="text-center p-3 font-medium">ステータス</th>
-                  <th className="text-center p-3 font-medium">操作</th>
+                  <th className="text-left p-3 font-medium">{t("sc.schedules.liverCol")}</th>
+                  <th className="text-left p-3 font-medium">{t("sc.schedules.productCol")}</th>
+                  <th className="text-center p-3 font-medium">{t("sc.schedules.timeSlot")}</th>
+                  <th className="text-center p-3 font-medium">{t("sc.schedules.orderCol")}</th>
+                  <th className="text-center p-3 font-medium">{t("sc.status")}</th>
+                  <th className="text-center p-3 font-medium">{t("sc.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1008,7 +1014,7 @@ function SchedulesTab() {
                     <td className="p-3 text-center">{schedule.slotOrder || "-"}</td>
                     <td className="p-3 text-center">
                       <Badge variant={schedule.status === "confirmed" ? "default" : schedule.status === "done" ? "secondary" : "outline"}>
-                        {schedule.status === "pending" ? "未確認" : schedule.status === "confirmed" ? "確認済" : schedule.status === "done" ? "完了" : "キャンセル"}
+                        {schedule.status === "pending" ? "未確認" : schedule.status === "confirmed" ? "確認済" : schedule.status === "done" ? "完了" : t("sc.form.cancel")}
                       </Badge>
                     </td>
                     <td className="p-3 text-center space-x-1">
@@ -1019,7 +1025,7 @@ function SchedulesTab() {
                       )}
                       {schedule.status === "confirmed" && (
                         <Button size="sm" variant="ghost" onClick={() => updateMutation.mutate({ id: schedule.id, status: "done" })}>
-                          完了
+                          {t("sc.schedules.markDone")}
                         </Button>
                       )}
                       {(schedule.status === "pending" || schedule.status === "confirmed") && (
@@ -1036,7 +1042,7 @@ function SchedulesTab() {
         ))
       ) : (
         <div className="border rounded-lg p-8 text-center text-muted-foreground">
-          排期データがありません。「排期追加」ボタンから新しい排期を作成してください。
+          {t("sc.schedules.noData")}
         </div>
       )}
     </div>
@@ -1045,6 +1051,7 @@ function SchedulesTab() {
 
 // ==================== Performances Tab ====================
 function PerformancesTab() {
+  const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [activeSubTab, setActiveSubTab] = useState<"products" | "daily" | "imports">("products");
@@ -1092,17 +1099,17 @@ function PerformancesTab() {
     <div className="space-y-4">
       {/* Header with streamer filter */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h3 className="text-lg font-semibold">帯貨データ・全商品パフォーマンス</h3>
+        <h3 className="text-lg font-semibold">{t("sc.perf.title")}</h3>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">ストリーマー:</span>
+          <span className="text-xs text-muted-foreground">{t("sc.perf.streamer")}</span>
           <Select value={selectedStreamer} onValueChange={(v) => { setSelectedStreamer(v); setExpandedProduct(null); setExpandedLivestream(null); }}>
             <SelectTrigger className="w-[180px] h-8 text-xs">
-              <SelectValue placeholder="全員" />
+              <SelectValue placeholder={t("sc.perf.allStreamers")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all__">全員（{streamerNames.reduce((s, n) => s + n.count, 0)}配信）</SelectItem>
+              <SelectItem value="__all__">{t("sc.perf.allStreamersCount").replace("{count}", String(streamerNames.reduce((s: number, n: any) => s + n.count, 0)))}</SelectItem>
               {streamerNames.map((s) => (
-                <SelectItem key={s.name} value={s.name}>{s.name}（{s.count}配信）</SelectItem>
+                <SelectItem key={s.name} value={s.name}>{s.name}{t("sc.perf.streamerCount").replace("{count}", String(s.count))}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -1116,21 +1123,21 @@ function PerformancesTab() {
           size="sm"
           onClick={() => setActiveSubTab("products")}
         >
-          <BarChart3 className="h-4 w-4 mr-1" />商品パフォーマンス
+          <BarChart3 className="h-4 w-4 mr-1" />{t("sc.perf.productPerf")}
         </Button>
         <Button 
           variant={activeSubTab === "daily" ? "default" : "ghost"} 
           size="sm"
           onClick={() => setActiveSubTab("daily")}
         >
-          <Calendar className="h-4 w-4 mr-1" />日別ビュー
+          <Calendar className="h-4 w-4 mr-1" />{t("sc.perf.dailyView")}
         </Button>
         <Button 
           variant={activeSubTab === "imports" ? "default" : "ghost"} 
           size="sm"
           onClick={() => setActiveSubTab("imports")}
         >
-          <ClipboardList className="h-4 w-4 mr-1" />インポート履歴
+          <ClipboardList className="h-4 w-4 mr-1" />{t("sc.perf.importHistory")}
         </Button>
       </div>
 
@@ -1141,7 +1148,7 @@ function PerformancesTab() {
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="商品名で検索..." 
+                placeholder={t("sc.perf.searchProduct")} 
                 value={search} 
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
@@ -1154,7 +1161,7 @@ function PerformancesTab() {
                 onClick={() => setSortMode('potential')}
                 className="text-xs"
               >
-                🎯 ポテンシャル順
+                {t("sc.perf.potential")}
               </Button>
               <Button
                 variant={sortMode === 'gmv' ? 'default' : 'outline'}
@@ -1162,7 +1169,7 @@ function PerformancesTab() {
                 onClick={() => setSortMode('gmv')}
                 className="text-xs"
               >
-                GMV順
+                {t("sc.perf.gmvOrder")}
               </Button>
               <Button
                 variant={sortMode === 'impressions' ? 'default' : 'outline'}
@@ -1170,7 +1177,7 @@ function PerformancesTab() {
                 onClick={() => setSortMode('impressions')}
                 className="text-xs"
               >
-                インプ順
+                {t("sc.perf.impressionOrder")}
               </Button>
             </div>
           </div>
@@ -1180,25 +1187,25 @@ function PerformancesTab() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Card>
                 <CardContent className="p-3">
-                  <p className="text-xs text-muted-foreground">全商品数</p>
+                  <p className="text-xs text-muted-foreground">{t("sc.perf.totalProductCount")}</p>
                   <p className="text-xl font-bold">{products.length}</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-3">
-                  <p className="text-xs text-muted-foreground">累計GMV</p>
+                  <p className="text-xs text-muted-foreground">{t("sc.totalGmv")}</p>
                   <p className="text-xl font-bold text-yellow-500">¥{products.reduce((s, p) => s + p.totalGmv, 0).toLocaleString()}</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-3">
-                  <p className="text-xs text-muted-foreground">累計販売数</p>
+                  <p className="text-xs text-muted-foreground">{t("sc.perf.totalSales")}</p>
                   <p className="text-xl font-bold">{products.reduce((s, p) => s + p.totalItemsSold, 0).toLocaleString()}</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-3">
-                  <p className="text-xs text-muted-foreground">累計インプ</p>
+                  <p className="text-xs text-muted-foreground">{t("sc.perf.totalImpressions")}</p>
                   <p className="text-xl font-bold">{products.reduce((s, p) => s + p.totalImpressions, 0).toLocaleString()}</p>
                 </CardContent>
               </Card>
@@ -1221,27 +1228,27 @@ function PerformancesTab() {
                         <p className="font-medium text-sm truncate">{product.productName}</p>
                         {potentialTop3.includes(product.productName) && (
                           <Badge className="text-[10px] px-1.5 py-0 h-4 shrink-0 bg-emerald-600 text-white">
-                            🎯 ライブ推奨
+                            {t("sc.perf.liveRecommend")}
                           </Badge>
                         )}
                         {(product as any).impressionSpike && (
                           <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
-                            🔥 インプ急上昇
+                            {t("sc.perf.impressionSurge")}
                           </Badge>
                         )}
                         {(product as any).clickSpike && (
                           <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 shrink-0 bg-orange-500">
-                            🔥 クリック急上昇
+                            {t("sc.perf.clickSurge")}
                           </Badge>
                         )}
                         {(product as any).highImpLowSales && (
                           <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 shrink-0 border-yellow-500 text-yellow-500">
-                            ⚠️ 高インプ低売上
+                            {t("sc.perf.highImpLowSales")}
                           </Badge>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {product.livestreamCount}回配信 ・ 平均単価 ¥{product.totalItemsSold > 0 ? Math.round(product.totalGmv / product.totalItemsSold).toLocaleString() : '0'}
+                        {t("sc.perf.streamCount").replace("{count}", String(product.livestreamCount))} ・ {t("sc.perf.avgPrice")} ¥{product.totalItemsSold > 0 ? Math.round(product.totalGmv / product.totalItemsSold).toLocaleString() : '0'}
                       </p>
                     </div>
                     <div className="flex items-center gap-4 text-right text-xs">
@@ -1250,15 +1257,15 @@ function PerformancesTab() {
                         <p className="font-semibold text-yellow-500">¥{product.totalGmv.toLocaleString()}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">販売数</p>
+                        <p className="text-muted-foreground">{t("sc.perf.salesCount")}</p>
                         <p className="font-semibold">{product.totalItemsSold.toLocaleString()}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">インプ</p>
+                        <p className="text-muted-foreground">{t("sc.perf.impressions")}</p>
                         <p className="font-semibold">{product.totalImpressions.toLocaleString()}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">クリック</p>
+                        <p className="text-muted-foreground">{t("sc.perf.clicks")}</p>
                         <p className="font-semibold">{product.totalClicks.toLocaleString()}</p>
                       </div>
                       <div className="w-5">
@@ -1276,13 +1283,13 @@ function PerformancesTab() {
                         <table className="w-full text-xs">
                           <thead className="bg-muted/40">
                             <tr>
-                              <th className="text-left p-2 font-medium">配信日</th>
-                              <th className="text-left p-2 font-medium">主播</th>
-                              <th className="text-right p-2 font-medium">販売単価</th>
-                              <th className="text-right p-2 font-medium">売上(GMV)</th>
-                              <th className="text-right p-2 font-medium">販売数</th>
-                              <th className="text-right p-2 font-medium">インプ</th>
-                              <th className="text-right p-2 font-medium">クリック</th>
+                              <th className="text-left p-2 font-medium">{t("sc.perf.streamDate")}</th>
+                              <th className="text-left p-2 font-medium">{t("sc.perf.liverCol")}</th>
+                              <th className="text-right p-2 font-medium">{t("sc.perf.unitPrice")}</th>
+                              <th className="text-right p-2 font-medium">{t("sc.perf.gmv")}</th>
+                              <th className="text-right p-2 font-medium">{t("sc.perf.salesCountCol")}</th>
+                              <th className="text-right p-2 font-medium">{t("sc.perf.impressionsCol")}</th>
+                              <th className="text-right p-2 font-medium">{t("sc.perf.clicksCol")}</th>
                               <th className="text-right p-2 font-medium">CTR</th>
                               <th className="text-right p-2 font-medium">CTOR</th>
                             </tr>
@@ -1324,7 +1331,7 @@ function PerformancesTab() {
             })}
             {products.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
-                {performanceQuery.isLoading ? 'データ読み込み中...' : '帯貨データがありません。配信詳細ページからCSVをインポートしてください。'}
+                {performanceQuery.isLoading ? t("sc.perf.loading") : t("sc.perf.noData")}
               </div>
             )}
           </div>
@@ -1333,32 +1340,32 @@ function PerformancesTab() {
 
       {activeSubTab === "daily" && (
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">日付別の配信パフォーマンス一覧（クリックで商品詳細を表示）</p>
+          <p className="text-sm text-muted-foreground">{t("sc.perf.dailyDesc")}</p>
           
           {/* Daily summary cards */}
           {dailyData.length > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Card>
                 <CardContent className="p-3">
-                  <p className="text-xs text-muted-foreground">配信回数</p>
+                  <p className="text-xs text-muted-foreground">{t("sc.perf.streamCountStat")}</p>
                   <p className="text-xl font-bold">{dailyData.length}</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-3">
-                  <p className="text-xs text-muted-foreground">総合GMV</p>
+                  <p className="text-xs text-muted-foreground">{t("sc.perf.totalGmvStat")}</p>
                   <p className="text-xl font-bold text-yellow-500">¥{dailyData.reduce((s, d) => s + d.totalGmv, 0).toLocaleString()}</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-3">
-                  <p className="text-xs text-muted-foreground">総合インプ</p>
+                  <p className="text-xs text-muted-foreground">{t("sc.perf.totalImpStat")}</p>
                   <p className="text-xl font-bold">{dailyData.reduce((s, d) => s + d.totalImpressions, 0).toLocaleString()}</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-3">
-                  <p className="text-xs text-muted-foreground">平均商品数/配信</p>
+                  <p className="text-xs text-muted-foreground">{t("sc.perf.avgProductsPerStream")}</p>
                   <p className="text-xl font-bold">{dailyData.length > 0 ? Math.round(dailyData.reduce((s, d) => s + d.productCount, 0) / dailyData.length) : 0}</p>
                 </CardContent>
               </Card>
@@ -1381,10 +1388,10 @@ function PerformancesTab() {
                           {day.date ? new Date(day.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' }) : '-'}
                         </p>
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
-                          {day.streamerName || '不明'}
+                          {day.streamerName || t("sc.perf.unknown")}
                         </Badge>
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
-                          {day.productCount}商品
+                          {day.productCount}{t("sc.perf.productsCount").replace("{count}", "")}
                         </Badge>
                       </div>
                     </div>
@@ -1394,15 +1401,15 @@ function PerformancesTab() {
                         <p className="font-semibold text-yellow-500">¥{day.totalGmv.toLocaleString()}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">販売数</p>
+                        <p className="text-muted-foreground">{t("sc.perf.salesCount")}</p>
                         <p className="font-semibold">{day.totalItems.toLocaleString()}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">インプ</p>
+                        <p className="text-muted-foreground">{t("sc.perf.impressions")}</p>
                         <p className="font-semibold">{day.totalImpressions.toLocaleString()}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">クリック</p>
+                        <p className="text-muted-foreground">{t("sc.perf.clicks")}</p>
                         <p className="font-semibold">{day.totalClicks.toLocaleString()}</p>
                       </div>
                       <div className="w-5">
@@ -1420,19 +1427,19 @@ function PerformancesTab() {
                         <table className="w-full text-xs">
                           <thead className="bg-muted/40">
                             <tr>
-                              <th className="text-left p-2 font-medium">商品名</th>
-                              <th className="text-right p-2 font-medium">単価</th>
+                              <th className="text-left p-2 font-medium">{t("sc.perf.productNameCol")}</th>
+                              <th className="text-right p-2 font-medium">{t("sc.perf.unitPriceCol")}</th>
                               <th className="text-right p-2 font-medium">GMV</th>
-                              <th className="text-right p-2 font-medium">販売数</th>
-                              <th className="text-right p-2 font-medium">インプ</th>
-                              <th className="text-right p-2 font-medium">クリック</th>
+                              <th className="text-right p-2 font-medium">{t("sc.perf.salesCountCol")}</th>
+                              <th className="text-right p-2 font-medium">{t("sc.perf.impressionsCol")}</th>
+                              <th className="text-right p-2 font-medium">{t("sc.perf.clicksCol")}</th>
                               <th className="text-right p-2 font-medium">CTR</th>
                               <th className="text-right p-2 font-medium">CTOR</th>
                             </tr>
                           </thead>
                           <tbody>
                             {dailyProductsQuery.isLoading ? (
-                              <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">読み込み中...</td></tr>
+                              <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">{t("sc.perf.loading")}</td></tr>
                             ) : (dailyProductsQuery.data || []).map((p, idx) => {
                               const calcPrice = p.itemsSold > 0 ? Math.round(p.gmv / p.itemsSold) : (p.unitPrice || 0);
                               return (
@@ -1449,7 +1456,7 @@ function PerformancesTab() {
                               );
                             })}
                             {!dailyProductsQuery.isLoading && (dailyProductsQuery.data || []).length === 0 && (
-                              <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">商品データなし</td></tr>
+                              <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">{t("sc.perf.noData")}</td></tr>
                             )}
                           </tbody>
                         </table>
@@ -1461,7 +1468,7 @@ function PerformancesTab() {
             })}
             {dailyData.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
-                {dailyViewQuery.isLoading ? 'データ読み込み中...' : '日別データがありません。'}
+                {dailyViewQuery.isLoading ? t("sc.perf.loading") : t("sc.perf.noData")}
               </div>
             )}
           </div>
@@ -1470,18 +1477,18 @@ function PerformancesTab() {
 
       {activeSubTab === "imports" && (
         <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">全てのCSVインポート履歴（ダウンロード可能）</p>
+          <p className="text-sm text-muted-foreground">{t("sc.perf.importHistory")}</p>
           <div className="border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="text-left p-3 font-medium">ファイル名</th>
-                  <th className="text-left p-3 font-medium">配信日</th>
-                  <th className="text-left p-3 font-medium">主播</th>
-                  <th className="text-right p-3 font-medium">商品数</th>
+                  <th className="text-left p-3 font-medium">{t("sc.perf.productNameCol")}</th>
+                  <th className="text-left p-3 font-medium">{t("sc.perf.importDate")}</th>
+                  <th className="text-left p-3 font-medium">{t("sc.perf.importLiver")}</th>
+                  <th className="text-right p-3 font-medium">{t("sc.perf.importProductCount")}</th>
                   <th className="text-right p-3 font-medium">GMV</th>
-                  <th className="text-left p-3 font-medium">インポート者</th>
-                  <th className="text-left p-3 font-medium">日時</th>
+                  <th className="text-left p-3 font-medium">{t("sc.perf.importedBy")}</th>
+                  <th className="text-left p-3 font-medium">{t("sc.perf.importDateTime")}</th>
                   <th className="text-center p-3 font-medium">DL</th>
                 </tr>
               </thead>
@@ -1505,7 +1512,7 @@ function PerformancesTab() {
                   </tr>
                 ))}
                 {importHistory.length === 0 && (
-                  <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">インポート履歴がありません</td></tr>
+                  <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">{t("sc.perf.noImportHistory")}</td></tr>
                 )}
               </tbody>
             </table>
@@ -1518,6 +1525,7 @@ function PerformancesTab() {
 
 // ==================== Settlements Tab ====================
 function SettlementsTab() {
+  const { t } = useLanguage();
   const [showGenerate, setShowGenerate] = useState(false);
   const [genForm, setGenForm] = useState({ anchorId: "", periodStart: "", periodEnd: "" });
 
@@ -1526,29 +1534,29 @@ function SettlementsTab() {
     onSuccess: (data) => {
       settlementsQuery.refetch();
       setShowGenerate(false);
-      toast.success(`結算書を生成しました（GMV: ¥${Number(data.totalGmv).toLocaleString()}, 佣金: ¥${Number(data.totalCommission).toLocaleString()}）`);
+      toast.success(t("sc.settle.generated").replace("{gmv}", Number(data.totalGmv).toLocaleString()).replace("{commission}", Number(data.totalCommission).toLocaleString()));
     },
   });
   const statusMutation = trpc.selectionCenter.updateSettlementStatus.useMutation({
-    onSuccess: () => { settlementsQuery.refetch(); toast.success("ステータスを更新しました"); },
+    onSuccess: () => { settlementsQuery.refetch(); toast.success(t("sc.statusUpdated")); },
   });
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">結算管理</h3>
-        <Button onClick={() => setShowGenerate(true)}><Plus className="h-4 w-4 mr-1" />結算書生成</Button>
+        <h3 className="text-lg font-semibold">{t("sc.settle.title")}</h3>
+        <Button onClick={() => setShowGenerate(true)}><Plus className="h-4 w-4 mr-1" />{t("sc.settle.generate")}</Button>
       </div>
       <div className="border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
-              <th className="text-left p-3 font-medium">主播ID</th>
-              <th className="text-left p-3 font-medium">期間</th>
-              <th className="text-right p-3 font-medium">GMV合計</th>
-              <th className="text-right p-3 font-medium">佣金合計</th>
-              <th className="text-center p-3 font-medium">ステータス</th>
-              <th className="text-center p-3 font-medium">操作</th>
+              <th className="text-left p-3 font-medium">{t("sc.settle.liverId")}</th>
+              <th className="text-left p-3 font-medium">{t("sc.settle.period")}</th>
+              <th className="text-right p-3 font-medium">{t("sc.settle.totalGmv")}</th>
+              <th className="text-right p-3 font-medium">{t("sc.settle.totalCommission")}</th>
+              <th className="text-center p-3 font-medium">{t("sc.status")}</th>
+              <th className="text-center p-3 font-medium">{t("sc.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -1560,21 +1568,21 @@ function SettlementsTab() {
                 <td className="p-3 text-right">¥{Number(s.totalCommission || 0).toLocaleString()}</td>
                 <td className="p-3 text-center">
                   <Badge variant={s.status === "paid" ? "default" : s.status === "confirmed" ? "secondary" : "outline"}>
-                    {s.status === "pending" ? "未確認" : s.status === "confirmed" ? "確認済" : "支払済"}
+                    {s.status === "pending" ? t("sc.settle.pending") : s.status === "confirmed" ? t("sc.settle.confirmed") : t("sc.settle.paid")}
                   </Badge>
                 </td>
                 <td className="p-3 text-center">
                   {s.status === "pending" && (
-                    <Button size="sm" variant="ghost" onClick={() => statusMutation.mutate({ id: s.id, status: "confirmed" })}>確認</Button>
+                    <Button size="sm" variant="ghost" onClick={() => statusMutation.mutate({ id: s.id, status: "confirmed" })}>{t("sc.settle.confirm")}</Button>
                   )}
                   {s.status === "confirmed" && (
-                    <Button size="sm" variant="ghost" onClick={() => statusMutation.mutate({ id: s.id, status: "paid" })}>支払完了</Button>
+                    <Button size="sm" variant="ghost" onClick={() => statusMutation.mutate({ id: s.id, status: "paid" })}>{t("sc.settle.markPaid")}</Button>
                   )}
                 </td>
               </tr>
             ))}
             {(!settlementsQuery.data || settlementsQuery.data.length === 0) && (
-              <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">結算データがありません</td></tr>
+              <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">{t("sc.settle.noData")}</td></tr>
             )}
           </tbody>
         </table>
@@ -1582,16 +1590,16 @@ function SettlementsTab() {
 
       <Dialog open={showGenerate} onOpenChange={setShowGenerate}>
         <DialogContent>
-          <DialogHeader><DialogTitle>結算書生成</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("sc.settle.generateTitle")}</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div><Label>主播ID</Label><Input type="number" value={genForm.anchorId} onChange={e => setGenForm({ ...genForm, anchorId: e.target.value })} /></div>
-            <div><Label>開始日</Label><Input type="date" value={genForm.periodStart} onChange={e => setGenForm({ ...genForm, periodStart: e.target.value })} /></div>
-            <div><Label>終了日</Label><Input type="date" value={genForm.periodEnd} onChange={e => setGenForm({ ...genForm, periodEnd: e.target.value })} /></div>
+            <div><Label>{t("sc.settle.liverId")}</Label><Input type="number" value={genForm.anchorId} onChange={e => setGenForm({ ...genForm, anchorId: e.target.value })} /></div>
+            <div><Label>{t("sc.settle.startDate")}</Label><Input type="date" value={genForm.periodStart} onChange={e => setGenForm({ ...genForm, periodStart: e.target.value })} /></div>
+            <div><Label>{t("sc.settle.endDate")}</Label><Input type="date" value={genForm.periodEnd} onChange={e => setGenForm({ ...genForm, periodEnd: e.target.value })} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowGenerate(false)}>キャンセル</Button>
+            <Button variant="outline" onClick={() => setShowGenerate(false)}>{t("sc.settle.cancel")}</Button>
             <Button onClick={() => generateMutation.mutate({ liverId: Number(genForm.anchorId), periodStart: genForm.periodStart, periodEnd: genForm.periodEnd })} disabled={generateMutation.isPending || !genForm.anchorId || !genForm.periodStart || !genForm.periodEnd}>
-              {generateMutation.isPending ? "生成中..." : "生成"}
+              {generateMutation.isPending ? t("sc.settle.generating") : t("sc.settle.generateBtn")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1616,21 +1624,21 @@ function BrandPerformancePanel({ brandName, productName }: { brandName: string; 
       >
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-blue-600" />
-          <span className="text-sm font-semibold text-blue-900">帯貨履歴データ</span>
+          <span className="text-sm font-semibold text-blue-900">{t("sc.brand.historyData")}</span>
           <Badge variant="outline" className="text-[10px]">{brandName}</Badge>
         </div>
-        <span className="text-xs text-muted-foreground">{expanded ? '▲ 閉じる' : '▼ 展開'}</span>
+        <span className="text-xs text-muted-foreground">{expanded ? t("sc.brand.collapse") : t("sc.brand.expand")}</span>
       </button>
       {expanded && (
         <div className="p-3 space-y-3">
           {perfQuery.isLoading && (
             <div className="flex items-center justify-center py-4">
               <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-              <span className="ml-2 text-sm text-muted-foreground">データ取得中...</span>
+              <span className="ml-2 text-sm text-muted-foreground">{t("sc.brand.loading")}</span>
             </div>
           )}
           {perfQuery.data && !perfQuery.data.found && (
-            <p className="text-sm text-muted-foreground text-center py-3">このブランドの帯貨データはまだありません</p>
+            <p className="text-sm text-muted-foreground text-center py-3">{t("sc.brand.noData")}</p>
           )}
           {perfQuery.data?.found && perfQuery.data.summary && (
             <>
@@ -1641,7 +1649,7 @@ function BrandPerformancePanel({ brandName, productName }: { brandName: string; 
                   <p className="text-sm font-bold text-orange-600">¥{perfQuery.data.summary.totalGmv.toLocaleString()}</p>
                 </div>
                 <div className="bg-blue-50 rounded p-2 text-center">
-                  <p className="text-[10px] text-muted-foreground">インプ</p>
+                  <p className="text-[10px] text-muted-foreground">{t("sc.brand.impressions")}</p>
                   <p className="text-sm font-bold text-blue-600">{perfQuery.data.summary.totalImpressions.toLocaleString()}</p>
                 </div>
                 <div className="bg-green-50 rounded p-2 text-center">
@@ -1651,29 +1659,29 @@ function BrandPerformancePanel({ brandName, productName }: { brandName: string; 
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-purple-50 rounded p-2 text-center">
-                  <p className="text-[10px] text-muted-foreground">販売数</p>
+                  <p className="text-[10px] text-muted-foreground">{t("sc.brand.salesCount")}</p>
                   <p className="text-sm font-bold text-purple-600">{perfQuery.data.summary.totalSales.toLocaleString()}</p>
                 </div>
                 <div className="bg-pink-50 rounded p-2 text-center">
-                  <p className="text-[10px] text-muted-foreground">クリック</p>
+                  <p className="text-[10px] text-muted-foreground">{t("sc.brand.clicks")}</p>
                   <p className="text-sm font-bold text-pink-600">{perfQuery.data.summary.totalClicks.toLocaleString()}</p>
                 </div>
                 <div className="bg-gray-50 rounded p-2 text-center">
-                  <p className="text-[10px] text-muted-foreground">配信回数</p>
+                  <p className="text-[10px] text-muted-foreground">{t("sc.brand.streamCount")}</p>
                   <p className="text-sm font-bold">{perfQuery.data.summary.totalStreams}</p>
                 </div>
               </div>
               {/* Top products */}
               {perfQuery.data.products.length > 0 && (
                 <div>
-                  <h5 className="text-xs font-semibold text-muted-foreground mb-1">商品別実績 (TOP {Math.min(perfQuery.data.products.length, 10)})</h5>
+                  <h5 className="text-xs font-semibold text-muted-foreground mb-1">{t("sc.brand.topProducts").replace("{count}", String(Math.min(perfQuery.data.products.length, 10)))}</h5>
                   <div className="space-y-1 max-h-[200px] overflow-y-auto">
                     {perfQuery.data.products.slice(0, 10).map((p: any, idx: number) => (
                       <div key={idx} className="flex items-center justify-between text-xs p-1.5 rounded hover:bg-muted/50">
                         <span className="truncate flex-1 mr-2">{p.productName}</span>
                         <div className="flex items-center gap-3 shrink-0">
                           <span className="text-orange-600 font-medium">¥{p.totalGmv.toLocaleString()}</span>
-                          <span className="text-muted-foreground">{p.streamCount}回</span>
+                          <span className="text-muted-foreground">{p.streamCount}{t("sc.brand.times").replace("{count}", "")}</span>
                         </div>
                       </div>
                     ))}
@@ -1690,6 +1698,7 @@ function BrandPerformancePanel({ brandName, productName }: { brandName: string; 
 
 // ==================== Main Page ====================
 export default function SelectionCenter() {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('tab') || 'products';
@@ -1702,12 +1711,12 @@ export default function SelectionCenter() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Package className="h-6 w-6" />
-          選品センター
+          {t("sc.title")}
         </h1>
         <a href="/barcode-scanner" target="_blank" rel="noopener noreferrer">
           <Button variant="outline" size="sm">
             <ScanBarcode className="h-4 w-4 mr-1" />
-            バーコード検索
+            {t("sc.barcodeSearch")}
           </Button>
         </a>
       </div>
@@ -1716,31 +1725,31 @@ export default function SelectionCenter() {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">全商品</p>
+            <p className="text-xs text-muted-foreground">{t("sc.totalProducts")}</p>
             <p className="text-2xl font-bold">{d?.totalProducts || 0}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">公開中</p>
+            <p className="text-xs text-muted-foreground">{t("sc.online")}</p>
             <p className="text-2xl font-bold text-green-600">{d?.onlineProducts || 0}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">選品数</p>
+            <p className="text-xs text-muted-foreground">{t("sc.selectionCount")}</p>
             <p className="text-2xl font-bold text-blue-600">{d?.totalSelections || 0}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">確認済排期</p>
+            <p className="text-xs text-muted-foreground">{t("sc.confirmedSchedules")}</p>
             <p className="text-2xl font-bold text-purple-600">{d?.confirmedSchedules || 0}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">累計GMV</p>
+            <p className="text-xs text-muted-foreground">{t("sc.perf.totalGmv")}</p>
             <p className="text-2xl font-bold text-orange-600">¥{Number(d?.totalGmv || 0).toLocaleString()}</p>
           </CardContent>
         </Card>
@@ -1754,12 +1763,12 @@ export default function SelectionCenter() {
         window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
       }} className="space-y-4">
         <TabsList>
-          <TabsTrigger value="products"><Package className="h-4 w-4 mr-1" />商品管理</TabsTrigger>
-          <TabsTrigger value="liver-selection"><ShoppingBag className="h-4 w-4 mr-1" />主播選品</TabsTrigger>
-          <TabsTrigger value="schedules"><Calendar className="h-4 w-4 mr-1" />排期管理</TabsTrigger>
-          <TabsTrigger value="performances"><TrendingUp className="h-4 w-4 mr-1" />帯貨データ</TabsTrigger>
-          <TabsTrigger value="settlements"><DollarSign className="h-4 w-4 mr-1" />結算管理</TabsTrigger>
-          <TabsTrigger value="selections"><ClipboardList className="h-4 w-4 mr-1" />選品一覧</TabsTrigger>
+          <TabsTrigger value="products"><Package className="h-4 w-4 mr-1" />{t("sc.tab.products")}</TabsTrigger>
+          <TabsTrigger value="liver-selection"><ShoppingBag className="h-4 w-4 mr-1" />{t("sc.tab.liverSelection")}</TabsTrigger>
+          <TabsTrigger value="schedules"><Calendar className="h-4 w-4 mr-1" />{t("sc.tab.schedules")}</TabsTrigger>
+          <TabsTrigger value="performances"><TrendingUp className="h-4 w-4 mr-1" />{t("sc.tab.performances")}</TabsTrigger>
+          <TabsTrigger value="settlements"><DollarSign className="h-4 w-4 mr-1" />{t("sc.tab.settlements")}</TabsTrigger>
+          <TabsTrigger value="selections"><ClipboardList className="h-4 w-4 mr-1" />{t("sc.tab.selections")}</TabsTrigger>
         </TabsList>
         <TabsContent value="products"><ProductsTab /></TabsContent>
         <TabsContent value="liver-selection"><LiverSelectionTab /></TabsContent>

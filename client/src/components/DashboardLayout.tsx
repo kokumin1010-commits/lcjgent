@@ -292,7 +292,7 @@ function DashboardLayoutContent({
                 }`}
               >
                 <ShoppingBag className="h-4 w-4" />
-                <span className="group-data-[collapsible=icon]:hidden">選品センター</span>
+                <span className="group-data-[collapsible=icon]:hidden">{t("sc.title")}</span>
               </button>
             </div>
 
