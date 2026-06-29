@@ -5,7 +5,7 @@
  * 1. Platform Accounts (各平台账号)
  * 2. Contact Information (联系人信息)
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
@@ -438,20 +438,42 @@ function AccountFormDialog({ open, onOpenChange, t, initialData, onSubmit, isLoa
   onSubmit: (data: any) => void;
   isLoading: boolean;
 }) {
-  const [form, setForm] = useState({
-    platform: initialData?.platform || "",
-    accountName: initialData?.accountName || "",
-    accountId: initialData?.accountId || "",
-    password: initialData?.password || "",
-    loginUrl: initialData?.loginUrl || "",
-    email: initialData?.email || "",
-    phone: initialData?.phone || "",
-    responsible: initialData?.responsible || "",
-    status: initialData?.status || "active",
-    expiresAt: initialData?.expiresAt ? new Date(initialData.expiresAt).toISOString().split("T")[0] : "",
-    tags: (initialData?.tags || []).join(", "),
-    notes: initialData?.notes || "",
+  const getEmptyForm = () => ({
+    platform: "",
+    accountName: "",
+    accountId: "",
+    password: "",
+    loginUrl: "",
+    email: "",
+    phone: "",
+    responsible: "",
+    status: "active",
+    expiresAt: "",
+    tags: "",
+    notes: "",
   });
+
+  const [form, setForm] = useState(() => initialData ? {
+    platform: initialData.platform || "",
+    accountName: initialData.accountName || "",
+    accountId: initialData.accountId || "",
+    password: initialData.password || "",
+    loginUrl: initialData.loginUrl || "",
+    email: initialData.email || "",
+    phone: initialData.phone || "",
+    responsible: initialData.responsible || "",
+    status: initialData.status || "active",
+    expiresAt: initialData.expiresAt ? new Date(initialData.expiresAt).toISOString().split("T")[0] : "",
+    tags: (initialData.tags || []).join(", "),
+    notes: initialData.notes || "",
+  } : getEmptyForm());
+
+  // Reset form when dialog opens in create mode
+  useEffect(() => {
+    if (open && !initialData) {
+      setForm(getEmptyForm());
+    }
+  }, [open]);
 
   const handleSubmit = () => {
     if (!form.platform || !form.accountName) {
@@ -728,21 +750,44 @@ function ContactFormDialog({ open, onOpenChange, t, initialData, onSubmit, isLoa
   onSubmit: (data: any) => void;
   isLoading: boolean;
 }) {
-  const [form, setForm] = useState({
-    category: initialData?.category || "client",
-    companyName: initialData?.companyName || "",
-    contactName: initialData?.contactName || "",
-    position: initialData?.position || "",
-    email: initialData?.email || "",
-    phone: initialData?.phone || "",
-    wechat: initialData?.wechat || "",
-    lineId: initialData?.lineId || "",
-    address: initialData?.address || "",
-    responsible: initialData?.responsible || "",
-    status: initialData?.status || "active",
-    tags: (initialData?.tags || []).join(", "),
-    notes: initialData?.notes || "",
+    const getEmptyForm = () => ({
+    category: "client",
+    companyName: "",
+    contactName: "",
+    position: "",
+    email: "",
+    phone: "",
+    wechat: "",
+    lineId: "",
+    address: "",
+    responsible: "",
+    status: "active",
+    tags: "",
+    notes: "",
   });
+
+  const [form, setForm] = useState(() => initialData ? {
+    category: initialData.category || "client",
+    companyName: initialData.companyName || "",
+    contactName: initialData.contactName || "",
+    position: initialData.position || "",
+    email: initialData.email || "",
+    phone: initialData.phone || "",
+    wechat: initialData.wechat || "",
+    lineId: initialData.lineId || "",
+    address: initialData.address || "",
+    responsible: initialData.responsible || "",
+    status: initialData.status || "active",
+    tags: (initialData.tags || []).join(", "),
+    notes: initialData.notes || "",
+  } : getEmptyForm());
+
+  // Reset form when dialog opens in create mode
+  useEffect(() => {
+    if (open && !initialData) {
+      setForm(getEmptyForm());
+    }
+  }, [open]);
 
   const handleSubmit = () => {
     if (!form.contactName) {
