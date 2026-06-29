@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList } from "lucide-react";
+import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -887,6 +888,77 @@ function SchedulesTab() {
   const [formEndTime, setFormEndTime] = useState<string>("");
   const [formSlotOrder, setFormSlotOrder] = useState<string>("");
 
+  // Batch generation state
+  const [showBatchDialog, setShowBatchDialog] = useState(false);
+  const [batchLiverId, setBatchLiverId] = useState<string>("");
+  const [batchLiveDate, setBatchLiveDate] = useState<string>("");
+  const [batchStartTime, setBatchStartTime] = useState<string>("");
+  const [batchEndTime, setBatchEndTime] = useState<string>("");
+  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
+
+  const liverProductsQuery = trpc.selectionCenter.getLiverProductsByBrand.useQuery(
+    { liverId: Number(batchLiverId) },
+    { enabled: !!batchLiverId }
+  );
+  const batchMutation = trpc.selectionCenter.batchCreateSchedules.useMutation({
+    onSuccess: (data) => {
+      schedulesQuery.refetch();
+      toast.success(t("sc.schedules.batchSuccess").replace("{count}", String(data.count)));
+      setShowBatchDialog(false);
+      resetBatchForm();
+    },
+    onError: (err) => { toast.error(t("sc.schedules.batchError") + ": " + err.message); },
+  });
+
+  const resetBatchForm = () => {
+    setBatchLiverId(""); setBatchLiveDate(""); setBatchStartTime(""); setBatchEndTime(""); setSelectedProductIds([]);
+  };
+
+  // When liver changes, auto-select all products
+  useEffect(() => {
+    if (liverProductsQuery.data && liverProductsQuery.data.length > 0) {
+      const allIds = liverProductsQuery.data.flatMap((g: any) => g.products.map((p: any) => p.id));
+      setSelectedProductIds(allIds);
+    } else {
+      setSelectedProductIds([]);
+    }
+  }, [liverProductsQuery.data]);
+
+  const handleBatchGenerate = () => {
+    if (!batchLiverId || !batchLiveDate) {
+      toast.error(t("sc.schedules.validationError")); return;
+    }
+    if (selectedProductIds.length === 0) {
+      toast.error(t("sc.schedules.noProducts")); return;
+    }
+    batchMutation.mutate({
+      anchorId: Number(batchLiverId),
+      liveDate: batchLiveDate,
+      startTime: batchStartTime || undefined,
+      endTime: batchEndTime || undefined,
+      productIds: selectedProductIds,
+    });
+  };
+
+  const toggleProductSelection = (productId: number) => {
+    setSelectedProductIds(prev =>
+      prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]
+    );
+  };
+
+  const allProductIds = useMemo(() => {
+    if (!liverProductsQuery.data) return [];
+    return liverProductsQuery.data.flatMap((g: any) => g.products.map((p: any) => p.id));
+  }, [liverProductsQuery.data]);
+
+  const toggleAll = () => {
+    if (selectedProductIds.length === allProductIds.length) {
+      setSelectedProductIds([]);
+    } else {
+      setSelectedProductIds(allProductIds);
+    }
+  };
+
   // Filters
   const [filterLiver, setFilterLiver] = useState<string>("all");
   const [filterBrand, setFilterBrand] = useState<string>("all");
@@ -1025,10 +1097,117 @@ function SchedulesTab() {
             <X className="h-3.5 w-3.5" />
           </Button>
         )}
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <Dialog open={showBatchDialog} onOpenChange={(open) => { setShowBatchDialog(open); if (!open) resetBatchForm(); }}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="default" className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white">
+                <Zap className="h-4 w-4 mr-1" />{t("sc.schedules.batchGenerate")}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{t("sc.schedules.batchTitle")}</DialogTitle>
+                <p className="text-sm text-muted-foreground mt-1">{t("sc.schedules.batchDesc")}</p>
+              </DialogHeader>
+              <div className="space-y-4">
+                {/* Liver selector */}
+                <div>
+                  <Label>{t("sc.schedules.liver")}</Label>
+                  <Select value={batchLiverId} onValueChange={(v) => { setBatchLiverId(v); setSelectedProductIds([]); }}>
+                    <SelectTrigger><SelectValue placeholder={t("sc.schedules.selectLiver")} /></SelectTrigger>
+                    <SelectContent>
+                      {liversQuery.data?.map((liver: any) => (
+                        <SelectItem key={liver.id} value={String(liver.id)}>{liver.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {/* Date and time */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label>{t("sc.schedules.liveDate")} *</Label>
+                    <Input type="date" value={batchLiveDate} onChange={(e) => setBatchLiveDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>{t("sc.schedules.startTime")}</Label>
+                    <Input type="time" value={batchStartTime} onChange={(e) => setBatchStartTime(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>{t("sc.schedules.endTime")}</Label>
+                    <Input type="time" value={batchEndTime} onChange={(e) => setBatchEndTime(e.target.value)} />
+                  </div>
+                </div>
+                {/* Products preview */}
+                {batchLiverId && (
+                  <div className="border rounded-lg p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium text-sm">{t("sc.schedules.productsPreview")}</h4>
+                      <div className="flex items-center gap-2">
+                        {allProductIds.length > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            {t("sc.schedules.totalProducts").replace("{count}", String(allProductIds.length))}
+                            {" ("}{selectedProductIds.length}/{allProductIds.length}{" selected)"}
+                          </span>
+                        )}
+                        <Button size="sm" variant="ghost" onClick={toggleAll}>
+                          {selectedProductIds.length === allProductIds.length ? t("sc.schedules.deselectAll") : t("sc.schedules.selectAll")}
+                        </Button>
+                      </div>
+                    </div>
+                    {liverProductsQuery.isLoading ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : liverProductsQuery.data && liverProductsQuery.data.length > 0 ? (
+                      <div className="space-y-3">
+                        {liverProductsQuery.data.map((group: any) => (
+                          <div key={group.brand} className="border rounded p-2">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="secondary" className="font-medium">{group.brand}</Badge>
+                              <span className="text-xs text-muted-foreground">{group.products.length} items</span>
+                            </div>
+                            <div className="space-y-1">
+                              {group.products.map((product: any) => (
+                                <label key={product.id} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-muted/50 cursor-pointer">
+                                  <Checkbox
+                                    checked={selectedProductIds.includes(product.id)}
+                                    onCheckedChange={() => toggleProductSelection(product.id)}
+                                  />
+                                  <span className="text-sm flex-1">{product.productName}</span>
+                                  {product.price && <span className="text-xs text-muted-foreground">¥{product.price}</span>}
+                                  {product.commissionValue && (
+                                    <span className="text-xs text-orange-600">
+                                      {product.commissionType === 'percentage' ? `${product.commissionValue}%` : `¥${product.commissionValue}`}
+                                    </span>
+                                  )}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-4">{t("sc.schedules.noProducts")}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setShowBatchDialog(false); resetBatchForm(); }}>{t("sc.schedules.cancel")}</Button>
+                <Button
+                  onClick={handleBatchGenerate}
+                  disabled={batchMutation.isPending || !batchLiverId || !batchLiveDate || selectedProductIds.length === 0}
+                  className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white"
+                >
+                  {batchMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Zap className="h-4 w-4 mr-1" />}
+                  {batchMutation.isPending ? t("sc.schedules.generating") : `${t("sc.schedules.generateBtn")} (${selectedProductIds.length})`}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogTrigger asChild>
-              <Button size="sm"><Plus className="h-4 w-4 mr-1" />{t("sc.schedules.add")}</Button>
+              <Button size="sm" variant="outline"><Plus className="h-4 w-4 mr-1" />{t("sc.schedules.add")}</Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader><DialogTitle>{t("sc.schedules.addTitle")}</DialogTitle></DialogHeader>
