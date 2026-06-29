@@ -25952,6 +25952,30 @@ export async function getAllSetsForMonth(month: string, agencyId?: number | null
     .where(and(...conditions))
     .orderBy(desc(livestreamSets.totalRevenue));
   
+  // Fetch items for all sets in batch
+  let itemsBySetId: Record<number, { productName: string; originalPrice: number; quantity: number }[]> = {};
+  if (sets.length > 0) {
+    const setIds = sets.map(s => s.id);
+    let allItems: any[] = [];
+    for (let i = 0; i < setIds.length; i += 500) {
+      const batchIds = setIds.slice(i, i + 500);
+      const batchItems = await db
+        .select()
+        .from(livestreamSetItems)
+        .where(inArray(livestreamSetItems.setId, batchIds))
+        .orderBy(asc(livestreamSetItems.sortOrder));
+      allItems = allItems.concat(batchItems);
+    }
+    allItems.forEach((item: any) => {
+      if (!itemsBySetId[item.setId]) itemsBySetId[item.setId] = [];
+      itemsBySetId[item.setId].push({
+        productName: item.productName,
+        originalPrice: Number(item.originalPrice) || 0,
+        quantity: item.quantity || 1,
+      });
+    });
+  }
+
   // Calculate summary
   const totalSets = sets.length;
   const totalRevenue = sets.reduce((sum, s) => sum + (Number(s.totalRevenue) || 0), 0);
@@ -25968,6 +25992,7 @@ export async function getAllSetsForMonth(month: string, agencyId?: number | null
       ...s,
       totalRevenue: Number(s.totalRevenue) || 0,
       setPrice: Number(s.setPrice) || 0,
+      items: itemsBySetId[s.id] || [],
     })),
     summary: {
       totalSets,

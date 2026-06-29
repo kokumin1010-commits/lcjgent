@@ -43,6 +43,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
   const [showAllReferral, setShowAllReferral] = useState(false);
   const [showAllSets, setShowAllSets] = useState(false);
   const [setSortOrder, setSetSortOrder] = useState<'date' | 'revenue'>('date');
+  const [expandedSetId, setExpandedSetId] = useState<number | null>(null);
   const [selectedTrendMonth, setSelectedTrendMonth] = useState<string | null>(monthOptions[0].value);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [expandedBrand, setExpandedBrand] = useState<string | null>(null);
@@ -1591,8 +1592,11 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                   });
                   const setsToShow = showAllSets ? sortedSets : sortedSets.slice(0, 10);
                   const bestSetId = allSetsData.summary.bestSetId;
-                  return setsToShow.map((set, idx) => (
-                    <div key={set.id} className="p-3 rounded-lg border border-gray-800 hover:border-gray-600 transition-colors">
+                  return setsToShow.map((set, idx) => {
+                    const isExpanded = expandedSetId === set.id;
+                    const setItems = (set as any).items || [];
+                    return (
+                    <div key={set.id} className={`p-3 rounded-lg border transition-colors cursor-pointer ${isExpanded ? 'border-pink-500/50 bg-gray-800/50' : 'border-gray-800 hover:border-gray-600'}`} onClick={() => setExpandedSetId(isExpanded ? null : set.id)}>
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2 flex-wrap min-w-0">
                           <Package className="w-4 h-4 text-pink-400 shrink-0" />
@@ -1608,8 +1612,11 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-gray-400 whitespace-nowrap">
-                          {set.livestreamDate ? new Date(set.livestreamDate).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Tokyo' }) : ''}
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400 whitespace-nowrap">
+                            {set.livestreamDate ? new Date(set.livestreamDate).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Tokyo' }) : ''}
+                          </span>
+                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
                         </div>
                       </div>
                       <div className="flex items-center gap-4 mt-1.5 text-xs flex-wrap">
@@ -1627,8 +1634,37 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                           <span className="text-cyan-400 font-medium">{formatCurrency(set.totalRevenue)}</span>
                         </span>
                       </div>
+                      {/* Expanded items section */}
+                      {isExpanded && (
+                        <div className="mt-3 pt-3 border-t border-gray-700">
+                          {setItems.length > 0 ? (
+                            <div className="space-y-1.5">
+                              {setItems.map((item: any, i: number) => (
+                                <div key={i} className="flex items-center justify-between text-xs">
+                                  <span className="text-gray-200">・{item.productName}</span>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-gray-400">元値 {formatCurrency(item.originalPrice)}</span>
+                                    {item.quantity > 1 && <span className="text-gray-500">×{item.quantity}個</span>}
+                                  </div>
+                                </div>
+                              ))}
+                              <div className="flex items-center justify-between pt-2 border-t border-gray-700/50 text-xs">
+                                <span className="text-gray-400">合計元値</span>
+                                <span className="text-gray-300 font-medium">
+                                  {formatCurrency(setItems.reduce((sum: number, item: any) => sum + (item.originalPrice * (item.quantity || 1)), 0))}
+                                  <span className="text-gray-500 mx-1">→</span>
+                                  <span className="text-yellow-400">セット価格 {formatCurrency(set.setPrice)}</span>
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-gray-500 italic">商品データなし</p>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  ));
+                    );
+                  });
                 })()}
               </div>
 
