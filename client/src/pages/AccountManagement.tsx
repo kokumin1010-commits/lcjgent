@@ -475,12 +475,7 @@ function AccountFormDialog({ open, onOpenChange, t, initialData, onSubmit, isLoa
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>{t.platform} *</Label>
-              <Select value={form.platform} onValueChange={v => setForm({ ...form, platform: v })}>
-                <SelectTrigger><SelectValue placeholder={t.platform} /></SelectTrigger>
-                <SelectContent>
-                  {PLATFORMS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Input value={form.platform} onChange={e => setForm({ ...form, platform: e.target.value })} placeholder={t.platform} />
             </div>
             <div>
               <Label>{t.status}</Label>
