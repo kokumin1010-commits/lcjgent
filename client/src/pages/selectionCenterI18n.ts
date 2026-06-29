@@ -147,6 +147,10 @@ export const selectionCenterJa: Record<string, string> = {
   "sc.schedules.updated": "排期を更新しました",
   "sc.schedules.created": "排期を追加しました",
   "sc.schedules.validationError": "主播、商品、配信日は必須です",
+  "sc.schedules.totalSchedules": "全排期",
+  "sc.schedules.allLivers": "全主播",
+  "sc.schedules.allBrands": "全ブランド",
+  "sc.schedules.brandCol": "ブランド",
 
   // Performances Tab
   "sc.perf.title": "帯貨データ・全商品パフォーマンス",
@@ -385,6 +389,10 @@ export const selectionCenterZh: Record<string, string> = {
   "sc.schedules.updated": "排期已更新",
   "sc.schedules.created": "排期已添加",
   "sc.schedules.validationError": "主播、商品、直播日期为必填项",
+  "sc.schedules.totalSchedules": "全部排期",
+  "sc.schedules.allLivers": "全部主播",
+  "sc.schedules.allBrands": "全部品牌",
+  "sc.schedules.brandCol": "品牌",
 
   // Performances Tab
   "sc.perf.title": "带货数据・全商品表现",

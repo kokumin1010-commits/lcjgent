@@ -887,6 +887,11 @@ function SchedulesTab() {
   const [formEndTime, setFormEndTime] = useState<string>("");
   const [formSlotOrder, setFormSlotOrder] = useState<string>("");
 
+  // Filters
+  const [filterLiver, setFilterLiver] = useState<string>("all");
+  const [filterBrand, setFilterBrand] = useState<string>("all");
+  const [filterDate, setFilterDate] = useState<string>("");
+
   const resetForm = () => {
     setFormAnchorId(""); setFormProductId(""); setFormLiveDate(""); setFormStartTime(""); setFormEndTime(""); setFormSlotOrder("");
   };
@@ -905,139 +910,265 @@ function SchedulesTab() {
     });
   };
 
-  // Group schedules by date
-  const groupedSchedules = useMemo(() => {
-    if (!schedulesQuery.data) return {};
-    const groups: Record<string, any[]> = {};
-    schedulesQuery.data.forEach((s: any) => {
-      const rawDate = s.liveDate instanceof Date ? s.liveDate.toISOString() : String(s.liveDate || '');
-      const date = rawDate.split('T')[0] || rawDate;
-      if (!groups[date]) groups[date] = [];
-      groups[date].push(s);
-    });
-    return groups;
-  }, [schedulesQuery.data]);
-
   const getLiverName = (anchorId: number) => {
     const liver = liversQuery.data?.find((l: any) => l.id === anchorId);
     return liver?.name || `ID: ${anchorId}`;
   };
 
+  // Get unique brands from schedules data
+  const uniqueBrands = useMemo(() => {
+    if (!schedulesQuery.data) return [];
+    const brands = new Set<string>();
+    schedulesQuery.data.forEach((s: any) => {
+      if (s.product?.brandName) brands.add(s.product.brandName);
+    });
+    return Array.from(brands).sort();
+  }, [schedulesQuery.data]);
+
+  // Filter and group schedules by liver
+  const groupedByLiver = useMemo(() => {
+    if (!schedulesQuery.data) return {};
+    let filtered = schedulesQuery.data.filter((s: any) => s.status !== 'cancelled');
+
+    // Apply filters
+    if (filterLiver !== "all") {
+      filtered = filtered.filter((s: any) => String(s.anchorId) === filterLiver);
+    }
+    if (filterBrand !== "all") {
+      filtered = filtered.filter((s: any) => s.product?.brandName === filterBrand);
+    }
+    if (filterDate) {
+      filtered = filtered.filter((s: any) => {
+        const rawDate = s.liveDate instanceof Date ? s.liveDate.toISOString() : String(s.liveDate || '');
+        return rawDate.split('T')[0] === filterDate;
+      });
+    }
+
+    // Group by liver
+    const groups: Record<string, { liverName: string; items: any[] }> = {};
+    filtered.forEach((s: any) => {
+      const key = String(s.anchorId);
+      if (!groups[key]) {
+        groups[key] = { liverName: getLiverName(s.anchorId), items: [] };
+      }
+      groups[key].items.push(s);
+    });
+
+    // Sort items within each group by date then slotOrder
+    Object.values(groups).forEach(g => {
+      g.items.sort((a: any, b: any) => {
+        const dateA = (a.liveDate instanceof Date ? a.liveDate.toISOString() : String(a.liveDate || '')).split('T')[0];
+        const dateB = (b.liveDate instanceof Date ? b.liveDate.toISOString() : String(b.liveDate || '')).split('T')[0];
+        if (dateA !== dateB) return dateB.localeCompare(dateA);
+        return (a.slotOrder || 99) - (b.slotOrder || 99);
+      });
+    });
+
+    return groups;
+  }, [schedulesQuery.data, filterLiver, filterBrand, filterDate, liversQuery.data]);
+
+  // Stats
+  const totalSchedules = schedulesQuery.data?.filter((s: any) => s.status !== 'cancelled').length || 0;
+  const confirmedCount = schedulesQuery.data?.filter((s: any) => s.status === 'confirmed').length || 0;
+  const pendingCount = schedulesQuery.data?.filter((s: any) => s.status === 'pending').length || 0;
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">{t("sc.schedules.title")}</h3>
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogTrigger asChild>
-            <Button size="sm"><Plus className="h-4 w-4 mr-1" />{t("sc.schedules.add")}</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader><DialogTitle>{t("sc.schedules.addTitle")}</DialogTitle></DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>{t("sc.schedules.liver")}</Label>
-                <Select value={formAnchorId} onValueChange={setFormAnchorId}>
-                  <SelectTrigger><SelectValue placeholder={t("sc.schedules.selectLiver")} /></SelectTrigger>
-                  <SelectContent>
-                    {liversQuery.data?.map((liver: any) => (
-                      <SelectItem key={liver.id} value={String(liver.id)}>{liver.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>{t("sc.schedules.product")}</Label>
-                <Select value={formProductId} onValueChange={setFormProductId}>
-                  <SelectTrigger><SelectValue placeholder={t("sc.schedules.selectProduct")} /></SelectTrigger>
-                  <SelectContent>
-                    {productsQuery.data?.items?.map((p: any) => (
-                      <SelectItem key={p.id} value={String(p.id)}>{p.productName}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>{t("sc.schedules.streamDate")}</Label>
-                <Input type="date" value={formLiveDate} onChange={(e) => setFormLiveDate(e.target.value)} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>{t("sc.schedules.startTime")}</Label>
-                  <Input type="time" value={formStartTime} onChange={(e) => setFormStartTime(e.target.value)} />
-                </div>
-                <div>
-                  <Label>{t("sc.schedules.endTime")}</Label>
-                  <Input type="time" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} />
-                </div>
-              </div>
-              <div>
-                <Label>{t("sc.schedules.order")}</Label>
-                <Input type="number" placeholder="1, 2, 3..." value={formSlotOrder} onChange={(e) => setFormSlotOrder(e.target.value)} />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>{t("sc.schedules.cancel")}</Button>
-              <Button onClick={handleCreate} disabled={createMutation.isPending}>
-                {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                {t("sc.schedules.create")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="border rounded-lg p-3">
+          <div className="text-xs text-muted-foreground">{t("sc.schedules.totalSchedules")}</div>
+          <div className="text-xl font-bold">{totalSchedules}</div>
+        </div>
+        <div className="border rounded-lg p-3">
+          <div className="text-xs text-muted-foreground">{t("sc.schedules.confirmed")}</div>
+          <div className="text-xl font-bold text-green-600">{confirmedCount}</div>
+        </div>
+        <div className="border rounded-lg p-3">
+          <div className="text-xs text-muted-foreground">{t("sc.schedules.pending")}</div>
+          <div className="text-xl font-bold text-orange-500">{pendingCount}</div>
+        </div>
       </div>
 
-      {Object.keys(groupedSchedules).length > 0 ? (
-        Object.entries(groupedSchedules).sort(([a], [b]) => b.localeCompare(a)).map(([date, items]) => (
-          <div key={date} className="border rounded-lg overflow-hidden">
-            <div className="bg-muted/50 px-4 py-2 font-medium flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              {date}
-              <Badge variant="outline" className="ml-auto">{items.length}{t("sc.schedules.items")}</Badge>
+      {/* Toolbar: filters + add button */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <Select value={filterLiver} onValueChange={setFilterLiver}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder={t("sc.schedules.liverCol")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("sc.schedules.allLivers")}</SelectItem>
+            {liversQuery.data?.map((liver: any) => (
+              <SelectItem key={liver.id} value={String(liver.id)}>{liver.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filterBrand} onValueChange={setFilterBrand}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder={t("sc.schedules.brandCol")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("sc.schedules.allBrands")}</SelectItem>
+            {uniqueBrands.map((b) => (
+              <SelectItem key={b} value={b}>{b}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          type="date"
+          value={filterDate}
+          onChange={(e) => setFilterDate(e.target.value)}
+          className="w-[160px]"
+        />
+        {filterDate && (
+          <Button variant="ghost" size="sm" onClick={() => setFilterDate("")}>
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        <div className="ml-auto">
+          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <DialogTrigger asChild>
+              <Button size="sm"><Plus className="h-4 w-4 mr-1" />{t("sc.schedules.add")}</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader><DialogTitle>{t("sc.schedules.addTitle")}</DialogTitle></DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label>{t("sc.schedules.liver")}</Label>
+                  <Select value={formAnchorId} onValueChange={setFormAnchorId}>
+                    <SelectTrigger><SelectValue placeholder={t("sc.schedules.selectLiver")} /></SelectTrigger>
+                    <SelectContent>
+                      {liversQuery.data?.map((liver: any) => (
+                        <SelectItem key={liver.id} value={String(liver.id)}>{liver.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>{t("sc.schedules.product")}</Label>
+                  <Select value={formProductId} onValueChange={setFormProductId}>
+                    <SelectTrigger><SelectValue placeholder={t("sc.schedules.selectProduct")} /></SelectTrigger>
+                    <SelectContent>
+                      {productsQuery.data?.items?.map((p: any) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.productName} {p.brandName ? `(${p.brandName})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>{t("sc.schedules.streamDate")}</Label>
+                  <Input type="date" value={formLiveDate} onChange={(e) => setFormLiveDate(e.target.value)} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>{t("sc.schedules.startTime")}</Label>
+                    <Input type="time" value={formStartTime} onChange={(e) => setFormStartTime(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>{t("sc.schedules.endTime")}</Label>
+                    <Input type="time" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <Label>{t("sc.schedules.order")}</Label>
+                  <Input type="number" placeholder="1, 2, 3..." value={formSlotOrder} onChange={(e) => setFormSlotOrder(e.target.value)} />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowCreateDialog(false)}>{t("sc.schedules.cancel")}</Button>
+                <Button onClick={handleCreate} disabled={createMutation.isPending}>
+                  {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                  {t("sc.schedules.create")}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* Main table grouped by liver */}
+      {Object.keys(groupedByLiver).length > 0 ? (
+        Object.entries(groupedByLiver).sort(([, a], [, b]) => a.liverName.localeCompare(b.liverName)).map(([anchorId, group]) => (
+          <div key={anchorId} className="border rounded-lg overflow-hidden">
+            <div className="bg-blue-50 dark:bg-blue-950/30 px-4 py-2.5 font-semibold flex items-center gap-2 border-b">
+              <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-700 dark:text-blue-300 text-xs font-bold">
+                {group.liverName.charAt(0)}
+              </div>
+              {group.liverName}
+              <Badge variant="outline" className="ml-auto">{group.items.length}{t("sc.schedules.items")}</Badge>
             </div>
-            <table className="w-full text-sm">
-              <thead className="bg-muted/30">
-                <tr>
-                  <th className="text-left p-3 font-medium">{t("sc.schedules.liverCol")}</th>
-                  <th className="text-left p-3 font-medium">{t("sc.schedules.productCol")}</th>
-                  <th className="text-center p-3 font-medium">{t("sc.schedules.timeSlot")}</th>
-                  <th className="text-center p-3 font-medium">{t("sc.schedules.orderCol")}</th>
-                  <th className="text-center p-3 font-medium">{t("sc.status")}</th>
-                  <th className="text-center p-3 font-medium">{t("sc.actions")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.sort((a: any, b: any) => (a.slotOrder || 99) - (b.slotOrder || 99)).map((schedule: any) => (
-                  <tr key={schedule.id} className="border-t hover:bg-muted/30">
-                    <td className="p-3 font-medium">{getLiverName(schedule.anchorId)}</td>
-                    <td className="p-3">{schedule.product?.productName || "-"}</td>
-                    <td className="p-3 text-center">{schedule.startTime || "-"} ~ {schedule.endTime || "-"}</td>
-                    <td className="p-3 text-center">{schedule.slotOrder || "-"}</td>
-                    <td className="p-3 text-center">
-                      <Badge variant={schedule.status === "confirmed" ? "default" : schedule.status === "done" ? "secondary" : "outline"}>
-                        {schedule.status === "pending" ? "未確認" : schedule.status === "confirmed" ? "確認済" : schedule.status === "done" ? "完了" : t("sc.form.cancel")}
-                      </Badge>
-                    </td>
-                    <td className="p-3 text-center space-x-1">
-                      {schedule.status === "pending" && (
-                        <Button size="sm" variant="ghost" onClick={() => updateMutation.mutate({ id: schedule.id, status: "confirmed" })}>
-                          <CheckCircle className="h-3.5 w-3.5 text-green-600" />
-                        </Button>
-                      )}
-                      {schedule.status === "confirmed" && (
-                        <Button size="sm" variant="ghost" onClick={() => updateMutation.mutate({ id: schedule.id, status: "done" })}>
-                          {t("sc.schedules.markDone")}
-                        </Button>
-                      )}
-                      {(schedule.status === "pending" || schedule.status === "confirmed") && (
-                        <Button size="sm" variant="ghost" onClick={() => updateMutation.mutate({ id: schedule.id, status: "cancelled" })}>
-                          <X className="h-3.5 w-3.5 text-red-500" />
-                        </Button>
-                      )}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/30">
+                  <tr>
+                    <th className="text-left p-3 font-medium w-[110px]">{t("sc.schedules.streamDate")}</th>
+                    <th className="text-center p-3 font-medium w-[120px]">{t("sc.schedules.timeSlot")}</th>
+                    <th className="text-left p-3 font-medium">{t("sc.schedules.brandCol")}</th>
+                    <th className="text-left p-3 font-medium">{t("sc.schedules.productCol")}</th>
+                    <th className="text-center p-3 font-medium w-[60px]">{t("sc.schedules.orderCol")}</th>
+                    <th className="text-center p-3 font-medium w-[80px]">{t("sc.status")}</th>
+                    <th className="text-center p-3 font-medium w-[100px]">{t("sc.actions")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {group.items.map((schedule: any, idx: number) => {
+                    const rawDate = schedule.liveDate instanceof Date ? schedule.liveDate.toISOString() : String(schedule.liveDate || '');
+                    const dateStr = rawDate.split('T')[0];
+                    const prevDate = idx > 0 ? ((group.items[idx-1].liveDate instanceof Date ? group.items[idx-1].liveDate.toISOString() : String(group.items[idx-1].liveDate || '')).split('T')[0]) : null;
+                    const showDateDivider = idx === 0 || dateStr !== prevDate;
+
+                    return (
+                      <tr key={schedule.id} className={`border-t hover:bg-muted/30 ${showDateDivider && idx > 0 ? 'border-t-2 border-t-blue-200 dark:border-t-blue-800' : ''}`}>
+                        <td className="p-3 text-sm">
+                          {showDateDivider ? (
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                              {dateStr}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="p-3 text-center text-sm">
+                          {schedule.startTime || "-"} ~ {schedule.endTime || "-"}
+                        </td>
+                        <td className="p-3">
+                          {schedule.product?.brandName ? (
+                            <Badge variant="secondary" className="font-medium">{schedule.product.brandName}</Badge>
+                          ) : <span className="text-muted-foreground">-</span>}
+                        </td>
+                        <td className="p-3 font-medium">{schedule.product?.productName || "-"}</td>
+                        <td className="p-3 text-center">{schedule.slotOrder || "-"}</td>
+                        <td className="p-3 text-center">
+                          <Badge variant={schedule.status === "confirmed" ? "default" : schedule.status === "done" ? "secondary" : "outline"}
+                            className={schedule.status === "confirmed" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : schedule.status === "done" ? "bg-gray-100 text-gray-800" : ""}
+                          >
+                            {schedule.status === "pending" ? t("sc.schedules.pending") : schedule.status === "confirmed" ? t("sc.schedules.confirmed") : schedule.status === "done" ? t("sc.schedules.done") : t("sc.schedules.cancelled")}
+                          </Badge>
+                        </td>
+                        <td className="p-3 text-center space-x-1">
+                          {schedule.status === "pending" && (
+                            <Button size="sm" variant="ghost" onClick={() => updateMutation.mutate({ id: schedule.id, status: "confirmed" })}>
+                              <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                            </Button>
+                          )}
+                          {schedule.status === "confirmed" && (
+                            <Button size="sm" variant="ghost" onClick={() => updateMutation.mutate({ id: schedule.id, status: "done" })}>
+                              <Check className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {(schedule.status === "pending" || schedule.status === "confirmed") && (
+                            <Button size="sm" variant="ghost" onClick={() => updateMutation.mutate({ id: schedule.id, status: "cancelled" })}>
+                              <X className="h-3.5 w-3.5 text-red-500" />
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         ))
       ) : (
