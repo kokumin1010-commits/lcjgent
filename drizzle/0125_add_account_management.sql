@@ -1,0 +1,40 @@
+CREATE TABLE `platform_accounts` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`platform` varchar(100) NOT NULL,
+	`account_name` varchar(255) NOT NULL,
+	`account_id` varchar(255),
+	`password` text,
+	`login_url` text,
+	`email` varchar(320),
+	`phone` varchar(50),
+	`responsible` varchar(255),
+	`status` enum('active','inactive','expired','suspended') NOT NULL DEFAULT 'active',
+	`expires_at` timestamp,
+	`tags` json,
+	`notes` text,
+	`created_by` int,
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `platform_accounts_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE `contact_info` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`category` enum('brand','client','partner','supplier','other') NOT NULL DEFAULT 'client',
+	`company_name` varchar(255),
+	`contact_name` varchar(255) NOT NULL,
+	`position` varchar(255),
+	`email` varchar(320),
+	`phone` varchar(50),
+	`wechat` varchar(255),
+	`line_id` varchar(255),
+	`address` text,
+	`responsible` varchar(255),
+	`status` enum('active','inactive') NOT NULL DEFAULT 'active',
+	`tags` json,
+	`notes` text,
+	`created_by` int,
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `contact_info_id` PRIMARY KEY(`id`)
+);
