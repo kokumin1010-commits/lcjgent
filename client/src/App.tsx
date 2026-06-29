@@ -161,6 +161,7 @@ const FestivalApplyGeneral = lazy(() => import("./pages/FestivalApplyGeneral"));
 const FestivalAdmin = lazy(() => import("./pages/FestivalAdmin"));
 const ProductLab = lazy(() => import("./pages/ProductLab"));
 const SelectionCenter = lazy(() => import("./pages/SelectionCenter"));
+const AccountManagement = lazy(() => import("./pages/AccountManagement"));
 const BarcodeScanner = lazy(() => import("./pages/BarcodeScanner"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
@@ -619,6 +620,11 @@ function Router() {
         <Route path="/master/selection-center">
           <DashboardLayout>
             <SelectionCenter />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/account-management">
+          <DashboardLayout>
+            <AccountManagement />
           </DashboardLayout>
         </Route>
         <Route path="/barcode-scanner" component={BarcodeScanner} />

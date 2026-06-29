@@ -14,6 +14,7 @@ import { lessonsRouter } from "./lessonsRouter";
 import { blogRouter, autoPostRouter } from "./blogRouter";
 import { locationRouter } from "./locationRouter";
 import { selectionCenterRouter } from "./selectionCenterRouter";
+import { accountRouter } from "./accountRouter";
 import { isValidEmailForSending, getInvalidEmailReason } from "./emailValidator";
 import {
   createStaff,
@@ -28189,6 +28190,7 @@ JSON配列のみを出力してください。`;
   productLab: productLabRouter,
   selectionCenter: selectionCenterRouter,
   kgStrategy: kgStrategyRouter,
+  account: accountRouter,
 });
 export type AppRouter = typeof appRouter;
 
