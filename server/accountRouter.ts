@@ -9,6 +9,59 @@ import { getDb } from "./db";
 import { eq, desc, like, or, and, sql } from "drizzle-orm";
 import { platformAccounts, contactInfo } from "../drizzle/schema";
 
+// Ensure tables exist on first use
+let tablesInitialized = false;
+async function ensureTables() {
+  if (tablesInitialized) return;
+  try {
+    const db = await getDb();
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS \`platform_accounts\` (
+      \`id\` int AUTO_INCREMENT NOT NULL,
+      \`platform\` varchar(100) NOT NULL,
+      \`account_name\` varchar(255) NOT NULL,
+      \`account_id\` varchar(255),
+      \`password\` text,
+      \`login_url\` text,
+      \`email\` varchar(320),
+      \`phone\` varchar(50),
+      \`responsible\` varchar(255),
+      \`status\` enum('active','inactive','expired','suspended') NOT NULL DEFAULT 'active',
+      \`expires_at\` timestamp NULL,
+      \`tags\` json,
+      \`notes\` text,
+      \`created_by\` int,
+      \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      \`updated_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY(\`id\`)
+    )`);
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS \`contact_info\` (
+      \`id\` int AUTO_INCREMENT NOT NULL,
+      \`category\` enum('brand','client','partner','supplier','other') NOT NULL DEFAULT 'client',
+      \`company_name\` varchar(255),
+      \`contact_name\` varchar(255) NOT NULL,
+      \`position\` varchar(255),
+      \`email\` varchar(320),
+      \`phone\` varchar(50),
+      \`wechat\` varchar(255),
+      \`line_id\` varchar(255),
+      \`address\` text,
+      \`responsible\` varchar(255),
+      \`status\` enum('active','inactive') NOT NULL DEFAULT 'active',
+      \`tags\` json,
+      \`notes\` text,
+      \`created_by\` int,
+      \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      \`updated_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY(\`id\`)
+    )`);
+    tablesInitialized = true;
+    console.log('[AccountRouter] Tables ensured.');
+  } catch (err: any) {
+    console.error('[AccountRouter] Table init error:', err.message);
+    tablesInitialized = true; // Don't retry on every request
+  }
+}
+
 export const accountRouter = router({
   // ===== Platform Accounts =====
 
@@ -20,6 +73,7 @@ export const accountRouter = router({
       status: z.enum(["active", "inactive", "expired", "suspended"]).optional(),
     }).optional())
     .query(async ({ input }) => {
+      await ensureTables();
       const db = await getDb();
       const conditions: any[] = [];
 
