@@ -888,6 +888,11 @@ function SchedulesTab() {
   const [formEndTime, setFormEndTime] = useState<string>("");
   const [formSlotOrder, setFormSlotOrder] = useState<string>("");
 
+  // Inline time edit state
+  const [editingTimeId, setEditingTimeId] = useState<number | null>(null);
+  const [editStartTime, setEditStartTime] = useState<string>("");
+  const [editEndTime, setEditEndTime] = useState<string>("");
+
   // Batch generation state
   const [showBatchDialog, setShowBatchDialog] = useState(false);
   const [batchLiverId, setBatchLiverId] = useState<string>("");
@@ -1309,7 +1314,23 @@ function SchedulesTab() {
                           ) : null}
                         </td>
                         <td className="p-3 text-center text-sm">
-                          {schedule.startTime || "-"} ~ {schedule.endTime || "-"}
+                          {editingTimeId === schedule.id ? (
+                            <div className="flex items-center gap-1">
+                              <input type="time" className="w-[75px] text-xs border rounded px-1 py-0.5 bg-background" value={editStartTime} onChange={(e) => setEditStartTime(e.target.value)} />
+                              <span>~</span>
+                              <input type="time" className="w-[75px] text-xs border rounded px-1 py-0.5 bg-background" value={editEndTime} onChange={(e) => setEditEndTime(e.target.value)} />
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => { updateMutation.mutate({ id: schedule.id, startTime: editStartTime || undefined, endTime: editEndTime || undefined }); setEditingTimeId(null); }}>
+                                <Check className="h-3 w-3 text-green-600" />
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setEditingTimeId(null)}>
+                                <X className="h-3 w-3 text-muted-foreground" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="cursor-pointer hover:text-primary hover:underline" onClick={() => { setEditingTimeId(schedule.id); setEditStartTime(schedule.startTime || ""); setEditEndTime(schedule.endTime || ""); }}>
+                              {schedule.startTime || "-"} ~ {schedule.endTime || "-"}
+                            </span>
+                          )}
                         </td>
                         <td className="p-3">
                           {schedule.product?.brandName ? (
