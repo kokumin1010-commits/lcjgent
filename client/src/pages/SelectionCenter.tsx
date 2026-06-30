@@ -879,6 +879,9 @@ function SchedulesTab() {
   const createMutation = trpc.selectionCenter.createSchedule.useMutation({
     onSuccess: () => { schedulesQuery.refetch(); toast.success(t("sc.schedules.created")); setShowCreateDialog(false); resetForm(); },
   });
+  const deleteMutation = trpc.selectionCenter.deleteSchedule.useMutation({
+    onSuccess: () => { schedulesQuery.refetch(); toast.success(t("sc.schedules.updated")); },
+  });
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [formAnchorId, setFormAnchorId] = useState<string>("");
@@ -1362,6 +1365,9 @@ function SchedulesTab() {
                               <X className="h-3.5 w-3.5 text-red-500" />
                             </Button>
                           )}
+                          <Button size="sm" variant="ghost" onClick={() => { if (confirm(t("sc.schedules.confirmDelete") || '确定要删除这条排期吗？')) deleteMutation.mutate({ id: schedule.id }); }}>
+                            <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                          </Button>
                         </td>
                       </tr>
                     );

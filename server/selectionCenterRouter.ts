@@ -328,6 +328,15 @@ export const selectionCenterRouter = router({
     return { success: true };
   }),
 
+  // Delete a schedule
+  deleteSchedule: protectedProcedure.input(z.object({
+    id: z.number(),
+  })).mutation(async ({ input }) => {
+    const pool = getPool();
+    await pool.query('DELETE FROM sc_schedules WHERE id = ?', [input.id]);
+    return { success: true };
+  }),
+
   // Batch create schedules from liver's selected products
   batchCreateSchedules: protectedProcedure.input(z.object({
     anchorId: z.number(),
