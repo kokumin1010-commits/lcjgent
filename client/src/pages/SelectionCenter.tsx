@@ -903,6 +903,7 @@ function SchedulesTab() {
   const [batchStartTime, setBatchStartTime] = useState<string>("");
   const [batchEndTime, setBatchEndTime] = useState<string>("");
   const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
+  const [brandTimes, setBrandTimes] = useState<Record<string, { startTime: string; endTime: string }>>({}); // per-brand time overrides
 
   const liverProductsQuery = trpc.selectionCenter.getLiverProductsByBrand.useQuery(
     { liverId: Number(batchLiverId) },
@@ -919,7 +920,7 @@ function SchedulesTab() {
   });
 
   const resetBatchForm = () => {
-    setBatchLiverId(""); setBatchLiveDate(""); setBatchStartTime(""); setBatchEndTime(""); setSelectedProductIds([]);
+    setBatchLiverId(""); setBatchLiveDate(""); setBatchStartTime(""); setBatchEndTime(""); setSelectedProductIds([]); setBrandTimes({});
   };
 
   // When liver changes, auto-select all products
@@ -939,12 +940,20 @@ function SchedulesTab() {
     if (selectedProductIds.length === 0) {
       toast.error(t("sc.schedules.noProducts")); return;
     }
+    // Build brandTimes payload - only include brands that have custom times set
+    const brandTimesPayload: Record<string, { startTime?: string; endTime?: string }> = {};
+    for (const [brand, times] of Object.entries(brandTimes)) {
+      if (times.startTime || times.endTime) {
+        brandTimesPayload[brand] = { startTime: times.startTime || undefined, endTime: times.endTime || undefined };
+      }
+    }
     batchMutation.mutate({
       anchorId: Number(batchLiverId),
       liveDate: batchLiveDate,
       startTime: batchStartTime || undefined,
       endTime: batchEndTime || undefined,
       productIds: selectedProductIds,
+      brandTimes: Object.keys(brandTimesPayload).length > 0 ? brandTimesPayload : undefined,
     });
   };
 
@@ -1170,9 +1179,26 @@ function SchedulesTab() {
                       <div className="space-y-3">
                         {liverProductsQuery.data.map((group: any) => (
                           <div key={group.brand} className="border rounded p-2">
-                            <div className="flex items-center gap-2 mb-2">
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
                               <Badge variant="secondary" className="font-medium">{group.brand}</Badge>
                               <span className="text-xs text-muted-foreground">{group.products.length} items</span>
+                              <div className="flex items-center gap-1 ml-auto">
+                                <input
+                                  type="time"
+                                  className="w-[90px] text-xs border rounded px-1.5 py-1 bg-background"
+                                  placeholder={t("sc.schedules.startTime")}
+                                  value={brandTimes[group.brand]?.startTime || ""}
+                                  onChange={(e) => setBrandTimes(prev => ({ ...prev, [group.brand]: { ...prev[group.brand], startTime: e.target.value, endTime: prev[group.brand]?.endTime || "" } }))}
+                                />
+                                <span className="text-xs">~</span>
+                                <input
+                                  type="time"
+                                  className="w-[90px] text-xs border rounded px-1.5 py-1 bg-background"
+                                  placeholder={t("sc.schedules.endTime")}
+                                  value={brandTimes[group.brand]?.endTime || ""}
+                                  onChange={(e) => setBrandTimes(prev => ({ ...prev, [group.brand]: { ...prev[group.brand], endTime: e.target.value, startTime: prev[group.brand]?.startTime || "" } }))}
+                                />
+                              </div>
                             </div>
                             <div className="space-y-1">
                               {group.products.map((product: any) => (

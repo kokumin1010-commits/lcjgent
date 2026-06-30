@@ -344,6 +344,7 @@ export const selectionCenterRouter = router({
     startTime: z.string().optional(),
     endTime: z.string().optional(),
     productIds: z.array(z.number()).optional(),
+    brandTimes: z.record(z.string(), z.object({ startTime: z.string().optional(), endTime: z.string().optional() })).optional(),
   })).mutation(async ({ input, ctx }) => {
     const pool = getPool();
     let productIds = input.productIds;
@@ -351,21 +352,25 @@ export const selectionCenterRouter = router({
       const [selections] = await pool.query('SELECT productId FROM anchor_selections WHERE liverId = ?', [input.anchorId]) as any;
       productIds = selections.map((s: any) => s.productId);
     }
-    if (productIds.length === 0) throw new Error('\u8be5\u4e3b\u64ad\u6ca1\u6709\u5df2\u9009\u5546\u54c1');
+    if (productIds.length === 0) throw new Error('该主播没有已选商品');
     const [products] = await pool.query(`SELECT id, productName, brandName FROM selection_products WHERE id IN (${productIds.map(() => '?').join(',')})`, productIds) as any;
     const brandGroups: Record<string, any[]> = {};
     for (const p of products) {
-      const brand = p.brandName || '\u672a\u5206\u7c7b';
+      const brand = p.brandName || '未分类';
       if (!brandGroups[brand]) brandGroups[brand] = [];
       brandGroups[brand].push(p);
     }
     let slotOrder = 1;
     const createdIds: number[] = [];
     for (const [brand, prods] of Object.entries(brandGroups)) {
+      // Use per-brand time if available, otherwise fall back to global time
+      const brandTime = input.brandTimes?.[brand];
+      const startTime = brandTime?.startTime || input.startTime || null;
+      const endTime = brandTime?.endTime || input.endTime || null;
       for (const p of prods) {
         const [result] = await pool.query(
           'INSERT INTO sc_schedules (anchorId, productId, liveDate, startTime, endTime, slotOrder, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [input.anchorId, p.id, input.liveDate, input.startTime || null, input.endTime || null, slotOrder, (ctx.user as any)?.id || 0]
+          [input.anchorId, p.id, input.liveDate, startTime, endTime, slotOrder, (ctx.user as any)?.id || 0]
         ) as any;
         createdIds.push(result.insertId);
         slotOrder++;
