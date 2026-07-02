@@ -748,6 +748,7 @@ import { agencyRouter } from "./agencyRouter";
 import { brandPortalRouter } from "./brandPortalRouter";
 import { festivalRouter } from "./festivalRouter";
 import { productLabRouter } from "./productLabRouter";
+import { pollRouter } from "./pollRouter";
 import { kgStrategyRouter } from "./kgStrategyRouter";
 import { adDashboardRouter } from "./adDashboardRouter";
 import { svmRouter } from "./svmRouter";
@@ -28191,6 +28192,7 @@ JSON配列のみを出力してください。`;
   selectionCenter: selectionCenterRouter,
   kgStrategy: kgStrategyRouter,
   account: accountRouter,
+  poll: pollRouter,
 });
 export type AppRouter = typeof appRouter;
 

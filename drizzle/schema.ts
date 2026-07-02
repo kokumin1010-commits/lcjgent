@@ -6324,3 +6324,6 @@ export type { ProductPipeline, InsertProductPipeline, ProductTestAssignment, Ins
 export * from "./selectionCenterSchema";
 
 export * from "./schema_accounts";
+
+// Product Polls (投票機能)
+export * from "./pollSchema";

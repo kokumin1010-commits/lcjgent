@@ -142,6 +142,7 @@ const BrandSimulationView = lazy(() => import("./pages/BrandSimulationView"));
 const BrandPortalAdmin = lazy(() => import("./pages/BrandPortalAdmin"));
 const AdDashboard = lazy(() => import("./pages/AdDashboard"));
 const Recruit = lazy(() => import("./pages/Recruit"));
+const ProductVote = lazy(() => import("./pages/ProductVote"));
 const ShortVideoMatrix = lazy(() => import("./pages/ShortVideoMatrix"));
 const LcjCoinDashboard = lazy(() => import("./pages/LcjCoinDashboard"));
 const LcjCoinMyLogin = lazy(() => import("./pages/LcjCoinMyLogin"));
@@ -560,6 +561,9 @@ function Router() {
         {/* Brand Sample LP */}
         <Route path="/recruit" component={Recruit} />
         <Route path="/brand-sample" component={BrandSampleLP} />
+
+        {/* Product Vote (商品投票) */}
+        <Route path="/vote/:id" component={ProductVote} />
 
         {/* Live Commerce Festival */}
         <Route path="/livecommercefestival/2026/apply/company" component={FestivalApplyCompany} />

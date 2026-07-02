@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap } from "lucide-react";
+import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -44,6 +44,25 @@ function ProductsTab() {
   const deleteProductMutation = trpc.selectionCenter.deleteProduct.useMutation({
     onSuccess: () => { productsQuery.refetch(); toast.success(t("sc.productDeleted")); },
   });
+
+  const createPollMutation = trpc.poll.create.useMutation({
+    onSuccess: (data) => {
+      const url = `${window.location.origin}/vote/${data.id}`;
+      navigator.clipboard.writeText(url);
+      toast.success(t("sc.polls.created") + " - " + t("sc.polls.linkCopied"));
+    },
+  });
+
+  function createPollFromProduct(product: any) {
+    createPollMutation.mutate({
+      productId: product.id,
+      productName: product.productName,
+      brandName: product.brandName || undefined,
+      imageUrl: product.images ? (typeof product.images === 'string' ? JSON.parse(product.images) : product.images)?.[0] : undefined,
+      description: product.sellingPoints || undefined,
+      originalPrice: product.price ? Number(product.price) : undefined,
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -150,6 +169,11 @@ function ProductsTab() {
                       )}
                       <Button variant="ghost" size="sm" onClick={() => { if (confirm(t("sc.deleteConfirm"))) deleteProductMutation.mutate({ id: product.id }); }}>
                         <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                      </Button>
+                      <Button variant="ghost" size="sm" title={t("sc.polls.fromProduct")} onClick={() => {
+                        createPollFromProduct(product);
+                      }}>
+                        <Vote className="h-3.5 w-3.5 text-blue-500" />
                       </Button>
                     </div>
                   </td>
@@ -2059,6 +2083,121 @@ function BrandPerformancePanel({ brandName, productName }: { brandName: string; 
   );
 }
 
+// ==================== Polls Tab ====================
+function PollsTab() {
+  const { t } = useLanguage();
+  const pollsQuery = trpc.poll.list.useQuery();
+  const deleteMutation = trpc.poll.delete.useMutation({
+    onSuccess: () => { pollsQuery.refetch(); toast.success(t("sc.polls.delete")); },
+  });
+  const statusMutation = trpc.poll.updateStatus.useMutation({
+    onSuccess: () => { pollsQuery.refetch(); },
+  });
+  const [showCreate, setShowCreate] = useState(false);
+  const [newPoll, setNewPoll] = useState({ productName: "", brandName: "", description: "", originalPrice: "", imageUrl: "" });
+  const createMutation = trpc.poll.create.useMutation({
+    onSuccess: (data) => {
+      pollsQuery.refetch();
+      setShowCreate(false);
+      setNewPoll({ productName: "", brandName: "", description: "", originalPrice: "", imageUrl: "" });
+      const url = `${window.location.origin}/vote/${data.id}`;
+      navigator.clipboard.writeText(url);
+      toast.success(t("sc.polls.created") + " - " + t("sc.polls.linkCopied"));
+    },
+  });
+
+  const polls = pollsQuery.data || [];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">{t("sc.polls.title")}</h3>
+        <Button onClick={() => setShowCreate(true)}><Plus className="h-4 w-4 mr-1" />{t("sc.polls.create")}</Button>
+      </div>
+
+      {/* Create Poll Dialog */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{t("sc.polls.create")}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>{t("sc.polls.productName")} *</Label><Input value={newPoll.productName} onChange={e => setNewPoll(p => ({...p, productName: e.target.value}))} /></div>
+            <div><Label>{t("sc.polls.brandName")}</Label><Input value={newPoll.brandName} onChange={e => setNewPoll(p => ({...p, brandName: e.target.value}))} /></div>
+            <div><Label>{t("sc.polls.originalPrice")}</Label><Input type="number" value={newPoll.originalPrice} onChange={e => setNewPoll(p => ({...p, originalPrice: e.target.value}))} /></div>
+            <div><Label>{t("sc.polls.imageUrl")}</Label><Input value={newPoll.imageUrl} onChange={e => setNewPoll(p => ({...p, imageUrl: e.target.value}))} placeholder="https://..." /></div>
+            <div><Label>{t("sc.polls.description")}</Label><Textarea value={newPoll.description} onChange={e => setNewPoll(p => ({...p, description: e.target.value}))} rows={3} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>{t("sc.form.cancel")}</Button>
+            <Button onClick={() => createMutation.mutate({
+              productName: newPoll.productName,
+              brandName: newPoll.brandName || undefined,
+              originalPrice: newPoll.originalPrice ? Number(newPoll.originalPrice) : undefined,
+              imageUrl: newPoll.imageUrl || undefined,
+              description: newPoll.description || undefined,
+            })} disabled={!newPoll.productName || createMutation.isPending}>
+              {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("sc.polls.create")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Polls List */}
+      {polls.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">{t("sc.polls.noPolls")}</div>
+      ) : (
+        <div className="space-y-3">
+          {polls.map((poll: any) => (
+            <Card key={poll.id} className="overflow-hidden">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-4">
+                  {poll.imageUrl && (
+                    <img src={poll.imageUrl} alt={poll.productName} className="w-16 h-16 object-cover rounded-lg flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold truncate">{poll.productName}</span>
+                      {poll.brandName && <Badge variant="outline" className="text-xs">{poll.brandName}</Badge>}
+                      <Badge variant={poll.status === 'active' ? 'default' : 'secondary'}>
+                        {poll.status === 'active' ? t("sc.polls.active") : t("sc.polls.closed")}
+                      </Badge>
+                    </div>
+                    {poll.originalPrice && <p className="text-sm text-muted-foreground">{t("sc.polls.originalPrice")}: ¥{Number(poll.originalPrice).toLocaleString()}</p>}
+                    <div className="flex items-center gap-4 mt-2 text-sm">
+                      <span className="font-medium">{t("sc.polls.voteCount")}: <span className="text-blue-600">{poll.voteCount || 0}</span></span>
+                      {poll.avgPrice && <span className="font-medium">{t("sc.polls.avgPrice")}: <span className="text-green-600">¥{Math.round(Number(poll.avgPrice)).toLocaleString()}</span></span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <Button variant="ghost" size="sm" title={t("sc.polls.copyLink")} onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/vote/${poll.id}`);
+                      toast.success(t("sc.polls.linkCopied"));
+                    }}><Copy className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => window.open(`/vote/${poll.id}`, '_blank')}>
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                    {poll.status === 'active' ? (
+                      <Button variant="ghost" size="sm" onClick={() => {
+                        if (confirm(t("sc.polls.confirmClose"))) statusMutation.mutate({ id: poll.id, status: 'closed' });
+                      }}><X className="h-4 w-4 text-orange-500" /></Button>
+                    ) : (
+                      <Button variant="ghost" size="sm" onClick={() => statusMutation.mutate({ id: poll.id, status: 'active' })}>
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => {
+                      if (confirm(t("sc.polls.confirmDelete"))) deleteMutation.mutate({ id: poll.id });
+                    }}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ==================== Main Page ====================
 export default function SelectionCenter() {
   const { t } = useLanguage();
@@ -2132,6 +2271,7 @@ export default function SelectionCenter() {
           <TabsTrigger value="performances"><TrendingUp className="h-4 w-4 mr-1" />{t("sc.tab.performances")}</TabsTrigger>
           <TabsTrigger value="settlements"><DollarSign className="h-4 w-4 mr-1" />{t("sc.tab.settlements")}</TabsTrigger>
           <TabsTrigger value="selections"><ClipboardList className="h-4 w-4 mr-1" />{t("sc.tab.selections")}</TabsTrigger>
+          <TabsTrigger value="polls"><Vote className="h-4 w-4 mr-1" />{t("sc.tab.polls")}</TabsTrigger>
         </TabsList>
         <TabsContent value="products"><ProductsTab /></TabsContent>
         <TabsContent value="liver-selection"><LiverSelectionTab /></TabsContent>
@@ -2139,6 +2279,7 @@ export default function SelectionCenter() {
         <TabsContent value="performances"><PerformancesTab /></TabsContent>
         <TabsContent value="settlements"><SettlementsTab /></TabsContent>
         <TabsContent value="selections"><SelectionsTab /></TabsContent>
+        <TabsContent value="polls"><PollsTab /></TabsContent>
       </Tabs>
     </div>
   );
