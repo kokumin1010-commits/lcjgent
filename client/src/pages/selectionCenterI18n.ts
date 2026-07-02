@@ -258,6 +258,8 @@ export const selectionCenterJa: Record<string, string> = {
   // Polls Tab
   "sc.tab.polls": "投票管理",
   "sc.polls.title": "商品投票",
+  "sc.polls.selectProduct": "商品を選択",
+  "sc.polls.selectProductPlaceholder": "商品リストから選択...",
   "sc.polls.create": "投票を作成",
   "sc.polls.productName": "商品名",
   "sc.polls.brandName": "ブランド",
@@ -541,6 +543,8 @@ export const selectionCenterZh: Record<string, string> = {
 
   // Polls Tab
   "sc.polls.title": "商品投票",
+  "sc.polls.selectProduct": "选择商品",
+  "sc.polls.selectProductPlaceholder": "从商品列表中选择...",
   "sc.polls.create": "创建投票",
   "sc.polls.productName": "商品名",
   "sc.polls.brandName": "品牌",

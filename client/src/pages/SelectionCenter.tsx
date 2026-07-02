@@ -2087,6 +2087,7 @@ function BrandPerformancePanel({ brandName, productName }: { brandName: string; 
 function PollsTab() {
   const { t } = useLanguage();
   const pollsQuery = trpc.poll.list.useQuery();
+  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 200 });
   const deleteMutation = trpc.poll.delete.useMutation({
     onSuccess: () => { pollsQuery.refetch(); toast.success(t("sc.polls.delete")); },
   });
@@ -2094,11 +2095,13 @@ function PollsTab() {
     onSuccess: () => { pollsQuery.refetch(); },
   });
   const [showCreate, setShowCreate] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [newPoll, setNewPoll] = useState({ productName: "", brandName: "", description: "", originalPrice: "", imageUrl: "" });
   const createMutation = trpc.poll.create.useMutation({
     onSuccess: (data) => {
       pollsQuery.refetch();
       setShowCreate(false);
+      setSelectedProductId("");
       setNewPoll({ productName: "", brandName: "", description: "", originalPrice: "", imageUrl: "" });
       const url = `${window.location.origin}/vote/${data.id}`;
       navigator.clipboard.writeText(url);
@@ -2107,6 +2110,26 @@ function PollsTab() {
   });
 
   const polls = pollsQuery.data || [];
+  const products = productsQuery.data?.items || [];
+
+  function handleProductSelect(productId: string) {
+    setSelectedProductId(productId);
+    if (productId) {
+      const product = products.find((p: any) => String(p.id) === productId);
+      if (product) {
+        const images = product.images ? (typeof product.images === 'string' ? JSON.parse(product.images) : product.images) : [];
+        setNewPoll({
+          productName: product.productName || "",
+          brandName: product.brandName || "",
+          originalPrice: product.price ? String(product.price) : "",
+          imageUrl: images?.[0] || "",
+          description: product.sellingPoints || "",
+        });
+      }
+    } else {
+      setNewPoll({ productName: "", brandName: "", description: "", originalPrice: "", imageUrl: "" });
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -2120,6 +2143,21 @@ function PollsTab() {
         <DialogContent>
           <DialogHeader><DialogTitle>{t("sc.polls.create")}</DialogTitle></DialogHeader>
           <div className="space-y-3">
+            <div>
+              <Label>{t("sc.polls.selectProduct")}</Label>
+              <select
+                className="w-full border rounded-md px-3 py-2 text-sm mt-1"
+                value={selectedProductId}
+                onChange={e => handleProductSelect(e.target.value)}
+              >
+                <option value="">{t("sc.polls.selectProductPlaceholder")}</option>
+                {products.map((p: any) => (
+                  <option key={p.id} value={String(p.id)}>
+                    {p.productName} ({p.brandName || '-'}) - ¥{Number(p.price || 0).toLocaleString()}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div><Label>{t("sc.polls.productName")} *</Label><Input value={newPoll.productName} onChange={e => setNewPoll(p => ({...p, productName: e.target.value}))} /></div>
             <div><Label>{t("sc.polls.brandName")}</Label><Input value={newPoll.brandName} onChange={e => setNewPoll(p => ({...p, brandName: e.target.value}))} /></div>
             <div><Label>{t("sc.polls.originalPrice")}</Label><Input type="number" value={newPoll.originalPrice} onChange={e => setNewPoll(p => ({...p, originalPrice: e.target.value}))} /></div>
@@ -2129,6 +2167,7 @@ function PollsTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreate(false)}>{t("sc.form.cancel")}</Button>
             <Button onClick={() => createMutation.mutate({
+              productId: selectedProductId ? Number(selectedProductId) : undefined,
               productName: newPoll.productName,
               brandName: newPoll.brandName || undefined,
               originalPrice: newPoll.originalPrice ? Number(newPoll.originalPrice) : undefined,
