@@ -4,11 +4,46 @@ import mysql from "mysql2/promise";
 
 // Direct mysql2 connection pool
 let _pool: mysql.Pool | null = null;
+let _tablesChecked = false;
 function getPool() {
   if (!_pool && process.env.DATABASE_URL) {
     _pool = mysql.createPool(process.env.DATABASE_URL);
   }
   return _pool!;
+}
+
+async function ensureTables() {
+  if (_tablesChecked) return;
+  const pool = getPool();
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS polls (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      productId INT,
+      productName VARCHAR(500) NOT NULL,
+      brandName VARCHAR(255),
+      imageUrl TEXT,
+      description TEXT,
+      originalPrice DECIMAL(12,2),
+      status ENUM('active','closed','draft') NOT NULL DEFAULT 'active',
+      expiresAt TIMESTAMP NULL,
+      createdBy INT NOT NULL,
+      createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS poll_votes (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      pollId INT NOT NULL,
+      desiredPrice DECIMAL(12,2) NOT NULL,
+      nickname VARCHAR(100),
+      ipAddress VARCHAR(45),
+      fingerprint VARCHAR(64),
+      createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_poll_votes_pollId (pollId)
+    )
+  `);
+  _tablesChecked = true;
 }
 
 export const pollRouter = router({
@@ -26,6 +61,7 @@ export const pollRouter = router({
       expiresAt: z.string().optional(), // ISO date string
     }))
     .mutation(async ({ input, ctx }) => {
+      await ensureTables();
       const pool = getPool();
       const [result] = await pool.execute(
         `INSERT INTO polls (productId, productName, brandName, imageUrl, description, originalPrice, status, expiresAt, createdBy)
@@ -47,6 +83,7 @@ export const pollRouter = router({
 
   // 投票一覧取得（管理側）
   list: protectedProcedure.query(async () => {
+    await ensureTables();
     const pool = getPool();
     const [polls] = await pool.execute(
       `SELECT p.*, 
@@ -122,6 +159,7 @@ export const pollRouter = router({
   getPublic: publicProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
+      await ensureTables();
       const pool = getPool();
       const [polls] = await pool.execute(
         `SELECT id, productName, brandName, imageUrl, description, originalPrice, status, expiresAt FROM polls WHERE id = ?`,
@@ -153,6 +191,7 @@ export const pollRouter = router({
       fingerprint: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      await ensureTables();
       const pool = getPool();
 
       // Check if poll is active
