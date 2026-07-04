@@ -310,6 +310,7 @@ export const selectionCenterRouter = router({
   updateSchedule: protectedProcedure.input(z.object({
     id: z.number(),
     status: z.enum(["pending", "confirmed", "done", "cancelled"]).optional(),
+    liveDate: z.string().optional(),
     startTime: z.string().optional(),
     endTime: z.string().optional(),
     durationMinutes: z.number().optional(),

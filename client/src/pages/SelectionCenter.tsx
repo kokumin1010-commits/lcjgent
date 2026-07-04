@@ -920,6 +920,10 @@ function SchedulesTab() {
   const [editStartTime, setEditStartTime] = useState<string>("");
   const [editEndTime, setEditEndTime] = useState<string>("");
 
+  // Inline date edit state
+  const [editingDateId, setEditingDateId] = useState<number | null>(null);
+  const [editDate, setEditDate] = useState<string>("");
+
   // Batch generation state
   const [showBatchDialog, setShowBatchDialog] = useState(false);
   const [batchLiverId, setBatchLiverId] = useState<string>("");
@@ -1359,12 +1363,22 @@ function SchedulesTab() {
                     return (
                       <tr key={schedule.id} className={`border-t hover:bg-muted/30 ${showDateDivider && idx > 0 ? 'border-t-2 border-t-blue-200 dark:border-t-blue-800' : ''}`}>
                         <td className="p-3 text-sm">
-                          {showDateDivider ? (
-                            <span className="flex items-center gap-1">
+                          {editingDateId === schedule.id ? (
+                            <div className="flex items-center gap-1">
+                              <input type="date" className="w-[120px] text-xs border rounded px-1 py-0.5 bg-background" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => { updateMutation.mutate({ id: schedule.id, liveDate: editDate }); setEditingDateId(null); }}>
+                                <Check className="h-3 w-3 text-green-600" />
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setEditingDateId(null)}>
+                                <X className="h-3 w-3 text-muted-foreground" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="cursor-pointer hover:text-primary hover:underline flex items-center gap-1" onClick={() => { setEditingDateId(schedule.id); setEditDate(dateStr); }}>
                               <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                              {dateStr}
+                              {dateStr || '-'}
                             </span>
-                          ) : null}
+                          )}
                         </td>
                         <td className="p-3 text-center text-sm">
                           {editingTimeId === schedule.id ? (

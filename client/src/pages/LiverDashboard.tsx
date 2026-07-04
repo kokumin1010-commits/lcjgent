@@ -1248,7 +1248,7 @@ export default function LiverDashboard() {
         {/* ===== HOURLY GPM HEATMAP ===== */}
         {strategy && strategy.hourlyGpm.length > 0 && (
           <Card className="bg-gray-800 border-gray-700">
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center gap-2 text-white">
                 <Clock className="w-5 h-5 text-cyan-400" />
                 時間帯別GPM（{formatYearMonthLabel(selectedYearMonth)}）
@@ -1258,6 +1258,19 @@ export default function LiverDashboard() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* Best time slot highlight */}
+              {(() => {
+                const sorted = [...strategy.hourlyGpm].sort((a, b) => b.gpm - a.gpm);
+                const best = sorted[0];
+                if (!best) return null;
+                return (
+                  <div className="mb-3 p-2 rounded-lg bg-gradient-to-r from-purple-900/40 to-cyan-900/40 border border-purple-500/30">
+                    <div className="text-xs text-white/60">🏆 ベスト時間帯</div>
+                    <div className="text-lg font-bold text-white">{best.hour}時台 <span className="text-purple-300 text-sm">GPM ¥{formatNumber(best.gpm)}</span></div>
+                    <div className="text-xs text-white/40">平均売上 ¥{formatNumber(best.avgGmv)}/回 × {best.count}回配信</div>
+                  </div>
+                );
+              })()}
               <div className="grid grid-cols-4 gap-2">
                 {strategy.hourlyGpm
                   .sort((a, b) => b.gpm - a.gpm)
@@ -1275,10 +1288,15 @@ export default function LiverDashboard() {
                       >
                         <div className="text-xs text-white/60">{h.hour}時</div>
                         <div className="text-sm font-bold text-white">¥{formatNumber(h.gpm)}</div>
+                        <div className="text-[10px] text-cyan-300/70">¥{formatNumber(h.avgGmv)}/回</div>
                         <div className="text-[10px] text-white/40">{h.count}回</div>
                       </div>
                     );
                   })}
+              </div>
+              {/* Monthly comparison hint */}
+              <div className="mt-3 text-center">
+                <div className="text-[10px] text-white/30">← → で他の月と比較できます</div>
               </div>
             </CardContent>
           </Card>
