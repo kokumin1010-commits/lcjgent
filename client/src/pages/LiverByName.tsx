@@ -120,6 +120,7 @@ export default function LiverByName() {
       ctor: string | null;
       productImpressions: number | null;
       productClicks: number | null;
+      cartAddCount: number | null;
     }> = [];
     
     if (lines.length < 2) return products;
@@ -190,6 +191,7 @@ export default function LiverByName() {
     let clickIdx = findIdx(['商品点击次数', '商品クリック数', 'クリック数', 'Productclicks']);
     let ctrIdx = findIdx(['CTR', '点击率']);
     let ctorIdx = findIdx(['CTOR', '点击成交转化率']);
+    let cartAddIdx = findIdx(['カート追加', '加购数', '加购人数', 'Addtocart', 'Cartadditions', 'Unitsaddedtocart']);
     
     if (nameIdx < 0 && headerValues[0]?.includes('Product')) {
       nameIdx = 0; gmvIdx = 2; salesIdx = 3; custIdx = 4; ordIdx = 5;
@@ -216,6 +218,7 @@ export default function LiverByName() {
         ctor: ctorIdx >= 0 ? (values[ctorIdx] || null) : (values[7] || null),
         productImpressions: impIdx >= 0 ? parseNum(values[impIdx]) : parseNum(values[8]),
         productClicks: clickIdx >= 0 ? parseNum(values[clickIdx]) : parseNum(values[9]),
+        cartAddCount: cartAddIdx >= 0 ? parseNum(values[cartAddIdx]) : null,
       });
     }
     return products;

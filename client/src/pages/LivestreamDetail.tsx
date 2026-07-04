@@ -353,6 +353,7 @@ export default function LivestreamDetail() {
       ctor: string | null;
       productImpressions: number | null;
       productClicks: number | null;
+      cartAddCount: number | null;
     }> = [];
     
     if (lines.length < 2) return products;
@@ -435,6 +436,7 @@ export default function LivestreamDetail() {
     let clickIdx = findIdx(['商品点击次数', '商品クリック数', 'クリック数', 'Productclicks']);
     let ctrIdx = findIdx(['CTR', '点击率']);
     let ctorIdx = findIdx(['CTOR', '点击成交转化率']);
+    let cartAddIdx = findIdx(['カート追加', '加购数', '加购人数', 'Addtocart', 'Cartadditions', 'Unitsaddedtocart']);
     
     // 英語固定位置フォールバック（従来のフォーマット）
     if (nameIdx < 0 && headerValues[0]?.includes('Product')) {
@@ -467,6 +469,7 @@ export default function LivestreamDetail() {
         ctor: ctorIdx >= 0 ? (values[ctorIdx] || null) : (values[7] || null),
         productImpressions: impIdx >= 0 ? parseNum(values[impIdx]) : parseNum(values[8]),
         productClicks: clickIdx >= 0 ? parseNum(values[clickIdx]) : parseNum(values[9]),
+        cartAddCount: cartAddIdx >= 0 ? parseNum(values[cartAddIdx]) : null,
       });
     }
     
@@ -516,6 +519,7 @@ export default function LivestreamDetail() {
           ctor: string | null;
           productImpressions: number | null;
           productClicks: number | null;
+          cartAddCount: number | null;
         }> = [];
         
         console.log('[ProductCSV] hasJapaneseHeaders:', hasJapaneseHeaders, 'hasChineseHeaders:', hasChineseHeaders);
@@ -552,6 +556,7 @@ export default function LivestreamDetail() {
           const impressionsCol = findCol(['商品インプレッション数', '商品曝光次数', 'インプレッション数']);
           const clicksCol = findCol(['商品クリック数', '商品点击次数', 'クリック数']);
           const derivedGmvCol = findCol(['派生GMV']);
+          const cartAddCol = findCol(['カート追加', 'カート追加数', '加购数', '加购人数', 'Units added to cart', 'Cart additions']);
           
           for (let r = 1; r < rows.length; r++) {
             const row = rows[r] as any[];
@@ -583,6 +588,8 @@ export default function LivestreamDetail() {
             const clicks = clicksCol !== undefined ? parseExcelNum(row[clicksCol]) : null;
             const derivedGmv = derivedGmvCol !== undefined ? parseExcelNum(row[derivedGmvCol]) : null;
             
+            const cartAdds = cartAddCol !== undefined ? parseExcelNum(row[cartAddCol]) : null;
+            
             products.push({
               productName,
               grossRevenue: derivedGmv || gmvVal,
@@ -594,6 +601,7 @@ export default function LivestreamDetail() {
               ctor,
               productImpressions: impressions,
               productClicks: clicks,
+              cartAddCount: cartAdds,
             });
           }
                 } else {
@@ -617,6 +625,7 @@ export default function LivestreamDetail() {
           let clickIdx = hdr.findIndex(h => h.includes('商品点击次数') || h.includes('クリック数'));
           let ctrIdx = hdr.findIndex(h => h === 'CTR' || h === '点击率');
           let ctorIdx = hdr.findIndex(h => h === 'CTOR' || h === '点击成交转化率');
+          let cartAddIdx = hdr.findIndex(h => h.includes('カート追加') || h.includes('加购') || h.includes('Addtocart') || h.includes('Cartadditions'));
           
           const pn = (val: any): number | null => {
             if (val === null || val === undefined || val === '' || val === '-') return null;
@@ -643,6 +652,7 @@ export default function LivestreamDetail() {
               ctor: ctorIdx >= 0 ? String(row[ctorIdx] || '') : null,
               productImpressions: impIdx >= 0 ? pn(row[impIdx]) : null,
               productClicks: clickIdx >= 0 ? pn(row[clickIdx]) : null,
+              cartAddCount: cartAddIdx >= 0 ? pn(row[cartAddIdx]) : null,
             });
           }
           console.log('[ProductCSV] Fallback parsed:', products.length, 'products');
@@ -1480,6 +1490,12 @@ export default function LivestreamDetail() {
                                     クリック Clicks: {Number(product.productClicks).toLocaleString()}回
                                   </span>
                                 )}
+                                {product.cartAddCount !== null && product.cartAddCount !== undefined && product.cartAddCount > 0 && (
+                                  <span className="flex items-center gap-1 text-amber-300">
+                                    <ShoppingCart className="w-3 h-3 text-amber-500" />
+                                    カート追加: {Number(product.cartAddCount).toLocaleString()}件
+                                  </span>
+                                )}
                                 {product.productImpressions !== null && product.productImpressions !== undefined && (
                                   <span className="flex items-center gap-1 text-gray-300">
                                     <Eye className="w-3 h-3 text-gray-500" />
@@ -1497,6 +1513,16 @@ export default function LivestreamDetail() {
                                 {product.ctor && (
                                   <span className="flex items-center gap-1 text-gray-400">
                                     購入率 CTOR: {(parseFloat(product.ctor) * 100).toFixed(2)}%
+                                  </span>
+                                )}
+                                {product.cartAddCount > 0 && product.productClicks > 0 && (
+                                  <span className="flex items-center gap-1 text-amber-400">
+                                    カート率: {((product.cartAddCount / product.productClicks) * 100).toFixed(2)}%
+                                  </span>
+                                )}
+                                {product.cartAddCount > 0 && product.itemsSold > 0 && (
+                                  <span className="flex items-center gap-1 text-green-400">
+                                    カート→購入: {((product.itemsSold / product.cartAddCount) * 100).toFixed(1)}%
                                   </span>
                                 )}
                               </div>

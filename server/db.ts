@@ -3682,6 +3682,7 @@ export async function importLivestreamProductsFromCsv(
     ctor?: string | null;
     productImpressions?: number | null;
     productClicks?: number | null;
+    cartAddCount?: number | null;
   }>
 ) {
   const db = await getDb();
@@ -3719,6 +3720,7 @@ export async function importLivestreamProductsFromCsv(
       productImpressions: p.productImpressions ?? null,
       impressions: p.productImpressions ?? null, // Backward compatibility
       productClicks: p.productClicks ?? null,
+      cartAddCount: p.cartAddCount ?? null,
     };
     });
     await db.insert(livestreamProducts).values(insertData);

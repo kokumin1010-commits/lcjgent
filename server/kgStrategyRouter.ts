@@ -743,6 +743,7 @@ export const kgStrategyRouter = router({
           unitPrice: livestreamProducts.unitPrice,
           productImpressions: livestreamProducts.productImpressions,
           productClicks: livestreamProducts.productClicks,
+          cartAddCount: livestreamProducts.cartAddCount,
         })
         .from(livestreamProducts)
         .where(eq(livestreamProducts.livestreamId, input.livestreamId));
@@ -756,6 +757,7 @@ export const kgStrategyRouter = router({
           unitPrice: Number(p.unitPrice || 0),
           impressions: Number(p.productImpressions || 0),
           clicks: Number(p.productClicks || 0),
+          cartAddCount: Number(p.cartAddCount || 0),
         }))
         .filter(p => p.productName.length > 0)
         .sort((a, b) => b.gmv - a.gmv);

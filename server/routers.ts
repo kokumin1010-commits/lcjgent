@@ -8508,6 +8508,7 @@ Respond with a JSON object.`,
               ctor: z.string().optional().nullable(),
               productImpressions: z.number().optional().nullable(),
               productClicks: z.number().optional().nullable(),
+              cartAddCount: z.number().optional().nullable(),
             })
           ),
         })

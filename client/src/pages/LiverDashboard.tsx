@@ -1173,6 +1173,9 @@ export default function LiverDashboard() {
                                     {p.productName.length > 40 ? p.productName.slice(0, 40) + '…' : p.productName}
                                   </span>
                                   <div className="flex items-center gap-2 flex-shrink-0">
+                                    {p.cartAddCount > 0 && (
+                                      <span className="text-[9px] text-amber-300">🛒{p.cartAddCount}</span>
+                                    )}
                                     {p.impressions > 0 && (
                                       <span className="text-[9px] text-white/40">曝光{formatNumber(p.impressions)}</span>
                                     )}
