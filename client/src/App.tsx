@@ -512,6 +512,11 @@ function Router() {
             <LiverSelfRecord />
           </ProtectedLiverRoute>
         </Route>
+        <Route path={"/liver/realtime/:id"}>
+          <ProtectedLiverRoute>
+            <LivestreamRealtimeRecord />
+          </ProtectedLiverRoute>
+        </Route>
         <Route path={"/liver/schedule"}>
           <ProtectedLiverRoute>
             <LiverSchedule />

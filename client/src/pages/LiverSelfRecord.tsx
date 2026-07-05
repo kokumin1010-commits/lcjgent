@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, CheckCircle, Eye, Package, Plus, Trash2, Tag, Zap, BadgePercent } from "lucide-react";
+import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, CheckCircle, Eye, Package, Plus, Trash2, Tag, Zap, BadgePercent, Radio } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { liverTranslations, type LiverLanguage } from "@/lib/liverI18n";
@@ -124,6 +124,7 @@ export default function LiverSelfRecord() {
   const [beforeScreenshotPreview, setBeforeScreenshotPreview] = useState<string | null>(null);
   const [beforeScreenshotUrl, setBeforeScreenshotUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isStartingRealtime, setIsStartingRealtime] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGeneratingAdvice, setIsGeneratingAdvice] = useState(false);
   const [advice, setAdvice] = useState<string | null>(null);
@@ -198,6 +199,19 @@ export default function LiverSelfRecord() {
     onError: (error) => {
       toast.error(error.message);
       setIsSubmitting(false);
+    },
+  });
+
+  // Quick-start realtime recording mutation
+  const quickStartRealtimeMutation = trpc.liverManagement.createLivestream.useMutation({
+    onSuccess: (data) => {
+      toast.success("配信作成完了！リアルタイム記録を開始します");
+      setIsStartingRealtime(false);
+      navigate(`/liver/realtime/${data.id}`);
+    },
+    onError: (error) => {
+      toast.error(error.message);
+      setIsStartingRealtime(false);
     },
   });
 
@@ -1828,6 +1842,49 @@ export default function LiverSelfRecord() {
             )}
           </Button>
         </form>
+
+        {/* Realtime Recording Quick Start Button */}
+        <div className="mt-4 mb-6">
+          <div className="relative">
+            <div className="absolute inset-0 bg-gradient-to-r from-green-600/20 to-emerald-600/20 rounded-lg blur-sm" />
+            <Button
+              type="button"
+              onClick={() => {
+                if (!liverInfo?.id) {
+                  toast.error(tr.loginRequired);
+                  return;
+                }
+                setIsStartingRealtime(true);
+                const now = new Date();
+                const jstDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                quickStartRealtimeMutation.mutate({
+                  liverId: liverInfo.id,
+                  livestreamDate: jstDate,
+                  brandId: selectedBrandIds.length > 0 ? parseInt(selectedBrandIds[0]) : undefined,
+                  brandIds: selectedBrandIds.length > 0 ? selectedBrandIds.map(id => parseInt(id)) : undefined,
+                });
+              }}
+              disabled={isStartingRealtime}
+              className="relative w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-6 text-lg font-bold touch-manipulation border-0"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              {isStartingRealtime ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  開始中...
+                </>
+              ) : (
+                <>
+                  <Radio className="w-5 h-5 mr-2 text-red-300 animate-pulse" />
+                  🔴 リアルタイム記録を開始
+                </>
+              )}
+            </Button>
+          </div>
+          <p className="text-center text-xs text-gray-400 mt-2">
+            配信を自動作成し、そのままリアルタイム記録画面へ移動します
+          </p>
+        </div>
 
         {/* Confirmation Dialog */}
         <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>

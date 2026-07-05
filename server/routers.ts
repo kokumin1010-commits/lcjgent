@@ -14306,7 +14306,7 @@ ${conversationText}
     // Create livestream record (配信履歴の記録)
     createLivestream: publicProcedure
       .input(z.object({
-        brandId: z.number(),
+        brandId: z.number().optional(), // Optional for quick-start realtime recording
         brandIds: z.array(z.number()).optional(), // Additional brands (multi-brand support)
         brandDurations: z.record(z.string(), z.number()).optional(), // { brandId: durationMinutes } - 各ブランドへの配信時間（分）
         liverId: z.number(),
@@ -14424,7 +14424,7 @@ ${conversationText}
         };
         
         const livestreamResult = await createBrandLivestream({
-          brandId: input.brandId,
+          brandId: input.brandId || 0,
           liverId: input.liverId,
           scheduleId: input.scheduleId,
           livestreamDate: parseJstToUtc(input.livestreamDate),
@@ -14636,7 +14636,7 @@ ${conversationText}
         try {
           const dateStr = new Date(input.livestreamDate).toLocaleDateString('ja-JP');
           await logBrandEdit(
-            input.brandId,
+            input.brandId || 0,
             "create",
             "livestream",
             id,
