@@ -845,17 +845,30 @@ export default function LivestreamDetail() {
             {/* Header with Edit Button */}
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">配信履歴詳細</h2>
-              {!isEditing && canEdit && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsEditing(true)}
-                  className="border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-black"
-                >
-                  <Pencil className="w-4 h-4 mr-2" />
-                  編集
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {!isEditing && (
+                  <Link href={`/master/livestreams/${livestreamId}/realtime`}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-green-500 text-green-500 hover:bg-green-500 hover:text-black"
+                    >
+                      🔴 リアルタイム記録
+                    </Button>
+                  </Link>
+                )}
+                {!isEditing && canEdit && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsEditing(true)}
+                    className="border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-black"
+                  >
+                    <Pencil className="w-4 h-4 mr-2" />
+                    編集
+                  </Button>
+                )}
+              </div>
               {!canEdit && (
                 <span className="text-xs text-gray-500 italic">閲覧専用モード</span>
               )}

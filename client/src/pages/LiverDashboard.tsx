@@ -29,6 +29,7 @@ import {
   Eye,
   Package,
   Timer,
+  ShoppingCart,
 } from "lucide-react";
 import MegaChannelBanner from "@/components/MegaChannelBanner";
 import {
@@ -162,6 +163,12 @@ export default function LiverDashboard() {
   const { data: productHistory, isLoading: isLoadingProductHistory } = trpc.kgStrategy.getProductHistory.useQuery(
     { liverId: liverId || 0, productName: selectedProductName || "" },
     { enabled: !!liverId && !!selectedProductName }
+  );
+
+  // Realtime record analysis
+  const { data: realtimeAnalysisData } = trpc.realtimeRecord.getTimeSlotAnalysis.useQuery(
+    { liverId: liverId || 0 },
+    { enabled: !!liverId }
   );
 
   // Set goal mutation
@@ -1305,6 +1312,61 @@ export default function LiverDashboard() {
           </Card>
         )}
         
+        {/* ===== REALTIME RECORD ANALYSIS ===== */}
+        {(() => {
+          if (!realtimeAnalysisData || realtimeAnalysisData.length === 0) return null;
+          const data = realtimeAnalysisData;
+          const totalRevenue = data.reduce((sum, d) => sum + d.totalRevenue, 0);
+          const totalQuantity = data.reduce((sum, d) => sum + d.totalQuantity, 0);
+          const bestSlot = [...data].sort((a, b) => b.totalRevenue - a.totalRevenue)[0];
+          return (
+            <Card className="bg-gray-800 border-gray-700">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2 text-white">
+                  <ShoppingCart className="w-5 h-5 text-green-400" />
+                  リアルタイム記録分析
+                </CardTitle>
+                <div className="text-xs text-white/50">
+                  配信中に記録した時間帯×出単データの集計
+                </div>
+              </CardHeader>
+              <CardContent>
+                {bestSlot && (
+                  <div className="mb-3 p-2 rounded-lg bg-gradient-to-r from-green-900/40 to-emerald-900/40 border border-green-500/30">
+                    <div className="text-xs text-white/60">🏆 最高出単時間帯</div>
+                    <div className="text-lg font-bold text-white">{bestSlot.timeSlot} <span className="text-green-300 text-sm">¥{bestSlot.totalRevenue.toLocaleString()}</span></div>
+                    <div className="text-xs text-white/40">{bestSlot.totalQuantity}件出単 / {bestSlot.recordCount}回記録</div>
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  {data.map(slot => {
+                    const maxRev = Math.max(...data.map(d => d.totalRevenue));
+                    const intensity = maxRev > 0 ? slot.totalRevenue / maxRev : 0;
+                    return (
+                      <div key={slot.timeSlot} className="flex items-center gap-2">
+                        <span className="text-xs font-mono text-blue-300 w-12 shrink-0">{slot.timeSlot}</span>
+                        <div className="flex-1 h-6 bg-gray-700/50 rounded relative overflow-hidden">
+                          <div
+                            className="h-full bg-green-500/60 rounded"
+                            style={{ width: `${intensity * 100}%` }}
+                          />
+                          <span className="absolute inset-0 flex items-center px-2 text-[10px] text-white font-medium">
+                            ¥{slot.totalRevenue.toLocaleString()} / {slot.totalQuantity}件
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 pt-3 border-t border-gray-700 flex justify-between text-xs">
+                  <span className="text-gray-400">合計</span>
+                  <span className="text-green-400 font-bold">¥{totalRevenue.toLocaleString()} / {totalQuantity}件</span>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
         {/* Growth Tracker */}
         <div className="grid grid-cols-2 gap-4">
           <Card className="bg-gray-800 border-gray-700">

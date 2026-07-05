@@ -730,7 +730,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { users, lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos, brandMonthlyGmvTargets, livestreamProducts } from "../drizzle/schema";
+import { users, lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos, brandMonthlyGmvTargets, livestreamProducts, livestreamRealtimeRecords } from "../drizzle/schema";
 import { eq, and, or, not, isNotNull, isNull, desc, gt, gte, lte, like, inArray, sql as sqlTag, sum, count, max } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -28194,6 +28194,147 @@ JSON配列のみを出力してください。`;
   kgStrategy: kgStrategyRouter,
   account: accountRouter,
   poll: pollRouter,
+
+  // 配信中リアルタイム記録
+  realtimeRecord: router({
+    // 記録を追加
+    add: protectedProcedure
+      .input(z.object({
+        livestreamId: z.number(),
+        liverId: z.number().optional(),
+        productName: z.string().min(1),
+        productPrice: z.number().optional(),
+        quantitySold: z.number().min(0).default(0),
+        cartAddCount: z.number().min(0).default(0),
+        timeSlot: z.string().min(1), // e.g. "19:00", "19:30"
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+        await db.insert(livestreamRealtimeRecords).values({
+          livestreamId: input.livestreamId,
+          liverId: input.liverId || null,
+          productName: input.productName,
+          productPrice: input.productPrice || null,
+          quantitySold: input.quantitySold,
+          cartAddCount: input.cartAddCount,
+          timeSlot: input.timeSlot,
+          recordedBy: ctx.user.name || ctx.user.email,
+          notes: input.notes || null,
+        });
+        return { success: true };
+      }),
+
+    // 記録を更新
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        productName: z.string().optional(),
+        productPrice: z.number().optional(),
+        quantitySold: z.number().min(0).optional(),
+        cartAddCount: z.number().min(0).optional(),
+        timeSlot: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+        const { id, ...updates } = input;
+        const setData: any = {};
+        if (updates.productName !== undefined) setData.productName = updates.productName;
+        if (updates.productPrice !== undefined) setData.productPrice = updates.productPrice;
+        if (updates.quantitySold !== undefined) setData.quantitySold = updates.quantitySold;
+        if (updates.cartAddCount !== undefined) setData.cartAddCount = updates.cartAddCount;
+        if (updates.timeSlot !== undefined) setData.timeSlot = updates.timeSlot;
+        if (updates.notes !== undefined) setData.notes = updates.notes;
+        if (Object.keys(setData).length > 0) {
+          await db.update(livestreamRealtimeRecords).set(setData).where(eq(livestreamRealtimeRecords.id, id));
+        }
+        return { success: true };
+      }),
+
+    // 記録を削除
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+        await db.delete(livestreamRealtimeRecords).where(eq(livestreamRealtimeRecords.id, input.id));
+        return { success: true };
+      }),
+
+    // 配信IDで記録一覧を取得
+    getByLivestream: protectedProcedure
+      .input(z.object({ livestreamId: z.number() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const records = await db.select()
+          .from(livestreamRealtimeRecords)
+          .where(eq(livestreamRealtimeRecords.livestreamId, input.livestreamId))
+          .orderBy(livestreamRealtimeRecords.timeSlot, livestreamRealtimeRecords.id);
+        return records;
+      }),
+
+    // ライバーIDで全記録を取得（時間帯別分析用）
+    getByLiver: protectedProcedure
+      .input(z.object({
+        liverId: z.number(),
+        startDate: z.string().optional(), // YYYY-MM-DD
+        endDate: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const conditions = [eq(livestreamRealtimeRecords.liverId, input.liverId)];
+        if (input.startDate) {
+          conditions.push(gte(livestreamRealtimeRecords.recordedAt, new Date(input.startDate)));
+        }
+        if (input.endDate) {
+          conditions.push(lte(livestreamRealtimeRecords.recordedAt, new Date(input.endDate + 'T23:59:59')));
+        }
+        const records = await db.select()
+          .from(livestreamRealtimeRecords)
+          .where(and(...conditions))
+          .orderBy(desc(livestreamRealtimeRecords.recordedAt));
+        return records;
+      }),
+
+    // 時間帯別集計（分析用）
+    getTimeSlotAnalysis: protectedProcedure
+      .input(z.object({
+        liverId: z.number().optional(),
+        livestreamId: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const conditions: any[] = [];
+        if (input.liverId) conditions.push(eq(livestreamRealtimeRecords.liverId, input.liverId));
+        if (input.livestreamId) conditions.push(eq(livestreamRealtimeRecords.livestreamId, input.livestreamId));
+        
+        const results = await db.select({
+          timeSlot: livestreamRealtimeRecords.timeSlot,
+          totalQuantity: sqlTag<number>`SUM(${livestreamRealtimeRecords.quantitySold})`,
+          totalRevenue: sqlTag<number>`SUM(${livestreamRealtimeRecords.productPrice} * ${livestreamRealtimeRecords.quantitySold})`,
+          totalCartAdds: sqlTag<number>`SUM(${livestreamRealtimeRecords.cartAddCount})`,
+          recordCount: sqlTag<number>`COUNT(*)`,
+        })
+          .from(livestreamRealtimeRecords)
+          .where(conditions.length > 0 ? and(...conditions) : undefined)
+          .groupBy(livestreamRealtimeRecords.timeSlot)
+          .orderBy(livestreamRealtimeRecords.timeSlot);
+        
+        return results.map(r => ({
+          timeSlot: r.timeSlot,
+          totalQuantity: Number(r.totalQuantity) || 0,
+          totalRevenue: Number(r.totalRevenue) || 0,
+          totalCartAdds: Number(r.totalCartAdds) || 0,
+          recordCount: Number(r.recordCount) || 0,
+        }));
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;
 

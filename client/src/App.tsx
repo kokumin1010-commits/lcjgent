@@ -50,6 +50,7 @@ const LiverLogin = lazy(() => import("./pages/LiverLogin"));
 const LiverList = lazy(() => import("./pages/LiverList"));
 const LiverDetail = lazy(() => import("./pages/LiverDetail"));
 const LivestreamDetail = lazy(() => import("./pages/LivestreamDetail"));
+const LivestreamRealtimeRecord = lazy(() => import("./pages/LivestreamRealtimeRecord"));
 const LiverRecord = lazy(() => import("./pages/LiverRecord"));
 const LiverMypage = lazy(() => import("./pages/LiverMypage"));
 const LiverSelfRecord = lazy(() => import("./pages/LiverSelfRecord"));
@@ -398,6 +399,7 @@ function Router() {
         <Route path={"/master/livers"} component={LiverList} />
         <Route path={"/master/livers/:id"} component={LiverDetail} />
         <Route path={"/master/livestreams/:id"} component={LivestreamDetail} />
+        <Route path={"/master/livestreams/:id/realtime"} component={LivestreamRealtimeRecord} />
         <Route path={"/master/livers/livestream/:id/edit"}>
           <DashboardLayout>
             <LivestreamEdit />

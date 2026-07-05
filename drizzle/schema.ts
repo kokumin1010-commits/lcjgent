@@ -6327,3 +6327,22 @@ export * from "./schema_accounts";
 
 // Product Polls (投票機能)
 export * from "./pollSchema";
+
+// ===== 配信中リアルタイム記録 =====
+// 後台スタッフが配信中に商品×出単数を時間帯ごとに記録するテーブル
+export const livestreamRealtimeRecords = mysqlTable("livestream_realtime_records", {
+  id: int("id").autoincrement().primaryKey(),
+  livestreamId: int("livestreamId").notNull(), // References brand_livestreams.id
+  liverId: int("liverId"), // References livers.id
+  productName: varchar("productName", { length: 500 }).notNull(), // 商品名
+  productPrice: bigint("productPrice", { mode: "number" }), // 商品単価（円）
+  quantitySold: int("quantitySold").notNull().default(0), // 出単数
+  cartAddCount: int("cartAddCount").default(0), // カート追加数
+  timeSlot: varchar("timeSlot", { length: 20 }).notNull(), // 時間帯 (e.g., "19:00", "19:30")
+  recordedAt: timestamp("recordedAt").defaultNow().notNull(), // 記録時刻
+  recordedBy: varchar("recordedBy", { length: 255 }), // 記録者名
+  notes: text("notes"), // メモ（話術、反応など）
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type LivestreamRealtimeRecord = typeof livestreamRealtimeRecords.$inferSelect;
+export type InsertLivestreamRealtimeRecord = typeof livestreamRealtimeRecords.$inferInsert;
