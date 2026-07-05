@@ -730,7 +730,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { users, lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos, brandMonthlyGmvTargets, livestreamProducts, livestreamRealtimeRecords } from "../drizzle/schema";
+import { users, lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos, brandMonthlyGmvTargets, livestreamProducts, livestreamRealtimeRecords, livestreamRealtimeSnapshots } from "../drizzle/schema";
 import { eq, and, or, not, isNotNull, isNull, desc, gt, gte, lte, like, inArray, sql as sqlTag, sum, count, max } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -28333,6 +28333,498 @@ JSON配列のみを出力してください。`;
           totalCartAdds: Number(r.totalCartAdds) || 0,
           recordCount: Number(r.recordCount) || 0,
         }));
+      }),
+
+    // ===== スクショAI解析 =====
+    // スクショをアップロードしてAI解析
+    addSnapshot: protectedProcedure
+      .input(z.object({
+        livestreamId: z.number(),
+        liverId: z.number().optional(),
+        imageBase64: z.string(), // base64 encoded image
+        mimeType: z.string().default("image/png"),
+        timeSlot: z.string().min(1), // e.g. "19:30"
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+
+        // 1. Upload image to S3
+        const buffer = Buffer.from(input.imageBase64, "base64");
+        const ext = input.mimeType.includes("png") ? "png" : "jpg";
+        const fileKey = `realtime-snapshots/${input.livestreamId}/${Date.now()}-${nanoid(8)}.${ext}`;
+        const { url: imageUrl } = await storagePut(fileKey, buffer, input.mimeType);
+
+        // 2. Call AI Vision to extract TikTok dashboard metrics
+        const systemPrompt = `あなたはTikTokライブ配信のダッシュボードスクリーンショットを解析するエキスパートです。
+配信中に定期的に撮影されるスクリーンショットから、以下の指標を正確に読み取ってください。
+
+## 抽出する指標:
+1. gmv: 派生GMV累計（円）- 画面中央の大きな数字
+2. gpm: 表示GPM（1000インプあたり売上・円）- "GPM" の横の数値（例: ¥4.97K = 4970）
+3. impressions: インプレッション数（例: 408.78K = 408780）
+4. impressionsPerHour: 1時間あたりのインプレッション（例: 64.9K = 64900）
+5. viewerCount: 視聴者数（例: 30.53K = 30530）
+6. viewCount: 視聴数（例: 44.43K = 44430）
+7. orderCount: 販売数/注文数
+8. tapThroughRate: タップスルー率（例: "1.93%"）
+9. commentRate: コメント率（例: "5.17%"）
+10. followRate: フォロー率（例: "0.15%"）
+11. avgViewDuration: 視聴1回あたり平均時間（例: "2m6s"）
+
+## 数値読み取りルール:
+- "K" = 1,000倍（例: 45.57K = 45570）
+- "M" = 1,000,000倍
+- カンマは無視
+- パーセントはそのまま文字列で返す（例: "5.17%"）
+- 時間はそのまま文字列で返す（例: "2m6s"）
+- GPMの"¥"記号は除去し数値のみ（例: ¥4.97K → 4970）
+
+## 重要:
+- 見えない指標はnullを返してください
+- 数値が見える場合は必ず抽出してください
+- confidenceは読み取り精度に応じて high/medium/low で返してください`;
+
+        const aiResponse = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:${input.mimeType};base64,${input.imageBase64}`,
+                    detail: "high",
+                  },
+                },
+                {
+                  type: "text",
+                  text: "このTikTokライブ配信ダッシュボードのスクリーンショットから指標を抽出してください。JSON形式で返してください。",
+                },
+              ],
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "tiktok_realtime_metrics",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  gmv: { type: ["number", "null"], description: "派生GMV累計（円）" },
+                  gpm: { type: ["number", "null"], description: "表示GPM（円）" },
+                  impressions: { type: ["number", "null"], description: "インプレッション数" },
+                  impressionsPerHour: { type: ["number", "null"], description: "1時間あたりインプレ" },
+                  viewerCount: { type: ["number", "null"], description: "視聴者数" },
+                  viewCount: { type: ["number", "null"], description: "視聴数" },
+                  orderCount: { type: ["number", "null"], description: "販売数" },
+                  tapThroughRate: { type: ["string", "null"], description: "タップスルー率" },
+                  commentRate: { type: ["string", "null"], description: "コメント率" },
+                  followRate: { type: ["string", "null"], description: "フォロー率" },
+                  avgViewDuration: { type: ["string", "null"], description: "平均視聴時間" },
+                  confidence: { type: "string", enum: ["high", "medium", "low"] },
+                },
+                required: ["gmv", "gpm", "impressions", "impressionsPerHour", "viewerCount", "viewCount", "orderCount", "tapThroughRate", "commentRate", "followRate", "avgViewDuration", "confidence"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        // 3. Parse AI response
+        const content = aiResponse.choices[0]?.message?.content;
+        let metrics: any = {};
+        try {
+          let jsonStr = typeof content === 'string' ? content : "{}";
+          const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+          if (jsonMatch) jsonStr = jsonMatch[1].trim();
+          metrics = JSON.parse(jsonStr);
+        } catch (e) {
+          console.error("[addSnapshot] Failed to parse AI response:", content);
+          metrics = { confidence: "low" };
+        }
+
+        // 4. Save to DB
+        const result = await db.insert(livestreamRealtimeSnapshots).values({
+          livestreamId: input.livestreamId,
+          liverId: input.liverId || null,
+          imageUrl,
+          imageKey: fileKey,
+          timeSlot: input.timeSlot,
+          gmv: metrics.gmv || null,
+          gpm: metrics.gpm || null,
+          impressions: metrics.impressions || null,
+          impressionsPerHour: metrics.impressionsPerHour || null,
+          viewerCount: metrics.viewerCount || null,
+          viewCount: metrics.viewCount || null,
+          orderCount: metrics.orderCount || null,
+          tapThroughRate: metrics.tapThroughRate || null,
+          commentRate: metrics.commentRate || null,
+          followRate: metrics.followRate || null,
+          avgViewDuration: metrics.avgViewDuration || null,
+          notes: input.notes || null,
+          rawResponse: metrics,
+          confidence: metrics.confidence || "medium",
+        });
+        const insertId = (result as any)?.[0]?.insertId || (result as any)?.insertId || null;
+        console.log(`[addSnapshot] Saved snapshot for livestream ${input.livestreamId}, timeSlot=${input.timeSlot}, GPM=${metrics.gpm}`);
+        return {
+          success: true,
+          snapshot: {
+            id: insertId,
+            imageUrl,
+            timeSlot: input.timeSlot,
+            ...metrics,
+          },
+        };
+      }),
+
+    // スクショ一覧取得
+    getSnapshots: protectedProcedure
+      .input(z.object({
+        livestreamId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const results = await db.select()
+          .from(livestreamRealtimeSnapshots)
+          .where(eq(livestreamRealtimeSnapshots.livestreamId, input.livestreamId))
+          .orderBy(livestreamRealtimeSnapshots.snapshotAt);
+        return results;
+      }),
+
+    // GPMトレンドデータ取得（時間帯別）
+    getSnapshotTrend: protectedProcedure
+      .input(z.object({
+        livestreamId: z.number().optional(),
+        liverId: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const conditions: any[] = [];
+        if (input.livestreamId) conditions.push(eq(livestreamRealtimeSnapshots.livestreamId, input.livestreamId));
+        if (input.liverId) conditions.push(eq(livestreamRealtimeSnapshots.liverId, input.liverId));
+
+        const results = await db.select()
+          .from(livestreamRealtimeSnapshots)
+          .where(conditions.length > 0 ? and(...conditions) : undefined)
+          .orderBy(livestreamRealtimeSnapshots.snapshotAt);
+
+        return results.map(r => ({
+          id: r.id,
+          livestreamId: r.livestreamId,
+          timeSlot: r.timeSlot,
+          snapshotAt: r.snapshotAt,
+          gmv: r.gmv,
+          gpm: r.gpm,
+          impressions: r.impressions,
+          impressionsPerHour: r.impressionsPerHour,
+          viewerCount: r.viewerCount,
+          orderCount: r.orderCount,
+          tapThroughRate: r.tapThroughRate,
+          commentRate: r.commentRate,
+          followRate: r.followRate,
+          avgViewDuration: r.avgViewDuration,
+          confidence: r.confidence,
+          imageUrl: r.imageUrl,
+        }));
+      }),
+
+    // ===== AI商品輪番戦略推薦 =====
+    getCarouselRecommendation: protectedProcedure
+      .input(z.object({
+        liverId: z.number().optional(),
+        currentHour: z.number().min(0).max(23).optional(), // 配信開始時間帯
+        productList: z.array(z.string()).optional(), // 今回の商品リスト
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+
+        // 1. 過去の全リアルタイム記録を取得（商品×時間帯×出単数）
+        const conditions: any[] = [];
+        if (input.liverId) conditions.push(eq(livestreamRealtimeRecords.liverId, input.liverId));
+
+        const allRecords = await db.select({
+          productName: livestreamRealtimeRecords.productName,
+          timeSlot: livestreamRealtimeRecords.timeSlot,
+          quantitySold: livestreamRealtimeRecords.quantitySold,
+          cartAddCount: livestreamRealtimeRecords.cartAddCount,
+          productPrice: livestreamRealtimeRecords.productPrice,
+        })
+          .from(livestreamRealtimeRecords)
+          .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+        if (allRecords.length === 0) {
+          return { recommendation: null, message: '過去の配信データがありません。データが蓄積されるとAI推薦が可能になります。' };
+        }
+
+        // 2. 商品×時間帯の出単率を集計
+        const productTimeMap: Record<string, Record<string, { totalSold: number; totalCart: number; count: number }>> = {};
+        for (const r of allRecords) {
+          if (!productTimeMap[r.productName]) productTimeMap[r.productName] = {};
+          const slot = r.timeSlot;
+          if (!productTimeMap[r.productName][slot]) {
+            productTimeMap[r.productName][slot] = { totalSold: 0, totalCart: 0, count: 0 };
+          }
+          productTimeMap[r.productName][slot].totalSold += r.quantitySold;
+          productTimeMap[r.productName][slot].totalCart += (r.cartAddCount || 0);
+          productTimeMap[r.productName][slot].count += 1;
+        }
+
+        // 3. 商品順序の連続パターン（Aの後にBを出した時の転換率）を分析
+        // 同じ配信内での商品順序を取得
+        const livestreamRecords = await db.select({
+          livestreamId: livestreamRealtimeRecords.livestreamId,
+          productName: livestreamRealtimeRecords.productName,
+          timeSlot: livestreamRealtimeRecords.timeSlot,
+          quantitySold: livestreamRealtimeRecords.quantitySold,
+        })
+          .from(livestreamRealtimeRecords)
+          .where(conditions.length > 0 ? and(...conditions) : undefined)
+          .orderBy(livestreamRealtimeRecords.livestreamId, livestreamRealtimeRecords.timeSlot);
+
+        // 商品連続パターンの集計
+        const sequenceMap: Record<string, { nextProduct: string; avgSoldAfter: number; count: number }[]> = {};
+        let prevProduct = '';
+        let prevLivestreamId = 0;
+        for (const r of livestreamRecords) {
+          if (r.livestreamId === prevLivestreamId && prevProduct && prevProduct !== r.productName) {
+            if (!sequenceMap[prevProduct]) sequenceMap[prevProduct] = [];
+            const existing = sequenceMap[prevProduct].find(s => s.nextProduct === r.productName);
+            if (existing) {
+              existing.avgSoldAfter = (existing.avgSoldAfter * existing.count + r.quantitySold) / (existing.count + 1);
+              existing.count += 1;
+            } else {
+              sequenceMap[prevProduct].push({ nextProduct: r.productName, avgSoldAfter: r.quantitySold, count: 1 });
+            }
+          }
+          prevProduct = r.productName;
+          prevLivestreamId = r.livestreamId;
+        }
+
+        // 4. AIに推薦順序を生成させる
+        const currentHour = input.currentHour ?? new Date().getHours();
+        const targetSlots = [
+          `${currentHour.toString().padStart(2, '0')}:00`,
+          `${currentHour.toString().padStart(2, '0')}:30`,
+          `${((currentHour + 1) % 24).toString().padStart(2, '0')}:00`,
+          `${((currentHour + 1) % 24).toString().padStart(2, '0')}:30`,
+        ];
+
+        // 商品リストが指定されていない場合、過去データから商品を取得
+        const products = input.productList && input.productList.length > 0
+          ? input.productList
+          : Object.keys(productTimeMap).slice(0, 20);
+
+        // 各商品の時間帯別スコアを計算
+        const productScores = products.map(product => {
+          const timeData = productTimeMap[product] || {};
+          let score = 0;
+          let bestSlot = '';
+          let bestSoldRate = 0;
+          for (const slot of targetSlots) {
+            const data = timeData[slot];
+            if (data) {
+              const soldRate = data.totalSold / data.count;
+              score += soldRate;
+              if (soldRate > bestSoldRate) {
+                bestSoldRate = soldRate;
+                bestSlot = slot;
+              }
+            }
+          }
+          return { product, score, bestSlot, bestSoldRate };
+        });
+
+        // スコア順にソート
+        productScores.sort((a, b) => b.score - a.score);
+
+        // 連続パターンを考慮した最終推薦順序を生成
+        const aiPrompt = `あなたはライブコマースの商品輪番戦略アドバイザーです。
+以下のデータに基づいて、配信開始時間${currentHour}時台の最適な商品提示順序を推薦してください。
+
+## 商品×時間帯別出単スコア:
+${productScores.map(p => `- ${p.product}: スコア=${p.score.toFixed(1)}, ベスト時間帯=${p.bestSlot || 'なし'}, 平均出単率=${p.bestSoldRate.toFixed(1)}`).join('\n')}
+
+## 商品連続パターン（Aの後にBを出すと転換率UP）:
+${Object.entries(sequenceMap).slice(0, 10).map(([product, sequences]) => {
+  const best = sequences.sort((a, b) => b.avgSoldAfter - a.avgSoldAfter)[0];
+  return best ? `- ${product} → ${best.nextProduct}: 平均出単${best.avgSoldAfter.toFixed(1)}件 (データ${best.count}回)` : '';
+}).filter(Boolean).join('\n')}
+
+## ルール:
+1. 出単率が高い時間帯に合った商品を優先
+2. 連続パターンで転換率が高い組み合わせを採用
+3. 同じカテゴリの商品は連続させない（例: シャンプーの後にドライヤー）
+4. 最初の1-2商品は「引き」になる人気商品を配置
+
+JSON形式で推薦順序を返してください。`;
+
+        const aiResponse = await invokeLLM({
+          messages: [
+            { role: "system", content: aiPrompt },
+            { role: "user", content: `配信開始${currentHour}時台の商品輪番戦略を推薦してください。` },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "carousel_recommendation",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  recommendedOrder: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        productName: { type: "string" },
+                        suggestedTimeSlot: { type: "string" },
+                        reason: { type: "string" },
+                        expectedConversionBoost: { type: "string" },
+                      },
+                      required: ["productName", "suggestedTimeSlot", "reason", "expectedConversionBoost"],
+                      additionalProperties: false,
+                    },
+                  },
+                  overallStrategy: { type: "string" },
+                  keyInsights: {
+                    type: "array",
+                    items: { type: "string" },
+                  },
+                },
+                required: ["recommendedOrder", "overallStrategy", "keyInsights"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        let recommendation: any = null;
+        try {
+          const content = aiResponse.choices[0]?.message?.content;
+          let jsonStr = typeof content === 'string' ? content : '{}';
+          const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+          if (jsonMatch) jsonStr = jsonMatch[1].trim();
+          recommendation = JSON.parse(jsonStr);
+        } catch (e) {
+          console.error('[getCarouselRecommendation] Failed to parse AI response');
+          recommendation = {
+            recommendedOrder: productScores.slice(0, 10).map(p => ({
+              productName: p.product,
+              suggestedTimeSlot: p.bestSlot || targetSlots[0],
+              reason: `過去データでスコア${p.score.toFixed(1)}`,
+              expectedConversionBoost: '+0%',
+            })),
+            overallStrategy: '過去の出単率に基づく推薦順序',
+            keyInsights: ['データが蓄積されるとより精度の高い推薦が可能になります'],
+          };
+        }
+
+        console.log(`[getCarouselRecommendation] Generated recommendation for hour=${currentHour}, products=${products.length}`);
+        return { recommendation, dataPoints: allRecords.length, productsAnalyzed: products.length };
+      }),
+
+    // ===== リアルタイムアラートチェック =====
+    checkAlerts: protectedProcedure
+      .input(z.object({
+        livestreamId: z.number(),
+        gpmThreshold: z.number().default(3000), // GPM閾値（デフォルト¥3,000）
+        noOrderMinutes: z.number().default(30), // 出単なしアラート（分）
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return { alerts: [], status: 'ok' };
+
+        const alerts: { type: string; severity: 'warning' | 'critical'; message: string; data?: any }[] = [];
+
+        // 1. GPM閾値チェック（最新のスナップショットから）
+        const latestSnapshots = await db.select()
+          .from(livestreamRealtimeSnapshots)
+          .where(eq(livestreamRealtimeSnapshots.livestreamId, input.livestreamId))
+          .orderBy(desc(livestreamRealtimeSnapshots.snapshotAt))
+          .limit(3);
+
+        if (latestSnapshots.length > 0) {
+          const latest = latestSnapshots[0];
+          if (latest.gpm !== null && latest.gpm < input.gpmThreshold) {
+            alerts.push({
+              type: 'gpm_low',
+              severity: latest.gpm < input.gpmThreshold * 0.5 ? 'critical' : 'warning',
+              message: `GPMが閾値以下です！現在: ¥${latest.gpm.toLocaleString()} (閾値: ¥${input.gpmThreshold.toLocaleString()})`,
+              data: { currentGpm: latest.gpm, threshold: input.gpmThreshold, timeSlot: latest.timeSlot },
+            });
+          }
+
+          // GPM下降トレンドチェック
+          if (latestSnapshots.length >= 2) {
+            const prev = latestSnapshots[1];
+            if (latest.gpm !== null && prev.gpm !== null && prev.gpm > 0) {
+              const dropRate = ((prev.gpm - latest.gpm) / prev.gpm) * 100;
+              if (dropRate > 30) {
+                alerts.push({
+                  type: 'gpm_dropping',
+                  severity: 'warning',
+                  message: `GPMが急落中！${prev.timeSlot}→${latest.timeSlot}で${dropRate.toFixed(0)}%下落。切り替えを検討してください。`,
+                  data: { prevGpm: prev.gpm, currentGpm: latest.gpm, dropRate: dropRate.toFixed(1) },
+                });
+              }
+            }
+          }
+        }
+
+        // 2. 30分出単なしチェック（リアルタイム記録から）
+        const now = new Date();
+        const thresholdTime = new Date(now.getTime() - input.noOrderMinutes * 60 * 1000);
+
+        const recentRecords = await db.select()
+          .from(livestreamRealtimeRecords)
+          .where(and(
+            eq(livestreamRealtimeRecords.livestreamId, input.livestreamId),
+            gte(livestreamRealtimeRecords.recordedAt, thresholdTime),
+          ));
+
+        const totalRecentSold = recentRecords.reduce((sum, r) => sum + r.quantitySold, 0);
+        if (recentRecords.length === 0 || totalRecentSold === 0) {
+          // 配信が開始されているか確認（スナップショットがある場合は配信中とみなす）
+          if (latestSnapshots.length > 0) {
+            alerts.push({
+              type: 'no_orders',
+              severity: 'critical',
+              message: `${input.noOrderMinutes}分間出単がありません！商品切り替えや話術変更を検討してください。`,
+              data: { minutesWithoutOrder: input.noOrderMinutes },
+            });
+          }
+        }
+
+        // 3. インプレッション急落チェック
+        if (latestSnapshots.length >= 2) {
+          const latest = latestSnapshots[0];
+          const prev = latestSnapshots[1];
+          if (latest.impressions !== null && prev.impressions !== null && prev.impressions > 0) {
+            const impDrop = ((prev.impressions - latest.impressions) / prev.impressions) * 100;
+            if (impDrop > 40) {
+              alerts.push({
+                type: 'impressions_dropping',
+                severity: 'warning',
+                message: `インプレッションが${impDrop.toFixed(0)}%下落。アルゴリズムの評価が下がっている可能性があります。`,
+                data: { prevImpressions: prev.impressions, currentImpressions: latest.impressions },
+              });
+            }
+          }
+        }
+
+        return {
+          alerts,
+          status: alerts.length > 0 ? (alerts.some(a => a.severity === 'critical') ? 'critical' : 'warning') : 'ok',
+          lastChecked: new Date().toISOString(),
+        };
       }),
   }),
 });

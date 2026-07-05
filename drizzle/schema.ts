@@ -6346,3 +6346,42 @@ export const livestreamRealtimeRecords = mysqlTable("livestream_realtime_records
 });
 export type LivestreamRealtimeRecord = typeof livestreamRealtimeRecords.$inferSelect;
 export type InsertLivestreamRealtimeRecord = typeof livestreamRealtimeRecords.$inferInsert;
+
+/**
+ * リアルタイムスナップショット - 配信中のTikTokダッシュボードスクショAI解析結果
+ * Staff uploads TikTok dashboard screenshots every 30 min → AI auto-extracts metrics
+ */
+export const livestreamRealtimeSnapshots = mysqlTable("livestream_realtime_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  livestreamId: int("livestreamId").notNull(), // References brand_livestreams.id
+  liverId: int("liverId"), // References livers.id
+
+  // 画像情報
+  imageUrl: text("imageUrl"), // S3 URL
+  imageKey: varchar("imageKey", { length: 512 }), // S3 key
+
+  // 時間情報
+  timeSlot: varchar("timeSlot", { length: 20 }).notNull(), // 時間帯 (e.g., "19:30")
+  snapshotAt: timestamp("snapshotAt").defaultNow().notNull(), // スクショ撮影時刻
+
+  // TikTokダッシュボード指標
+  gmv: bigint("gmv", { mode: "number" }), // 派生GMV累計（円）
+  gpm: bigint("gpm", { mode: "number" }), // 表示GPM（1000インプあたり売上・円）
+  impressions: int("impressions"), // インプレッション数
+  impressionsPerHour: int("impressionsPerHour"), // 1時間あたりインプレ
+  viewerCount: int("viewerCount"), // 視聴者数
+  viewCount: int("viewCount"), // 視聴数
+  orderCount: int("orderCount"), // 販売数
+  tapThroughRate: varchar("tapThroughRate", { length: 20 }), // タップスルー率 (e.g., "1.93%")
+  commentRate: varchar("commentRate", { length: 20 }), // コメント率 (e.g., "5.17%")
+  followRate: varchar("followRate", { length: 20 }), // フォロー率 (e.g., "0.15%")
+  avgViewDuration: varchar("avgViewDuration", { length: 20 }), // 視聴1回あたり平均時間 (e.g., "2m6s")
+
+  // メタデータ
+  notes: text("notes"), // 運営メモ
+  rawResponse: json("rawResponse").$type<Record<string, any>>(), // AI生レスポンス
+  confidence: mysqlEnum("confidence", ["high", "medium", "low"]).default("medium"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type LivestreamRealtimeSnapshot = typeof livestreamRealtimeSnapshots.$inferSelect;
+export type InsertLivestreamRealtimeSnapshot = typeof livestreamRealtimeSnapshots.$inferInsert;

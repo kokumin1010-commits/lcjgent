@@ -1,12 +1,13 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Clock, ShoppingCart, Package, TrendingUp, Edit2, Check, X } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Clock, ShoppingCart, Package, TrendingUp, Edit2, Check, X, Camera, Loader2, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 // 30分刻みのタイムスロット生成
 function generateTimeSlots(): string[] {
@@ -91,6 +92,94 @@ export default function LivestreamRealtimeRecord() {
     onError: (err) => toast.error(`エラー: ${err.message}`),
   });
 
+  // ===== スクショAI解析 =====
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [snapshotTab, setSnapshotTab] = useState<'upload' | 'trend'>('upload');
+
+  // スクショ一覧取得
+  const { data: snapshots, refetch: refetchSnapshots } = trpc.realtimeRecord.getSnapshots.useQuery(
+    { livestreamId },
+    { enabled: livestreamId > 0 }
+  );
+
+  // スクショトレンド取得
+  const { data: snapshotTrend } = trpc.realtimeRecord.getSnapshotTrend.useQuery(
+    { livestreamId },
+    { enabled: livestreamId > 0 }
+  );
+
+  const addSnapshotMutation = trpc.realtimeRecord.addSnapshot.useMutation({
+    onSuccess: (data) => {
+      toast.success(`AI解析完了！GPM: ¥${data.snapshot.gpm?.toLocaleString() || '---'}`);
+      refetchSnapshots();
+      setIsAnalyzing(false);
+    },
+    onError: (err) => {
+      toast.error(`解析エラー: ${err.message}`);
+      setIsAnalyzing(false);
+    },
+  });
+
+  // スクショアップロードハンドラー
+  const handleSnapshotUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('画像ファイルを選択してください');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('ファイルサイズは10MB以下にしてください');
+      return;
+    }
+    setIsAnalyzing(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        addSnapshotMutation.mutate({
+          livestreamId,
+          liverId: livestream?.liverId || undefined,
+          imageBase64: base64,
+          mimeType: file.type,
+          timeSlot,
+          notes: notes || undefined,
+        });
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      toast.error('ファイル読み込みエラー');
+      setIsAnalyzing(false);
+    }
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // GPMトレンドチャートデータ
+  const trendChartData = useMemo(() => {
+    if (!snapshotTrend || snapshotTrend.length === 0) return [];
+    return snapshotTrend.map(s => ({
+      timeSlot: s.timeSlot,
+      gpm: s.gpm || 0,
+      impressions: s.impressions ? Math.round(s.impressions / 1000) : 0, // K表示
+      viewers: s.viewerCount ? Math.round(s.viewerCount / 1000) : 0, // K表示
+    }));
+  }, [snapshotTrend]);
+
+  // リアルタイムアラートチェック
+  const { data: alertData } = trpc.realtimeRecord.checkAlerts.useQuery(
+    { livestreamId, gpmThreshold: 3000, noOrderMinutes: 30 },
+    { enabled: livestreamId > 0, refetchInterval: 60000 } // 1分ごとにチェック
+  );
+
+  // AI商品輪番推薦
+  const [showRecommendation, setShowRecommendation] = useState(false);
+  const { data: carouselData, isLoading: isLoadingCarousel } = trpc.realtimeRecord.getCarouselRecommendation.useQuery(
+    { liverId: livestream?.liverId || undefined, currentHour: new Date().getHours() },
+    { enabled: showRecommendation && livestreamId > 0 }
+  );
+
   // 記録追加
   const handleAdd = () => {
     if (!productName.trim()) {
@@ -163,6 +252,90 @@ export default function LivestreamRealtimeRecord() {
           </div>
         </div>
       </div>
+
+      {/* アラートバナー */}
+      {alertData && alertData.alerts.length > 0 && (
+        <div className="px-4 pt-3 space-y-2">
+          {alertData.alerts.map((alert, idx) => (
+            <div
+              key={idx}
+              className={`rounded-lg px-3 py-2 text-xs font-medium flex items-center gap-2 ${
+                alert.severity === 'critical'
+                  ? 'bg-red-900/80 border border-red-600 text-red-200'
+                  : 'bg-yellow-900/80 border border-yellow-600 text-yellow-200'
+              }`}
+            >
+              <span className="text-base">{alert.severity === 'critical' ? '🚨' : '⚠️'}</span>
+              <span className="flex-1">{alert.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* AI商品輪番推薦ボタン */}
+      <div className="px-4 pt-3">
+        <Button
+          className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold h-10 text-sm"
+          onClick={() => setShowRecommendation(!showRecommendation)}
+        >
+          🤖 AI商品輪番戦略を生成
+        </Button>
+      </div>
+
+      {/* AI推薦結果 */}
+      {showRecommendation && (
+        <div className="px-4 pt-3">
+          <Card className="bg-indigo-950/50 border-indigo-700/50">
+            <CardContent className="p-4">
+              <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                🤖 AI推薦商品順序
+              </h3>
+              {isLoadingCarousel ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
+                  <span className="ml-2 text-xs text-gray-400">AIが過去データを分析中...</span>
+                </div>
+              ) : carouselData?.recommendation ? (
+                <div className="space-y-3">
+                  {/* 戦略概要 */}
+                  <p className="text-xs text-indigo-300 bg-indigo-900/30 rounded px-2 py-1.5">
+                    💡 {carouselData.recommendation.overallStrategy}
+                  </p>
+                  {/* 推薦順序 */}
+                  <div className="space-y-1.5">
+                    {carouselData.recommendation.recommendedOrder?.map((item: any, idx: number) => (
+                      <div key={idx} className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-2">
+                        <span className="text-lg font-bold text-indigo-400 w-6 text-center">{idx + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-white font-medium truncate">{item.productName}</p>
+                          <p className="text-[10px] text-gray-400">{item.suggestedTimeSlot} • {item.reason}</p>
+                        </div>
+                        <span className="text-[10px] text-green-400 font-bold shrink-0">{item.expectedConversionBoost}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {/* インサイト */}
+                  {carouselData.recommendation.keyInsights?.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      <p className="text-[10px] text-gray-500 font-bold">🔑 インサイト:</p>
+                      {carouselData.recommendation.keyInsights.map((insight: string, idx: number) => (
+                        <p key={idx} className="text-[10px] text-gray-400 pl-3">• {insight}</p>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[9px] text-gray-600 text-right">
+                    分析データ: {carouselData.dataPoints}件 / {carouselData.productsAnalyzed}商品
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500 text-center py-4">
+                  {carouselData?.message || '過去の配信データが必要です。リアルタイム記録を蓄積してください。'}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* クイック入力フォーム */}
       <div className="p-4 space-y-3">
@@ -301,6 +474,164 @@ export default function LivestreamRealtimeRecord() {
             </CardContent>
           </Card>
         )}
+
+        {/* 📸 スクショAI解析セクション */}
+        <Card className="bg-gray-900 border-purple-700/50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Camera className="h-4 w-4 text-purple-400" />
+                📸 スクショAI解析
+              </h3>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant={snapshotTab === 'upload' ? 'default' : 'ghost'}
+                  className={`text-xs h-7 ${snapshotTab === 'upload' ? 'bg-purple-600' : 'text-gray-400'}`}
+                  onClick={() => setSnapshotTab('upload')}
+                >
+                  アップロード
+                </Button>
+                <Button
+                  size="sm"
+                  variant={snapshotTab === 'trend' ? 'default' : 'ghost'}
+                  className={`text-xs h-7 ${snapshotTab === 'trend' ? 'bg-purple-600' : 'text-gray-400'}`}
+                  onClick={() => setSnapshotTab('trend')}
+                >
+                  GPM推移
+                </Button>
+              </div>
+            </div>
+
+            {snapshotTab === 'upload' && (
+              <div className="space-y-3">
+                {/* アップロードボタン */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleSnapshotUpload}
+                />
+                <Button
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold h-12 text-base"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isAnalyzing}
+                >
+                  {isAnalyzing ? (
+                    <><Loader2 className="h-5 w-5 mr-2 animate-spin" />AI解析中...</>
+                  ) : (
+                    <><Camera className="h-5 w-5 mr-2" />スクショをアップロード</>
+                  )}
+                </Button>
+                <p className="text-[10px] text-gray-500 text-center">
+                  TikTokダッシュボードのスクショをアップ→AIがGPM・インプレ・視聴者数等を自動抽出
+                </p>
+
+                {/* スクショ履歴 */}
+                {snapshots && snapshots.length > 0 && (
+                  <div className="space-y-2 mt-3">
+                    <p className="text-xs text-gray-400 font-bold">解析履歴 ({snapshots.length}件)</p>
+                    {snapshots.slice().reverse().map(snap => (
+                      <div key={snap.id} className="bg-gray-800/50 rounded-lg px-3 py-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-mono text-purple-300">{snap.timeSlot}</span>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded ${snap.confidence === 'high' ? 'bg-green-900/50 text-green-400' : snap.confidence === 'medium' ? 'bg-yellow-900/50 text-yellow-400' : 'bg-red-900/50 text-red-400'}`}>
+                              {snap.confidence}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="text-green-400 font-bold">¥{(snap.gpm || 0).toLocaleString()}</span>
+                            <span className="text-gray-400 text-[10px]">GPM</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-4 gap-1 mt-1.5">
+                          <div className="text-center">
+                            <p className="text-[9px] text-gray-500">派生GMV</p>
+                            <p className="text-[10px] text-white">¥{(snap.gmv || 0).toLocaleString()}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[9px] text-gray-500">インプレ</p>
+                            <p className="text-[10px] text-white">{snap.impressions ? `${(snap.impressions / 1000).toFixed(1)}K` : '-'}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[9px] text-gray-500">視聴者</p>
+                            <p className="text-[10px] text-white">{snap.viewerCount ? `${(snap.viewerCount / 1000).toFixed(1)}K` : '-'}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[9px] text-gray-500">販売数</p>
+                            <p className="text-[10px] text-white">{snap.orderCount || '-'}</p>
+                          </div>
+                        </div>
+                        {(snap.tapThroughRate || snap.commentRate || snap.followRate) && (
+                          <div className="flex gap-2 mt-1 text-[9px] text-gray-400">
+                            {snap.tapThroughRate && <span>タップ:{snap.tapThroughRate}</span>}
+                            {snap.commentRate && <span>コメント:{snap.commentRate}</span>}
+                            {snap.followRate && <span>フォロー:{snap.followRate}</span>}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {snapshotTab === 'trend' && (
+              <div>
+                {trendChartData.length > 0 ? (
+                  <div className="space-y-3">
+                    {/* GPM推移チャート */}
+                    <div>
+                      <p className="text-xs text-gray-400 mb-2">GPM推移 (¥)</p>
+                      <div className="h-40">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={trendChartData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                            <XAxis dataKey="timeSlot" tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                            <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                            <Tooltip
+                              contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
+                              labelStyle={{ color: '#fff', fontSize: 12 }}
+                              itemStyle={{ fontSize: 11 }}
+                            />
+                            <Line type="monotone" dataKey="gpm" stroke="#a855f7" strokeWidth={2} dot={{ r: 4, fill: '#a855f7' }} name="GPM (¥)" />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                    {/* インプレ推移 */}
+                    <div>
+                      <p className="text-xs text-gray-400 mb-2">インプレッション (K)</p>
+                      <div className="h-32">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={trendChartData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                            <XAxis dataKey="timeSlot" tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                            <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                            <Tooltip
+                              contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
+                              labelStyle={{ color: '#fff', fontSize: 12 }}
+                              itemStyle={{ fontSize: 11 }}
+                            />
+                            <Line type="monotone" dataKey="impressions" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: '#3b82f6' }} name="インプレ (K)" />
+                            <Line type="monotone" dataKey="viewers" stroke="#10b981" strokeWidth={2} dot={{ r: 3, fill: '#10b981' }} name="視聴者 (K)" />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <ImageIcon className="h-8 w-8 text-gray-600 mx-auto mb-2" />
+                    <p className="text-xs text-gray-500">スクショをアップロードすると、GPM推移チャートが表示されます</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* 記録一覧 */}
         <Card className="bg-gray-900 border-gray-700">
