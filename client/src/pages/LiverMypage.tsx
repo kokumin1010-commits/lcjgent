@@ -2350,7 +2350,7 @@ export default function LiverMypage() {
 
                 return (
                   <div key={ls.id} className="relative group">
-                    <Link href={`/livestreams/${ls.id}`} className="block">
+                    <a href={`/livestreams/${ls.id}`} target="_blank" rel="noopener noreferrer" className="block no-underline">
                     <Card 
                       className="bg-gray-800/50 border-gray-700 hover:bg-gray-700/50 transition-colors cursor-pointer active:scale-[0.99]"
                     >
@@ -2441,7 +2441,7 @@ export default function LiverMypage() {
                       )}
                     </CardContent>
                     </Card>
-                    </Link>
+                    </a>
                     {/* 削除ボタン */}
                     <button
                       className="absolute top-1.5 right-1.5 h-6 w-6 flex items-center justify-center rounded-full bg-gray-700/80 text-white/70 hover:text-red-400 hover:bg-red-900/50 transition-colors z-10"
