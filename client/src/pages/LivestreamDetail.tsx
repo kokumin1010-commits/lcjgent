@@ -199,7 +199,7 @@ export default function LivestreamDetail() {
       setEditSets(livestreamSets.map((set: any) => ({
         setName: set.setName || '',
         setPrice: (set.setPrice || 0).toString(),
-        quantitySold: (set.quantitySold || 1).toString(),
+        quantitySold: (set.quantitySold ?? 0).toString(),
         items: set.items && set.items.length > 0
           ? set.items.map((item: any) => ({
               productName: item.productName || '',
@@ -753,7 +753,7 @@ export default function LivestreamDetail() {
           .map(s => ({
             setName: s.setName.trim(),
             setPrice: parseInt(s.setPrice) || 0,
-            quantitySold: parseInt(s.quantitySold) || 1,
+            quantitySold: parseInt(s.quantitySold) || 0,
             items: s.items
               .filter(item => item.productName.trim().length > 0)
               .map(item => ({
@@ -1089,7 +1089,7 @@ export default function LivestreamDetail() {
                     const totalOriginalPrice = set.items.reduce((sum, item) => sum + (parseInt(item.originalPrice) || 0) * (parseInt(item.quantity) || 1), 0);
                     const setPrice = parseInt(set.setPrice) || 0;
                     const discountRate = totalOriginalPrice > 0 ? Math.round(((totalOriginalPrice - setPrice) / totalOriginalPrice) * 100) : 0;
-                    const quantitySold = parseInt(set.quantitySold) || 1;
+                    const quantitySold = parseInt(set.quantitySold) || 0;
                     const totalRevenue = setPrice * quantitySold;
 
                     return (
@@ -1140,7 +1140,8 @@ export default function LivestreamDetail() {
                               <Label className="text-gray-300 text-xs">販売数量</Label>
                               <Input
                                 type="number"
-                                placeholder="1"
+                                placeholder="0"
+                                min="0"
                                 value={set.quantitySold}
                                 onChange={(e) => {
                                   const newSets = [...editSets];

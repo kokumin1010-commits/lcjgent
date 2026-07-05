@@ -688,7 +688,7 @@ export default function LiverSelfRecord() {
             .map(s => ({
               setName: s.setName.trim(),
               setPrice: parseInt(s.setPrice) || 0,
-              quantitySold: parseInt(s.quantitySold) || 1,
+              quantitySold: parseInt(s.quantitySold) || 0,
               items: s.items
                 .filter(item => item.productName.trim().length > 0)
                 .map(item => ({
@@ -1435,7 +1435,7 @@ export default function LiverSelfRecord() {
                   const totalOriginalPrice = set.items.reduce((sum, item) => sum + (parseInt(item.originalPrice) || 0) * (parseInt(item.quantity) || 1), 0);
                   const setPrice = parseInt(set.setPrice) || 0;
                   const discountRate = totalOriginalPrice > 0 ? Math.round(((totalOriginalPrice - setPrice) / totalOriginalPrice) * 100) : 0;
-                  const quantitySold = parseInt(set.quantitySold) || 1;
+                  const quantitySold = parseInt(set.quantitySold) || 0;
                   const totalRevenue = setPrice * quantitySold;
 
                   return (

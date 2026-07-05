@@ -37,7 +37,7 @@ describe('Livestream Edit Sets & Delete', () => {
         .map(s => ({
           setName: s.setName.trim(),
           setPrice: parseInt(s.setPrice) || 0,
-          quantitySold: parseInt(s.quantitySold) || 1,
+          quantitySold: parseInt(s.quantitySold) || 0,
           items: s.items
             .filter(item => item.productName.trim().length > 0)
             .map(item => ({

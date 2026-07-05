@@ -14350,7 +14350,7 @@ ${conversationText}
         sets: z.array(z.object({
           setName: z.string().min(1),
           setPrice: z.number().min(0),
-          quantitySold: z.number().min(1),
+          quantitySold: z.number().min(0),
           items: z.array(z.object({
             productName: z.string().min(1),
             originalPrice: z.number().min(0),
@@ -24339,7 +24339,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         sets: z.array(z.object({
           setName: z.string().min(1),
           setPrice: z.number().min(0),
-          quantitySold: z.number().min(1),
+          quantitySold: z.number().min(0),
           items: z.array(z.object({
             productName: z.string().min(1),
             originalPrice: z.number().min(0),
