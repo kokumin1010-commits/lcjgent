@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ChevronDown, ChevronUp, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2, UserCheck, Upload, Package, FileSpreadsheet, Trophy, Crown, ShoppingBag, Tag, Percent, Sparkles, MessageSquare, ShieldCheck, ShieldAlert, HelpCircle, AlertCircle, Target } from "lucide-react";
+import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ChevronDown, ChevronUp, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2, UserCheck, Upload, Package, FileSpreadsheet, Trophy, Crown, ShoppingBag, Tag, Percent, Sparkles, MessageSquare, ShieldCheck, ShieldAlert, HelpCircle, AlertCircle, Target, Zap } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -2009,7 +2009,7 @@ export default function LiverByName() {
                           </div>
                         </div>
                         
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
                           <div className="flex items-center gap-2">
                             <DollarSign className="w-4 h-4 text-yellow-500" />
                             <div>
@@ -2055,6 +2055,19 @@ export default function LiverByName() {
                               </p>
                             </div>
                           </div>
+
+                          {/* 時間単価 */}
+                          {livestream.duration && livestream.duration > 0 && livestream.salesAmount ? (
+                            <div className="flex items-center gap-2">
+                              <Zap className="w-4 h-4 text-cyan-500" />
+                              <div>
+                                <p className="text-xs text-white">時間単価</p>
+                                <p className="font-medium text-cyan-400">
+                                  ¥{Math.round(livestream.salesAmount / (livestream.duration / 60)).toLocaleString()}/h
+                                </p>
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
                         
                         {/* ブランド別配信時間 */}
