@@ -2305,6 +2305,7 @@ function SettlementsTab() {
 
 // ==================== Brand Performance Panel (for detail dialog) ====================
 function BrandPerformancePanel({ brandName, productName }: { brandName: string; productName: string }) {
+  const { t } = useLanguage();
   const [expanded, setExpanded] = useState(false);
   const perfQuery = trpc.selectionCenter.getBrandPerformanceSummary.useQuery(
     { brandName },
