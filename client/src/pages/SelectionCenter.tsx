@@ -364,6 +364,22 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
                   disabled={uploading}
                 />
               </label>
+              <AiRecognitionInlineButton onResult={(data) => {
+                setForm((prev: any) => ({
+                  ...prev,
+                  productName: data.productName || prev.productName || '',
+                  brandName: data.brandName || prev.brandName || '',
+                  price: data.price ? String(data.price) : prev.price || '',
+                  marketPrice: data.marketPrice ? String(data.marketPrice) : prev.marketPrice || '',
+                  costPrice: data.costPrice ? String(data.costPrice) : prev.costPrice || '',
+                  stock: data.stock || prev.stock || '',
+                  sellingPoints: data.sellingPoints || prev.sellingPoints || '',
+                  description: data.description || prev.description || '',
+                  barcode: data.barcode || prev.barcode || '',
+                  productLink: data.productLink || prev.productLink || '',
+                }));
+                toast.success(t('sc.form.aiRecognitionSuccess') || 'AI识别完成，已自动填充');
+              }} />
             </div>
           </div>
 
@@ -598,6 +614,65 @@ function AiRecognitionButton({ onResult }: { onResult: (data: any) => void }) {
           <><Sparkles className="h-4 w-4 mr-1" />{t('sc.form.aiRecognition') || 'AI识别'}</>
         )}
       </Button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileSelect}
+      />
+    </>
+  );
+}
+
+// AI識別ボタン（ダイアログ内インライン版）
+function AiRecognitionInlineButton({ onResult }: { onResult: (data: any) => void }) {
+  const { t } = useLanguage();
+  const [analyzing, setAnalyzing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const analyzeMutation = trpc.selectionCenter.analyzeProductImage.useMutation();
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAnalyzing(true);
+    try {
+      const reader = new FileReader();
+      const dataUrl = await new Promise<string>((resolve) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+      const [header, base64Data] = dataUrl.split(',');
+      const mimeType = header.match(/data:(.*?);/)?.[1] || file.type || 'image/jpeg';
+      const result = await analyzeMutation.mutateAsync({ base64Data, mimeType });
+      if (result.success && result.data) {
+        onResult(result.data);
+      } else {
+        toast.error(t('sc.form.aiRecognitionFailed') || 'AI识别失败');
+      }
+    } catch (err: any) {
+      toast.error(err?.message || t('sc.form.aiRecognitionFailed') || 'AI识别失败');
+    } finally {
+      setAnalyzing(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <>
+      <div
+        onClick={() => !analyzing && fileInputRef.current?.click()}
+        className="w-20 h-20 rounded-lg border-2 border-dashed border-purple-300 flex flex-col items-center justify-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
+      >
+        {analyzing ? (
+          <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
+        ) : (
+          <>
+            <Sparkles className="w-5 h-5 text-purple-500" />
+            <span className="text-[10px] text-purple-600 mt-1 font-medium">{t('sc.form.aiRecognition') || 'AI识别'}</span>
+          </>
+        )}
+      </div>
       <input
         ref={fileInputRef}
         type="file"
