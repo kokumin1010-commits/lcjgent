@@ -632,9 +632,7 @@ function AiRecognitionInlineButton({ onResult }: { onResult: (data: any) => void
   const fileInputRef = useRef<HTMLInputElement>(null);
   const analyzeMutation = trpc.selectionCenter.analyzeProductImage.useMutation();
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processFile = async (file: File) => {
     setAnalyzing(true);
     try {
       const reader = new FileReader();
@@ -654,9 +652,37 @@ function AiRecognitionInlineButton({ onResult }: { onResult: (data: any) => void
       toast.error(err?.message || t('sc.form.aiRecognitionFailed') || 'AI识别失败');
     } finally {
       setAnalyzing(false);
-      e.target.value = '';
     }
   };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processFile(file);
+    e.target.value = '';
+  };
+
+  // Listen for paste events on the document when this component is mounted
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      if (analyzing) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            toast.info(t('sc.form.aiAnalyzing') || 'AI识别中...');
+            await processFile(file);
+          }
+          return;
+        }
+      }
+    };
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [analyzing]);
 
   return (
     <>
@@ -670,6 +696,7 @@ function AiRecognitionInlineButton({ onResult }: { onResult: (data: any) => void
           <>
             <Sparkles className="w-5 h-5 text-purple-500" />
             <span className="text-[10px] text-purple-600 mt-1 font-medium">{t('sc.form.aiRecognition') || 'AI识别'}</span>
+            <span className="text-[8px] text-purple-400 mt-0.5">可粘贴</span>
           </>
         )}
       </div>
