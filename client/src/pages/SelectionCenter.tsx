@@ -936,6 +936,21 @@ function LiverSelectionTab() {
                     {product.sellingPoints && (
                       <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{product.sellingPoints}</p>
                     )}
+                    {/* Self-operated info */}
+                    {product.selfOperated ? (
+                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                        <div className="flex items-center gap-1 mb-1">
+                          <span className="text-[10px] font-bold text-green-700 bg-green-200 px-1.5 py-0.5 rounded">自营</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-gray-600">
+                          {product.purchasePrice && <span>进货价: ¥{Number(product.purchasePrice).toLocaleString()}</span>}
+                          {product.shippingFee && <span>运费: ¥{Number(product.shippingFee).toLocaleString()}</span>}
+                          {product.platformFee && <span>平台费: ¥{Number(product.platformFee).toLocaleString()}</span>}
+                          {product.totalCost && <span className="font-medium text-green-700">成本价: ¥{Number(product.totalCost).toLocaleString()}</span>}
+                          {product.deliveryTime && <span>发货: {product.deliveryTime}</span>}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                   <div onClick={(e) => e.stopPropagation()}>
                     {!selectedLiverId ? (
