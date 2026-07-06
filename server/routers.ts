@@ -26943,7 +26943,7 @@ ${feedbackSummary.highRatedReviews.slice(0, 10).map(r => `- ${r.rating}★: ${r.
 JSON配列のみを出力してください。`;
         
         const aiResponse = await invokeLLM({
-          model: "gemini-3-flash-preview",
+          model: "gpt-5-mini",
           messages: [{ role: "user", content: prompt }],
         });
         
@@ -28387,7 +28387,7 @@ JSON配列のみを出力してください。`;
 - confidenceは読み取り精度に応じて high/medium/low で返してください`;
 
         const aiResponse = await invokeLLM({
-          model: "gemini-3-flash-preview",
+          model: "gpt-5-mini",
           messages: [
             { role: "system", content: systemPrompt },
             {
@@ -29176,7 +29176,7 @@ async function classifyFeedbackAsync(feedbackId: number, text: string) {
 JSONのみを出力してください。`;
 
     const aiResponse = await invokeLLM({
-      model: "gemini-3-flash-preview",
+      model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
     });
     
@@ -29217,7 +29217,7 @@ async function classifyReviewAsync(reviewId: number, text: string, rating: numbe
 JSONのみを出力してください。`;
 
     const aiResponse = await invokeLLM({
-      model: "gemini-3-flash-preview",
+      model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
     });
     
