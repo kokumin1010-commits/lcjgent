@@ -1095,6 +1095,7 @@ export const selectionCenterRouter = router({
       const imageUrl = `data:${mimeType};base64,${base64Data}`;
 
       const response = await invokeLLM({
+        model: "gpt-5-mini",
         messages: [
           {
             role: "system",
@@ -1116,20 +1117,20 @@ export const selectionCenterRouter = router({
             schema: {
               type: "object",
               properties: {
-                productName: { type: ["string", "null"], description: "製品名" },
-                brandName: { type: ["string", "null"], description: "ブランド名" },
-                price: { type: ["number", "null"], description: "販売価格" },
-                marketPrice: { type: ["number", "null"], description: "通常価格" },
-                costPrice: { type: ["number", "null"], description: "仕入価格" },
-                category: { type: ["string", "null"], description: "商品カテゴリ" },
-                stock: { type: ["number", "null"], description: "在庫数" },
-                sellingPoints: { type: ["string", "null"], description: "セールスポイント" },
-                targetAudience: { type: ["string", "null"], description: "ターゲット層" },
-                specifications: { type: ["string", "null"], description: "仕様" },
-                commissionInfo: { type: ["string", "null"], description: "佣金情報" },
-                barcode: { type: ["string", "null"], description: "バーコード" },
-                productLink: { type: ["string", "null"], description: "商品リンク" },
-                description: { type: ["string", "null"], description: "商品説明" },
+                productName: { anyOf: [{ type: "string" }, { type: "null" }], description: "製品名" },
+                brandName: { anyOf: [{ type: "string" }, { type: "null" }], description: "ブランド名" },
+                price: { anyOf: [{ type: "number" }, { type: "null" }], description: "販売価格" },
+                marketPrice: { anyOf: [{ type: "number" }, { type: "null" }], description: "通常価格" },
+                costPrice: { anyOf: [{ type: "number" }, { type: "null" }], description: "仕入価格" },
+                category: { anyOf: [{ type: "string" }, { type: "null" }], description: "商品カテゴリ" },
+                stock: { anyOf: [{ type: "number" }, { type: "null" }], description: "在庫数" },
+                sellingPoints: { anyOf: [{ type: "string" }, { type: "null" }], description: "セールスポイント" },
+                targetAudience: { anyOf: [{ type: "string" }, { type: "null" }], description: "ターゲット層" },
+                specifications: { anyOf: [{ type: "string" }, { type: "null" }], description: "仕様" },
+                commissionInfo: { anyOf: [{ type: "string" }, { type: "null" }], description: "佣金情報" },
+                barcode: { anyOf: [{ type: "string" }, { type: "null" }], description: "バーコード" },
+                productLink: { anyOf: [{ type: "string" }, { type: "null" }], description: "商品リンク" },
+                description: { anyOf: [{ type: "string" }, { type: "null" }], description: "商品説明" },
               },
               required: ["productName", "brandName", "price", "marketPrice", "costPrice", "category", "stock", "sellingPoints", "targetAudience", "specifications", "commissionInfo", "barcode", "productLink", "description"],
               additionalProperties: false,
