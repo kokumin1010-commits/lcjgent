@@ -1,7 +1,8 @@
 /**
- * Migration: Add missing columns to selection_products and selection_categories tables
+ * Migration: Add ALL missing columns to selection_products and selection_categories tables
  * 
- * Columns added to selection_products: productNameCn, productId, talentExclusive, exclusiveLiverIds, tags
+ * Columns added to selection_products: productNameCn, productId, talentExclusive, exclusiveLiverIds, tags,
+ *   selfOperated, purchasePrice, shippingFee, platformFee, totalCost, deliveryTime
  * Columns added to selection_categories: nameCn
  */
 import { sql } from "drizzle-orm";
@@ -13,7 +14,7 @@ export async function addSelectionCenterColumns(db: any) {
       SELECT COLUMN_NAME 
       FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_NAME = 'selection_products' 
-      AND COLUMN_NAME IN ('productNameCn', 'productId', 'talentExclusive', 'exclusiveLiverIds', 'tags')
+      AND COLUMN_NAME IN ('productNameCn', 'productId', 'talentExclusive', 'exclusiveLiverIds', 'tags', 'selfOperated', 'purchasePrice', 'shippingFee', 'platformFee', 'totalCost', 'deliveryTime')
     `);
     const existingProductCols = new Set((productCols as any[]).map((r: any) => r.COLUMN_NAME));
 
@@ -36,6 +37,30 @@ export async function addSelectionCenterColumns(db: any) {
     if (!existingProductCols.has('tags')) {
       await db.execute(sql`ALTER TABLE selection_products ADD COLUMN tags TEXT DEFAULT NULL`);
       console.log('[Migration] Added column: selection_products.tags');
+    }
+    if (!existingProductCols.has('selfOperated')) {
+      await db.execute(sql`ALTER TABLE selection_products ADD COLUMN selfOperated TINYINT DEFAULT 0`);
+      console.log('[Migration] Added column: selection_products.selfOperated');
+    }
+    if (!existingProductCols.has('purchasePrice')) {
+      await db.execute(sql`ALTER TABLE selection_products ADD COLUMN purchasePrice DECIMAL(10,2) DEFAULT NULL`);
+      console.log('[Migration] Added column: selection_products.purchasePrice');
+    }
+    if (!existingProductCols.has('shippingFee')) {
+      await db.execute(sql`ALTER TABLE selection_products ADD COLUMN shippingFee DECIMAL(10,2) DEFAULT NULL`);
+      console.log('[Migration] Added column: selection_products.shippingFee');
+    }
+    if (!existingProductCols.has('platformFee')) {
+      await db.execute(sql`ALTER TABLE selection_products ADD COLUMN platformFee DECIMAL(10,2) DEFAULT NULL`);
+      console.log('[Migration] Added column: selection_products.platformFee');
+    }
+    if (!existingProductCols.has('totalCost')) {
+      await db.execute(sql`ALTER TABLE selection_products ADD COLUMN totalCost DECIMAL(10,2) DEFAULT NULL`);
+      console.log('[Migration] Added column: selection_products.totalCost');
+    }
+    if (!existingProductCols.has('deliveryTime')) {
+      await db.execute(sql`ALTER TABLE selection_products ADD COLUMN deliveryTime VARCHAR(100) DEFAULT NULL`);
+      console.log('[Migration] Added column: selection_products.deliveryTime');
     }
 
     // Check selection_categories columns
