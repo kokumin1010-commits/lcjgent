@@ -28448,15 +28448,16 @@ JSON配列のみを出力してください。`;
           metrics = { confidence: "low" };
         }
 
-        // 4. Save to DB (raw SQL to avoid drizzle bigint column count bug)
+        // 4. Save to DB (raw mysql2 pool.query to completely bypass drizzle ORM issues)
         const rawJson = JSON.stringify(metrics);
-        const result = await db.execute(sqlTag`
-          INSERT INTO livestream_realtime_snapshots
-            (livestreamId, liverId, imageUrl, imageKey, timeSlot, gmv, gpm, impressions, impressionsPerHour, viewerCount, viewCount, orderCount, tapThroughRate, commentRate, followRate, avgViewDuration, notes, rawResponse, confidence)
-          VALUES
-            (${input.livestreamId}, ${input.liverId || null}, ${imageUrl}, ${fileKey}, ${input.timeSlot}, ${metrics.gmv || null}, ${metrics.gpm || null}, ${metrics.impressions || null}, ${metrics.impressionsPerHour || null}, ${metrics.viewerCount || null}, ${metrics.viewCount || null}, ${metrics.orderCount || null}, ${metrics.tapThroughRate || null}, ${metrics.commentRate || null}, ${metrics.followRate || null}, ${metrics.avgViewDuration || null}, ${input.notes || null}, ${rawJson}, ${metrics.confidence || "medium"})
-        `);
-        const insertId = (result as any)?.[0]?.insertId || (result as any)?.insertId || null;
+        const mysql2 = await import('mysql2/promise');
+        const pool = mysql2.createPool(process.env.DATABASE_URL!);
+        const [result] = await pool.query(
+          `INSERT INTO livestream_realtime_snapshots (livestreamId, liverId, imageUrl, imageKey, timeSlot, gmv, gpm, impressions, impressionsPerHour, viewerCount, viewCount, orderCount, tapThroughRate, commentRate, followRate, avgViewDuration, notes, rawResponse, confidence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [input.livestreamId, input.liverId || null, imageUrl, fileKey, input.timeSlot, metrics.gmv || null, metrics.gpm || null, metrics.impressions || null, metrics.impressionsPerHour || null, metrics.viewerCount || null, metrics.viewCount || null, metrics.orderCount || null, metrics.tapThroughRate || null, metrics.commentRate || null, metrics.followRate || null, metrics.avgViewDuration || null, input.notes || null, rawJson, metrics.confidence || "medium"]
+        ) as any;
+        await pool.end();
+        const insertId = result?.insertId || null;
         console.log(`[addSnapshot] Saved snapshot for livestream ${input.livestreamId}, timeSlot=${input.timeSlot}, GPM=${metrics.gpm}`);
         return {
           success: true,
