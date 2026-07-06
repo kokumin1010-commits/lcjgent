@@ -2612,6 +2612,12 @@ async function startServer() {
               console.error("[Migration] Selection product fields error:", err);
             });
           });
+          // Selection Center: productNameCn, tags, nameCn columns
+          import("../migrations/addSelectionCenterColumns").then(({ addSelectionCenterColumns }) => {
+            addSelectionCenterColumns(db).catch((err: unknown) => {
+              console.error("[Migration] Selection center columns error:", err);
+            });
+          });
         }
       });
     });
