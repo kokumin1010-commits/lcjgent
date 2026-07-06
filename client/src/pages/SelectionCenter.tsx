@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink } from "lucide-react";
+import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -1089,6 +1089,46 @@ function SchedulesTab() {
   const confirmedCount = schedulesQuery.data?.filter((s: any) => s.status === 'confirmed').length || 0;
   const pendingCount = schedulesQuery.data?.filter((s: any) => s.status === 'pending').length || 0;
 
+  // 一键导出CSV
+  const handleExportCSV = () => {
+    // Flatten all grouped schedules for export
+    const allItems: any[] = [];
+    Object.entries(groupedByLiver).forEach(([, group]) => {
+      group.items.forEach((s: any) => allItems.push({ ...s, liverName: group.liverName }));
+    });
+    if (allItems.length === 0) {
+      toast.error('导出するデータがありません');
+      return;
+    }
+    const headers = ['主播', '直播日期', '开始时间', '结束时间', '品牌', '商品', '顺序', '状态'];
+    const rows = allItems.map(s => {
+      const rawDate = s.liveDate instanceof Date ? s.liveDate.toISOString() : String(s.liveDate || '');
+      const dateStr = rawDate.split('T')[0];
+      const statusLabel = s.status === 'confirmed' ? '已确认' : s.status === 'done' ? '已完成' : s.status === 'cancelled' ? '已取消' : '未确认';
+      return [
+        s.liverName || '-',
+        dateStr,
+        s.startTime || '-',
+        s.endTime || '-',
+        s.product?.brandName || '-',
+        s.product?.productName || '-',
+        s.slotOrder || '-',
+        statusLabel,
+      ];
+    });
+    const bom = '\uFEFF';
+    const csv = bom + [headers.join(','), ...rows.map(row => row.map((cell: any) => `"${String(cell || '').replace(/"/g, '""')}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const dateStr = new Date().toISOString().split('T')[0];
+    a.download = `排期一览_${dateStr}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`${allItems.length}件のデータを导出しました`);
+  };
+
   return (
     <div className="space-y-4">
       {/* Stats row */}
@@ -1143,6 +1183,9 @@ function SchedulesTab() {
           </Button>
         )}
         <div className="ml-auto flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={handleExportCSV}>
+            <Download className="h-4 w-4 mr-1" />一键导出
+          </Button>
           <Dialog open={showBatchDialog} onOpenChange={(open) => { setShowBatchDialog(open); if (!open) resetBatchForm(); }}>
             <DialogTrigger asChild>
               <Button size="sm" variant="default" className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white">
