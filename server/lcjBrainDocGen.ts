@@ -237,7 +237,7 @@ ${contextData.substring(0, 10000)}
 6. 只输出JSON，不要其他文字`;
 
   const result = await invokeLLM({
-    model: "gpt-4.1-mini",
+    model: "gpt-5-mini",
     messages: [
       { role: "system", content: "你是PPT内容生成专家。只输出有效的JSON格式。" },
       { role: "user", content: prompt },
@@ -296,7 +296,7 @@ ${contextData.substring(0, 10000)}
 7. 只输出JSON，不要其他文字`;
 
   const result = await invokeLLM({
-    model: "gpt-4.1-mini",
+    model: "gpt-5-mini",
     messages: [
       { role: "system", content: "你是专业文档撰写专家。只输出有效的JSON格式。" },
       { role: "user", content: prompt },

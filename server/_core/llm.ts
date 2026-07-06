@@ -396,7 +396,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const normalizedMessages = await Promise.all(messages.map(normalizeMessageAsync));
 
   const payload: Record<string, unknown> = {
-    model: model || "gpt-4.1-nano",  // カスタムモデル or デフォルト(gpt-4.1-nano)
+    model: model || "gpt-5-nano",  // カスタムモデル or デフォルト(gpt-5-nano)
     messages: normalizedMessages,
   };
 

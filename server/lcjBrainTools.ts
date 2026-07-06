@@ -1185,7 +1185,7 @@ export async function invokeLLMWithTools(params: {
   if (!ENV.forgeApiKey) throw new Error("API key not configured");
 
   const payload: Record<string, unknown> = {
-    model: params.model || "gpt-4.1-mini",
+    model: params.model || "gpt-5-mini",
     messages: params.messages,
     max_tokens: 16384,
   };
