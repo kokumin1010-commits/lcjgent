@@ -34,9 +34,11 @@ function ProductsTab() {
   const liversData = liversQuery2.data || [];
   const createMutation = trpc.selectionCenter.createProduct.useMutation({
     onSuccess: () => { productsQuery.refetch(); setShowCreateDialog(false); toast.success(t("sc.productAdded")); },
+    onError: (err) => { toast.error(err.message || '保存失敗'); console.error('[createProduct]', err); },
   });
   const updateMutation = trpc.selectionCenter.updateProduct.useMutation({
     onSuccess: () => { productsQuery.refetch(); setEditProduct(null); toast.success(t("sc.productUpdated")); },
+    onError: (err) => { toast.error(err.message || '更新失敗'); console.error('[updateProduct]', err); },
   });
   const statusMutation = trpc.selectionCenter.updateProductStatus.useMutation({
     onSuccess: () => { productsQuery.refetch(); toast.success(t("sc.statusUpdated")); },
