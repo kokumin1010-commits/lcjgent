@@ -381,12 +381,6 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
                   }));
                   toast.success(t('sc.form.aiRecognitionSuccess') || 'AI识别完成，已自动填充');
                 }}
-                onImageUploaded={(url) => {
-                  setForm((prev: any) => {
-                    const currentImages: string[] = prev.images ? (typeof prev.images === 'string' ? JSON.parse(prev.images) : prev.images) : [];
-                    return { ...prev, images: [...currentImages, url] };
-                  });
-                }}
               />
             </div>
           </div>
@@ -634,12 +628,11 @@ function AiRecognitionButton({ onResult }: { onResult: (data: any) => void }) {
 }
 
 // AI識別ボタン（ダイアログ内インライン版）
-function AiRecognitionInlineButton({ onResult, onImageUploaded }: { onResult: (data: any) => void; onImageUploaded?: (url: string) => void }) {
+function AiRecognitionInlineButton({ onResult }: { onResult: (data: any) => void }) {
   const { t } = useLanguage();
   const [analyzing, setAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const analyzeMutation = trpc.selectionCenter.analyzeProductImage.useMutation();
-  const uploadMutation = trpc.selectionCenter.uploadProductImage.useMutation();
 
   const processFile = async (file: File) => {
     setAnalyzing(true);
@@ -652,20 +645,9 @@ function AiRecognitionInlineButton({ onResult, onImageUploaded }: { onResult: (d
       const [header, base64Data] = dataUrl.split(',');
       const mimeType = header.match(/data:(.*?);/)?.[1] || file.type || 'image/jpeg';
 
-      // Upload the image as product image in parallel with AI analysis
-      const [aiResult, uploadResult] = await Promise.all([
-        analyzeMutation.mutateAsync({ base64Data, mimeType }),
-        uploadMutation.mutateAsync({ base64Data, fileName: file.name || 'ai-upload.jpg', mimeType }),
-      ]);
-
-      // Set the uploaded image
-      if (uploadResult?.url && onImageUploaded) {
-        onImageUploaded(uploadResult.url);
-      }
-
-      // Set the AI extracted data
-      if (aiResult.success && aiResult.data) {
-        onResult(aiResult.data);
+      const result = await analyzeMutation.mutateAsync({ base64Data, mimeType });
+      if (result.success && result.data) {
+        onResult(result.data);
       } else {
         toast.error(t('sc.form.aiRecognitionFailed') || 'AI识别失败');
       }
