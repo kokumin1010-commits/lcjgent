@@ -28387,7 +28387,7 @@ JSON配列のみを出力してください。`;
 - confidenceは読み取り精度に応じて high/medium/low で返してください`;
 
         const aiResponse = await invokeLLM({
-          model: "gemini-3-flash-preview",
+          model: "google/gemini-2.0-flash-001",
           messages: [
             { role: "system", content: systemPrompt },
             {
