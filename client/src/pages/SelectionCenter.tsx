@@ -328,6 +328,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
       platformFee: form.selfOperated && form.platformFee ? String(form.platformFee) : undefined,
       deliveryTime: form.selfOperated && form.deliveryTime ? String(form.deliveryTime) : undefined,
       suggestedPrice: form.selfOperated && form.suggestedPrice ? String(form.suggestedPrice) : undefined,
+      mechanism: form.mechanism || undefined,
     };
     // Remove undefined values for cleaner payload
     Object.keys(submitData).forEach(k => { if (submitData[k] === undefined) delete submitData[k]; });
@@ -507,6 +508,12 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
           <div>
             <Label>{t("sc.form.sellingPoints")}</Label>
             <Textarea value={form.sellingPoints || ""} onChange={e => setForm({ ...form, sellingPoints: e.target.value })} rows={3} />
+          </div>
+
+          {/* 机制 - full width */}
+          <div>
+            <Label>{'机制'}</Label>
+            <Textarea value={form.mechanism || ""} onChange={e => setForm({ ...form, mechanism: e.target.value })} rows={2} placeholder="例: 买一送一、满减、限时折扣等" />
           </div>
 
           {/* サプライヤー連絡先 - full width */}
@@ -945,6 +952,9 @@ function LiverSelectionTab() {
                     {product.sellingPoints && (
                       <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{product.sellingPoints}</p>
                     )}
+                    {product.mechanism && (
+                      <p className="text-xs text-blue-600 mt-1 font-medium">⚡ 机制: {product.mechanism}</p>
+                    )}
                     {/* Self-operated info */}
                     {product.selfOperated ? (
                       <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
@@ -1066,6 +1076,14 @@ function LiverSelectionTab() {
                 <div>
                   <Label className="text-muted-foreground text-xs">{t("sc.liver.sellingPoints")}</Label>
                   <p className="text-sm mt-1 whitespace-pre-wrap">{detailProduct.sellingPoints}</p>
+                </div>
+              )}
+
+              {/* Mechanism */}
+              {detailProduct.mechanism && (
+                <div>
+                  <Label className="text-muted-foreground text-xs">{'机制'}</Label>
+                  <p className="text-sm mt-1 whitespace-pre-wrap text-blue-600 font-medium">{detailProduct.mechanism}</p>
                 </div>
               )}
 
