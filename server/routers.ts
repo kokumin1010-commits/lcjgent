@@ -730,7 +730,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { users, lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos, brandMonthlyGmvTargets, livestreamProducts, livestreamRealtimeRecords, livestreamRealtimeSnapshots } from "../drizzle/schema";
+import { users, lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos, brandMonthlyGmvTargets, livestreamProducts, livestreamRealtimeRecords, livestreamRealtimeSnapshots, livestreamLuckyBagImages } from "../drizzle/schema";
 import { eq, and, or, not, isNotNull, isNull, desc, gt, gte, lte, like, inArray, sql as sqlTag, sum, count, max } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -28387,6 +28387,7 @@ JSON配列のみを出力してください。`;
 - confidenceは読み取り精度に応じて high/medium/low で返してください`;
 
         const aiResponse = await invokeLLM({
+          model: "gemini-3-flash-preview",
           messages: [
             { role: "system", content: systemPrompt },
             {
@@ -28414,17 +28415,17 @@ JSON配列のみを出力してください。`;
               schema: {
                 type: "object",
                 properties: {
-                  gmv: { type: ["number", "null"], description: "派生GMV累計（円）" },
-                  gpm: { type: ["number", "null"], description: "表示GPM（円）" },
-                  impressions: { type: ["number", "null"], description: "インプレッション数" },
-                  impressionsPerHour: { type: ["number", "null"], description: "1時間あたりインプレ" },
-                  viewerCount: { type: ["number", "null"], description: "視聴者数" },
-                  viewCount: { type: ["number", "null"], description: "視聴数" },
-                  orderCount: { type: ["number", "null"], description: "販売数" },
-                  tapThroughRate: { type: ["string", "null"], description: "タップスルー率" },
-                  commentRate: { type: ["string", "null"], description: "コメント率" },
-                  followRate: { type: ["string", "null"], description: "フォロー率" },
-                  avgViewDuration: { type: ["string", "null"], description: "平均視聴時間" },
+                  gmv: { anyOf: [{ type: "number" }, { type: "null" }], description: "派生GMV累計（円）" },
+                  gpm: { anyOf: [{ type: "number" }, { type: "null" }], description: "表示GPM（円）" },
+                  impressions: { anyOf: [{ type: "number" }, { type: "null" }], description: "インプレッション数" },
+                  impressionsPerHour: { anyOf: [{ type: "number" }, { type: "null" }], description: "1時間あたりインプレ" },
+                  viewerCount: { anyOf: [{ type: "number" }, { type: "null" }], description: "視聴者数" },
+                  viewCount: { anyOf: [{ type: "number" }, { type: "null" }], description: "視聴数" },
+                  orderCount: { anyOf: [{ type: "number" }, { type: "null" }], description: "販売数" },
+                  tapThroughRate: { anyOf: [{ type: "string" }, { type: "null" }], description: "タップスルー率" },
+                  commentRate: { anyOf: [{ type: "string" }, { type: "null" }], description: "コメント率" },
+                  followRate: { anyOf: [{ type: "string" }, { type: "null" }], description: "フォロー率" },
+                  avgViewDuration: { anyOf: [{ type: "string" }, { type: "null" }], description: "平均視聴時間" },
                   confidence: { type: "string", enum: ["high", "medium", "low"] },
                 },
                 required: ["gmv", "gpm", "impressions", "impressionsPerHour", "viewerCount", "viewCount", "orderCount", "tapThroughRate", "commentRate", "followRate", "avgViewDuration", "confidence"],
@@ -28825,6 +28826,109 @@ JSON形式で推薦順序を返してください。`;
           status: alerts.length > 0 ? (alerts.some(a => a.severity === 'critical') ? 'critical' : 'warning') : 'ok',
           lastChecked: new Date().toISOString(),
         };
+      }),
+
+    // ===== 福袋画像管理 =====
+    // 福袋画像アップロード
+    uploadLuckyBagImage: protectedProcedure
+      .input(z.object({
+        livestreamId: z.number(),
+        liverId: z.number().optional(),
+        imageBase64: z.string(),
+        mimeType: z.string().default("image/png"),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        price: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+
+        // Upload image to S3
+        const buffer = Buffer.from(input.imageBase64, "base64");
+        const ext = input.mimeType.includes("png") ? "png" : input.mimeType.includes("webp") ? "webp" : "jpg";
+        const fileKey = `lucky-bag-images/${input.livestreamId}/${Date.now()}-${nanoid(8)}.${ext}`;
+        const { url: imageUrl } = await storagePut(fileKey, buffer, input.mimeType);
+
+        // Get current max sortOrder
+        const existing = await db.select({ maxSort: max(livestreamLuckyBagImages.sortOrder) })
+          .from(livestreamLuckyBagImages)
+          .where(eq(livestreamLuckyBagImages.livestreamId, input.livestreamId));
+        const nextSort = (existing[0]?.maxSort || 0) + 1;
+
+        // Save to DB
+        const result = await db.insert(livestreamLuckyBagImages).values({
+          livestreamId: input.livestreamId,
+          liverId: input.liverId || null,
+          imageUrl,
+          imageKey: fileKey,
+          title: input.title || null,
+          description: input.description || null,
+          price: input.price || null,
+          sortOrder: nextSort,
+        });
+        const insertId = (result as any)?.[0]?.insertId || (result as any)?.insertId || null;
+        console.log(`[luckyBag] Uploaded lucky bag image for livestream ${input.livestreamId}, id=${insertId}`);
+        return {
+          success: true,
+          image: {
+            id: insertId,
+            imageUrl,
+            title: input.title,
+            price: input.price,
+          },
+        };
+      }),
+
+    // 福袋画像一覧取得
+    getLuckyBagImages: protectedProcedure
+      .input(z.object({
+        livestreamId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const results = await db.select()
+          .from(livestreamLuckyBagImages)
+          .where(eq(livestreamLuckyBagImages.livestreamId, input.livestreamId))
+          .orderBy(livestreamLuckyBagImages.sortOrder);
+        return results;
+      }),
+
+    // 福袋画像削除
+    deleteLuckyBagImage: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+        await db.delete(livestreamLuckyBagImages)
+          .where(eq(livestreamLuckyBagImages.id, input.id));
+        return { success: true };
+      }),
+
+    // 福袋画像タイトル・価格更新
+    updateLuckyBagImage: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        price: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+        const updateData: any = {};
+        if (input.title !== undefined) updateData.title = input.title;
+        if (input.description !== undefined) updateData.description = input.description;
+        if (input.price !== undefined) updateData.price = input.price;
+        if (Object.keys(updateData).length > 0) {
+          await db.update(livestreamLuckyBagImages)
+            .set(updateData)
+            .where(eq(livestreamLuckyBagImages.id, input.id));
+        }
+        return { success: true };
       }),
   }),
 });

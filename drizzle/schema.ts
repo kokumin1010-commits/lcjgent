@@ -6385,3 +6385,21 @@ export const livestreamRealtimeSnapshots = mysqlTable("livestream_realtime_snaps
 });
 export type LivestreamRealtimeSnapshot = typeof livestreamRealtimeSnapshots.$inferSelect;
 export type InsertLivestreamRealtimeSnapshot = typeof livestreamRealtimeSnapshots.$inferInsert;
+
+// ===== 福袋画像 (Lucky Bag Images) =====
+// 配信中に使用する福袋画像を管理するテーブル
+export const livestreamLuckyBagImages = mysqlTable("livestream_lucky_bag_images", {
+  id: int("id").autoincrement().primaryKey(),
+  livestreamId: int("livestreamId").notNull(), // References brand_livestreams.id
+  liverId: int("liverId"), // References livers.id
+  imageUrl: text("imageUrl").notNull(), // S3 URL
+  imageKey: varchar("imageKey", { length: 512 }).notNull(), // S3 key
+  title: varchar("title", { length: 255 }), // 福袋タイトル（例: "¥3,000福袋"）
+  description: text("description"), // 福袋内容説明
+  price: bigint("price", { mode: "number" }), // 福袋価格（円）
+  sortOrder: int("sortOrder").default(0), // 表示順
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type LivestreamLuckyBagImage = typeof livestreamLuckyBagImages.$inferSelect;
+export type InsertLivestreamLuckyBagImage = typeof livestreamLuckyBagImages.$inferInsert;

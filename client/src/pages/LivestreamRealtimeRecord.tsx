@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Clock, ShoppingCart, Package, TrendingUp, Edit2, Check, X, Camera, Loader2, ImageIcon } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Clock, ShoppingCart, Package, TrendingUp, Edit2, Check, X, Camera, Loader2, ImageIcon, Gift, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -125,8 +125,10 @@ export default function LivestreamRealtimeRecord() {
   const handleSnapshotUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      toast.error('画像ファイルを選択してください');
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif', 'image/heic', 'image/heif'];
+    const isImage = file.type.startsWith('image/') || allowedTypes.some(t => file.name.toLowerCase().endsWith(t.split('/')[1]));
+    if (!isImage) {
+      toast.error('画像ファイルを選択してください（PNG, JPG, WebP, HEIC対応）');
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -137,15 +139,21 @@ export default function LivestreamRealtimeRecord() {
     try {
       const reader = new FileReader();
       reader.onload = () => {
-        const base64 = (reader.result as string).split(',')[1];
+        const dataUrl = reader.result as string;
+        const base64 = dataUrl.split(',')[1];
+        const mimeType = file.type || 'image/png';
         addSnapshotMutation.mutate({
           livestreamId,
           liverId: livestream?.liverId || undefined,
           imageBase64: base64,
-          mimeType: file.type,
+          mimeType,
           timeSlot,
           notes: notes || undefined,
         });
+      };
+      reader.onerror = () => {
+        toast.error('ファイル読み込みエラー');
+        setIsAnalyzing(false);
       };
       reader.readAsDataURL(file);
     } catch (err) {
@@ -509,7 +517,7 @@ export default function LivestreamRealtimeRecord() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,image/heic,image/heif"
                   className="hidden"
                   onChange={handleSnapshotUpload}
                 />
@@ -633,6 +641,9 @@ export default function LivestreamRealtimeRecord() {
           </CardContent>
         </Card>
 
+        {/* 福袋画像セクション */}
+        <LuckyBagSection livestreamId={livestreamId} liverId={livestream?.liverId} />
+
         {/* 記録一覧 */}
         <Card className="bg-gray-900 border-gray-700">
           <CardContent className="p-4">
@@ -724,5 +735,166 @@ export default function LivestreamRealtimeRecord() {
         </Card>
       </div>
     </div>
+  );
+}
+
+
+// ===== 福袋画像セクション =====
+function LuckyBagSection({ livestreamId, liverId }: { livestreamId: number; liverId?: number | null }) {
+  const luckyBagInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [title, setTitle] = useState("");
+  const [price, setPrice] = useState("");
+
+  const { data: luckyBagImages, refetch: refetchLuckyBags } = trpc.realtimeRecord.getLuckyBagImages.useQuery(
+    { livestreamId },
+    { enabled: livestreamId > 0 }
+  );
+
+  const uploadMutation = trpc.realtimeRecord.uploadLuckyBagImage.useMutation({
+    onSuccess: (data) => {
+      toast.success("福袋画像をアップロードしました！");
+      refetchLuckyBags();
+      setIsUploading(false);
+      setTitle("");
+      setPrice("");
+    },
+    onError: (err) => {
+      toast.error(`アップロードエラー: ${err.message}`);
+      setIsUploading(false);
+    },
+  });
+
+  const deleteMutation = trpc.realtimeRecord.deleteLuckyBagImage.useMutation({
+    onSuccess: () => {
+      toast.success("福袋画像を削除しました");
+      refetchLuckyBags();
+    },
+    onError: (err) => toast.error(`削除エラー: ${err.message}`),
+  });
+
+  const handleLuckyBagUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('画像ファイルを選択してください');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('ファイルサイズは10MB以下にしてください');
+      return;
+    }
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(',')[1];
+      const mimeType = file.type || 'image/png';
+      uploadMutation.mutate({
+        livestreamId,
+        liverId: liverId || undefined,
+        imageBase64: base64,
+        mimeType,
+        title: title || undefined,
+        price: price ? parseInt(price) : undefined,
+      });
+    };
+    reader.onerror = () => {
+      toast.error('ファイル読み込みエラー');
+      setIsUploading(false);
+    };
+    reader.readAsDataURL(file);
+    if (luckyBagInputRef.current) luckyBagInputRef.current.value = '';
+  };
+
+  return (
+    <Card className="bg-gray-900 border-gray-700">
+      <CardContent className="p-4">
+        <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+          <Gift className="h-4 w-4 text-pink-400" />
+          福袋画像
+          {luckyBagImages && luckyBagImages.length > 0 && (
+            <span className="text-[10px] bg-pink-900/50 text-pink-300 px-1.5 py-0.5 rounded">
+              {luckyBagImages.length}枚
+            </span>
+          )}
+        </h3>
+
+        {/* アップロードフォーム */}
+        <div className="space-y-2 mb-3">
+          <div className="flex gap-2">
+            <Input
+              placeholder="福袋タイトル（例: ¥3,000福袋）"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="flex-1 h-8 bg-gray-800 border-gray-600 text-white text-xs"
+            />
+            <Input
+              placeholder="価格"
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className="w-20 h-8 bg-gray-800 border-gray-600 text-white text-xs"
+            />
+          </div>
+          <input
+            ref={luckyBagInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/jpg,image/webp"
+            className="hidden"
+            onChange={handleLuckyBagUpload}
+          />
+          <Button
+            className="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold h-10 text-sm"
+            onClick={() => luckyBagInputRef.current?.click()}
+            disabled={isUploading}
+          >
+            {isUploading ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />アップロード中...</>
+            ) : (
+              <><Upload className="h-4 w-4 mr-2" />福袋画像をアップロード</>
+            )}
+          </Button>
+        </div>
+
+        {/* 画像一覧 */}
+        {luckyBagImages && luckyBagImages.length > 0 && (
+          <div className="grid grid-cols-2 gap-2">
+            {luckyBagImages.map((img) => (
+              <div key={img.id} className="relative group bg-gray-800/50 rounded-lg overflow-hidden">
+                <img
+                  src={img.imageUrl}
+                  alt={img.title || '福袋'}
+                  className="w-full h-32 object-cover"
+                />
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                  {img.title && <p className="text-[10px] text-white font-bold truncate">{img.title}</p>}
+                  {img.price && <p className="text-[10px] text-pink-300">¥{Number(img.price).toLocaleString()}</p>}
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="absolute top-1 right-1 h-6 w-6 p-0 bg-red-900/70 text-red-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => {
+                    if (confirm("この福袋画像を削除しますか？")) {
+                      deleteMutation.mutate({ id: img.id });
+                    }
+                  }}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {(!luckyBagImages || luckyBagImages.length === 0) && (
+          <div className="text-center py-4">
+            <Gift className="h-6 w-6 text-gray-600 mx-auto mb-1" />
+            <p className="text-[10px] text-gray-500">福袋画像をアップロードして配信中に使用しましょう</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
