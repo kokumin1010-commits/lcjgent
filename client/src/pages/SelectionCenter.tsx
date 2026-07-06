@@ -317,6 +317,11 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
       talentExclusive: form.talentExclusive ? 1 : 0,
       exclusiveLiverIds: form.talentExclusive ? (form.exclusiveLiverIds || []) : [],
       tags: form.tags && form.tags.length > 0 ? form.tags : [],
+      selfOperated: form.selfOperated ? 1 : 0,
+      purchasePrice: form.selfOperated && form.purchasePrice ? String(form.purchasePrice) : undefined,
+      shippingFee: form.selfOperated && form.shippingFee ? String(form.shippingFee) : undefined,
+      platformFee: form.selfOperated && form.platformFee ? String(form.platformFee) : undefined,
+      deliveryTime: form.selfOperated && form.deliveryTime ? String(form.deliveryTime) : undefined,
     };
     // Remove undefined values for cleaner payload
     Object.keys(submitData).forEach(k => { if (submitData[k] === undefined) delete submitData[k]; });
@@ -501,6 +506,61 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
           <div>
             <Label>{t("sc.form.supplierContact")}</Label>
             <Input value={form.supplierContact || ""} onChange={e => setForm({ ...form, supplierContact: e.target.value })} />
+          </div>
+
+          {/* 自営 section - bordered card */}
+          <div className="border rounded-lg p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="selfOperated"
+                checked={!!form.selfOperated}
+                onChange={e => {
+                  setForm({ ...form, selfOperated: e.target.checked ? 1 : 0 });
+                }}
+                className="w-4 h-4 rounded border-gray-300"
+              />
+              <Label htmlFor="selfOperated" className="cursor-pointer font-medium">{t("sc.form.selfOperated") || '自営'}</Label>
+            </div>
+            {!!form.selfOperated && (
+              <div className="space-y-3 pt-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>{t("sc.form.purchasePrice") || '进货价'}</Label>
+                    <Input type="number" value={form.purchasePrice || ""} onChange={e => setForm({ ...form, purchasePrice: e.target.value })} placeholder="例: 5000" />
+                  </div>
+                  <div>
+                    <Label>{t("sc.form.shippingFee") || '运费'}</Label>
+                    <Input type="number" value={form.shippingFee || ""} onChange={e => setForm({ ...form, shippingFee: e.target.value })} placeholder="例: 500" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>{t("sc.form.platformFee") || '平台手续费'}</Label>
+                    <Input type="number" value={form.platformFee || ""} onChange={e => setForm({ ...form, platformFee: e.target.value })} placeholder="例: 300" />
+                  </div>
+                  <div>
+                    <Label>{t("sc.form.totalCost") || '成本价'}</Label>
+                    <Input
+                      type="number"
+                      value={(() => {
+                        const p = Number(form.purchasePrice) || 0;
+                        const s = Number(form.shippingFee) || 0;
+                        const f = Number(form.platformFee) || 0;
+                        return p + s + f > 0 ? String(p + s + f) : '';
+                      })()}
+                      readOnly
+                      className="bg-muted"
+                      placeholder="自动计算"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label>{t("sc.form.deliveryTime") || '发货时效'}</Label>
+                  <Input value={form.deliveryTime || ""} onChange={e => setForm({ ...form, deliveryTime: e.target.value })} placeholder="例: 3-5工作日" />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 達人限定 section - bordered card */}

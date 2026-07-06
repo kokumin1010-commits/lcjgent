@@ -212,11 +212,17 @@ export const selectionCenterRouter = router({
     talentExclusive: z.number().optional(),
     exclusiveLiverIds: z.array(z.number()).optional(),
     tags: z.array(z.string()).optional(),
+    selfOperated: z.number().optional(),
+    purchasePrice: z.string().optional(),
+    shippingFee: z.string().optional(),
+    platformFee: z.string().optional(),
+    deliveryTime: z.string().optional(),
   })).mutation(async ({ input, ctx }) => {
     const pool = getPool();
+    const totalCost = (Number(input.purchasePrice) || 0) + (Number(input.shippingFee) || 0) + (Number(input.platformFee) || 0);
     const [result] = await pool.query(
-      `INSERT INTO selection_products (productName, productId, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, talentExclusive, exclusiveLiverIds, tags, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [input.productName, input.productId || null, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, input.talentExclusive || 0, input.exclusiveLiverIds ? JSON.stringify(input.exclusiveLiverIds) : null, input.tags ? JSON.stringify(input.tags) : null, (ctx.user as any)?.id || 0]
+      `INSERT INTO selection_products (productName, productId, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, talentExclusive, exclusiveLiverIds, tags, selfOperated, purchasePrice, shippingFee, platformFee, totalCost, deliveryTime, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [input.productName, input.productId || null, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, input.talentExclusive || 0, input.exclusiveLiverIds ? JSON.stringify(input.exclusiveLiverIds) : null, input.tags ? JSON.stringify(input.tags) : null, input.selfOperated || 0, input.purchasePrice || null, input.shippingFee || null, input.platformFee || null, totalCost > 0 ? String(totalCost) : null, input.deliveryTime || null, (ctx.user as any)?.id || 0]
     ) as any;
     return { id: result.insertId };
   }),
@@ -244,6 +250,11 @@ export const selectionCenterRouter = router({
     talentExclusive: z.number().optional(),
     exclusiveLiverIds: z.array(z.number()).nullable().optional(),
     tags: z.array(z.string()).nullable().optional(),
+    selfOperated: z.number().optional(),
+    purchasePrice: z.string().nullable().optional(),
+    shippingFee: z.string().nullable().optional(),
+    platformFee: z.string().nullable().optional(),
+    deliveryTime: z.string().nullable().optional(),
   })).mutation(async ({ input }) => {
     const pool = getPool();
     const { id, ...data } = input;
@@ -254,6 +265,12 @@ export const selectionCenterRouter = router({
         setClauses.push(`${key} = ?`);
         params.push(key === 'images' || key === 'videos' || key === 'exclusiveLiverIds' || key === 'tags' ? JSON.stringify(value) : value);
       }
+    }
+    // Auto-calculate totalCost if any cost component is provided
+    if (data.purchasePrice !== undefined || data.shippingFee !== undefined || data.platformFee !== undefined) {
+      const totalCost = (Number(data.purchasePrice) || 0) + (Number(data.shippingFee) || 0) + (Number(data.platformFee) || 0);
+      setClauses.push('totalCost = ?');
+      params.push(totalCost > 0 ? String(totalCost) : null);
     }
     if (setClauses.length === 0) return { success: true };
     params.push(id);
