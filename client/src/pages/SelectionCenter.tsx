@@ -908,27 +908,36 @@ function LiverSelectionTab() {
                       {product.brandName}
                       {product.hasTikTokBackend && <span className="inline-block text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium">{t("sc.tiktokBackend")}</span>}
                     </p>
-                    <div className="flex items-center gap-2 mt-2 text-sm flex-wrap">
-                      <span className="font-bold text-orange-600 text-base">¥{Number(product.price || 0).toLocaleString()}</span>
-                      {product.marketPrice && Number(product.marketPrice) > 0 && Number(product.marketPrice) !== Number(product.price || 0) && (
-                        <span className="text-muted-foreground line-through text-xs">¥{Number(product.marketPrice).toLocaleString()}</span>
-                      )}
-                      {product.marketPrice && Number(product.marketPrice) > Number(product.price || 0) && (
-                        <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 shrink-0">
-                          {Math.round((1 - Number(product.price || 0) / Number(product.marketPrice)) * 100)}%OFF
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1 text-sm">
-                      <Badge variant="outline" className="text-xs">
-                        {t("sc.commission")}: {product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`}
-                        {product.commissionType === "percentage" && product.price && product.commissionValue && (
-                          <span className="ml-1 text-orange-600 font-medium">
-                            (¥{Math.round(Number(product.price) * Number(product.commissionValue) / 100).toLocaleString()})
-                          </span>
-                        )}
-                      </Badge>
-                    </div>
+                    {product.selfOperated ? (
+                      <div className="flex items-center gap-2 mt-2 text-sm flex-wrap">
+                        {product.suggestedPrice && <span className="font-bold text-orange-600 text-base">建议价: ¥{Number(product.suggestedPrice).toLocaleString()}</span>}
+                        <span className="inline-block text-[10px] font-bold text-green-700 bg-green-200 px-1.5 py-0.5 rounded">自营</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2 mt-2 text-sm flex-wrap">
+                          <span className="font-bold text-orange-600 text-base">¥{Number(product.price || 0).toLocaleString()}</span>
+                          {product.marketPrice && Number(product.marketPrice) > 0 && Number(product.marketPrice) !== Number(product.price || 0) && (
+                            <span className="text-muted-foreground line-through text-xs">¥{Number(product.marketPrice).toLocaleString()}</span>
+                          )}
+                          {product.marketPrice && Number(product.marketPrice) > Number(product.price || 0) && (
+                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 shrink-0">
+                              {Math.round((1 - Number(product.price || 0) / Number(product.marketPrice)) * 100)}%OFF
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-sm">
+                          <Badge variant="outline" className="text-xs">
+                            {t("sc.commission")}: {product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`}
+                            {product.commissionType === "percentage" && product.price && product.commissionValue && (
+                              <span className="ml-1 text-orange-600 font-medium">
+                                (¥{Math.round(Number(product.price) * Number(product.commissionValue) / 100).toLocaleString()})
+                              </span>
+                            )}
+                          </Badge>
+                        </div>
+                      </>
+                    )}
                     {/* Tag badges */}
                     {(() => {
                       const tags: string[] = product.tags ? (typeof product.tags === 'string' ? JSON.parse(product.tags) : product.tags) : [];
