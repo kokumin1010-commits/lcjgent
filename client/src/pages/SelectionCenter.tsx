@@ -425,17 +425,12 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>{t("sc.form.brandName")}</Label>
-              <Select value={String(form.brandId || "")} onValueChange={v => {
-                const brand = (brandsQuery.data || []).find((b: any) => String(b.id) === v);
-                setForm({ ...form, brandId: Number(v), brandName: brand?.name || "" });
-              }}>
-                <SelectTrigger><SelectValue placeholder={t("sc.form.brandPlaceholder")} /></SelectTrigger>
-                <SelectContent>
-                  {(brandsQuery.data || []).map((b: any) => (
-                    <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <BrandSearchSelect
+                brands={brandsQuery.data || []}
+                value={form.brandId}
+                onChange={(brandId, brandName) => setForm({ ...form, brandId, brandName })}
+                placeholder={t("sc.form.brandPlaceholder")}
+              />
             </div>
             <div>
               <Label>{t("sc.form.category")}</Label>
@@ -2676,6 +2671,77 @@ export default function SelectionCenter() {
         <TabsContent value="selections"><SelectionsTab /></TabsContent>
         <TabsContent value="polls"><PollsTab /></TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// ==================== Brand Search Select Component ====================
+function BrandSearchSelect({ brands, value, onChange, placeholder }: {
+  brands: any[];
+  value: number | undefined;
+  onChange: (brandId: number, brandName: string) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const selectedBrand = brands.find((b: any) => b.id === value);
+
+  const filteredBrands = useMemo(() => {
+    if (!searchTerm) return brands;
+    const lower = searchTerm.toLowerCase();
+    return brands.filter((b: any) =>
+      (b.name || "").toLowerCase().includes(lower) ||
+      (b.nameJa || "").toLowerCase().includes(lower) ||
+      (b.nameEn || "").toLowerCase().includes(lower)
+    );
+  }, [brands, searchTerm]);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <span className={selectedBrand ? "" : "text-muted-foreground"}>
+          {selectedBrand ? selectedBrand.name : (placeholder || "选择品牌...")}
+        </span>
+        <Search className="h-4 w-4 opacity-50" />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md">
+          <div className="p-2 border-b">
+            <Input
+              placeholder="搜索品牌名..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="h-8"
+              autoFocus
+            />
+          </div>
+          <div className="max-h-[200px] overflow-y-auto p-1">
+            {filteredBrands.length === 0 ? (
+              <div className="py-4 text-center text-sm text-muted-foreground">未找到品牌</div>
+            ) : (
+              filteredBrands.map((b: any) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground cursor-pointer flex items-center gap-2 ${b.id === value ? 'bg-accent' : ''}`}
+                  onClick={() => {
+                    onChange(b.id, b.name);
+                    setOpen(false);
+                    setSearchTerm("");
+                  }}
+                >
+                  {b.id === value && <Check className="h-3 w-3" />}
+                  <span>{b.name}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
