@@ -28452,6 +28452,33 @@ JSON配列のみを出力してください。`;
         const rawJson = JSON.stringify(metrics);
         const mysql2 = await import('mysql2/promise');
         const pool = mysql2.createPool(process.env.DATABASE_URL!);
+        // Ensure table exists
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS livestream_realtime_snapshots (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            livestreamId INT NOT NULL,
+            liverId INT DEFAULT NULL,
+            imageUrl TEXT DEFAULT NULL,
+            imageKey VARCHAR(512) DEFAULT NULL,
+            timeSlot VARCHAR(20) NOT NULL,
+            snapshotAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            gmv BIGINT DEFAULT NULL,
+            gpm BIGINT DEFAULT NULL,
+            impressions INT DEFAULT NULL,
+            impressionsPerHour INT DEFAULT NULL,
+            viewerCount INT DEFAULT NULL,
+            viewCount INT DEFAULT NULL,
+            orderCount INT DEFAULT NULL,
+            tapThroughRate VARCHAR(20) DEFAULT NULL,
+            commentRate VARCHAR(20) DEFAULT NULL,
+            followRate VARCHAR(20) DEFAULT NULL,
+            avgViewDuration VARCHAR(20) DEFAULT NULL,
+            notes TEXT DEFAULT NULL,
+            rawResponse JSON DEFAULT NULL,
+            confidence ENUM('high','medium','low') DEFAULT 'medium',
+            createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+          )
+        `);
         const [result] = await pool.query(
           `INSERT INTO livestream_realtime_snapshots (livestreamId, liverId, imageUrl, imageKey, timeSlot, gmv, gpm, impressions, impressionsPerHour, viewerCount, viewCount, orderCount, tapThroughRate, commentRate, followRate, avgViewDuration, notes, rawResponse, confidence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [input.livestreamId, input.liverId || null, imageUrl, fileKey, input.timeSlot, metrics.gmv || null, metrics.gpm || null, metrics.impressions || null, metrics.impressionsPerHour || null, metrics.viewerCount || null, metrics.viewCount || null, metrics.orderCount || null, metrics.tapThroughRate || null, metrics.commentRate || null, metrics.followRate || null, metrics.avgViewDuration || null, input.notes || null, rawJson, metrics.confidence || "medium"]
