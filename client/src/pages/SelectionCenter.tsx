@@ -364,22 +364,30 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
                   disabled={uploading}
                 />
               </label>
-              <AiRecognitionInlineButton onResult={(data) => {
-                setForm((prev: any) => ({
-                  ...prev,
-                  productName: data.productName || prev.productName || '',
-                  brandName: data.brandName || prev.brandName || '',
-                  price: data.price ? String(data.price) : prev.price || '',
-                  marketPrice: data.marketPrice ? String(data.marketPrice) : prev.marketPrice || '',
-                  costPrice: data.costPrice ? String(data.costPrice) : prev.costPrice || '',
-                  stock: data.stock || prev.stock || '',
-                  sellingPoints: data.sellingPoints || prev.sellingPoints || '',
-                  description: data.description || prev.description || '',
-                  barcode: data.barcode || prev.barcode || '',
-                  productLink: data.productLink || prev.productLink || '',
-                }));
-                toast.success(t('sc.form.aiRecognitionSuccess') || 'AI识别完成，已自动填充');
-              }} />
+              <AiRecognitionInlineButton
+                onResult={(data) => {
+                  setForm((prev: any) => ({
+                    ...prev,
+                    productName: data.productName || prev.productName || '',
+                    brandName: data.brandName || prev.brandName || '',
+                    price: data.price ? String(data.price) : prev.price || '',
+                    marketPrice: data.marketPrice ? String(data.marketPrice) : prev.marketPrice || '',
+                    costPrice: data.costPrice ? String(data.costPrice) : prev.costPrice || '',
+                    stock: data.stock || prev.stock || '',
+                    sellingPoints: data.sellingPoints || prev.sellingPoints || '',
+                    description: data.description || prev.description || '',
+                    barcode: data.barcode || prev.barcode || '',
+                    productLink: data.productLink || prev.productLink || '',
+                  }));
+                  toast.success(t('sc.form.aiRecognitionSuccess') || 'AI识别完成，已自动填充');
+                }}
+                onImageUploaded={(url) => {
+                  setForm((prev: any) => {
+                    const currentImages: string[] = prev.images ? (typeof prev.images === 'string' ? JSON.parse(prev.images) : prev.images) : [];
+                    return { ...prev, images: [...currentImages, url] };
+                  });
+                }}
+              />
             </div>
           </div>
 
@@ -626,11 +634,12 @@ function AiRecognitionButton({ onResult }: { onResult: (data: any) => void }) {
 }
 
 // AI識別ボタン（ダイアログ内インライン版）
-function AiRecognitionInlineButton({ onResult }: { onResult: (data: any) => void }) {
+function AiRecognitionInlineButton({ onResult, onImageUploaded }: { onResult: (data: any) => void; onImageUploaded?: (url: string) => void }) {
   const { t } = useLanguage();
   const [analyzing, setAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const analyzeMutation = trpc.selectionCenter.analyzeProductImage.useMutation();
+  const uploadMutation = trpc.selectionCenter.uploadProductImage.useMutation();
 
   const processFile = async (file: File) => {
     setAnalyzing(true);
@@ -642,9 +651,21 @@ function AiRecognitionInlineButton({ onResult }: { onResult: (data: any) => void
       });
       const [header, base64Data] = dataUrl.split(',');
       const mimeType = header.match(/data:(.*?);/)?.[1] || file.type || 'image/jpeg';
-      const result = await analyzeMutation.mutateAsync({ base64Data, mimeType });
-      if (result.success && result.data) {
-        onResult(result.data);
+
+      // Upload the image as product image in parallel with AI analysis
+      const [aiResult, uploadResult] = await Promise.all([
+        analyzeMutation.mutateAsync({ base64Data, mimeType }),
+        uploadMutation.mutateAsync({ base64Data, fileName: file.name || 'ai-upload.jpg', mimeType }),
+      ]);
+
+      // Set the uploaded image
+      if (uploadResult?.url && onImageUploaded) {
+        onImageUploaded(uploadResult.url);
+      }
+
+      // Set the AI extracted data
+      if (aiResult.success && aiResult.data) {
+        onResult(aiResult.data);
       } else {
         toast.error(t('sc.form.aiRecognitionFailed') || 'AI识别失败');
       }
