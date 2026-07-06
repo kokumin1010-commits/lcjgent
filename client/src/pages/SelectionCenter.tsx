@@ -144,13 +144,13 @@ function ProductsTab() {
                   <td className="p-3 text-muted-foreground">
                     <span className="flex items-center gap-1">
                       {product.brandName}
-                      {product.hasTikTokBackend && <span className="inline-block text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium whitespace-nowrap">{t("sc.tiktokBackend")}</span>}
+                      {!!product.hasTikTokBackend && <span className="inline-block text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium whitespace-nowrap">{t("sc.tiktokBackend")}</span>}
                     </span>
                   </td>
                   <td className="p-3">{category ? (() => { const parent = categoriesQuery.data?.find((p: any) => p.id === category.parentId); const parentStr = parent ? (parent.nameCn ? `${parent.name}(${parent.nameCn})` : parent.name) + " / " : ""; const catStr = category.nameCn ? `${category.name}(${category.nameCn})` : category.name; return parentStr + catStr; })() : "-"}</td>
                   <td className="p-3 text-right">¥{Number(product.price || 0).toLocaleString()}</td>
                   <td className="p-3 text-right">
-                    {product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`}
+                    {product.commissionValue ? (product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`) : "-"}
                   </td>
                   <td className="p-3 text-center">{product.stock ?? "-"}</td>
                   <td className="p-3 text-center">
@@ -897,7 +897,7 @@ function LiverSelectionTab() {
                     {product.productNameCn && <p className="text-xs text-blue-400 truncate">{product.productNameCn}</p>}
                     <p className="text-sm text-muted-foreground flex items-center gap-1">
                       {product.brandName}
-                      {product.hasTikTokBackend && <span className="inline-block text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium">{t("sc.tiktokBackend")}</span>}
+                      {!!product.hasTikTokBackend && <span className="inline-block text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium">{t("sc.tiktokBackend")}</span>}
                     </p>
                     {product.selfOperated ? (
                       <div className="flex items-center gap-2 mt-2 text-sm flex-wrap">
