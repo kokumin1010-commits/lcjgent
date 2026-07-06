@@ -1095,94 +1095,156 @@ export default function Sidebar({ isOpen, onClose, user, onVideoSelect, onNewAna
                                   <span className="text-[13px] font-medium text-gray-700 leading-snug truncate" title={video.original_filename}>
                                     {video.original_filename || `${window.__t('videoTitleFallback')} ${video.id}`}
                                   </span>
-                                  {/* Upload progress bar (if this video has an active upload task) */}
+                                  {/* Fused Upload + Analysis Progress Bar */}
                                   {(() => {
                                     const uploadTask = bgUploadTasks.find(t => 
                                       (t.videoId && t.videoId === video.id) || 
                                       (t.fileName && t.fileName === video.original_filename)
                                     );
-                                    if (!uploadTask || uploadTask.status === 'done') return null;
-                                    // 视频分析完成后，不再显示上传中断状态（自动清理）
-                                    if (video.status === 'DONE' && uploadTask.status === 'pending_resume') return null;
+                                    // Determine analysis progress from video status
+                                    const analysisStepMap = { STEP_COMPRESS_1080P: 1, STEP_0_EXTRACT_FRAMES: 5, STEP_1_DETECT_PHASES: 10, STEP_2_EXTRACT_METRICS: 20, STEP_3_TRANSCRIBE_AUDIO: 55, STEP_4_IMAGE_CAPTION: 70, STEP_5_BUILD_PHASE_UNITS: 80, STEP_6_BUILD_PHASE_DESCRIPTION: 85, STEP_7_GROUPING: 90, STEP_8_UPDATE_BEST_PHASE: 92, STEP_9_BUILD_VIDEO_STRUCTURE_FEATURES: 94, STEP_10_ASSIGN_VIDEO_STRUCTURE_GROUP: 95, STEP_11_UPDATE_VIDEO_STRUCTURE_GROUP_STATS: 96, STEP_12_UPDATE_VIDEO_STRUCTURE_BEST: 97, STEP_12_5_PRODUCT_DETECTION: 98, STEP_13_BUILD_REPORTS: 98, STEP_14_FINALIZE: 99, STEP_14_SPLIT_VIDEO: 99 };
+                                    const isUploading = uploadTask && (uploadTask.status === 'uploading' || uploadTask.status === 'retrying');
+                                    const isUploadPending = uploadTask && uploadTask.status === 'pending_resume';
+                                    const isUploadError = uploadTask && uploadTask.status === 'error';
+                                    const isUploadDone = !uploadTask || uploadTask.status === 'done';
+                                    const isAnalyzing = video.status && video.status !== 'DONE' && video.status !== 'ERROR' && video.status.startsWith('STEP_');
+                                    const isQueued = video.status === 'QUEUED' || video.status === 'UPLOADED';
+                                    const isError = video.status === 'ERROR';
+                                    const isDone = video.status === 'DONE';
+                                    const analysisPercent = analysisStepMap[video.status] || 0;
+
+                                    // Skip if video is done and no active upload
+                                    if (isDone && (!uploadTask || uploadTask.status === 'done' || uploadTask.status === 'pending_resume')) {
+                                      // Clean up pending_resume for done videos
+                                      return null;
+                                    }
+
+                                    // Calculate fused progress: upload = 0-50%, analysis = 50-100%
+                                    let fusedPercent = 0;
+                                    let phase = 'idle';
+                                    let statusText = '';
+                                    let barGradient = 'from-blue-400 via-blue-500 to-cyan-400';
+
+                                    if (isUploadPending) {
+                                      fusedPercent = (uploadTask.progress / 100) * 50;
+                                      phase = 'interrupted';
+                                      statusText = `${window.__t('sidebar_interrupted') || '中断'} (${Math.round(uploadTask.progress)}%)`;
+                                      barGradient = 'from-amber-400 via-amber-500 to-orange-400';
+                                    } else if (isUploading) {
+                                      fusedPercent = (uploadTask.progress / 100) * 50;
+                                      phase = 'uploading';
+                                      statusText = `${window.__t('sidebar_uploading') || 'アップロード中'} ${Math.round(uploadTask.progress)}%`;
+                                      barGradient = 'from-blue-400 via-blue-500 to-cyan-400';
+                                    } else if (isUploadError) {
+                                      fusedPercent = (uploadTask.progress / 100) * 50;
+                                      phase = 'error';
+                                      statusText = uploadTask.error || 'エラー';
+                                      barGradient = 'from-red-400 via-red-500 to-red-400';
+                                    } else if (isQueued) {
+                                      fusedPercent = 50;
+                                      phase = 'queued';
+                                      statusText = video.status === 'QUEUED' ? (window.__t('sidebar_queued', 'キュー待ち')) : (window.__t('sidebar_uploaded', 'アップロード済み'));
+                                      barGradient = 'from-blue-400 via-cyan-400 to-amber-400';
+                                    } else if (isAnalyzing) {
+                                      fusedPercent = 50 + (analysisPercent / 100) * 50;
+                                      phase = 'analyzing';
+                                      statusText = `解析中 ${analysisPercent}%`;
+                                      barGradient = 'from-blue-400 via-cyan-400 to-amber-500';
+                                    } else if (isError) {
+                                      phase = 'video_error';
+                                    } else {
+                                      return null;
+                                    }
+
+                                    if (phase === 'video_error') {
+                                      return (
+                                        <div className="flex items-center gap-1.5">
+                                          {video.stream_duration ? (
+                                            <span className="inline-flex items-center gap-1 text-[11px] text-amber-500 font-medium leading-normal">
+                                              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                              {window.__t("sidebar_partialIncomplete")}
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 text-[11px] text-red-500 font-medium leading-normal">
+                                              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                                              {window.__t("common_error")}
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    }
+
                                     return (
                                       <div className="mb-1">
-                                        {uploadTask.status === 'uploading' && (
-                                          <div>
-                                            <div className="w-full h-1.5 bg-blue-100 rounded-full overflow-hidden">
-                                              <div className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-300 ease-out" style={{ width: `${uploadTask.progress}%` }} />
-                                            </div>
-                                            <div className="flex justify-between items-center mt-0.5">
-                                              <span className="text-[10px] text-blue-500 font-medium">{window.__t('sidebar_uploading') || 'アップロード中'} {Math.round(uploadTask.progress)}%</span>
-                                              <span className="text-[10px] text-gray-400">{uploadTask.fileSize ? (uploadTask.fileSize / (1024*1024) >= 1024 ? `${(uploadTask.fileSize / (1024*1024*1024)).toFixed(1)}GB` : `${(uploadTask.fileSize / (1024*1024)).toFixed(0)}MB`) : ''}</span>
-                                            </div>
+                                        {/* Fused progress bar */}
+                                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden relative">
+                                          <div
+                                            className={`h-full bg-gradient-to-r ${barGradient} rounded-full transition-all duration-500 ease-out`}
+                                            style={{ width: `${Math.min(fusedPercent, 100)}%` }}
+                                          />
+                                          {/* Midpoint marker at 50% (upload→analysis boundary) */}
+                                          {fusedPercent > 0 && (
+                                            <div className="absolute top-0 left-1/2 w-px h-full bg-white/40" />
+                                          )}
+                                        </div>
+                                        <div className="flex justify-between items-center mt-0.5">
+                                          <div className="flex items-center gap-1">
+                                            {(phase === 'uploading' || phase === 'analyzing' || phase === 'queued') && (
+                                              <svg className="w-3 h-3 flex-shrink-0 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                                            )}
+                                            <span className={`text-[10px] font-medium ${
+                                              phase === 'interrupted' ? 'text-amber-600' :
+                                              phase === 'error' ? 'text-red-500' :
+                                              phase === 'analyzing' ? 'text-amber-600' :
+                                              'text-blue-500'
+                                            }`}>{statusText}</span>
+                                          </div>
+                                          <span className="text-[10px] text-gray-400">
+                                            {uploadTask?.fileSize ? (uploadTask.fileSize / (1024*1024) >= 1024 ? `${(uploadTask.fileSize / (1024*1024*1024)).toFixed(1)}GB` : `${(uploadTask.fileSize / (1024*1024)).toFixed(0)}MB`) : ''}
+                                          </span>
+                                        </div>
+                                        {/* Action buttons for interrupted/error states */}
+                                        {phase === 'interrupted' && (
+                                          <div className="mt-1 flex items-center gap-1.5">
+                                            <button className="text-[10px] px-2 py-0.5 rounded bg-amber-500 text-white hover:bg-amber-600 transition-colors flex items-center gap-1" onClick={(e) => { e.stopPropagation(); handleResumeFileClick(uploadTask.id); }}>
+                                              <RotateCcw className="w-3 h-3" /> {window.__t('sidebar_resume') || '再開'}
+                                            </button>
+                                            <button className="text-[10px] px-2 py-0.5 rounded bg-gray-200 text-gray-600 hover:bg-gray-300 transition-colors" onClick={(e) => { e.stopPropagation(); handleDismissPendingTask(uploadTask.id); }}>
+                                              {window.__t('sidebar_dismiss') || '破棄'}
+                                            </button>
                                           </div>
                                         )}
-                                        {uploadTask.status === 'pending_resume' && (
-                                          <div>
-                                            <div className="w-full h-1.5 bg-amber-100 rounded-full overflow-hidden">
-                                              <div className="h-full bg-gradient-to-r from-amber-300 to-amber-500 rounded-full" style={{ width: `${uploadTask.progress}%` }} />
-                                            </div>
-                                            <div className="flex justify-between items-center mt-0.5">
-                                              <span className="text-[10px] text-amber-600 font-medium">{window.__t('sidebar_interrupted') || '中断'} ({Math.round(uploadTask.progress)}%)</span>
-                                              <span className="text-[10px] text-gray-400">{uploadTask.fileSize ? (uploadTask.fileSize / (1024*1024) >= 1024 ? `${(uploadTask.fileSize / (1024*1024*1024)).toFixed(1)}GB` : `${(uploadTask.fileSize / (1024*1024)).toFixed(0)}MB`) : ''}</span>
-                                            </div>
-                                            <div className="mt-1 flex items-center gap-1.5">
-                                              <button className="text-[10px] px-2 py-0.5 rounded bg-amber-500 text-white hover:bg-amber-600 transition-colors flex items-center gap-1" onClick={(e) => { e.stopPropagation(); handleResumeFileClick(uploadTask.id); }}>
-                                                <RotateCcw className="w-3 h-3" /> {window.__t('sidebar_resume') || '再開'}
-                                              </button>
-                                              <button className="text-[10px] px-2 py-0.5 rounded bg-gray-200 text-gray-600 hover:bg-gray-300 transition-colors" onClick={(e) => { e.stopPropagation(); handleDismissPendingTask(uploadTask.id); }}>
-                                                {window.__t('sidebar_dismiss') || '破棄'}
-                                              </button>
-                                            </div>
+                                        {phase === 'uploading' && (
+                                          <div className="mt-1 flex justify-end">
+                                            <button className="text-[10px] px-2 py-0.5 rounded bg-red-100 text-red-600 hover:bg-red-200 transition-colors flex items-center gap-1" onClick={(e) => { e.stopPropagation(); backgroundUploadManager.cancelTask(uploadTask.id); }}>
+                                              ✕ {window.__t('sidebar_cancelUpload') || 'キャンセル'}
+                                            </button>
                                           </div>
                                         )}
-                                        {uploadTask.status === 'retrying' && (
-                                          <span className="text-[10px] text-amber-600">{window.__t('sidebar_retrying') || 'リトライ中...'}</span>
-                                        )}
-                                        {uploadTask.status === 'error' && (
-                                          <div className="flex items-center gap-1.5">
+                                        {phase === 'error' && (
+                                          <div className="mt-1 flex items-center gap-1.5">
                                             <span className="text-[10px] text-red-500 truncate flex-1" title={uploadTask.error}>{uploadTask.error || 'エラー'}</span>
                                             <button className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors flex-shrink-0" onClick={(e) => { e.stopPropagation(); backgroundUploadManager.retryTask(uploadTask.id); }}>↻</button>
                                           </div>
                                         )}
+                                        {/* Elapsed time for analyzing phase */}
+                                        {(phase === 'analyzing' || phase === 'queued') && video.updated_at && (() => {
+                                          const updated = new Date(video.updated_at);
+                                          const now = new Date();
+                                          const diffMin = Math.floor((now - updated) / 60000);
+                                          if (diffMin < 1) return null;
+                                          const diffH = Math.floor(diffMin / 60);
+                                          const diffD = Math.floor(diffH / 24);
+                                          const elapsed = diffD > 0 ? `${diffD}${window.__t('common_days', '日')}${diffH % 24}${window.__t('script_duration', '時間')}` : diffH > 0 ? `${diffH}${window.__t('script_duration', '時間')}${diffMin % 60}${window.__t('common_minutes', '分')}` : `${diffMin}${window.__t('common_minutes', '分')}`;
+                                          return (
+                                            <span className={`text-[10px] leading-normal ${diffMin > 30 ? 'text-red-400' : 'text-gray-400'}`}>
+                                              ({elapsed}経過)
+                                            </span>
+                                          );
+                                        })()}
                                       </div>
                                     );
                                   })()}
-                                  {/* Status badge for non-DONE videos */}
-                                  {video.status && video.status !== 'DONE' && (
-                                    <div className="flex items-center gap-1.5">
-                                      {video.status === 'ERROR' && video.stream_duration ? (
-                                        <span className="inline-flex items-center gap-1 text-[11px] text-amber-500 font-medium leading-normal">
-                                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                                          {window.__t("sidebar_partialIncomplete")}
-                                        </span>
-                                      ) : video.status === 'ERROR' ? (
-                                        <span className="inline-flex items-center gap-1 text-[11px] text-red-500 font-medium leading-normal">
-                                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                                          {window.__t("common_error")}
-                                        </span>
-                                      ) : (
-                                        <span className="inline-flex items-center gap-1 text-[11px] text-amber-600 font-medium leading-normal">
-                                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 flex-shrink-0 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-                                          {video.status === 'QUEUED' ? [window.__t('sidebar_queued', 'キュー待ち')] : video.status === 'UPLOADED' ? [window.__t('sidebar_uploaded', 'アップロード済み')] : video.status.startsWith('STEP_') ? `解析中 ${(() => { const m = { STEP_COMPRESS_1080P: 1, STEP_0_EXTRACT_FRAMES: 5, STEP_1_DETECT_PHASES: 10, STEP_2_EXTRACT_METRICS: 20, STEP_3_TRANSCRIBE_AUDIO: 55, STEP_4_IMAGE_CAPTION: 70, STEP_5_BUILD_PHASE_UNITS: 80, STEP_6_BUILD_PHASE_DESCRIPTION: 85, STEP_7_GROUPING: 90, STEP_8_UPDATE_BEST_PHASE: 92, STEP_9_BUILD_VIDEO_STRUCTURE_FEATURES: 94, STEP_10_ASSIGN_VIDEO_STRUCTURE_GROUP: 95, STEP_11_UPDATE_VIDEO_STRUCTURE_GROUP_STATS: 96, STEP_12_UPDATE_VIDEO_STRUCTURE_BEST: 97, STEP_12_5_PRODUCT_DETECTION: 98, STEP_13_BUILD_REPORTS: 98, STEP_14_FINALIZE: 99, STEP_14_SPLIT_VIDEO: 99 }; return m[video.status] || 0; })()}%` : video.status}
-                                        </span>
-                                      )}
-                                      {video.updated_at && (() => {
-                                        const updated = new Date(video.updated_at);
-                                        const now = new Date();
-                                        const diffMin = Math.floor((now - updated) / 60000);
-                                        if (diffMin < 1) return null;
-                                        const diffH = Math.floor(diffMin / 60);
-                                        const diffD = Math.floor(diffH / 24);
-                                        const elapsed = diffD > 0 ? `${diffD}${window.__t('common_days', '日')}${diffH % 24}${window.__t('script_duration', '時間')}` : diffH > 0 ? `${diffH}${window.__t('script_duration', '時間')}${diffMin % 60}${window.__t('common_minutes', '分')}` : `${diffMin}${window.__t('common_minutes', '分')}`;
-                                        return (
-                                          <span className={`text-[10px] leading-normal ${diffMin > 30 ? 'text-red-400' : 'text-gray-400'}`}>
-                                            ({elapsed}経過)
-                                          </span>
-                                        );
-                                      })()}
-                                    </div>
-                                  )}
                                   {video.top_products && video.top_products.length > 0 && (
                                     <div className="flex items-center gap-1.5">
                                       <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-emerald-500 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
