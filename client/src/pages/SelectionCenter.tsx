@@ -462,8 +462,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
             </div>
           </div>
 
-                    {/* 販売価格 + 市場価格 - 2 columns (hidden when selfOperated) */}
-          {!form.selfOperated && (
+                    {/* 販売価格 + 市場価格 - 2 columns */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>{t("sc.form.sellingPrice")}</Label>
@@ -474,9 +473,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
                 <Input type="number" value={form.marketPrice || ""} onChange={e => setForm({ ...form, marketPrice: e.target.value })} />
               </div>
             </div>
-          )}
-          {/* 佣金タイプ + 佣金値 - 2 columns (hidden when selfOperated) */}
-          {!form.selfOperated && (
+          {/* 佣金タイプ + 佣金値 - 2 columns */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>{t("sc.form.commissionType")}</Label>
@@ -493,7 +490,6 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
                 <Input type="number" value={form.commissionValue || ""} onChange={e => setForm({ ...form, commissionValue: e.target.value })} />
               </div>
             </div>
-          )}
 
           {/* 在庫数 + 商品リンク - 2 columns */}
           <div className="grid grid-cols-2 gap-4">
@@ -571,7 +567,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
                   <Input value={form.deliveryTime || ""} onChange={e => setForm({ ...form, deliveryTime: e.target.value })} placeholder="例: 3-5工作日" />
                 </div>
                 <div>
-                  <Label>{t("sc.form.suggestedPrice") || '建议价格'}</Label>
+                  <Label>{'配信価格'}</Label>
                   <Input type="number" value={form.suggestedPrice || ""} onChange={e => setForm({ ...form, suggestedPrice: e.target.value })} placeholder="例: 8000" />
                 </div>
               </div>
@@ -906,7 +902,7 @@ function LiverSelectionTab() {
                     {product.selfOperated ? (
                       <div className="flex items-center gap-2 mt-2 text-sm flex-wrap">
                         {product.totalCost && <span className="font-bold text-green-700 text-base">成本价: ¥{Number(product.totalCost).toLocaleString()}</span>}
-                        {product.suggestedPrice && <span className="font-bold text-orange-600 text-base">建议价: ¥{Number(product.suggestedPrice).toLocaleString()}</span>}
+                        {product.suggestedPrice && <span className="font-bold text-orange-600 text-base">配信価格: ¥{Number(product.suggestedPrice).toLocaleString()}</span>}
                         <span className="inline-block text-[10px] font-bold text-green-700 bg-green-200 px-1.5 py-0.5 rounded">自营</span>
                       </div>
                     ) : (
@@ -961,7 +957,7 @@ function LiverSelectionTab() {
                           {product.platformFee && <span>平台费: ¥{Number(product.platformFee).toLocaleString()}</span>}
                           {product.totalCost && <span className="font-medium text-green-700">成本价: ¥{Number(product.totalCost).toLocaleString()}</span>}
                           {product.deliveryTime && <span>发货: {product.deliveryTime}</span>}
-                          {product.suggestedPrice && <span className="font-medium text-orange-600">建议价: ¥{Number(product.suggestedPrice).toLocaleString()}</span>}
+                          {product.suggestedPrice && <span className="font-medium text-orange-600">配信価格: ¥{Number(product.suggestedPrice).toLocaleString()}</span>}
                         </div>
                       </div>
                     ) : null}
