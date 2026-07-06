@@ -28,6 +28,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import CollapsibleSection from "@/components/CollapsibleSection";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -835,6 +836,27 @@ export default function BrandDetail() {
 
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isContractExpanded, setIsContractExpanded] = useState(false);
+  // Collapsible section states - default expanded for key KPIs, collapsed for heavy data
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    quota: true,
+    quotaTrend: false,
+    gmvTarget: false,
+    schedule: true,
+    kpiSummary: true,
+    contracts: false,
+    shortVideo: false,
+    livestreamPerformance: false,
+    products: false,
+    mallProducts: false,
+    liverGmv: false,
+    adCampaign: false,
+    productCards: false,
+    brandFiles: false,
+    editLog: false,
+    activityMemos: false,
+    aitherHub: false,
+  });
+  const toggleSection = (key: string) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
   const [newMemo, setNewMemo] = useState("");
 
   // Edit modal states
@@ -2503,7 +2525,6 @@ ${proposal.proposalContent}
                 )}
               </div>
             </div>
-
             {/* ノルマ進捗バー - quotaがある場合のみ表示 */}
             {(quotaProgress.quotas.kgLiveHours > 0 || quotaProgress.quotas.liverLiveHours > 0 || quotaProgress.quotas.shortVideoCount > 0) && (
             <div className="mb-4">
@@ -2788,8 +2809,18 @@ ${proposal.proposalContent}
         )}
 
         {/* 月別ノルマ推移グラフ */}
-        {quotaTrend && quotaTrend.months && quotaTrend.months.length > 0 && (
-          <div className="bg-gradient-to-br from-violet-900/30 to-indigo-900/20 backdrop-blur-xl rounded-2xl border-2 border-violet-500/40 p-4 md:p-5 shadow-[0_0_50px_rgba(150,100,255,0.15)]">
+        {quotaTrend && quotaTrend.months && quotaTrend.months.length > 0 && (<>
+        <div
+          onClick={() => toggleSection('quotaTrend')}
+          className="flex items-center justify-between p-3 rounded-xl bg-black/60 border border-gray-700/50 cursor-pointer hover:border-gray-500/50 hover:bg-black/80 transition-all select-none group mb-2"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">📊</span>
+            <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">{language === 'ja' ? '月別ノルマ推移' : '月度配额趋势'}</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSections.quotaTrend ? 'rotate-180' : ''}`} />
+        </div>
+          <div className={`${!openSections.quotaTrend ? "hidden" : ""} bg-gradient-to-br from-violet-900/30 to-indigo-900/20 backdrop-blur-xl rounded-2xl border-2 border-violet-500/40 p-4 md:p-5 shadow-[0_0_50px_rgba(150,100,255,0.15)]`}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-white flex items-center gap-3">
                 <div className="w-1.5 h-8 bg-gradient-to-b from-violet-400 to-indigo-500 rounded-full" />
@@ -3034,10 +3065,19 @@ ${proposal.proposalContent}
               </div>
             )}
           </div>
-        )}
-
+        </>)}
+        <div
+          onClick={() => toggleSection('gmvTarget')}
+          className="flex items-center justify-between p-3 rounded-xl bg-black/60 border border-gray-700/50 cursor-pointer hover:border-gray-500/50 hover:bg-black/80 transition-all select-none group mb-2"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">🎯</span>
+            <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">{language === 'ja' ? '月度GMV目標' : '月度GMV目标'}</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSections.gmvTarget ? 'rotate-180' : ''}`} />
+        </div>
         {/* 月度GMV目標編集セクション */}
-        <div className="bg-gradient-to-br from-emerald-900/30 to-green-900/20 backdrop-blur-xl rounded-2xl border-2 border-emerald-500/40 p-4 md:p-5 shadow-[0_0_50px_rgba(16,185,129,0.15)]">
+        <div className={`${!openSections.gmvTarget ? "hidden" : ""} bg-gradient-to-br from-emerald-900/30 to-green-900/20 backdrop-blur-xl rounded-2xl border-2 border-emerald-500/40 p-4 md:p-5 shadow-[0_0_50px_rgba(16,185,129,0.15)]`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="flex items-center gap-2 text-lg font-bold text-white">
               <div className="w-1.5 h-8 bg-gradient-to-b from-emerald-400 to-green-500 rounded-full" />
@@ -3527,8 +3567,18 @@ ${proposal.proposalContent}
           </div>
         </div>
 
+        <div
+          onClick={() => toggleSection('contracts')}
+          className="flex items-center justify-between p-3 rounded-xl bg-black/60 border border-gray-700/50 cursor-pointer hover:border-gray-500/50 hover:bg-black/80 transition-all select-none group mb-2"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">📋</span>
+            <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">{language === 'ja' ? '契約情報' : '合同信息'}</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSections.contracts ? 'rotate-180' : ''}`} />
+        </div>
         {/* Contract Section - 大きく目立つデザイン */}
-        <div className="bg-gradient-to-br from-amber-900/30 to-orange-900/20 backdrop-blur-xl rounded-2xl border-2 border-amber-500/40 p-4 md:p-5 shadow-[0_0_50px_rgba(255,180,0,0.2)]">
+        <div className={`${!openSections.contracts ? "hidden" : ""} bg-gradient-to-br from-amber-900/30 to-orange-900/20 backdrop-blur-xl rounded-2xl border-2 border-amber-500/40 p-4 md:p-5 shadow-[0_0_50px_rgba(255,180,0,0.2)]`}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xl md:text-2xl font-black text-white flex items-center gap-3">
               <div className="w-1.5 h-8 bg-gradient-to-b from-amber-400 to-orange-500 rounded-full" />
@@ -3664,8 +3714,18 @@ ${proposal.proposalContent}
           )}
         </div>
 
+        <div
+          onClick={() => toggleSection('shortVideo')}
+          className="flex items-center justify-between p-3 rounded-xl bg-black/60 border border-gray-700/50 cursor-pointer hover:border-gray-500/50 hover:bg-black/80 transition-all select-none group mb-2"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">🎬</span>
+            <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">{language === 'ja' ? '短視頻管理' : '短视频管理'}</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSections.shortVideo ? 'rotate-180' : ''}`} />
+        </div>
         {/* 短視頻管理セクション */}
-        <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-orange-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,165,0,0.1)]">
+        <div className={`${!openSections.shortVideo ? "hidden" : ""} bg-black/85 backdrop-blur-xl rounded-xl border border-orange-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,165,0,0.1)]`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white flex items-center gap-3">
               <div className="w-1.5 h-8 bg-gradient-to-b from-orange-400 to-orange-600 rounded-full" />
@@ -3775,8 +3835,18 @@ ${proposal.proposalContent}
           )}
         </div>
 
+        <div
+          onClick={() => toggleSection('livestreamPerformance')}
+          className="flex items-center justify-between p-3 rounded-xl bg-black/60 border border-gray-700/50 cursor-pointer hover:border-gray-500/50 hover:bg-black/80 transition-all select-none group mb-2"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">📺</span>
+            <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">{language === 'ja' ? '直播帯貨実績' : '直播带货实绩'}</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSections.livestreamPerformance ? 'rotate-180' : ''}`} />
+        </div>
         {/* Livestream Performance Table - 全幅表示 */}
-        <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-pink-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,100,0.15)]">
+        <div className={`${!openSections.livestreamPerformance ? "hidden" : ""} bg-black/85 backdrop-blur-xl rounded-xl border border-pink-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,100,0.15)]`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white flex items-center gap-3">
               <div className="w-1.5 h-8 bg-gradient-to-b from-pink-400 to-pink-600 rounded-full" />
@@ -4164,8 +4234,18 @@ ${proposal.proposalContent}
             })()}
         </div>
 
+        <div
+          onClick={() => toggleSection('products')}
+          className="flex items-center justify-between p-3 rounded-xl bg-black/60 border border-gray-700/50 cursor-pointer hover:border-gray-500/50 hover:bg-black/80 transition-all select-none group mb-2"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">📦</span>
+            <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">{language === 'ja' ? '商品パフォーマンス' : '商品表现'}</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSections.products ? 'rotate-180' : ''}`} />
+        </div>
         {/* Content Grid - 商品テーブル */}
-        <div className="grid grid-cols-1 gap-6 mb-6">
+        <div className={`${!openSections.products ? "hidden" : ""} grid grid-cols-1 gap-6 mb-6`}>
           {/* Product Performance Table */}
           <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]">
             <div className="flex items-center justify-between mb-4">
@@ -4355,8 +4435,18 @@ ${proposal.proposalContent}
           </div>
         </div>
 
+        <div
+          onClick={() => toggleSection('mallProducts')}
+          className="flex items-center justify-between p-3 rounded-xl bg-black/60 border border-gray-700/50 cursor-pointer hover:border-gray-500/50 hover:bg-black/80 transition-all select-none group mb-2"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">🛍️</span>
+            <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">{language === 'ja' ? 'MALL商品' : 'MALL商品'}</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSections.mallProducts ? 'rotate-180' : ''}`} />
+        </div>
         {/* MALL商品セクション */}
-        <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-emerald-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(0,255,128,0.1)] mb-6">
+        <div className={`${!openSections.mallProducts ? "hidden" : ""} bg-black/85 backdrop-blur-xl rounded-xl border border-emerald-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(0,255,128,0.1)] mb-6`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-white flex items-center gap-3">
               <div className="w-1 h-6 bg-gradient-to-b from-emerald-400 to-emerald-600 rounded-full" />
@@ -4493,8 +4583,18 @@ ${proposal.proposalContent}
           </div>
         </div>
 
+        <div
+          onClick={() => toggleSection('liverGmv')}
+          className="flex items-center justify-between p-3 rounded-xl bg-black/60 border border-gray-700/50 cursor-pointer hover:border-gray-500/50 hover:bg-black/80 transition-all select-none group mb-2"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">👤</span>
+            <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">{language === 'ja' ? '主播別GMV実績' : '主播别GMV实绩'}</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSections.liverGmv ? 'rotate-180' : ''}`} />
+        </div>
         {/* Liver GMV Stats Section */}
-        <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)] mb-6">
+        <div className={`${!openSections.liverGmv ? "hidden" : ""} bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)] mb-6`}>
           <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-3">
             <div className="w-1 h-6 bg-gradient-to-b from-purple-400 to-purple-600 rounded-full" />
             {t.liverGmvStats}
@@ -4612,6 +4712,16 @@ ${proposal.proposalContent}
           )}
         </div>
 
+        <div
+          onClick={() => toggleSection('adCampaign')}
+          className="flex items-center justify-between p-3 rounded-xl bg-black/60 border border-gray-700/50 cursor-pointer hover:border-gray-500/50 hover:bg-black/80 transition-all select-none group mb-2"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">📢</span>
+            <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">{language === 'ja' ? '広告キャンペーン実績' : '广告活动实绩'}</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSections.adCampaign ? 'rotate-180' : ''}`} />
+        </div>
         {/* Ad Campaign Performance Section - レポートベースのキャンペーン実績 */}
         {adCampaigns.length > 0 && (() => {
           // サマリー計算
@@ -4622,7 +4732,7 @@ ${proposal.proposalContent}
           const campaignCountVal = adCampaignStats?.campaignCount || adCampaigns.length;
 
           return (
-            <div className="space-y-4 mb-6">
+            <div className={`${!openSections.adCampaign ? "hidden" : ""} space-y-4 mb-6`}>
               {/* Ad Performance Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="relative overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
@@ -4785,8 +4895,18 @@ ${proposal.proposalContent}
           );
         })()}
 
+        <div
+          onClick={() => toggleSection('activityMemos')}
+          className="flex items-center justify-between p-3 rounded-xl bg-black/60 border border-gray-700/50 cursor-pointer hover:border-gray-500/50 hover:bg-black/80 transition-all select-none group mb-2"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">📝</span>
+            <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">{language === 'ja' ? '活動メモ' : '活动备忘录'}</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSections.activityMemos ? 'rotate-180' : ''}`} />
+        </div>
         {/* Activity Memos - Timeline */}
-        <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]">
+        <div className={`${!openSections.activityMemos ? "hidden" : ""} bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]`}>
           <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-3">
             <div className="w-1 h-6 bg-gradient-to-b from-green-400 to-green-600 rounded-full" />
             {t.activityMemos}
@@ -4867,8 +4987,18 @@ ${proposal.proposalContent}
           </div>
         </div>
 
+        <div
+          onClick={() => toggleSection('productCards')}
+          className="flex items-center justify-between p-3 rounded-xl bg-black/60 border border-gray-700/50 cursor-pointer hover:border-gray-500/50 hover:bg-black/80 transition-all select-none group mb-2"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">💳</span>
+            <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">{language === 'ja' ? '商品手卡' : '商品手卡'}</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSections.productCards ? 'rotate-180' : ''}`} />
+        </div>
         {/* Product Cards (手卡) Section */}
-        <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-orange-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,165,0,0.1)]">
+        <div className={`${!openSections.productCards ? "hidden" : ""} bg-black/85 backdrop-blur-xl rounded-xl border border-orange-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,165,0,0.1)]`}>
           <h2 className="text-lg font-bold text-white mb-2 flex items-center gap-3">
             <div className="w-1 h-6 bg-gradient-to-b from-orange-400 to-amber-600 rounded-full" />
             <CreditCard className="h-5 w-5 text-orange-400" />
@@ -4930,8 +5060,18 @@ ${proposal.proposalContent}
           )}
         </div>
 
+        <div
+          onClick={() => toggleSection('brandFiles')}
+          className="flex items-center justify-between p-3 rounded-xl bg-black/60 border border-gray-700/50 cursor-pointer hover:border-gray-500/50 hover:bg-black/80 transition-all select-none group mb-2"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">📁</span>
+            <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">{language === 'ja' ? 'ブランドファイル' : '品牌文件'}</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSections.brandFiles ? 'rotate-180' : ''}`} />
+        </div>
         {/* Brand Files Section */}
-        <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]">
+        <div className={`${!openSections.brandFiles ? "hidden" : ""} bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]`}>
           <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-3">
             <div className="w-1 h-6 bg-gradient-to-b from-cyan-400 to-cyan-600 rounded-full" />
             <FolderOpen className="h-5 w-5 text-cyan-400" />
@@ -4940,8 +5080,18 @@ ${proposal.proposalContent}
           <BrandFilesSection brandId={brand.id} t={t} />
         </div>
 
+        <div
+          onClick={() => toggleSection('editLog')}
+          className="flex items-center justify-between p-3 rounded-xl bg-black/60 border border-gray-700/50 cursor-pointer hover:border-gray-500/50 hover:bg-black/80 transition-all select-none group mb-2"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">📜</span>
+            <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">{language === 'ja' ? '編集ログ' : '编辑日志'}</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSections.editLog ? 'rotate-180' : ''}`} />
+        </div>
         {/* Edit Log Section */}
-        <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]">
+        <div className={`${!openSections.editLog ? "hidden" : ""} bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]`}>
           <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-3">
             <div className="w-1 h-6 bg-gradient-to-b from-purple-400 to-purple-600 rounded-full" />
             <History className="h-5 w-5 text-purple-400" />
@@ -4952,8 +5102,19 @@ ${proposal.proposalContent}
           <EditLogSection brandId={brand.id} language={language} noEditLogsText={t.noEditLogs} />
         </div>
 
-        {/* AitherHub Clips Section */}
+        <div
+          onClick={() => toggleSection('aitherHub')}
+          className="flex items-center justify-between p-3 rounded-xl bg-black/60 border border-gray-700/50 cursor-pointer hover:border-gray-500/50 hover:bg-black/80 transition-all select-none group mb-2"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">🎥</span>
+            <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">{language === 'ja' ? 'AitherHub Clips' : 'AitherHub Clips'}</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSections.aitherHub ? 'rotate-180' : ''}`} />
+        </div>
+        <div className={!openSections.aitherHub ? 'hidden' : ''}>
         <AitherHubClipsSection brandId={brand.id} brandName={brand.name} />
+        </div>
       </div>
 
       {/* Product Edit Dialog */}
