@@ -1032,7 +1032,7 @@ export const selectionCenterRouter = router({
         messages: [
           {
             role: "system",
-            content: `あなたは商品提案書・商品手卡の画像を分析する専門家です。\n画像から以下の情報を正確に抽出してJSON形式で返してください。\n情報が見つからない場合はnullを返してください。\n\n抽出する項目:\n- productName: 製品名（日本語）\n- brandName: ブランド名\n- price: 販売価格（数値のみ、円記号なし）\n- marketPrice: 通常価格/定価（数値のみ）\n- costPrice: 仕入価格（数値のみ）\n- category: 商品カテゴリ（例: LED美顔器、シャンプー、ドライヤー等）\n- stock: 在庫数（数値のみ、「300台以上」→300）\n- sellingPoints: コアセールスポイント（箇条書きをまとめた文章）\n- targetAudience: ターゲット層の説明\n- specifications: 仕様・スペック\n- commissionInfo: ライセンス料/配分率の情報\n- barcode: バーコード/JANコード（あれば）\n- productLink: 商品リンク（あれば）\n- description: 商品の総合説明（ターゲット層+セールスポイントを含む詳細説明）`
+            content: `あなたは商品提案書・商品手卡の画像を分析する専門家です。\n画像から以下の情報を正確に抽出してJSON形式で返してください。\n情報が見つからない場合はnullを返してください。\n\n【重要なルール】\n1. 商品名は画像に記載されている原文そのまま（日本語・中国語・英語いずれも）を抽出すること。翻訳しないこと。\n2. 「通常価格」「定価」「市場価格」→ marketPrice に入れる\n3. 「ライブ配信価格」「配信価格」「ライブ販売価格」「直播价」→ price（販売価格）に入れる\n4. 「仕入価格」「原価」→ costPrice に入れる\n5. 価格は税込表記の数値のみ（円記号・税込表記を除去）\n\n抽出する項目:\n- productName: 製品名（画像に記載の原文そのまま。日本語/中国語/英語いずれもそのまま記載）\n- brandName: ブランド名（原文そのまま）\n- price: ライブ配信価格/販売価格（数値のみ）\n- marketPrice: 通常価格/定価/市場価格（数値のみ）\n- costPrice: 仕入価格（数値のみ）\n- category: 商品カテゴリ（例: LED美顔器、シャンプー、ドライヤー等）\n- stock: 在庫数（数値のみ、「300台以上」→300）\n- sellingPoints: コアセールスポイント（箇条書きをまとめた文章）\n- targetAudience: ターゲット層の説明\n- specifications: 仕様・スペック\n- commissionInfo: ライセンス料/配分率の情報\n- barcode: バーコード/JANコード（あれば）\n- productLink: 商品リンク（あれば）\n- description: 商品の総合説明（ターゲット層+セールスポイントを含む詳細説明）`
           },
           {
             role: "user",
