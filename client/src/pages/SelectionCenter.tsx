@@ -910,6 +910,7 @@ function LiverSelectionTab() {
                     </p>
                     {product.selfOperated ? (
                       <div className="flex items-center gap-2 mt-2 text-sm flex-wrap">
+                        {product.totalCost && <span className="font-bold text-green-700 text-base">成本价: ¥{Number(product.totalCost).toLocaleString()}</span>}
                         {product.suggestedPrice && <span className="font-bold text-orange-600 text-base">建议价: ¥{Number(product.suggestedPrice).toLocaleString()}</span>}
                         <span className="inline-block text-[10px] font-bold text-green-700 bg-green-200 px-1.5 py-0.5 rounded">自营</span>
                       </div>
