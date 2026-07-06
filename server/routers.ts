@@ -28448,28 +28448,14 @@ JSON配列のみを出力してください。`;
           metrics = { confidence: "low" };
         }
 
-        // 4. Save to DB
-        const result = await db.insert(livestreamRealtimeSnapshots).values({
-          livestreamId: input.livestreamId,
-          liverId: input.liverId || null,
-          imageUrl,
-          imageKey: fileKey,
-          timeSlot: input.timeSlot,
-          gmv: metrics.gmv || null,
-          gpm: metrics.gpm || null,
-          impressions: metrics.impressions || null,
-          impressionsPerHour: metrics.impressionsPerHour || null,
-          viewerCount: metrics.viewerCount || null,
-          viewCount: metrics.viewCount || null,
-          orderCount: metrics.orderCount || null,
-          tapThroughRate: metrics.tapThroughRate || null,
-          commentRate: metrics.commentRate || null,
-          followRate: metrics.followRate || null,
-          avgViewDuration: metrics.avgViewDuration || null,
-          notes: input.notes || null,
-          rawResponse: metrics,
-          confidence: metrics.confidence || "medium",
-        });
+        // 4. Save to DB (raw SQL to avoid drizzle bigint column count bug)
+        const rawJson = JSON.stringify(metrics);
+        const result = await db.execute(sqlTag`
+          INSERT INTO livestream_realtime_snapshots
+            (livestreamId, liverId, imageUrl, imageKey, timeSlot, gmv, gpm, impressions, impressionsPerHour, viewerCount, viewCount, orderCount, tapThroughRate, commentRate, followRate, avgViewDuration, notes, rawResponse, confidence)
+          VALUES
+            (${input.livestreamId}, ${input.liverId || null}, ${imageUrl}, ${fileKey}, ${input.timeSlot}, ${metrics.gmv || null}, ${metrics.gpm || null}, ${metrics.impressions || null}, ${metrics.impressionsPerHour || null}, ${metrics.viewerCount || null}, ${metrics.viewCount || null}, ${metrics.orderCount || null}, ${metrics.tapThroughRate || null}, ${metrics.commentRate || null}, ${metrics.followRate || null}, ${metrics.avgViewDuration || null}, ${input.notes || null}, ${rawJson}, ${metrics.confidence || "medium"})
+        `);
         const insertId = (result as any)?.[0]?.insertId || (result as any)?.insertId || null;
         console.log(`[addSnapshot] Saved snapshot for livestream ${input.livestreamId}, timeSlot=${input.timeSlot}, GPM=${metrics.gpm}`);
         return {
