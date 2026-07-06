@@ -140,7 +140,7 @@ export const selectionCenterRouter = router({
   getCategories: protectedProcedure.query(async () => {
     try {
       const pool = getPool();
-      const [rows] = await pool.query('SELECT id, name, parentId, sortOrder, createdAt, updatedAt FROM selection_categories ORDER BY sortOrder ASC');
+      const [rows] = await pool.query('SELECT id, name, nameCn, parentId, sortOrder, createdAt, updatedAt FROM selection_categories ORDER BY sortOrder ASC');
       return rows;
     } catch (e: any) {
       console.error('[getCategories] Error:', e.message, e.code, e.errno);
@@ -150,15 +150,39 @@ export const selectionCenterRouter = router({
 
   createCategory: protectedProcedure.input(z.object({
     name: z.string(),
+    nameCn: z.string().optional(),
     parentId: z.number().optional(),
     sortOrder: z.number().optional(),
   })).mutation(async ({ input }) => {
     const pool = getPool();
     const [result] = await pool.query(
-      'INSERT INTO selection_categories (name, parentId, sortOrder) VALUES (?, ?, ?)',
-      [input.name, input.parentId || null, input.sortOrder || 0]
+      'INSERT INTO selection_categories (name, nameCn, parentId, sortOrder) VALUES (?, ?, ?, ?)',
+      [input.name, input.nameCn || null, input.parentId || null, input.sortOrder || 0]
     ) as any;
     return { id: result.insertId };
+  }),
+
+  updateCategory: protectedProcedure.input(z.object({
+    id: z.number(),
+    name: z.string().optional(),
+    nameCn: z.string().nullable().optional(),
+    parentId: z.number().nullable().optional(),
+    sortOrder: z.number().optional(),
+  })).mutation(async ({ input }) => {
+    const pool = getPool();
+    const { id, ...data } = input;
+    const setClauses: string[] = [];
+    const params: any[] = [];
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        setClauses.push(`${key} = ?`);
+        params.push(value);
+      }
+    }
+    if (setClauses.length === 0) return { success: true };
+    params.push(id);
+    await pool.query(`UPDATE selection_categories SET ${setClauses.join(', ')} WHERE id = ?`, params);
+    return { success: true };
   }),
 
   // ========== Products ==========
@@ -192,6 +216,7 @@ export const selectionCenterRouter = router({
 
   createProduct: protectedProcedure.input(z.object({
     productName: z.string(),
+    productNameCn: z.string().optional(),
     productId: z.string().optional(),
     barcode: z.string().optional(),
     brandName: z.string(),
@@ -221,8 +246,8 @@ export const selectionCenterRouter = router({
     const pool = getPool();
     const totalCost = (Number(input.purchasePrice) || 0) + (Number(input.shippingFee) || 0) + (Number(input.platformFee) || 0);
     const [result] = await pool.query(
-      `INSERT INTO selection_products (productName, productId, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, talentExclusive, exclusiveLiverIds, tags, selfOperated, purchasePrice, shippingFee, platformFee, totalCost, deliveryTime, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [input.productName, input.productId || null, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, input.talentExclusive || 0, input.exclusiveLiverIds ? JSON.stringify(input.exclusiveLiverIds) : null, input.tags ? JSON.stringify(input.tags) : null, input.selfOperated || 0, input.purchasePrice || null, input.shippingFee || null, input.platformFee || null, totalCost > 0 ? String(totalCost) : null, input.deliveryTime || null, (ctx.user as any)?.id || 0]
+      `INSERT INTO selection_products (productName, productNameCn, productId, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, talentExclusive, exclusiveLiverIds, tags, selfOperated, purchasePrice, shippingFee, platformFee, totalCost, deliveryTime, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [input.productName, input.productNameCn || null, input.productId || null, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, input.talentExclusive || 0, input.exclusiveLiverIds ? JSON.stringify(input.exclusiveLiverIds) : null, input.tags ? JSON.stringify(input.tags) : null, input.selfOperated || 0, input.purchasePrice || null, input.shippingFee || null, input.platformFee || null, totalCost > 0 ? String(totalCost) : null, input.deliveryTime || null, (ctx.user as any)?.id || 0]
     ) as any;
     return { id: result.insertId };
   }),
@@ -230,6 +255,7 @@ export const selectionCenterRouter = router({
   updateProduct: protectedProcedure.input(z.object({
     id: z.number(),
     productName: z.string().optional(),
+    productNameCn: z.string().nullable().optional(),
     productId: z.string().optional(),
     barcode: z.string().optional(),
     brandName: z.string().optional(),

@@ -122,6 +122,7 @@ function ProductsTab() {
                       <span className="truncate">{product.productName}</span>
                       {!!product.talentExclusive && <span className="inline-block text-[10px] bg-purple-100 text-purple-700 px-1 py-0.5 rounded font-medium whitespace-nowrap">{t("sc.talentExclusive")}</span>}
                     </div>
+                    {product.productNameCn && <span className="text-xs text-blue-400 block">{product.productNameCn}</span>}
                     {product.productId && <span className="text-xs text-muted-foreground block">ID: {product.productId}</span>}
                     {(() => {
                       const tags: string[] = product.tags ? (typeof product.tags === 'string' ? JSON.parse(product.tags) : product.tags) : [];
@@ -144,7 +145,7 @@ function ProductsTab() {
                       {product.hasTikTokBackend && <span className="inline-block text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium whitespace-nowrap">{t("sc.tiktokBackend")}</span>}
                     </span>
                   </td>
-                  <td className="p-3">{category ? (categoriesQuery.data?.find((p: any) => p.id === category.parentId)?.name ? categoriesQuery.data.find((p: any) => p.id === category.parentId).name + " / " + category.name : category.name) : "-"}</td>
+                  <td className="p-3">{category ? (() => { const parent = categoriesQuery.data?.find((p: any) => p.id === category.parentId); const parentStr = parent ? (parent.nameCn ? `${parent.name}(${parent.nameCn})` : parent.name) + " / " : ""; const catStr = category.nameCn ? `${category.name}(${category.nameCn})` : category.name; return parentStr + catStr; })() : "-"}</td>
                   <td className="p-3 text-right">¥{Number(product.price || 0).toLocaleString()}</td>
                   <td className="p-3 text-right">
                     {product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`}
@@ -223,6 +224,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
         setForm((prev: any) => ({
           ...prev,
           productName: data.productName || prev.productName || '',
+          productNameCn: data.productNameCn || prev.productNameCn || '',
           brandName: data.brandName || prev.brandName || '',
           price: data.price ? String(data.price) : prev.price || '',
           marketPrice: data.marketPrice ? String(data.marketPrice) : prev.marketPrice || '',
@@ -297,6 +299,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
   const handleSubmit = () => {
     const submitData: any = {
       productName: form.productName,
+      productNameCn: form.productNameCn || undefined,
       productId: form.productId || undefined,
       barcode: form.barcode || undefined,
       brandName: form.brandName || undefined,
@@ -374,6 +377,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
                   setForm((prev: any) => ({
                     ...prev,
                     productName: data.productName || prev.productName || '',
+                    productNameCn: data.productNameCn || prev.productNameCn || '',
                     brandName: data.brandName || prev.brandName || '',
                     price: data.price ? String(data.price) : prev.price || '',
                     marketPrice: data.marketPrice ? String(data.marketPrice) : prev.marketPrice || '',
@@ -394,6 +398,12 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
           <div>
             <Label>{t("sc.form.productNameLabel")}</Label>
             <Input value={form.productName || ""} onChange={e => setForm({ ...form, productName: e.target.value })} />
+          </div>
+
+          {/* 中文商品名 - full width */}
+          <div>
+            <Label>{t("sc.form.productNameCnLabel")}</Label>
+            <Input value={form.productNameCn || ""} onChange={e => setForm({ ...form, productNameCn: e.target.value })} placeholder={t("sc.form.productNameCnPlaceholder")} />
           </div>
 
           {/* 商品ID + バーコード - 2 columns */}
@@ -429,7 +439,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
               <Select value={String(form.categoryId || "")} onValueChange={v => setForm({ ...form, categoryId: Number(v) })}>
                 <SelectTrigger><SelectValue placeholder={t("sc.form.categoryPlaceholder")} /></SelectTrigger>
                 <SelectContent>
-                  {categories.map((c: any) => { const parent = c.parentId ? categories.find((p: any) => p.id === c.parentId) : null; return <SelectItem key={c.id} value={String(c.id)}>{parent ? parent.name + " / " : ""}{c.name}</SelectItem>; })}
+                  {categories.map((c: any) => { const parent = c.parentId ? categories.find((p: any) => p.id === c.parentId) : null; const parentLabel = parent ? (parent.nameCn ? `${parent.name}(${parent.nameCn})` : parent.name) + " / " : ""; const label = c.nameCn ? `${c.name}(${c.nameCn})` : c.name; return <SelectItem key={c.id} value={String(c.id)}>{parentLabel}{label}</SelectItem>; })}
                 </SelectContent>
               </Select>
             </div>
@@ -883,6 +893,7 @@ function LiverSelectionTab() {
                 <div className="flex justify-between items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold truncate">{product.productName}</h3>
+                    {product.productNameCn && <p className="text-xs text-blue-400 truncate">{product.productNameCn}</p>}
                     <p className="text-sm text-muted-foreground flex items-center gap-1">
                       {product.brandName}
                       {product.hasTikTokBackend && <span className="inline-block text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium">{t("sc.tiktokBackend")}</span>}
@@ -951,7 +962,7 @@ function LiverSelectionTab() {
       <Dialog open={!!detailProduct} onOpenChange={(open) => { if (!open) setDetailProduct(null); }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{detailProduct?.productName}</DialogTitle>
+            <DialogTitle>{detailProduct?.productName}{detailProduct?.productNameCn && <span className="text-sm font-normal text-blue-400 ml-2">({detailProduct.productNameCn})</span>}</DialogTitle>
           </DialogHeader>
           {detailProduct && (
             <div className="space-y-4">
