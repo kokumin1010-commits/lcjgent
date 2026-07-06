@@ -412,7 +412,13 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 16384;
+  // GPT models require max_completion_tokens instead of max_tokens
+  const resolvedModel = (model || "gpt-5-nano").toLowerCase();
+  if (resolvedModel.startsWith("gpt-")) {
+    payload.max_completion_tokens = 16384;
+  } else {
+    payload.max_tokens = 16384;
+  }
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,
