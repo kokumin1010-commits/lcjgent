@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download } from "lucide-react";
+import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -81,6 +81,7 @@ function ProductsTab() {
           </SelectContent>
         </Select>
         <Button onClick={() => setShowCreateDialog(true)}><Plus className="h-4 w-4 mr-1" />{t("sc.addProduct")}</Button>
+        <AiRecognitionButton onResult={(data) => { setEditProduct(null); setShowCreateDialog(true); setTimeout(() => { window.__aiProductData = data; window.dispatchEvent(new Event('ai-product-data')); }, 100); }} />
       </div>
 
       <div className="border rounded-lg overflow-hidden">
@@ -213,6 +214,33 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
   const [uploading, setUploading] = useState(false);
   const isEdit = !!product;
   const brandsQuery = trpc.brand.list.useQuery();
+
+  // Listen for AI product data
+  useEffect(() => {
+    const handler = () => {
+      const data = (window as any).__aiProductData;
+      if (data) {
+        setForm((prev: any) => ({
+          ...prev,
+          productName: data.productName || prev.productName || '',
+          brandName: data.brandName || prev.brandName || '',
+          price: data.price ? String(data.price) : prev.price || '',
+          marketPrice: data.marketPrice ? String(data.marketPrice) : prev.marketPrice || '',
+          costPrice: data.costPrice ? String(data.costPrice) : prev.costPrice || '',
+          stock: data.stock || prev.stock || '',
+          sellingPoints: data.sellingPoints || prev.sellingPoints || '',
+          description: data.description || prev.description || '',
+          barcode: data.barcode || prev.barcode || '',
+          productLink: data.productLink || prev.productLink || '',
+          supplierContact: prev.supplierContact || '',
+        }));
+        delete (window as any).__aiProductData;
+        toast.success(t('sc.form.aiRecognitionSuccess') || 'AI识别完成，已自动填充');
+      }
+    };
+    window.addEventListener('ai-product-data', handler);
+    return () => window.removeEventListener('ai-product-data', handler);
+  }, []);
   const liversQuery = trpc.selectionCenter.getLivers.useQuery();
 
   useEffect(() => {
@@ -522,6 +550,64 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
   );
 }
 
+
+// ==================== AI識別ボタン ====================
+function AiRecognitionButton({ onResult }: { onResult: (data: any) => void }) {
+  const { t } = useLanguage();
+  const [analyzing, setAnalyzing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const analyzeMutation = trpc.selectionCenter.analyzeProductImage.useMutation();
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAnalyzing(true);
+    try {
+      const reader = new FileReader();
+      const dataUrl = await new Promise<string>((resolve) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+      const [header, base64Data] = dataUrl.split(',');
+      const mimeType = header.match(/data:(.*?);/)?.[1] || file.type || 'image/jpeg';
+      const result = await analyzeMutation.mutateAsync({ base64Data, mimeType });
+      if (result.success && result.data) {
+        onResult(result.data);
+      } else {
+        toast.error(t('sc.form.aiRecognitionFailed') || 'AI识别失败');
+      }
+    } catch (err: any) {
+      toast.error(err?.message || t('sc.form.aiRecognitionFailed') || 'AI识别失败');
+    } finally {
+      setAnalyzing(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={analyzing}
+        className="border-purple-300 text-purple-700 hover:bg-purple-50 hover:border-purple-400"
+      >
+        {analyzing ? (
+          <><Loader2 className="h-4 w-4 mr-1 animate-spin" />{t('sc.form.aiAnalyzing') || 'AI识别中...'}</>
+        ) : (
+          <><Sparkles className="h-4 w-4 mr-1" />{t('sc.form.aiRecognition') || 'AI识别'}</>
+        )}
+      </Button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileSelect}
+      />
+    </>
+  );
+}
 
 // ==================== 主播選品 Tab ====================
 function LiverSelectionTab() {

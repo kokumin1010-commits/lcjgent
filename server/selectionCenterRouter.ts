@@ -3,6 +3,7 @@ import { router, protectedProcedure, publicProcedure } from "./_core/trpc";
 import mysql from "mysql2/promise";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
+import { invokeLLM } from "./_core/llm";
 
 // Direct mysql2 connection pool (bypass drizzle issues on Railway)
 let _pool: mysql.Pool | null = null;
@@ -1016,4 +1017,71 @@ export const selectionCenterRouter = router({
       return { success: false, message: e.message };
     }
   }),
+
+  // AI画像認識で商品情報を自動抽出
+  analyzeProductImage: protectedProcedure
+    .input(z.object({
+      base64Data: z.string(),
+      mimeType: z.string().default('image/jpeg'),
+    }))
+    .mutation(async ({ input }) => {
+      const { base64Data, mimeType } = input;
+      const imageUrl = `data:${mimeType};base64,${base64Data}`;
+
+      const response = await invokeLLM({
+        messages: [
+          {
+            role: "system",
+            content: `あなたは商品提案書・商品手卡の画像を分析する専門家です。\n画像から以下の情報を正確に抽出してJSON形式で返してください。\n情報が見つからない場合はnullを返してください。\n\n抽出する項目:\n- productName: 製品名（日本語）\n- brandName: ブランド名\n- price: 販売価格（数値のみ、円記号なし）\n- marketPrice: 通常価格/定価（数値のみ）\n- costPrice: 仕入価格（数値のみ）\n- category: 商品カテゴリ（例: LED美顔器、シャンプー、ドライヤー等）\n- stock: 在庫数（数値のみ、「300台以上」→300）\n- sellingPoints: コアセールスポイント（箇条書きをまとめた文章）\n- targetAudience: ターゲット層の説明\n- specifications: 仕様・スペック\n- commissionInfo: ライセンス料/配分率の情報\n- barcode: バーコード/JANコード（あれば）\n- productLink: 商品リンク（あれば）\n- description: 商品の総合説明（ターゲット層+セールスポイントを含む詳細説明）`
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "この商品手卡/提案書の画像から商品情報を抽出してください。" },
+              { type: "image_url", image_url: { url: imageUrl, detail: "high" } }
+            ]
+          }
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "product_extraction",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                productName: { type: ["string", "null"], description: "製品名" },
+                brandName: { type: ["string", "null"], description: "ブランド名" },
+                price: { type: ["number", "null"], description: "販売価格" },
+                marketPrice: { type: ["number", "null"], description: "通常価格" },
+                costPrice: { type: ["number", "null"], description: "仕入価格" },
+                category: { type: ["string", "null"], description: "商品カテゴリ" },
+                stock: { type: ["number", "null"], description: "在庫数" },
+                sellingPoints: { type: ["string", "null"], description: "セールスポイント" },
+                targetAudience: { type: ["string", "null"], description: "ターゲット層" },
+                specifications: { type: ["string", "null"], description: "仕様" },
+                commissionInfo: { type: ["string", "null"], description: "佣金情報" },
+                barcode: { type: ["string", "null"], description: "バーコード" },
+                productLink: { type: ["string", "null"], description: "商品リンク" },
+                description: { type: ["string", "null"], description: "商品説明" },
+              },
+              required: ["productName", "brandName", "price", "marketPrice", "costPrice", "category", "stock", "sellingPoints", "targetAudience", "specifications", "commissionInfo", "barcode", "productLink", "description"],
+              additionalProperties: false,
+            },
+          },
+        },
+      });
+
+      const content = response.choices?.[0]?.message?.content;
+      if (!content) {
+        throw new Error("AI分析に失敗しました。画像を確認してください。");
+      }
+
+      try {
+        const extracted = JSON.parse(content);
+        return { success: true, data: extracted };
+      } catch {
+        throw new Error("AI応答の解析に失敗しました。");
+      }
+    }),
 });

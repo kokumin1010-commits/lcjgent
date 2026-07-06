@@ -76,6 +76,10 @@ export const selectionCenterJa: Record<string, string> = {
   "sc.form.saving": "保存中...",
   "sc.form.imageUploaded": "枚の画像をアップロードしました",
   "sc.form.imageUploadFailed": "画像のアップロードに失敗しました",
+  "sc.form.aiRecognition": "AI識別",
+  "sc.form.aiAnalyzing": "AI識別中...",
+  "sc.form.aiRecognitionSuccess": "AI識別完了、自動入力しました",
+  "sc.form.aiRecognitionFailed": "AI識別に失敗しました",
 
   // Liver Selection Tab
   "sc.liver.label": "主播:",
@@ -362,6 +366,10 @@ export const selectionCenterZh: Record<string, string> = {
   "sc.form.saving": "保存中...",
   "sc.form.imageUploaded": "张图片已上传",
   "sc.form.imageUploadFailed": "图片上传失败",
+  "sc.form.aiRecognition": "AI识别",
+  "sc.form.aiAnalyzing": "AI识别中...",
+  "sc.form.aiRecognitionSuccess": "AI识别完成，已自动填充",
+  "sc.form.aiRecognitionFailed": "AI识别失败",
 
   // Liver Selection Tab
   "sc.liver.label": "主播:",
