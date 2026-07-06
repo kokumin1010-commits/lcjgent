@@ -327,6 +327,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
       shippingFee: form.selfOperated && form.shippingFee ? String(form.shippingFee) : undefined,
       platformFee: form.selfOperated && form.platformFee ? String(form.platformFee) : undefined,
       deliveryTime: form.selfOperated && form.deliveryTime ? String(form.deliveryTime) : undefined,
+      suggestedPrice: form.selfOperated && form.suggestedPrice ? String(form.suggestedPrice) : undefined,
     };
     // Remove undefined values for cleaner payload
     Object.keys(submitData).forEach(k => { if (submitData[k] === undefined) delete submitData[k]; });
@@ -466,35 +467,38 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
             </div>
           </div>
 
-          {/* 販売価格 + 市場価格 - 2 columns */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>{t("sc.form.sellingPrice")}</Label>
-              <Input type="number" value={form.price || ""} onChange={e => setForm({ ...form, price: e.target.value })} />
+                    {/* 販売価格 + 市場価格 - 2 columns (hidden when selfOperated) */}
+          {!form.selfOperated && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>{t("sc.form.sellingPrice")}</Label>
+                <Input type="number" value={form.price || ""} onChange={e => setForm({ ...form, price: e.target.value })} />
+              </div>
+              <div>
+                <Label>{t("sc.form.marketPrice")}</Label>
+                <Input type="number" value={form.marketPrice || ""} onChange={e => setForm({ ...form, marketPrice: e.target.value })} />
+              </div>
             </div>
-            <div>
-              <Label>{t("sc.form.marketPrice")}</Label>
-              <Input type="number" value={form.marketPrice || ""} onChange={e => setForm({ ...form, marketPrice: e.target.value })} />
+          )}
+          {/* 佣金タイプ + 佣金値 - 2 columns (hidden when selfOperated) */}
+          {!form.selfOperated && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>{t("sc.form.commissionType")}</Label>
+                <Select value={form.commissionType || "percentage"} onValueChange={v => setForm({ ...form, commissionType: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">{t("sc.form.commissionPercentage")}</SelectItem>
+                    <SelectItem value="fixed">{t("sc.form.commissionFixed")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>{t("sc.form.commissionValue")}</Label>
+                <Input type="number" value={form.commissionValue || ""} onChange={e => setForm({ ...form, commissionValue: e.target.value })} />
+              </div>
             </div>
-          </div>
-
-          {/* 佣金タイプ + 佣金値 - 2 columns */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>{t("sc.form.commissionType")}</Label>
-              <Select value={form.commissionType || "percentage"} onValueChange={v => setForm({ ...form, commissionType: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="percentage">{t("sc.form.commissionPercentage")}</SelectItem>
-                  <SelectItem value="fixed">{t("sc.form.commissionFixed")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>{t("sc.form.commissionValue")}</Label>
-              <Input type="number" value={form.commissionValue || ""} onChange={e => setForm({ ...form, commissionValue: e.target.value })} />
-            </div>
-          </div>
+          )}
 
           {/* 在庫数 + 商品リンク - 2 columns */}
           <div className="grid grid-cols-2 gap-4">
@@ -570,6 +574,10 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
                 <div>
                   <Label>{t("sc.form.deliveryTime") || '发货时效'}</Label>
                   <Input value={form.deliveryTime || ""} onChange={e => setForm({ ...form, deliveryTime: e.target.value })} placeholder="例: 3-5工作日" />
+                </div>
+                <div>
+                  <Label>{t("sc.form.suggestedPrice") || '建议价格'}</Label>
+                  <Input type="number" value={form.suggestedPrice || ""} onChange={e => setForm({ ...form, suggestedPrice: e.target.value })} placeholder="例: 8000" />
                 </div>
               </div>
             )}
@@ -948,6 +956,7 @@ function LiverSelectionTab() {
                           {product.platformFee && <span>平台费: ¥{Number(product.platformFee).toLocaleString()}</span>}
                           {product.totalCost && <span className="font-medium text-green-700">成本价: ¥{Number(product.totalCost).toLocaleString()}</span>}
                           {product.deliveryTime && <span>发货: {product.deliveryTime}</span>}
+                          {product.suggestedPrice && <span className="font-medium text-orange-600">建议价: ¥{Number(product.suggestedPrice).toLocaleString()}</span>}
                         </div>
                       </div>
                     ) : null}

@@ -14,7 +14,7 @@ export async function addSelectionCenterColumns(db: any) {
       SELECT COLUMN_NAME 
       FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_NAME = 'selection_products' 
-      AND COLUMN_NAME IN ('productNameCn', 'productId', 'talentExclusive', 'exclusiveLiverIds', 'tags', 'selfOperated', 'purchasePrice', 'shippingFee', 'platformFee', 'totalCost', 'deliveryTime')
+      AND COLUMN_NAME IN ('productNameCn', 'productId', 'talentExclusive', 'exclusiveLiverIds', 'tags', 'selfOperated', 'purchasePrice', 'shippingFee', 'platformFee', 'totalCost', 'deliveryTime', 'suggestedPrice')
     `);
     const existingProductCols = new Set((productCols as any[]).map((r: any) => r.COLUMN_NAME));
 
@@ -61,6 +61,10 @@ export async function addSelectionCenterColumns(db: any) {
     if (!existingProductCols.has('deliveryTime')) {
       await db.execute(sql`ALTER TABLE selection_products ADD COLUMN deliveryTime VARCHAR(100) DEFAULT NULL`);
       console.log('[Migration] Added column: selection_products.deliveryTime');
+    }
+    if (!existingProductCols.has('suggestedPrice')) {
+      await db.execute(sql`ALTER TABLE selection_products ADD COLUMN suggestedPrice DECIMAL(10,2) DEFAULT NULL`);
+      console.log('[Migration] Added column: selection_products.suggestedPrice');
     }
 
     // Check selection_categories columns
