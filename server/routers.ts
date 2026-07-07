@@ -28210,19 +28210,14 @@ JSON配列のみを出力してください。`;
         notes: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const db = await getDb();
-        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
-        await db.insert(livestreamRealtimeRecords).values({
-          livestreamId: input.livestreamId,
-          liverId: input.liverId || null,
-          productName: input.productName,
-          productPrice: input.productPrice || null,
-          quantitySold: input.quantitySold,
-          cartAddCount: input.cartAddCount,
-          timeSlot: input.timeSlot,
-          recordedBy: ctx.user.name || ctx.user.email,
-          notes: input.notes || null,
-        });
+        // Use raw mysql2 query to bypass drizzle ORM bigint column count mismatch bug
+        const mysql2 = await import('mysql2/promise');
+        const pool = mysql2.createPool(process.env.DATABASE_URL!);
+        await pool.query(
+          `INSERT INTO livestream_realtime_records (livestreamId, liverId, productName, productPrice, quantitySold, cartAddCount, timeSlot, recordedBy, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [input.livestreamId, input.liverId || null, input.productName, input.productPrice || null, input.quantitySold, input.cartAddCount, input.timeSlot, ctx.user.name || ctx.user.email, input.notes || null]
+        );
+        await pool.end();
         return { success: true };
       }),
 
