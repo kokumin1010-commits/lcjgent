@@ -111,7 +111,8 @@ export default function LivestreamRealtimeRecord() {
 
   const addSnapshotMutation = trpc.realtimeRecord.addSnapshot.useMutation({
     onSuccess: (data) => {
-      toast.success(`AI解析完了！GPM: ¥${data.snapshot.gpm?.toLocaleString() || '---'}`);
+      const productCount = data.snapshot.products?.length || 0;
+      toast.success(`AI解析完了！GPM: ¥${data.snapshot.gpm?.toLocaleString() || '---'}${productCount > 0 ? ` / 商品${productCount}件検出` : ''}`);
       refetchSnapshots();
       setIsAnalyzing(false);
     },
@@ -577,6 +578,38 @@ export default function LivestreamRealtimeRecord() {
                             {snap.tapThroughRate && <span>タップ:{snap.tapThroughRate}</span>}
                             {snap.commentRate && <span>コメント:{snap.commentRate}</span>}
                             {snap.followRate && <span>フォロー:{snap.followRate}</span>}
+                          </div>
+                        )}
+                        {/* 商品リスト表示 */}
+                        {(snap as any).products && (snap as any).products.length > 0 && (
+                          <div className="mt-2 border-t border-gray-700 pt-2">
+                            <p className="text-[9px] text-purple-400 font-bold mb-1">📦 商品リスト ({(snap as any).products.length}件)</p>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-[9px]">
+                                <thead>
+                                  <tr className="text-gray-500">
+                                    <th className="text-left py-0.5 pr-1">商品名</th>
+                                    <th className="text-right py-0.5 px-1">GMV</th>
+                                    <th className="text-right py-0.5 px-1">成交</th>
+                                    <th className="text-right py-0.5 px-1">クリック</th>
+                                    <th className="text-right py-0.5 px-1">クリック率</th>
+                                    <th className="text-right py-0.5 pl-1">加購</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {(snap as any).products.map((p: any, idx: number) => (
+                                    <tr key={idx} className="border-t border-gray-800">
+                                      <td className="text-left py-0.5 pr-1 text-white max-w-[100px] truncate" title={p.productName}>{p.productName}</td>
+                                      <td className="text-right py-0.5 px-1 text-green-400">¥{(p.attributedGmv || 0).toLocaleString()}</td>
+                                      <td className="text-right py-0.5 px-1 text-white">{p.salesCount ?? '-'}</td>
+                                      <td className="text-right py-0.5 px-1 text-white">{p.clickCount ? p.clickCount.toLocaleString() : '-'}</td>
+                                      <td className="text-right py-0.5 px-1 text-yellow-400">{p.clickRate || '-'}</td>
+                                      <td className="text-right py-0.5 pl-1 text-white">{p.cartAddCount ?? '-'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
                         )}
                       </div>

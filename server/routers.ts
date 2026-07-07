@@ -28355,18 +28355,29 @@ JSON配列のみを出力してください。`;
         const systemPrompt = `あなたはTikTokライブ配信のダッシュボードスクリーンショットを解析するエキスパートです。
 配信中に定期的に撮影されるスクリーンショットから、以下の指標を正確に読み取ってください。
 
-## 抽出する指標:
+## 抽出する全体指標:
 1. gmv: 派生GMV累計（円）- 画面中央の大きな数字
-2. gpm: 表示GPM（1000インプあたり売上・円）- "GPM" の横の数値（例: ¥4.97K = 4970）
-3. impressions: インプレッション数（例: 408.78K = 408780）
-4. impressionsPerHour: 1時間あたりのインプレッション（例: 64.9K = 64900）
-5. viewerCount: 視聴者数（例: 30.53K = 30530）
-6. viewCount: 視聴数（例: 44.43K = 44430）
-7. orderCount: 販売数/注文数
-8. tapThroughRate: タップスルー率（例: "1.93%"）
-9. commentRate: コメント率（例: "5.17%"）
-10. followRate: フォロー率（例: "0.15%"）
+2. gpm: 表示GPM（1000インプあたり売上・円）- "千次曝光成交金额" の数値（例: ¥4.97K = 4970）
+3. impressions: インプレッション数/曝光次数（例: 408.78K = 408780）
+4. impressionsPerHour: 毎小時GMV（例: 64.9K = 64900）
+5. viewerCount: 浏览人数（例: 30.53K = 30530）
+6. viewCount: 视聴数（例: 44.43K = 44430）
+7. orderCount: 归因成交件数/販売数
+8. tapThroughRate: 点击率（通过直播预览）（例: "1.93%"）
+9. commentRate: 评论率（例: "5.17%"）
+10. followRate: 关注率（例: "0.15%"）
 11. avgViewDuration: 視聴1回あたり平均時間（例: "2m6s"）
+
+## 抽出する商品リスト:
+スクリーンショットに「商品列表」（商品リスト/テーブル）が表示されている場合、各商品の情報を配列で返してください。
+各商品から以下を読み取ります:
+- productName: 商品名（テキストが途中で切れていてもそのまま返す）
+- attributedGmv: 归因GMV（円）- 数値のみ（例: 635,474円 → 635474）
+- salesCount: 归因成交件数（例: 55）
+- clickCount: 商品点击次数（例: 4017）
+- clickRate: 点击率（例: "1.32%"）
+- cartAddCount: 加购次数（例: 222）
+商品リストが見えない場合は空配列[]を返してください。
 
 ## 数値読み取りルール:
 - "K" = 1,000倍（例: 45.57K = 45570）
@@ -28375,11 +28386,13 @@ JSON配列のみを出力してください。`;
 - パーセントはそのまま文字列で返す（例: "5.17%"）
 - 時間はそのまま文字列で返す（例: "2m6s"）
 - GPMの"¥"記号は除去し数値のみ（例: ¥4.97K → 4970）
+- 円記号や"円"は除去し数値のみ（例: 121,276円 → 121276）
 
 ## 重要:
 - 見えない指標はnullを返してください
 - 数値が見える場合は必ず抽出してください
-- confidenceは読み取り精度に応じて high/medium/low で返してください`;
+- confidenceは読み取り精度に応じて high/medium/low で返してください
+- 商品リストが画面に表示されている場合は必ず全商品を抽出してください`;
 
         const aiResponse = await invokeLLM({
           model: "gpt-5-mini",
@@ -28421,9 +28434,26 @@ JSON配列のみを出力してください。`;
                   commentRate: { anyOf: [{ type: "string" }, { type: "null" }], description: "コメント率" },
                   followRate: { anyOf: [{ type: "string" }, { type: "null" }], description: "フォロー率" },
                   avgViewDuration: { anyOf: [{ type: "string" }, { type: "null" }], description: "平均視聴時間" },
+                  products: {
+                    type: "array",
+                    description: "商品リスト（画面に表示されている場合）",
+                    items: {
+                      type: "object",
+                      properties: {
+                        productName: { type: "string", description: "商品名" },
+                        attributedGmv: { anyOf: [{ type: "number" }, { type: "null" }], description: "归因GMV（円）" },
+                        salesCount: { anyOf: [{ type: "number" }, { type: "null" }], description: "归因成交件数" },
+                        clickCount: { anyOf: [{ type: "number" }, { type: "null" }], description: "商品点击次数" },
+                        clickRate: { anyOf: [{ type: "string" }, { type: "null" }], description: "点击率" },
+                        cartAddCount: { anyOf: [{ type: "number" }, { type: "null" }], description: "加购次数" },
+                      },
+                      required: ["productName", "attributedGmv", "salesCount", "clickCount", "clickRate", "cartAddCount"],
+                      additionalProperties: false,
+                    },
+                  },
                   confidence: { type: "string", enum: ["high", "medium", "low"] },
                 },
-                required: ["gmv", "gpm", "impressions", "impressionsPerHour", "viewerCount", "viewCount", "orderCount", "tapThroughRate", "commentRate", "followRate", "avgViewDuration", "confidence"],
+                required: ["gmv", "gpm", "impressions", "impressionsPerHour", "viewerCount", "viewCount", "orderCount", "tapThroughRate", "commentRate", "followRate", "avgViewDuration", "products", "confidence"],
                 additionalProperties: false,
               },
             },
@@ -28444,7 +28474,10 @@ JSON配列のみを出力してください。`;
         }
 
         // 4. Save to DB (raw mysql2 pool.query to completely bypass drizzle ORM issues)
+        // Extract products from metrics before saving
+        const products = metrics.products || [];
         const rawJson = JSON.stringify(metrics);
+        const productsJson = products.length > 0 ? JSON.stringify(products) : null;
         const mysql2 = await import('mysql2/promise');
         const pool = mysql2.createPool(process.env.DATABASE_URL!);
         // Ensure table exists
@@ -28470,17 +28503,20 @@ JSON配列のみを出力してください。`;
             avgViewDuration VARCHAR(20) DEFAULT NULL,
             notes TEXT DEFAULT NULL,
             rawResponse JSON DEFAULT NULL,
+            productsJson TEXT DEFAULT NULL,
             confidence ENUM('high','medium','low') DEFAULT 'medium',
             createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
           )
         `);
+        // Add productsJson column if it doesn't exist (for existing tables)
+        await pool.query(`ALTER TABLE livestream_realtime_snapshots ADD COLUMN IF NOT EXISTS productsJson TEXT DEFAULT NULL`).catch(() => {});
         const [result] = await pool.query(
-          `INSERT INTO livestream_realtime_snapshots (livestreamId, liverId, imageUrl, imageKey, timeSlot, gmv, gpm, impressions, impressionsPerHour, viewerCount, viewCount, orderCount, tapThroughRate, commentRate, followRate, avgViewDuration, notes, rawResponse, confidence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [input.livestreamId, input.liverId || null, imageUrl, fileKey, input.timeSlot, metrics.gmv || null, metrics.gpm || null, metrics.impressions || null, metrics.impressionsPerHour || null, metrics.viewerCount || null, metrics.viewCount || null, metrics.orderCount || null, metrics.tapThroughRate || null, metrics.commentRate || null, metrics.followRate || null, metrics.avgViewDuration || null, input.notes || null, rawJson, metrics.confidence || "medium"]
+          `INSERT INTO livestream_realtime_snapshots (livestreamId, liverId, imageUrl, imageKey, timeSlot, gmv, gpm, impressions, impressionsPerHour, viewerCount, viewCount, orderCount, tapThroughRate, commentRate, followRate, avgViewDuration, notes, rawResponse, productsJson, confidence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [input.livestreamId, input.liverId || null, imageUrl, fileKey, input.timeSlot, metrics.gmv || null, metrics.gpm || null, metrics.impressions || null, metrics.impressionsPerHour || null, metrics.viewerCount || null, metrics.viewCount || null, metrics.orderCount || null, metrics.tapThroughRate || null, metrics.commentRate || null, metrics.followRate || null, metrics.avgViewDuration || null, input.notes || null, rawJson, productsJson, metrics.confidence || "medium"]
         ) as any;
         await pool.end();
         const insertId = result?.insertId || null;
-        console.log(`[addSnapshot] Saved snapshot for livestream ${input.livestreamId}, timeSlot=${input.timeSlot}, GPM=${metrics.gpm}`);
+        console.log(`[addSnapshot] Saved snapshot for livestream ${input.livestreamId}, timeSlot=${input.timeSlot}, GPM=${metrics.gpm}, products=${products.length}`);
         return {
           success: true,
           snapshot: {
@@ -28488,6 +28524,7 @@ JSON配列のみを出力してください。`;
             imageUrl,
             timeSlot: input.timeSlot,
             ...metrics,
+            products,
           },
         };
       }),
@@ -28504,7 +28541,11 @@ JSON配列のみを出力してください。`;
           .from(livestreamRealtimeSnapshots)
           .where(eq(livestreamRealtimeSnapshots.livestreamId, input.livestreamId))
           .orderBy(livestreamRealtimeSnapshots.snapshotAt);
-        return results;
+        // Parse productsJson for each snapshot
+        return results.map((r: any) => ({
+          ...r,
+          products: r.productsJson ? (() => { try { return JSON.parse(r.productsJson); } catch { return []; } })() : [],
+        }));
       }),
 
     // GPMトレンドデータ取得（時間帯別）

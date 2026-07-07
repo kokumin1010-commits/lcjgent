@@ -6380,6 +6380,7 @@ export const livestreamRealtimeSnapshots = mysqlTable("livestream_realtime_snaps
   // メタデータ
   notes: text("notes"), // 運営メモ
   rawResponse: json("rawResponse").$type<Record<string, any>>(), // AI生レスポンス
+  productsJson: text("productsJson"), // AI解析で抽出した商品リストJSON
   confidence: mysqlEnum("confidence", ["high", "medium", "low"]).default("medium"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
