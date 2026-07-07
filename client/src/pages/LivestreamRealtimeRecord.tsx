@@ -112,8 +112,10 @@ export default function LivestreamRealtimeRecord() {
   const addSnapshotMutation = trpc.realtimeRecord.addSnapshot.useMutation({
     onSuccess: (data) => {
       const productCount = data.snapshot.products?.length || 0;
-      toast.success(`AI解析完了！GPM: ¥${data.snapshot.gpm?.toLocaleString() || '---'}${productCount > 0 ? ` / 商品${productCount}件検出` : ''}`);
+      const importedCount = (data as any).importedCount || 0;
+      toast.success(`AI解析完了！GPM: ¥${data.snapshot.gpm?.toLocaleString() || '---'}${importedCount > 0 ? ` / ${importedCount}件の商品を記録に追加` : ''}`);
       refetchSnapshots();
+      refetch(); // 記録一覧も更新
       setIsAnalyzing(false);
     },
     onError: (err) => {

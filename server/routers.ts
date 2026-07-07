@@ -28555,9 +28555,44 @@ JSON配列のみを出力してください。`;
           `INSERT INTO livestream_realtime_snapshots (livestreamId, liverId, imageUrl, imageKey, timeSlot, gmv, gpm, impressions, impressionsPerHour, viewerCount, viewCount, orderCount, tapThroughRate, commentRate, followRate, avgViewDuration, notes, rawResponse, productsJson, confidence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [input.livestreamId, input.liverId || null, imageUrl, fileKey, input.timeSlot, metrics.gmv || null, metrics.gpm || null, metrics.impressions || null, metrics.impressionsPerHour || null, metrics.viewerCount || null, metrics.viewCount || null, metrics.orderCount || null, metrics.tapThroughRate || null, metrics.commentRate || null, metrics.followRate || null, metrics.avgViewDuration || null, input.notes || null, rawJson, productsJson, metrics.confidence || "medium"]
         ) as any;
+        const insertId = (result as any)?.insertId || null;
+
+        // 5. Auto-import products into realtime records (upsert: update if same product+timeSlot exists)
+        let importedCount = 0;
+        if (products.length > 0) {
+          for (const p of products) {
+            const salesCount = p.salesCount || 0;
+            const cartAdd = p.cartAddCount || 0;
+            const unitPrice = (p.attributedGmv && salesCount > 0) ? Math.round(p.attributedGmv / salesCount) : null;
+            const noteParts: string[] = [];
+            if (p.clickCount) noteParts.push(`\u30AF\u30EA\u30C3\u30AF:${p.clickCount}`);
+            if (p.clickRate) noteParts.push(`\u30AF\u30EA\u30C3\u30AF\u7387:${p.clickRate}`);
+            if (p.attributedGmv) noteParts.push(`GMV:\u00A5${p.attributedGmv.toLocaleString()}`);
+            const noteStr = noteParts.length > 0 ? `[AI] ${noteParts.join(' / ')}` : '[AI\u89E3\u6790]';
+
+            // Check if same product already exists for this livestream+timeSlot
+            const [existing] = await pool.query(
+              `SELECT id FROM livestream_realtime_records WHERE livestreamId = ? AND productName = ? AND timeSlot = ? LIMIT 1`,
+              [input.livestreamId, p.productName, input.timeSlot]
+            ) as any;
+            if (existing && existing.length > 0) {
+              // Update existing record with latest data
+              await pool.query(
+                `UPDATE livestream_realtime_records SET productPrice = ?, quantitySold = ?, cartAddCount = ?, notes = ?, recordedBy = 'AI' WHERE id = ?`,
+                [unitPrice, salesCount, cartAdd, noteStr, existing[0].id]
+              );
+            } else {
+              // Insert new record
+              await pool.query(
+                `INSERT INTO livestream_realtime_records (livestreamId, liverId, productName, productPrice, quantitySold, cartAddCount, timeSlot, recordedBy, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [input.livestreamId, input.liverId || null, p.productName, unitPrice, salesCount, cartAdd, input.timeSlot, 'AI', noteStr]
+              );
+            }
+            importedCount++;
+          }
+        }
         await pool.end();
-        const insertId = result?.insertId || null;
-        console.log(`[addSnapshot] Saved snapshot for livestream ${input.livestreamId}, timeSlot=${input.timeSlot}, GPM=${metrics.gpm}, products=${products.length}`);
+        console.log(`[addSnapshot] Saved snapshot for livestream ${input.livestreamId}, timeSlot=${input.timeSlot}, GPM=${metrics.gpm}, products=${products.length}, imported=${importedCount}`);
         return {
           success: true,
           snapshot: {
@@ -28567,6 +28602,7 @@ JSON配列のみを出力してください。`;
             ...metrics,
             products,
           },
+          importedCount,
         };
       }),
 
