@@ -28221,6 +28221,47 @@ JSON配列のみを出力してください。`;
         return { success: true };
       }),
 
+    // AI解析商品を一括記録に追加
+    bulkAddFromSnapshot: protectedProcedure
+      .input(z.object({
+        livestreamId: z.number(),
+        liverId: z.number().optional(),
+        timeSlot: z.string().min(1),
+        products: z.array(z.object({
+          productName: z.string().min(1),
+          attributedGmv: z.number().nullable().optional(),
+          salesCount: z.number().nullable().optional(),
+          clickCount: z.number().nullable().optional(),
+          clickRate: z.string().nullable().optional(),
+          cartAddCount: z.number().nullable().optional(),
+        })),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (input.products.length === 0) return { success: true, count: 0 };
+        const mysql2 = await import('mysql2/promise');
+        const pool = mysql2.createPool(process.env.DATABASE_URL!);
+        let count = 0;
+        for (const p of input.products) {
+          const salesCount = p.salesCount || 0;
+          const cartAdd = p.cartAddCount || 0;
+          // Use attributedGmv / salesCount as approximate unit price if salesCount > 0
+          const unitPrice = (p.attributedGmv && salesCount > 0) ? Math.round(p.attributedGmv / salesCount) : null;
+          const noteParts: string[] = [];
+          if (p.clickCount) noteParts.push(`クリック:${p.clickCount}`);
+          if (p.clickRate) noteParts.push(`クリック率:${p.clickRate}`);
+          if (p.attributedGmv) noteParts.push(`GMV:¥${p.attributedGmv.toLocaleString()}`);
+          const noteStr = noteParts.length > 0 ? `[AI] ${noteParts.join(' / ')}` : '[AI解析]';
+          await pool.query(
+            `INSERT INTO livestream_realtime_records (livestreamId, liverId, productName, productPrice, quantitySold, cartAddCount, timeSlot, recordedBy, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [input.livestreamId, input.liverId || null, p.productName, unitPrice, salesCount, cartAdd, input.timeSlot, ctx.user.name || ctx.user.email, noteStr]
+          );
+          count++;
+        }
+        await pool.end();
+        console.log(`[bulkAddFromSnapshot] Added ${count} products for livestream ${input.livestreamId}`);
+        return { success: true, count };
+      }),
+
     // 記録を更新
     update: protectedProcedure
       .input(z.object({

@@ -122,6 +122,15 @@ export default function LivestreamRealtimeRecord() {
     },
   });
 
+  // AI商品一括インポート
+  const bulkAddMutation = trpc.realtimeRecord.bulkAddFromSnapshot.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.count}件の商品を記録に追加しました！`);
+      refetch(); // 記録一覧を更新
+    },
+    onError: (err) => toast.error(`インポートエラー: ${err.message}`),
+  });
+
   // スクショアップロードハンドラー
   const handleSnapshotUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -610,6 +619,32 @@ export default function LivestreamRealtimeRecord() {
                                 </tbody>
                               </table>
                             </div>
+                            {/* 一括インポートボタン */}
+                            <Button
+                              size="sm"
+                              className="w-full mt-2 bg-green-700 hover:bg-green-600 text-white text-[10px] h-7"
+                              onClick={() => {
+                                const products = (snap as any).products;
+                                if (!products || products.length === 0) return;
+                                bulkAddMutation.mutate({
+                                  livestreamId,
+                                  liverId: livestream?.liverId || undefined,
+                                  timeSlot: snap.timeSlot,
+                                  products: products.map((p: any) => ({
+                                    productName: p.productName,
+                                    attributedGmv: p.attributedGmv || null,
+                                    salesCount: p.salesCount || null,
+                                    clickCount: p.clickCount || null,
+                                    clickRate: p.clickRate || null,
+                                    cartAddCount: p.cartAddCount || null,
+                                  })),
+                                });
+                              }}
+                              disabled={bulkAddMutation.isPending}
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              {bulkAddMutation.isPending ? 'インポート中...' : '↑ 記録に一括追加'}
+                            </Button>
                           </div>
                         )}
                       </div>
