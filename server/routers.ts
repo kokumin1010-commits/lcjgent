@@ -28213,6 +28213,23 @@ JSON配列のみを出力してください。`;
         // Use raw mysql2 query to bypass drizzle ORM bigint column count mismatch bug
         const mysql2 = await import('mysql2/promise');
         const pool = mysql2.createPool(process.env.DATABASE_URL!);
+        // Ensure table exists
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS livestream_realtime_records (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            livestreamId INT NOT NULL,
+            liverId INT DEFAULT NULL,
+            productName VARCHAR(500) NOT NULL,
+            productPrice BIGINT DEFAULT NULL,
+            quantitySold INT NOT NULL DEFAULT 0,
+            cartAddCount INT DEFAULT 0,
+            timeSlot VARCHAR(20) NOT NULL,
+            recordedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            recordedBy VARCHAR(255) DEFAULT NULL,
+            notes TEXT DEFAULT NULL,
+            createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+          )
+        `);
         await pool.query(
           `INSERT INTO livestream_realtime_records (livestreamId, liverId, productName, productPrice, quantitySold, cartAddCount, timeSlot, recordedBy, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [input.livestreamId, input.liverId || null, input.productName, input.productPrice || null, input.quantitySold, input.cartAddCount, input.timeSlot, ctx.user.name || ctx.user.email, input.notes || null]
@@ -28240,6 +28257,23 @@ JSON配列のみを出力してください。`;
         if (input.products.length === 0) return { success: true, count: 0 };
         const mysql2 = await import('mysql2/promise');
         const pool = mysql2.createPool(process.env.DATABASE_URL!);
+        // Ensure table exists
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS livestream_realtime_records (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            livestreamId INT NOT NULL,
+            liverId INT DEFAULT NULL,
+            productName VARCHAR(500) NOT NULL,
+            productPrice BIGINT DEFAULT NULL,
+            quantitySold INT NOT NULL DEFAULT 0,
+            cartAddCount INT DEFAULT 0,
+            timeSlot VARCHAR(20) NOT NULL,
+            recordedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            recordedBy VARCHAR(255) DEFAULT NULL,
+            notes TEXT DEFAULT NULL,
+            createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+          )
+        `);
         let count = 0;
         for (const p of input.products) {
           const salesCount = p.salesCount || 0;
@@ -28304,13 +28338,39 @@ JSON配列のみを出力してください。`;
     getByLivestream: protectedProcedure
       .input(z.object({ livestreamId: z.number() }))
       .query(async ({ input }) => {
-        const db = await getDb();
-        if (!db) return [];
-        const records = await db.select()
-          .from(livestreamRealtimeRecords)
-          .where(eq(livestreamRealtimeRecords.livestreamId, input.livestreamId))
-          .orderBy(livestreamRealtimeRecords.timeSlot, livestreamRealtimeRecords.id);
-        return records;
+        try {
+          const mysql2 = await import('mysql2/promise');
+          const pool = mysql2.createPool(process.env.DATABASE_URL!);
+          // Ensure table exists
+          await pool.query(`
+            CREATE TABLE IF NOT EXISTS livestream_realtime_records (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              livestreamId INT NOT NULL,
+              liverId INT DEFAULT NULL,
+              productName VARCHAR(500) NOT NULL,
+              productPrice BIGINT DEFAULT NULL,
+              quantitySold INT NOT NULL DEFAULT 0,
+              cartAddCount INT DEFAULT 0,
+              timeSlot VARCHAR(20) NOT NULL,
+              recordedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+              recordedBy VARCHAR(255) DEFAULT NULL,
+              notes TEXT DEFAULT NULL,
+              createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+            )
+          `);
+          const [rows] = await pool.query(
+            `SELECT * FROM livestream_realtime_records WHERE livestreamId = ? ORDER BY timeSlot, id`,
+            [input.livestreamId]
+          ) as any;
+          await pool.end();
+          return (rows || []).map((r: any) => ({
+            ...r,
+            productPrice: r.productPrice ? Number(r.productPrice) : null,
+          }));
+        } catch (err) {
+          console.error('[getByLivestream] Error:', err);
+          return [];
+        }
       }),
 
     // ライバーIDで全記録を取得（時間帯別分析用）
@@ -28558,6 +28618,23 @@ JSON配列のみを出力してください。`;
         const insertId = (result as any)?.insertId || null;
 
         // 5. Auto-import products into realtime records (upsert: update if same product+timeSlot exists)
+        // Ensure the records table exists
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS livestream_realtime_records (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            livestreamId INT NOT NULL,
+            liverId INT DEFAULT NULL,
+            productName VARCHAR(500) NOT NULL,
+            productPrice BIGINT DEFAULT NULL,
+            quantitySold INT NOT NULL DEFAULT 0,
+            cartAddCount INT DEFAULT 0,
+            timeSlot VARCHAR(20) NOT NULL,
+            recordedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            recordedBy VARCHAR(255) DEFAULT NULL,
+            notes TEXT DEFAULT NULL,
+            createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+          )
+        `);
         let importedCount = 0;
         if (products.length > 0) {
           for (const p of products) {
