@@ -289,6 +289,38 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
     }
   };
 
+  // 粘贴上传处理（Ctrl+V / Cmd+V）
+  const handlePasteUpload = async (e: React.ClipboardEvent) => {
+    const items = Array.from(e.clipboardData?.items || []);
+    const imageItems = items.filter(item => item.type.startsWith('image/'));
+    if (!imageItems.length) return;
+    e.preventDefault();
+    setUploading(true);
+    try {
+      const currentImages: string[] = form.images ? (typeof form.images === 'string' ? JSON.parse(form.images) : form.images) : [];
+      for (const item of imageItems) {
+        const file = item.getAsFile();
+        if (!file) continue;
+        const reader = new FileReader();
+        const dataUrl = await new Promise<string>((resolve) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+        const [header, base64Data] = dataUrl.split(',');
+        const mimeType = header.match(/data:(.*?);/)?.[1] || file.type || 'image/png';
+        const fileName = `pasted-${Date.now()}.${mimeType.split('/')[1] || 'png'}`;
+        const result = await uploadMutation.mutateAsync({ base64Data, fileName, mimeType });
+        currentImages.push(result.url);
+      }
+      setForm({ ...form, images: currentImages });
+      toast.success(`${imageItems.length}${t("sc.form.imageUploaded")}`);
+    } catch (err: any) {
+      toast.error(err?.message || t("sc.form.imageUploadFailed"));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const removeImage = (index: number) => {
     const currentImages: string[] = form.images ? (typeof form.images === 'string' ? JSON.parse(form.images) : form.images) : [];
     currentImages.splice(index, 1);
@@ -337,15 +369,15 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" onPaste={handlePasteUpload}>
         <DialogHeader>
           <DialogTitle>{isEdit ? t("sc.form.editTitle") : t("sc.form.addTitle")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          {/* Image Upload Section */}
+          {/* Image Upload Section - 支持粘贴上传 */}
           <div>
             <Label>{t("sc.form.productImage")}</Label>
-            <div className="mt-2 flex flex-wrap gap-3">
+            <div className="mt-2 flex flex-wrap gap-3" tabIndex={0} title="可以粘贴图片 (Ctrl+V)">
               {imageList.map((url: string, idx: number) => (
                 <div key={idx} className="relative group w-20 h-20 rounded-lg border overflow-hidden">
                   <img src={url} alt={`${t("sc.form.imageAlt")} ${idx + 1}`} className="w-full h-full object-cover" />
