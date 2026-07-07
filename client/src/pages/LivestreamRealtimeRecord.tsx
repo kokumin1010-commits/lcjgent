@@ -52,7 +52,11 @@ export default function LivestreamRealtimeRecord() {
   const [timeSlot, setTimeSlot] = useState(getCurrentTimeSlot());
   const [notes, setNotes] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [editProductName, setEditProductName] = useState("");
+  const [editPrice, setEditPrice] = useState("");
   const [editQuantity, setEditQuantity] = useState("");
+  const [editCartAdd, setEditCartAdd] = useState("");
+  const [editNotes, setEditNotes] = useState("");
 
   // 商品候補（過去の記録から）
   const productSuggestions = useMemo(() => {
@@ -453,85 +457,143 @@ export default function LivestreamRealtimeRecord() {
               {addMutation.isPending ? "記録中..." : "記録する"}
             </Button>
 
-            {/* 記録一覧（フォーム直下に表示） */}
+            {/* 商品記録一覧（フォーム直下に表示・全フィールド編集可能） */}
             {records && records.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-gray-700">
-                <h4 className="text-xs font-bold text-gray-300 mb-2 flex items-center gap-1">
-                  <ShoppingCart className="h-3 w-3 text-green-400" />
+              <div className="mt-6 pt-4 border-t border-gray-700">
+                <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                  <ShoppingCart className="h-4 w-4 text-green-400" />
                   商品記録 ({records.length}件)
                 </h4>
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   {records.map(record => (
-                    <div key={record.id} className="bg-gray-800/70 rounded-lg px-3 py-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <span className="text-[10px] font-mono text-blue-300 shrink-0">{record.timeSlot}</span>
-                          <span className="text-xs text-white truncate">{record.productName}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {editingId === record.id ? (
-                            <>
+                    <div key={record.id} className="bg-gray-800/60 border border-gray-700 rounded-lg p-3">
+                      {editingId === record.id ? (
+                        /* 編集モード */
+                        <div className="space-y-2">
+                          <Input
+                            value={editProductName}
+                            onChange={(e) => setEditProductName(e.target.value)}
+                            placeholder="商品名"
+                            className="bg-gray-700 border-gray-600 text-white text-sm h-9"
+                          />
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="text-[10px] text-gray-400">単価(¥)</label>
+                              <Input
+                                type="number"
+                                min="0"
+                                value={editPrice}
+                                onChange={(e) => setEditPrice(e.target.value)}
+                                className="bg-gray-700 border-gray-600 text-white text-sm h-8"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-400">出単数</label>
                               <Input
                                 type="number"
                                 min="0"
                                 value={editQuantity}
                                 onChange={(e) => setEditQuantity(e.target.value)}
-                                className="w-14 h-6 bg-gray-700 border-gray-600 text-white text-[10px] px-1"
+                                className="bg-gray-700 border-gray-600 text-white text-sm h-8"
                               />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-400">カート追加</label>
+                              <Input
+                                type="number"
+                                min="0"
+                                value={editCartAdd}
+                                onChange={(e) => setEditCartAdd(e.target.value)}
+                                className="bg-gray-700 border-gray-600 text-white text-sm h-8"
+                              />
+                            </div>
+                          </div>
+                          <Input
+                            value={editNotes}
+                            onChange={(e) => setEditNotes(e.target.value)}
+                            placeholder="メモ"
+                            className="bg-gray-700 border-gray-600 text-white text-xs h-8"
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              className="flex-1 bg-green-600 hover:bg-green-700 text-white h-8 text-xs"
+                              onClick={() => {
+                                updateMutation.mutate({
+                                  id: record.id,
+                                  productName: editProductName,
+                                  productPrice: parseInt(editPrice) || 0,
+                                  quantitySold: parseInt(editQuantity) || 0,
+                                  cartAddCount: parseInt(editCartAdd) || 0,
+                                  notes: editNotes || undefined,
+                                });
+                              }}
+                            >
+                              <Check className="h-3 w-3 mr-1" />保存
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs border-gray-600 text-gray-300"
+                              onClick={() => setEditingId(null)}
+                            >
+                              <X className="h-3 w-3 mr-1" />キャンセル
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        /* 表示モード */
+                        <div>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[10px] font-mono text-blue-300 bg-blue-900/30 px-1.5 py-0.5 rounded">{record.timeSlot}</span>
+                                <span className="text-sm font-bold text-white">{record.productName}</span>
+                              </div>
+                              <div className="flex items-center gap-3 text-xs">
+                                {record.productPrice && (
+                                  <span className="text-gray-300">単価: <span className="text-green-400 font-bold">¥{Number(record.productPrice).toLocaleString()}</span></span>
+                                )}
+                                <span className="text-gray-300">出単: <span className="text-yellow-400 font-bold">{record.quantitySold}件</span></span>
+                                {(record.cartAddCount || 0) > 0 && (
+                                  <span className="text-gray-300">カート: <span className="text-amber-400 font-bold">{record.cartAddCount}</span></span>
+                                )}
+                              </div>
+                              {record.notes && (
+                                <p className="text-[10px] text-gray-500 mt-1">💬 {record.notes}</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 ml-2">
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-6 w-6 p-0 text-green-400"
+                                className="h-7 w-7 p-0 text-gray-400 hover:text-blue-400"
                                 onClick={() => {
-                                  updateMutation.mutate({ id: record.id, quantitySold: parseInt(editQuantity) || 0 });
+                                  setEditingId(record.id);
+                                  setEditProductName(record.productName);
+                                  setEditPrice(record.productPrice ? String(record.productPrice) : '0');
+                                  setEditQuantity(String(record.quantitySold));
+                                  setEditCartAdd(String(record.cartAddCount || 0));
+                                  setEditNotes(record.notes || '');
                                 }}
                               >
-                                <Check className="h-3 w-3" />
+                                <Edit2 className="h-3.5 w-3.5" />
                               </Button>
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-6 w-6 p-0 text-gray-400"
-                                onClick={() => setEditingId(null)}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              {record.productPrice && (
-                                <span className="text-[10px] text-gray-400">¥{Number(record.productPrice).toLocaleString()}</span>
-                              )}
-                              <span className="text-xs font-bold text-yellow-400">{record.quantitySold}件</span>
-                              {(record.cartAddCount || 0) > 0 && (
-                                <span className="text-[10px] text-amber-400">🛒{record.cartAddCount}</span>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 w-6 p-0 text-gray-400 hover:text-blue-400"
-                                onClick={() => { setEditingId(record.id); setEditQuantity(record.quantitySold.toString()); }}
-                              >
-                                <Edit2 className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 w-6 p-0 text-gray-400 hover:text-red-400"
+                                className="h-7 w-7 p-0 text-gray-400 hover:text-red-400"
                                 onClick={() => {
                                   if (confirm("この記録を削除しますか？")) {
                                     deleteMutation.mutate({ id: record.id });
                                   }
                                 }}
                               >
-                                <Trash2 className="h-3 w-3" />
+                                <Trash2 className="h-3.5 w-3.5" />
                               </Button>
-                            </>
-                          )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      {record.notes && (
-                        <p className="text-[9px] text-gray-500 mt-0.5 pl-10 truncate">💬 {record.notes}</p>
                       )}
                     </div>
                   ))}
@@ -679,61 +741,7 @@ export default function LivestreamRealtimeRecord() {
                         )}
                         {/* 商品リスト表示 */}
                         {(snap as any).products && (snap as any).products.length > 0 && (
-                          <div className="mt-2 border-t border-gray-700 pt-2">
-                            <p className="text-[9px] text-purple-400 font-bold mb-1">📦 商品リスト ({(snap as any).products.length}件)</p>
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-[9px]">
-                                <thead>
-                                  <tr className="text-gray-500">
-                                    <th className="text-left py-0.5 pr-1">商品名</th>
-                                    <th className="text-right py-0.5 px-1">GMV</th>
-                                    <th className="text-right py-0.5 px-1">成交</th>
-                                    <th className="text-right py-0.5 px-1">クリック</th>
-                                    <th className="text-right py-0.5 px-1">クリック率</th>
-                                    <th className="text-right py-0.5 pl-1">加購</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {(snap as any).products.map((p: any, idx: number) => (
-                                    <tr key={idx} className="border-t border-gray-800">
-                                      <td className="text-left py-0.5 pr-1 text-white max-w-[100px] truncate" title={p.productName}>{p.productName}</td>
-                                      <td className="text-right py-0.5 px-1 text-green-400">¥{(p.attributedGmv || 0).toLocaleString()}</td>
-                                      <td className="text-right py-0.5 px-1 text-white">{p.salesCount ?? '-'}</td>
-                                      <td className="text-right py-0.5 px-1 text-white">{p.clickCount ? p.clickCount.toLocaleString() : '-'}</td>
-                                      <td className="text-right py-0.5 px-1 text-yellow-400">{p.clickRate || '-'}</td>
-                                      <td className="text-right py-0.5 pl-1 text-white">{p.cartAddCount ?? '-'}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                            {/* 一括インポートボタン */}
-                            <Button
-                              size="sm"
-                              className="w-full mt-2 bg-green-700 hover:bg-green-600 text-white text-[10px] h-7"
-                              onClick={() => {
-                                const products = (snap as any).products;
-                                if (!products || products.length === 0) return;
-                                bulkAddMutation.mutate({
-                                  livestreamId,
-                                  liverId: livestream?.liverId || undefined,
-                                  timeSlot: snap.timeSlot,
-                                  products: products.map((p: any) => ({
-                                    productName: p.productName,
-                                    attributedGmv: p.attributedGmv || null,
-                                    salesCount: p.salesCount || null,
-                                    clickCount: p.clickCount || null,
-                                    clickRate: p.clickRate || null,
-                                    cartAddCount: p.cartAddCount || null,
-                                  })),
-                                });
-                              }}
-                              disabled={bulkAddMutation.isPending}
-                            >
-                              <Plus className="h-3 w-3 mr-1" />
-                              {bulkAddMutation.isPending ? 'インポート中...' : '↑ 記録に一括追加'}
-                            </Button>
-                          </div>
+                          <p className="text-[9px] text-purple-400 mt-1">📦 {(snap as any).products.length}件の商品を自動記録済み</p>
                         )}
                       </div>
                     ))}
