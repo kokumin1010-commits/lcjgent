@@ -452,6 +452,92 @@ export default function LivestreamRealtimeRecord() {
               <Plus className="h-5 w-5 mr-2" />
               {addMutation.isPending ? "記録中..." : "記録する"}
             </Button>
+
+            {/* 記録一覧（フォーム直下に表示） */}
+            {records && records.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-700">
+                <h4 className="text-xs font-bold text-gray-300 mb-2 flex items-center gap-1">
+                  <ShoppingCart className="h-3 w-3 text-green-400" />
+                  商品記録 ({records.length}件)
+                </h4>
+                <div className="space-y-1.5">
+                  {records.map(record => (
+                    <div key={record.id} className="bg-gray-800/70 rounded-lg px-3 py-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className="text-[10px] font-mono text-blue-300 shrink-0">{record.timeSlot}</span>
+                          <span className="text-xs text-white truncate">{record.productName}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {editingId === record.id ? (
+                            <>
+                              <Input
+                                type="number"
+                                min="0"
+                                value={editQuantity}
+                                onChange={(e) => setEditQuantity(e.target.value)}
+                                className="w-14 h-6 bg-gray-700 border-gray-600 text-white text-[10px] px-1"
+                              />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0 text-green-400"
+                                onClick={() => {
+                                  updateMutation.mutate({ id: record.id, quantitySold: parseInt(editQuantity) || 0 });
+                                }}
+                              >
+                                <Check className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0 text-gray-400"
+                                onClick={() => setEditingId(null)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              {record.productPrice && (
+                                <span className="text-[10px] text-gray-400">¥{Number(record.productPrice).toLocaleString()}</span>
+                              )}
+                              <span className="text-xs font-bold text-yellow-400">{record.quantitySold}件</span>
+                              {(record.cartAddCount || 0) > 0 && (
+                                <span className="text-[10px] text-amber-400">🛒{record.cartAddCount}</span>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0 text-gray-400 hover:text-blue-400"
+                                onClick={() => { setEditingId(record.id); setEditQuantity(record.quantitySold.toString()); }}
+                              >
+                                <Edit2 className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0 text-gray-400 hover:text-red-400"
+                                onClick={() => {
+                                  if (confirm("この記録を削除しますか？")) {
+                                    deleteMutation.mutate({ id: record.id });
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {record.notes && (
+                        <p className="text-[9px] text-gray-500 mt-0.5 pl-10 truncate">💬 {record.notes}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -713,96 +799,6 @@ export default function LivestreamRealtimeRecord() {
 
         {/* 福袋画像セクション */}
         <LuckyBagSection livestreamId={livestreamId} liverId={livestream?.liverId} />
-
-        {/* 記録一覧 */}
-        <Card className="bg-gray-900 border-gray-700">
-          <CardContent className="p-4">
-            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-              <ShoppingCart className="h-4 w-4 text-green-400" />
-              記録一覧 ({records?.length || 0}件)
-            </h3>
-            {(!records || records.length === 0) ? (
-              <p className="text-xs text-gray-500 text-center py-4">まだ記録がありません。配信中に商品の出単を記録しましょう！</p>
-            ) : (
-              <div className="space-y-2">
-                {records.map(record => (
-                  <div key={record.id} className="bg-gray-800/50 rounded-lg px-3 py-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <span className="text-[10px] font-mono text-blue-300 shrink-0">{record.timeSlot}</span>
-                        <span className="text-xs text-white truncate">{record.productName}</span>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {editingId === record.id ? (
-                          <>
-                            <Input
-                              type="number"
-                              min="0"
-                              value={editQuantity}
-                              onChange={(e) => setEditQuantity(e.target.value)}
-                              className="w-16 h-7 bg-gray-700 border-gray-600 text-white text-xs"
-                            />
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0 text-green-400"
-                              onClick={() => {
-                                updateMutation.mutate({ id: record.id, quantitySold: parseInt(editQuantity) || 0 });
-                              }}
-                            >
-                              <Check className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0 text-gray-400"
-                              onClick={() => setEditingId(null)}
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            {record.productPrice && (
-                              <span className="text-[10px] text-gray-400">¥{Number(record.productPrice).toLocaleString()}</span>
-                            )}
-                            <span className="text-xs font-bold text-yellow-400">{record.quantitySold}件</span>
-                            {(record.cartAddCount || 0) > 0 && (
-                              <span className="text-[10px] text-amber-400">🛒{record.cartAddCount}</span>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0 text-gray-400 hover:text-blue-400"
-                              onClick={() => { setEditingId(record.id); setEditQuantity(record.quantitySold.toString()); }}
-                            >
-                              <Edit2 className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0 text-gray-400 hover:text-red-400"
-                              onClick={() => {
-                                if (confirm("この記録を削除しますか？")) {
-                                  deleteMutation.mutate({ id: record.id });
-                                }
-                              }}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    {record.notes && (
-                      <p className="text-[10px] text-gray-400 mt-1 pl-12">💬 {record.notes}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
