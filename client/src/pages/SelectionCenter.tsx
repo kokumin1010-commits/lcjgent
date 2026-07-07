@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2635,13 +2636,25 @@ function PollsTab() {
 }
 
 // ==================== Main Page ====================
+// 無条件アクセス許可アカウント
+const SUPER_ADMIN_EMAILS = ['ryuhairartist@gmail.com'];
+
 export default function SelectionCenter() {
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const isSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email.toLowerCase());
   const [isUnlocked, setIsUnlocked] = useState(() => {
     return sessionStorage.getItem('sc_access') === 'granted';
   });
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
+
+  // スーパーアドミンはパスワード不要
+  useEffect(() => {
+    if (isSuperAdmin && !isUnlocked) {
+      setIsUnlocked(true);
+    }
+  }, [isSuperAdmin]);
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
