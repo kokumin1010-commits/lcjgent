@@ -2637,12 +2637,58 @@ function PollsTab() {
 // ==================== Main Page ====================
 export default function SelectionCenter() {
   const { t } = useLanguage();
+  const [isUnlocked, setIsUnlocked] = useState(() => {
+    return sessionStorage.getItem('sc_access') === 'granted';
+  });
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
+
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordInput === 'lcj') {
+      sessionStorage.setItem('sc_access', 'granted');
+      setIsUnlocked(true);
+      setPasswordError(false);
+    } else {
+      setPasswordError(true);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('tab') || 'products';
   });
-  const dashboardQuery = trpc.selectionCenter.getDashboard.useQuery();
+  const dashboardQuery = trpc.selectionCenter.getDashboard.useQuery(undefined, { enabled: isUnlocked });
   const d = dashboardQuery.data;
+
+  if (!isUnlocked) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center p-6">
+        <Card className="w-full max-w-sm">
+          <CardHeader className="text-center">
+            <CardTitle className="flex items-center justify-center gap-2">
+              <Package className="h-5 w-5" />
+              {t("sc.title")}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">アクセスにはパスワードが必要です</p>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <Input
+                type="password"
+                placeholder="パスワードを入力"
+                value={passwordInput}
+                onChange={(e) => { setPasswordInput(e.target.value); setPasswordError(false); }}
+                autoFocus
+              />
+              {passwordError && <p className="text-sm text-red-500">パスワードが正しくありません</p>}
+              <Button type="submit" className="w-full">ログイン</Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
