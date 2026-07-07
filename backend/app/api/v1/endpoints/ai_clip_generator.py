@@ -3812,6 +3812,10 @@ class GenerateRequest(BaseModel):
     # V13: テンポアップ（TikTok風の微妙なスピードアップ）
     speed_factor: float = Field(1.05, ge=1.0, le=1.3, description="再生速度倍率 (1.0=変更なし, 1.05=TikTok風微速, 1.3=最大)")
     # V12: 編集スタイル学習
+    # V3: 智能重排（精彩片段を先頭に移動、商品紹介構成で再編集）
+    enable_smart_reorder: bool = Field(True, description="智能重排: 精彩片段を先頭に移動し、商品紹介→卖点→使用方法→CTAの順番で再編集")
+    # V3: 字幕文法校正
+    enable_grammar_correction: bool = Field(True, description="字幕の文法校正を行うか（GPTによる原言語文法校正）")
     editing_profile_id: Optional[str] = Field(None, description="編集プロファイルID（スタイル学習済みプロファイルを適用）")
     # V2.22: 画面安定化（防抖・去闪烁）
     enable_stabilization: bool = Field(True, description="画面安定化（防抖+去闪烁）を有効にするか")
@@ -5995,6 +5999,14 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
             captions = _merge_short_segments(captions)
             captions = _split_long_segments(captions)
 
+        # ── 4a-2. V3: Grammar Correction (字幕文法校正) ──
+        if getattr(req, 'enable_grammar_correction', True) and captions:
+            await _update_job(job_id, progress_pct=35, current_step=f"クリップ {idx+1}/{total}: 字幕文法校正中 (V3)...")
+            try:
+                captions = await _correct_caption_grammar(captions, req.target_language, job_id)
+            except Exception as grammar_err:
+                logger.warning(f"[ai-clip {job_id}] V3 Grammar correction failed (non-fatal): {grammar_err}")
+
         # ── 4b. GPT content relevance analysis (V11: 商品無関係区間の検出) ──
         filler_cut_segments = []
         if getattr(req, 'enable_content_cut', True) and captions:
@@ -6014,6 +6026,20 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
                 duration, silence_periods, captions,
                 filler_cut_segments=filler_cut_segments
             )
+
+        # ── 4d. V3: Smart Reorder (智能重排) ──
+        if getattr(req, 'enable_smart_reorder', True) and captions and len(keep_segments) >= 1:
+            await _update_job(job_id, progress_pct=37, current_step=f"クリップ {idx+1}/{total}: 智能重排中 (V3)...")
+            try:
+                reordered = await _smart_reorder_segments(
+                    captions, product_name, duration, keep_segments, job_id
+                )
+                if reordered != keep_segments:
+                    keep_segments = reordered
+                    logger.info(f"[ai-clip {job_id}] V3: Smart reorder applied, {len(keep_segments)} segments")
+                    await _update_job(job_id, progress_pct=37, current_step=f"クリップ {idx+1}/{total}: 智能重排完了")
+            except Exception as reorder_err:
+                logger.warning(f"[ai-clip {job_id}] V3 Smart reorder failed (non-fatal): {reorder_err}")
 
         # ── 5. Generate zoom keyframes ──
         zoom_keyframes = []
@@ -7091,16 +7117,21 @@ async def _translate_captions_text(
     texts = [c.get("text", "") for c in captions]
     numbered_texts = "\n".join(f"{i+1}. {t}" for i, t in enumerate(texts))
 
-    translation_prompt = f"""Translate the following numbered lines from Japanese to natural, spoken {target_lang_name}.
-These are live stream subtitles from a beauty product presenter.
+    translation_prompt = f"""Translate the following numbered lines to natural, spoken {target_lang_name}.
+These are live stream subtitles from a product presenter (live commerce).
 
 RULES:
 - Output ONLY the translated lines, one per line, with the same numbering
 - Keep the same number of lines as input
-- Maintain conversational tone and enthusiasm
-- Preserve product names (KYOGOKU, 京極) as-is
-- Keep similar character length per line (for subtitle timing)
-- Do NOT add explanations or formatting
+- Maintain conversational tone and enthusiasm of the original
+- Preserve product names and brand names as-is (do NOT translate brand names)
+- Keep similar character length per line (for subtitle timing synchronization)
+- Use grammatically correct {target_lang_name} (文法的に正確な翻訳)
+- Translate idioms and expressions naturally, do NOT translate word-by-word
+- Maintain the selling tone and urgency of the original
+- For product features/benefits, use precise terminology
+- Do NOT add explanations, formatting, or extra text
+- Each translated line must be a complete, natural sentence
 
 Input:
 {numbered_texts}"""
@@ -11139,3 +11170,328 @@ Input:
         results["sync_so_health"] = {"status": "error", "error": str(e)}
     
     return results
+
+
+# ─── V3: Smart Reorder (智能重排) ─────────────────────────────────────────────
+
+async def _smart_reorder_segments(
+    captions: list,
+    product_name: str,
+    duration: float,
+    keep_segments: list,
+    job_id: str,
+) -> list:
+    """
+    V3: 智能重排 — GPTで字幕を分析し、最も精彩な片段を先頭に移動。
+    残りは「商品紹介→卖点→使用方法→CTA」の順番で再配置。
+    
+    Returns:
+        reordered_segments: [(start, end), ...] — 新しい順番のセグメント
+        元のkeep_segmentsが変更不要な場合はそのまま返す
+    """
+    import openai
+
+    if not captions or len(keep_segments) <= 1:
+        return keep_segments
+
+    azure_key = os.getenv("AZURE_OPENAI_KEY", "")
+    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+    azure_model = os.getenv("GPT5_MODEL") or os.getenv("GPT5_DEPLOYMENT") or "gpt-4.1-mini"
+
+    if not azure_key or not azure_endpoint:
+        logger.warning(f"[ai-clip {job_id}] V3 Smart reorder: Azure OpenAI not configured, skipping")
+        return keep_segments
+
+    from urllib.parse import urlparse as _urlparse
+    _parsed = _urlparse(azure_endpoint)
+    clean_endpoint = f"{_parsed.scheme}://{_parsed.netloc}/"
+
+    client = openai.AsyncAzureOpenAI(
+        api_key=azure_key,
+        azure_endpoint=clean_endpoint,
+        api_version=os.getenv("GPT5_API_VERSION", "2025-04-01-preview"),
+    )
+
+    # Build caption timeline for GPT analysis
+    caption_lines = []
+    for i, cap in enumerate(captions):
+        start = float(cap.get("start", 0))
+        end = float(cap.get("end", 0))
+        text = cap.get("text", "").strip()
+        if text:
+            caption_lines.append(f"[{start:.1f}-{end:.1f}] {text}")
+
+    if len(caption_lines) < 3:
+        return keep_segments
+
+    captions_text = "\n".join(caption_lines)
+
+    prompt = f"""あなたはTikTokライブコマース動画の編集ディレクターです。
+以下の字幕データを分析し、動画を最適な構成に再編集するための指示を出してください。
+
+【商品名】{product_name or '（不明）'}
+
+【字幕データ】
+{captions_text[:3000]}
+
+【編集構成ルール】
+動画は以下の構成で再編集します：
+1. 冒頭フック（3-8秒）: 商品の最も衝撃的・魅力的な瞬間（効果の実演、驚きの結果、ビジュアルインパクト）
+2. 商品紹介: 商品名、何であるか、どんな悩みを解決するか
+3. 卖点・効果: 具体的な特徴、成分、技術、使用効果
+4. 使用方法: 使い方の説明
+5. CTA: 購入誘導、価格情報、限定感
+
+【タスク】
+字幕データの時間範囲を分析し、以下のJSON形式で出力してください：
+- "hook": フックとして使う最も精彩な片段の時間範囲 [start, end]
+- "intro": 商品紹介部分の時間範囲 [start, end]
+- "selling_points": 卖点・効果部分の時間範囲 [start, end]
+- "usage": 使用方法部分の時間範囲 [start, end] (ない場合はnull)
+- "cta": CTA部分の時間範囲 [start, end] (ない場合はnull)
+
+【重要】
+- hookは必ず「商品紹介」や「卖点」の中から最も視覚的・感情的にインパクトのある瞬間を選ぶ
+- 同じ時間範囲がhookと他のセクションで重複してもOK（hookは短い抜粋）
+- 各セクションの時間範囲は字幕データの実際の時間に基づくこと
+- hookは3-8秒の短い範囲であること
+- JSON以外は出力しないこと
+
+出力（JSON）:"""
+
+    try:
+        _is_new_model = "gpt-5" in azure_model or "o1" in azure_model or "o3" in azure_model or "o4" in azure_model
+        gpt_params = {
+            "model": azure_model,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if _is_new_model:
+            gpt_params["max_completion_tokens"] = 500
+        else:
+            gpt_params["max_tokens"] = 500
+            gpt_params["temperature"] = 0.1
+
+        response = await client.chat.completions.create(**gpt_params)
+        result_text = response.choices[0].message.content.strip()
+
+        # Parse JSON
+        if result_text.startswith("```"):
+            result_text = result_text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+
+        structure = json.loads(result_text)
+        logger.info(f"[ai-clip {job_id}] V3 Smart reorder GPT result: {structure}")
+
+        # Build reordered segments
+        hook = structure.get("hook")
+        intro = structure.get("intro")
+        selling_points = structure.get("selling_points")
+        usage = structure.get("usage")
+        cta = structure.get("cta")
+
+        if not hook or not isinstance(hook, list) or len(hook) != 2:
+            logger.warning(f"[ai-clip {job_id}] V3: No valid hook segment, skipping reorder")
+            return keep_segments
+
+        # Validate all segments are within duration
+        def _valid_seg(seg):
+            if not seg or not isinstance(seg, (list, tuple)) or len(seg) != 2:
+                return None
+            s, e = float(seg[0]), float(seg[1])
+            if 0 <= s < e <= duration + 1.0:
+                return (s, min(e, duration))
+            return None
+
+        hook_seg = _valid_seg(hook)
+        if not hook_seg:
+            return keep_segments
+
+        # Build ordered segment list: hook first, then remaining in structure order
+        ordered_sections = []
+        ordered_sections.append(hook_seg)
+
+        # Add remaining sections (excluding the hook time range from them)
+        for section in [intro, selling_points, usage, cta]:
+            seg = _valid_seg(section)
+            if seg:
+                # Don't add if it's entirely within the hook
+                if seg[0] >= hook_seg[0] and seg[1] <= hook_seg[1]:
+                    continue
+                # Trim overlap with hook
+                if seg[0] < hook_seg[1] and seg[1] > hook_seg[0]:
+                    # Partial overlap - adjust
+                    if seg[0] < hook_seg[0]:
+                        ordered_sections.append((seg[0], hook_seg[0]))
+                    if seg[1] > hook_seg[1]:
+                        ordered_sections.append((hook_seg[1], seg[1]))
+                else:
+                    ordered_sections.append(seg)
+
+        # Filter ordered_sections through keep_segments (only keep parts that are in keep_segments)
+        def _intersect_with_keep(seg, keeps):
+            """Get the intersection of a segment with keep_segments"""
+            result = []
+            for ks, ke in keeps:
+                inter_start = max(seg[0], ks)
+                inter_end = min(seg[1], ke)
+                if inter_start < inter_end:
+                    result.append((inter_start, inter_end))
+            return result
+
+        final_segments = []
+        for seg in ordered_sections:
+            intersections = _intersect_with_keep(seg, keep_segments)
+            final_segments.extend(intersections)
+
+        # If reorder produced fewer segments or very short total, fall back
+        total_reordered_duration = sum(e - s for s, e in final_segments)
+        total_original_duration = sum(e - s for s, e in keep_segments)
+
+        if total_reordered_duration < total_original_duration * 0.5:
+            logger.warning(f"[ai-clip {job_id}] V3: Reordered duration too short "
+                          f"({total_reordered_duration:.1f}s vs {total_original_duration:.1f}s), "
+                          f"falling back to original order")
+            return keep_segments
+
+        # Check if the first segment is actually different from original (reorder happened)
+        if final_segments and keep_segments:
+            if abs(final_segments[0][0] - keep_segments[0][0]) < 0.5:
+                logger.info(f"[ai-clip {job_id}] V3: Hook already at start, no reorder needed")
+                return keep_segments
+
+        logger.info(f"[ai-clip {job_id}] V3 Smart reorder: {len(final_segments)} segments, "
+                   f"hook={hook_seg}, total={total_reordered_duration:.1f}s")
+        return final_segments
+
+    except Exception as e:
+        logger.warning(f"[ai-clip {job_id}] V3 Smart reorder failed (non-fatal): {e}")
+        return keep_segments
+
+
+# ─── V3: Grammar Correction (字幕文法校正) ────────────────────────────────────
+
+async def _correct_caption_grammar(
+    captions: list,
+    target_language: str,
+    job_id: str,
+) -> list:
+    """
+    V3: 字幕の文法校正 — GPTで原言語の文法エラーを修正。
+    Whisper転写の誤りや不自然な表現を修正する。
+    """
+    import openai
+
+    if not captions or len(captions) < 2:
+        return captions
+
+    azure_key = os.getenv("AZURE_OPENAI_KEY", "")
+    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+    azure_model = os.getenv("GPT5_MODEL") or os.getenv("GPT5_DEPLOYMENT") or "gpt-4.1-mini"
+
+    if not azure_key or not azure_endpoint:
+        return captions
+
+    from urllib.parse import urlparse as _urlparse
+    _parsed = _urlparse(azure_endpoint)
+    clean_endpoint = f"{_parsed.scheme}://{_parsed.netloc}/"
+
+    client = openai.AsyncAzureOpenAI(
+        api_key=azure_key,
+        azure_endpoint=clean_endpoint,
+        api_version=os.getenv("GPT5_API_VERSION", "2025-04-01-preview"),
+    )
+
+    # Detect language from captions
+    sample_text = " ".join(c.get("text", "") for c in captions[:5])
+    lang_hint = target_language if target_language != "auto" else "ja"
+
+    # Build numbered text list
+    texts = [c.get("text", "").strip() for c in captions]
+    numbered_texts = "\n".join(f"{i+1}. {t}" for i, t in enumerate(texts) if t)
+
+    if not numbered_texts.strip():
+        return captions
+
+    lang_names = {
+        "ja": "日本語",
+        "zh": "中文",
+        "zh-tw": "中文（繁體）",
+        "en": "English",
+        "ko": "한국어",
+        "auto": "日本語",
+    }
+    lang_name = lang_names.get(lang_hint, "日本語")
+
+    prompt = f"""以下はライブコマース動画の音声認識（Whisper）による字幕テキストです。
+文法エラー、助詞の間違い、不自然な表現を修正してください。
+
+【ルール】
+- 原文の意味を変えない
+- 話し言葉のニュアンスは保持する（書き言葉に変えない）
+- 明らかな誤認識（同音異義語の間違い等）を修正する
+- 助詞（は/が/を/に/で/と等）の間違いを修正する
+- 主語述語の不一致を修正する
+- 文末表現の不自然さを修正する
+- 句読点を適切に追加/修正する
+- 修正不要な行はそのまま出力する
+- 行数は入力と同じ数を出力すること
+- 番号付きで出力すること
+
+【言語】{lang_name}
+
+【入力】
+{numbered_texts[:4000]}
+
+【出力（番号付き、修正済みテキスト）】:"""
+
+    try:
+        _is_new_model = "gpt-5" in azure_model or "o1" in azure_model or "o3" in azure_model or "o4" in azure_model
+        gpt_params = {
+            "model": azure_model,
+            "messages": [
+                {"role": "system", "content": f"You are a {lang_name} grammar corrector for live stream subtitles. Fix grammar errors while preserving spoken language style."},
+                {"role": "user", "content": prompt},
+            ],
+        }
+        if _is_new_model:
+            gpt_params["max_completion_tokens"] = 4000
+        else:
+            gpt_params["max_tokens"] = 4000
+            gpt_params["temperature"] = 0.2
+
+        response = await client.chat.completions.create(**gpt_params)
+        result_text = response.choices[0].message.content.strip()
+
+        # Parse numbered lines
+        import re
+        corrected_lines = []
+        for line in result_text.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            cleaned = re.sub(r'^\d+\.\s*', '', line)
+            if cleaned:
+                corrected_lines.append(cleaned)
+
+        # Apply corrections
+        corrections_made = 0
+        if len(corrected_lines) >= len(captions):
+            for i, cap in enumerate(captions):
+                old_text = cap.get("text", "").strip()
+                new_text = corrected_lines[i].strip()
+                if old_text != new_text:
+                    cap["text"] = new_text
+                    corrections_made += 1
+        elif len(corrected_lines) > 0:
+            for i in range(min(len(corrected_lines), len(captions))):
+                old_text = captions[i].get("text", "").strip()
+                new_text = corrected_lines[i].strip()
+                if old_text != new_text:
+                    captions[i]["text"] = new_text
+                    corrections_made += 1
+
+        logger.info(f"[ai-clip {job_id}] V3 Grammar correction: {corrections_made}/{len(captions)} captions corrected")
+        return captions
+
+    except Exception as e:
+        logger.warning(f"[ai-clip {job_id}] V3 Grammar correction failed (non-fatal): {e}")
+        return captions
