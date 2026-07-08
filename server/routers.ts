@@ -28617,7 +28617,7 @@ JSON配列のみを出力してください。`;
         ) as any;
         const insertId = (result as any)?.insertId || null;
 
-        // 5. Auto-import products into realtime records (upsert: update if same product+timeSlot exists)
+        // 5. Auto-import products into realtime records (always insert - keep all time-point data for trend analysis)
         // Ensure the records table exists
         await pool.query(`
           CREATE TABLE IF NOT EXISTS livestream_realtime_records (
@@ -28647,24 +28647,11 @@ JSON配列のみを出力してください。`;
             if (p.attributedGmv) noteParts.push(`GMV:\u00A5${p.attributedGmv.toLocaleString()}`);
             const noteStr = noteParts.length > 0 ? `[AI] ${noteParts.join(' / ')}` : '[AI\u89E3\u6790]';
 
-            // Check if same product already exists for this livestream+timeSlot
-            const [existing] = await pool.query(
-              `SELECT id FROM livestream_realtime_records WHERE livestreamId = ? AND productName = ? AND timeSlot = ? LIMIT 1`,
-              [input.livestreamId, p.productName, input.timeSlot]
-            ) as any;
-            if (existing && existing.length > 0) {
-              // Update existing record with latest data
-              await pool.query(
-                `UPDATE livestream_realtime_records SET productPrice = ?, quantitySold = ?, cartAddCount = ?, notes = ?, recordedBy = 'AI' WHERE id = ?`,
-                [unitPrice, salesCount, cartAdd, noteStr, existing[0].id]
-              );
-            } else {
-              // Insert new record
-              await pool.query(
-                `INSERT INTO livestream_realtime_records (livestreamId, liverId, productName, productPrice, quantitySold, cartAddCount, timeSlot, recordedBy, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [input.livestreamId, input.liverId || null, p.productName, unitPrice, salesCount, cartAdd, input.timeSlot, 'AI', noteStr]
-              );
-            }
+            // Always insert new record (keep all time-point data for same product to enable trend analysis)
+            await pool.query(
+              `INSERT INTO livestream_realtime_records (livestreamId, liverId, productName, productPrice, quantitySold, cartAddCount, timeSlot, recordedBy, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [input.livestreamId, input.liverId || null, p.productName, unitPrice, salesCount, cartAdd, input.timeSlot, 'AI', noteStr]
+            );
             importedCount++;
           }
         }
