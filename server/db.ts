@@ -4231,6 +4231,24 @@ export async function getLivestreamsByLiverId(liverId: number, month?: string) {
     }
   }
 
+  // 各配信のリアルタイムスナップショット画像を取得（最新1枚）
+  let snapshotImageMap: Record<number, string> = {};
+  if (livestreamIds.length > 0) {
+    try {
+      const snapshotRows = await db.execute(
+        sql`SELECT livestreamId, imageUrl FROM livestream_realtime_snapshots WHERE livestreamId IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`,`)}) AND imageUrl IS NOT NULL ORDER BY snapshotAt DESC`
+      );
+      for (const row of (snapshotRows as any)[0] || snapshotRows || []) {
+        const lsId = (row as any).livestreamId;
+        if (lsId && !snapshotImageMap[lsId]) {
+          snapshotImageMap[lsId] = (row as any).imageUrl;
+        }
+      }
+    } catch (e) {
+      // Table might not exist yet, ignore
+    }
+  }
+
   // createdByからユーザー名を取得（配信の作成元タグ表示用）
   const createdByIds = [...new Set(livestreamRows.map(l => l.createdBy).filter(id => id > 0))];
   let createdByNameMap: Record<number, string> = {};
@@ -4258,6 +4276,7 @@ export async function getLivestreamsByLiverId(liverId: number, month?: string) {
       ...l,
       livestreamBrands: brandDurationMap[l.id] || [],
       brandCsvSales: brandCsvSalesMap[l.id] || {},
+      snapshotImageUrl: snapshotImageMap[l.id] || null,
       createdByTag,
       createdByName: createdByNameMap[l.createdBy] || (l.createdBy === 0 ? 'System' : `ID:${l.createdBy}`),
     };

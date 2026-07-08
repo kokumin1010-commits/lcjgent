@@ -92,6 +92,7 @@ export default function LiverMypage() {
   const [showLineLinkPopup, setShowLineLinkPopup] = useState(false);
   const [showUidPopup, setShowUidPopup] = useState(false);
   const [showFeaturedProductPopup, setShowFeaturedProductPopup] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [lineLinkCode, setLineLinkCode] = useState<string | null>(null);
   const [lineLinkExpiresAt, setLineLinkExpiresAt] = useState<Date | null>(null);
   const [lineLinkTimeLeft, setLineLinkTimeLeft] = useState<number>(0);
@@ -2439,6 +2440,21 @@ export default function LiverMypage() {
                           )}
                         </div>
                       )}
+                      {/* スクショサムネイル */}
+                      {(ls as any).snapshotImageUrl && (
+                        <div className="mt-2 pl-12">
+                          <img
+                            src={(ls as any).snapshotImageUrl}
+                            alt="配信スクショ"
+                            className="w-full max-w-[200px] h-auto rounded border border-gray-600 cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setPreviewImageUrl((ls as any).snapshotImageUrl);
+                            }}
+                          />
+                        </div>
+                      )}
                     </CardContent>
                     </Card>
                     </a>
@@ -3247,6 +3263,28 @@ export default function LiverMypage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* スクショプレビューモーダル */}
+      {previewImageUrl && (
+        <div
+          className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setPreviewImageUrl(null)}
+        >
+          <div className="relative max-w-full max-h-full">
+            <img
+              src={previewImageUrl}
+              alt="スクショプレビュー"
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/80"
+              onClick={() => setPreviewImageUrl(null)}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
