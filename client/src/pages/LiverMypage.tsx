@@ -46,7 +46,8 @@ import {
   MessageCircle,
   ShieldCheck,
   ShieldAlert,
-  ArrowUpDown
+  ArrowUpDown,
+  Trophy
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -82,6 +83,7 @@ export default function LiverMypage() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
   const [showAllLivestreams, setShowAllLivestreams] = useState(false);
+  const [showHourlyRanking, setShowHourlyRanking] = useState(false);
   const [showCsvImportDialog, setShowCsvImportDialog] = useState(false);
   const [csvImportResult, setCsvImportResult] = useState<{ created: number; updated: number; errors: string[] } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -703,6 +705,24 @@ export default function LiverMypage() {
     };
   }, [livestreams]);
 
+  // 時間単価ランキング（全期間・TOP50）
+  const hourlyRateRanking = useMemo(() => {
+    if (!livestreams) return [];
+    return [...livestreams]
+      .filter((ls: any) => {
+        const sales = ls.salesAmount || ls.gmv || 0;
+        const duration = ls.duration ? ls.duration / 60 : 0;
+        return duration > 0 && sales > 0;
+      })
+      .map((ls: any) => {
+        const sales = ls.salesAmount || ls.gmv || 0;
+        const duration = ls.duration / 60;
+        return { ...ls, hourlyRate: Math.round(sales / duration) };
+      })
+      .sort((a: any, b: any) => b.hourlyRate - a.hourlyRate)
+      .slice(0, 50);
+  }, [livestreams]);
+
   const displayedLivestreams = showAllLivestreams 
     ? filteredLivestreams 
     : filteredLivestreams.slice(0, 10);
@@ -1311,6 +1331,80 @@ export default function LiverMypage() {
             </div>
           </div>
 
+          {/* 時間単価ランキングボタン */}
+          <div className="mb-3">
+            <button
+              onClick={() => setShowHourlyRanking(!showHourlyRanking)}
+              className={`flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-full transition-all ${
+                showHourlyRanking
+                  ? 'bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-amber-300 border border-amber-500/50 shadow-lg shadow-amber-500/10'
+                  : 'bg-gray-800/60 text-white/70 border border-gray-600/50 hover:text-white hover:border-gray-500'
+              }`}
+            >
+              <Trophy className="h-3.5 w-3.5" />
+              時間単価ランキング TOP50
+            </button>
+          </div>
+
+          {/* 時間単価ランキング表示 */}
+          {showHourlyRanking && (
+            <div className="mb-4">
+              <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-amber-500/20 rounded-xl p-3">
+                <h4 className="text-xs font-bold text-amber-300 mb-3 flex items-center gap-2">
+                  <Trophy className="h-4 w-4" />
+                  全期間 時間単価ランキング TOP50
+                </h4>
+                {hourlyRateRanking.length === 0 ? (
+                  <p className="text-[11px] text-white/50 text-center py-4">データがありません</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-[600px] overflow-y-auto">
+                    {hourlyRateRanking.map((ls: any, idx: number) => {
+                      const date = new Date(ls.livestreamDate);
+                      const month = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric' }));
+                      const day = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', day: 'numeric' }));
+                      const sales = ls.salesAmount || ls.gmv || 0;
+                      const duration = ls.duration / 60;
+                      const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null;
+                      return (
+                        <div
+                          key={ls.id}
+                          className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${
+                            idx < 3 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-gray-800/40'
+                          }`}
+                        >
+                          <div className="w-6 text-center flex-shrink-0">
+                            {medal ? (
+                              <span className="text-sm">{medal}</span>
+                            ) : (
+                              <span className="text-[10px] text-white/40 font-mono">{idx + 1}</span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-white/60">{month}/{day}</span>
+                              <span className="text-[10px] text-white/40">{duration.toFixed(1)}h</span>
+                              {ls.brandName && (
+                                <span className="text-[9px] text-purple-300/70 truncate max-w-[80px]">{ls.brandName}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-[11px] text-cyan-400 font-bold">
+                              ¥{ls.hourlyRate.toLocaleString()}/h
+                            </p>
+                            <p className="text-[9px] text-white/40">
+                              ¥{Number(sales).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {isLoadingLivestreams ? (
             <div className="flex justify-center py-8">
               <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
@@ -1473,15 +1567,56 @@ export default function LiverMypage() {
                           {ls.brandName}
                         </p>
                       )}
-                      {/* セット組みサマリー */}
-                      {(ls as any).setCount > 0 && (
-                        <div className="mt-1 pl-12 flex items-center gap-2">
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-medium flex items-center gap-1">
-                            🎰 {(ls as any).setCount}セット
-                          </span>
-                          <span className="text-[10px] text-yellow-400 font-bold">
-                            ¥{Number((ls as any).totalSetRevenue).toLocaleString()}
-                          </span>
+                      {/* セット組みサマリー（タップで展開） */}
+                      {(ls as any).sets && (ls as any).sets.length > 0 && (
+                        <div className="mt-1 pl-12">
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const el = e.currentTarget.nextElementSibling;
+                              if (el) el.classList.toggle('hidden');
+                            }}
+                            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                          >
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-medium flex items-center gap-1">
+                              🎰 {(ls as any).sets.length}セット
+                            </span>
+                            <span className="text-[10px] text-yellow-400 font-bold">
+                              ¥{Number((ls as any).totalSetRevenue).toLocaleString()}
+                            </span>
+                            <ChevronDown className="h-3 w-3 text-white/40" />
+                          </button>
+                          <div className="hidden mt-2 space-y-2">
+                            {(ls as any).sets.map((set: any) => (
+                              <div key={set.id} className="bg-gray-900/60 border border-gray-700/50 rounded-lg p-2">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-[11px] text-white font-medium">{set.setName}</span>
+                                  {set.discountRate > 0 && (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 font-bold">
+                                      {set.discountRate}%OFF
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3 text-[10px] text-white/60 mb-1">
+                                  <span>売値 ¥{Number(set.setPrice).toLocaleString()}</span>
+                                  <span>{set.quantitySold}セット販売</span>
+                                  <span className="text-yellow-400 font-bold">¥{Number(set.totalRevenue).toLocaleString()}</span>
+                                </div>
+                                {set.items && set.items.length > 0 && (
+                                  <div className="border-t border-gray-700/30 pt-1 mt-1">
+                                    <p className="text-[9px] text-white/40 mb-0.5">セット内容（元値合計: ¥{Number(set.totalOriginalPrice).toLocaleString()}）</p>
+                                    {set.items.map((item: any, idx: number) => (
+                                      <div key={idx} className="flex items-center justify-between text-[9px] py-0.5">
+                                        <span className="text-white/70">{item.productName} x{item.quantity}</span>
+                                        <span className="text-white/50">¥{Number(item.originalPrice).toLocaleString()}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                       {/* 作成元タグ */}
