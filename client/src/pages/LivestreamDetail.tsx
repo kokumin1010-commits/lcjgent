@@ -1462,7 +1462,7 @@ export default function LivestreamDetail() {
                               </div>
                               
                               {/* 売上金額と構成比 */}
-                              <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center justify-between mb-1">
                                 <span className="text-xl font-bold text-yellow-400">
                                   ¥{Number(sales).toLocaleString()}
                                 </span>
@@ -1470,6 +1470,12 @@ export default function LivestreamDetail() {
                                   売上構成比 {percentage.toFixed(1)}%
                                 </span>
                               </div>
+                              {/* 単価 */}
+                              {product.itemsSold > 0 && (
+                                <p className="text-xs text-cyan-400 mb-2">
+                                  単価: ¥{Math.round(Number(sales) / product.itemsSold).toLocaleString()}/個
+                                </p>
+                              )}
                               
                               {/* プログレスバー */}
                               <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden mb-3">
