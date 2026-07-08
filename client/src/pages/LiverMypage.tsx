@@ -1280,6 +1280,256 @@ export default function LiverMypage() {
           </>
         )}
 
+        {/* Livestream History */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Video className="h-4 w-4" />
+              {lt("mypage.streamHistory")}
+            </h3>
+            <div className="flex items-center gap-2">
+              {importHistory && importHistory.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowImportHistoryDialog(true)}
+                  className="text-xs border-gray-600 text-white hover:text-white hover:border-gray-500"
+                >
+                  <History className="h-3 w-3 mr-1" />
+                  {lt("csv.history")}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCsvImportDialog(true)}
+                className="text-xs border-gray-600 text-white hover:text-white hover:border-gray-500"
+              >
+                <FileSpreadsheet className="h-3 w-3 mr-1" />
+              {lt("csv.import")}
+              </Button>
+            </div>
+          </div>
+
+          {isLoadingLivestreams ? (
+            <div className="flex justify-center py-8">
+              <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : filteredLivestreams.length === 0 ? (
+            <Card className="bg-gray-800/50 border-gray-700">
+              <CardContent className="p-6 text-center text-white">
+                <Video className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">{lt("mypage.noStreamHistory")}</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {displayedLivestreams.map((ls: { 
+                id: number; 
+                livestreamDate: string | Date; 
+                livestreamEndTime?: string | Date | null; 
+                salesAmount?: number | null;
+                gmv?: number | null;
+                duration?: number | null;
+                viewerCount?: number | null;
+                likes?: number | null;
+                comments?: number | null;
+                brandName?: string | null;
+                productCsvImported?: string | null;
+                aiStructuredAdvice?: {
+                  summary?: string;
+                  goodPoints?: string[];
+                  improvements?: string[];
+                  actionPlans?: { action: string; reason: string; timing: string }[];
+                  nextGoal?: string;
+                  calculatedMetrics?: Record<string, string | number>;
+                } | null;
+                aiAdvice?: string | null;
+              }, index: number) => {
+                // JST（日本時間）で表示
+                // データベースはUTCで保存されているので、そのまま使用
+                // toLocaleTimeString("ja-JP")が自動的にJSTに変換する
+                // 無効な日時データの場合はエラーを防ぐ
+                const parseDate = (dateValue: string | Date | null | undefined): Date | null => {
+                  if (!dateValue) return null;
+                  try {
+                    const date = new Date(dateValue);
+                    // Invalid Dateのチェック
+                    if (isNaN(date.getTime())) return null;
+                    return date;
+                  } catch {
+                    return null;
+                  }
+                };
+                const startDate = parseDate(ls.livestreamDate);
+                const endDate = parseDate(ls.livestreamEndTime);
+                const rawStartDate = startDate;
+                const rawEndDate = endDate;
+                // duration計算: start/endからの計算を優先し、DBのdurationはフォールバックとして使用
+                let durationRaw = 0;
+                if (rawEndDate && rawStartDate) {
+                  let calcMs = rawEndDate.getTime() - rawStartDate.getTime();
+                  // 終了が開始より前の場合、日付をまたいでいる可能性 → 24時間加算
+                  if (calcMs < 0) calcMs += 24 * 60 * 60 * 1000;
+                  durationRaw = Math.round(calcMs / (1000 * 60 * 60) * 10) / 10;
+                } else if (ls.duration) {
+                  durationRaw = Math.round(ls.duration / 60 * 10) / 10;
+                }
+                // マイナス値は0として表示（データ入力ミスの可能性）
+                const duration = Math.max(0, durationRaw);
+                const hasAiAdvice = ls.aiStructuredAdvice || ls.aiAdvice;
+
+                // 前回比較を計算
+                const currentSales = ls.salesAmount || ls.gmv || 0;
+                const prevLs = displayedLivestreams[index + 1];
+                const prevSales = prevLs ? (prevLs.salesAmount || prevLs.gmv || 0) : null;
+                const salesDiff = prevSales !== null ? currentSales - prevSales : null;
+                const salesDiffPercent = prevSales && prevSales > 0 ? Math.round((salesDiff! / prevSales) * 100) : null;
+                
+                // 売上金額の色分け（100万以上は緑、50万以上は黄、それ以下は赤）
+                const getSalesColor = (sales: number) => {
+                  if (sales >= 1000000) return "text-green-400";
+                  if (sales >= 500000) return "text-yellow-400";
+                  return "text-red-400";
+                };
+
+                return (
+                  <div key={ls.id} className="relative group">
+                    <a href={`/livestreams/${ls.id}`} target="_blank" rel="noopener noreferrer" className="block no-underline">
+                    <Card 
+                      className="bg-gray-800/50 border-gray-700 hover:bg-gray-700/50 transition-colors cursor-pointer active:scale-[0.99]"
+                    >
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="text-center bg-gray-700/50 rounded px-2 py-1">
+                            <p className="text-xs font-bold text-white">
+                              {startDate ? `${parseInt(startDate.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric' }))}/${parseInt(startDate.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', day: 'numeric' }))}` : "-/-"}
+                            </p>
+                            <p className="text-[10px] text-white">
+                              {startDate ? startDate.toLocaleDateString("ja-JP", { weekday: "short", timeZone: "Asia/Tokyo" }) : "-"}
+                            </p>
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1">
+                              <p className="text-xs text-white">
+                                {startDate ? startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" }) : "--:--"}
+                                {endDate && ` - ${endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" })}`}
+                              </p>
+                              {hasAiAdvice && (
+                                <Sparkles className="h-3 w-3 text-yellow-500" />
+                              )}
+                              {ls.productCsvImported !== 'yes' && (
+                                <span 
+                                  title={lt("csv.productCsvNotImported")} 
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-orange-500/20 border border-orange-500/50 rounded text-[10px] text-orange-400 font-medium"
+                                >
+                                  <AlertTriangle className="h-2.5 w-2.5" />
+                                  {lt("csv.productCsvNotImported")}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <p className="text-xs text-white">
+                                {duration > 0 ? `${duration}h` : "-"}
+                              </p>
+                              {ls.viewerCount && (
+                                <span className="text-xs text-white flex items-center gap-0.5">
+                                  <Eye className="h-3 w-3" />
+                                  {Number(ls.viewerCount).toLocaleString()}
+                                </span>
+                              )}
+                              {ls.likes && (
+                                <span className="text-xs text-pink-400 flex items-center gap-0.5">
+                                  ❤ {Number(ls.likes).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <div className="flex items-center gap-2">
+                            <p className={`text-sm font-bold ${getSalesColor(currentSales)}`}>
+                              ¥{Number(currentSales).toLocaleString()}
+                            </p>
+                            <ChevronRight className="h-4 w-4 text-white" />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {salesDiffPercent !== null && (
+                              <p className={`text-[10px] ${salesDiff! >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                {salesDiff! >= 0 ? "▲" : "▼"} {Math.abs(salesDiffPercent)}%
+                              </p>
+                            )}
+                            {duration > 0 && currentSales > 0 && (
+                              <p className="text-[10px] text-cyan-400 font-medium">
+                                ¥{Math.round(currentSales / duration).toLocaleString()}/h
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {ls.brandName && (
+                        <p className="text-[10px] text-white mt-1 pl-12">
+                          {ls.brandName}
+                        </p>
+                      )}
+                      {/* 作成元タグ */}
+                      {(ls as any).createdByTag && (ls as any).createdByTag !== 'self' && (ls as any).createdByTag !== 'csv' && (
+                        <div className="mt-0.5 pl-12">
+                          {(ls as any).createdByTag === 'admin' && (
+                            <span className="text-[8px] bg-purple-500/20 text-purple-400 px-1 py-0.5 rounded">管理者: {(ls as any).createdByName}</span>
+                          )}
+                          {(ls as any).createdByTag === 'staff' && (
+                            <span className="text-[8px] bg-amber-500/20 text-amber-400 px-1 py-0.5 rounded">手動登録: {(ls as any).createdByName}</span>
+                          )}
+                        </div>
+                      )}
+                      {/* スクショサムネイル */}
+                      {(ls as any).snapshotImageUrl && (
+                        <div className="mt-2 pl-12">
+                          <img
+                            src={(ls as any).snapshotImageUrl}
+                            alt="配信スクショ"
+                            className="w-full max-w-[200px] h-auto rounded border border-gray-600 cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setPreviewImageUrl((ls as any).snapshotImageUrl);
+                            }}
+                          />
+                        </div>
+                      )}
+                    </CardContent>
+                    </Card>
+                    </a>
+                    {/* 削除ボタン */}
+                    <button
+                      className="absolute top-1.5 right-1.5 h-6 w-6 flex items-center justify-center rounded-full bg-gray-700/80 text-white/70 hover:text-red-400 hover:bg-red-900/50 transition-colors z-10"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDeleteTargetId(ls.id);
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {filteredLivestreams.length > 10 && !showAllLivestreams && (
+            <Button 
+              variant="ghost"
+              onClick={() => setShowAllLivestreams(true)}
+              className="w-full mt-2 text-white hover:text-white text-xs"
+            >
+              {lt("mypage.showMore")} ({filteredLivestreams.length - 10})
+            </Button>
+          )}
+        </div>
+
         {/* 成長ポートフォリオ（グラフ） */}
         <LiverGrowthChart 
           livestreams={livestreams as any} 
@@ -2235,256 +2485,6 @@ export default function LiverMypage() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Livestream History */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Video className="h-4 w-4" />
-              {lt("mypage.streamHistory")}
-            </h3>
-            <div className="flex items-center gap-2">
-              {importHistory && importHistory.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowImportHistoryDialog(true)}
-                  className="text-xs border-gray-600 text-white hover:text-white hover:border-gray-500"
-                >
-                  <History className="h-3 w-3 mr-1" />
-                  {lt("csv.history")}
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowCsvImportDialog(true)}
-                className="text-xs border-gray-600 text-white hover:text-white hover:border-gray-500"
-              >
-                <FileSpreadsheet className="h-3 w-3 mr-1" />
-              {lt("csv.import")}
-              </Button>
-            </div>
-          </div>
-
-          {isLoadingLivestreams ? (
-            <div className="flex justify-center py-8">
-              <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : filteredLivestreams.length === 0 ? (
-            <Card className="bg-gray-800/50 border-gray-700">
-              <CardContent className="p-6 text-center text-white">
-                <Video className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">{lt("mypage.noStreamHistory")}</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {displayedLivestreams.map((ls: { 
-                id: number; 
-                livestreamDate: string | Date; 
-                livestreamEndTime?: string | Date | null; 
-                salesAmount?: number | null;
-                gmv?: number | null;
-                duration?: number | null;
-                viewerCount?: number | null;
-                likes?: number | null;
-                comments?: number | null;
-                brandName?: string | null;
-                productCsvImported?: string | null;
-                aiStructuredAdvice?: {
-                  summary?: string;
-                  goodPoints?: string[];
-                  improvements?: string[];
-                  actionPlans?: { action: string; reason: string; timing: string }[];
-                  nextGoal?: string;
-                  calculatedMetrics?: Record<string, string | number>;
-                } | null;
-                aiAdvice?: string | null;
-              }, index: number) => {
-                // JST（日本時間）で表示
-                // データベースはUTCで保存されているので、そのまま使用
-                // toLocaleTimeString("ja-JP")が自動的にJSTに変換する
-                // 無効な日時データの場合はエラーを防ぐ
-                const parseDate = (dateValue: string | Date | null | undefined): Date | null => {
-                  if (!dateValue) return null;
-                  try {
-                    const date = new Date(dateValue);
-                    // Invalid Dateのチェック
-                    if (isNaN(date.getTime())) return null;
-                    return date;
-                  } catch {
-                    return null;
-                  }
-                };
-                const startDate = parseDate(ls.livestreamDate);
-                const endDate = parseDate(ls.livestreamEndTime);
-                const rawStartDate = startDate;
-                const rawEndDate = endDate;
-                // duration計算: start/endからの計算を優先し、DBのdurationはフォールバックとして使用
-                let durationRaw = 0;
-                if (rawEndDate && rawStartDate) {
-                  let calcMs = rawEndDate.getTime() - rawStartDate.getTime();
-                  // 終了が開始より前の場合、日付をまたいでいる可能性 → 24時間加算
-                  if (calcMs < 0) calcMs += 24 * 60 * 60 * 1000;
-                  durationRaw = Math.round(calcMs / (1000 * 60 * 60) * 10) / 10;
-                } else if (ls.duration) {
-                  durationRaw = Math.round(ls.duration / 60 * 10) / 10;
-                }
-                // マイナス値は0として表示（データ入力ミスの可能性）
-                const duration = Math.max(0, durationRaw);
-                const hasAiAdvice = ls.aiStructuredAdvice || ls.aiAdvice;
-
-                // 前回比較を計算
-                const currentSales = ls.salesAmount || ls.gmv || 0;
-                const prevLs = displayedLivestreams[index + 1];
-                const prevSales = prevLs ? (prevLs.salesAmount || prevLs.gmv || 0) : null;
-                const salesDiff = prevSales !== null ? currentSales - prevSales : null;
-                const salesDiffPercent = prevSales && prevSales > 0 ? Math.round((salesDiff! / prevSales) * 100) : null;
-                
-                // 売上金額の色分け（100万以上は緑、50万以上は黄、それ以下は赤）
-                const getSalesColor = (sales: number) => {
-                  if (sales >= 1000000) return "text-green-400";
-                  if (sales >= 500000) return "text-yellow-400";
-                  return "text-red-400";
-                };
-
-                return (
-                  <div key={ls.id} className="relative group">
-                    <a href={`/livestreams/${ls.id}`} target="_blank" rel="noopener noreferrer" className="block no-underline">
-                    <Card 
-                      className="bg-gray-800/50 border-gray-700 hover:bg-gray-700/50 transition-colors cursor-pointer active:scale-[0.99]"
-                    >
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="text-center bg-gray-700/50 rounded px-2 py-1">
-                            <p className="text-xs font-bold text-white">
-                              {startDate ? `${parseInt(startDate.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric' }))}/${parseInt(startDate.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', day: 'numeric' }))}` : "-/-"}
-                            </p>
-                            <p className="text-[10px] text-white">
-                              {startDate ? startDate.toLocaleDateString("ja-JP", { weekday: "short", timeZone: "Asia/Tokyo" }) : "-"}
-                            </p>
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-1">
-                              <p className="text-xs text-white">
-                                {startDate ? startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" }) : "--:--"}
-                                {endDate && ` - ${endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" })}`}
-                              </p>
-                              {hasAiAdvice && (
-                                <Sparkles className="h-3 w-3 text-yellow-500" />
-                              )}
-                              {ls.productCsvImported !== 'yes' && (
-                                <span 
-                                  title={lt("csv.productCsvNotImported")} 
-                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-orange-500/20 border border-orange-500/50 rounded text-[10px] text-orange-400 font-medium"
-                                >
-                                  <AlertTriangle className="h-2.5 w-2.5" />
-                                  {lt("csv.productCsvNotImported")}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <p className="text-xs text-white">
-                                {duration > 0 ? `${duration}h` : "-"}
-                              </p>
-                              {ls.viewerCount && (
-                                <span className="text-xs text-white flex items-center gap-0.5">
-                                  <Eye className="h-3 w-3" />
-                                  {Number(ls.viewerCount).toLocaleString()}
-                                </span>
-                              )}
-                              {ls.likes && (
-                                <span className="text-xs text-pink-400 flex items-center gap-0.5">
-                                  ❤ {Number(ls.likes).toLocaleString()}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end">
-                          <div className="flex items-center gap-2">
-                            <p className={`text-sm font-bold ${getSalesColor(currentSales)}`}>
-                              ¥{Number(currentSales).toLocaleString()}
-                            </p>
-                            <ChevronRight className="h-4 w-4 text-white" />
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {salesDiffPercent !== null && (
-                              <p className={`text-[10px] ${salesDiff! >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                {salesDiff! >= 0 ? "▲" : "▼"} {Math.abs(salesDiffPercent)}%
-                              </p>
-                            )}
-                            {duration > 0 && currentSales > 0 && (
-                              <p className="text-[10px] text-cyan-400 font-medium">
-                                ¥{Math.round(currentSales / duration).toLocaleString()}/h
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      {ls.brandName && (
-                        <p className="text-[10px] text-white mt-1 pl-12">
-                          {ls.brandName}
-                        </p>
-                      )}
-                      {/* 作成元タグ */}
-                      {(ls as any).createdByTag && (ls as any).createdByTag !== 'self' && (ls as any).createdByTag !== 'csv' && (
-                        <div className="mt-0.5 pl-12">
-                          {(ls as any).createdByTag === 'admin' && (
-                            <span className="text-[8px] bg-purple-500/20 text-purple-400 px-1 py-0.5 rounded">管理者: {(ls as any).createdByName}</span>
-                          )}
-                          {(ls as any).createdByTag === 'staff' && (
-                            <span className="text-[8px] bg-amber-500/20 text-amber-400 px-1 py-0.5 rounded">手動登録: {(ls as any).createdByName}</span>
-                          )}
-                        </div>
-                      )}
-                      {/* スクショサムネイル */}
-                      {(ls as any).snapshotImageUrl && (
-                        <div className="mt-2 pl-12">
-                          <img
-                            src={(ls as any).snapshotImageUrl}
-                            alt="配信スクショ"
-                            className="w-full max-w-[200px] h-auto rounded border border-gray-600 cursor-pointer hover:opacity-80 transition-opacity"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setPreviewImageUrl((ls as any).snapshotImageUrl);
-                            }}
-                          />
-                        </div>
-                      )}
-                    </CardContent>
-                    </Card>
-                    </a>
-                    {/* 削除ボタン */}
-                    <button
-                      className="absolute top-1.5 right-1.5 h-6 w-6 flex items-center justify-center rounded-full bg-gray-700/80 text-white/70 hover:text-red-400 hover:bg-red-900/50 transition-colors z-10"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setDeleteTargetId(ls.id);
-                      }}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {filteredLivestreams.length > 10 && !showAllLivestreams && (
-            <Button 
-              variant="ghost"
-              onClick={() => setShowAllLivestreams(true)}
-              className="w-full mt-2 text-white hover:text-white text-xs"
-            >
-              {lt("mypage.showMore")} ({filteredLivestreams.length - 10})
-            </Button>
-          )}
-        </div>
       </div>
 
       {/* CSV Import Dialog */}
