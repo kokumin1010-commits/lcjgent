@@ -512,7 +512,7 @@ export default function LivestreamRealtimeRecord() {
                             value={editNotes}
                             onChange={(e) => setEditNotes(e.target.value)}
                             placeholder="メモ"
-                            className="bg-gray-700 border-gray-600 text-white text-xs h-8"
+                            className="bg-gray-700 border-gray-600 text-white text-sm h-9"
                           />
                           <div className="flex gap-2">
                             <Button
@@ -560,7 +560,7 @@ export default function LivestreamRealtimeRecord() {
                                 )}
                               </div>
                               {record.notes && (
-                                <p className="text-[10px] text-gray-500 mt-1">💬 {record.notes}</p>
+                                <p className="text-sm text-gray-400 mt-1">💬 {record.notes}</p>
                               )}
                             </div>
                             <div className="flex items-center gap-1 ml-2">
