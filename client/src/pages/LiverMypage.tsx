@@ -1366,10 +1366,13 @@ export default function LiverMypage() {
                       const duration = ls.duration / 60;
                       const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null;
                       return (
-                        <div
+                        <a
                           key={ls.id}
-                          className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${
-                            idx < 3 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-gray-800/40'
+                          href={`/livestreams/${ls.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer hover:opacity-80 transition-opacity no-underline ${
+                            idx < 3 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-gray-800/40 hover:bg-gray-700/40'
                           }`}
                         >
                           <div className="w-6 text-center flex-shrink-0">
@@ -1396,7 +1399,7 @@ export default function LiverMypage() {
                               ¥{Number(sales).toLocaleString()}
                             </p>
                           </div>
-                        </div>
+                        </a>
                       );
                     })}
                   </div>
