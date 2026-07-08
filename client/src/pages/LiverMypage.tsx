@@ -1365,40 +1365,79 @@ export default function LiverMypage() {
                       const sales = ls.salesAmount || ls.gmv || 0;
                       const duration = ls.duration / 60;
                       const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null;
+                      const snapshotUrl = ls.snapshotImageUrl || ls.screenshotUrl || ls.beforeScreenshotUrl || null;
+                      const sets = ls.sets || [];
                       return (
                         <a
                           key={ls.id}
                           href={`/livestreams/${ls.id}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer hover:opacity-80 transition-opacity no-underline ${
+                          className={`block px-2 py-2 rounded-lg cursor-pointer hover:opacity-80 transition-opacity no-underline ${
                             idx < 3 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-gray-800/40 hover:bg-gray-700/40'
                           }`}
                         >
-                          <div className="w-6 text-center flex-shrink-0">
-                            {medal ? (
-                              <span className="text-sm">{medal}</span>
-                            ) : (
-                              <span className="text-[10px] text-white/40 font-mono">{idx + 1}</span>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-white/60">{month}/{day}</span>
-                              <span className="text-[10px] text-white/40">{duration.toFixed(1)}h</span>
-                              {ls.brandName && (
-                                <span className="text-[9px] text-purple-300/70 truncate max-w-[80px]">{ls.brandName}</span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 text-center flex-shrink-0">
+                              {medal ? (
+                                <span className="text-sm">{medal}</span>
+                              ) : (
+                                <span className="text-[10px] text-white/40 font-mono">{idx + 1}</span>
                               )}
                             </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-white/60">{month}/{day}</span>
+                                <span className="text-[10px] text-white/40">{duration.toFixed(1)}h</span>
+                                {ls.brandName && (
+                                  <span className="text-[9px] text-purple-300/70 truncate max-w-[80px]">{ls.brandName}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="text-[11px] text-cyan-400 font-bold">
+                                ¥{ls.hourlyRate.toLocaleString()}/h
+                              </p>
+                              <p className="text-[9px] text-white/40">
+                                ¥{Number(sales).toLocaleString()}
+                              </p>
+                            </div>
                           </div>
-                          <div className="text-right flex-shrink-0">
-                            <p className="text-[11px] text-cyan-400 font-bold">
-                              ¥{ls.hourlyRate.toLocaleString()}/h
-                            </p>
-                            <p className="text-[9px] text-white/40">
-                              ¥{Number(sales).toLocaleString()}
-                            </p>
-                          </div>
+                          {/* スクショ */}
+                          {snapshotUrl && (
+                            <div className="mt-1.5 ml-8">
+                              <img
+                                src={snapshotUrl}
+                                alt="配信スクショ"
+                                className="w-full max-w-[280px] rounded-md border border-gray-700/50 object-cover"
+                                loading="lazy"
+                              />
+                            </div>
+                          )}
+                          {/* セット組み */}
+                          {sets.length > 0 && (
+                            <div className="mt-1.5 ml-8">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-medium">
+                                  🎰 {sets.length}セット
+                                </span>
+                                <span className="text-[10px] text-yellow-400 font-bold">
+                                  ¥{sets.reduce((sum: number, s: any) => sum + Number(s.totalRevenue || 0), 0).toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="space-y-1">
+                                {sets.map((set: any) => (
+                                  <div key={set.id} className="text-[9px] text-white/60 flex items-center gap-2">
+                                    <span className="text-white/80">{set.setName}</span>
+                                    <span>¥{Number(set.setPrice).toLocaleString()} × {set.quantitySold}</span>
+                                    {set.discountRate > 0 && (
+                                      <span className="text-green-400">{set.discountRate}%OFF</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </a>
                       );
                     })}
