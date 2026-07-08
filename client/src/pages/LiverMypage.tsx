@@ -1473,6 +1473,17 @@ export default function LiverMypage() {
                           {ls.brandName}
                         </p>
                       )}
+                      {/* セット組みサマリー */}
+                      {(ls as any).setCount > 0 && (
+                        <div className="mt-1 pl-12 flex items-center gap-2">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-medium flex items-center gap-1">
+                            🎰 {(ls as any).setCount}セット
+                          </span>
+                          <span className="text-[10px] text-yellow-400 font-bold">
+                            ¥{Number((ls as any).totalSetRevenue).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
                       {/* 作成元タグ */}
                       {(ls as any).createdByTag && (ls as any).createdByTag !== 'self' && (ls as any).createdByTag !== 'csv' && (
                         <div className="mt-0.5 pl-12">

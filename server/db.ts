@@ -4249,6 +4249,30 @@ export async function getLivestreamsByLiverId(liverId: number, month?: string) {
     }
   }
 
+  // セット組みデータを取得（セット数・合計売上）
+  let setsMap: Record<number, { setCount: number; totalSetRevenue: number }> = {};
+  if (livestreamIds.length > 0) {
+    try {
+      const setsRows = await db
+        .select({
+          livestreamId: livestreamSets.livestreamId,
+          setCount: sql<number>`COUNT(*)`,
+          totalSetRevenue: sql<number>`COALESCE(SUM(${livestreamSets.totalRevenue}), 0)`,
+        })
+        .from(livestreamSets)
+        .where(inArray(livestreamSets.livestreamId, livestreamIds))
+        .groupBy(livestreamSets.livestreamId);
+      for (const row of setsRows) {
+        setsMap[row.livestreamId] = {
+          setCount: Number(row.setCount) || 0,
+          totalSetRevenue: Number(row.totalSetRevenue) || 0,
+        };
+      }
+    } catch (e) {
+      // Table might not exist yet, ignore
+    }
+  }
+
   // createdByからユーザー名を取得（配信の作成元タグ表示用）
   const createdByIds = [...new Set(livestreamRows.map(l => l.createdBy).filter(id => id > 0))];
   let createdByNameMap: Record<number, string> = {};
@@ -4277,6 +4301,8 @@ export async function getLivestreamsByLiverId(liverId: number, month?: string) {
       livestreamBrands: brandDurationMap[l.id] || [],
       brandCsvSales: brandCsvSalesMap[l.id] || {},
       snapshotImageUrl: snapshotImageMap[l.id] || l.screenshotUrl || l.beforeScreenshotUrl || null,
+      setCount: setsMap[l.id]?.setCount || 0,
+      totalSetRevenue: setsMap[l.id]?.totalSetRevenue || 0,
       createdByTag,
       createdByName: createdByNameMap[l.createdBy] || (l.createdBy === 0 ? 'System' : `ID:${l.createdBy}`),
     };
