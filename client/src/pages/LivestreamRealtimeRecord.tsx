@@ -805,8 +805,7 @@ export default function LivestreamRealtimeRecord() {
           </CardContent>
         </Card>
 
-        {/* 福袋画像セクション */}
-        <LuckyBagSection livestreamId={livestreamId} liverId={livestream?.liverId} />
+
       </div>
     </div>
   );
