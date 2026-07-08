@@ -4276,7 +4276,7 @@ export async function getLivestreamsByLiverId(liverId: number, month?: string) {
       ...l,
       livestreamBrands: brandDurationMap[l.id] || [],
       brandCsvSales: brandCsvSalesMap[l.id] || {},
-      snapshotImageUrl: snapshotImageMap[l.id] || null,
+      snapshotImageUrl: snapshotImageMap[l.id] || l.screenshotUrl || l.beforeScreenshotUrl || null,
       createdByTag,
       createdByName: createdByNameMap[l.createdBy] || (l.createdBy === 0 ? 'System' : `ID:${l.createdBy}`),
     };
