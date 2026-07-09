@@ -2353,6 +2353,34 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                 );
                               } catch { return null; }
                             })()}
+                            {/* Row 3.5: Hold Reason (only for on_hold status) */}
+                            {receipt.status === "on_hold" && receipt.reviewNote && (() => {
+                              // Convert Japanese hold reason to Chinese
+                              const note = receipt.reviewNote as string;
+                              let reasonCn = note;
+                              if (note.includes("別ユーザーと同一注文番号") || note.includes("同一注文番号")) {
+                                reasonCn = "⚠️ 不同用户提交相同订单号";
+                              } else if (note.includes("画像読み取り失敗")) {
+                                reasonCn = "⚠️ 图片读取失败";
+                              } else if (note.includes("AI応答の解析に") || note.includes("解析失敗")) {
+                                reasonCn = "⚠️ AI响应解析失败";
+                              } else if (note.includes("信頼度") || note.includes("confidence")) {
+                                reasonCn = "⚠️ AI置信度不足，需人工审核";
+                              } else if (note.includes("Level2")) {
+                                reasonCn = "⚠️ 重复订单号检测（跨用户）";
+                              } else if (note.includes("Level3") || note.includes("同一画像") || note.includes("画像ハッシュ")) {
+                                reasonCn = "⚠️ 重复图片检测";
+                              } else if (note.includes("手動審査")) {
+                                reasonCn = "⚠️ 需要人工审核";
+                              } else {
+                                reasonCn = `⚠️ ${note.replace(/\[AI自動\]\s*/, "").substring(0, 40)}`;
+                              }
+                              return (
+                                <div className="text-[10px] text-orange-600 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5 truncate" title={note}>
+                                  {reasonCn}
+                                </div>
+                              );
+                            })()}
                             {/* Row 4: Store + Upload Date + Purchase Date */}
                             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                               <span className="truncate">{receipt.storeName || t("lr.storeUnknown")}</span>
