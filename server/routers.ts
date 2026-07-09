@@ -28664,7 +28664,9 @@ JSON配列のみを出力してください。`;
             if (p.clickConversionRate) noteParts.push(`\u8F6C\u5316\u7387:${p.clickConversionRate}`);
             if (p.skuConversionRate) noteParts.push(`SKU\u8F6C\u5316:${p.skuConversionRate}`);
             if (p.perThousandViewGmv) noteParts.push(`\u5343\u6B21\u89C2\u770B:\u00A5${p.perThousandViewGmv.toLocaleString()}`);
-            const noteStr = noteParts.length > 0 ? `[AI] ${noteParts.join(' / ')}` : '[AI\u89E3\u6790]';
+            const aiNoteStr = noteParts.length > 0 ? `[AI] ${noteParts.join(' / ')}` : '[AI\u89E3\u6790]';
+            // Combine AI data with user notes (separated by newline)
+            const noteStr = input.notes ? `${aiNoteStr}\n${input.notes}` : aiNoteStr;
 
             // Always insert new record (keep all time-point data for same product to enable trend analysis)
             await pool.query(
