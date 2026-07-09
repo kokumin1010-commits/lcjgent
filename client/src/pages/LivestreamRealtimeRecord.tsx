@@ -589,49 +589,48 @@ export default function LivestreamRealtimeRecord() {
                                     </div>
                                   </div>
                                 ) : (
-                                  /* 表示モード - 商品情報（上）とメモ（下）を分離 */
+                                  /* 表示モード - 1行目: 商品情報+AIデータ、 2行目: メモ */
                                   <div>
-                                    {/* 上部: 商品情報エリア */}
-                                    <div className="flex items-center justify-between">
+                                    {/* 1行目: 時間+単価+出単+カート + AIデータバッジ（同じ行） */}
+                                    <div className="flex items-start justify-between">
                                       <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-3 flex-wrap">
+                                        <div className="flex items-center gap-2 flex-wrap">
                                           <span className="text-xs font-mono text-blue-300 bg-blue-900/30 px-2 py-0.5 rounded min-w-[50px] text-center">{record.timeSlot}</span>
-                                          <div className="flex items-center gap-3 text-sm flex-wrap">
-                                            {record.productPrice && (
-                                              <span className="text-gray-300">単価: <span className="text-green-400 font-bold">¥{Number(record.productPrice).toLocaleString()}</span></span>
-                                            )}
-                                            <span className="text-gray-300">出単: <span className="text-yellow-400 font-bold">{record.quantitySold}件</span></span>
-                                            {(record.cartAddCount || 0) > 0 && (
-                                              <span className="text-gray-300">カート: <span className="text-amber-400 font-bold">{record.cartAddCount}</span></span>
-                                            )}
-                                          </div>
+                                          {record.productPrice && (
+                                            <span className="text-sm text-gray-300">単価: <span className="text-green-400 font-bold">¥{Number(record.productPrice).toLocaleString()}</span></span>
+                                          )}
+                                          <span className="text-sm text-gray-300">出単: <span className="text-yellow-400 font-bold">{record.quantitySold}件</span></span>
+                                          {(record.cartAddCount || 0) > 0 && (
+                                            <span className="text-sm text-gray-300">カート: <span className="text-amber-400 font-bold">{record.cartAddCount}</span></span>
+                                          )}
+                                          {/* AI解析データバッジ（カートの後ろに同じ行で表示） */}
+                                          {record.notes && (() => {
+                                            const lines = record.notes.split('\n');
+                                            const aiLine = lines.find((l: string) => l.startsWith('[AI]'));
+                                            if (!aiLine) return null;
+                                            const aiData = aiLine.replace('[AI] ', '').replace('[AI]', '');
+                                            const parts = aiData.split(' / ');
+                                            return (
+                                              <>
+                                                <span className="text-gray-600 mx-0.5">|</span>
+                                                {parts.map((part: string, idx: number) => {
+                                                  const colonIdx = part.indexOf(':');
+                                                  if (colonIdx <= 0) return null;
+                                                  const label = part.substring(0, colonIdx);
+                                                  const value = part.substring(colonIdx + 1);
+                                                  return (
+                                                    <span key={idx} className="inline-flex items-center gap-0.5 text-[11px] bg-gray-700/60 border border-gray-600/50 rounded px-1.5 py-0.5">
+                                                      <span className="text-gray-400">{label.trim()}:</span>
+                                                      <span className="text-cyan-300 font-medium">{value.trim()}</span>
+                                                    </span>
+                                                  );
+                                                })}
+                                              </>
+                                            );
+                                          })()}
                                         </div>
-                                        {/* AI解析データを構造化表示（商品情報の一部） */}
-                                        {record.notes && (() => {
-                                          const lines = record.notes.split('\n');
-                                          const aiLine = lines.find((l: string) => l.startsWith('[AI]'));
-                                          if (!aiLine) return null;
-                                          const aiData = aiLine.replace('[AI] ', '').replace('[AI]', '');
-                                          const parts = aiData.split(' / ');
-                                          return (
-                                            <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                                              {parts.map((part: string, idx: number) => {
-                                                const colonIdx = part.indexOf(':');
-                                                if (colonIdx <= 0) return null;
-                                                const label = part.substring(0, colonIdx);
-                                                const value = part.substring(colonIdx + 1);
-                                                return (
-                                                  <span key={idx} className="inline-flex items-center gap-0.5 text-[11px] bg-gray-700/60 border border-gray-600/50 rounded px-1.5 py-0.5">
-                                                    <span className="text-gray-400">{label.trim()}:</span>
-                                                    <span className="text-cyan-300 font-medium">{value.trim()}</span>
-                                                  </span>
-                                                );
-                                              })}
-                                            </div>
-                                          );
-                                        })()}
                                       </div>
-                                      <div className="flex items-center gap-1 ml-2">
+                                      <div className="flex items-center gap-1 ml-2 shrink-0">
                                         <Button
                                           size="sm"
                                           variant="ghost"
@@ -661,17 +660,14 @@ export default function LivestreamRealtimeRecord() {
                                         </Button>
                                       </div>
                                     </div>
-                                    {/* 下部: メモ・コメントエリア（商品情報と分離） */}
+                                    {/* 2行目: メモ・コメントエリア（商品情報と分離、元々GMVがあった場所） */}
                                     {record.notes && (() => {
                                       const lines = record.notes.split('\n');
                                       const userComment = lines.filter((l: string) => !l.startsWith('[AI]') && l.trim() !== '' && l !== '[AI解析]').join(' ');
                                       if (!userComment) return null;
                                       return (
-                                        <div className="mt-2 pt-2 border-t border-gray-700/30">
-                                          <p className="text-xs text-gray-300 flex items-start gap-1.5">
-                                            <span className="text-gray-500 shrink-0">📝</span>
-                                            <span className="text-gray-300">{userComment}</span>
-                                          </p>
+                                        <div className="mt-1.5 ml-[58px] pl-2 border-l-2 border-gray-700/50">
+                                          <p className="text-xs text-gray-400">📝 {userComment}</p>
                                         </div>
                                       );
                                     })()}
