@@ -19,13 +19,12 @@ function generateTimeSlots(): string[] {
   return slots;
 }
 
-// 現在時刻に最も近いタイムスロットを返す
+// 現在時刻を分単位で返す
 function getCurrentTimeSlot(): string {
   const now = new Date();
   const h = now.getHours();
   const m = now.getMinutes();
-  const slot = m < 30 ? `${h.toString().padStart(2, '0')}:00` : `${h.toString().padStart(2, '0')}:30`;
-  return slot;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
 
 export default function LivestreamRealtimeRecord() {
@@ -249,7 +248,7 @@ export default function LivestreamRealtimeRecord() {
     }), { quantity: 0, revenue: 0, cartAdds: 0 });
   }, [records]);
 
-  const timeSlots = generateTimeSlots();
+  // timeSlots no longer needed - using native time input
 
   if (!livestreamId) {
     return <div className="p-4 text-center text-gray-400">配信IDが無効です</div>;
@@ -368,16 +367,12 @@ export default function LivestreamRealtimeRecord() {
             {/* 時間帯選択 */}
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-blue-400 shrink-0" />
-              <Select value={timeSlot} onValueChange={setTimeSlot}>
-                <SelectTrigger className="bg-gray-800 border-gray-700 text-white h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700 max-h-60">
-                  {timeSlots.map(slot => (
-                    <SelectItem key={slot} value={slot} className="text-white">{slot}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <input
+                type="time"
+                value={timeSlot}
+                onChange={(e) => setTimeSlot(e.target.value)}
+                className="bg-gray-800 border border-gray-700 text-white h-9 rounded-md px-3 text-sm font-mono"
+              />
               <Button
                 size="sm"
                 variant="outline"
