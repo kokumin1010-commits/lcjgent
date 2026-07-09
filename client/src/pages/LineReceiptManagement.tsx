@@ -2358,7 +2358,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               // Convert Japanese hold reason to Chinese
                               const note = receipt.reviewNote as string;
                               let reasonCn = note;
-                              if (note.includes("別ユーザーと同一注文番号") || note.includes("同一注文番号")) {
+                              if (note.includes("バックグラウンド処理エラー") || note.includes("手動確認が必要")) {
+                                reasonCn = "⚠️ 后台处理错误，需人工确认";
+                              } else if (note.includes("別ユーザーと同一注文番号") || note.includes("同一注文番号")) {
                                 reasonCn = "⚠️ 不同用户提交相同订单号";
                               } else if (note.includes("画像読み取り失敗")) {
                                 reasonCn = "⚠️ 图片读取失败";
