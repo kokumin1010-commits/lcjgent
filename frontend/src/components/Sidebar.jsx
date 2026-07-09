@@ -956,10 +956,21 @@ export default function Sidebar({ isOpen, onClose, user, onVideoSelect, onNewAna
                           <span className="text-xs font-semibold text-gray-500">{window.__t('analysisHistory')}</span>
 
                         </div>
-                        {/* Upload tasks: only show orphans (no matching video in regularVideos) */}
+                        {/* Upload tasks: show orphans (no matching video) OR tasks that match a DONE video (re-upload of same filename) */}
                         {bgUploadTasks.filter(task => {
-                          if (task.videoId && regularVideos.some(v => v.id === task.videoId)) return false;
-                          if (task.fileName && regularVideos.some(v => v.original_filename === task.fileName)) return false;
+                          // If task is done/cancelled, don't show as orphan
+                          if (task.status === 'done' || task.status === 'cancelled') return false;
+                          // If task matches a video that is NOT done (still processing), hide orphan (inline will show)
+                          if (task.videoId) {
+                            const matchedVideo = regularVideos.find(v => v.id === task.videoId);
+                            if (matchedVideo && matchedVideo.status !== 'DONE') return false;
+                          }
+                          if (task.fileName) {
+                            const matchedVideo = regularVideos.find(v => v.original_filename === task.fileName);
+                            // If matched video is still processing, let inline handle it
+                            if (matchedVideo && matchedVideo.status !== 'DONE' && matchedVideo.status !== 'ERROR') return false;
+                          }
+                          // Show as orphan: no match, or matched video is already DONE (re-upload)
                           return true;
                         }).map((task) => (
                           <div key={task.id} className={`w-full px-2.5 py-2.5 rounded-lg mb-1 ${
