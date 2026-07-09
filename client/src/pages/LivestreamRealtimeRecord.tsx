@@ -140,6 +140,13 @@ export default function LivestreamRealtimeRecord() {
   const handleSnapshotUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    processSnapshotFile(file);
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // 共通のファイル処理関数
+  const processSnapshotFile = (file: File) => {
     const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif', 'image/heic', 'image/heif'];
     const isImage = file.type.startsWith('image/') || allowedTypes.some(t => file.name.toLowerCase().endsWith(t.split('/')[1]));
     if (!isImage) {
@@ -175,9 +182,28 @@ export default function LivestreamRealtimeRecord() {
       toast.error('ファイル読み込みエラー');
       setIsAnalyzing(false);
     }
-    // Reset file input
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  // ペースト（Ctrl+V）で画像アップロード
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          e.preventDefault();
+          const file = items[i].getAsFile();
+          if (file) {
+            toast.info('クリップボードから画像を検出しました。AI解析中...');
+            processSnapshotFile(file);
+          }
+          return;
+        }
+      }
+    };
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [livestreamId, livestream?.liverId, timeSlot, notes]);
 
   // GPMトレンドチャートデータ
   const trendChartData = useMemo(() => {
@@ -712,6 +738,9 @@ export default function LivestreamRealtimeRecord() {
                 </Button>
                 <p className="text-[10px] text-gray-500 text-center">
                   TikTokダッシュボードのスクショをアップ→AIがGPM・インプレ・視聴者数等を自動抽出
+                </p>
+                <p className="text-[10px] text-purple-400 text-center font-medium">
+                  📋 Ctrl+V でクリップボードから直接ペーストもOK
                 </p>
 
                 {/* スクショ履歴 */}

@@ -28471,14 +28471,23 @@ JSON配列のみを出力してください。`;
 
 ## 抽出する商品リスト:
 スクリーンショットに「商品列表」（商品リスト/テーブル）が表示されている場合、各商品の情報を配列で返してください。
+テーブルのヘッダー列は通常以下の順番です:
+商品 | 归因GMV | 归因成交件数 | 归因SKU訂単数 | 加购次数 | 商品曝光次数 | 商品点击次数 | 点击率 | 点击成交转化率 | 点击成交转化率(SKU訂単) | 千次观看成交金额
+
 各商品から以下を読み取ります:
 - productName: 商品名（テキストが途中で切れていてもそのまま返す）
-- attributedGmv: 归因GMV（円）- 数値のみ（例: 635,474円 → 635474）
+- attributedGmv: 归因GMV（円）- 数値のみ（例: 635,474円 → 635474, 1,091,348円 → 1091348）
 - salesCount: 归因成交件数（例: 55）
-- clickCount: 商品点击次数（例: 4017）
-- clickRate: 点击率（例: "1.32%"）
+- skuOrderCount: 归因SKU訂単数（例: 69）
 - cartAddCount: 加购次数（例: 222）
+- impressionCount: 商品曝光次数（例: 32079）
+- clickCount: 商品点击次数（例: 4017）
+- clickRate: 点击率（例: "13.73%"）
+- clickConversionRate: 点击成交转化率（例: "1.57%"）
+- skuConversionRate: 点击成交转化率(SKU訂単)（例: "1.57%"）
+- perThousandViewGmv: 千次观看成交金额（円）（例: 34021）
 商品リストが見えない場合は空配列[]を返してください。
+※ 商品リストの全ての商品を漏れなく抽出してください。スクロールが必要な場合でも、見えている全ての行を読み取ってください。
 
 ## 数値読み取りルール:
 - "K" = 1,000倍（例: 45.57K = 45570）
@@ -28544,11 +28553,16 @@ JSON配列のみを出力してください。`;
                         productName: { type: "string", description: "商品名" },
                         attributedGmv: { anyOf: [{ type: "number" }, { type: "null" }], description: "归因GMV（円）" },
                         salesCount: { anyOf: [{ type: "number" }, { type: "null" }], description: "归因成交件数" },
+                        skuOrderCount: { anyOf: [{ type: "number" }, { type: "null" }], description: "归因SKU訂単数" },
+                        cartAddCount: { anyOf: [{ type: "number" }, { type: "null" }], description: "加购次数" },
+                        impressionCount: { anyOf: [{ type: "number" }, { type: "null" }], description: "商品曝光次数" },
                         clickCount: { anyOf: [{ type: "number" }, { type: "null" }], description: "商品点击次数" },
                         clickRate: { anyOf: [{ type: "string" }, { type: "null" }], description: "点击率" },
-                        cartAddCount: { anyOf: [{ type: "number" }, { type: "null" }], description: "加购次数" },
+                        clickConversionRate: { anyOf: [{ type: "string" }, { type: "null" }], description: "点击成交转化率" },
+                        skuConversionRate: { anyOf: [{ type: "string" }, { type: "null" }], description: "点击成交转化率(SKU訂単)" },
+                        perThousandViewGmv: { anyOf: [{ type: "number" }, { type: "null" }], description: "千次观看成交金额（円）" },
                       },
-                      required: ["productName", "attributedGmv", "salesCount", "clickCount", "clickRate", "cartAddCount"],
+                      required: ["productName", "attributedGmv", "salesCount", "skuOrderCount", "cartAddCount", "impressionCount", "clickCount", "clickRate", "clickConversionRate", "skuConversionRate", "perThousandViewGmv"],
                       additionalProperties: false,
                     },
                   },
@@ -28642,9 +28656,14 @@ JSON配列のみを出力してください。`;
             const cartAdd = p.cartAddCount || 0;
             const unitPrice = (p.attributedGmv && salesCount > 0) ? Math.round(p.attributedGmv / salesCount) : null;
             const noteParts: string[] = [];
-            if (p.clickCount) noteParts.push(`\u30AF\u30EA\u30C3\u30AF:${p.clickCount}`);
-            if (p.clickRate) noteParts.push(`\u30AF\u30EA\u30C3\u30AF\u7387:${p.clickRate}`);
             if (p.attributedGmv) noteParts.push(`GMV:\u00A5${p.attributedGmv.toLocaleString()}`);
+            if (p.skuOrderCount) noteParts.push(`SKU:${p.skuOrderCount}`);
+            if (p.impressionCount) noteParts.push(`\u66DD\u5149:${p.impressionCount.toLocaleString()}`);
+            if (p.clickCount) noteParts.push(`\u30AF\u30EA\u30C3\u30AF:${p.clickCount.toLocaleString()}`);
+            if (p.clickRate) noteParts.push(`\u30AF\u30EA\u30C3\u30AF\u7387:${p.clickRate}`);
+            if (p.clickConversionRate) noteParts.push(`\u8F6C\u5316\u7387:${p.clickConversionRate}`);
+            if (p.skuConversionRate) noteParts.push(`SKU\u8F6C\u5316:${p.skuConversionRate}`);
+            if (p.perThousandViewGmv) noteParts.push(`\u5343\u6B21\u89C2\u770B:\u00A5${p.perThousandViewGmv.toLocaleString()}`);
             const noteStr = noteParts.length > 0 ? `[AI] ${noteParts.join(' / ')}` : '[AI\u89E3\u6790]';
 
             // Always insert new record (keep all time-point data for same product to enable trend analysis)
