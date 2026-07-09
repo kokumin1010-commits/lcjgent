@@ -1115,7 +1115,6 @@ export default function Sidebar({ isOpen, onClose, user, onVideoSelect, onNewAna
 
                                     // Skip if video is done and no active upload
                                     if (isDone && (!uploadTask || uploadTask.status === 'done' || uploadTask.status === 'pending_resume')) {
-                                      // Clean up pending_resume for done videos
                                       return null;
                                     }
 
@@ -1152,6 +1151,18 @@ export default function Sidebar({ isOpen, onClose, user, onVideoSelect, onNewAna
                                       barGradient = 'from-blue-400 via-cyan-400 to-amber-500';
                                     } else if (isError) {
                                       phase = 'video_error';
+                                    } else if (uploadTask && uploadTask.status === 'done' && !isDone) {
+                                      // Upload just finished, waiting for analysis to start
+                                      fusedPercent = 50;
+                                      phase = 'queued';
+                                      statusText = window.__t('sidebar_waitingAnalysis', '解析待機中...');
+                                      barGradient = 'from-blue-400 via-cyan-400 to-amber-400';
+                                    } else if (!isDone && !isError && video.status) {
+                                      // Video exists but status is not recognized - show as waiting
+                                      fusedPercent = 50;
+                                      phase = 'queued';
+                                      statusText = window.__t('sidebar_waitingAnalysis', '解析待機中...');
+                                      barGradient = 'from-blue-400 via-cyan-400 to-amber-400';
                                     } else {
                                       return null;
                                     }
