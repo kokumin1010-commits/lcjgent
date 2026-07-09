@@ -460,13 +460,16 @@ export default function LivestreamRealtimeRecord() {
               </div>
             </div>
 
-            {/* メモ（任意） */}
-            <Input
-              placeholder="メモ（任意：話術、反応など）"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="bg-gray-800 border-gray-700 text-white h-9 text-sm"
-            />
+            {/* メモ（任意）- 商品情報と分離 */}
+            <div className="pt-2 border-t border-gray-700/50">
+              <label className="text-[10px] text-gray-400 mb-1 block">📝 メモ（商品情報とは別）</label>
+              <Input
+                placeholder="話術、反応、気づきなど自由に記入..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="bg-gray-800 border-gray-700 text-white h-9 text-sm"
+              />
+            </div>
 
             {/* 記録ボタン */}
             <Button
@@ -586,84 +589,92 @@ export default function LivestreamRealtimeRecord() {
                                     </div>
                                   </div>
                                 ) : (
-                                  /* 表示モード - 各時間帯のデータ行 */
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-3 flex-wrap">
-                                        <span className="text-xs font-mono text-blue-300 bg-blue-900/30 px-2 py-0.5 rounded min-w-[50px] text-center">{record.timeSlot}</span>
-                                        <div className="flex items-center gap-3 text-sm flex-wrap">
-                                          {record.productPrice && (
-                                            <span className="text-gray-300">単価: <span className="text-green-400 font-bold">¥{Number(record.productPrice).toLocaleString()}</span></span>
-                                          )}
-                                          <span className="text-gray-300">出単: <span className="text-yellow-400 font-bold">{record.quantitySold}件</span></span>
-                                          {(record.cartAddCount || 0) > 0 && (
-                                            <span className="text-gray-300">カート: <span className="text-amber-400 font-bold">{record.cartAddCount}</span></span>
-                                          )}
-                                        </div>
-                                      </div>
-                                      {/* AI解析データを構造化表示（左側） + ユーザーコメント */}
-                                      {record.notes && (() => {
-                                        const lines = record.notes.split('\n');
-                                        const aiLine = lines.find((l: string) => l.startsWith('[AI]'));
-                                        const userComment = lines.filter((l: string) => !l.startsWith('[AI]') && l.trim() !== '' && l !== '[AI解析]').join(' ');
-                                        return (
-                                          <>
-                                            {aiLine && (() => {
-                                              const aiData = aiLine.replace('[AI] ', '').replace('[AI]', '');
-                                              const parts = aiData.split(' / ');
-                                              return (
-                                                <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                                                  {parts.map((part: string, idx: number) => {
-                                                    const colonIdx = part.indexOf(':');
-                                                    if (colonIdx <= 0) return null;
-                                                    const label = part.substring(0, colonIdx);
-                                                    const value = part.substring(colonIdx + 1);
-                                                    return (
-                                                      <span key={idx} className="inline-flex items-center gap-0.5 text-[11px] bg-gray-700/60 border border-gray-600/50 rounded px-1.5 py-0.5">
-                                                        <span className="text-gray-400">{label.trim()}:</span>
-                                                        <span className="text-cyan-300 font-medium">{value.trim()}</span>
-                                                      </span>
-                                                    );
-                                                  })}
-                                                </div>
-                                              );
-                                            })()}
-                                            {userComment && (
-                                              <span className="text-xs text-gray-400 mt-1 block">💬 {userComment}</span>
+                                  /* 表示モード - 商品情報（上）とメモ（下）を分離 */
+                                  <div>
+                                    {/* 上部: 商品情報エリア */}
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-3 flex-wrap">
+                                          <span className="text-xs font-mono text-blue-300 bg-blue-900/30 px-2 py-0.5 rounded min-w-[50px] text-center">{record.timeSlot}</span>
+                                          <div className="flex items-center gap-3 text-sm flex-wrap">
+                                            {record.productPrice && (
+                                              <span className="text-gray-300">単価: <span className="text-green-400 font-bold">¥{Number(record.productPrice).toLocaleString()}</span></span>
                                             )}
-                                          </>
-                                        );
-                                      })()}
+                                            <span className="text-gray-300">出単: <span className="text-yellow-400 font-bold">{record.quantitySold}件</span></span>
+                                            {(record.cartAddCount || 0) > 0 && (
+                                              <span className="text-gray-300">カート: <span className="text-amber-400 font-bold">{record.cartAddCount}</span></span>
+                                            )}
+                                          </div>
+                                        </div>
+                                        {/* AI解析データを構造化表示（商品情報の一部） */}
+                                        {record.notes && (() => {
+                                          const lines = record.notes.split('\n');
+                                          const aiLine = lines.find((l: string) => l.startsWith('[AI]'));
+                                          if (!aiLine) return null;
+                                          const aiData = aiLine.replace('[AI] ', '').replace('[AI]', '');
+                                          const parts = aiData.split(' / ');
+                                          return (
+                                            <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                                              {parts.map((part: string, idx: number) => {
+                                                const colonIdx = part.indexOf(':');
+                                                if (colonIdx <= 0) return null;
+                                                const label = part.substring(0, colonIdx);
+                                                const value = part.substring(colonIdx + 1);
+                                                return (
+                                                  <span key={idx} className="inline-flex items-center gap-0.5 text-[11px] bg-gray-700/60 border border-gray-600/50 rounded px-1.5 py-0.5">
+                                                    <span className="text-gray-400">{label.trim()}:</span>
+                                                    <span className="text-cyan-300 font-medium">{value.trim()}</span>
+                                                  </span>
+                                                );
+                                              })}
+                                            </div>
+                                          );
+                                        })()}
+                                      </div>
+                                      <div className="flex items-center gap-1 ml-2">
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-7 w-7 p-0 text-gray-400 hover:text-blue-400"
+                                          onClick={() => {
+                                            setEditingId(record.id);
+                                            setEditProductName(record.productName);
+                                            setEditPrice(record.productPrice ? String(record.productPrice) : '0');
+                                            setEditQuantity(String(record.quantitySold));
+                                            setEditCartAdd(String(record.cartAddCount || 0));
+                                            setEditNotes(record.notes || '');
+                                          }}
+                                        >
+                                          <Edit2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-7 w-7 p-0 text-gray-400 hover:text-red-400"
+                                          onClick={() => {
+                                            if (confirm("この記録を削除しますか？")) {
+                                              deleteMutation.mutate({ id: record.id });
+                                            }
+                                          }}
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </div>
                                     </div>
-                                    <div className="flex items-center gap-1 ml-2">
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-7 w-7 p-0 text-gray-400 hover:text-blue-400"
-                                        onClick={() => {
-                                          setEditingId(record.id);
-                                          setEditProductName(record.productName);
-                                          setEditPrice(record.productPrice ? String(record.productPrice) : '0');
-                                          setEditQuantity(String(record.quantitySold));
-                                          setEditCartAdd(String(record.cartAddCount || 0));
-                                          setEditNotes(record.notes || '');
-                                        }}
-                                      >
-                                        <Edit2 className="h-3.5 w-3.5" />
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-7 w-7 p-0 text-gray-400 hover:text-red-400"
-                                        onClick={() => {
-                                          if (confirm("この記録を削除しますか？")) {
-                                            deleteMutation.mutate({ id: record.id });
-                                          }
-                                        }}
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </div>
+                                    {/* 下部: メモ・コメントエリア（商品情報と分離） */}
+                                    {record.notes && (() => {
+                                      const lines = record.notes.split('\n');
+                                      const userComment = lines.filter((l: string) => !l.startsWith('[AI]') && l.trim() !== '' && l !== '[AI解析]').join(' ');
+                                      if (!userComment) return null;
+                                      return (
+                                        <div className="mt-2 pt-2 border-t border-gray-700/30">
+                                          <p className="text-xs text-gray-300 flex items-start gap-1.5">
+                                            <span className="text-gray-500 shrink-0">📝</span>
+                                            <span className="text-gray-300">{userComment}</span>
+                                          </p>
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 )}
                               </div>
