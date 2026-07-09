@@ -425,22 +425,42 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
           const timeDiff = Math.abs(candidateTime - otherTime);
           
           if (timeDiff <= TIME_WINDOW_MS) {
-            // Within 5-min window → hold both for manual review
-            console.log(`[AI AutoApprove Scheduler] Level2 time-window conflict (${Math.round(timeDiff/1000)}s): receipt #${candidate.id} vs #${pendingCrossUser.id} (order: ${orderNumber}) → KEEP_MANUAL`);
-            await updateLineReceiptStatus(candidate.id, "on_hold", adminUserId,
-              `[AI自動] Level2: 別ユーザーと同一注文番号 ${orderNumber} が5分以内に提出 (レシート #${pendingCrossUser.id}) → 手動審査`);
+            // Within 5-min window → reject the later submitter, keep the first one
+            // Determine who submitted first
+            const candidateIsLater = candidateTime >= otherTime;
+            const rejectId = candidateIsLater ? candidate.id : pendingCrossUser.id;
+            const keepId = candidateIsLater ? pendingCrossUser.id : candidate.id;
+            
+            console.log(`[AI AutoApprove Scheduler] Level2 time-window conflict (${Math.round(timeDiff/1000)}s): receipt #${candidate.id} vs #${pendingCrossUser.id} (order: ${orderNumber}) → reject #${rejectId}, keep #${keepId}`);
+            
+            // Reject the later one
+            await updateLineReceiptStatus(rejectId, "rejected", adminUserId,
+              `[AI自動] Level2: 別ユーザーと同一注文番号 ${orderNumber} が5分以内に提出 - 後から提出のため却下 (先行: #${keepId})`);
+            try {
+              const rejectLineUserId = candidateIsLater ? candidate.lineUserId : pendingCrossUser.lineUserId;
+              const appUrl = process.env.APP_URL || "https://lcjmall.com";
+              const rejectMsg = `❌ レシートが承認されませんでした\n\n同一注文番号が別のユーザーから既に提出されています。\n\nお問い合わせ: ${appUrl}/mypage`;
+              await pushMsg(rejectLineUserId, [{ type: "text", text: rejectMsg }]);
+            } catch (notifyErr) {
+              console.error(`[AI AutoApprove Scheduler] LINE rejection notification error:`, notifyErr);
+            }
+            
             results.push({
-              id: candidate.id,
-              action: "held" as const,
-              reason: `Level2: 別ユーザー同一注文番号 5分以内提出 → KEEP_MANUAL (vs #${pendingCrossUser.id})`,
+              id: rejectId,
+              action: "rejected_ai" as const,
+              reason: `Level2: 別ユーザー同一注文番号 5分以内提出 → 後発却下 (先行: #${keepId})`,
               orderNumber,
               amount: candidate.totalAmount ?? undefined,
               reasonCode: "CROSS_USER_TIME_WINDOW",
               beforeStatus: candidate.status,
-              afterStatus: "on_hold",
-              winnerReceiptId: pendingCrossUser.id,
-              winnerLineUserId: pendingCrossUser.lineUserId,
+              afterStatus: "rejected",
+              winnerReceiptId: keepId,
+              winnerLineUserId: candidateIsLater ? pendingCrossUser.lineUserId : candidate.lineUserId,
             });
+            
+            // If the candidate was the one rejected, skip to next
+            if (candidateIsLater) continue;
+            // If the candidate is the keeper, continue processing it normally
             continue;
           } else if (candidateTime > otherTime) {
             // This receipt was submitted later (outside window) → loser
@@ -758,18 +778,55 @@ ${statisticsPrompt}${learningPrompt}`,
         try {
           parsed = JSON.parse(typeof msgContent === "string" ? msgContent : "{}");
         } catch {
-          // response_formatでもパース失敗の場合は保留にする（却下しない）
-          console.error(`[AI AutoApprove Scheduler] JSON parse failed for receipt #${candidate.id}, holding for manual review`);
-          await updateLineReceiptStatus(candidate.id, "on_hold", adminUserId,
-            "[AI自動] AI応答の解析に失敗 - 人間審査待ち");
-          results.push({
-            id: candidate.id,
-            action: "held",
-            reason: "AI応答解析失敗 - 保留",
-            orderNumber,
-            amount: candidate.totalAmount ?? undefined,
-          });
-          continue;
+          // パース失敗 → 1回リトライ
+          console.warn(`[AI AutoApprove Scheduler] JSON parse failed for receipt #${candidate.id}, retrying...`);
+          try {
+            const retryResult = await invokeLLM({
+              messages: [
+                { role: "system", content: "前回の応答がJSONとして解析できませんでした。同じ内容を正しいJSON形式で再度出力してください。" },
+                { role: "assistant", content: msgContent || "" },
+                { role: "user", content: "上記を正しいJSON形式で再出力してください。" },
+              ],
+              response_format: {
+                type: "json_schema",
+                json_schema: {
+                  name: "receipt_review",
+                  strict: true,
+                  schema: {
+                    type: "object",
+                    properties: {
+                      shouldApprove: { type: "boolean", description: "承認すべきか" },
+                      confidence: { type: "integer", description: "信頼度スコア 0-100" },
+                      reason: { type: "string", description: "判断理由" },
+                      rejectionCategory: { type: ["string", "null"], description: "却下カテゴリー", enum: ["not_order_detail", "not_tiktok_shop", "not_delivered", "blurry_image", "missing_order_number", "missing_amount", "partial_screenshot", "duplicate", "wrong_store", "suspicious", "incomplete_info", "other", null] },
+                      isTikTokShop: { type: ["boolean", "null"], description: "TikTok Shopかどうか" },
+                      isDelivered: { type: ["boolean", "null"], description: "配達済みかどうか" },
+                      detectedOrderNumber: { type: ["string", "null"], description: "検出した注文番号" },
+                      detectedAmount: { type: ["number", "null"], description: "検出した金額" },
+                    },
+                    required: ["shouldApprove", "confidence", "reason", "rejectionCategory", "isTikTokShop", "isDelivered", "detectedOrderNumber", "detectedAmount"],
+                    additionalProperties: false,
+                  },
+                },
+              },
+            });
+            const retryContent = retryResult.choices[0]?.message?.content as string;
+            parsed = JSON.parse(typeof retryContent === "string" ? retryContent : "{}");
+            console.log(`[AI AutoApprove Scheduler] Retry parse succeeded for receipt #${candidate.id}`);
+          } catch (retryErr) {
+            // リトライも失敗 → 保留のまま（次回のバッチで再試行）
+            console.error(`[AI AutoApprove Scheduler] Retry also failed for receipt #${candidate.id}`);
+            await updateLineReceiptStatus(candidate.id, "on_hold", adminUserId,
+              "[AI自動] AI応答の解析に2回失敗 - 次回バッチで再試行");
+            results.push({
+              id: candidate.id,
+              action: "held",
+              reason: "AI応答解析失敗(リトライ済) - 保留",
+              orderNumber,
+              amount: candidate.totalAmount ?? undefined,
+            });
+            continue;
+          }
         }
 
         aiConfidence = typeof parsed.confidence === "number" ? parsed.confidence : 0;
@@ -898,15 +955,25 @@ ${statisticsPrompt}${learningPrompt}`,
           break; // バッチループを中断、次のバッチで再処理
         }
         
-        // その他のLLMエラー（画像非対応等）はon_holdにして人間審査待ち（自動却下しない）
-        await updateLineReceiptStatus(candidate.id, "on_hold", adminUserId,
-          `[AI自動] 画像読み取り失敗 - 人間審査待ち: ${llmErr.message?.substring(0, 100)}`);
+        // その他のLLMエラー（画像非対応等）→ 直接却下
+        await updateLineReceiptStatus(candidate.id, "rejected", adminUserId,
+          `[AI自動却下] 画像読み取り失敗: ${llmErr.message?.substring(0, 100)}`);
+        try {
+          const appUrl = process.env.APP_URL || "https://lcjmall.com";
+          const rejectMsg = `❌ レシートが承認されませんでした\n\n画像が読み取れませんでした。以下を確認して再度送信してください：\n\n• 画像が鮮明に撮影されているか\n• スクリーンショットが切れていないか\n\nお問い合わせ: ${appUrl}/mypage`;
+          await pushMsg(candidate.lineUserId, [{ type: "text", text: rejectMsg }]);
+        } catch (notifyErr) {
+          console.error(`[AI AutoApprove Scheduler] LINE rejection notification error:`, notifyErr);
+        }
         results.push({
           id: candidate.id,
-          action: "held",
-          reason: `画像読み取り失敗 - 人間審査待ち: ${llmErr.message?.substring(0, 100)}`,
+          action: "rejected_ai",
+          reason: `画像読み取り失敗 - 自動却下: ${llmErr.message?.substring(0, 100)}`,
           orderNumber,
           amount: candidate.totalAmount ?? undefined,
+          reasonCode: "IMAGE_READ_FAILURE",
+          beforeStatus: candidate.status,
+          afterStatus: "rejected",
         });
         continue;
       }
