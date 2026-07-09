@@ -2226,7 +2226,7 @@ async def get_video_status_public(
         result = await db.execute(
             text("""
                 SELECT v.status, v.step_progress, v.duration,
-                       v.top_products, v.processing_logs,
+                       v.original_filename, v.top_products, v.processing_logs,
                        v.created_at, v.updated_at,
                        (SELECT COUNT(*) FROM video_phases vp
                         WHERE CAST(vp.video_id AS VARCHAR) = CAST(v.id AS VARCHAR)
@@ -2268,6 +2268,7 @@ async def get_video_status_public(
             "step_progress": step_progress,
             "message": message,
             "duration": row.duration,
+            "original_filename": row.original_filename,
             "phase_count": row.phase_count or 0,
             "top_products": _top_products,
             "processing_logs": _processing_logs,

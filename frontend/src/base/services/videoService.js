@@ -50,6 +50,19 @@ class VideoService extends BaseApiService {
     }
   }
 
+  /**
+   * Lightweight status check - no auth required, very fast.
+   * Returns: { video_id, status, progress, is_done, is_error, ... } or null on failure
+   */
+  async getVideoStatusQuick(videoId) {
+    try {
+      const response = await this.get(`/api/v1/videos/${videoId}/status/public`, { timeout: 8000 });
+      return response?.data || response;
+    } catch {
+      return null;
+    }
+  }
+
   async getVideoById(videoId, config = {}) {
     try {
       const response = await this.get(`/api/v1/videos/${videoId}`, config);

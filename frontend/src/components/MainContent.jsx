@@ -1299,6 +1299,33 @@ export default function MainContent({
 
     const fetchVideoDetails = async () => {
       try {
+        // ─── Quick status check first: if video is still processing, show ProcessingSteps immediately ───
+        // This avoids the heavy detail endpoint timeout when video is not yet DONE
+        const quickStatus = await VideoService.getVideoStatusQuick(videoId);
+        if (controller.signal.aborted || currentRequestId !== videoRequestIdRef.current) return;
+        
+        if (quickStatus && !quickStatus.is_done && !quickStatus.is_error && quickStatus.status) {
+          // Video is still processing - set minimal videoData so ProcessingSteps renders
+          console.log('[MainContent] Video still processing, showing ProcessingSteps:', quickStatus.status);
+          setVideoData({
+            id: videoId,
+            video_id: videoId,
+            status: quickStatus.status,
+            original_filename: quickStatus.original_filename || '',
+            progress: quickStatus.progress,
+            step_progress: quickStatus.step_progress,
+          });
+          setLoadingVideo(false);
+          setVideoLoadError(null);
+          if (videoLoadTimeoutRef.current) {
+            clearTimeout(videoLoadTimeoutRef.current);
+            videoLoadTimeoutRef.current = null;
+          }
+          // Don't fetch heavy details - ProcessingSteps will handle SSE polling
+          return;
+        }
+
+        // Video is DONE or ERROR or status unknown - fetch full details
         const response = await VideoService.getVideoById(videoId, { signal: controller.signal });
         if (currentRequestId !== videoRequestIdRef.current) return;
         const data = response || {};
