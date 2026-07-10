@@ -692,71 +692,62 @@ function TestimonialsSection() {
 
 // ===== ターゲット層セクション（強化版） =====
 function TargetSection() {
-  const targets = [
-    {
-      title: '食べ過ぎた翌日、2日で戻したい',
-      subtitle: '週末リセット派',
-      items: [
-        '飲み会・旅行後の体重増加が気になる',
-        '月曜日までに元に戻したい',
-        '無理な食事制限はしたくない',
-      ],
-      result: '→ 2日間ファスティングで平均-1〜2kg',
-    },
-    {
-      title: '30代から何しても痩せなくなった',
-      subtitle: '代謝低下に悩む方',
-      items: [
-        '以前と同じ食事量なのに太る',
-        '運動しても体重が落ちない',
-        '基礎代謝が年々下がっている実感',
-      ],
-      result: '→ 月1回ファスティングで半年-6kgの実績',
-    },
-    {
-      title: 'サロン品質を、自宅で手軽に',
-      subtitle: 'コスパ重視の方',
-      items: [
-        'エステサロンの酵素ドリンクは高すぎる',
-        'でも市販の安い酵素は添加物が心配',
-        'プロ品質を適正価格で手に入れたい',
-      ],
-      result: '→ サロン定価の約半額、¥9,350で同品質',
-    },
-  ];
-
   return (
-    <section className="py-20 bg-black relative">
+    <section className="py-24 bg-black relative">
       <div className="container mx-auto px-6">
         <div className="text-center mb-16">
-          <p className="text-amber-400 text-sm tracking-[0.2em] uppercase mb-3">Who Is This For</p>
+          <p className="text-amber-400 text-sm tracking-[0.2em] uppercase mb-3">Is This You?</p>
           <h2 className="text-3xl lg:text-5xl font-bold text-white mb-4">
-            こんな<span className="text-amber-400">あなた</span>のための1本
+            この<span className="text-amber-400">悩み</span>、ありませんか？
           </h2>
-          <p className="text-white/50 text-lg">「あ、私のことだ」と思ったら、試す価値あり</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          {targets.map((target, i) => (
-            <div key={i} className="p-8 bg-gradient-to-b from-white/5 to-transparent border border-white/10 rounded-2xl flex flex-col">
-              <p className="text-amber-400/60 text-xs font-bold mb-2">{target.subtitle}</p>
-              <h3 className="text-xl font-bold text-white mb-6 leading-tight">{target.title}</h3>
-              <ul className="space-y-3 flex-1">
-                {target.items.map((item, j) => (
-                  <li key={j} className="flex items-start gap-3 text-white/70 text-sm">
-                    <CheckCircle2 className="w-4 h-4 text-amber-400/60 mt-0.5 shrink-0" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-6 pt-4 border-t border-white/10">
-                <p className="text-amber-400 font-bold text-sm flex items-center gap-2">
-                  <ArrowRight className="w-4 h-4" />
-                  {target.result}
-                </p>
-              </div>
+        <div className="max-w-4xl mx-auto space-y-8">
+          {/* 痛み1 */}
+          <div className="p-8 lg:p-10 bg-gradient-to-r from-white/5 to-transparent border border-white/10 rounded-2xl hover:border-amber-400/30 transition-colors">
+            <p className="text-2xl lg:text-3xl font-black text-white mb-3">
+              「また太った？」
+            </p>
+            <p className="text-white/60 text-lg mb-6">
+              飲み会の翌朝、鏡を見るのが怖い。月曜までに戻したいのに、戻らない。
+            </p>
+            <div className="flex items-center gap-4">
+              <div className="h-px flex-1 bg-amber-400/20" />
+              <p className="text-amber-400 font-black text-xl lg:text-2xl">→ 2日で戻せる。-1.5kg。</p>
             </div>
-          ))}
+          </div>
+
+          {/* 痛み2 */}
+          <div className="p-8 lg:p-10 bg-gradient-to-r from-white/5 to-transparent border border-white/10 rounded-2xl hover:border-amber-400/30 transition-colors">
+            <p className="text-2xl lg:text-3xl font-black text-white mb-3">
+              「何しても痩せない」
+            </p>
+            <p className="text-white/60 text-lg mb-6">
+              30代から代謝が落ちた。同じ生活なのに+5kg。運動しても落ちない。
+            </p>
+            <div className="flex items-center gap-4">
+              <div className="h-px flex-1 bg-amber-400/20" />
+              <p className="text-amber-400 font-black text-xl lg:text-2xl">→ 半年で-6kg。体質ごと変わる。</p>
+            </div>
+          </div>
+
+          {/* 痛み3 */}
+          <div className="p-8 lg:p-10 bg-gradient-to-r from-white/5 to-transparent border border-white/10 rounded-2xl hover:border-amber-400/30 transition-colors">
+            <p className="text-2xl lg:text-3xl font-black text-white mb-3">
+              「サロンの酵素、高すぎ…」
+            </p>
+            <p className="text-white/60 text-lg mb-6">
+              1本2万円。続けたいけど続けられない。でも市販の安いのは添加物だらけ。
+            </p>
+            <div className="flex items-center gap-4">
+              <div className="h-px flex-1 bg-amber-400/20" />
+              <p className="text-amber-400 font-black text-xl lg:text-2xl">→ 同じプロ品質が¥9,350。</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="text-center mt-12">
+          <p className="text-white/40 text-sm">「あ、私のことだ」。そう思ったあなたのための1本です。</p>
         </div>
       </div>
     </section>
