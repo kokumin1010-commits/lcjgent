@@ -165,6 +165,7 @@ const ProductLab = lazy(() => import("./pages/ProductLab"));
 const SelectionCenter = lazy(() => import("./pages/SelectionCenter"));
 const AccountManagement = lazy(() => import("./pages/AccountManagement"));
 const BarcodeScanner = lazy(() => import("./pages/BarcodeScanner"));
+const ProductGranenzyme = lazy(() => import("./pages/ProductGranenzyme"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -180,6 +181,7 @@ function Router() {
     <Suspense fallback={<PageLoader />}>
       <Switch>
         {/* LCJ MALL - Public Pages */}
+        <Route path="/products/granenzyme" component={ProductGranenzyme} />
         <Route path={"/"} component={MallHome} />
         <Route path="/line-login" component={LineLogin} />
         <Route path="/line-callback" component={LineLoginCallback} />
