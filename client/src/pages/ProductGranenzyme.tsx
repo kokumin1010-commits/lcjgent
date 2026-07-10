@@ -708,12 +708,16 @@ function TargetSection() {
             <p className="text-2xl lg:text-3xl font-black text-white mb-3">
               「また太った？」
             </p>
-            <p className="text-white/60 text-lg mb-6">
+            <p className="text-white/60 text-lg mb-4">
               飲み会の翌朝、鏡を見るのが怖い。月曜までに戻したいのに、戻らない。
             </p>
+            <div className="p-4 bg-black/30 rounded-xl mb-6">
+              <p className="text-amber-400 text-sm font-bold mb-1">やること：</p>
+              <p className="text-white/80">土日2日間、食事をこの酵素に置き換えるだけ。<br className="hidden lg:block" />20mL × 6回/日を炭酸水で割って飲む。</p>
+            </div>
             <div className="flex items-center gap-4">
               <div className="h-px flex-1 bg-amber-400/20" />
-              <p className="text-amber-400 font-black text-xl lg:text-2xl">→ 2日で戻せる。-1.5kg。</p>
+              <p className="text-amber-400 font-black text-xl lg:text-2xl">→ 月曜の朝、-1.5kg。</p>
             </div>
           </div>
 
@@ -722,9 +726,13 @@ function TargetSection() {
             <p className="text-2xl lg:text-3xl font-black text-white mb-3">
               「何しても痩せない」
             </p>
-            <p className="text-white/60 text-lg mb-6">
+            <p className="text-white/60 text-lg mb-4">
               30代から代謝が落ちた。同じ生活なのに+5kg。運動しても落ちない。
             </p>
+            <div className="p-4 bg-black/30 rounded-xl mb-6">
+              <p className="text-amber-400 text-sm font-bold mb-1">やること：</p>
+              <p className="text-white/80">毎朝1杯（20mL）+ 月1回の週末2日ファスティング。<br className="hidden lg:block" />食事制限なし、運動なしでOK。</p>
+            </div>
             <div className="flex items-center gap-4">
               <div className="h-px flex-1 bg-amber-400/20" />
               <p className="text-amber-400 font-black text-xl lg:text-2xl">→ 半年で-6kg。体質ごと変わる。</p>
@@ -736,12 +744,16 @@ function TargetSection() {
             <p className="text-2xl lg:text-3xl font-black text-white mb-3">
               「サロンの酵素、高すぎ…」
             </p>
-            <p className="text-white/60 text-lg mb-6">
+            <p className="text-white/60 text-lg mb-4">
               1本2万円。続けたいけど続けられない。でも市販の安いのは添加物だらけ。
             </p>
+            <div className="p-4 bg-black/30 rounded-xl mb-6">
+              <p className="text-amber-400 text-sm font-bold mb-1">やること：</p>
+              <p className="text-white/80">サロンと同じ酵素を自宅で。毎日1杯、約374円/日。<br className="hidden lg:block" />完全無添加・国産100%。安心して続けられる。</p>
+            </div>
             <div className="flex items-center gap-4">
               <div className="h-px flex-1 bg-amber-400/20" />
-              <p className="text-amber-400 font-black text-xl lg:text-2xl">→ 同じプロ品質が¥9,350。</p>
+              <p className="text-amber-400 font-black text-xl lg:text-2xl">→ プロ品質が¥9,350/本。</p>
             </div>
           </div>
         </div>
