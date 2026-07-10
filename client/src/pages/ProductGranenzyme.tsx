@@ -96,7 +96,7 @@ function HeroSection() {
             <div className="relative">
               <div className="absolute -inset-16 bg-gradient-to-t from-amber-600/15 via-amber-500/5 to-transparent rounded-full blur-3xl" />
               <img
-                src="/images/granenzyme-bottle.jpg"
+                src="/images/granenzyme-bottle-dark.png"
                 alt="ザ グランエンザイム PRO"
                 className="relative w-56 lg:w-72 h-auto object-contain drop-shadow-[0_0_40px_rgba(245,158,11,0.2)]"
               />
@@ -178,8 +178,8 @@ function HeroSection() {
             <Leaf className="w-4 h-4 text-green-400" />
             <span className="text-sm text-white/80">国産植物素材100%使用</span>
           </div>
-          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2">
-            <Users className="w-4 h-4 text-amber-400" />
+          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-2 py-1">
+            <img src="/images/mika-ambassador.png" alt="モデル美香" className="w-8 h-8 rounded-full object-cover" />
             <span className="text-sm text-white/80">モデル美香 アンバサダー</span>
           </div>
         </div>
@@ -274,13 +274,12 @@ function BeforeAfterSection() {
   );
 }
 
-// ===== 口コミ評価セクション =====
+// ===== 権威性・信頼セクション =====
 function ReviewScoreSection() {
-  const { count: reviewCount, ref: reviewRef } = useCountUp(370, 1500);
   const { count: salonCount, ref: salonRef } = useCountUp(29000, 2000);
 
   return (
-    <section className="py-20 bg-gradient-to-b from-black to-[#0a0515] relative overflow-hidden">
+    <section className="py-24 bg-gradient-to-b from-black to-[#0a0515] relative overflow-hidden">
       <div className="absolute inset-0 opacity-5">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-amber-500 rounded-full blur-[128px]" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500 rounded-full blur-[128px]" />
@@ -288,34 +287,208 @@ function ReviewScoreSection() {
 
       <div className="container mx-auto px-6 relative z-10">
         <div className="text-center mb-16">
-          <p className="text-amber-400 text-sm tracking-[0.2em] uppercase mb-3">Real Reviews</p>
+          <p className="text-amber-400 text-sm tracking-[0.2em] uppercase mb-3">Authority & Trust</p>
           <h2 className="text-3xl lg:text-5xl font-bold text-white">
-            選ばれる理由がある
+            なぜ、プロが<span className="text-amber-400">この1本</span>を選ぶのか
           </h2>
+          <p className="text-white/50 text-lg mt-4 max-w-2xl mx-auto">
+            数字だけでは伝わらない、圧倒的な信頼の裏付け
+          </p>
         </div>
 
-        {/* 大きな評価スコア */}
-        <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto mb-16">
-          <div className="text-center p-8 bg-white/5 backdrop-blur border border-white/10 rounded-2xl">
-            <div className="flex justify-center gap-1 mb-3">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <Star key={i} className={`w-6 h-6 ${i <= 4 ? 'text-amber-400 fill-amber-400' : 'text-amber-400/40'}`} />
-              ))}
+        {/* 権威性カード */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto mb-16">
+          {/* パリコレスポンサー */}
+          <div className="relative p-8 bg-gradient-to-br from-amber-900/20 to-transparent border border-amber-400/30 rounded-2xl overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-400/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <Award className="w-10 h-10 text-amber-400 mb-4" />
+            <h3 className="text-xl font-bold text-white mb-2">パリコレクション</h3>
+            <p className="text-3xl font-black text-amber-400 mb-2">3年連続</p>
+            <p className="text-sm text-white/60">公式スポンサー。世界最高峰のファッションの舞台が認めたインナービューティー。</p>
+          </div>
+
+          {/* プロが選ぶ */}
+          <div ref={salonRef} className="relative p-8 bg-gradient-to-br from-purple-900/20 to-transparent border border-purple-400/30 rounded-2xl overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-purple-400/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <Users className="w-10 h-10 text-purple-400 mb-4" />
+            <h3 className="text-xl font-bold text-white mb-2">全国のプロが採用</h3>
+            <p className="text-3xl font-black text-purple-400 mb-2">{salonCount.toLocaleString()}店+</p>
+            <p className="text-sm text-white/60">エステティシャン・美容師がカウンセリングで推奨。プロの目利きが証明する品質。</p>
+          </div>
+
+          {/* アンバサダー */}
+          <div className="relative p-8 bg-gradient-to-br from-rose-900/20 to-transparent border border-rose-400/30 rounded-2xl overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-400/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="flex items-center gap-3 mb-4">
+              <img src="/images/mika-ambassador.png" alt="モデル美香" className="w-12 h-12 rounded-full object-cover border-2 border-rose-400/50" />
+              <div>
+                <p className="text-white font-bold">モデル美香</p>
+                <p className="text-rose-400 text-xs">ブランドアンバサダー</p>
+              </div>
             </div>
-            <p className="text-5xl font-bold text-white mb-2">4.25</p>
-            <p className="text-white/50 text-sm">平均評価</p>
+            <h3 className="text-xl font-bold text-white mb-2">トップモデルが愛用</h3>
+            <p className="text-sm text-white/60">2026年3月就任。芸能人・モデルが日常的に愛飲する、本物のプロ仕様。</p>
           </div>
+        </div>
 
-          <div ref={reviewRef} className="text-center p-8 bg-white/5 backdrop-blur border border-white/10 rounded-2xl">
-            <Users className="w-8 h-8 text-amber-400 mx-auto mb-3" />
-            <p className="text-5xl font-bold text-white mb-2">{reviewCount}<span className="text-2xl">件+</span></p>
-            <p className="text-white/50 text-sm">レビュー数</p>
+        {/* なぜ信頼されるのか - 製法の凄さ */}
+        <div className="max-w-4xl mx-auto">
+          <div className="p-8 bg-white/[0.03] border border-white/10 rounded-3xl">
+            <div className="text-center mb-8">
+              <p className="text-amber-400 font-bold text-lg">インナービューティのパイオニア</p>
+              <p className="text-white/50 text-sm mt-2">Esthe Pro Labo が選ばれ続ける3つの理由</p>
+            </div>
+            <div className="grid md:grid-cols-3 gap-6">
+              <div className="text-center">
+                <div className="w-14 h-14 bg-amber-400/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <FlaskConical className="w-7 h-7 text-amber-400" />
+                </div>
+                <p className="text-white font-bold mb-1">製法へのこだわり</p>
+                <p className="text-white/50 text-xs">ヒノキ樽で3年半熟成。一般的な酵素ドリンクの数十倍の時間をかけた本物の発酵。</p>
+              </div>
+              <div className="text-center">
+                <div className="w-14 h-14 bg-amber-400/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <ShieldCheck className="w-7 h-7 text-amber-400" />
+                </div>
+                <p className="text-white font-bold mb-1">完全無添加宣言</p>
+                <p className="text-white/50 text-xs">白砂糖・人工甘味料・保存料・着色料・香料、一切不使用。素材の力だけで勝負。</p>
+              </div>
+              <div className="text-center">
+                <div className="w-14 h-14 bg-amber-400/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Leaf className="w-7 h-7 text-amber-400" />
+                </div>
+                <p className="text-white font-bold mb-1">国産100%の原料</p>
+                <p className="text-white/50 text-xs">厳選された100種の国産植物素材。産地・品質にこだわり抜いた原料のみを使用。</p>
+              </div>
+            </div>
           </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
-          <div ref={salonRef} className="text-center p-8 bg-white/5 backdrop-blur border border-white/10 rounded-2xl">
-            <Award className="w-8 h-8 text-amber-400 mx-auto mb-3" />
-            <p className="text-5xl font-bold text-white mb-2">{salonCount.toLocaleString()}<span className="text-2xl">+</span></p>
-            <p className="text-white/50 text-sm">取扱サロン</p>
+// ===== ヒノキ樽3年半熟成セクション =====
+function HinokiBarrelSection() {
+  return (
+    <section className="py-24 bg-black relative overflow-hidden">
+      {/* 背景装飾 */}
+      <div className="absolute inset-0">
+        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-amber-900/10 via-transparent to-amber-800/5" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-amber-600/5 rounded-full blur-[200px]" />
+      </div>
+
+      <div className="container mx-auto px-6 relative z-10">
+        {/* メインビジュアル：巨大な「3年半」 */}
+        <div className="text-center mb-16">
+          <p className="text-amber-400 text-sm tracking-[0.2em] uppercase mb-4">The Secret of Fermentation</p>
+          <div className="relative inline-block">
+            <span className="text-[120px] lg:text-[180px] font-black text-transparent bg-clip-text bg-gradient-to-b from-amber-400 via-amber-500 to-amber-800 leading-none">
+              3.5
+            </span>
+            <span className="absolute -right-16 lg:-right-20 top-1/2 -translate-y-1/2 text-4xl lg:text-5xl font-bold text-amber-400/80">
+              年
+            </span>
+          </div>
+          <h2 className="text-3xl lg:text-4xl font-bold text-white mt-4">
+            吉野産ヒノキ樽で、<span className="text-amber-400">3年半</span>熟成
+          </h2>
+          <p className="text-white/50 text-lg mt-3 max-w-xl mx-auto">
+            他社が数ヶ月で終わらせる工程を、職人が3年半かけて仕上げる
+          </p>
+        </div>
+
+        {/* 比較テーブル */}
+        <div className="max-w-4xl mx-auto mb-16">
+          <div className="grid md:grid-cols-2 gap-4">
+            {/* 一般的な酵素ドリンク */}
+            <div className="p-8 bg-white/[0.03] border border-white/10 rounded-2xl">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-3 h-3 bg-white/30 rounded-full" />
+                <p className="text-white/50 font-bold">一般的な酵素ドリンク</p>
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/40 text-sm">熟成期間</span>
+                  <span className="text-white/60 font-bold">数週間〜数ヶ月</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/40 text-sm">容器</span>
+                  <span className="text-white/60 font-bold">ステンレスタンク</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/40 text-sm">攪拌</span>
+                  <span className="text-white/60 font-bold">機械式</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/40 text-sm">添加物</span>
+                  <span className="text-white/60 font-bold">使用あり</span>
+                </div>
+              </div>
+            </div>
+
+            {/* グランエンザイム PRO */}
+            <div className="p-8 bg-gradient-to-br from-amber-900/30 to-amber-800/10 border-2 border-amber-400/50 rounded-2xl relative">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <span className="bg-amber-400 text-black text-xs font-black px-4 py-1 rounded-full">圧倒的な差</span>
+              </div>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-3 h-3 bg-amber-400 rounded-full" />
+                <p className="text-amber-400 font-bold">グランエンザイム PRO</p>
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/60 text-sm">熟成期間</span>
+                  <span className="text-amber-400 font-black text-lg">3年半（1,277日）</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/60 text-sm">容器</span>
+                  <span className="text-amber-400 font-bold">吉野産ヒノキ樽</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/60 text-sm">攪拌</span>
+                  <span className="text-amber-400 font-bold">職人の手作業</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/60 text-sm">添加物</span>
+                  <span className="text-green-400 font-bold">完全ゼロ</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ヒノキ樽の4つの特徴 */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+          <div className="text-center p-6 bg-white/[0.03] border border-white/5 rounded-xl">
+            <div className="text-3xl mb-3">🌲</div>
+            <h4 className="text-white font-bold mb-2">吉野産ヒノキ</h4>
+            <p className="text-white/50 text-xs leading-relaxed">奈良県吉野の最高級ヒノキ材を使用した特注樽。木の呼吸が発酵を促進。</p>
+          </div>
+          <div className="text-center p-6 bg-white/[0.03] border border-white/5 rounded-xl">
+            <div className="text-3xl mb-3">🦠</div>
+            <h4 className="text-white font-bold mb-2">天然の抗菌作用</h4>
+            <p className="text-white/50 text-xs leading-relaxed">ヒノキの天然成分「ヒノキチオール」が雑菌の繁殖を抑制。防腐剤不要の理由。</p>
+          </div>
+          <div className="text-center p-6 bg-white/[0.03] border border-white/5 rounded-xl">
+            <div className="text-3xl mb-3">👐</div>
+            <h4 className="text-white font-bold mb-2">職人の手作業攪拌</h4>
+            <p className="text-white/50 text-xs leading-relaxed">毎日、職人が手作業で攪拌。機械では再現できない繊細な発酵管理。</p>
+          </div>
+          <div className="text-center p-6 bg-white/[0.03] border border-white/5 rounded-xl">
+            <div className="text-3xl mb-3">🌿</div>
+            <h4 className="text-white font-bold mb-2">100種植物素材凝縮</h4>
+            <p className="text-white/50 text-xs leading-relaxed">3年半の歳月をかけ、100種の植物エキスを極限まで凝縮。濃厚な酵素原液に。</p>
+          </div>
+        </div>
+
+        {/* 締めのメッセージ */}
+        <div className="text-center mt-16">
+          <div className="inline-block p-6 bg-amber-400/5 border border-amber-400/20 rounded-2xl">
+            <p className="text-white/80 text-lg">
+              <span className="text-amber-400 font-bold">1,277日間</span>、毎日手を加え続けた結果が、この1本に。
+            </p>
+            <p className="text-white/40 text-sm mt-2">だから、プロが自信を持って推奨できる。</p>
           </div>
         </div>
       </div>
@@ -526,7 +699,7 @@ function FeaturesSection() {
   const features = [
     { num: '01', title: '100種の植物素材', desc: '厳選された国産植物原料を贅沢に使用。野菜・果物・海藻・キノコ類・穀物の力を凝縮。' },
     { num: '02', title: '9種の果実エキス', desc: '厳選9種の果実エキスで爽やかに飲みやすく。毎日続けられる、こだわりの味わい。' },
-    { num: '03', title: 'ヒノキ樽発酵', desc: '伝統製法「ヒノキ樽」で約2ヶ月間自然発酵・熟成。自然の力を最大限に引き出す。' },
+    { num: '03', title: 'ヒノキ樽3年半熟成', desc: '吉野産ヒノキ樽で3年半かけて自然発酵・熟成。職人の手作業攪拌で自然の力を最大限に引き出す。' },
     { num: '04', title: '完全無添加', desc: '白砂糖・保存料・着色料・香料、すべて不使用。素材本来の力だけをお届け。' },
   ];
 
@@ -655,6 +828,7 @@ export default function ProductGranenzyme() {
       <HeroSection />
       <BeforeAfterSection />
       <ReviewScoreSection />
+      <HinokiBarrelSection />
       <WhyBuySection />
       <TestimonialsSection />
       <TargetSection />
