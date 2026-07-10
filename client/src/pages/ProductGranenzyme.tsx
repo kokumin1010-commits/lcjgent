@@ -711,9 +711,35 @@ function TargetSection() {
             <p className="text-white/60 text-lg mb-4">
               飲み会の翌朝、鏡を見るのが怖い。月曜までに戻したいのに、戻らない。
             </p>
-            <div className="p-4 bg-black/30 rounded-xl mb-6">
-              <p className="text-amber-400 text-sm font-bold mb-1">やること：</p>
-              <p className="text-white/80">土日2日間、食事をこの酵素に置き換えるだけ。<br className="hidden lg:block" />20mL × 6回/日を炭酸水で割って飲む。</p>
+            <div className="p-5 bg-black/30 rounded-xl mb-6">
+              <p className="text-amber-400 text-sm font-bold mb-3">土日2日間、食事をこの酵素に置き換えるだけ：</p>
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
+                <div className="p-2 bg-white/5 rounded-lg text-center">
+                  <p className="text-white/40 text-xs">朝 7:00</p>
+                  <p className="text-white/90">20mL + 炭酸水150mL</p>
+                </div>
+                <div className="p-2 bg-white/5 rounded-lg text-center">
+                  <p className="text-white/40 text-xs">昀10:00</p>
+                  <p className="text-white/90">20mL + 豆乳100mL</p>
+                </div>
+                <div className="p-2 bg-white/5 rounded-lg text-center">
+                  <p className="text-white/40 text-xs">昼 12:00</p>
+                  <p className="text-white/90">20mL + 炭酸水150mL</p>
+                </div>
+                <div className="p-2 bg-white/5 rounded-lg text-center">
+                  <p className="text-white/40 text-xs">午後 15:00</p>
+                  <p className="text-white/90">20mL + 豆乳100mL</p>
+                </div>
+                <div className="p-2 bg-white/5 rounded-lg text-center">
+                  <p className="text-white/40 text-xs">夕 18:00</p>
+                  <p className="text-white/90">20mL + 炭酸水150mL</p>
+                </div>
+                <div className="p-2 bg-white/5 rounded-lg text-center">
+                  <p className="text-white/40 text-xs">寝前 21:00</p>
+                  <p className="text-white/90">20mL + 水150mL</p>
+                </div>
+              </div>
+              <p className="text-white/40 text-xs mt-3">※ 炭酸水・豆乳・水、どれで割ってもOK。お腹が空いたら追加で1杯飲んでも◎</p>
             </div>
             <div className="flex items-center gap-4">
               <div className="h-px flex-1 bg-amber-400/20" />
@@ -729,9 +755,19 @@ function TargetSection() {
             <p className="text-white/60 text-lg mb-4">
               30代から代謝が落ちた。同じ生活なのに+5kg。運動しても落ちない。
             </p>
-            <div className="p-4 bg-black/30 rounded-xl mb-6">
-              <p className="text-amber-400 text-sm font-bold mb-1">やること：</p>
-              <p className="text-white/80">毎朝1杯（20mL）+ 月1回の週末2日ファスティング。<br className="hidden lg:block" />食事制限なし、運動なしでOK。</p>
+            <div className="p-5 bg-black/30 rounded-xl mb-6">
+              <p className="text-amber-400 text-sm font-bold mb-3">普段の生活 + 月1回のリセット：</p>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-3">
+                  <span className="text-amber-400 font-bold shrink-0 w-16">毎日</span>
+                  <p className="text-white/80">朝食前に1杯（20mL + 炭酸水 or 豆乳）→ 代謝アップ</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-amber-400 font-bold shrink-0 w-16">月1回</span>
+                  <p className="text-white/80">週末2日間ファスティング（上記と同じ飲み方で6回/日）</p>
+                </div>
+              </div>
+              <p className="text-white/40 text-xs mt-3">※ 食事制限なし・運動なしでOK。普段の食事はそのままで大丈夫。</p>
             </div>
             <div className="flex items-center gap-4">
               <div className="h-px flex-1 bg-amber-400/20" />
@@ -747,9 +783,23 @@ function TargetSection() {
             <p className="text-white/60 text-lg mb-4">
               1本2万円。続けたいけど続けられない。でも市販の安いのは添加物だらけ。
             </p>
-            <div className="p-4 bg-black/30 rounded-xl mb-6">
-              <p className="text-amber-400 text-sm font-bold mb-1">やること：</p>
-              <p className="text-white/80">サロンと同じ酵素を自宅で。毎日1杯、約374円/日。<br className="hidden lg:block" />完全無添加・国産100%。安心して続けられる。</p>
+            <div className="p-5 bg-black/30 rounded-xl mb-6">
+              <p className="text-amber-400 text-sm font-bold mb-3">サロンとの比較：</p>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">サロン価格</span>
+                  <span className="text-white/80 line-through">¥18,000〜20,000/本</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">グランエンザイム PRO</span>
+                  <span className="text-amber-400 font-bold text-lg">¥9,350/本</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">1日あたり</span>
+                  <span className="text-amber-400 font-bold">約374円（コンビニコーヒー以下）</span>
+                </div>
+              </div>
+              <p className="text-white/40 text-xs mt-3">※ 完全無添加・国産植物素材100%。サロンと同じ品質を自宅で。</p>
             </div>
             <div className="flex items-center gap-4">
               <div className="h-px flex-1 bg-amber-400/20" />
@@ -878,24 +928,77 @@ function HowToSection() {
             <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
               <div className="flex items-center gap-3 mb-3">
                 <span className="text-amber-400 font-black text-lg">DAY 4</span>
-                <span className="text-white font-bold text-lg">回復日</span>
+                <span className="text-white font-bold text-lg">回復日（酵素 + 軽い食事）</span>
               </div>
-              <p className="text-white/70">おかゆ → 和食 → 徐々に普通食へ。</p>
-              <p className="text-amber-400 font-bold text-xl mt-3">→ 体重計に乗ると... -1.5kg〜2kg</p>
+              <div className="space-y-2 mt-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-amber-400 font-bold text-sm shrink-0 w-8">朝</span>
+                  <p className="text-white/80 text-sm">酵素20mL + おかゆ（少量）</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-amber-400 font-bold text-sm shrink-0 w-8">昼</span>
+                  <p className="text-white/80 text-sm">酵素20mL + 和食（味噌汁・豆腐・蒸し野菜）</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-amber-400 font-bold text-sm shrink-0 w-8">夜</span>
+                  <p className="text-white/80 text-sm">酵素20mL + 和食（魚・野菜中心）</p>
+                </div>
+              </div>
+              <p className="text-white/40 text-xs mt-3">※ 酵素は食前に飲む。消化を助ける。揚げ物・肉はまだNG。</p>
+              <p className="text-amber-400 font-bold text-xl mt-4">→ 体重計に乗ると... -1.5kg〜2kg</p>
             </div>
           </div>
 
-          {/* DAY 5-7 */}
+          {/* DAY 5〜 毎日の習慣 */}
           <div className="relative pl-12 pb-12 border-l-2 border-green-400/30">
             <div className="absolute left-0 top-0 -translate-x-1/2 w-8 h-8 bg-green-400 rounded-full flex items-center justify-center">
               <span className="text-black text-xs font-black">✓</span>
             </div>
             <div className="p-6 bg-gradient-to-r from-green-900/20 to-transparent border border-green-400/20 rounded-2xl">
               <div className="flex items-center gap-3 mb-3">
-                <span className="text-green-400 font-black text-lg">DAY 5-7</span>
-                <span className="text-white font-bold text-lg">実感が始まる</span>
+                <span className="text-green-400 font-black text-lg">DAY 5〜</span>
+                <span className="text-white font-bold text-lg">毎日1杯を習慣に</span>
               </div>
-              <p className="text-white/70">「体が軽い」「肌の調子がいい」「朝の目覚めが違う」</p>
+              <p className="text-white/70 mb-4">ファスティング後も、毎朝食前に酵素20mLを続ける。</p>
+              <div className="p-4 bg-black/30 rounded-xl">
+                <p className="text-green-400 text-sm font-bold mb-2">毎日のルーティン：</p>
+                <p className="text-white/80 text-sm">朝食前に酵素20mL + 炭酸水150mL（or 豆乳100mL）</p>
+                <p className="text-white/50 text-xs mt-2">→ 代謝をキープ。次のファスティングまで体を整える。</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 月サイクル */}
+          <div className="relative pl-12 pb-4">
+            <div className="absolute left-0 top-0 -translate-x-1/2 w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center">
+              <span className="text-black text-xs font-black">↻</span>
+            </div>
+            <div className="p-6 bg-gradient-to-r from-amber-900/20 to-transparent border border-amber-400/30 rounded-2xl">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-amber-400 font-black text-lg">毎月繰り返す</span>
+              </div>
+              <p className="text-white/70 mb-3">この1週間コースを<span className="text-amber-400 font-bold">月1回</span>繰り返す。</p>
+              <div className="p-4 bg-black/30 rounded-xl">
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="text-center">
+                    <p className="text-amber-400 font-bold">Week 1</p>
+                    <p className="text-white/60">ファスティング</p>
+                  </div>
+                  <span className="text-white/30">→</span>
+                  <div className="text-center">
+                    <p className="text-white/60 font-bold">Week 2-4</p>
+                    <p className="text-white/60">毎朝1杯</p>
+                  </div>
+                  <span className="text-white/30">→</span>
+                  <div className="text-center">
+                    <p className="text-amber-400 font-bold">Week 1</p>
+                    <p className="text-white/60">ファスティング</p>
+                  </div>
+                  <span className="text-white/30">→</span>
+                  <span className="text-white/40">...</span>
+                </div>
+              </div>
+              <p className="text-amber-400 font-bold text-lg mt-4">→ これを半年続けると、-6kg。体質が変わる。</p>
             </div>
           </div>
         </div>
@@ -904,30 +1007,69 @@ function HowToSection() {
         <div className="max-w-3xl mx-auto mt-16">
           <div className="text-center mb-10">
             <h3 className="text-2xl lg:text-3xl font-bold text-white">
-              そして<span className="text-amber-400">続けると</span>、こうなる。
+              続けると、<span className="text-amber-400">こう変わる</span>。
             </h3>
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center gap-6 p-5 bg-white/5 border border-white/10 rounded-xl">
-              <span className="text-3xl font-black text-amber-400 shrink-0 w-20">1週間</span>
+              <span className="text-2xl lg:text-3xl font-black text-amber-400 shrink-0 w-24">1週間</span>
               <div className="h-8 w-px bg-white/10" />
-              <p className="text-white/80 text-lg">「肌キレイになった？」と言われる。むくみ減少。</p>
+              <div>
+                <p className="text-white/80 text-lg">「肌キレイになった？」と言われる。</p>
+                <p className="text-white/50 text-sm">むくみ減少・お通じ改善・体が軽い。</p>
+              </div>
             </div>
             <div className="flex items-center gap-6 p-5 bg-white/5 border border-white/10 rounded-xl">
-              <span className="text-3xl font-black text-amber-400 shrink-0 w-20">1ヶ月</span>
+              <span className="text-2xl lg:text-3xl font-black text-amber-400 shrink-0 w-24">1ヶ月</span>
               <div className="h-8 w-px bg-white/10" />
-              <p className="text-white/80 text-lg">朝の目覚めが別人。体重 <span className="text-amber-400 font-bold">-1〜2kg</span>。</p>
+              <div>
+                <p className="text-white/80 text-lg">朝の目覚めが別人。体重 <span className="text-amber-400 font-bold">-1〜2kg</span>。</p>
+                <p className="text-white/50 text-sm">服のサイズが変わり始める。</p>
+              </div>
             </div>
             <div className="flex items-center gap-6 p-5 bg-white/5 border border-white/10 rounded-xl">
-              <span className="text-3xl font-black text-amber-400 shrink-0 w-20">3ヶ月</span>
+              <span className="text-2xl lg:text-3xl font-black text-amber-400 shrink-0 w-24">3ヶ月</span>
               <div className="h-8 w-px bg-white/10" />
-              <p className="text-white/80 text-lg">代謝アップ実感。太りにくい体質に変わる。</p>
+              <div>
+                <p className="text-white/80 text-lg">代謝アップ実感。<span className="text-amber-400 font-bold">-3〜4kg</span>。</p>
+                <p className="text-white/50 text-sm">食べても太りにくい体質に変わる。</p>
+              </div>
             </div>
             <div className="flex items-center gap-6 p-5 bg-gradient-to-r from-amber-900/30 to-transparent border border-amber-400/30 rounded-xl">
-              <span className="text-3xl font-black text-amber-400 shrink-0 w-20">半年</span>
+              <span className="text-2xl lg:text-3xl font-black text-amber-400 shrink-0 w-24">半年</span>
               <div className="h-8 w-px bg-amber-400/30" />
-              <p className="text-white text-lg font-bold">「痩せた？」が止まらない。<span className="text-amber-400">-3〜6kg</span>。</p>
+              <div>
+                <p className="text-white text-lg font-bold">「痩せた？」が止まらない。<span className="text-amber-400">-6kg</span>。</p>
+                <p className="text-white/50 text-sm">体型が変わった。リバウンドしない。</p>
+              </div>
+            </div>
+          </div>
+
+          {/* よくある質問 */}
+          <div className="mt-12 p-6 bg-white/5 border border-white/10 rounded-2xl">
+            <p className="text-amber-400 font-bold text-lg mb-4">よくある質問</p>
+            <div className="space-y-4 text-sm">
+              <div>
+                <p className="text-white font-bold">Q. ファスティング中、お腹空かない？</p>
+                <p className="text-white/60">A. 酵素ど1日120mLの栄養を補給するので、空腹感はほとんどありません。炭酸水割りにすると満腹感↑</p>
+              </div>
+              <div>
+                <p className="text-white font-bold">Q. 味はまずくない？</p>
+                <p className="text-white/60">A. 3年半熟成で雑味が消え、フルーティで飲みやすい。だから92%がリピート。</p>
+              </div>
+              <div>
+                <p className="text-white font-bold">Q. 運動もしなきゃダメ？</p>
+                <p className="text-white/60">A. 不要。酵素が代謝をサポートするので、食事制限も運動もなしで結果が出る。</p>
+              </div>
+              <div>
+                <p className="text-white font-bold">Q. 熱い飲み物に混ぜていい？</p>
+                <p className="text-white/60">A. NG。酵素は熱に弱いので、常温または冷たい飲み物で割ってください。</p>
+              </div>
+              <div>
+                <p className="text-white font-bold">Q. 1本でどのくらい持つ？</p>
+                <p className="text-white/60">A. 500mL。毎日1杯（20mL）なら約25日分。ファスティング時（120mL/日）は約4日分。</p>
+              </div>
             </div>
           </div>
         </div>
