@@ -188,6 +188,92 @@ function HeroSection() {
   );
 }
 
+// ===== ビフォーアフターセクション =====
+function BeforeAfterSection() {
+  return (
+    <section className="py-20 bg-gradient-to-b from-[#0d0515] to-black relative overflow-hidden">
+      <div className="container mx-auto px-6 relative z-10">
+        <div className="text-center mb-12">
+          <p className="text-amber-400 text-sm tracking-[0.2em] uppercase mb-3">実感の声</p>
+          <h2 className="text-3xl lg:text-5xl font-bold text-white">
+            飲んだ人の<span className="text-amber-400">リアルな変化</span>
+          </h2>
+          <p className="text-white/50 mt-3">※個人の感想であり、効果を保証するものではありません</p>
+        </div>
+
+        {/* ビフォーアフターカード */}
+        <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+          {/* ケース1: 30代女性 */}
+          <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
+            <img
+              src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/granenzyme-before-after-1-hDDLzhC2mYutfi4uBgvGx5.webp"
+              alt="30代女性 ビフォーアフター"
+              className="w-full h-auto"
+            />
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="bg-amber-400/10 text-amber-400 text-xs font-bold px-3 py-1 rounded-full">30代女性</span>
+                <span className="text-white/40 text-xs">ファスティング 7日間</span>
+              </div>
+              <p className="text-white/80 text-sm leading-relaxed">
+                「産後太りが戻らなくて悩んでいました。サロンで勧められて始めたら、<span className="text-amber-400 font-bold">7日で-3.6kg</span>。お腹周りがスッキリして、朋人にも『痩せた？』と言われました。」
+              </p>
+              <div className="flex items-center gap-1 mt-3">
+                {[1,2,3,4,5].map(i => (
+                  <Star key={i} className="w-4 h-4 text-amber-400 fill-amber-400" />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ケース2: 40代女性 */}
+          <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
+            <img
+              src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/granenzyme-before-after-2-X6mTpwx2KBR4zKfSSJ6UpK.webp"
+              alt="40代女性 ビフォーアフター"
+              className="w-full h-auto"
+            />
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="bg-amber-400/10 text-amber-400 text-xs font-bold px-3 py-1 rounded-full">40代女性</span>
+                <span className="text-white/40 text-xs">半年間継続</span>
+              </div>
+              <p className="text-white/80 text-sm leading-relaxed">
+                「代謝が落ちて何をしても痩せなかったのに、月1回の3日ファスティングを続けたら<span className="text-amber-400 font-bold">半年で-6kg</span>。お腹のポッコリがなくなって、体が軽くなりました。」
+              </p>
+              <div className="flex items-center gap-1 mt-3">
+                {[1,2,3,4,5].map(i => (
+                  <Star key={i} className={`w-4 h-4 ${i <= 4 ? 'text-amber-400 fill-amber-400' : 'text-amber-400/40'}`} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 実績まとめ */}
+        <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
+          <div className="text-center bg-white/5 border border-white/10 rounded-xl p-4">
+            <p className="text-2xl font-black text-amber-400">-3.6kg</p>
+            <p className="text-xs text-white/50 mt-1">7日ファスティング</p>
+          </div>
+          <div className="text-center bg-white/5 border border-white/10 rounded-xl p-4">
+            <p className="text-2xl font-black text-amber-400">-6kg</p>
+            <p className="text-xs text-white/50 mt-1">半年継続使用</p>
+          </div>
+          <div className="text-center bg-white/5 border border-white/10 rounded-xl p-4">
+            <p className="text-2xl font-black text-amber-400">92%</p>
+            <p className="text-xs text-white/50 mt-1">リピート率</p>
+          </div>
+          <div className="text-center bg-white/5 border border-white/10 rounded-xl p-4">
+            <p className="text-2xl font-black text-amber-400">2日</p>
+            <p className="text-xs text-white/50 mt-1">最短リセット</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ===== 口コミ評価セクション =====
 function ReviewScoreSection() {
   const { count: reviewCount, ref: reviewRef } = useCountUp(370, 1500);
@@ -567,6 +653,7 @@ export default function ProductGranenzyme() {
   return (
     <div className="min-h-screen bg-black text-white overflow-x-hidden">
       <HeroSection />
+      <BeforeAfterSection />
       <ReviewScoreSection />
       <WhyBuySection />
       <TestimonialsSection />
