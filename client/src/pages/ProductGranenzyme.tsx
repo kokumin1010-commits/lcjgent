@@ -3,7 +3,7 @@
  * 口碑調査に基づく購買理由を前面に出したデザイン
  */
 import { useEffect, useRef, useState } from 'react';
-import { Star, Sparkles, Leaf, Heart, TrendingDown, ShieldCheck, Award, Users, FlaskConical, Droplets } from 'lucide-react';
+import { Star, Sparkles, Leaf, Heart, TrendingDown, ShieldCheck, Award, Users, FlaskConical, Droplets, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 // ===== カウントアップフック =====
 function useCountUp(target: number, duration = 2000, startOnView = true) {
@@ -54,7 +54,7 @@ function HeroSection() {
           
           {/* 左：問題提起 + 解決 */}
           <div className="space-y-6">
-            {/* カテゴリ表示 - 一瞬で何かわかる */}
+            {/* カテゴリ表示 */}
             <div className="inline-flex items-center gap-2 bg-amber-400/10 border border-amber-400/30 rounded-full px-5 py-2">
               <Sparkles className="w-5 h-5 text-amber-400" />
               <span className="text-amber-400 font-bold text-lg">ファスティング酵素ドリンク</span>
@@ -74,7 +74,7 @@ function HeroSection() {
               </p>
             </div>
 
-            {/* 実績データ - 大きく */}
+            {/* 実績データ */}
             <div className="grid grid-cols-3 gap-3 pt-2">
               <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
                 <p className="text-3xl font-black text-amber-400">-3.6kg</p>
@@ -108,21 +108,8 @@ function HeroSection() {
             </div>
           </div>
 
-          {/* 右：データパネル - 主播が指しながら話せる */}
+          {/* 右：データパネル */}
           <div className="space-y-4">
-            {/* 評価 */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="flex gap-0.5">
-                  {[1,2,3,4,5].map(i => (
-                    <Star key={i} className={`w-5 h-5 ${i <= 4 ? 'text-amber-400 fill-amber-400' : 'text-amber-400/40'}`} />
-                  ))}
-                </div>
-                <span className="text-2xl font-black text-white">4.25</span>
-              </div>
-              <p className="text-white/50 text-sm">Yahoo!ショッピング 370件+のレビュー</p>
-            </div>
-
             {/* 信頼データ */}
             <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-3">
               <div className="flex items-center justify-between">
@@ -161,6 +148,13 @@ function HeroSection() {
                 </li>
               </ul>
             </div>
+
+            {/* 価格 */}
+            <div className="bg-gradient-to-r from-amber-900/30 to-amber-800/10 border border-amber-400/40 rounded-2xl p-5 text-center">
+              <p className="text-white/50 text-xs mb-1">定価（税込）</p>
+              <p className="text-4xl font-black text-amber-400">¥9,350</p>
+              <p className="text-white/40 text-xs mt-1">500mL ｜ 約25日分</p>
+            </div>
           </div>
         </div>
 
@@ -178,95 +172,124 @@ function HeroSection() {
             <Leaf className="w-4 h-4 text-green-400" />
             <span className="text-sm text-white/80">国産植物素材100%使用</span>
           </div>
-          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-2 py-1">
-            <img src="/images/mika-ambassador.png" alt="モデル美香" className="w-8 h-8 rounded-full object-cover" />
-            <span className="text-sm text-white/80">モデル美香 アンバサダー</span>
-          </div>
         </div>
       </div>
     </section>
   );
 }
 
-// ===== ビフォーアフターセクション =====
+// ===== ビフォーアフターセクション（大きく2段表示） =====
 function BeforeAfterSection() {
+  const cases = [
+    {
+      beforeImg: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/granenzyme-before-after-1-hDDLzhC2mYutfi4uBgvGx5.webp',
+      label: '30代女性',
+      period: 'ファスティング 7日間',
+      result: '-3.6kg',
+      comment: '「産後太りが戻らなくて悩んでいました。サロンで勧められて始めたら、7日で-3.6kg。お腹周りがスッキリして、朋人にも『痩せた？』と言われました。」',
+      stars: 5,
+    },
+    {
+      beforeImg: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/granenzyme-before-after-2-X6mTpwx2KBR4zKfSSJ6UpK.webp',
+      label: '40代女性',
+      period: '半年間継続（月1回3日ファスティング）',
+      result: '-6kg',
+      comment: '「代謝が落ちて何をしても痩せなかったのに、月1回の3日ファスティングを続けたら半年で-6kg。お腹のポッコリがなくなって、体が軽くなりました。」',
+      stars: 4,
+    },
+    {
+      beforeImg: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/granenzyme-ba-3-before-bLuc2xK3NcHm5W6u3rb5V6.webp',
+      afterImg: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/granenzyme-ba-3-after-SaMHBkfCsXd2pdVrtaFmwj.webp',
+      label: '20代女性',
+      period: '2日間リセット',
+      result: '-1.2kg',
+      comment: '「飲み会続きでお腹がパンパンだったのに、2日間これだけで過ごしたら体重が戻った。むくみも取れてスッキリ。週末リセットの定番になりました。」',
+      stars: 5,
+    },
+    {
+      beforeImg: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/granenzyme-ba-4-before-XogNxtAnyh5J78gYk2JJ77.webp',
+      afterImg: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/granenzyme-ba-4-after-SQfikRKLm3uCy8rnbdcgr3.webp',
+      label: '40代女性',
+      period: '朝食置き換え 1ヶ月',
+      result: '-2.8kg',
+      comment: '「朝食をこれに置き換えるだけ。1ヶ月で横から見たシルエットが全然違う。お腹のぽっこりが目に見えて減りました。無理してないのにこの結果。」',
+      stars: 5,
+    },
+  ];
+
   return (
-    <section className="py-20 bg-gradient-to-b from-[#0d0515] to-black relative overflow-hidden">
+    <section className="py-24 bg-gradient-to-b from-[#0d0515] to-black relative overflow-hidden">
       <div className="container mx-auto px-6 relative z-10">
-        <div className="text-center mb-12">
-          <p className="text-amber-400 text-sm tracking-[0.2em] uppercase mb-3">実感の声</p>
+        <div className="text-center mb-16">
+          <p className="text-amber-400 text-sm tracking-[0.2em] uppercase mb-3">Real Results</p>
           <h2 className="text-3xl lg:text-5xl font-bold text-white">
             飲んだ人の<span className="text-amber-400">リアルな変化</span>
           </h2>
           <p className="text-white/50 mt-3">※個人の感想であり、効果を保証するものではありません</p>
         </div>
 
-        {/* ビフォーアフターカード */}
-        <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-          {/* ケース1: 30代女性 */}
-          <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
-            <img
-              src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/granenzyme-before-after-1-hDDLzhC2mYutfi4uBgvGx5.webp"
-              alt="30代女性 ビフォーアフター"
-              className="w-full h-auto"
-            />
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="bg-amber-400/10 text-amber-400 text-xs font-bold px-3 py-1 rounded-full">30代女性</span>
-                <span className="text-white/40 text-xs">ファスティング 7日間</span>
+        {/* 2段レイアウト：1人1行で大きく */}
+        <div className="space-y-12 max-w-5xl mx-auto">
+          {cases.map((c, i) => (
+            <div key={i} className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
+              {/* 画像エリア：大きく表示 */}
+              <div className="relative">
+                {c.afterImg ? (
+                  // Before/After 2枚並び
+                  <div className="grid grid-cols-2">
+                    <div className="relative">
+                      <span className="absolute top-4 left-4 bg-black/70 text-white text-xs font-bold px-3 py-1 rounded-full z-10">BEFORE</span>
+                      <img src={c.beforeImg} alt={`${c.label} Before`} className="w-full h-[400px] lg:h-[500px] object-cover" />
+                    </div>
+                    <div className="relative">
+                      <span className="absolute top-4 left-4 bg-amber-400 text-black text-xs font-bold px-3 py-1 rounded-full z-10">AFTER</span>
+                      <img src={c.afterImg} alt={`${c.label} After`} className="w-full h-[400px] lg:h-[500px] object-cover" />
+                    </div>
+                  </div>
+                ) : (
+                  // 既存の1枚画像（Before/After合成済み）
+                  <img src={c.beforeImg} alt={`${c.label} ビフォーアフター`} className="w-full h-auto max-h-[500px] object-contain bg-white" />
+                )}
+                {/* 結果バッジ */}
+                <div className="absolute bottom-4 right-4 bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black text-2xl px-6 py-3 rounded-2xl shadow-2xl">
+                  {c.result}
+                </div>
               </div>
-              <p className="text-white/80 text-sm leading-relaxed">
-                「産後太りが戻らなくて悩んでいました。サロンで勧められて始めたら、<span className="text-amber-400 font-bold">7日で-3.6kg</span>。お腹周りがスッキリして、朋人にも『痩せた？』と言われました。」
-              </p>
-              <div className="flex items-center gap-1 mt-3">
-                {[1,2,3,4,5].map(i => (
-                  <Star key={i} className="w-4 h-4 text-amber-400 fill-amber-400" />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* ケース2: 40代女性 */}
-          <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
-            <img
-              src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/granenzyme-before-after-2-X6mTpwx2KBR4zKfSSJ6UpK.webp"
-              alt="40代女性 ビフォーアフター"
-              className="w-full h-auto"
-            />
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="bg-amber-400/10 text-amber-400 text-xs font-bold px-3 py-1 rounded-full">40代女性</span>
-                <span className="text-white/40 text-xs">半年間継続</span>
-              </div>
-              <p className="text-white/80 text-sm leading-relaxed">
-                「代謝が落ちて何をしても痩せなかったのに、月1回の3日ファスティングを続けたら<span className="text-amber-400 font-bold">半年で-6kg</span>。お腹のポッコリがなくなって、体が軽くなりました。」
-              </p>
-              <div className="flex items-center gap-1 mt-3">
-                {[1,2,3,4,5].map(i => (
-                  <Star key={i} className={`w-4 h-4 ${i <= 4 ? 'text-amber-400 fill-amber-400' : 'text-amber-400/40'}`} />
-                ))}
+              
+              {/* コメントエリア */}
+              <div className="p-8">
+                <div className="flex items-center gap-4 mb-4">
+                  <span className="bg-amber-400/10 text-amber-400 text-sm font-bold px-4 py-1.5 rounded-full">{c.label}</span>
+                  <span className="text-white/40 text-sm">{c.period}</span>
+                </div>
+                <p className="text-white/90 text-lg leading-relaxed mb-4">{c.comment}</p>
+                <div className="flex items-center gap-1">
+                  {[1,2,3,4,5].map(s => (
+                    <Star key={s} className={`w-5 h-5 ${s <= c.stars ? 'text-amber-400 fill-amber-400' : 'text-amber-400/30'}`} />
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          ))}
         </div>
 
         {/* 実績まとめ */}
-        <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
-          <div className="text-center bg-white/5 border border-white/10 rounded-xl p-4">
-            <p className="text-2xl font-black text-amber-400">-3.6kg</p>
-            <p className="text-xs text-white/50 mt-1">7日ファスティング</p>
+        <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
+          <div className="text-center bg-white/5 border border-white/10 rounded-xl p-5">
+            <p className="text-3xl font-black text-amber-400">-3.6kg</p>
+            <p className="text-sm text-white/50 mt-1">7日ファスティング</p>
           </div>
-          <div className="text-center bg-white/5 border border-white/10 rounded-xl p-4">
-            <p className="text-2xl font-black text-amber-400">-6kg</p>
-            <p className="text-xs text-white/50 mt-1">半年継続使用</p>
+          <div className="text-center bg-white/5 border border-white/10 rounded-xl p-5">
+            <p className="text-3xl font-black text-amber-400">-6kg</p>
+            <p className="text-sm text-white/50 mt-1">半年継続使用</p>
           </div>
-          <div className="text-center bg-white/5 border border-white/10 rounded-xl p-4">
-            <p className="text-2xl font-black text-amber-400">92%</p>
-            <p className="text-xs text-white/50 mt-1">リピート率</p>
+          <div className="text-center bg-white/5 border border-white/10 rounded-xl p-5">
+            <p className="text-3xl font-black text-amber-400">92%</p>
+            <p className="text-sm text-white/50 mt-1">リピート率</p>
           </div>
-          <div className="text-center bg-white/5 border border-white/10 rounded-xl p-4">
-            <p className="text-2xl font-black text-amber-400">2日</p>
-            <p className="text-xs text-white/50 mt-1">最短リセット</p>
+          <div className="text-center bg-white/5 border border-white/10 rounded-xl p-5">
+            <p className="text-3xl font-black text-amber-400">2日</p>
+            <p className="text-sm text-white/50 mt-1">最短リセット</p>
           </div>
         </div>
       </div>
@@ -316,22 +339,26 @@ function ReviewScoreSection() {
             <p className="text-sm text-white/60">エステティシャン・美容師がカウンセリングで推奨。プロの目利きが証明する品質。</p>
           </div>
 
-          {/* アンバサダー */}
-          <div className="relative p-8 bg-gradient-to-br from-rose-900/20 to-transparent border border-rose-400/30 rounded-2xl overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-400/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-            <div className="flex items-center gap-3 mb-4">
-              <img src="/images/mika-ambassador.png" alt="モデル美香" className="w-12 h-12 rounded-full object-cover border-2 border-rose-400/50" />
-              <div>
-                <p className="text-white font-bold">モデル美香</p>
-                <p className="text-rose-400 text-xs">ブランドアンバサダー</p>
+          {/* アンバサダー - 写真大きく */}
+          <div className="relative bg-gradient-to-br from-rose-900/20 to-transparent border border-rose-400/30 rounded-2xl overflow-hidden">
+            <img 
+              src="/images/mika-ambassador.png" 
+              alt="モデル美香" 
+              className="w-full h-48 object-cover object-top"
+            />
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div>
+                  <p className="text-white font-bold text-lg">モデル美香</p>
+                  <p className="text-rose-400 text-sm">ブランドアンバサダー</p>
+                </div>
               </div>
+              <p className="text-sm text-white/60">2026年3月就任。芸能人・モデルが日常的に愛飲する、本物のプロ仕様。</p>
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">トップモデルが愛用</h3>
-            <p className="text-sm text-white/60">2026年3月就任。芸能人・モデルが日常的に愛飲する、本物のプロ仕様。</p>
           </div>
         </div>
 
-        {/* なぜ信頼されるのか - 製法の凄さ */}
+        {/* なぜ信頼されるのか */}
         <div className="max-w-4xl mx-auto">
           <div className="p-8 bg-white/[0.03] border border-white/10 rounded-3xl">
             <div className="text-center mb-8">
@@ -458,37 +485,85 @@ function HinokiBarrelSection() {
           </div>
         </div>
 
-        {/* ヒノキ樽の4つの特徴 */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
-          <div className="text-center p-6 bg-white/[0.03] border border-white/5 rounded-xl">
-            <div className="text-3xl mb-3">🌲</div>
-            <h4 className="text-white font-bold mb-2">吉野産ヒノキ</h4>
-            <p className="text-white/50 text-xs leading-relaxed">奈良県吉野の最高級ヒノキ材を使用した特注樽。木の呼吸が発酵を促進。</p>
+        {/* 3年半熟成の効果：なぜすごいのか */}
+        <div className="max-w-5xl mx-auto mb-16">
+          <div className="text-center mb-10">
+            <h3 className="text-2xl lg:text-3xl font-bold text-white">
+              3年半熟成すると、<span className="text-amber-400">何が変わるのか</span>
+            </h3>
+            <p className="text-white/50 mt-2">時間をかけることで生まれる、圧倒的な品質差</p>
           </div>
-          <div className="text-center p-6 bg-white/[0.03] border border-white/5 rounded-xl">
-            <div className="text-3xl mb-3">🦠</div>
-            <h4 className="text-white font-bold mb-2">天然の抗菌作用</h4>
-            <p className="text-white/50 text-xs leading-relaxed">ヒノキの天然成分「ヒノキチオール」が雑菌の繁殖を抑制。防腐剤不要の理由。</p>
-          </div>
-          <div className="text-center p-6 bg-white/[0.03] border border-white/5 rounded-xl">
-            <div className="text-3xl mb-3">👐</div>
-            <h4 className="text-white font-bold mb-2">職人の手作業攪拌</h4>
-            <p className="text-white/50 text-xs leading-relaxed">毎日、職人が手作業で攪拌。機械では再現できない繊細な発酵管理。</p>
-          </div>
-          <div className="text-center p-6 bg-white/[0.03] border border-white/5 rounded-xl">
-            <div className="text-3xl mb-3">🌿</div>
-            <h4 className="text-white font-bold mb-2">100種植物素材凝縮</h4>
-            <p className="text-white/50 text-xs leading-relaxed">3年半の歳月をかけ、100種の植物エキスを極限まで凝縮。濃厚な酵素原液に。</p>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* 効果1: 酵素濃度 */}
+            <div className="p-6 bg-gradient-to-br from-amber-900/15 to-transparent border border-amber-400/20 rounded-2xl">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-amber-400/10 rounded-xl flex items-center justify-center shrink-0">
+                  <FlaskConical className="w-6 h-6 text-amber-400" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-white mb-2">酵素活性が段違いに高い</h4>
+                  <p className="text-white/60 text-sm leading-relaxed">
+                    3年半の長期発酵で、短期間発酵では得られない<span className="text-amber-400 font-bold">高濃度の酵素</span>が生成。体内の消化・代謝をパワフルにサポートし、ファスティング効果を最大化。
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 効果2: 分子が細かい */}
+            <div className="p-6 bg-gradient-to-br from-amber-900/15 to-transparent border border-amber-400/20 rounded-2xl">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-amber-400/10 rounded-xl flex items-center justify-center shrink-0">
+                  <Droplets className="w-6 h-6 text-amber-400" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-white mb-2">低分子化で吸収率アップ</h4>
+                  <p className="text-white/60 text-sm leading-relaxed">
+                    長期熟成で栄養素が<span className="text-amber-400 font-bold">低分子化</span>。体への吸収率が格段に高く、飲んだ翌日から「体が軽い」と実感できる即効性。
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 効果3: ヒノキの天然成分 */}
+            <div className="p-6 bg-gradient-to-br from-amber-900/15 to-transparent border border-amber-400/20 rounded-2xl">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-amber-400/10 rounded-xl flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-6 h-6 text-amber-400" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-white mb-2">天然防腐で完全無添加を実現</h4>
+                  <p className="text-white/60 text-sm leading-relaxed">
+                    ヒノキ樽から溶け出す<span className="text-amber-400 font-bold">ヒノキチオール</span>が天然の抗菌作用を発揮。だから保存料ゼロでも安全。化学物質に頼らない本物の無添加。
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 効果4: 味がまろやか */}
+            <div className="p-6 bg-gradient-to-br from-amber-900/15 to-transparent border border-amber-400/20 rounded-2xl">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-amber-400/10 rounded-xl flex items-center justify-center shrink-0">
+                  <Heart className="w-6 h-6 text-amber-400" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-white mb-2">雑味ゼロ、フルーティで飲みやすい</h4>
+                  <p className="text-white/60 text-sm leading-relaxed">
+                    3年半の熟成で雑味が完全に消え、<span className="text-amber-400 font-bold">フルーティでまろやかな味</span>に。「酵素ドリンク＝まずい」の常識を覆す。だから92%がリピート。
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* 締めのメッセージ */}
-        <div className="text-center mt-16">
-          <div className="inline-block p-6 bg-amber-400/5 border border-amber-400/20 rounded-2xl">
-            <p className="text-white/80 text-lg">
-              <span className="text-amber-400 font-bold">1,277日間</span>、毎日手を加え続けた結果が、この1本に。
+        <div className="text-center">
+          <div className="inline-block p-8 bg-amber-400/5 border border-amber-400/20 rounded-2xl">
+            <p className="text-white/90 text-xl font-bold">
+              <span className="text-amber-400">1,277日間</span>、毎日手を加え続けた結果が、この1本に。
             </p>
-            <p className="text-white/40 text-sm mt-2">だから、プロが自信を持って推奨できる。</p>
+            <p className="text-white/50 mt-3">だから、プロが自信を持って推奨できる。だから、結果が出る。</p>
           </div>
         </div>
       </div>
@@ -545,9 +620,6 @@ function WhyBuySection() {
           <h2 className="text-3xl lg:text-5xl font-bold text-white mb-4">
             購入する6つの理由
           </h2>
-          <p className="text-white/50 text-lg max-w-2xl mx-auto">
-            370件以上のレビューから見えた、選ばれる理由
-          </p>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
@@ -615,7 +687,7 @@ function TestimonialsSection() {
             実感の声
           </h2>
           <p className="text-white/50 text-lg">
-            Yahoo!ショッピング 370件のレビューより
+            実際に購入された方のレビューより
           </p>
         </div>
 
@@ -647,20 +719,38 @@ function TestimonialsSection() {
   );
 }
 
-// ===== ターゲット層セクション =====
+// ===== ターゲット層セクション（強化版） =====
 function TargetSection() {
   const targets = [
     {
-      title: 'ファスティングを始めたい方',
-      items: ['月1回のプチ断食で体をリセットしたい', '酵素ドリンクで栄養を補いながら断食したい', '短期間で結果を出したい'],
+      title: '食べ過ぎた翌日、2日で戻したい',
+      subtitle: '週末リセット派',
+      items: [
+        '飲み会・旅行後の体重増加が気になる',
+        '月曜日までに元に戻したい',
+        '無理な食事制限はしたくない',
+      ],
+      result: '→ 2日間ファスティングで平均-1〜2kg',
     },
     {
-      title: '美しいボディを目指す方',
-      items: ['健康的にボディメイクしたい', '朝食置き換えで無理なく続けたい', '代謝が落ちてきたと感じる30-40代'],
+      title: '30代から何しても痩せなくなった',
+      subtitle: '代謝低下に悩む方',
+      items: [
+        '以前と同じ食事量なのに太る',
+        '運動しても体重が落ちない',
+        '基礎代謝が年々下がっている実感',
+      ],
+      result: '→ 月1回ファスティングで半年-6kgの実績',
     },
     {
-      title: '食生活が乱れがちな方',
-      items: ['外食・コンビニ弁当が多い', '食べ過ぎた翌日のリセットに', '植物性発酵食品が不足しがち'],
+      title: 'サロン品質を、自宅で手軽に',
+      subtitle: 'コスパ重視の方',
+      items: [
+        'エステサロンの酵素ドリンクは高すぎる',
+        'でも市販の安い酵素は添加物が心配',
+        'プロ品質を適正価格で手に入れたい',
+      ],
+      result: '→ サロン定価の約半額、¥9,350で同品質',
     },
   ];
 
@@ -668,24 +758,32 @@ function TargetSection() {
     <section className="py-20 bg-black relative">
       <div className="container mx-auto px-6">
         <div className="text-center mb-16">
-          <p className="text-amber-400 text-sm tracking-[0.2em] uppercase mb-3">Recommended For</p>
+          <p className="text-amber-400 text-sm tracking-[0.2em] uppercase mb-3">Who Is This For</p>
           <h2 className="text-3xl lg:text-5xl font-bold text-white mb-4">
-            こんな方におすすめ
+            こんな<span className="text-amber-400">あなた</span>のための1本
           </h2>
+          <p className="text-white/50 text-lg">「あ、私のことだ」と思ったら、試す価値あり</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
           {targets.map((target, i) => (
-            <div key={i} className="p-8 bg-gradient-to-b from-white/5 to-transparent border border-white/10 rounded-2xl">
-              <h3 className="text-xl font-bold text-amber-400 mb-6">{target.title}</h3>
-              <ul className="space-y-3">
+            <div key={i} className="p-8 bg-gradient-to-b from-white/5 to-transparent border border-white/10 rounded-2xl flex flex-col">
+              <p className="text-amber-400/60 text-xs font-bold mb-2">{target.subtitle}</p>
+              <h3 className="text-xl font-bold text-white mb-6 leading-tight">{target.title}</h3>
+              <ul className="space-y-3 flex-1">
                 {target.items.map((item, j) => (
                   <li key={j} className="flex items-start gap-3 text-white/70 text-sm">
-                    <Droplets className="w-4 h-4 text-amber-400/60 mt-0.5 shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-amber-400/60 mt-0.5 shrink-0" />
                     <span>{item}</span>
                   </li>
                 ))}
               </ul>
+              <div className="mt-6 pt-4 border-t border-white/10">
+                <p className="text-amber-400 font-bold text-sm flex items-center gap-2">
+                  <ArrowRight className="w-4 h-4" />
+                  {target.result}
+                </p>
+              </div>
             </div>
           ))}
         </div>
@@ -723,54 +821,6 @@ function FeaturesSection() {
               </div>
             </div>
           ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ===== ブランド信頼セクション =====
-function BrandTrustSection() {
-  return (
-    <section className="py-20 bg-[#0a0515] relative">
-      <div className="container mx-auto px-6">
-        <div className="text-center mb-16">
-          <p className="text-amber-400 text-sm tracking-[0.2em] uppercase mb-3">Brand Trust</p>
-          <h2 className="text-3xl lg:text-5xl font-bold text-white mb-4">
-            Esthe Pro Labo
-          </h2>
-          <p className="text-white/50 text-lg max-w-2xl mx-auto">
-            インナービューティのパイオニアとして、全国のプロフェッショナルに支持されています。
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-4 gap-6 max-w-4xl mx-auto mb-12">
-          <div className="text-center p-6 bg-white/5 border border-white/10 rounded-xl">
-            <p className="text-3xl font-bold text-amber-400">29,000+</p>
-            <p className="text-white/50 text-sm mt-2">取扱サロン</p>
-          </div>
-          <div className="text-center p-6 bg-white/5 border border-white/10 rounded-xl">
-            <p className="text-3xl font-bold text-amber-400">3年</p>
-            <p className="text-white/50 text-sm mt-2">パリコレスポンサー</p>
-          </div>
-          <div className="text-center p-6 bg-white/5 border border-white/10 rounded-xl">
-            <p className="text-3xl font-bold text-amber-400">100%</p>
-            <p className="text-white/50 text-sm mt-2">国産植物素材</p>
-          </div>
-          <div className="text-center p-6 bg-white/5 border border-white/10 rounded-xl">
-            <p className="text-3xl font-bold text-amber-400">0</p>
-            <p className="text-white/50 text-sm mt-2">添加物</p>
-          </div>
-        </div>
-
-        <div className="max-w-3xl mx-auto text-center">
-          <div className="p-8 bg-gradient-to-r from-amber-900/10 via-amber-800/5 to-amber-900/10 border border-amber-400/20 rounded-2xl">
-            <p className="text-white/80 text-lg leading-relaxed">
-              モデル<span className="text-amber-400 font-semibold">美香</span>氏がブランドアンバサダーに就任。
-              <br />
-              芸能人・モデルが愛用する、プロフェッショナル品質の酵素ドリンク。
-            </p>
-          </div>
         </div>
       </div>
     </section>
@@ -821,6 +871,55 @@ function HowToSection() {
   );
 }
 
+// ===== 価格セクション =====
+function PriceSection() {
+  return (
+    <section className="py-24 bg-gradient-to-b from-black to-[#0a0515] relative overflow-hidden">
+      <div className="absolute inset-0 opacity-5">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-amber-500 rounded-full blur-[200px]" />
+      </div>
+
+      <div className="container mx-auto px-6 relative z-10">
+        <div className="max-w-2xl mx-auto text-center">
+          <div className="p-10 bg-gradient-to-br from-white/5 to-white/[0.02] border border-amber-400/30 rounded-3xl">
+            <p className="text-amber-400 text-sm tracking-[0.2em] uppercase mb-4">Price</p>
+            <h2 className="text-2xl font-bold text-white mb-2">ザ グランエンザイム PRO</h2>
+            <p className="text-white/40 text-sm mb-6">500mL ｜ 約25日分（1日20mL目安）</p>
+            
+            <div className="mb-6">
+              <p className="text-6xl lg:text-7xl font-black text-amber-400">¥9,350</p>
+              <p className="text-white/50 text-sm mt-2">税込</p>
+            </div>
+
+            <div className="space-y-2 text-left max-w-sm mx-auto mb-8">
+              <div className="flex items-center gap-3 text-white/70 text-sm">
+                <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                <span>完全無添加（白砂糖・保存料・着色料・香料ゼロ）</span>
+              </div>
+              <div className="flex items-center gap-3 text-white/70 text-sm">
+                <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                <span>国産植物素材100種使用</span>
+              </div>
+              <div className="flex items-center gap-3 text-white/70 text-sm">
+                <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                <span>吉野産ヒノキ樽で3年半熟成</span>
+              </div>
+              <div className="flex items-center gap-3 text-white/70 text-sm">
+                <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                <span>サロン品質をご自宅で</span>
+              </div>
+            </div>
+
+            <p className="text-white/30 text-xs">
+              ※ サロン定価（ハーブザイム113）約17,000円の同品質を適正価格で
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ===== メインページ =====
 export default function ProductGranenzyme() {
   return (
@@ -833,8 +932,8 @@ export default function ProductGranenzyme() {
       <TestimonialsSection />
       <TargetSection />
       <FeaturesSection />
-      <BrandTrustSection />
       <HowToSection />
+      <PriceSection />
       
       {/* フッター */}
       <footer className="py-12 bg-black border-t border-white/5">
