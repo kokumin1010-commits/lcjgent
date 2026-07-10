@@ -798,48 +798,141 @@ function FeaturesSection() {
   );
 }
 
-// ===== 飲み方セクション =====
+// ===== あなたの1週間セクション =====
 function HowToSection() {
   return (
-    <section className="py-20 bg-gradient-to-b from-[#0a0515] to-black relative">
-      <div className="container mx-auto px-6">
+    <section className="py-24 bg-gradient-to-b from-[#0a0515] to-black relative overflow-hidden">
+      {/* 背景 */}
+      <div className="absolute inset-0 opacity-5">
+        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-amber-400 rounded-full blur-[200px]" />
+      </div>
+
+      <div className="container mx-auto px-6 relative z-10">
         <div className="text-center mb-16">
-          <p className="text-amber-400 text-sm tracking-[0.2em] uppercase mb-3">How To Enjoy</p>
+          <p className="text-amber-400 text-sm tracking-[0.2em] uppercase mb-3">Your Journey</p>
           <h2 className="text-3xl lg:text-5xl font-bold text-white mb-4">
-            おすすめの飲み方
+            あなたの<span className="text-amber-400">1週間</span>
           </h2>
+          <p className="text-white/50 text-lg">この1本を買ったら、こうなる。</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-          <div className="text-center p-8 bg-white/5 border border-white/10 rounded-2xl hover:border-amber-400/30 transition-colors">
-            <div className="w-16 h-16 bg-amber-400/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl">🥤</span>
+        {/* タイムライン */}
+        <div className="max-w-3xl mx-auto">
+          {/* DAY 1 */}
+          <div className="relative pl-12 pb-12 border-l-2 border-amber-400/30">
+            <div className="absolute left-0 top-0 -translate-x-1/2 w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center">
+              <span className="text-black text-xs font-black">1</span>
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">炭酸水割り</h3>
-            <p className="text-amber-400 font-bold text-lg mb-2">酵素20mL + 炭酸水150mL</p>
-            <p className="text-white/50 text-sm">一番人気。爽やかで飲みやすく、満腹感もあり。</p>
+            <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-amber-400 font-black text-lg">DAY 1</span>
+                <span className="text-white font-bold text-lg">準備日</span>
+              </div>
+              <p className="text-white/70">夕食を和食中心・軽めに。胃を休める準備。</p>
+              <p className="text-white/40 text-sm mt-2">→ 就寝前に酵素20mL + 水150mLを飲んでおくと◎</p>
+            </div>
           </div>
-          <div className="text-center p-8 bg-white/5 border border-white/10 rounded-2xl hover:border-amber-400/30 transition-colors">
-            <div className="w-16 h-16 bg-amber-400/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl">🥛</span>
+
+          {/* DAY 2-3 */}
+          <div className="relative pl-12 pb-12 border-l-2 border-amber-400/30">
+            <div className="absolute left-0 top-0 -translate-x-1/2 w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center">
+              <span className="text-black text-xs font-black">2</span>
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">豆乳割り</h3>
-            <p className="text-amber-400 font-bold text-lg mb-2">酵素20mL + 豆乳100mL</p>
-            <p className="text-white/50 text-sm">まろやかで腹持ち◎。朝食置き換えに最適。</p>
+            <div className="p-6 bg-gradient-to-r from-amber-900/20 to-transparent border border-amber-400/30 rounded-2xl">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-amber-400 font-black text-lg">DAY 2-3</span>
+                <span className="text-white font-bold text-lg">ファスティング本番</span>
+              </div>
+              <div className="space-y-3">
+                <p className="text-white/80 text-lg font-bold">酵素20mL × 6回/日 + 水2L</p>
+                <p className="text-white/60">固形物なし。でも酵素で栄養補給するから、お腹は空かない。</p>
+                <div className="mt-4 p-4 bg-black/30 rounded-xl">
+                  <p className="text-amber-400 text-sm font-bold mb-2">おすすめの飲み方</p>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <p className="text-white/80 text-sm font-bold">🥤 炭酸水割り</p>
+                      <p className="text-white/40 text-xs">20mL+炭酸水150mL</p>
+                    </div>
+                    <div>
+                      <p className="text-white/80 text-sm font-bold">🥛 豆乳割り</p>
+                      <p className="text-white/40 text-xs">20mL+豆乳100mL</p>
+                    </div>
+                    <div>
+                      <p className="text-white/80 text-sm font-bold">💧 水割り</p>
+                      <p className="text-white/40 text-xs">20mL+水150mL</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="text-center p-8 bg-white/5 border border-white/10 rounded-2xl hover:border-amber-400/30 transition-colors">
-            <div className="w-16 h-16 bg-amber-400/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl">💧</span>
+
+          {/* DAY 4 */}
+          <div className="relative pl-12 pb-12 border-l-2 border-amber-400/30">
+            <div className="absolute left-0 top-0 -translate-x-1/2 w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center">
+              <span className="text-black text-xs font-black">4</span>
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">お水割り</h3>
-            <p className="text-amber-400 font-bold text-lg mb-2">酵素20mL + 水150mL</p>
-            <p className="text-white/50 text-sm">シンプルに素材の味を楽しむ。就寝前にも。</p>
+            <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-amber-400 font-black text-lg">DAY 4</span>
+                <span className="text-white font-bold text-lg">回復日</span>
+              </div>
+              <p className="text-white/70">おかゆ → 和食 → 徐々に普通食へ。</p>
+              <p className="text-amber-400 font-bold text-xl mt-3">→ 体重計に乗ると... -1.5kg〜2kg</p>
+            </div>
+          </div>
+
+          {/* DAY 5-7 */}
+          <div className="relative pl-12 pb-12 border-l-2 border-green-400/30">
+            <div className="absolute left-0 top-0 -translate-x-1/2 w-8 h-8 bg-green-400 rounded-full flex items-center justify-center">
+              <span className="text-black text-xs font-black">✓</span>
+            </div>
+            <div className="p-6 bg-gradient-to-r from-green-900/20 to-transparent border border-green-400/20 rounded-2xl">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-green-400 font-black text-lg">DAY 5-7</span>
+                <span className="text-white font-bold text-lg">実感が始まる</span>
+              </div>
+              <p className="text-white/70">「体が軽い」「肌の調子がいい」「朝の目覚めが違う」</p>
+            </div>
           </div>
         </div>
 
+        {/* 続けるとどうなる？ */}
+        <div className="max-w-3xl mx-auto mt-16">
+          <div className="text-center mb-10">
+            <h3 className="text-2xl lg:text-3xl font-bold text-white">
+              そして<span className="text-amber-400">続けると</span>、こうなる。
+            </h3>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-6 p-5 bg-white/5 border border-white/10 rounded-xl">
+              <span className="text-3xl font-black text-amber-400 shrink-0 w-20">1週間</span>
+              <div className="h-8 w-px bg-white/10" />
+              <p className="text-white/80 text-lg">「肌キレイになった？」と言われる。むくみ減少。</p>
+            </div>
+            <div className="flex items-center gap-6 p-5 bg-white/5 border border-white/10 rounded-xl">
+              <span className="text-3xl font-black text-amber-400 shrink-0 w-20">1ヶ月</span>
+              <div className="h-8 w-px bg-white/10" />
+              <p className="text-white/80 text-lg">朝の目覚めが別人。体重 <span className="text-amber-400 font-bold">-1〜2kg</span>。</p>
+            </div>
+            <div className="flex items-center gap-6 p-5 bg-white/5 border border-white/10 rounded-xl">
+              <span className="text-3xl font-black text-amber-400 shrink-0 w-20">3ヶ月</span>
+              <div className="h-8 w-px bg-white/10" />
+              <p className="text-white/80 text-lg">代謝アップ実感。太りにくい体質に変わる。</p>
+            </div>
+            <div className="flex items-center gap-6 p-5 bg-gradient-to-r from-amber-900/30 to-transparent border border-amber-400/30 rounded-xl">
+              <span className="text-3xl font-black text-amber-400 shrink-0 w-20">半年</span>
+              <div className="h-8 w-px bg-amber-400/30" />
+              <p className="text-white text-lg font-bold">「痩せた？」が止まらない。<span className="text-amber-400">-3〜6kg</span>。</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 注意書き */}
         <div className="text-center mt-12 space-y-2">
-          <p className="text-white/60 text-sm">※ 1回20mLが目安 ｜ 1日1〜2杯 ｜ 500mLボトルで約25日分</p>
-          <p className="text-white/40 text-xs">熱い飲み物とは混ぜないでください（酵素が壊れます）</p>
+          <p className="text-white/40 text-xs">※ 個人の感想であり、効果を保証するものではありません</p>
+          <p className="text-white/40 text-xs">※ 熱い飲み物とは混ぜないでください（酵素が壊れます）</p>
         </div>
       </div>
     </section>
