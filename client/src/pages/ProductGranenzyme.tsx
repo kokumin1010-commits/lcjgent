@@ -41,60 +41,146 @@ function useCountUp(target: number, duration = 2000, startOnView = true) {
 function HeroSection() {
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden bg-black">
-      {/* 背景グラデーション */}
+      {/* 背景 */}
       <div className="absolute inset-0 bg-gradient-to-br from-black via-[#1a0a0a] to-[#0d0515]" />
-      <div className="absolute top-0 right-0 w-1/2 h-full opacity-20 bg-gradient-to-l from-red-900/30 to-transparent" />
-      
-      <div className="container mx-auto px-6 relative z-10 grid lg:grid-cols-2 gap-12 items-center">
-        {/* 左：テキスト */}
-        <div className="space-y-8">
-          <div className="space-y-2">
-            <p className="text-sm tracking-[0.3em] text-amber-400/80 font-medium uppercase">Esthe Pro Labo</p>
-            <h1 className="text-5xl lg:text-7xl font-bold text-white leading-tight">
-              ザ グランエンザイム<sup className="text-lg text-amber-400">®</sup>
-              <br />
-              <span className="text-6xl lg:text-8xl tracking-wider">PRO</span>
-            </h1>
-            <p className="text-lg text-white/60 mt-4">プロ仕様 酵素ドリンク</p>
-          </div>
+      <div className="absolute inset-0 opacity-10">
+        <div className="absolute top-1/4 left-1/3 w-[600px] h-[600px] bg-amber-500 rounded-full blur-[200px]" />
+        <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-red-600 rounded-full blur-[150px]" />
+      </div>
+
+      <div className="container mx-auto px-6 relative z-10">
+        {/* メインコンテンツ：3カラム */}
+        <div className="grid lg:grid-cols-[1fr_auto_1fr] gap-8 items-center">
           
-          <div className="space-y-4">
-            <p className="text-2xl lg:text-3xl text-white/90 font-light leading-relaxed">
-              <span className="text-amber-400 font-semibold">100種</span>の植物素材と
-              <br />
-              <span className="text-amber-400 font-semibold">9種</span>の果実エキス。
-            </p>
-            <p className="text-white/50 text-lg">
-              こだわりの製法が生み出す、ハイクラス酵素ドリンク。
-            </p>
+          {/* 左：問題提起 + 解決 */}
+          <div className="space-y-6">
+            {/* カテゴリ表示 - 一瞬で何かわかる */}
+            <div className="inline-flex items-center gap-2 bg-amber-400/10 border border-amber-400/30 rounded-full px-5 py-2">
+              <Sparkles className="w-5 h-5 text-amber-400" />
+              <span className="text-amber-400 font-bold text-lg">ファスティング酵素ドリンク</span>
+            </div>
+
+            {/* 問題解決メッセージ */}
+            <div className="space-y-3">
+              <h1 className="text-4xl lg:text-5xl font-black text-white leading-tight">
+                食べ過ぎた翌日、
+                <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-400">
+                  たった2日でリセット。
+                </span>
+              </h1>
+              <p className="text-xl text-white/70">
+                飲むだけで始められる、プロ仕様の酵素ファスティング
+              </p>
+            </div>
+
+            {/* 実績データ - 大きく */}
+            <div className="grid grid-cols-3 gap-3 pt-2">
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+                <p className="text-3xl font-black text-amber-400">-3.6kg</p>
+                <p className="text-xs text-white/50 mt-1">7日間の実績</p>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+                <p className="text-3xl font-black text-amber-400">-6kg</p>
+                <p className="text-xs text-white/50 mt-1">半年継続</p>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+                <p className="text-3xl font-black text-amber-400">2日</p>
+                <p className="text-xs text-white/50 mt-1">体重リセット</p>
+              </div>
+            </div>
           </div>
 
-          {/* 信頼バッジ */}
-          <div className="flex flex-wrap gap-4 pt-4">
-            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2">
-              <ShieldCheck className="w-4 h-4 text-amber-400" />
-              <span className="text-sm text-white/80">完全無添加</span>
+          {/* 中央：製品画像 */}
+          <div className="flex justify-center">
+            <div className="relative">
+              <div className="absolute -inset-16 bg-gradient-to-t from-amber-600/15 via-amber-500/5 to-transparent rounded-full blur-3xl" />
+              <img
+                src="/images/granenzyme-bottle.jpg"
+                alt="ザ グランエンザイム PRO"
+                className="relative w-56 lg:w-72 h-auto object-contain drop-shadow-[0_0_40px_rgba(245,158,11,0.2)]"
+              />
+              {/* 商品名オーバーレイ */}
+              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                <p className="text-xs text-white/40 tracking-widest">ESTHE PRO LABO</p>
+                <p className="text-lg font-bold text-white text-center">グランエンザイム PRO</p>
+              </div>
             </div>
-            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2">
-              <Award className="w-4 h-4 text-amber-400" />
-              <span className="text-sm text-white/80">サロン専売品</span>
+          </div>
+
+          {/* 右：データパネル - 主播が指しながら話せる */}
+          <div className="space-y-4">
+            {/* 評価 */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex gap-0.5">
+                  {[1,2,3,4,5].map(i => (
+                    <Star key={i} className={`w-5 h-5 ${i <= 4 ? 'text-amber-400 fill-amber-400' : 'text-amber-400/40'}`} />
+                  ))}
+                </div>
+                <span className="text-2xl font-black text-white">4.25</span>
+              </div>
+              <p className="text-white/50 text-sm">Yahoo!ショッピング 370件+のレビュー</p>
             </div>
-            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2">
-              <Leaf className="w-4 h-4 text-amber-400" />
-              <span className="text-sm text-white/80">国産素材100%</span>
+
+            {/* 信頼データ */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-white/60 text-sm">取扱サロン数</span>
+                <span className="text-xl font-black text-amber-400">29,000店+</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-white/60 text-sm">植物素材</span>
+                <span className="text-xl font-black text-amber-400">100種類</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-white/60 text-sm">果実エキス</span>
+                <span className="text-xl font-black text-amber-400">9種類</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-white/60 text-sm">添加物</span>
+                <span className="text-xl font-black text-green-400">完全ゼロ</span>
+              </div>
+            </div>
+
+            {/* こんな方に */}
+            <div className="bg-gradient-to-br from-amber-900/20 to-transparent border border-amber-400/20 rounded-2xl p-5">
+              <p className="text-amber-400 font-bold text-sm mb-3">こんなお悩みに</p>
+              <ul className="space-y-2">
+                <li className="flex items-center gap-2 text-white/80 text-sm">
+                  <span className="text-amber-400">✓</span> 食べ過ぎた翌日のリセットに
+                </li>
+                <li className="flex items-center gap-2 text-white/80 text-sm">
+                  <span className="text-amber-400">✓</span> 代謝が落ちてきた30〜40代
+                </li>
+                <li className="flex items-center gap-2 text-white/80 text-sm">
+                  <span className="text-amber-400">✓</span> 短期間で結果を出したい方
+                </li>
+                <li className="flex items-center gap-2 text-white/80 text-sm">
+                  <span className="text-amber-400">✓</span> 無添加にこだわりたい方
+                </li>
+              </ul>
             </div>
           </div>
         </div>
 
-        {/* 右：製品画像 */}
-        <div className="flex justify-center lg:justify-end">
-          <div className="relative">
-            <div className="absolute -inset-10 bg-gradient-to-t from-amber-600/10 via-transparent to-transparent rounded-full blur-3xl" />
-            <img
-              src="/images/granenzyme-bottle.jpg"
-              alt="ザ グランエンザイム PRO"
-              className="relative w-72 lg:w-96 h-auto object-contain drop-shadow-2xl"
-            />
+        {/* 下部：信頼バッジ横並び */}
+        <div className="flex flex-wrap justify-center gap-4 mt-12 pt-8 border-t border-white/5">
+          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2">
+            <ShieldCheck className="w-4 h-4 text-green-400" />
+            <span className="text-sm text-white/80">白砂糖・保存料・着色料・香料 不使用</span>
+          </div>
+          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2">
+            <Award className="w-4 h-4 text-amber-400" />
+            <span className="text-sm text-white/80">パリコレ3年連続スポンサー</span>
+          </div>
+          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2">
+            <Leaf className="w-4 h-4 text-green-400" />
+            <span className="text-sm text-white/80">国産植物素材100%使用</span>
+          </div>
+          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2">
+            <Users className="w-4 h-4 text-amber-400" />
+            <span className="text-sm text-white/80">モデル美香 アンバサダー</span>
           </div>
         </div>
       </div>
