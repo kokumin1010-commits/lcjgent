@@ -2767,6 +2767,7 @@ export default function SelectionCenter() {
           <TabsTrigger value="settlements"><DollarSign className="h-4 w-4 mr-1" />{t("sc.tab.settlements")}</TabsTrigger>
           <TabsTrigger value="selections"><ClipboardList className="h-4 w-4 mr-1" />{t("sc.tab.selections")}</TabsTrigger>
           <TabsTrigger value="polls"><Vote className="h-4 w-4 mr-1" />{t("sc.tab.polls")}</TabsTrigger>
+          <TabsTrigger value="lp-links"><Link2 className="h-4 w-4 mr-1" />LPリンク</TabsTrigger>
         </TabsList>
         <TabsContent value="products"><ProductsTab /></TabsContent>
         <TabsContent value="liver-selection"><LiverSelectionTab /></TabsContent>
@@ -2775,7 +2776,78 @@ export default function SelectionCenter() {
         <TabsContent value="settlements"><SettlementsTab /></TabsContent>
         <TabsContent value="selections"><SelectionsTab /></TabsContent>
         <TabsContent value="polls"><PollsTab /></TabsContent>
+        <TabsContent value="lp-links"><LPLinksTab /></TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// ==================== LP Links Tab ====================
+function LPLinksTab() {
+  const lpPages = [
+    {
+      id: 1,
+      name: "グランエンザイム PRO",
+      brand: "ESTHE PRO LABO",
+      path: "/products/granenzyme",
+      status: "active",
+      description: "ファスティング酵素ドリンク LP・ヒノキ樽3年半熟成・パリコレスポンサー",
+      price: "¥9,350",
+      updatedAt: "2025-07-11",
+    },
+  ];
+
+  const copyUrl = (path: string) => {
+    const url = `${window.location.origin}${path}`;
+    navigator.clipboard.writeText(url);
+    toast.success("リンクをコピーしました");
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-bold">商品LPページ一覧</h3>
+          <p className="text-sm text-muted-foreground">ライブ配信で使用するLPページのリンク管理</p>
+        </div>
+      </div>
+
+      <div className="grid gap-4">
+        {lpPages.map((lp) => (
+          <Card key={lp.id} className="overflow-hidden">
+            <CardContent className="p-0">
+              <div className="flex items-center gap-4 p-4">
+                <div className="shrink-0 w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center">
+                  <ExternalLink className="h-5 w-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-base">{lp.name}</h4>
+                    <Badge variant="default" className="bg-green-500">{lp.status === "active" ? "公開中" : "下書き"}</Badge>
+                    <Badge variant="outline">{lp.price}</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-0.5">{lp.brand} ・ {lp.description}</p>
+                  <p className="text-xs text-muted-foreground mt-1">最終更新: {lp.updatedAt}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={() => copyUrl(lp.path)}>
+                    <Copy className="h-3.5 w-3.5 mr-1" />コピー
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => window.open(lp.path, '_blank')}>
+                    <ExternalLink className="h-3.5 w-3.5 mr-1" />開く
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="border-dashed">
+        <CardContent className="p-6 text-center text-muted-foreground">
+          <p className="text-sm">新しい商品LPは開発チームに依頼して追加します</p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
