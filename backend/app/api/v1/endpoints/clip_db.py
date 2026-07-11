@@ -227,7 +227,7 @@ async def search_clips(
     rating: Optional[str] = Query(None, description="Filter by rating (good/bad)"),
     video_id: Optional[str] = Query(None, description="Filter by video ID"),
     clip_id: Optional[str] = Query(None, description="Filter by specific clip ID (vc.id)"),
-    brand: Optional[str] = Query(None, description="Filter by brand client_id"),
+    brand: Optional[str] = Query(None, description="Filter by brand client_id (comma-separated for multiple)"),
     is_unusable: Optional[bool] = Query(None, description="Filter by unusable status"),
     is_skipped: Optional[bool] = Query(None, description="Filter by regen_skipped status (GPT prefilter skip)"),
     no_brand: Optional[bool] = Query(None, description="Filter clips with no brand assigned"),
@@ -320,15 +320,28 @@ async def search_clips(
         conditions.append("vc.video_id = (SELECT video_id FROM video_clips WHERE id = CAST(:clip_id AS uuid))")
         params["clip_id"] = clip_id
 
-    # Brand filter (via widget_clip_assignments)
+    # Brand filter (via widget_clip_assignments) - supports comma-separated multiple brands
     if brand:
-        conditions.append("""
-            vc.id::text IN (
-                SELECT wca.clip_id FROM widget_clip_assignments wca
-                WHERE wca.client_id = :brand_filter AND wca.is_active = TRUE
-            )
-        """)
-        params["brand_filter"] = brand
+        brand_list = [b.strip() for b in brand.split(',') if b.strip()]
+        if len(brand_list) == 1:
+            conditions.append("""
+                vc.id::text IN (
+                    SELECT wca.clip_id FROM widget_clip_assignments wca
+                    WHERE wca.client_id = :brand_filter AND wca.is_active = TRUE
+                )
+            """)
+            params["brand_filter"] = brand_list[0]
+        else:
+            # Multiple brands: use IN clause
+            brand_placeholders = [f":brand_{i}" for i in range(len(brand_list))]
+            conditions.append(f"""
+                vc.id::text IN (
+                    SELECT wca.clip_id FROM widget_clip_assignments wca
+                    WHERE wca.client_id IN ({', '.join(brand_placeholders)}) AND wca.is_active = TRUE
+                )
+            """)
+            for i, b in enumerate(brand_list):
+                params[f"brand_{i}"] = b
 
     # NG filter logic:
     # - is_unusable=true  → show ONLY NG clips
@@ -402,9 +415,13 @@ async def search_clips(
         """)
 
     # Language filter
+    # For 'ja': include NULL/empty detected_language since most clips without detection are Japanese
     if language:
-        conditions.append("vc.detected_language = :language")
-        params["language"] = language
+        if language == 'ja':
+            conditions.append("(vc.detected_language = 'ja' OR vc.detected_language IS NULL OR vc.detected_language = '' OR vc.detected_language = 'unknown')")
+        else:
+            conditions.append("vc.detected_language = :language")
+            params["language"] = language
 
     # AI version filter
     if ai_version:

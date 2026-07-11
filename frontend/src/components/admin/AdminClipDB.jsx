@@ -1481,7 +1481,7 @@ export default function AdminClipDB({ adminKey }) {
   const [selectedTag, setSelectedTag] = useState("");
   const [selectedProduct, setSelectedProduct] = useState("");
   const [selectedLiver, setSelectedLiver] = useState("");
-  const [selectedBrand, setSelectedBrand] = useState("");
+  const [selectedBrand, setSelectedBrand] = useState([]);
   const [soldFilter, setSoldFilter] = useState(null);
   const [ratingFilter, setRatingFilter] = useState("");
   const [unusableFilter, setUnusableFilter] = useState(null);
@@ -1767,7 +1767,7 @@ export default function AdminClipDB({ adminKey }) {
       if (selectedTag) params.tag = selectedTag;
       if (selectedProduct) params.product = selectedProduct;
       if (selectedLiver) params.liver = selectedLiver;
-      if (selectedBrand) params.brand = selectedBrand;
+      if (selectedBrand.length > 0) params.brand = selectedBrand.join(',');
       if (soldFilter !== null) params.is_sold = soldFilter;
       if (ratingFilter) params.rating = ratingFilter;
       if (unusableFilter !== null) params.is_unusable = unusableFilter;
@@ -2081,19 +2081,30 @@ export default function AdminClipDB({ adminKey }) {
         {/* Filter row */}
         {showFilters && searchMode === "structured" && (
           <div className="flex flex-wrap gap-2 mt-3">
-            {/* Brand filter */}
-            <select
-              value={selectedBrand}
-              onChange={(e) => { setSelectedBrand(e.target.value); setPage(1); }}
-              className="px-3 py-1.5 rounded-lg border border-blue-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-            >
-              <option value="">ブランド: すべて</option>
-              {brands.map((b) => (
-                <option key={b.client_id} value={b.client_id}>
-                  {b.name} ({b.clip_count})
-                </option>
-              ))}
-            </select>
+            {/* Brand filter - multi-select toggle buttons */}
+            <div className="flex flex-wrap gap-1 items-center">
+              <span className="text-xs text-gray-500 mr-1">ブランド:</span>
+              {selectedBrand.length === 0 && (
+                <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-700 font-medium">すべて</span>
+              )}
+              {brands.filter(b => b.clip_count > 0).map((b) => {
+                const isOn = selectedBrand.includes(b.client_id);
+                return (
+                  <button
+                    key={b.client_id}
+                    onClick={() => {
+                      setSelectedBrand(prev => isOn ? prev.filter(x => x !== b.client_id) : [...prev, b.client_id]);
+                      setPage(1);
+                    }}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      isOn ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {b.name}
+                  </button>
+                );
+              })}
+            </div>
 
             <select
               value={selectedTag}
@@ -2188,11 +2199,11 @@ export default function AdminClipDB({ adminKey }) {
               className="px-3 py-1.5 rounded-lg border border-gray-300 text-xs w-32 focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
 
-            {(selectedTag || selectedProduct || selectedLiver || selectedBrand || soldFilter !== null || ratingFilter || unusableFilter !== null || skippedFilter !== null || noBrandFilter !== null || hasSubtitleFilter !== null || hasTrimFilter !== null || notDownloadedFilter !== null || selectedPlaylistFilter) && (
+            {(selectedTag || selectedProduct || selectedLiver || selectedBrand.length > 0 || soldFilter !== null || ratingFilter || unusableFilter !== null || skippedFilter !== null || noBrandFilter !== null || hasSubtitleFilter !== null || hasTrimFilter !== null || notDownloadedFilter !== null || selectedPlaylistFilter) && (
               <button
                 onClick={() => {
                   setSelectedTag(""); setSelectedProduct(""); setSelectedLiver("");
-                  setSelectedBrand(""); setSoldFilter(null); setRatingFilter(""); setUnusableFilter(null); setSkippedFilter(null);
+                  setSelectedBrand([]); setSoldFilter(null); setRatingFilter(""); setUnusableFilter(null); setSkippedFilter(null);
                   setNoBrandFilter(null); setHasSubtitleFilter(null); setHasTrimFilter(null); setNotDownloadedFilter(null); setSelectedPlaylistFilter(""); setPage(1);
                 }}
                 className="px-2 py-1.5 rounded-lg text-xs text-red-500 hover:bg-red-50 border border-red-200"
@@ -2785,9 +2796,9 @@ export default function AdminClipDB({ adminKey }) {
           <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-thin">
             {/* All brands button */}
             <button
-              onClick={() => { setSelectedBrand(""); setPage(1); }}
+              onClick={() => { setSelectedBrand([]); setPage(1); }}
               className={`flex-shrink-0 px-4 py-3 rounded-xl border-2 transition-all duration-200 min-w-[120px] text-center ${
-                !selectedBrand
+                selectedBrand.length === 0
                   ? "border-purple-500 bg-purple-50 shadow-md"
                   : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm"
               }`}
@@ -2796,11 +2807,11 @@ export default function AdminClipDB({ adminKey }) {
               <div className="text-[11px] text-gray-500">全ブランド</div>
             </button>
             {brands.filter(b => b.clip_count > 0).map((b) => {
-              const isActive = selectedBrand === b.client_id;
+              const isActive = selectedBrand.includes(b.client_id);
               return (
                 <button
                   key={b.client_id}
-                  onClick={() => { setSelectedBrand(isActive ? "" : b.client_id); setPage(1); }}
+                  onClick={() => { setSelectedBrand(isActive ? selectedBrand.filter(x => x !== b.client_id) : [...selectedBrand, b.client_id]); setPage(1); }}
                   className={`flex-shrink-0 px-4 py-3 rounded-xl border-2 transition-all duration-200 min-w-[140px] text-left ${
                     isActive
                       ? "border-blue-500 bg-blue-50 shadow-md"
@@ -2854,7 +2865,7 @@ export default function AdminClipDB({ adminKey }) {
         <div className="text-center py-20">
           <Database className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 text-sm">
-            {searchQuery || selectedTag || selectedBrand
+            {searchQuery || selectedTag || selectedBrand.length > 0
               ? "条件に一致するクリップが見つかりませんでした"
               : "クリップデータを読み込み中..."}
           </p>
