@@ -47,7 +47,8 @@ import {
   ShieldCheck,
   ShieldAlert,
   ArrowUpDown,
-  Trophy
+  Trophy,
+  Search
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -101,6 +102,7 @@ export default function LiverMypage() {
   const [showSetsSection, setShowSetsSection] = useState(false);
   const [showProductsSection, setShowProductsSection] = useState(false);
   const [setSortBy, setSetSortBy] = useState<'revenue' | 'quantity' | 'date' | 'discount'>('revenue');
+  const [setSearchQuery, setSetSearchQuery] = useState('');
   const [productSortBy, setProductSortBy] = useState<'gmv' | 'quantity' | 'efficiency'>('gmv');
   const [expandedBrandId, setExpandedBrandId] = useState<number | null>(null);
   const [goalSalesInput, setGoalSalesInput] = useState('');
@@ -1881,9 +1883,37 @@ export default function LiverMypage() {
                     ))}
                   </div>
                   
+                  {/* 商品検索 */}
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/40" />
+                    <Input
+                      type="text"
+                      placeholder={language === 'ja' ? 'セット名・商品名で検索...' : 'Search sets or products...'}
+                      value={setSearchQuery}
+                      onChange={(e) => setSetSearchQuery(e.target.value)}
+                      className="pl-8 h-8 text-xs bg-gray-700/40 border-gray-600/40 text-white placeholder:text-white/30 focus:border-amber-500/50 focus:ring-amber-500/20"
+                    />
+                    {setSearchQuery && (
+                      <button
+                        onClick={() => setSetSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+
                   {/* セット一覧 */}
                   <div className="space-y-2">
-                    {[...setAnalysis.sets].sort((a: any, b: any) => {
+                    {[...setAnalysis.sets].filter((set: any) => {
+                      if (!setSearchQuery.trim()) return true;
+                      const query = setSearchQuery.trim().toLowerCase();
+                      // セット名で検索
+                      if (set.setName?.toLowerCase().includes(query)) return true;
+                      // セット内商品名で検索
+                      if (set.items?.some((item: any) => item.productName?.toLowerCase().includes(query))) return true;
+                      return false;
+                    }).sort((a: any, b: any) => {
                       if (setSortBy === 'revenue') return (b.totalRevenue || 0) - (a.totalRevenue || 0);
                       if (setSortBy === 'quantity') return (b.quantitySold || 0) - (a.quantitySold || 0);
                       if (setSortBy === 'discount') return (b.discountRate || 0) - (a.discountRate || 0);
@@ -1939,7 +1969,35 @@ export default function LiverMypage() {
                         </div>
                       </div>
                     ))}
+                    {setSearchQuery.trim() && [...setAnalysis.sets].filter((set: any) => {
+                      const query = setSearchQuery.trim().toLowerCase();
+                      if (set.setName?.toLowerCase().includes(query)) return true;
+                      if (set.items?.some((item: any) => item.productName?.toLowerCase().includes(query))) return true;
+                      return false;
+                    }).length === 0 && (
+                      <div className="text-center py-4">
+                        <Search className="h-5 w-5 text-white/20 mx-auto mb-1" />
+                        <p className="text-xs text-white/40">
+                          {language === 'ja' ? `「${setSearchQuery}」に該当するセットが見つかりません` : `No sets found for "${setSearchQuery}"`}
+                        </p>
+                      </div>
+                    )}
                   </div>
+
+                  {/* 検索結果件数表示 */}
+                  {setSearchQuery.trim() && (
+                    <p className="text-[10px] text-white/40 text-right">
+                      {(() => {
+                        const count = [...setAnalysis.sets].filter((set: any) => {
+                          const query = setSearchQuery.trim().toLowerCase();
+                          if (set.setName?.toLowerCase().includes(query)) return true;
+                          if (set.items?.some((item: any) => item.productName?.toLowerCase().includes(query))) return true;
+                          return false;
+                        }).length;
+                        return language === 'ja' ? `${count}件 / ${setAnalysis.sets.length}件中` : `${count} / ${setAnalysis.sets.length} sets`;
+                      })()}
+                    </p>
+                  )}
                   
                   {/* よく使う商品 TOP5 */}
                   {setAnalysis.topProducts && setAnalysis.topProducts.length > 0 && (
