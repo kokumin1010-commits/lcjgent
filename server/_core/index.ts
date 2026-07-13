@@ -34,6 +34,7 @@ import { startFeishuSyncScheduler } from "../feishuSyncScheduler";
 import { startContactSearchScheduler } from "../contactSearchScheduler";
 import { startAiCoachBrainScheduler } from "../aiCoachBrainScheduler";
 import { startLeadAutoCollectScheduler } from "../leadAutoCollectScheduler";
+import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
 
@@ -2375,6 +2376,9 @@ async function startServer() {
     
     // Start AI auto-approve scheduler (server-side autonomous batch processing)
     startAiAutoApproveScheduler();
+    
+    // Start AI auto-approve scheduled trigger (auto-triggers at JST 9:00, 12:00, 18:00)
+    startAiAutoApproveScheduledTrigger();
     
     // Start step email scheduler (sends step emails every 1 hour)
     startStepEmailScheduler();
