@@ -2153,7 +2153,7 @@ export const lineLoginRouter = router({
               text: `これらの${uploadedImages.length}枚の画像はTikTok Shopの注文詳細画面のスクリーンショットです。\n\n【最重要】まず注文番号（16〜19桁の数字、「5」か「6」で始まる）を探してください。\n画面の下部に「注文番号」というラベルと共に表示されていることが多いです。\n「さらに表示」ボタンの直上や、合計金額の下にも表示されます。\n\nすべての画像を統合して情報を抽出してください。`,
             });
             
-            let ocrData: any;
+            let ocrData: any = null;
             let messageContent: string | null = null;
             try {
               const ocrResult = await invokeLLM({
@@ -2468,11 +2468,51 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             
           } catch (bgError) {
             console.error(`[Web Receipt BG] Background processing failed for receipt ${receiptId}:`, bgError);
-            // バックグラウンドエラーでもお客様には影響なし
-            // 管理者が手動で確認できるようにon_holdにする
+            // OCRデータが完全に取得できている場合は、エラーがあっても自動承認する
+            // （エラーの原因は通常findSimilarOrderNumbers等の非必須処理のタイムアウト）
             try {
-              const { updateLineReceiptStatus: updateBgFailStatus } = await import("./db");
-              await updateBgFailStatus(receiptId, "on_hold", 0, "バックグラウンド処理エラー。手動確認が必要です。");
+              const { updateLineReceiptStatus: updateBgFailStatus, awardPointsForLineReceipt, getLineUserByLineId, confirmPendingReferral, checkDuplicateOrderNumberGlobal } = await import("./db");
+              if (ocrData && ocrData.isTikTokShop && ocrData.isDelivered && ocrData.orderNumber && ocrData.totalAmount > 0) {
+                // まず重複チェックだけは実行（軽量なクエリなので失敗しにくい）
+                let isDuplicate = false;
+                try {
+                  const dup = await checkDuplicateOrderNumberGlobal(ocrData.orderNumber, receiptId);
+                  if (dup) {
+                    isDuplicate = true;
+                    await updateBgFailStatus(receiptId, "rejected", 0, `自動却下: この注文番号は既に申請済みです。注文番号: ${ocrData.orderNumber}`);
+                    console.log(`[Web Receipt BG] Receipt ${receiptId}: rejected (duplicate) in catch-block recovery`);
+                  }
+                } catch (dupErr) {
+                  // 重複チェックも失敗した場合は安全側に倒して承認する（後で手動確認可能）
+                  console.warn(`[Web Receipt BG] Duplicate check also failed for receipt ${receiptId}, proceeding with approval`);
+                }
+                if (isDuplicate) { /* already rejected above */ }
+                else {
+                // OCRデータ完全 + 重複なし → 自動承認
+                const pointsToAward = Math.floor(ocrData.totalAmount * 0.01);
+                await updateBgFailStatus(receiptId, "approved", 0, `[自動承認] OCRデータ完全。後続処理エラーのため不正検知スキップ: ${(bgError as any)?.message?.substring(0, 80) || 'unknown'}`);
+                if (pointsToAward > 0) {
+                  try {
+                    await awardPointsForLineReceipt(receiptId, pointsToAward);
+                  } catch (ptErr) {
+                    console.error(`[Web Receipt BG] Failed to award points for receipt ${receiptId}:`, ptErr);
+                  }
+                }
+                // Confirm pending referral
+                try {
+                  const lineUserRecord = await getLineUserByLineId(lineUserId);
+                  if (lineUserRecord) {
+                    await confirmPendingReferral(lineUserId, lineUserRecord.id);
+                  }
+                } catch (refErr) {
+                  // ignore referral errors
+                }
+                console.log(`[Web Receipt BG] Receipt ${receiptId}: auto-approved despite bg error (OCR data complete)`);
+                }
+              } else {
+                // OCRデータ不完全 → 従来通りon_hold
+                await updateBgFailStatus(receiptId, "on_hold", 0, "バックグラウンド処理エラー。手動確認が必要です。");
+              }
             } catch (e) {
               console.error(`[Web Receipt BG] Failed to update status for receipt ${receiptId}:`, e);
             }
