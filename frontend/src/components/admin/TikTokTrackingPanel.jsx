@@ -752,8 +752,8 @@ export default function TikTokTrackingPanel({ adminKey }) {
           {showDailyPosts && (
             <div className="space-y-3">
               {/* Summary bar chart */}
-              <div className="overflow-x-auto">
-                <div className="flex gap-1 items-end min-w-fit" style={{ height: "80px" }}>
+              <div className="overflow-x-auto" style={{ overflowY: "visible" }}>
+                <div className="flex gap-1 items-end min-w-fit" style={{ height: "100px" }}>
                   {dailyPosts.daily_summary.slice(0, 14).reverse().map((day) => {
                     const maxPosts = Math.max(...dailyPosts.daily_summary.map(d => d.total_posts), 1);
                     const height = Math.max((day.total_posts / maxPosts) * 60, 4);
