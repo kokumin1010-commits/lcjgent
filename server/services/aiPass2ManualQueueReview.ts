@@ -451,22 +451,43 @@ export async function runAiPass2ManualQueueReview(config: Pass2Config): Promise<
         }));
 
         let missingDataNote = "";
+        const missingAmount = !candidate.totalAmount || candidate.totalAmount <= 0;
         if (missingOrderNumber) {
           missingDataNote += "\n\n❗ OCRで注文番号が取得できませんでした。画像から注文番号（16-19桁の数字）を読み取ってdetectedOrderNumberに設定してください。";
         }
-        if (!candidate.totalAmount || candidate.totalAmount <= 0) {
+        if (missingAmount) {
           missingDataNote += "\n\n❗ OCRで金額が取得できませんでした。画像から合計金額を読み取ってdetectedAmountに設定してください。";
+        }
+
+        // Detect if OCR data is mostly missing (multi-image scenario where OCR failed)
+        const ocrMissingFields = [
+          !ocrData.orderNumber && missingOrderNumber,
+          missingAmount,
+          !ocrData.isTikTokShop,
+          !ocrData.isDelivered,
+          !ocrData.shopName && !candidate.storeName,
+        ].filter(Boolean).length;
+        const ocrIsUnreliable = ocrMissingFields >= 3;
+
+        let ocrReliabilityNote = "";
+        if (ocrIsUnreliable) {
+          ocrReliabilityNote = `\n\n⚠️ 重要: OCRデータはほぼ取得できていません（${ocrMissingFields}項目欠損）。OCRデータは無視して、画像から直接すべての情報を読み取って判断してください。`;
+        }
+
+        let multiImageNote = "";
+        if (allImageUrls.length > 1) {
+          multiImageNote = `\n\n📷 ${allImageUrls.length}枚の画像が送信されています。すべての画像を統合して判断してください。1枚目に商品情報、2枚目以降に注文番号・金額・配達ステータスが表示されていることが多いです。`;
         }
 
         imageContents.push({
           type: "text" as const,
-          text: `このレシート画像を審査してください。\n\nOCRデータ: ${JSON.stringify({
+          text: `このレシート画像を審査してください。${multiImageNote}\n\nOCRデータ: ${JSON.stringify({
             orderNumber: ocrData.orderNumber,
             totalAmount: candidate.totalAmount,
             shopName: ocrData.shopName || candidate.storeName,
             isTikTokShop: ocrData.isTikTokShop,
             isDelivered: ocrData.isDelivered,
-          })}${missingDataNote}\n\n${exampleContext}`,
+          })}${ocrReliabilityNote}${missingDataNote}\n\n${exampleContext}`,
         });
 
         const llmResult = await invokeLLM({
@@ -501,12 +522,22 @@ export async function runAiPass2ManualQueueReview(config: Pass2Config): Promise<
 - 注文番号がOCRで取れなかった場合: 画像から読み取ってdetectedOrderNumberに設定
 - 画像が少し不明瞭でも必要情報が読み取れるなら承認
 
+=== ★★★ 複数画像の審査ルール（最重要） ★★★
+ユーザーはスクリーンショットを1枚に収まらない場合、複数枚に分けて送信します。
+典型的なパターン:
+- 1枚目: 商品情報（商品名、価格、数量）
+- 2枚目: 注文番号、合計金額、配達日時、支払い方法
+→ 必ず全画像を統合して判断してください。
+→ OCRデータが空/不完全でも、画像から必要情報が確認できれば高信頼度（90+）で承認してください。
+→ OCRデータが空だからといって信頼度を下げないでください。
+
 === 信頼度スコアガイドライン ===
-- 90-100: 全ての情報が明確に確認できる
+- 90-100: 全ての情報が画像から明確に確認できる（OCRデータが空でも画像から読み取れればこのレンジ）
 - 80-89: ほぼ確認できるが一部不明瞭な点がある（承認可能）
 - 60-79: 判断が難しいが承認の可能性が高い
 - 40-59: 判断が難しい、人間の確認が必要
 - 0-39: 明らかに基準を満たしていない
+★ 重要: 「OCRデータが空」という理由だけで信頼度を下げないでください。
 
 ${statisticsPrompt}${learningPrompt}`,
             },
