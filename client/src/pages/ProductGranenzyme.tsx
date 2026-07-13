@@ -4,6 +4,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { Star, Sparkles, Leaf, Heart, TrendingDown, ShieldCheck, Award, Users, FlaskConical, Droplets, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { LPAuthGate } from '@/components/LPAuthGate';
 
 // ===== カウントアップフック =====
 function useCountUp(target: number, duration = 2000, startOnView = true) {
@@ -1136,6 +1137,7 @@ function PriceSection() {
 // ===== メインページ =====
 export default function ProductGranenzyme() {
   return (
+    <LPAuthGate>
     <div className="min-h-screen bg-black text-white overflow-x-hidden">
       <HeroSection />
       <BeforeAfterSection />
@@ -1160,5 +1162,6 @@ export default function ProductGranenzyme() {
         </div>
       </footer>
     </div>
+    </LPAuthGate>
   );
 }
