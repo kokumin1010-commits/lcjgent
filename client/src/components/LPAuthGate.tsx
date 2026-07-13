@@ -3,17 +3,19 @@
  * 
  * LPページ（/products/*）で使用。
  * - 未ログイン: LPがうっすら見える背景の上に、閉じられないポップアップを表示
- * - ログイン済み: ポップアップなし、通常表示
+ * - ログイン済み（LINE/email会員）: ポップアップなし、通常表示
+ * 
+ * 認証はlineLogin.meを使用（LINE/email会員用）
+ * ログインボタンは/line-loginに遷移せずリダイレクト
  */
-import { useAuth } from '@/_core/hooks/useAuth';
-import { getLoginUrl } from '@/const';
+import { trpc } from '@/lib/trpc';
 import { Sparkles, UserPlus, ArrowRight } from 'lucide-react';
 
 export function LPAuthGate({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAuthenticated } = useAuth();
+  const { data: lineUser, isLoading } = trpc.lineLogin.me.useQuery();
 
   // ローディング中は何も表示しない（チラつき防止）
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="animate-pulse text-white/50 text-sm">読み込み中...</div>
@@ -21,10 +23,15 @@ export function LPAuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // ログイン済み → 通常表示
-  if (isAuthenticated && user) {
+  // ログイン済み（LINE/email会員）→ 通常表示
+  if (lineUser) {
     return <>{children}</>;
   }
+
+  // 現在のパスを取得（ログイン後のリダイレクト先）
+  const currentPath = window.location.pathname;
+  const registerUrl = `/line-login?redirect=${encodeURIComponent(currentPath)}&mode=register`;
+  const loginUrl = `/line-login?redirect=${encodeURIComponent(currentPath)}`;
 
   // 未ログイン → LP背景ぼかし + ポップアップ
   return (
@@ -76,7 +83,7 @@ export function LPAuthGate({ children }: { children: React.ReactNode }) {
 
           {/* 登録ボタン */}
           <a
-            href={getLoginUrl()}
+            href={registerUrl}
             className="relative inline-flex items-center justify-center gap-2 w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold text-base rounded-xl transition-all duration-200 shadow-lg shadow-blue-600/30 hover:shadow-blue-500/40 hover:scale-[1.02] active:scale-[0.98]"
           >
             <UserPlus className="w-5 h-5" />
@@ -86,7 +93,7 @@ export function LPAuthGate({ children }: { children: React.ReactNode }) {
           {/* ログインリンク */}
           <p className="relative mt-4 text-white/50 text-xs">
             すでにアカウントをお持ちの方は
-            <a href={getLoginUrl()} className="text-blue-400 hover:text-blue-300 underline ml-1">
+            <a href={loginUrl} className="text-blue-400 hover:text-blue-300 underline ml-1">
               ログイン
             </a>
           </p>
