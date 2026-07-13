@@ -28748,6 +28748,20 @@ JSON配列のみを出力してください。`;
         }));
       }),
 
+    // スナップショットの時間帯を更新
+    updateSnapshotTimeSlot: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        timeSlot: z.string().min(1),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+        await db.update(livestreamRealtimeSnapshots)
+          .set({ timeSlot: input.timeSlot })
+          .where(eq(livestreamRealtimeSnapshots.id, input.id));
+        return { success: true };
+      }),
     // ===== AI商品輪番戦略推薦 =====
     getCarouselRecommendation: protectedProcedure
       .input(z.object({

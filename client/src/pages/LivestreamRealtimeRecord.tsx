@@ -56,6 +56,9 @@ export default function LivestreamRealtimeRecord() {
   const [editQuantity, setEditQuantity] = useState("");
   const [editCartAdd, setEditCartAdd] = useState("");
   const [editNotes, setEditNotes] = useState("");
+  const [editTimeSlot, setEditTimeSlot] = useState("");
+  const [editingSnapshotId, setEditingSnapshotId] = useState<number | null>(null);
+  const [editSnapshotTime, setEditSnapshotTime] = useState("");
 
   // 商品候補（過去の記録から）
   const productSuggestions = useMemo(() => {
@@ -82,6 +85,16 @@ export default function LivestreamRealtimeRecord() {
     onSuccess: () => {
       toast.success("更新しました");
       setEditingId(null);
+      refetch();
+    },
+    onError: (err) => toast.error(`エラー: ${err.message}`),
+  });
+
+  const updateSnapshotTimeMutation = trpc.realtimeRecord.updateSnapshotTimeSlot.useMutation({
+    onSuccess: () => {
+      toast.success("時間を更新しました");
+      setEditingSnapshotId(null);
+      refetchSnapshots();
       refetch();
     },
     onError: (err) => toast.error(`エラー: ${err.message}`),
@@ -523,7 +536,16 @@ export default function LivestreamRealtimeRecord() {
                                       placeholder="商品名"
                                       className="bg-gray-700 border-gray-600 text-white text-sm h-9"
                                     />
-                                    <div className="grid grid-cols-3 gap-2">
+                                    <div className="grid grid-cols-4 gap-2">
+                                      <div>
+                                        <label className="text-[10px] text-gray-400">時間</label>
+                                        <Input
+                                          type="time"
+                                          value={editTimeSlot}
+                                          onChange={(e) => setEditTimeSlot(e.target.value)}
+                                          className="bg-gray-700 border-gray-600 text-white text-sm h-8"
+                                        />
+                                      </div>
                                       <div>
                                         <label className="text-[10px] text-gray-400">単価(¥)</label>
                                         <Input
@@ -572,6 +594,7 @@ export default function LivestreamRealtimeRecord() {
                                             productPrice: parseInt(editPrice) || 0,
                                             quantitySold: parseInt(editQuantity) || 0,
                                             cartAddCount: parseInt(editCartAdd) || 0,
+                                            timeSlot: editTimeSlot || undefined,
                                             notes: editNotes || undefined,
                                           });
                                         }}
@@ -595,7 +618,19 @@ export default function LivestreamRealtimeRecord() {
                                     <div className="flex items-start justify-between">
                                       <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                          <span className="text-xs font-mono text-blue-300 bg-blue-900/30 px-2 py-0.5 rounded min-w-[50px] text-center">{record.timeSlot}</span>
+                                          <span
+                                            className="text-xs font-mono text-blue-300 bg-blue-900/30 px-2 py-0.5 rounded min-w-[50px] text-center cursor-pointer hover:bg-blue-800/50 hover:text-blue-100"
+                                            onClick={() => {
+                                              setEditingId(record.id);
+                                              setEditProductName(record.productName);
+                                              setEditPrice(record.productPrice ? String(record.productPrice) : '0');
+                                              setEditQuantity(String(record.quantitySold));
+                                              setEditCartAdd(String(record.cartAddCount || 0));
+                                              setEditTimeSlot(record.timeSlot || '');
+                                              setEditNotes(record.notes || '');
+                                            }}
+                                            title="クリックで編集"
+                                          >{record.timeSlot}</span>
                                           {record.productPrice && (
                                             <span className="text-sm text-gray-300">単価: <span className="text-green-400 font-bold">¥{Number(record.productPrice).toLocaleString()}</span></span>
                                           )}
@@ -641,6 +676,7 @@ export default function LivestreamRealtimeRecord() {
                                             setEditPrice(record.productPrice ? String(record.productPrice) : '0');
                                             setEditQuantity(String(record.quantitySold));
                                             setEditCartAdd(String(record.cartAddCount || 0));
+                                            setEditTimeSlot(record.timeSlot || '');
                                             setEditNotes(record.notes || '');
                                           }}
                                         >
@@ -790,7 +826,35 @@ export default function LivestreamRealtimeRecord() {
                       <div key={snap.id} className="bg-gray-800/50 rounded-lg px-3 py-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-mono text-purple-300">{snap.timeSlot}</span>
+                            {editingSnapshotId === snap.id ? (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="time"
+                                  value={editSnapshotTime}
+                                  onChange={(e) => setEditSnapshotTime(e.target.value)}
+                                  className="bg-gray-700 border border-gray-600 text-white text-[10px] font-mono rounded px-1 py-0.5 w-[70px]"
+                                />
+                                <button
+                                  onClick={() => {
+                                    updateSnapshotTimeMutation.mutate({ id: snap.id, timeSlot: editSnapshotTime });
+                                  }}
+                                  className="text-green-400 hover:text-green-300 text-[10px]"
+                                >✓</button>
+                                <button
+                                  onClick={() => setEditingSnapshotId(null)}
+                                  className="text-gray-400 hover:text-gray-300 text-[10px]"
+                                >✗</button>
+                              </div>
+                            ) : (
+                              <span
+                                className="text-[10px] font-mono text-purple-300 cursor-pointer hover:text-purple-100 hover:underline"
+                                onClick={() => {
+                                  setEditingSnapshotId(snap.id);
+                                  setEditSnapshotTime(snap.timeSlot);
+                                }}
+                                title="クリックで時間を編集"
+                              >{snap.timeSlot}</span>
+                            )}
                             <span className={`text-[9px] px-1.5 py-0.5 rounded ${snap.confidence === 'high' ? 'bg-green-900/50 text-green-400' : snap.confidence === 'medium' ? 'bg-yellow-900/50 text-yellow-400' : 'bg-red-900/50 text-red-400'}`}>
                               {snap.confidence}
                             </span>
