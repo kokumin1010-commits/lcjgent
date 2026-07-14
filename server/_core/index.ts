@@ -970,7 +970,7 @@ async function startServer() {
   <meta property="og:image" content="${ogImage}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:site_name" content="LIVE COMMERCE FESTIVAL">
+  <meta property="og:site_name" content="Live Commerce Festival">
   <meta property="og:locale" content="ja_JP">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${escapeHtml(title)}">
@@ -978,7 +978,7 @@ async function startServer() {
   <meta name="twitter:image" content="${ogImage}">
 </head>
 <body>
-  <h1>LIVE COMMERCE FESTIVAL 2026</h1>
+  <h1>Live Commerce Festival</h1>
   <p>${escapeHtml(description)}</p>
   <p>日時: 2026年9月8日（火）〜 9月9日（水）</p>
   <p>会場: 八芳園（東京都港区白金台1-1-1）</p>
@@ -1010,7 +1010,7 @@ async function startServer() {
       html = html.replace(/<meta property="og:title"[^>]*\/>/, `<meta property="og:title" content="${escapeHtml(title)}" />`);
       html = html.replace(/<meta property="og:description"[^>]*\/>/, `<meta property="og:description" content="${escapeHtml(description)}" />`);
       html = html.replace(/<meta property="og:url"[^>]*\/>/, `<meta property="og:url" content="${baseUrl}/livecommercefestival/2026" />`);
-      html = html.replace(/<meta property="og:site_name"[^>]*\/>/, `<meta property="og:site_name" content="LIVE COMMERCE FESTIVAL" />`);
+      html = html.replace(/<meta property="og:site_name"[^>]*\/>/, `<meta property="og:site_name" content="Live Commerce Festival" />`);
       html = html.replace(/<meta name="twitter:title"[^>]*\/>/, `<meta name="twitter:title" content="${escapeHtml(title)}" />`);
       html = html.replace(/<meta name="twitter:description"[^>]*\/>/, `<meta name="twitter:description" content="${escapeHtml(description)}" />`);
       // Add og:image (not present in default index.html)
@@ -1050,7 +1050,7 @@ async function startServer() {
   <meta property="og:image" content="${ogImage}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:site_name" content="LIVE COMMERCE FESTIVAL">
+  <meta property="og:site_name" content="Live Commerce Festival">
   <meta property="og:locale" content="ja_JP">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${escapeHtml(title)}">
@@ -2325,10 +2325,10 @@ async function startServer() {
     if (!isBot) return next(); // Non-bot: let SPA handle it (client-side domain check)
     // Bot: serve festival OGP HTML
     const baseUrl = `${req.protocol}://${req.get("host")}`;
-    const title = "LIVE COMMERCE FESTIVAL 2026 | 日本最大級ライブコマース祭典";
+    const title = "Live Commerce Festival | 日本最大級ライブコマース祭典";
     const description = "2026年9月8日-9日 八芳園にて開催。コマースライバーと企業のマッチング・セミナー型祭典。総額1000万円分の豪華特典キャンペーン実施中。参加無料・事前LINE登録制。";
     const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/cJiTCPRFjIgLnUGK.png";
-    const html = `<!DOCTYPE html>\n<html lang="ja"><head><meta charset="UTF-8"><title>${title}</title><meta name="description" content="${description}"><meta property="og:title" content="${title}"><meta property="og:description" content="${description}"><meta property="og:image" content="${ogImage}"><meta property="og:url" content="${baseUrl}"><meta property="og:type" content="website"><meta property="og:site_name" content="LIVE COMMERCE FESTIVAL"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${title}"><meta name="twitter:description" content="${description}"><meta name="twitter:image" content="${ogImage}"><link rel="canonical" href="${baseUrl}"></head><body><h1>LIVE COMMERCE FESTIVAL 2026</h1><p>${description}</p></body></html>`;
+    const html = `<!DOCTYPE html>\n<html lang="ja"><head><meta charset="UTF-8"><title>${title}</title><meta name="description" content="${description}"><meta property="og:title" content="${title}"><meta property="og:description" content="${description}"><meta property="og:image" content="${ogImage}"><meta property="og:url" content="${baseUrl}"><meta property="og:type" content="website"><meta property="og:site_name" content="Live Commerce Festival"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${title}"><meta name="twitter:description" content="${description}"><meta name="twitter:image" content="${ogImage}"><link rel="icon" type="image/svg+xml" href="/festival-favicon.svg"><link rel="canonical" href="${baseUrl}"></head><body><h1>Live Commerce Festival</h1><p>${description}</p></body></html>`;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.send(html);
   });

@@ -207,6 +207,23 @@ const festivalStyles = `
 // Main Component
 // ============================================================
 export default function LiveCommerceFestival() {
+  // Set festival favicon & title when on livecommercefestival domain
+  useEffect(() => {
+    document.title = 'Live Commerce Festival | \u65e5\u672c\u6700\u5927\u7d1a\u30e9\u30a4\u30d6\u30b3\u30de\u30fc\u30b9\u796d\u5178';
+    // Update favicon
+    const existingIcon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+    if (existingIcon) {
+      existingIcon.href = '/festival-favicon.svg';
+      existingIcon.type = 'image/svg+xml';
+    } else {
+      const link = document.createElement('link');
+      link.rel = 'icon';
+      link.type = 'image/svg+xml';
+      link.href = '/festival-favicon.svg';
+      document.head.appendChild(link);
+    }
+  }, []);
+
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: festivalStyles }} />
