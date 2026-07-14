@@ -2170,6 +2170,7 @@ export const lineLoginRouter = router({
   "isTikTokShop": true/false,
   "isDelivered": true/false,
   "orderNumber": "string",
+  "allOrderNumbers": ["string"],
   "totalAmount": number,
   "orderDate": "string",
   "shopName": "string",
@@ -2231,6 +2232,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 - それでも見つからない場合のみnullを返す
 
 「orderNumberSource」には注文番号をどこで見つけたか記載（例: "画面下部の注文番号ラベル横", "合計金額の下"）
+「allOrderNumbers」には画像内で検出した全ての注文番号（16〜19桁、5or6始まり）を配列で返してください。1つだけの場合も配列で返す。複数の異なる注文番号が検出された場合は全て含めてください。
 
 === 配達済みの判定 ===
 以下のいずれかが確認できれば isDelivered = true：
@@ -2293,6 +2295,35 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               const { updateLineReceiptStatus: updateFailedStatus } = await import("./db");
               await updateFailedStatus(receiptId, "on_hold", 0, "AI解析失敗。手動確認が必要です。");
               return;
+            }
+            // 3.5. 複数注文番号チェック - 1回の申請に1つの注文番号のみ許可
+            if (ocrData.allOrderNumbers && Array.isArray(ocrData.allOrderNumbers)) {
+              // 有効な注文番号のみフィルタ（16-19桁、5or6始まり）
+              const validOrderNumbers = ocrData.allOrderNumbers
+                .map((n: string) => String(n).replace(/[^0-9]/g, ""))
+                .filter((n: string) => /^[56]\d{15,18}$/.test(n) || /^\d{16,19}$/.test(n));
+              const uniqueOrderNumbers = [...new Set(validOrderNumbers)];
+              if (uniqueOrderNumbers.length > 1) {
+                console.log(`[Web Receipt BG] Receipt ${receiptId}: REJECTED - multiple order numbers detected: ${uniqueOrderNumbers.join(", ")}`);
+                const { updateLineReceiptOcr: updateOcrMulti } = await import("./db");
+                await updateOcrMulti(receiptId, {
+                  storeName: ocrData.shopName || "TikTok Shop",
+                  purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+                  totalAmount: ocrData.totalAmount || 0,
+                  currency: "JPY",
+                  ocrRawText: JSON.stringify(ocrData),
+                  pointsCalculated: 0,
+                  imageUrls: uploadedImages.map(i => i.url),
+                  imageKeys: uploadedImages.map(i => i.key),
+                });
+                const { updateLineReceiptAiRejection: updateAiRejMulti, updateLineReceiptStatus: updateMultiStatus } = await import("./db");
+                await updateAiRejMulti(receiptId, {
+                  aiRejectionReason: `複数の注文番号が検出されました（${uniqueOrderNumbers.length}件）。1回の申請につき1つの注文のみ申請可能です。注文ごとに分けて再申請してください。`,
+                  aiRejectionCategory: "not_order_detail",
+                });
+                await updateMultiStatus(receiptId, "rejected", 0, `自動却下: 複数注文番号検出 (${uniqueOrderNumbers.join(", ")})`);
+                return;
+              }
             }
             
             // 4. 注文番号のバリデーション・フォールバック処理
