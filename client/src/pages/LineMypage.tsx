@@ -88,7 +88,7 @@ export default function LineMypage() {
   // レシートフィルタリング
   const filteredReceipts = useMemo(() => {
     if (!receipts) return [];
-    if (receiptStatusFilter === 'all') return receipts;
+    if (receiptStatusFilter === 'all') return receipts.filter((r: any) => r.status !== 'approved');
     return receipts.filter((r: any) => r.status === receiptStatusFilter);
   }, [receipts, receiptStatusFilter]);
 
