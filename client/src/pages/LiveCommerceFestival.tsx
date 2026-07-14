@@ -29,6 +29,9 @@ const IMAGES = {
   happoVenue: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/DwVkbpUhTwHmEAWU.jpeg",
   happoBanquet: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/KzjrGXFLoNuYbLAY.jpg",
   happoGarden: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/yWeAfLGtjSSQDDwS.jpg",
+  // 出演者写真
+  tsubame: "/speakers/tsubame.webp",
+  kyogokuRyu: "/speakers/kyogoku-ryu.webp",
 };
 
 // ============================================================
@@ -209,11 +212,11 @@ export default function LiveCommerceFestival() {
       <style dangerouslySetInnerHTML={{ __html: festivalStyles }} />
       <div className="min-h-screen bg-[#0a0a0f] text-white overflow-hidden">
         <HeroSection />
+        <SpeakersSection />
         <StatsSection />
         <LiveHighlightSection />
         <ConceptSection />
         <ProgramSection />
-        <SpeakersSection />
         <VenueSection />
         <SponsorSection />
         <EventScheduleSection />
@@ -571,14 +574,49 @@ function ProgramSection() {
 }
 
 // ============================================================
-// Speakers Section
+// Speakers Section — SNS万博スタイルの写真カード
 // ============================================================
 function SpeakersSection() {
   const reveal = useScrollReveal();
   
-  const speakers = [
-    { name: "プリンスこうや", title: "株式会社MOB 取締役", role: "トップライバー / MC" },
-    { name: "京極 琉", title: "株式会社Live Commerce Japan 代表取締役CEO", role: "トップライバー / 主催" },
+  // メイン出演者（写真あり / プレースホルダー）
+  const mainSpeakers = [
+    { 
+      name: "京極 琉", 
+      title: "Live Commerce Japan CEO", 
+      stat: "TikTok売上", 
+      statValue: "1.2", 
+      statUnit: "億円",
+      image: IMAGES.kyogokuRyu,
+      hasPhoto: true,
+    },
+    { 
+      name: "燕", 
+      title: "トップコマースライバー", 
+      stat: "TikTokフォロワー", 
+      statValue: "50", 
+      statUnit: "万人",
+      image: IMAGES.tsubame,
+      hasPhoto: true,
+    },
+    { 
+      name: "プリンスこうや", 
+      title: "株式会社MOB 取締役", 
+      stat: "TikTok売上", 
+      statValue: "8000", 
+      statUnit: "万円",
+      image: null,
+      hasPhoto: false,
+    },
+    { 
+      name: "JOY", 
+      title: "タレント / ゲスト出演", 
+      stat: "SNS総フォロワー", 
+      statValue: "100", 
+      statUnit: "万人超",
+      image: null,
+      hasPhoto: false,
+    },
   ];
   
   const livers = [
@@ -596,32 +634,51 @@ function SpeakersSection() {
       <div ref={reveal.ref} className={`relative max-w-5xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         <div className="text-center mb-12">
           <span className="text-amber-400 text-sm tracking-[0.3em] uppercase flex items-center justify-center gap-2">
-            <Star className="w-4 h-4" /> Speakers & Livers <Star className="w-4 h-4" />
+            <Star className="w-4 h-4" /> Main Speakers <Star className="w-4 h-4" />
           </span>
-          <h2 className="text-3xl sm:text-4xl font-bold mt-3">出演者</h2>
+          <h2 className="text-3xl sm:text-4xl font-bold mt-3">メイン出演者</h2>
         </div>
         
-        {/* Main Speakers */}
-        <div className="grid sm:grid-cols-2 gap-6 mb-10">
-          {speakers.map((s, i) => (
-            <div key={i} className="p-6 rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-transparent hover:border-amber-500/40 transition-all hover:scale-[1.02]">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-black font-bold text-xl mb-4 shadow-lg shadow-amber-500/20">
-                {s.name[0]}
+        {/* Main Speakers - Photo Cards (SNS万博スタイル) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-12">
+          {mainSpeakers.map((s, i) => (
+            <div key={i} className="rounded-2xl overflow-hidden bg-[#111] border border-white/10 hover:border-amber-500/40 transition-all hover:scale-[1.03] group">
+              {/* Photo area */}
+              <div className="aspect-[3/4] relative overflow-hidden bg-gradient-to-b from-gray-800 to-gray-900">
+                {s.hasPhoto && s.image ? (
+                  <img 
+                    src={s.image} 
+                    alt={s.name} 
+                    className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                  />
+                ) : (
+                  /* Placeholder - stylish silhouette */
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-b from-gray-700 to-gray-900">
+                    <div className="text-center">
+                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400/30 to-amber-600/30 flex items-center justify-center mx-auto mb-3 border-2 border-amber-500/30">
+                        <span className="text-3xl font-black text-amber-400/80">{s.name[0]}</span>
+                      </div>
+                      <p className="text-xs text-gray-500">写真準備中</p>
+                    </div>
+                  </div>
+                )}
+                {/* Gold border at bottom */}
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
               </div>
-              <h3 className="text-xl font-bold">{s.name}</h3>
-              <p className="text-sm text-amber-400 mt-1">{s.title}</p>
-              <p className="text-xs text-gray-500 mt-1">{s.role}</p>
+              
+              {/* Info area */}
+              <div className="p-4">
+                <h3 className="font-bold text-lg text-white">{s.name}</h3>
+                <p className="text-xs text-gray-400 mt-0.5 mb-3">{s.title}</p>
+                <div>
+                  <p className="text-[10px] text-gray-500">{s.stat}</p>
+                  <p className="text-xl md:text-2xl font-black text-amber-400">
+                    {s.statValue}<span className="text-sm font-normal text-gray-400">{s.statUnit}</span>
+                  </p>
+                </div>
+              </div>
             </div>
           ))}
-        </div>
-        
-        {/* Guest */}
-        <div className="mb-10 p-5 rounded-xl border border-white/10 bg-white/[0.02] hover:border-amber-500/20 transition-colors">
-          <div className="flex items-center gap-3">
-            <Star className="w-5 h-5 text-amber-400" />
-            <span className="font-bold">ゲスト出演</span>
-          </div>
-          <p className="text-gray-400 mt-2 text-sm">JOY（タレント）ほか、著名ゲスト多数出演予定</p>
         </div>
         
         {/* Livers Grid */}
