@@ -6404,3 +6404,62 @@ export const livestreamLuckyBagImages = mysqlTable("livestream_lucky_bag_images"
 });
 export type LivestreamLuckyBagImage = typeof livestreamLuckyBagImages.$inferSelect;
 export type InsertLivestreamLuckyBagImage = typeof livestreamLuckyBagImages.$inferInsert;
+
+// ===== CSV/Excelスナップショット (TikTok Shop商品データ) =====
+// 配信中にTikTok Shopの商品データCSV/Excelを複数回アップロードし、時系列比較分析を行う
+export const livestreamCsvSnapshots = mysqlTable("livestream_csv_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  livestreamId: int("livestreamId").notNull(), // References brand_livestreams.id
+  liverId: int("liverId"), // References livers.id
+  // アップロード情報
+  fileName: varchar("fileName", { length: 512 }).notNull(), // 元のファイル名
+  timeSlot: varchar("timeSlot", { length: 20 }).notNull(), // アップロード時の時間帯 (e.g., "19:30")
+  // 集計サマリー
+  totalProducts: int("totalProducts").default(0), // 商品数
+  totalGmv: bigint("totalGmv", { mode: "number" }).default(0), // 総GMV
+  totalOrders: int("totalOrders").default(0), // 総注文数
+  totalImpressions: bigint("totalImpressions", { mode: "number" }).default(0), // 総曝光数
+  totalClicks: int("totalClicks").default(0), // 総クリック数
+  avgGpm: bigint("avgGpm", { mode: "number" }).default(0), // 平均GPM
+  avgClickRate: decimal("avgClickRate", { precision: 10, scale: 6 }), // 平均クリック率
+  avgConversionRate: decimal("avgConversionRate", { precision: 10, scale: 6 }), // 平均転化率
+  // メタデータ
+  notes: text("notes"), // 運営メモ
+  uploadedBy: varchar("uploadedBy", { length: 255 }), // アップロード者
+  snapshotAt: timestamp("snapshotAt").defaultNow().notNull(), // スナップショット時刻
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type LivestreamCsvSnapshot = typeof livestreamCsvSnapshots.$inferSelect;
+export type InsertLivestreamCsvSnapshot = typeof livestreamCsvSnapshots.$inferInsert;
+
+// CSV商品別データ（各スナップショットに紐づく商品レベルデータ）
+export const livestreamCsvProducts = mysqlTable("livestream_csv_products", {
+  id: int("id").autoincrement().primaryKey(),
+  snapshotId: int("snapshotId").notNull(), // References livestream_csv_snapshots.id
+  livestreamId: int("livestreamId").notNull(), // References brand_livestreams.id
+  // 商品情報
+  productId: varchar("productId", { length: 100 }), // TikTok商品ID
+  productName: varchar("productName", { length: 500 }).notNull(), // 商品名
+  // パフォーマンス指標
+  gmv: bigint("gmv", { mode: "number" }).default(0), // 帰因GMV
+  orderCount: int("orderCount").default(0), // 帰因成交件数
+  customerCount: int("customerCount").default(0), // 客户数
+  avgOrderAmount: bigint("avgOrderAmount", { mode: "number" }).default(0), // 平均注文金額
+  skuOrderCount: int("skuOrderCount").default(0), // SKU注文数
+  totalOrderCount: int("totalOrderCount").default(0), // 帰因注文数
+  paymentRate: decimal("paymentRate", { precision: 10, scale: 6 }), // 付款率
+  impressionCount: bigint("impressionCount", { mode: "number" }).default(0), // 商品曝光次数
+  clickRate: decimal("clickRate", { precision: 10, scale: 6 }), // 点击率
+  cartAddCount: int("cartAddCount").default(0), // 加購次数
+  skuConversionRate: decimal("skuConversionRate", { precision: 10, scale: 6 }), // 点击成交転化率(SKU)
+  conversionRate: decimal("conversionRate", { precision: 10, scale: 6 }), // 点击成交転化率
+  gpm: bigint("gpm", { mode: "number" }).default(0), // 千次観看成交金額 (GPM)
+  clickCount: int("clickCount").default(0), // 商品点击次数
+  availableStock: int("availableStock").default(0), // 可用库存
+  // ランキング（スナップショット内での順位）
+  gmvRank: int("gmvRank"), // GMVランキング
+  orderRank: int("orderRank"), // 注文数ランキング
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type LivestreamCsvProduct = typeof livestreamCsvProducts.$inferSelect;
+export type InsertLivestreamCsvProduct = typeof livestreamCsvProducts.$inferInsert;

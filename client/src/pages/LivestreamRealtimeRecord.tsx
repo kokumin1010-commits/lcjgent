@@ -9,6 +9,7 @@ import { ArrowLeft, Plus, Trash2, Clock, ShoppingCart, Package, TrendingUp, Edit
 import { toast } from "sonner";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
+import CsvSnapshotAnalysis from "@/components/CsvSnapshotAnalysis";
 // 30分刻みのタイムスロット生成
 function generateTimeSlots(): string[] {
   const slots: string[] = [];
@@ -954,6 +955,8 @@ export default function LivestreamRealtimeRecord() {
             )}
           </CardContent>
         </Card>
+        {/* 📊 CSV/Excel商品分析セクション */}
+        <CsvSnapshotAnalysis livestreamId={livestreamId} liverId={livestream?.liverId} timeSlot={timeSlot} />
 
 
       </div>
