@@ -2,7 +2,7 @@
  * ============================================================
  * LIVE COMMERCE FESTIVAL 2026 LP
  * ============================================================
- * Design: Premium dark with gold/amber accents + rich imagery
+ * Design: Premium dark with gold/amber accents + FESTIVAL vibes
  * Tone: 共同主催（LCF実行委員会 / MOB × LCJ）
  * URL: /livecommercefestival/2026
  * ============================================================
@@ -12,7 +12,7 @@ import {
   Calendar, MapPin, Users, TrendingUp, Mic2, 
   Trophy, Building2, Sparkles, ArrowRight, 
   Clock, Star, Monitor, Music, Wine, 
-  CheckCircle2, ChevronDown, Play
+  CheckCircle2, ChevronDown, Play, Zap, PartyPopper
 } from 'lucide-react';
 
 // ============================================================
@@ -30,6 +30,64 @@ const IMAGES = {
   happoBanquet: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/KzjrGXFLoNuYbLAY.jpg",
   happoGarden: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/yWeAfLGtjSSQDDwS.jpg",
 };
+
+// ============================================================
+// LINE Icon SVG Component
+// ============================================================
+function LineIcon({ className = "w-7 h-7" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`${className} fill-current`} xmlns="http://www.w3.org/2000/svg">
+      <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
+    </svg>
+  );
+}
+
+// ============================================================
+// Confetti / Sparkle Animation Component
+// ============================================================
+function FestivalParticles() {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {/* Floating confetti pieces */}
+      {Array.from({ length: 20 }).map((_, i) => (
+        <div
+          key={i}
+          className="absolute animate-float-confetti"
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            animationDelay: `${Math.random() * 5}s`,
+            animationDuration: `${3 + Math.random() * 4}s`,
+          }}
+        >
+          <div
+            className="w-2 h-2 rounded-sm"
+            style={{
+              backgroundColor: ['#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#10b981', '#ef4444', '#f97316'][i % 7],
+              transform: `rotate(${Math.random() * 360}deg)`,
+              opacity: 0.6 + Math.random() * 0.4,
+            }}
+          />
+        </div>
+      ))}
+      {/* Sparkle stars */}
+      {Array.from({ length: 12 }).map((_, i) => (
+        <div
+          key={`star-${i}`}
+          className="absolute animate-twinkle"
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            animationDelay: `${Math.random() * 3}s`,
+            animationDuration: `${1.5 + Math.random() * 2}s`,
+          }}
+        >
+          <Sparkles className="w-3 h-3 text-amber-400/60" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // ============================================================
 // Scroll Reveal Hook
@@ -92,30 +150,84 @@ function useCountUp(end: number, duration: number = 2000) {
 }
 
 // ============================================================
+// CSS Keyframes (injected via style tag)
+// ============================================================
+const festivalStyles = `
+@keyframes float-confetti {
+  0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0.7; }
+  25% { transform: translateY(-20px) rotate(90deg); opacity: 1; }
+  50% { transform: translateY(-10px) rotate(180deg); opacity: 0.8; }
+  75% { transform: translateY(-30px) rotate(270deg); opacity: 1; }
+}
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(245, 158, 11, 0.6), 0 0 60px rgba(245, 158, 11, 0.2); }
+}
+@keyframes slide-up-bounce {
+  0% { transform: translateY(30px); opacity: 0; }
+  60% { transform: translateY(-5px); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes firework-burst {
+  0% { transform: scale(0); opacity: 1; }
+  50% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+.animate-float-confetti { animation: float-confetti 4s ease-in-out infinite; }
+.animate-twinkle { animation: twinkle 2s ease-in-out infinite; }
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+.animate-slide-up-bounce { animation: slide-up-bounce 0.8s cubic-bezier(0.23, 1, 0.32, 1) forwards; }
+.animate-shimmer { 
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite; 
+}
+.festival-gradient-text {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b, #d97706, #fbbf24);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 4s linear infinite;
+}
+`;
+
+// ============================================================
 // Main Component
 // ============================================================
 export default function LiveCommerceFestival() {
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white overflow-hidden">
-      <HeroSection />
-      <StatsSection />
-      <LiveHighlightSection />
-      <ConceptSection />
-      <ProgramSection />
-      <SpeakersSection />
-      <VenueSection />
-      <SponsorSection />
-      <EventScheduleSection />
-      <MatchingSection />
-      <ScheduleSection />
-      <CTASection />
-      <FooterSection />
-    </div>
+    <>
+      <style dangerouslySetInnerHTML={{ __html: festivalStyles }} />
+      <div className="min-h-screen bg-[#0a0a0f] text-white overflow-hidden">
+        <HeroSection />
+        <StatsSection />
+        <LiveHighlightSection />
+        <ConceptSection />
+        <ProgramSection />
+        <SpeakersSection />
+        <VenueSection />
+        <SponsorSection />
+        <EventScheduleSection />
+        <MatchingSection />
+        <ScheduleSection />
+        <CTASection />
+        <FooterSection />
+      </div>
+    </>
   );
 }
 
 // ============================================================
-// Hero Section — Full-bleed image background
+// Hero Section — Full-bleed image background + LINE CTA
 // ============================================================
 function HeroSection() {
   return (
@@ -128,25 +240,29 @@ function HeroSection() {
           className="w-full h-full object-cover"
         />
         {/* Dark overlay for readability */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-[#0a0a0f]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-[#0a0a0f]" />
       </div>
       
-      {/* Animated accents */}
+      {/* Festival particles */}
+      <FestivalParticles />
+      
+      {/* Animated accents - more vibrant */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-purple-500/8 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-amber-500/15 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-purple-500/10 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/2 right-1/3 w-64 h-64 bg-pink-500/8 rounded-full blur-[80px] animate-pulse" style={{ animationDelay: '2s' }} />
       </div>
       
       <div className="relative z-10 text-center px-4 max-w-5xl mx-auto">
         {/* Badge */}
-        <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-amber-400/40 bg-black/40 backdrop-blur-sm mb-8">
-          <Trophy className="w-4 h-4 text-amber-400" />
+        <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-amber-400/40 bg-black/40 backdrop-blur-sm mb-6 animate-slide-up-bounce">
+          <PartyPopper className="w-4 h-4 text-amber-400" />
           <span className="text-sm text-amber-300 tracking-wide font-medium">第1回 コマースライバーと企業のマッチング・セミナー型祭典</span>
         </div>
         
-        {/* Title */}
+        {/* Title - more festival-like with shimmer */}
         <h1 className="text-5xl sm:text-7xl md:text-8xl font-black tracking-tight mb-4">
-          <span className="bg-gradient-to-r from-amber-200 via-yellow-300 to-amber-400 bg-clip-text text-transparent drop-shadow-lg">
+          <span className="festival-gradient-text drop-shadow-lg">
             LIVE COMMERCE
           </span>
           <br />
@@ -158,33 +274,52 @@ function HeroSection() {
         {/* Subtitle */}
         <p className="text-lg sm:text-xl text-gray-200 mt-6 max-w-2xl mx-auto leading-relaxed font-light">
           オンライン × オフラインの融合。<br className="sm:hidden" />
-          日本最大級のライブコマース祭典が誕生。
+          日本最大級のライブコマース<span className="text-amber-300 font-semibold">祭典</span>が誕生。
         </p>
         
         {/* Date & Venue */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 mt-10">
-          <div className="flex items-center gap-2 text-white/90 bg-black/30 backdrop-blur-sm px-4 py-2 rounded-full">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 mt-8">
+          <div className="flex items-center gap-2 text-white/90 bg-black/30 backdrop-blur-sm px-4 py-2 rounded-full border border-amber-500/20">
             <Calendar className="w-5 h-5 text-amber-400" />
             <span className="text-lg font-semibold">2026.9.8 - 9.9</span>
           </div>
-          <div className="flex items-center gap-2 text-white/90 bg-black/30 backdrop-blur-sm px-4 py-2 rounded-full">
+          <div className="flex items-center gap-2 text-white/90 bg-black/30 backdrop-blur-sm px-4 py-2 rounded-full border border-amber-500/20">
             <MapPin className="w-5 h-5 text-amber-400" />
             <span className="text-lg font-semibold">八芳園（東京・白金台）</span>
           </div>
         </div>
         
-        {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10">
+        {/* LINE Registration CTA - Primary action in hero */}
+        <div className="mt-10">
+          <a
+            href={LINE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-3 bg-[#06C755] hover:bg-[#05b04c] text-white text-xl sm:text-2xl font-bold px-10 sm:px-14 py-5 sm:py-6 rounded-2xl shadow-[0_8px_30px_rgba(6,199,85,0.5)] transform hover:scale-105 transition-all duration-200 active:scale-95 animate-pulse-glow"
+            style={{ animationName: 'none', boxShadow: '0 8px 30px rgba(6,199,85,0.4)' }}
+            onMouseEnter={(e) => { (e.currentTarget.style as any).animationName = 'pulse-glow'; }}
+            onMouseLeave={(e) => { (e.currentTarget.style as any).animationName = 'none'; (e.currentTarget.style as any).boxShadow = '0 8px 30px rgba(6,199,85,0.4)'; }}
+          >
+            <LineIcon className="w-8 h-8" />
+            LINE登録して参加する
+          </a>
+          <p className="text-sm text-gray-400 mt-3">
+            参加費<span className="text-amber-400 font-bold">無料</span> ｜ LINE登録後、30秒で予約完了
+          </p>
+        </div>
+        
+        {/* Secondary CTA */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-6">
           <a
             href="#sponsor"
-            className="px-8 py-4 bg-gradient-to-r from-amber-500 to-amber-600 text-black font-bold rounded-lg hover:brightness-110 transition-all shadow-lg shadow-amber-500/30 flex items-center gap-2 text-lg"
+            className="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-black font-bold rounded-lg hover:brightness-110 transition-all shadow-lg shadow-amber-500/30 flex items-center gap-2"
           >
             出展・協賛のお問い合わせ
-            <ArrowRight className="w-5 h-5" />
+            <ArrowRight className="w-4 h-4" />
           </a>
           <a
             href="#program"
-            className="px-8 py-4 border border-white/30 text-white font-semibold rounded-lg hover:bg-white/10 backdrop-blur-sm transition-all flex items-center gap-2"
+            className="px-6 py-3 border border-white/30 text-white font-semibold rounded-lg hover:bg-white/10 backdrop-blur-sm transition-all flex items-center gap-2"
           >
             プログラム詳細
             <ChevronDown className="w-4 h-4" />
@@ -192,7 +327,7 @@ function HeroSection() {
         </div>
         
         {/* Organizer */}
-        <p className="text-sm text-gray-400 mt-12">
+        <p className="text-sm text-gray-400 mt-10">
           主催: LCF実行委員会　｜　共同企画: MOB Inc. × Live Commerce Japan
         </p>
       </div>
@@ -206,7 +341,7 @@ function HeroSection() {
 }
 
 // ============================================================
-// Stats Section
+// Stats Section — More festive with colored backgrounds
 // ============================================================
 function StatsSection() {
   const stat1 = useCountUp(80);
@@ -215,23 +350,28 @@ function StatsSection() {
   const stat4 = useCountUp(1600);
   
   return (
-    <section className="py-16 border-y border-amber-500/10 bg-gradient-to-r from-amber-950/10 via-transparent to-amber-950/10">
-      <div className="max-w-6xl mx-auto px-4">
+    <section className="py-16 relative overflow-hidden">
+      {/* Festive gradient border */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/50 to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/50 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-r from-amber-950/20 via-purple-950/10 to-amber-950/20" />
+      
+      <div className="relative max-w-6xl mx-auto px-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-          <div ref={stat1.ref} className="text-center">
-            <div className="text-3xl sm:text-4xl font-black text-amber-400">{stat1.count}<span className="text-xl">社+</span></div>
+          <div ref={stat1.ref} className="text-center group">
+            <div className="text-3xl sm:text-5xl font-black text-amber-400 group-hover:scale-110 transition-transform">{stat1.count}<span className="text-xl">社+</span></div>
             <div className="text-sm text-gray-400 mt-2">出展企業数</div>
           </div>
-          <div ref={stat2.ref} className="text-center">
-            <div className="text-3xl sm:text-4xl font-black text-amber-400">{stat2.count}<span className="text-xl">名</span></div>
+          <div ref={stat2.ref} className="text-center group">
+            <div className="text-3xl sm:text-5xl font-black text-pink-400 group-hover:scale-110 transition-transform">{stat2.count}<span className="text-xl">名</span></div>
             <div className="text-sm text-gray-400 mt-2">来場ライバー</div>
           </div>
-          <div ref={stat3.ref} className="text-center">
-            <div className="text-3xl sm:text-4xl font-black text-amber-400">{(stat3.count / 10000).toFixed(1)}<span className="text-xl">億円</span></div>
+          <div ref={stat3.ref} className="text-center group">
+            <div className="text-3xl sm:text-5xl font-black text-purple-400 group-hover:scale-110 transition-transform">{(stat3.count / 10000).toFixed(1)}<span className="text-xl">億円</span></div>
             <div className="text-sm text-gray-400 mt-2">GMV創出想定</div>
           </div>
-          <div ref={stat4.ref} className="text-center">
-            <div className="text-3xl sm:text-4xl font-black text-amber-400">{stat4.count}<span className="text-xl">万回</span></div>
+          <div ref={stat4.ref} className="text-center group">
+            <div className="text-3xl sm:text-5xl font-black text-cyan-400 group-hover:scale-110 transition-transform">{stat4.count}<span className="text-xl">万回</span></div>
             <div className="text-sm text-gray-400 mt-2">PV想定</div>
           </div>
         </div>
@@ -247,11 +387,14 @@ function LiveHighlightSection() {
   const reveal = useScrollReveal();
   
   return (
-    <section className="py-20 px-4">
-      <div ref={reveal.ref} className={`max-w-6xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+    <section className="py-20 px-4 relative">
+      <FestivalParticles />
+      <div ref={reveal.ref} className={`relative max-w-6xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         <div className="text-center mb-12">
-          <span className="text-amber-400 text-sm tracking-[0.3em] uppercase">Live Commerce</span>
-          <h2 className="text-3xl sm:text-4xl font-bold mt-3">ライブコマースの熱狂を、会場で。</h2>
+          <span className="text-amber-400 text-sm tracking-[0.3em] uppercase flex items-center justify-center gap-2">
+            <Sparkles className="w-4 h-4" /> Live Commerce <Sparkles className="w-4 h-4" />
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-bold mt-3">ライブコマースの<span className="text-amber-400">熱狂</span>を、会場で。</h2>
           <p className="text-gray-400 mt-3 max-w-2xl mx-auto">
             トップライバーたちが会場から直接配信。リアルタイムで商品を紹介し、視聴者と繋がる新しいショッピング体験。
           </p>
@@ -318,58 +461,37 @@ function LiveHighlightSection() {
 }
 
 // ============================================================
-// Concept Section
+// Concept Section — More festive
 // ============================================================
 function ConceptSection() {
   const reveal = useScrollReveal();
   
   return (
-    <section className="py-20 px-4">
-      <div ref={reveal.ref} className={`max-w-5xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+    <section className="py-20 px-4 relative">
+      {/* Festive background accents */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-72 h-72 bg-pink-500/5 rounded-full blur-[100px]" />
+        <div className="absolute bottom-0 right-1/4 w-72 h-72 bg-purple-500/5 rounded-full blur-[100px]" />
+      </div>
+      
+      <div ref={reveal.ref} className={`relative max-w-5xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         <div className="text-center mb-12">
           <span className="text-amber-400 text-sm tracking-[0.3em] uppercase">Concept</span>
-          <h2 className="text-3xl sm:text-4xl font-bold mt-3">開催趣旨</h2>
+          <h2 className="text-3xl sm:text-4xl font-bold mt-3">コンセプト</h2>
         </div>
         
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-3 gap-6">
           {[
-            {
-              icon: <TrendingUp className="w-6 h-6" />,
-              title: "TikTok Shopの認知拡大",
-              desc: "業界を牽引し、TikTok上でのライブコマースイベントといえば「LCF」というポジションを確立する",
-              img: IMAGES.liveStreaming1,
-            },
-            {
-              icon: <Monitor className="w-6 h-6" />,
-              title: "オンライン × オフライン融合",
-              desc: "出展企業がライブコマースを実施しながら、会場およびオンラインでの販売を同時に行う新しい形",
-              img: IMAGES.liveStreaming2,
-            },
-            {
-              icon: <Building2 className="w-6 h-6" />,
-              title: "出展費用の回収モデル",
-              desc: "会場でのマッチングとライブ販売を通じて、その場で出展費用を回収できる日本初のエコシステム",
-              img: IMAGES.audience,
-            },
-            {
-              icon: <Sparkles className="w-6 h-6" />,
-              title: "エンターテインメント × UGC",
-              desc: "芸能人やインフルエンサー起用により外部メディアを誘致し、SNSでのUGCを爆発的に創出",
-              img: IMAGES.networking,
-            },
+            { icon: <Zap className="w-6 h-6" />, title: "マッチング", desc: "ライバーと企業が直接出会い、最適なパートナーシップを構築。事前マッチングシステムで効率的な商談を実現。", color: "from-amber-500/20 to-amber-500/5", borderColor: "border-amber-500/30" },
+            { icon: <Mic2 className="w-6 h-6" />, title: "ライブ配信", desc: "会場から直接TikTok LIVE配信。プロ照明・音響完備の環境で、リアルタイムに商品を販売。", color: "from-pink-500/20 to-pink-500/5", borderColor: "border-pink-500/30" },
+            { icon: <Trophy className="w-6 h-6" />, title: "セミナー & 表彰", desc: "トップライバー・マーケターによる講演と、優秀ライバー・ブランドの表彰式。業界の最前線を学ぶ。", color: "from-purple-500/20 to-purple-500/5", borderColor: "border-purple-500/30" },
           ].map((item, i) => (
-            <div key={i} className="rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.04] transition-all overflow-hidden group">
-              {/* Mini image header */}
-              <div className="h-32 overflow-hidden">
-                <img src={item.img} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+            <div key={i} className={`p-6 rounded-2xl border ${item.borderColor} bg-gradient-to-b ${item.color} hover:scale-105 transition-all duration-300 group`}>
+              <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-amber-400 mb-4 group-hover:rotate-12 transition-transform">
+                {item.icon}
               </div>
-              <div className="p-6">
-                <div className="w-12 h-12 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 mb-4">
-                  {item.icon}
-                </div>
-                <h3 className="text-lg font-bold mb-2">{item.title}</h3>
-                <p className="text-sm text-gray-400 leading-relaxed">{item.desc}</p>
-              </div>
+              <h3 className="text-xl font-bold mb-2">{item.title}</h3>
+              <p className="text-sm text-gray-400 leading-relaxed">{item.desc}</p>
             </div>
           ))}
         </div>
@@ -379,7 +501,7 @@ function ConceptSection() {
 }
 
 // ============================================================
-// Program Section
+// Program Section — With LINE CTA
 // ============================================================
 function ProgramSection() {
   const reveal = useScrollReveal();
@@ -392,7 +514,9 @@ function ProgramSection() {
       
       <div ref={reveal.ref} className={`relative max-w-5xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         <div className="text-center mb-12">
-          <span className="text-amber-400 text-sm tracking-[0.3em] uppercase">Program</span>
+          <span className="text-amber-400 text-sm tracking-[0.3em] uppercase flex items-center justify-center gap-2">
+            <PartyPopper className="w-4 h-4" /> Program <PartyPopper className="w-4 h-4" />
+          </span>
           <h2 className="text-3xl sm:text-4xl font-bold mt-3">プログラム</h2>
         </div>
         
@@ -405,7 +529,7 @@ function ProgramSection() {
             { icon: <Music />, title: "DJブース & パーティー", desc: "アフターパーティーでライバーとブランド担当者の交流を促進", img: IMAGES.happoBanquet },
             { icon: <Wine />, title: "軽食 & ドリンク", desc: "VIPラウンジ・バーエリア完備。ビジネスミーティングにも最適", img: IMAGES.happoGarden },
           ].map((item, i) => (
-            <div key={i} className="rounded-xl border border-white/10 bg-white/[0.02] hover:border-amber-500/30 transition-all group overflow-hidden">
+            <div key={i} className="rounded-xl border border-white/10 bg-white/[0.02] hover:border-amber-500/30 transition-all group overflow-hidden hover:scale-[1.02]">
               {/* Program image */}
               <div className="h-36 overflow-hidden">
                 <img src={item.img} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
@@ -433,9 +557,7 @@ function ProgramSection() {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-3 bg-[#06C755] hover:bg-[#05b04c] text-white text-lg sm:text-xl font-bold px-8 sm:px-12 py-4 sm:py-5 rounded-xl shadow-[0_8px_30px_rgba(6,199,85,0.4)] transform hover:scale-105 transition-all duration-200 active:scale-95"
             >
-              <svg viewBox="0 0 24 24" className="w-7 h-7 fill-current" xmlns="http://www.w3.org/2000/svg">
-                <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
-              </svg>
+              <LineIcon />
               LINE登録して参加する
             </a>
             <p className="text-xs text-gray-500 mt-3">
@@ -465,18 +587,25 @@ function SpeakersSection() {
   ];
   
   return (
-    <section className="py-20 px-4">
-      <div ref={reveal.ref} className={`max-w-5xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+    <section className="py-20 px-4 relative">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/2 left-0 w-64 h-64 bg-pink-500/5 rounded-full blur-[80px]" />
+        <div className="absolute top-1/3 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-[80px]" />
+      </div>
+      
+      <div ref={reveal.ref} className={`relative max-w-5xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         <div className="text-center mb-12">
-          <span className="text-amber-400 text-sm tracking-[0.3em] uppercase">Speakers & Livers</span>
+          <span className="text-amber-400 text-sm tracking-[0.3em] uppercase flex items-center justify-center gap-2">
+            <Star className="w-4 h-4" /> Speakers & Livers <Star className="w-4 h-4" />
+          </span>
           <h2 className="text-3xl sm:text-4xl font-bold mt-3">出演者</h2>
         </div>
         
         {/* Main Speakers */}
         <div className="grid sm:grid-cols-2 gap-6 mb-10">
           {speakers.map((s, i) => (
-            <div key={i} className="p-6 rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-transparent">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-black font-bold text-xl mb-4">
+            <div key={i} className="p-6 rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-transparent hover:border-amber-500/40 transition-all hover:scale-[1.02]">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-black font-bold text-xl mb-4 shadow-lg shadow-amber-500/20">
                 {s.name[0]}
               </div>
               <h3 className="text-xl font-bold">{s.name}</h3>
@@ -487,7 +616,7 @@ function SpeakersSection() {
         </div>
         
         {/* Guest */}
-        <div className="mb-10 p-5 rounded-xl border border-white/10 bg-white/[0.02]">
+        <div className="mb-10 p-5 rounded-xl border border-white/10 bg-white/[0.02] hover:border-amber-500/20 transition-colors">
           <div className="flex items-center gap-3">
             <Star className="w-5 h-5 text-amber-400" />
             <span className="font-bold">ゲスト出演</span>
@@ -500,11 +629,11 @@ function SpeakersSection() {
           <h3 className="text-lg font-bold mb-4 text-center">参加コマースライバー（一部）</h3>
           <div className="flex flex-wrap justify-center gap-3">
             {livers.map((name, i) => (
-              <span key={i} className="px-4 py-2 rounded-full border border-white/10 bg-white/[0.03] text-sm text-gray-300 hover:border-amber-500/30 hover:text-amber-300 transition-colors">
+              <span key={i} className="px-4 py-2 rounded-full border border-white/10 bg-white/[0.03] text-sm text-gray-300 hover:border-amber-500/30 hover:text-amber-300 hover:bg-amber-500/5 transition-all">
                 {name}
               </span>
             ))}
-            <span className="px-4 py-2 rounded-full border border-amber-500/30 bg-amber-500/5 text-sm text-amber-400">
+            <span className="px-4 py-2 rounded-full border border-amber-500/30 bg-amber-500/5 text-sm text-amber-400 animate-pulse">
               + 300名以上
             </span>
           </div>
@@ -581,7 +710,7 @@ function VenueSection() {
             
             {/* Floor Layout */}
             <div className="grid sm:grid-cols-2 gap-4">
-              <div className="p-4 rounded-lg border border-white/10 bg-white/[0.02]">
+              <div className="p-4 rounded-lg border border-amber-500/20 bg-amber-500/5">
                 <h4 className="font-bold text-sm text-amber-400 mb-2">5F — STUDIO KOKU</h4>
                 <ul className="text-xs text-gray-400 space-y-1">
                   <li>• 出展ブースエリア（約27社）</li>
@@ -590,8 +719,8 @@ function VenueSection() {
                   <li>• プレミアムスポンサー区画</li>
                 </ul>
               </div>
-              <div className="p-4 rounded-lg border border-white/10 bg-white/[0.02]">
-                <h4 className="font-bold text-sm text-amber-400 mb-2">6F — HALL HAKU</h4>
+              <div className="p-4 rounded-lg border border-purple-500/20 bg-purple-500/5">
+                <h4 className="font-bold text-sm text-purple-400 mb-2">6F — HALL HAKU</h4>
                 <ul className="text-xs text-gray-400 space-y-1">
                   <li>• 出展ブースエリア（約39社）</li>
                   <li>• セミナー・パネルディスカッション</li>
@@ -614,8 +743,12 @@ function SponsorSection() {
   const reveal = useScrollReveal();
   
   return (
-    <section id="sponsor" className="py-20 px-4">
-      <div ref={reveal.ref} className={`max-w-5xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+    <section id="sponsor" className="py-20 px-4 relative">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-amber-500/3 rounded-full blur-[200px]" />
+      </div>
+      
+      <div ref={reveal.ref} className={`relative max-w-5xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         <div className="text-center mb-12">
           <span className="text-amber-400 text-sm tracking-[0.3em] uppercase">Sponsorship</span>
           <h2 className="text-3xl sm:text-4xl font-bold mt-3">出展・協賛プラン</h2>
@@ -623,7 +756,7 @@ function SponsorSection() {
         
         <div className="grid md:grid-cols-3 gap-6">
           {/* Title Sponsor */}
-          <div className="p-6 rounded-xl border-2 border-amber-500/40 bg-gradient-to-b from-amber-500/10 to-transparent relative overflow-hidden">
+          <div className="p-6 rounded-xl border-2 border-amber-500/40 bg-gradient-to-b from-amber-500/10 to-transparent relative overflow-hidden hover:scale-[1.02] transition-transform">
             <div className="absolute top-0 right-0 px-3 py-1 bg-amber-500 text-black text-xs font-bold rounded-bl-lg">1社限定</div>
             <h3 className="text-lg font-bold text-amber-400 mb-1">タイトルスポンサー</h3>
             <p className="text-3xl font-black mb-4">1,500<span className="text-lg">万円</span></p>
@@ -637,7 +770,7 @@ function SponsorSection() {
           </div>
           
           {/* Premium Sponsor */}
-          <div className="p-6 rounded-xl border border-white/20 bg-white/[0.02]">
+          <div className="p-6 rounded-xl border border-white/20 bg-white/[0.02] hover:scale-[1.02] transition-transform">
             <div className="text-xs text-gray-500 mb-1">4社限定</div>
             <h3 className="text-lg font-bold mb-1">プレミアムスポンサー</h3>
             <p className="text-3xl font-black mb-4">300<span className="text-lg">万円</span></p>
@@ -650,7 +783,7 @@ function SponsorSection() {
           </div>
           
           {/* Booth */}
-          <div className="p-6 rounded-xl border border-white/10 bg-white/[0.02]">
+          <div className="p-6 rounded-xl border border-white/10 bg-white/[0.02] hover:scale-[1.02] transition-transform">
             <div className="text-xs text-gray-500 mb-1">66社（先着審査制）</div>
             <h3 className="text-lg font-bold mb-1">会場ブース出展</h3>
             <p className="text-3xl font-black mb-4">60<span className="text-lg">万円</span></p>
@@ -855,8 +988,12 @@ function MatchingSection() {
   ];
 
   return (
-    <section className="py-20 px-4 bg-gradient-to-b from-transparent via-amber-950/5 to-transparent">
-      <div ref={reveal.ref} className={`max-w-6xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+    <section className="py-20 px-4 bg-gradient-to-b from-transparent via-amber-950/5 to-transparent relative">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute bottom-0 left-1/4 w-64 h-64 bg-pink-500/5 rounded-full blur-[100px]" />
+      </div>
+      
+      <div ref={reveal.ref} className={`relative max-w-6xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         <div className="mb-10">
           <span className="text-amber-400 text-sm tracking-[0.3em] uppercase">TOP LIVER SALES</span>
           <h2 className="text-2xl sm:text-3xl font-bold mt-2">ライバー事前マッチングサービス</h2>
@@ -878,7 +1015,7 @@ function MatchingSection() {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {steps.map((s, i) => (
-            <div key={i} className="rounded-xl border border-amber-500/30 bg-gradient-to-b from-amber-500/10 to-transparent p-4">
+            <div key={i} className="rounded-xl border border-amber-500/30 bg-gradient-to-b from-amber-500/10 to-transparent p-4 hover:scale-[1.03] transition-transform">
               <div className="text-amber-400 font-bold text-sm mb-1">{s.step}</div>
               <div className="font-bold text-white text-sm mb-0.5">{s.title}</div>
               <div className="text-[10px] text-amber-400/70 mb-2">{s.timing}</div>
@@ -894,7 +1031,7 @@ function MatchingSection() {
 }
 
 // ============================================================
-// CTA Section
+// CTA Section — With LINE button prominently
 // ============================================================
 function CTASection() {
   return (
@@ -905,20 +1042,39 @@ function CTASection() {
         <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f] via-[#0a0a0f]/80 to-[#0a0a0f]" />
       </div>
       
+      {/* Festival particles */}
+      <FestivalParticles />
+      
       <div className="relative max-w-4xl mx-auto text-center">
         <h2 className="text-2xl sm:text-3xl font-bold mb-4">
           ここからうまれるのは、<br />
-          新しいスターと、次の「当たり前」です。
+          新しいスターと、次の「<span className="text-amber-400">当たり前</span>」です。
         </h2>
-        <p className="text-gray-400 mb-10 text-sm">
+        <p className="text-gray-400 mb-8 text-sm">
           出展・協賛・来場に関するお申し込みはこちらから
         </p>
+        
+        {/* LINE CTA - Primary */}
+        <div className="mb-10">
+          <a
+            href={LINE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-3 bg-[#06C755] hover:bg-[#05b04c] text-white text-xl sm:text-2xl font-bold px-10 sm:px-14 py-5 sm:py-6 rounded-2xl shadow-[0_8px_30px_rgba(6,199,85,0.5)] transform hover:scale-105 transition-all duration-200 active:scale-95"
+          >
+            <LineIcon className="w-8 h-8" />
+            LINE登録して参加する
+          </a>
+          <p className="text-sm text-gray-400 mt-3">
+            参加費<span className="text-amber-400 font-bold">無料</span> ｜ LINE登録後、30秒で予約完了
+          </p>
+        </div>
         
         <div className="grid sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
           {/* 企業申込み */}
           <a
             href="/livecommercefestival/2026/apply/company"
-            className="p-5 rounded-xl border-2 border-amber-500/40 bg-gradient-to-b from-amber-500/10 to-transparent hover:border-amber-500/70 transition-all group backdrop-blur-sm"
+            className="p-5 rounded-xl border-2 border-amber-500/40 bg-gradient-to-b from-amber-500/10 to-transparent hover:border-amber-500/70 transition-all group backdrop-blur-sm hover:scale-[1.03]"
           >
             <Building2 className="w-8 h-8 text-amber-400 mx-auto mb-3" />
             <h3 className="font-bold text-lg mb-1">企業様</h3>
@@ -931,7 +1087,7 @@ function CTASection() {
           {/* ライバー申込み */}
           <a
             href="/livecommercefestival/2026/apply/liver"
-            className="p-5 rounded-xl border border-purple-500/30 bg-gradient-to-b from-purple-500/5 to-transparent hover:border-purple-500/60 transition-all group backdrop-blur-sm"
+            className="p-5 rounded-xl border border-purple-500/30 bg-gradient-to-b from-purple-500/5 to-transparent hover:border-purple-500/60 transition-all group backdrop-blur-sm hover:scale-[1.03]"
           >
             <Mic2 className="w-8 h-8 text-purple-400 mx-auto mb-3" />
             <h3 className="font-bold text-lg mb-1">ライバー</h3>
@@ -944,7 +1100,7 @@ function CTASection() {
           {/* 一般参加者 */}
           <a
             href="/livecommercefestival/2026/apply/general"
-            className="p-5 rounded-xl border border-white/20 bg-white/[0.02] hover:border-white/40 transition-all group backdrop-blur-sm"
+            className="p-5 rounded-xl border border-white/20 bg-white/[0.02] hover:border-white/40 transition-all group backdrop-blur-sm hover:scale-[1.03]"
           >
             <Users className="w-8 h-8 text-gray-300 mx-auto mb-3" />
             <h3 className="font-bold text-lg mb-1">一般参加</h3>
@@ -968,7 +1124,8 @@ function CTASection() {
 // ============================================================
 function FooterSection() {
   return (
-    <footer className="py-10 px-4 border-t border-white/5">
+    <footer className="py-10 px-4 border-t border-white/5 relative">
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent" />
       <div className="max-w-5xl mx-auto text-center">
         <p className="text-sm text-gray-500">
           主催: LCF実行委員会　｜　共同企画: MOB Inc. × Live Commerce Japan
