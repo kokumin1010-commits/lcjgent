@@ -2316,6 +2316,22 @@ async function startServer() {
       createContext,
     })
   );
+  // --- Domain-based routing: livecommercefestival.com root → festival page OGP ---
+  app.get("/", (req, res, next) => {
+    const host = req.get("host") || "";
+    if (!host.includes("livecommercefestival")) return next();
+    const ua = (req.headers["user-agent"] || "").toLowerCase();
+    const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|line/i.test(ua);
+    if (!isBot) return next(); // Non-bot: let SPA handle it (client-side domain check)
+    // Bot: serve festival OGP HTML
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const title = "LIVE COMMERCE FESTIVAL 2026 | 日本最大級ライブコマース祭典";
+    const description = "2026年9月8日-9日 八芳園にて開催。コマースライバーと企業のマッチング・セミナー型祭典。総額1000万円分の豪華特典キャンペーン実施中。参加無料・事前LINE登録制。";
+    const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/cJiTCPRFjIgLnUGK.png";
+    const html = `<!DOCTYPE html>\n<html lang="ja"><head><meta charset="UTF-8"><title>${title}</title><meta name="description" content="${description}"><meta property="og:title" content="${title}"><meta property="og:description" content="${description}"><meta property="og:image" content="${ogImage}"><meta property="og:url" content="${baseUrl}"><meta property="og:type" content="website"><meta property="og:site_name" content="LIVE COMMERCE FESTIVAL"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${title}"><meta name="twitter:description" content="${description}"><meta name="twitter:image" content="${ogImage}"><link rel="canonical" href="${baseUrl}"></head><body><h1>LIVE COMMERCE FESTIVAL 2026</h1><p>${description}</p></body></html>`;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.send(html);
+  });
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);

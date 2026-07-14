@@ -182,7 +182,7 @@ function Router() {
       <Switch>
         {/* LCJ MALL - Public Pages */}
         <Route path="/products/granenzyme" component={ProductGranenzyme} />
-        <Route path={"/"} component={MallHome} />
+        <Route path={"/"}>{window.location.hostname.includes("livecommercefestival") ? <LiveCommerceFestival /> : <MallHome />}</Route>
         <Route path="/line-login" component={LineLogin} />
         <Route path="/line-callback" component={LineLoginCallback} />
         <Route path="/forgot-password" component={ForgotPassword} />
