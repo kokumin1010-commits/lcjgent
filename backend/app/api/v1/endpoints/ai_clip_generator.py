@@ -1533,6 +1533,8 @@ def _render_text_overlay_image(
     
     # Clean text
     text = _strip_emoji(text).strip()
+    # V3.1: Strip period (。) - unnatural in Japanese short video subtitles
+    text = text.replace('。', '')
     if not text:
         return Image.new('RGBA', (video_width, video_height), (0, 0, 0, 0))
     
@@ -1559,18 +1561,51 @@ def _render_text_overlay_image(
         except Exception:
             font = ImageFont.load_default()
     
-    # Auto-wrap text into multiple lines
+    # V3.1: Semantic-aware line wrapping
+    max_width = video_width * 0.88
+    BREAK_CONJUNCTIONS_V1 = ['ので', 'から', 'けど', 'ても', 'のに', 'たら', 'れば', 'ると', 'って', 'のは', 'のが', 'ては', 'では', 'には', 'とは', 'まで', 'より', 'ほど', 'だけ', 'しか']
+    BREAK_PARTICLES_V1 = 'はがをにでもとのへよね'
+    BREAK_PUNCT_V1 = '、！？!?'
+    
     lines = []
     current_line = ""
     for char in text:
         test_line = current_line + char
         bbox = draw.textbbox((0, 0), test_line, font=font)
         line_width = bbox[2] - bbox[0]
-        # Allow up to 90% of video width
-        if line_width > video_width * 0.88:
+        if line_width > max_width:
             if current_line:
-                lines.append(current_line)
-                current_line = char
+                # V3.1: Find semantic break point (expanded search)
+                best_break = -1
+                best_priority = 99
+                search_range = min(12, len(current_line))
+                for j in range(len(current_line) - 1, max(0, len(current_line) - search_range) - 1, -1):
+                    # Conjunctions (highest priority)
+                    if j > 0:
+                        two_char = current_line[j-1:j+1]
+                        if two_char in BREAK_CONJUNCTIONS_V1:
+                            if best_priority > 0:
+                                best_break = j + 1
+                                best_priority = 0
+                            break
+                    # Punctuation
+                    if current_line[j] in BREAK_PUNCT_V1:
+                        if best_priority > 1:
+                            best_break = j + 1
+                            best_priority = 1
+                        break
+                    # Particles
+                    if current_line[j] in BREAK_PARTICLES_V1:
+                        if best_priority > 2:
+                            best_break = j + 1
+                            best_priority = 2
+                
+                if best_break > 0 and best_break < len(current_line):
+                    lines.append(current_line[:best_break])
+                    current_line = current_line[best_break:] + char
+                else:
+                    lines.append(current_line)
+                    current_line = char
             else:
                 lines.append(char)
                 current_line = ""
@@ -1578,6 +1613,10 @@ def _render_text_overlay_image(
             current_line = test_line
     if current_line:
         lines.append(current_line)
+    
+    # V3.1: Limit to max 2 lines
+    if len(lines) > 2:
+        lines = [lines[0], ''.join(lines[1:])]
     
     # Calculate total text block dimensions
     line_heights = []
@@ -1701,56 +1740,125 @@ def _render_text_overlay_image_v2(
             font = ImageFont.load_default()
             font_bold = font
     
-    # ── Smart line breaking (自然な位置で改行) ──
-    # Break points: after particles, punctuation, before conjunctions
-    BREAK_AFTER = set('、。、。，．、。、。、。、。、。')
-    BREAK_AFTER_PARTICLES = ['は', 'が', 'を', 'に', 'で', 'も', 'と', 'の', 'へ', 'よ', 'ね', 'よ', 'って', 'から', 'まで', 'けど']
+    # ── V3.1: Smart semantic line breaking (意味的な位置で改行) ──
+    # V3.1: Strip period (。) - unnatural in Japanese short video subtitles
+    text = text.replace('。', '')
     
-    lines = []
-    current_line = ""
+    # Conjunction patterns (2-char) - highest priority break points
+    BREAK_CONJUNCTIONS = ['ので', 'から', 'けど', 'ても', 'のに', 'たら', 'れば', 'ると', 'って', 'のは', 'のが', 'ては', 'では', 'には', 'とは', 'まで', 'より', 'ほど', 'だけ', 'しか']
+    # Single-char particles - medium priority
+    BREAK_PARTICLES = 'はがをにでもとのへよね'
+    # Punctuation - also good break points
+    BREAK_PUNCT = '、！？!?'
+    
     max_width = video_width * 0.88
     
-    i = 0
-    while i < len(text):
-        char = text[i]
-        test_line = current_line + char
-        bbox = draw.textbbox((0, 0), test_line, font=font)
-        line_width = bbox[2] - bbox[0]
+    # First, try semantic pre-splitting if text is long
+    # This ensures we break at meaning boundaries, not just pixel width
+    lines = []
+    if len(text) > 12:  # Only pre-split if reasonably long
+        # Find all potential break positions with priority
+        break_candidates = []  # (position, priority)
         
-        if line_width > max_width:
-            if current_line:
-                # Try to find a natural break point in the last few characters
-                best_break = -1
-                search_range = min(8, len(current_line))
-                for j in range(len(current_line) - 1, max(0, len(current_line) - search_range) - 1, -1):
-                    if current_line[j] in BREAK_AFTER or current_line[j] in '、。、。，':
-                        best_break = j + 1
-                        break
-                    # Check 2-char particles
-                    if j > 0:
-                        two_char = current_line[j-1:j+1]
-                        if two_char in BREAK_AFTER_PARTICLES:
-                            best_break = j + 1
-                            break
-                    # Single-char particles
-                    if current_line[j] in 'はがをにでもとのへよね':
-                        best_break = j + 1
-                        break
+        # Check conjunctions (break AFTER the conjunction)
+        for conj in BREAK_CONJUNCTIONS:
+            idx = 0
+            while True:
+                pos = text.find(conj, idx)
+                if pos == -1:
+                    break
+                break_pos = pos + len(conj)
+                if break_pos < len(text) - 2 and break_pos > 3:
+                    break_candidates.append((break_pos, 0))  # Priority 0 = best
+                idx = pos + 1
+        
+        # Check punctuation (break AFTER)
+        for ci, c in enumerate(text):
+            if c in BREAK_PUNCT and ci < len(text) - 2 and ci > 2:
+                break_candidates.append((ci + 1, 1))
+        
+        # Check particles (break AFTER)
+        for ci, c in enumerate(text):
+            if c in BREAK_PARTICLES and ci < len(text) - 2 and ci > 3:
+                break_candidates.append((ci + 1, 2))
+        
+        if break_candidates:
+            # Find the best break: closest to center, with priority bonus
+            target = len(text) // 2
+            break_candidates.sort(key=lambda x: abs(x[0] - target) + x[1] * 4)
+            best_pos = break_candidates[0][0]
+            
+            # Check if the break produces lines that fit within max_width
+            line1 = text[:best_pos].rstrip('、')
+            line2 = text[best_pos:]
+            
+            if len(line1) >= 3 and len(line2) >= 3:
+                bbox1 = draw.textbbox((0, 0), line1, font=font)
+                bbox2 = draw.textbbox((0, 0), line2, font=font)
+                w1 = bbox1[2] - bbox1[0]
+                w2 = bbox2[2] - bbox2[0]
                 
-                if best_break > 0 and best_break < len(current_line):
-                    lines.append(current_line[:best_break])
-                    current_line = current_line[best_break:] + char
+                if w1 <= max_width and w2 <= max_width:
+                    lines = [line1, line2]
+    
+    # If semantic pre-split didn't work, fall back to width-based with semantic awareness
+    if not lines:
+        lines = []
+        current_line = ""
+        i = 0
+        while i < len(text):
+            char = text[i]
+            test_line = current_line + char
+            bbox = draw.textbbox((0, 0), test_line, font=font)
+            line_width = bbox[2] - bbox[0]
+            
+            if line_width > max_width:
+                if current_line:
+                    # Try to find a natural break point (expanded search range)
+                    best_break = -1
+                    best_priority = 99
+                    search_range = min(12, len(current_line))  # Expanded from 8 to 12
+                    
+                    for j in range(len(current_line) - 1, max(0, len(current_line) - search_range) - 1, -1):
+                        # Check 2-char conjunctions first (highest priority)
+                        if j > 0:
+                            two_char = current_line[j-1:j+1]
+                            if two_char in BREAK_CONJUNCTIONS:
+                                if best_priority > 0:
+                                    best_break = j + 1
+                                    best_priority = 0
+                                break
+                        # Punctuation
+                        if current_line[j] in BREAK_PUNCT:
+                            if best_priority > 1:
+                                best_break = j + 1
+                                best_priority = 1
+                            break
+                        # Single-char particles
+                        if current_line[j] in BREAK_PARTICLES:
+                            if best_priority > 2:
+                                best_break = j + 1
+                                best_priority = 2
+                    
+                    if best_break > 0 and best_break < len(current_line):
+                        lines.append(current_line[:best_break])
+                        current_line = current_line[best_break:] + char
+                    else:
+                        lines.append(current_line)
+                        current_line = char
                 else:
-                    lines.append(current_line)
-                    current_line = char
+                    lines.append(char)
+                    current_line = ""
             else:
-                lines.append(char)
-                current_line = ""
-        else:
-            current_line = test_line
-        i += 1
-    if current_line:
-        lines.append(current_line)
+                current_line = test_line
+            i += 1
+        if current_line:
+            lines.append(current_line)
+    
+    # V3.1: Limit to max 2 lines for readability
+    if len(lines) > 2:
+        # Merge excess lines into line 2
+        lines = [lines[0], ''.join(lines[1:])]
     
     # ── Calculate text block dimensions ──
     line_heights = []
@@ -3537,29 +3645,85 @@ def _generate_enhanced_ass(styled_captions: list, hook_text: Optional[str],
     _PUNCT_CHARS = set('、。！？!?，')  # 標点文字セット（分割結果の判定用）
     _MAX_LINE_CHARS = 15  # 1行あたりの最大文字数（超えたら分割を試みる）
 
+    # V3.1: Semantic line break patterns for Japanese
+    import re as _re_semantic
+    _SEMANTIC_BREAK_CONJ = _re_semantic.compile(r'(?<=ので|から|けど|ても|のに|たら|れば|ると|って|のは|のが|ては|では|には|とは|まで|より|ほど|だけ|しか)')
+    _SEMANTIC_BREAK_PARTICLE = _re_semantic.compile(r'(?<=[はがをにでもとのへよね])')
+
     def _process_subtitle_text(text: str) -> str:
-        """V2.31: 字幕テキストの標点処理
-        1. 末尾標点を除去
-        2. 長い文は標点位置でASS改行に分割
+        """V3.1: 字幕テキストの標点処理と意味的改行
+        1. 「。」を全て除去（日本短動画字幕では不自然）
+        2. 末尾標点を除去
+        3. 長い文は意味的な位置でASS改行に分割（語義完整性優先）
         """
-        # Step 1: 末尾標点除去
+        # Step 1: 「。」を全て除去
+        text = text.replace('。', '')
+        # Step 2: 末尾標点除去
         text = _TRAILING_PUNCT.sub('', text)
         if not text:
             return text
-        # Step 2: 長い文は標点で分割して改行
+        # Step 3: 長い文は意味的な位置で改行（語義完整性優先）
         if len(text) > _MAX_LINE_CHARS:
-            # 標点位置でチャンクに分割（標点は前のチャンクに含める）
+            # 優先度: 接続助詞 > 句読点 > 単独助詞 > 文字数
+            # First try semantic breaks at conjunctions
+            conj_positions = [m.start() for m in _SEMANTIC_BREAK_CONJ.finditer(text)]
+            # Then try punctuation positions (、！？)
+            punct_positions = [m.start() for m in _re_sub.finditer(r'[、！？!?]', text)]
+            punct_positions = [p + 1 for p in punct_positions]  # Break AFTER punctuation
+            # Then try particle positions
+            particle_positions = [m.start() for m in _SEMANTIC_BREAK_PARTICLE.finditer(text)]
+            
+            # Combine all break positions with priority
+            all_breaks = []
+            for p in conj_positions:
+                all_breaks.append((p, 0))  # Priority 0 = best
+            for p in punct_positions:
+                all_breaks.append((p, 1))
+            for p in particle_positions:
+                all_breaks.append((p, 2))
+            
+            # Sort by position
+            all_breaks.sort(key=lambda x: x[0])
+            
+            if all_breaks:
+                # Find best break point near the middle that keeps lines balanced
+                target = len(text) // 2
+                best_pos = None
+                best_score = float('inf')
+                
+                for pos, priority in all_breaks:
+                    if pos < 4 or pos > len(text) - 4:  # Don't break too close to edges
+                        continue
+                    # Score: distance from target + priority penalty
+                    score = abs(pos - target) + priority * 3
+                    if score < best_score:
+                        best_score = score
+                        best_pos = pos
+                
+                if best_pos and best_pos > 3 and best_pos < len(text) - 3:
+                    line1 = text[:best_pos].rstrip('、')
+                    line2 = text[best_pos:]
+                    # Only split if both lines are reasonable length
+                    if len(line1) >= 3 and len(line2) >= 3:
+                        # Recursively check if lines still need splitting
+                        lines = []
+                        for l in [line1, line2]:
+                            l = _TRAILING_PUNCT.sub('', l)
+                            if l:
+                                lines.append(l)
+                        if len(lines) >= 2:
+                            text = '\\N'.join(lines)
+                            return text
+            
+            # Fallback: split by punctuation (old method)
             parts = _SPLIT_PUNCT.split(text)
-            if len(parts) >= 3:  # regex split with capture group: [text, punct, text, ...]
-                # チャンクを再構成: 標点をスキップしてテキストのみ取得
+            if len(parts) >= 3:
                 chunks = []
                 for i_p, part in enumerate(parts):
                     if len(part) == 1 and part in _PUNCT_CHARS:
-                        # これは標点文字 — スキップ
                         continue
-                    if part:  # 空文字列もスキップ
+                    if part:
                         chunks.append(part)
-                # チャンクを行にまとめる
                 lines = []
                 current_line = ''
                 for chunk in chunks:
@@ -3573,7 +3737,6 @@ def _generate_enhanced_ass(styled_captions: list, hook_text: Optional[str],
                 if current_line:
                     lines.append(current_line)
                 if len(lines) >= 2:
-                    # 各行の末尾標点も除去
                     lines = [_TRAILING_PUNCT.sub('', l) for l in lines]
                     text = '\\N'.join(l for l in lines if l)
         return text
@@ -6041,6 +6204,10 @@ async def _process_single_clip_v2(job_id: str, clip: dict, req: GenerateRequest,
             except Exception as reorder_err:
                 logger.warning(f"[ai-clip {job_id}] V3 Smart reorder failed (non-fatal): {reorder_err}")
 
+        # ── 4e. V3.1: Deduplicate overlapping segments (safety net) ──
+        if len(keep_segments) > 1:
+            keep_segments = _deduplicate_segments(keep_segments)
+
         # ── 5. Generate zoom keyframes ──
         zoom_keyframes = []
         if req.enable_zoom_pulse and (volume_peaks or captions):
@@ -6679,6 +6846,11 @@ def _split_long_segments(segments: list, max_chars: int = 18, max_duration: floa
         end = float(seg.get('end', 0))
         duration = end - start
         
+        # V3.1: Strip period (。) from all text - unnatural in Japanese short video subtitles
+        text = text.replace('。', '')
+        seg = dict(seg)
+        seg['text'] = text
+        
         # Short segment: keep as-is
         if len(text) <= max_chars and duration <= max_duration:
             result.append(seg)
@@ -6759,6 +6931,10 @@ def _split_long_segments(segments: list, max_chars: int = 18, max_duration: floa
             if pi == len(final_parts) - 1:
                 part_end = end
             
+            # V3.1: Strip period from part text
+            part_text = part_text.replace('。', '')
+            if not part_text.strip():
+                continue
             result.append({
                 'start': round(current_time, 3),
                 'end': round(part_end, 3),
@@ -11174,6 +11350,58 @@ Input:
 
 # ─── V3: Smart Reorder (智能重排) ─────────────────────────────────────────────
 
+def _deduplicate_segments(segments: list) -> list:
+    """V3.1: 重複セグメント除去 — 隣接セグメント間の時間重複を検出し除去する。
+    
+    Smart Reorderでhookとintro/selling_pointsが時間的に重複する場合、
+    同じ内容が2回再生される問題を防止する。
+    
+    ロジック:
+    - 各セグメントについて、それ以前の全セグメントとの時間重複をチェック
+    - 重複部分をトリムして、同じ時間範囲が2回再生されないようにする
+    - 完全に重複するセグメントは除去
+    """
+    if not segments or len(segments) < 2:
+        return segments
+    
+    # Track all time ranges already used
+    used_ranges = []  # List of (start, end) already committed
+    result = []
+    
+    for seg_start, seg_end in segments:
+        if seg_end <= seg_start:
+            continue
+        
+        # Find non-overlapping portions of this segment
+        remaining = [(seg_start, seg_end)]
+        
+        for used_start, used_end in used_ranges:
+            new_remaining = []
+            for r_start, r_end in remaining:
+                # No overlap
+                if r_end <= used_start or r_start >= used_end:
+                    new_remaining.append((r_start, r_end))
+                else:
+                    # Partial overlap - keep non-overlapping parts
+                    if r_start < used_start:
+                        new_remaining.append((r_start, used_start))
+                    if r_end > used_end:
+                        new_remaining.append((used_end, r_end))
+            remaining = new_remaining
+        
+        # Add non-overlapping portions to result
+        for r_start, r_end in remaining:
+            if r_end - r_start >= 0.3:  # Minimum 0.3s to be useful
+                result.append((r_start, r_end))
+                used_ranges.append((r_start, r_end))
+    
+    if len(result) != len(segments):
+        logger.info(f"[ai-clip] V3.1 dedup: {len(segments)} -> {len(result)} segments "
+                   f"(removed {len(segments) - len(result)} overlapping segments)")
+    
+    return result
+
+
 async def _smart_reorder_segments(
     captions: list,
     product_name: str,
@@ -11342,6 +11570,9 @@ async def _smart_reorder_segments(
             intersections = _intersect_with_keep(seg, keep_segments)
             final_segments.extend(intersections)
 
+        # V3.1: Deduplicate overlapping segments to prevent repeated content
+        final_segments = _deduplicate_segments(final_segments)
+
         # If reorder produced fewer segments or very short total, fall back
         total_reordered_duration = sum(e - s for s, e in final_segments)
         total_original_duration = sum(e - s for s, e in keep_segments)
@@ -11431,7 +11662,8 @@ async def _correct_caption_grammar(
 - 助詞（は/が/を/に/で/と等）の間違いを修正する
 - 主語述語の不一致を修正する
 - 文末表現の不自然さを修正する
-- 句読点を適切に追加/修正する
+- 【重要】「。」（句点）は絶対に使用しない。日本の短動画字幕では「。」は不自然。「、」「！」「？」は使用可。文末は句点なしで終わらせる
+- 自然な口語的停顿で区切る。書き言葉的な句読点に頼らない
 - 修正不要な行はそのまま出力する
 - 行数は入力と同じ数を出力すること
 - 番号付きで出力すること
