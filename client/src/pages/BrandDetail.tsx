@@ -39,7 +39,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle, FileDown, Save, BarChart3, Target, MousePointerClick, CreditCard, QrCode, Mail, Camera } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle, FileDown, Save, BarChart3, Target, MousePointerClick, CreditCard, QrCode, Mail, Camera, ShoppingBag } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend, ResponsiveContainer, LineChart, Line, Cell } from "recharts";
 import ProductCardTemplate, { ProductCardMini } from "@/components/ProductCard";
@@ -876,6 +876,7 @@ export default function BrandDetail() {
   const [uploadingProductId, setUploadingProductId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [addProductDialogOpen, setAddProductDialogOpen] = useState(false);
+  const [selectionImportDialogOpen, setSelectionImportDialogOpen] = useState(false);
   const [addLivestreamDialogOpen, setAddLivestreamDialogOpen] = useState(false);
   const [addContractDialogOpen, setAddContractDialogOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "", liverIds: [] as number[] });
@@ -1021,6 +1022,8 @@ export default function BrandDetail() {
   const { data: brand, isLoading: brandLoading } = trpc.brand.getById.useQuery({ id: brandId });
   const { data: allBrands = [] } = trpc.brand.list.useQuery();
   const { data: products = [], refetch: refetchProducts } = trpc.brandProduct.listByBrand.useQuery({ brandId });
+  // 样品中心連携: ブランドに紐づくselection_productsを取得
+  const { data: selectionProducts = [], refetch: refetchSelectionProducts } = trpc.selectionCenter.getSelectionProductsForBrand.useQuery({ brandId }, { enabled: selectionImportDialogOpen });
   const { data: livestreams = [], refetch: refetchLivestreams } = trpc.brandLivestream.listByBrand.useQuery({ brandId });
   const { data: contracts = [], refetch: refetchContracts } = trpc.brandContract.listByBrand.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: memos = [], refetch: refetchMemos } = trpc.brandMemo.listByBrand.useQuery({ brandId });
@@ -1700,6 +1703,18 @@ ${proposal.proposalContent}
     },
     onError: () => {
       toast.error("エラーが発生しました");
+    },
+  });
+
+  // 样品中心から品牌管理に商品を追加
+  const addSelectionProductMutation = trpc.selectionCenter.addSelectionProductToBrand.useMutation({
+    onSuccess: () => {
+      refetchProducts();
+      refetchSelectionProducts();
+      toast.success(language === 'ja' ? '样品中心から商品を追加しました' : '已从样品中心添加商品');
+    },
+    onError: (err) => {
+      toast.error(err.message || 'エラーが発生しました');
     },
   });
 
@@ -4256,6 +4271,14 @@ ${proposal.proposalContent}
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
+                  onClick={() => setSelectionImportDialogOpen(true)}
+                  className="bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-500 hover:to-emerald-400 text-white"
+                >
+                  <ShoppingBag className="h-4 w-4 mr-1" />
+                  {language === 'ja' ? '样品中心から追加' : '从样品中心添加'}
+                </Button>
+                <Button
+                  size="sm"
                   onClick={() => setAiImageAddDialogOpen(true)}
                   className="bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white"
                 >
@@ -6450,6 +6473,91 @@ ${proposal.proposalContent}
               className="bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white"
             >
               {t.add}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Selection Import Dialog - 样品中心から商品追加 */}
+      <Dialog open={selectionImportDialogOpen} onOpenChange={setSelectionImportDialogOpen}>
+        <DialogContent className="bg-black/95 border-green-900/50 text-white max-w-2xl backdrop-blur-xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-green-400 to-emerald-600 rounded-full" />
+              {language === 'ja' ? '样品中心から商品を追加' : '从样品中心添加商品'}
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              {language === 'ja' ? 'このブランドに紐づく样品中心の商品を商品パフォーマンスに追加します' : '将该品牌关联的样品中心商品添加到商品表现'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {selectionProducts.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <ShoppingBag className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p>{language === 'ja' ? 'このブランドに紐づく样品中心の商品がありません' : '该品牌没有关联的样品中心商品'}</p>
+                <p className="text-xs mt-1">{language === 'ja' ? '样品中心で商品を登録する際に、このブランドを選択してください' : '在样品中心登记商品时请选择该品牌'}</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {selectionProducts.map((sp: any) => {
+                  const alreadyAdded = products.some((p: any) => p.productName === sp.productName);
+                  return (
+                    <div key={sp.id} className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                      alreadyAdded ? 'border-gray-700 bg-gray-900/50 opacity-60' : 'border-green-900/30 bg-green-900/10 hover:bg-green-900/20'
+                    }`}>
+                      {/* 商品画像 */}
+                      {sp.images && sp.images.length > 0 ? (
+                        <img src={sp.images[0]} alt={sp.productName} className="w-12 h-12 object-cover rounded-lg border border-green-900/30" />
+                      ) : (
+                        <div className="w-12 h-12 bg-green-900/20 rounded-lg border border-green-900/30 flex items-center justify-center">
+                          <Package className="w-6 h-6 text-gray-600" />
+                        </div>
+                      )}
+                      {/* 商品情報 */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium truncate">{sp.productName}</p>
+                        <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5">
+                          {sp.price && <span>¥{Number(sp.price).toLocaleString()}</span>}
+                          {sp.commissionValue && <span>{language === 'ja' ? '手数料' : '佣金'}: {sp.commissionValue}%</span>}
+                          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${
+                            sp.status === 'online' ? 'border-green-500 text-green-400' :
+                            sp.status === 'draft' ? 'border-yellow-500 text-yellow-400' :
+                            'border-gray-500 text-gray-400'
+                          }`}>
+                            {sp.status === 'online' ? 'オンライン' : sp.status === 'draft' ? '下書き' : 'オフライン'}
+                          </Badge>
+                        </div>
+                      </div>
+                      {/* 追加ボタン */}
+                      {alreadyAdded ? (
+                        <Badge className="bg-gray-700 text-gray-400">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          {language === 'ja' ? '追加済' : '已添加'}
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => addSelectionProductMutation.mutate({ selectionProductId: sp.id, brandId })}
+                          disabled={addSelectionProductMutation.isPending}
+                          className="bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-500 hover:to-emerald-400 text-white"
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          {language === 'ja' ? '追加' : '添加'}
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setSelectionImportDialogOpen(false)}
+              className="border-green-500/50 bg-green-950/50 text-gray-200 hover:bg-green-900/40"
+            >
+              {language === 'ja' ? '閉じる' : '关闭'}
             </Button>
           </DialogFooter>
         </DialogContent>

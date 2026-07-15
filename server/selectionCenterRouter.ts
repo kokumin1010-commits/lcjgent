@@ -1151,4 +1151,185 @@ export const selectionCenterRouter = router({
         throw new Error("AI応答の解析に失敗しました。");
       }
     }),
+
+  // ========== 品牌管理×样品中心 双方向連携 ==========
+
+  // 1. 特定ブランドのselection_products一覧を取得（品牌管理から样品中心の商品を参照する用）
+  getSelectionProductsForBrand: protectedProcedure.input(z.object({
+    brandId: z.number(),
+  })).query(async ({ input }) => {
+    const pool = getPool();
+    const [rows] = await pool.query(
+      `SELECT id, productName, barcode, brandName, brandId, price, marketPrice, costPrice,
+              commissionType, commissionValue, images, status, stock, sellingPoints, productLink,
+              createdAt
+       FROM selection_products
+       WHERE brandId = ? AND deletedAt IS NULL
+       ORDER BY createdAt DESC`,
+      [input.brandId]
+    ) as any;
+    return rows.map((r: any) => ({
+      ...r,
+      images: r.images ? (typeof r.images === 'string' ? JSON.parse(r.images) : r.images) : [],
+    }));
+  }),
+
+  // 2. 样品中心の商品を品牌管理の商品パフォーマンス（brand_products）に追加する
+  addSelectionProductToBrand: protectedProcedure.input(z.object({
+    selectionProductId: z.number(),
+    brandId: z.number(),
+  })).mutation(async ({ input }) => {
+    const pool = getPool();
+    // selection_productsから商品情報を取得
+    const [spRows] = await pool.query(
+      `SELECT * FROM selection_products WHERE id = ? AND deletedAt IS NULL`,
+      [input.selectionProductId]
+    ) as any;
+    if (spRows.length === 0) {
+      throw new Error("样品中心の商品が見つかりません");
+    }
+    const sp = spRows[0];
+    // 既にbrand_productsに同名の商品がないかチェック
+    const [existing] = await pool.query(
+      `SELECT id FROM brand_products WHERE brandId = ? AND productName = ? AND deletedAt IS NULL`,
+      [input.brandId, sp.productName]
+    ) as any;
+    if (existing.length > 0) {
+      throw new Error("この商品は既に品牌管理に登録されています");
+    }
+    // brand_productsに追加
+    const images = sp.images ? (typeof sp.images === 'string' ? JSON.parse(sp.images) : sp.images) : [];
+    const [result] = await pool.query(
+      `INSERT INTO brand_products (brandId, productName, listPrice, specialPrice, commissionRate, imageUrls, remarks, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [
+        input.brandId,
+        sp.productName,
+        sp.marketPrice ? Math.round(Number(sp.marketPrice)) : null,
+        sp.price ? Math.round(Number(sp.price)) : null,
+        sp.commissionValue ? `${sp.commissionValue}%` : null,
+        images.length > 0 ? JSON.stringify(images.slice(0, 2)) : null,
+        `样品中心から追加 (ID: ${sp.id})`,
+      ]
+    ) as any;
+    return { success: true, brandProductId: result.insertId };
+  }),
+
+  // 3. 品牌管理の商品パフォーマンスデータを取得（样品中心から参照する用）
+  getBrandProductsForSelection: protectedProcedure.input(z.object({
+    brandId: z.number(),
+  })).query(async ({ input }) => {
+    const pool = getPool();
+    const [rows] = await pool.query(
+      `SELECT bp.id, bp.productName, bp.listPrice, bp.specialPrice, bp.commissionRate,
+              bp.imageUrls, bp.influencer, bp.createdAt
+       FROM brand_products bp
+       WHERE bp.brandId = ? AND bp.deletedAt IS NULL
+       ORDER BY bp.createdAt DESC`,
+      [input.brandId]
+    ) as any;
+    return rows.map((r: any) => ({
+      ...r,
+      imageUrls: r.imageUrls ? (typeof r.imageUrls === 'string' ? JSON.parse(r.imageUrls) : r.imageUrls) : [],
+    }));
+  }),
+
+  // 4. 品牌管理の商品パフォーマンス（ライブ配信実績）を样品中心から参照する
+  getBrandLivePerformanceForSelection: protectedProcedure.input(z.object({
+    brandId: z.number(),
+  })).query(async ({ input }) => {
+    const pool = getPool();
+    // brand_livestreamsとlivestream_productsから実績データを取得
+    const [rows] = await pool.query(
+      `SELECT 
+        lp.productName,
+        SUM(COALESCE(lp.directGmv, lp.grossRevenue, 0)) as totalGmv,
+        SUM(COALESCE(lp.itemsSold, 0)) as totalSales,
+        SUM(COALESCE(lp.productImpressions, 0)) as totalImpressions,
+        SUM(COALESCE(lp.productClicks, 0)) as totalClicks,
+        COUNT(*) as streamCount,
+        MAX(bl.livestreamDate) as lastStreamDate,
+        AVG(lp.unitPrice) as avgUnitPrice
+       FROM livestream_products lp
+       JOIN brand_livestreams bl ON lp.livestreamId = bl.id
+       WHERE bl.brandId = ?
+       GROUP BY lp.productName
+       ORDER BY totalGmv DESC
+       LIMIT 50`,
+      [input.brandId]
+    ) as any;
+    // サマリー計算
+    let totalGmv = 0, totalSales = 0, totalImpressions = 0, totalClicks = 0;
+    for (const row of rows) {
+      totalGmv += Number(row.totalGmv || 0);
+      totalSales += Number(row.totalSales || 0);
+      totalImpressions += Number(row.totalImpressions || 0);
+      totalClicks += Number(row.totalClicks || 0);
+    }
+    return {
+      summary: {
+        totalGmv,
+        totalSales,
+        totalImpressions,
+        totalClicks,
+        productCount: rows.length,
+      },
+      products: rows.map((r: any) => ({
+        productName: r.productName,
+        totalGmv: Number(r.totalGmv || 0),
+        totalSales: Number(r.totalSales || 0),
+        totalImpressions: Number(r.totalImpressions || 0),
+        totalClicks: Number(r.totalClicks || 0),
+        streamCount: Number(r.streamCount || 0),
+        lastStreamDate: r.lastStreamDate ? new Date(r.lastStreamDate).toISOString() : null,
+        avgUnitPrice: Number(r.avgUnitPrice || 0),
+      })),
+    };
+  }),
+
+  // 5. 品牌管理の商品を样品中心に一括インポート
+  importBrandProductsToSelection: protectedProcedure.input(z.object({
+    brandId: z.number(),
+    productIds: z.array(z.number()),
+  })).mutation(async ({ input, ctx }) => {
+    const pool = getPool();
+    const [bpRows] = await pool.query(
+      `SELECT * FROM brand_products WHERE id IN (?) AND brandId = ? AND deletedAt IS NULL`,
+      [input.productIds, input.brandId]
+    ) as any;
+    if (bpRows.length === 0) {
+      throw new Error("インポートする商品が見つかりません");
+    }
+    // ブランド名を取得
+    const [brandRows] = await pool.query(
+      `SELECT companyName FROM brands WHERE id = ?`,
+      [input.brandId]
+    ) as any;
+    const brandName = brandRows[0]?.companyName || '';
+    let imported = 0;
+    for (const bp of bpRows) {
+      // 既に同名の商品がselection_productsにないかチェック
+      const [existing] = await pool.query(
+        `SELECT id FROM selection_products WHERE productName = ? AND brandId = ? AND deletedAt IS NULL`,
+        [bp.productName, input.brandId]
+      ) as any;
+      if (existing.length > 0) continue; // スキップ
+      const images = bp.imageUrls ? (typeof bp.imageUrls === 'string' ? JSON.parse(bp.imageUrls) : bp.imageUrls) : [];
+      await pool.query(
+        `INSERT INTO selection_products (productName, brandName, brandId, price, marketPrice, images, status, createdBy, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, NOW(), NOW())`,
+        [
+          bp.productName,
+          brandName,
+          input.brandId,
+          bp.specialPrice || bp.listPrice || null,
+          bp.listPrice || null,
+          images.length > 0 ? JSON.stringify(images) : null,
+          (ctx.user as any)?.id || 0,
+        ]
+      );
+      imported++;
+    }
+    return { success: true, imported, skipped: bpRows.length - imported };
+  }),
 });
