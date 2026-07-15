@@ -1072,6 +1072,9 @@ async function startServer() {
   // --- Top page prerender for SEO (Organization + WebSite JSON-LD) ---
   app.get("/", async (req, res, next) => {
     try {
+      const host = req.get("host") || "";
+      // livecommercefestival.comのリクエストは後続のfestivalルートで処理する
+      if (host.includes("livecommercefestival")) return next();
       const ua = (req.headers["user-agent"] || "").toLowerCase();
       const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic/i.test(ua);
       if (!isBot) return next();
