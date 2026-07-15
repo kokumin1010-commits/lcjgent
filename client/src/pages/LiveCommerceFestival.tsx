@@ -158,7 +158,10 @@ export default function LiveCommerceFestival() {
     <>
       <style dangerouslySetInnerHTML={{ __html: festivalStyles }} />
       <div className="min-h-screen bg-[#FFD700] text-gray-900 overflow-hidden">
-        <TopAnnouncementBar />
+        <StickyHeader />
+        <div className="pt-14">
+          <TopAnnouncementBar />
+        </div>
         <HeroSection />
         <SpeakersSection />
         <CampaignBanner />
@@ -172,8 +175,110 @@ export default function LiveCommerceFestival() {
         <LineCTASection />
         <OverviewSection />
         <FooterSection />
+        <MobileFloatingCTA />
       </div>
     </>
+  );
+}
+
+// ============================================================
+// Sticky Header Navigation
+// ============================================================
+function StickyHeader() {
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 80);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  return (
+    <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+      scrolled ? 'bg-white/95 backdrop-blur-md shadow-lg' : 'bg-transparent'
+    }`}>
+      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        {/* Logo */}
+        <a href="/livecommercefestival/2026" className="flex items-center gap-2">
+          <img src={IMAGES.logo} alt="LCF" className="h-8 md:h-10" />
+        </a>
+
+        {/* Desktop Nav */}
+        <nav className="hidden md:flex items-center gap-3">
+          <a
+            href="/livecommercefestival/2026/apply/company"
+            className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${
+              scrolled ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-white/90 text-gray-900 hover:bg-white'
+            }`}
+          >
+            企業様お申し込み
+          </a>
+          <a
+            href="/livecommercefestival/2026/apply/liver"
+            className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${
+              scrolled ? 'bg-purple-600 text-white hover:bg-purple-500' : 'bg-purple-600 text-white hover:bg-purple-500'
+            }`}
+          >
+            ライバー申し込み
+          </a>
+          <a
+            href="/livecommercefestival/2026/apply/general"
+            className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${
+              scrolled ? 'bg-amber-500 text-black hover:bg-amber-400' : 'bg-amber-500 text-black hover:bg-amber-400'
+            }`}
+          >
+            一般参加
+          </a>
+          <a
+            href={LINE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 text-sm font-bold rounded-lg bg-[#06C755] text-white hover:bg-[#05b04c] transition-all flex items-center gap-1.5"
+          >
+            <LineIcon className="w-4 h-4" />
+            LINE登録
+          </a>
+        </nav>
+
+        {/* Mobile Menu Button */}
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className={`md:hidden p-2 rounded-lg transition-colors ${
+            scrolled ? 'text-gray-900 hover:bg-gray-100' : 'text-gray-800 hover:bg-white/20'
+          }`}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {mobileMenuOpen ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            )}
+          </svg>
+        </button>
+      </div>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden bg-white/95 backdrop-blur-md border-t border-gray-200 shadow-lg">
+          <div className="px-4 py-4 space-y-3">
+            <a href="/livecommercefestival/2026/apply/company" className="block px-4 py-3 bg-gray-900 text-white font-bold rounded-lg text-center">
+              企業様お申し込み
+            </a>
+            <a href="/livecommercefestival/2026/apply/liver" className="block px-4 py-3 bg-purple-600 text-white font-bold rounded-lg text-center">
+              ライバー申し込み
+            </a>
+            <a href="/livecommercefestival/2026/apply/general" className="block px-4 py-3 bg-amber-500 text-black font-bold rounded-lg text-center">
+              一般参加
+            </a>
+            <a href={LINE_URL} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 px-4 py-3 bg-[#06C755] text-white font-bold rounded-lg">
+              <LineIcon className="w-5 h-5" />
+              LINE登録
+            </a>
+          </div>
+        </div>
+      )}
+    </header>
   );
 }
 
@@ -251,6 +356,31 @@ function HeroSection() {
         <p className="text-sm text-gray-600 mt-4">
           LINE登録後、30秒で完了します。
         </p>
+
+        {/* Sub CTAs - Application Buttons */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
+          <a
+            href="/livecommercefestival/2026/apply/company"
+            className="px-6 py-2.5 bg-gray-900 text-white font-bold rounded-lg hover:bg-gray-800 transition-all shadow-lg flex items-center gap-2 text-sm"
+          >
+            <Building2 className="w-4 h-4" />
+            企業様お申し込み
+          </a>
+          <a
+            href="/livecommercefestival/2026/apply/liver"
+            className="px-6 py-2.5 bg-white text-gray-900 font-bold rounded-lg hover:bg-gray-100 transition-all shadow-lg flex items-center gap-2 text-sm"
+          >
+            <Mic2 className="w-4 h-4" />
+            ライバー申し込み
+          </a>
+          <a
+            href="/livecommercefestival/2026/apply/general"
+            className="px-6 py-2.5 bg-red-600 text-white font-bold rounded-lg hover:bg-red-500 transition-all shadow-lg flex items-center gap-2 text-sm"
+          >
+            <Users className="w-4 h-4" />
+            一般参加申し込み
+          </a>
+        </div>
       </div>
     </section>
   );
@@ -596,6 +726,21 @@ function ProgramSection() {
           <p className="text-xs text-gray-500 mt-3">
             参加費無料（事前LINE登録制）
           </p>
+          {/* Sub CTAs */}
+          <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
+            <a href="/livecommercefestival/2026/apply/company" className="px-5 py-2 bg-white/10 border border-white/20 text-white text-sm font-bold rounded-lg hover:bg-white/20 transition-all flex items-center gap-2">
+              <Building2 className="w-4 h-4" />
+              企業様
+            </a>
+            <a href="/livecommercefestival/2026/apply/liver" className="px-5 py-2 bg-white/10 border border-white/20 text-white text-sm font-bold rounded-lg hover:bg-white/20 transition-all flex items-center gap-2">
+              <Mic2 className="w-4 h-4" />
+              ライバー
+            </a>
+            <a href="/livecommercefestival/2026/apply/general" className="px-5 py-2 bg-white/10 border border-white/20 text-white text-sm font-bold rounded-lg hover:bg-white/20 transition-all flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              一般参加
+            </a>
+          </div>
         </div>
       </div>
     </section>
@@ -744,12 +889,21 @@ function SponsorSection() {
         <div className="text-center bg-gradient-to-r from-[#FFD700]/10 to-red-500/10 border border-[#FFD700]/30 rounded-2xl p-8 md:p-12">
           <h3 className="text-2xl font-bold mb-4">出展・スポンサーのお問い合わせ</h3>
           <p className="text-gray-400 mb-6">出展プラン・スポンサー枠の詳細はメールにてお問い合わせください。</p>
-          <a
-            href="mailto:info@livecommercejapan.jp"
-            className="inline-block bg-white text-gray-900 text-lg font-bold px-10 py-4 rounded-xl hover:bg-gray-100 transition-colors shadow-lg"
-          >
-            企業様お問い合わせはこちら
-          </a>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <a
+              href="/livecommercefestival/2026/apply/company"
+              className="inline-flex items-center gap-2 bg-[#FFD700] text-gray-900 text-lg font-bold px-10 py-4 rounded-xl hover:bg-[#ffe033] transition-colors shadow-lg"
+            >
+              <Building2 className="w-5 h-5" />
+              出展・協賛申し込み
+            </a>
+            <a
+              href="mailto:info@livecommercejapan.jp"
+              className="inline-block bg-white text-gray-900 text-lg font-bold px-10 py-4 rounded-xl hover:bg-gray-100 transition-colors shadow-lg"
+            >
+              メールでお問い合わせ
+            </a>
+          </div>
           <p className="text-gray-500 text-sm mt-3">info@livecommercejapan.jp</p>
         </div>
       </div>
@@ -906,14 +1060,21 @@ function LineCTASection() {
             className="px-8 py-3 bg-gray-900 text-white font-bold rounded-lg hover:bg-gray-800 transition-all shadow-lg flex items-center gap-2"
           >
             <Building2 className="w-5 h-5" />
-            企業様お問い合わせ
+            企業様お申し込み
           </a>
           <a
             href="/livecommercefestival/2026/apply/liver"
-            className="px-8 py-3 bg-white text-gray-900 font-bold rounded-lg hover:bg-gray-100 transition-all shadow-lg flex items-center gap-2"
+            className="px-8 py-3 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-500 transition-all shadow-lg flex items-center gap-2"
           >
             <Mic2 className="w-5 h-5" />
             ライバー申し込み
+          </a>
+          <a
+            href="/livecommercefestival/2026/apply/general"
+            className="px-8 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-500 transition-all shadow-lg flex items-center gap-2"
+          >
+            <Users className="w-5 h-5" />
+            一般参加
           </a>
         </div>
       </div>
@@ -951,11 +1112,54 @@ function OverviewSection() {
 }
 
 // ============================================================
+// Mobile Floating CTA Bar
+// ============================================================
+function MobileFloatingCTA() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setVisible(window.scrollY > 400);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/95 backdrop-blur-md border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] px-3 py-2.5">
+      <div className="flex items-center gap-2">
+        <a
+          href="/livecommercefestival/2026/apply/company"
+          className="flex-1 px-2 py-2 bg-gray-900 text-white text-xs font-bold rounded-lg text-center"
+        >
+          企業様
+        </a>
+        <a
+          href="/livecommercefestival/2026/apply/liver"
+          className="flex-1 px-2 py-2 bg-purple-600 text-white text-xs font-bold rounded-lg text-center"
+        >
+          ライバー
+        </a>
+        <a
+          href={LINE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 px-2 py-2 bg-[#06C755] text-white text-xs font-bold rounded-lg text-center flex items-center justify-center gap-1"
+        >
+          <LineIcon className="w-3.5 h-3.5" />
+          LINE登録
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // Footer Section
 // ============================================================
 function FooterSection() {
   return (
-    <footer className="bg-black py-8 text-center text-gray-500 text-sm">
+    <footer className="bg-black py-8 pb-20 md:pb-8 text-center text-gray-500 text-sm">
       <p>&copy; 2026 Live Commerce Festival 実行委員会. All Rights Reserved.</p>
       <p className="mt-2">
         主催: LCF実行委員会　｜　共同企画: MOB Inc. × Live Commerce Japan
