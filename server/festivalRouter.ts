@@ -1,6 +1,6 @@
 /**
  * Live Commerce Festival 申込管理ルーター
- * - 公開: 企業/ライバー/一般の申込受付
+ * - 公開: 企業/ライバー/一般の申込受付 + 自動アカウント作成
  * - 管理: 申込一覧・ステータス管理・CSVエクスポート
  */
 import { router, publicProcedure, protectedProcedure } from "./_core/trpc";
@@ -13,6 +13,7 @@ import {
   festivalGeneralApplications,
 } from "../drizzle/schema";
 import { eq, desc, and, sql, count } from "drizzle-orm";
+import { createFestivalAccount } from "./festivalAuthRouter";
 
 export const festivalRouter = router({
   // ===== 公開API: 申込受付 =====
@@ -41,8 +42,9 @@ export const festivalRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
 
+      let insertId = 0;
       try {
-        await db.insert(festivalCompanyApplications).values({
+        const result = await db.insert(festivalCompanyApplications).values({
           companyName: input.companyName,
           contactName: input.contactName,
           contactDepartment: input.contactDepartment,
@@ -61,6 +63,7 @@ export const festivalRouter = router({
           salesLicense: input.salesLicense,
           eventYear: "2026",
         });
+        insertId = (result as any)[0]?.insertId || 0;
       } catch (err: any) {
         const sqlMsg = err.sqlMessage || err.cause?.message || err.cause?.sqlMessage || '';
         const errCode = err.code || err.cause?.code || err.errno || 'UNKNOWN';
@@ -68,7 +71,30 @@ export const festivalRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `DBエラー[${errCode}]: ${sqlMsg || err.message?.substring(0, 200) || 'Unknown'}` });
       }
 
-      return { success: true, message: "企業申込みを受け付けました" };
+      // 自動アカウント作成
+      let accountInfo: { password: string } | null = null;
+      try {
+        const result = await createFestivalAccount({
+          email: input.email,
+          accountType: "company",
+          applicationId: insertId,
+          displayName: input.companyName,
+        });
+        if (result) accountInfo = { password: result.password };
+      } catch (err: any) {
+        console.error("[Festival] Account creation error:", err.message);
+        // アカウント作成に失敗しても申込みは成功とする
+      }
+
+      return {
+        success: true,
+        message: "企業申込みを受け付けました",
+        account: accountInfo ? {
+          email: input.email,
+          password: accountInfo.password,
+          message: "アカウントが自動作成されました。このパスワードでログインできます。",
+        } : null,
+      };
     }),
 
   // ライバー＆インフルエンサー申込み
@@ -90,8 +116,9 @@ export const festivalRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
 
+      let insertId = 0;
       try {
-        await db.insert(festivalLiverApplications).values({
+        const result = await db.insert(festivalLiverApplications).values({
           name: input.name,
           nameKana: input.nameKana,
           liverName: input.liverName,
@@ -107,12 +134,35 @@ export const festivalRouter = router({
           complianceConsent: "agreed",
           eventYear: "2026",
         });
+        insertId = (result as any)[0]?.insertId || 0;
       } catch (err: any) {
         console.error("[Festival] submitLiver DB error:", err.message, err.code, err.sqlState);
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `DB書き込みエラー: ${err.code || 'UNKNOWN'} - ${err.message?.substring(0, 100) || 'Unknown error'}` });
       }
 
-      return { success: true, message: "ライバー申込みを受け付けました" };
+      // 自動アカウント作成
+      let accountInfo: { password: string } | null = null;
+      try {
+        const result = await createFestivalAccount({
+          email: input.email,
+          accountType: "liver",
+          applicationId: insertId,
+          displayName: input.liverName,
+        });
+        if (result) accountInfo = { password: result.password };
+      } catch (err: any) {
+        console.error("[Festival] Account creation error:", err.message);
+      }
+
+      return {
+        success: true,
+        message: "ライバー申込みを受け付けました",
+        account: accountInfo ? {
+          email: input.email,
+          password: accountInfo.password,
+          message: "アカウントが自動作成されました。このパスワードでログインできます。",
+        } : null,
+      };
     }),
 
   // 一般来場申込み
@@ -132,8 +182,9 @@ export const festivalRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
 
+      let insertId = 0;
       try {
-        await db.insert(festivalGeneralApplications).values({
+        const result = await db.insert(festivalGeneralApplications).values({
           participationType: input.participationType,
           companyName: input.companyName,
           department: input.department || null,
@@ -147,12 +198,35 @@ export const festivalRouter = router({
           complianceConsent: "agreed",
           eventYear: "2026",
         });
+        insertId = (result as any)[0]?.insertId || 0;
       } catch (err: any) {
         console.error("[Festival] submitGeneral DB error:", err.message, err.code, err.sqlState);
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `DB書き込みエラー: ${err.code || 'UNKNOWN'} - ${err.message?.substring(0, 100) || 'Unknown error'}` });
       }
 
-      return { success: true, message: "一般来場申込みを受け付けました" };
+      // 自動アカウント作成
+      let accountInfo: { password: string } | null = null;
+      try {
+        const result = await createFestivalAccount({
+          email: input.email,
+          accountType: "general",
+          applicationId: insertId,
+          displayName: input.name,
+        });
+        if (result) accountInfo = { password: result.password };
+      } catch (err: any) {
+        console.error("[Festival] Account creation error:", err.message);
+      }
+
+      return {
+        success: true,
+        message: "一般来場申込みを受け付けました",
+        account: accountInfo ? {
+          email: input.email,
+          password: accountInfo.password,
+          message: "アカウントが自動作成されました。このパスワードでログインできます。",
+        } : null,
+      };
     }),
 
   // ===== 管理API: 一覧・ステータス管理 =====

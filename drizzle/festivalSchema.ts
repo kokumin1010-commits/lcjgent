@@ -86,3 +86,21 @@ export const festivalGeneralApplications = mysqlTable("festival_general_applicat
 });
 export type FestivalGeneralApplication = typeof festivalGeneralApplications.$inferSelect;
 export type InsertFestivalGeneralApplication = typeof festivalGeneralApplications.$inferInsert;
+
+/**
+ * Live Commerce Festival - アカウント（フォーム送信時に自動作成）
+ */
+export const festivalAccounts = mysqlTable("festival_accounts", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("email", { length: 320 }).notNull(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  accountType: mysqlEnum("account_type", ["company", "liver", "general"]).notNull(),
+  applicationId: int("application_id").notNull(),
+  displayName: varchar("display_name", { length: 255 }).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type FestivalAccount = typeof festivalAccounts.$inferSelect;
+export type InsertFestivalAccount = typeof festivalAccounts.$inferInsert;

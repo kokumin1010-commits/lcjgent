@@ -748,6 +748,7 @@ import { tspRouter } from "./tspRouter";
 import { agencyRouter } from "./agencyRouter";
 import { brandPortalRouter } from "./brandPortalRouter";
 import { festivalRouter } from "./festivalRouter";
+import { festivalAuthRouter } from "./festivalAuthRouter";
 import { productLabRouter } from "./productLabRouter";
 import { pollRouter } from "./pollRouter";
 import { kgStrategyRouter } from "./kgStrategyRouter";
@@ -28261,6 +28262,7 @@ JSON配列のみを出力してください。`;
       }),
   }),
   festival: festivalRouter,
+  festivalAuth: festivalAuthRouter,
   productLab: productLabRouter,
   selectionCenter: selectionCenterRouter,
   kgStrategy: kgStrategyRouter,

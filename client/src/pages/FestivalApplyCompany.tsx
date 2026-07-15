@@ -28,8 +28,12 @@ export default function FestivalApplyCompany() {
     salesLicense: '',
   });
 
+  const [accountInfo, setAccountInfo] = useState<{email: string; password: string} | null>(null);
   const mutation = trpc.festival.submitCompany.useMutation({
-    onSuccess: () => setSubmitted(true),
+    onSuccess: (data) => {
+      setSubmitted(true);
+      if (data.account) setAccountInfo(data.account);
+    },
   });
 
   const updateField = (field: string, value: string) => {
@@ -54,13 +58,31 @@ export default function FestivalApplyCompany() {
         <div className="text-center max-w-md">
           <CheckCircle2 className="w-16 h-16 text-amber-400 mx-auto mb-6" />
           <h1 className="text-2xl font-bold mb-4">お申し込みありがとうございます</h1>
-          <p className="text-gray-400 mb-8">
+          <p className="text-gray-400 mb-4">
             企業出展のお申し込みを受け付けました。<br />
             担当者より3営業日以内にご連絡いたします。
           </p>
-          <Link href="/livecommercefestival/2026" className="inline-flex items-center gap-2 text-amber-400 hover:text-amber-300">
-            <ArrowLeft className="w-4 h-4" /> フェスティバルページに戻る
-          </Link>
+          {accountInfo && (
+            <div className="bg-green-900/30 border border-green-500/50 rounded-lg p-4 mb-6 text-left">
+              <p className="text-green-400 font-bold mb-2">アカウントが作成されました</p>
+              <p className="text-sm text-gray-300 mb-2">以下の情報でマイページにログインできます。</p>
+              <div className="bg-black/40 rounded p-3 space-y-1">
+                <p className="text-sm"><span className="text-gray-400">メール:</span> <span className="text-white font-mono">{accountInfo.email}</span></p>
+                <p className="text-sm"><span className="text-gray-400">パスワード:</span> <span className="text-white font-mono">{accountInfo.password}</span></p>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">※このパスワードは再表示できません。必ずメモしてください。</p>
+            </div>
+          )}
+          <div className="flex flex-col gap-3">
+            {accountInfo && (
+              <Link href="/lcf/login" className="inline-flex items-center justify-center gap-2 bg-amber-500 text-black font-bold px-6 py-3 rounded-lg hover:bg-amber-400 transition-colors">
+                マイページにログイン
+              </Link>
+            )}
+            <Link href="/livecommercefestival/2026" className="inline-flex items-center justify-center gap-2 text-amber-400 hover:text-amber-300">
+              <ArrowLeft className="w-4 h-4" /> フェスティバルページに戻る
+            </Link>
+          </div>
         </div>
       </div>
     );

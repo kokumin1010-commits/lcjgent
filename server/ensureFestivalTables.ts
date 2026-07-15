@@ -108,6 +108,25 @@ export async function ensureFestivalTables(): Promise<void> {
     `));
     console.log("[FestivalTables] ✅ festival_general_applications created");
 
+    // Create festival_accounts (auto-created on form submission)
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS festival_accounts (
+        id int AUTO_INCREMENT NOT NULL,
+        email varchar(320) NOT NULL,
+        password_hash varchar(255) NOT NULL,
+        account_type enum('company','liver','general') NOT NULL,
+        application_id int NOT NULL,
+        display_name varchar(255) NOT NULL,
+        is_active tinyint(1) NOT NULL DEFAULT 1,
+        last_login_at timestamp NULL,
+        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uk_email (email)
+      )
+    `));
+    console.log("[FestivalTables] ✅ festival_accounts created");
+
   } catch (err: any) {
     console.error("[FestivalTables] Error creating tables:", err.message);
     // Don't throw - server should still start even if table creation fails
