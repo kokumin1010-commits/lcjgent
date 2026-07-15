@@ -11,6 +11,9 @@ import {
   festivalCompanyApplications,
   festivalLiverApplications,
   festivalGeneralApplications,
+  festivalEventSettings,
+  festivalSponsors,
+  festivalLineRegistrations,
 } from "../drizzle/schema";
 import { eq, desc, and, sql, count } from "drizzle-orm";
 import { createFestivalAccount } from "./festivalAuthRouter";
@@ -309,6 +312,182 @@ export const festivalRouter = router({
 
       await db.update(table).set(updateData).where(eq(table.id, input.id));
       return { success: true };
+    }),
+
+  // ===== イベント設定管理 =====
+
+  // イベント設定取得
+  getEventSettings: protectedProcedure
+    .input(z.object({ eventYear: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const year = input?.eventYear || "2026";
+      const [settings] = await db.select().from(festivalEventSettings)
+        .where(eq(festivalEventSettings.eventYear, year));
+      return settings || null;
+    }),
+
+  // イベント設定更新
+  updateEventSettings: protectedProcedure
+    .input(z.object({
+      eventYear: z.string().optional(),
+      eventName: z.string().optional(),
+      venue: z.string().optional(),
+      venueAddress: z.string().optional(),
+      day1Date: z.string().optional(),
+      day2Date: z.string().optional(),
+      day1StartTime: z.string().optional(),
+      day1EndTime: z.string().optional(),
+      day2StartTime: z.string().optional(),
+      day2EndTime: z.string().optional(),
+      maxCapacity: z.number().optional(),
+      description: z.string().optional(),
+      programs: z.array(z.object({
+        time: z.string(),
+        title: z.string(),
+        speaker: z.string().optional(),
+        description: z.string().optional(),
+      })).optional(),
+      isPublished: z.boolean().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+
+      const year = input.eventYear || "2026";
+      const [existing] = await db.select().from(festivalEventSettings)
+        .where(eq(festivalEventSettings.eventYear, year));
+
+      const data: any = { ...input };
+      delete data.eventYear;
+      // Remove undefined values
+      Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
+
+      if (existing) {
+        await db.update(festivalEventSettings).set(data).where(eq(festivalEventSettings.id, existing.id));
+      } else {
+        await db.insert(festivalEventSettings).values({ eventYear: year, ...data });
+      }
+      return { success: true };
+    }),
+
+  // ===== スポンサー管理 =====
+
+  // スポンサー一覧
+  listSponsors: protectedProcedure
+    .input(z.object({ eventYear: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      const year = input?.eventYear || "2026";
+      return await db.select().from(festivalSponsors)
+        .where(eq(festivalSponsors.eventYear, year))
+        .orderBy(desc(festivalSponsors.createdAt));
+    }),
+
+  // スポンサー追加
+  addSponsor: protectedProcedure
+    .input(z.object({
+      companyName: z.string().min(1),
+      tier: z.enum(["platinum", "gold", "silver", "bronze", "partner"]),
+      logoUrl: z.string().optional(),
+      websiteUrl: z.string().optional(),
+      contactName: z.string().optional(),
+      contactEmail: z.string().optional(),
+      contactPhone: z.string().optional(),
+      sponsorshipAmount: z.number().optional(),
+      boothSize: z.string().optional(),
+      notes: z.string().optional(),
+      eventYear: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      await db.insert(festivalSponsors).values({
+        ...input,
+        eventYear: input.eventYear || "2026",
+      });
+      return { success: true };
+    }),
+
+  // スポンサー更新
+  updateSponsor: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      companyName: z.string().optional(),
+      tier: z.enum(["platinum", "gold", "silver", "bronze", "partner"]).optional(),
+      logoUrl: z.string().optional(),
+      websiteUrl: z.string().optional(),
+      contactName: z.string().optional(),
+      contactEmail: z.string().optional(),
+      contactPhone: z.string().optional(),
+      sponsorshipAmount: z.number().optional(),
+      boothSize: z.string().optional(),
+      notes: z.string().optional(),
+      status: z.enum(["pending", "confirmed", "cancelled"]).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      const { id, ...data } = input;
+      Object.keys(data).forEach(k => (data as any)[k] === undefined && delete (data as any)[k]);
+      await db.update(festivalSponsors).set(data).where(eq(festivalSponsors.id, id));
+      return { success: true };
+    }),
+
+  // スポンサー削除
+  deleteSponsor: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      await db.delete(festivalSponsors).where(eq(festivalSponsors.id, input.id));
+      return { success: true };
+    }),
+
+  // ===== LINE登録者管理 =====
+
+  // LINE登録者一覧
+  listLineRegistrations: protectedProcedure
+    .input(z.object({ eventYear: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      const year = input?.eventYear || "2026";
+      return await db.select().from(festivalLineRegistrations)
+        .where(eq(festivalLineRegistrations.eventYear, year))
+        .orderBy(desc(festivalLineRegistrations.createdAt));
+    }),
+
+  // LINE登録者追加（Webhook等から呼ばれる）
+  addLineRegistration: publicProcedure
+    .input(z.object({
+      lineUserId: z.string().optional(),
+      displayName: z.string().optional(),
+      registeredFrom: z.string().optional(),
+      eventYear: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      await db.insert(festivalLineRegistrations).values({
+        ...input,
+        eventYear: input.eventYear || "2026",
+      });
+      return { success: true };
+    }),
+
+  // LINE登録者数
+  lineRegistrationCount: protectedProcedure
+    .input(z.object({ eventYear: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { count: 0 };
+      const year = input?.eventYear || "2026";
+      const [result] = await db.select({ count: count() }).from(festivalLineRegistrations)
+        .where(eq(festivalLineRegistrations.eventYear, year));
+      return { count: result?.count || 0 };
     }),
 
   // 統計情報

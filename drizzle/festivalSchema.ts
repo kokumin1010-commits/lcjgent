@@ -104,3 +104,66 @@ export const festivalAccounts = mysqlTable("festival_accounts", {
 });
 export type FestivalAccount = typeof festivalAccounts.$inferSelect;
 export type InsertFestivalAccount = typeof festivalAccounts.$inferInsert;
+
+/**
+ * Live Commerce Festival - イベント設定
+ */
+export const festivalEventSettings = mysqlTable("festival_event_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  eventYear: varchar("event_year", { length: 10 }).notNull().default("2026"),
+  eventName: varchar("event_name", { length: 255 }).notNull().default("Live Commerce Festival 2026"),
+  venue: varchar("venue", { length: 500 }),
+  venueAddress: text("venue_address"),
+  day1Date: varchar("day1_date", { length: 50 }),
+  day2Date: varchar("day2_date", { length: 50 }),
+  day1StartTime: varchar("day1_start_time", { length: 20 }),
+  day1EndTime: varchar("day1_end_time", { length: 20 }),
+  day2StartTime: varchar("day2_start_time", { length: 20 }),
+  day2EndTime: varchar("day2_end_time", { length: 20 }),
+  maxCapacity: int("max_capacity"),
+  description: text("description"),
+  programs: json("programs").$type<{ time: string; title: string; speaker?: string; description?: string }[]>(),
+  isPublished: boolean("is_published").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type FestivalEventSetting = typeof festivalEventSettings.$inferSelect;
+export type InsertFestivalEventSetting = typeof festivalEventSettings.$inferInsert;
+
+/**
+ * Live Commerce Festival - スポンサー管理
+ */
+export const festivalSponsors = mysqlTable("festival_sponsors", {
+  id: int("id").autoincrement().primaryKey(),
+  eventYear: varchar("event_year", { length: 10 }).notNull().default("2026"),
+  companyName: varchar("company_name", { length: 255 }).notNull(),
+  tier: mysqlEnum("tier", ["platinum", "gold", "silver", "bronze", "partner"]).notNull().default("bronze"),
+  logoUrl: varchar("logo_url", { length: 500 }),
+  websiteUrl: varchar("website_url", { length: 500 }),
+  contactName: varchar("contact_name", { length: 255 }),
+  contactEmail: varchar("contact_email", { length: 320 }),
+  contactPhone: varchar("contact_phone", { length: 50 }),
+  sponsorshipAmount: int("sponsorship_amount"),
+  boothSize: varchar("booth_size", { length: 50 }),
+  notes: text("notes"),
+  status: mysqlEnum("status", ["pending", "confirmed", "cancelled"]).default("pending").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type FestivalSponsor = typeof festivalSponsors.$inferSelect;
+export type InsertFestivalSponsor = typeof festivalSponsors.$inferInsert;
+
+/**
+ * Live Commerce Festival - LINE登録者データ
+ */
+export const festivalLineRegistrations = mysqlTable("festival_line_registrations", {
+  id: int("id").autoincrement().primaryKey(),
+  eventYear: varchar("event_year", { length: 10 }).notNull().default("2026"),
+  lineUserId: varchar("line_user_id", { length: 255 }),
+  displayName: varchar("display_name", { length: 255 }),
+  registeredFrom: varchar("registered_from", { length: 100 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type FestivalLineRegistration = typeof festivalLineRegistrations.$inferSelect;
+export type InsertFestivalLineRegistration = typeof festivalLineRegistrations.$inferInsert;

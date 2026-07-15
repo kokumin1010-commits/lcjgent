@@ -20,7 +20,9 @@ export async function ensureFestivalTables(): Promise<void> {
     
     const count = rows?.[0]?.cnt ?? rows?.cnt ?? 0;
     if (Number(count) > 0) {
-      console.log("[FestivalTables] Festival tables already exist");
+      console.log("[FestivalTables] Festival tables already exist, checking new tables...");
+      // Still create new tables that might not exist yet
+      await ensureNewFestivalTables(db);
       return;
     }
 
@@ -127,8 +129,136 @@ export async function ensureFestivalTables(): Promise<void> {
     `));
     console.log("[FestivalTables] ✅ festival_accounts created");
 
+    // Create festival_event_settings
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS festival_event_settings (
+        id int AUTO_INCREMENT NOT NULL,
+        event_year varchar(10) NOT NULL DEFAULT '2026',
+        event_name varchar(500),
+        venue varchar(500),
+        venue_address text,
+        day1_date varchar(50),
+        day2_date varchar(50),
+        day1_start_time varchar(20),
+        day1_end_time varchar(20),
+        day2_start_time varchar(20),
+        day2_end_time varchar(20),
+        max_capacity int,
+        description text,
+        programs json,
+        is_published tinyint(1) NOT NULL DEFAULT 0,
+        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uk_event_year (event_year)
+      )
+    `));
+    console.log("[FestivalTables] ✅ festival_event_settings created");
+
+    // Create festival_sponsors
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS festival_sponsors (
+        id int AUTO_INCREMENT NOT NULL,
+        event_year varchar(10) NOT NULL DEFAULT '2026',
+        company_name varchar(500) NOT NULL,
+        tier enum('platinum','gold','silver','bronze','partner') NOT NULL DEFAULT 'bronze',
+        logo_url text,
+        website_url text,
+        contact_name varchar(255),
+        contact_email varchar(320),
+        contact_phone varchar(50),
+        sponsorship_amount bigint,
+        booth_size varchar(100),
+        status enum('pending','confirmed','cancelled') NOT NULL DEFAULT 'pending',
+        notes text,
+        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+      )
+    `));
+    console.log("[FestivalTables] ✅ festival_sponsors created");
+
+    // Create festival_line_registrations
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS festival_line_registrations (
+        id int AUTO_INCREMENT NOT NULL,
+        event_year varchar(10) NOT NULL DEFAULT '2026',
+        line_user_id varchar(255),
+        display_name varchar(255),
+        registered_from varchar(255),
+        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+      )
+    `));
+    console.log("[FestivalTables] ✅ festival_line_registrations created");
+
   } catch (err: any) {
     console.error("[FestivalTables] Error creating tables:", err.message);
     // Don't throw - server should still start even if table creation fails
+  }
+}
+
+/**
+ * Ensure new festival tables exist (called even when old tables already exist)
+ */
+async function ensureNewFestivalTables(db: any): Promise<void> {
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS festival_event_settings (
+        id int AUTO_INCREMENT NOT NULL,
+        event_year varchar(10) NOT NULL DEFAULT '2026',
+        event_name varchar(500),
+        venue varchar(500),
+        venue_address text,
+        day1_date varchar(50),
+        day2_date varchar(50),
+        day1_start_time varchar(20),
+        day1_end_time varchar(20),
+        day2_start_time varchar(20),
+        day2_end_time varchar(20),
+        max_capacity int,
+        description text,
+        programs json,
+        is_published tinyint(1) NOT NULL DEFAULT 0,
+        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uk_event_year (event_year)
+      )
+    `));
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS festival_sponsors (
+        id int AUTO_INCREMENT NOT NULL,
+        event_year varchar(10) NOT NULL DEFAULT '2026',
+        company_name varchar(500) NOT NULL,
+        tier enum('platinum','gold','silver','bronze','partner') NOT NULL DEFAULT 'bronze',
+        logo_url text,
+        website_url text,
+        contact_name varchar(255),
+        contact_email varchar(320),
+        contact_phone varchar(50),
+        sponsorship_amount bigint,
+        booth_size varchar(100),
+        status enum('pending','confirmed','cancelled') NOT NULL DEFAULT 'pending',
+        notes text,
+        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+      )
+    `));
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS festival_line_registrations (
+        id int AUTO_INCREMENT NOT NULL,
+        event_year varchar(10) NOT NULL DEFAULT '2026',
+        line_user_id varchar(255),
+        display_name varchar(255),
+        registered_from varchar(255),
+        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+      )
+    `));
+    console.log("[FestivalTables] \u2705 New festival tables ensured");
+  } catch (err: any) {
+    console.error("[FestivalTables] Error creating new tables:", err.message);
   }
 }
