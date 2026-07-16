@@ -232,19 +232,25 @@ export async function checkLevel3SameImage(
     const bestMatch = similar[0];
     const isCrossUser = bestMatch.lineUserId !== lineUserId;
     
-    // ===== NEW RULE (2026-06-09): 订单号不同时不判定为重复 =====
-    // 即使图片相似，只要订单号不同就不应该拒绝
+    // ===== UPDATED RULE (2026-07-16): 订单号逻辑全面升级 =====
+    // 核心原则：Level3 phash重复检查只关注「订单号是否与其他订单重复」
+    // 规则：
+    // 1. 同一订单号的多张图片 → 不判定为重复（同一笔订单的多张截图是正常的）
+    // 2. 订单号不同 → 不判定为重复（不管图片多相似）
+    // 3. 只要有一方能识别出订单号且不相同 → 不判定为重复
+    // 4. 只有「订单号完全相同 + 图片相似」才判定为重复
     const db = await getDb();
     if (db) {
-      // 获取匹配收据的订单号
+      // 获取匹配收据的订单号（从orderNumber字段 + ocrRawText + 同一收据的其他图片）
       const matchedReceipt = await db
-        .select({ orderNumber: lineReceipts.orderNumber, ocrRawText: lineReceipts.ocrRawText })
+        .select({ orderNumber: lineReceipts.orderNumber, ocrRawText: lineReceipts.ocrRawText, lineUserId: lineReceipts.lineUserId })
         .from(lineReceipts)
         .where(eq(lineReceipts.id, bestMatch.receiptId))
         .limit(1);
       
+      let matchedOrderNumber = "";
       if (matchedReceipt.length > 0) {
-        let matchedOrderNumber = matchedReceipt[0].orderNumber || "";
+        matchedOrderNumber = matchedReceipt[0].orderNumber || "";
         if (!matchedOrderNumber && matchedReceipt[0].ocrRawText) {
           try {
             const ocr = typeof matchedReceipt[0].ocrRawText === "string" 
@@ -252,35 +258,63 @@ export async function checkLevel3SameImage(
             matchedOrderNumber = String(ocr?.orderNumber || "").trim();
           } catch { /* ignore */ }
         }
-        
-        // 获取当前收据的订单号
-        let currentOrderNum = options.currentOrderNumber || "";
-        if (!currentOrderNum) {
-          const currentReceipt = await db
-            .select({ orderNumber: lineReceipts.orderNumber, ocrRawText: lineReceipts.ocrRawText })
-            .from(lineReceipts)
-            .where(eq(lineReceipts.id, receiptId))
-            .limit(1);
-          if (currentReceipt.length > 0) {
-            currentOrderNum = currentReceipt[0].orderNumber || "";
-            if (!currentOrderNum && currentReceipt[0].ocrRawText) {
-              try {
-                const ocr = typeof currentReceipt[0].ocrRawText === "string"
-                  ? JSON.parse(currentReceipt[0].ocrRawText) : currentReceipt[0].ocrRawText;
-                currentOrderNum = String(ocr?.orderNumber || "").trim();
-              } catch { /* ignore */ }
-            }
+      }
+      
+      // 获取当前收据的订单号
+      let currentOrderNum = options.currentOrderNumber || "";
+      if (!currentOrderNum) {
+        const currentReceipt = await db
+          .select({ orderNumber: lineReceipts.orderNumber, ocrRawText: lineReceipts.ocrRawText })
+          .from(lineReceipts)
+          .where(eq(lineReceipts.id, receiptId))
+          .limit(1);
+        if (currentReceipt.length > 0) {
+          currentOrderNum = currentReceipt[0].orderNumber || "";
+          if (!currentOrderNum && currentReceipt[0].ocrRawText) {
+            try {
+              const ocr = typeof currentReceipt[0].ocrRawText === "string"
+                ? JSON.parse(currentReceipt[0].ocrRawText) : currentReceipt[0].ocrRawText;
+              currentOrderNum = String(ocr?.orderNumber || "").trim();
+            } catch { /* ignore */ }
           }
         }
-        
-        // 如果两个收据都有订单号且订单号不同，则不判定为重复
-        if (currentOrderNum && matchedOrderNumber && currentOrderNum !== matchedOrderNumber) {
-          console.log(`[DuplicateCheck] Level3 match found for receipt #${receiptId} → #${bestMatch.receiptId} (distance: ${bestMatch.distance}), but order numbers differ (${currentOrderNum} vs ${matchedOrderNumber}). NOT marking as duplicate.`);
+      }
+      
+      // 规则1: 同一订单号的多张图片 → 不判定为重复
+      // （同一笔订单上传多张截图是正常行为）
+      if (currentOrderNum && matchedOrderNumber && currentOrderNum === matchedOrderNumber) {
+        // 同一订单号 + 同一用户 → 完全正常，不判定
+        if (!isCrossUser) {
+          console.log(`[DuplicateCheck] Level3 match for receipt #${receiptId} → #${bestMatch.receiptId} (distance: ${bestMatch.distance}), same order number (${currentOrderNum}) from same user. NOT marking as duplicate.`);
+          return { isDuplicate: false };
+        }
+        // 同一订单号 + 不同用户 → 这是真正的重复（别人用了同一个订单号），保持判定
+        // 但这种情况应该由Level2处理，Level3不需要重复判定
+        // 继续往下走，让Level3也标记
+      }
+      
+      // 规则2&3: 订单号不同 → 不判定为重复
+      // 只要有一方有订单号，且两者不完全相同，就不判定
+      if (currentOrderNum && matchedOrderNumber && currentOrderNum !== matchedOrderNumber) {
+        console.log(`[DuplicateCheck] Level3 match for receipt #${receiptId} → #${bestMatch.receiptId} (distance: ${bestMatch.distance}), order numbers differ (${currentOrderNum} vs ${matchedOrderNumber}). NOT marking as duplicate.`);
+        return { isDuplicate: false };
+      }
+      
+      // 规则3补充: 如果只有一方有订单号（另一方为空），也不判定为重复
+      // 因为无法确认是同一订单，宁可放过也不误判
+      if (currentOrderNum || matchedOrderNumber) {
+        // 至少有一方有订单号
+        if (!currentOrderNum || !matchedOrderNumber) {
+          // 另一方没有订单号 → 无法确认是同一订单，不判定
+          console.log(`[DuplicateCheck] Level3 match for receipt #${receiptId} → #${bestMatch.receiptId} (distance: ${bestMatch.distance}), one side missing order number (current: "${currentOrderNum}", matched: "${matchedOrderNumber}"). NOT marking as duplicate.`);
           return { isDuplicate: false };
         }
       }
+      
+      // 规则4: 两方都没有订单号 + 图片相似 → 仍然判定为重复（无法用订单号区分）
+      // 这种情况保持原有逻辑
     }
-    // ===== END NEW RULE =====
+    // ===== END UPDATED RULE =====
     
     console.log(`[DuplicateCheck] Level3 match found for receipt #${receiptId}: matched #${bestMatch.receiptId} (distance: ${bestMatch.distance}, cross-user: ${isCrossUser})`);
     
