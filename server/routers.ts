@@ -28751,6 +28751,31 @@ JSON配列のみを出力してください。`;
             importedCount++;
           }
         }
+        // 6. Update brandLivestreams viewerCount (use max value) and screenshotUrl
+        try {
+          if (metrics.viewerCount) {
+            await pool.query(
+              `UPDATE brand_livestreams SET viewerCount = GREATEST(COALESCE(viewerCount, 0), ?) WHERE id = ?`,
+              [metrics.viewerCount, input.livestreamId]
+            );
+          }
+          // Also update screenshotUrl with the latest snapshot image
+          if (imageUrl) {
+            await pool.query(
+              `UPDATE brand_livestreams SET screenshotUrl = ? WHERE id = ? AND (screenshotUrl IS NULL OR screenshotUrl = '')`,
+              [imageUrl, input.livestreamId]
+            );
+          }
+          // Update GMV if snapshot has higher value
+          if (metrics.gmv) {
+            await pool.query(
+              `UPDATE brand_livestreams SET salesAmount = GREATEST(COALESCE(salesAmount, 0), ?), gmv = GREATEST(COALESCE(gmv, 0), ?) WHERE id = ?`,
+              [metrics.gmv, metrics.gmv, input.livestreamId]
+            );
+          }
+        } catch (e) {
+          console.error('[addSnapshot] Failed to update brandLivestreams:', e);
+        }
         await pool.end();
         console.log(`[addSnapshot] Saved snapshot for livestream ${input.livestreamId}, timeSlot=${input.timeSlot}, GPM=${metrics.gpm}, products=${products.length}, imported=${importedCount}`);
         return {
