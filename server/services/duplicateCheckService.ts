@@ -280,18 +280,9 @@ export async function checkLevel3SameImage(
         }
       }
       
-      // 规则1: 同一订单号的多张图片 → 不判定为重复
-      // （同一笔订单上传多张截图是正常行为）
-      if (currentOrderNum && matchedOrderNumber && currentOrderNum === matchedOrderNumber) {
-        // 同一订单号 + 同一用户 → 完全正常，不判定
-        if (!isCrossUser) {
-          console.log(`[DuplicateCheck] Level3 match for receipt #${receiptId} → #${bestMatch.receiptId} (distance: ${bestMatch.distance}), same order number (${currentOrderNum}) from same user. NOT marking as duplicate.`);
-          return { isDuplicate: false };
-        }
-        // 同一订单号 + 不同用户 → 这是真正的重复（别人用了同一个订单号），保持判定
-        // 但这种情况应该由Level2处理，Level3不需要重复判定
-        // 继续往下走，让Level3也标记
-      }
+      // 注意: 同一次申请（同一receipt_id）中的多张图片已由findSimilarImages自动排除
+      // 所以这里不需要处理「同一receipt的多张截图」的情况
+      // 如果同一用户分两次提交同一订单号（不同receipt_id），那是真正的重复，应该判定
       
       // 规则2&3: 订单号不同 → 不判定为重复
       // 只要有一方有订单号，且两者不完全相同，就不判定
