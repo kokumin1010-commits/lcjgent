@@ -14,9 +14,10 @@ import {
   festivalEventSettings,
   festivalSponsors,
   festivalLineRegistrations,
+  festivalAccounts,
 } from "../drizzle/schema";
 import { eq, desc, and, sql, count } from "drizzle-orm";
-import { createFestivalAccount } from "./festivalAuthRouter";
+import { createFestivalAccount, verifyFestivalToken } from "./festivalAuthRouter";
 
 export const festivalRouter = router({
   // ===== 公開API: 申込受付 =====
@@ -512,5 +513,38 @@ export const festivalRouter = router({
         general: generalCount?.count || 0,
         total: (companyCount?.count || 0) + (liverCount?.count || 0) + (generalCount?.count || 0),
       };
+    }),
+
+  // ===== 申し込み者向けAPI =====
+  // 自分の申し込み情報を取得
+  getMyApplication: publicProcedure
+    .query(async ({ ctx }) => {
+      const token = (ctx.req as any)?.cookies?.lcf_token;
+      if (!token) return null;
+      const payload = await verifyFestivalToken(token);
+      if (!payload) return null;
+      const db = await getDb();
+      if (!db) return null;
+      const [account] = await db.select().from(festivalAccounts)
+        .where(eq(festivalAccounts.id, payload.accountId))
+        .limit(1);
+      if (!account) return null;
+      // アカウントタイプに応じて申し込み情報を取得
+      if (account.accountType === 'company') {
+        const [app] = await db.select().from(festivalCompanyApplications)
+          .where(eq(festivalCompanyApplications.id, account.applicationId))
+          .limit(1);
+        return { accountType: 'company', application: app || null, account: { id: account.id, email: account.email, displayName: account.displayName } };
+      } else if (account.accountType === 'liver') {
+        const [app] = await db.select().from(festivalLiverApplications)
+          .where(eq(festivalLiverApplications.id, account.applicationId))
+          .limit(1);
+        return { accountType: 'liver', application: app || null, account: { id: account.id, email: account.email, displayName: account.displayName } };
+      } else {
+        const [app] = await db.select().from(festivalGeneralApplications)
+          .where(eq(festivalGeneralApplications.id, account.applicationId))
+          .limit(1);
+        return { accountType: 'general', application: app || null, account: { id: account.id, email: account.email, displayName: account.displayName } };
+      }
     }),
 });
