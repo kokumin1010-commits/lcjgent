@@ -692,7 +692,22 @@ ${statisticsPrompt}${learningPrompt}`,
 
     if (shouldAutoApprove) {
       // === AUTO_APPROVE ===
-      const pointsToAward = candidate.pointsCalculated ?? 0;
+      let pointsToAward = candidate.pointsCalculated ?? 0;
+      // CRITICAL FIX: pointsCalculatedが0でもtotalAmountがある場合は再計算する
+      if (pointsToAward === 0 && candidate.totalAmount && candidate.totalAmount > 0) {
+        pointsToAward = Math.floor(candidate.totalAmount * 0.01);
+        console.log(`[AI Pass2] pointsCalculated was 0 but totalAmount=${candidate.totalAmount}, recalculated points: ${pointsToAward}pt for receipt #${candidate.id}`);
+        try {
+          const { db: dbInst } = await import("../db");
+          const { lineReceipts: lrSchema } = await import("../../drizzle/schema");
+          const { eq: eqFn } = await import("drizzle-orm");
+          if (dbInst) {
+            await dbInst.update(lrSchema).set({ pointsCalculated: pointsToAward }).where(eqFn(lrSchema.id, candidate.id));
+          }
+        } catch (fixErr) {
+          console.error(`[AI Pass2] Failed to fix pointsCalculated:`, fixErr);
+        }
+      }
 
       if (!config.dryRun) {
         try {

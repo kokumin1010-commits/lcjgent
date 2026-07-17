@@ -1057,7 +1057,23 @@ ${statisticsPrompt}${learningPrompt}`,
     }
 
     // ===== STEP 4: Auto-Approve! =====
-    const pointsToAward = candidate.pointsCalculated ?? 0;
+    let pointsToAward = candidate.pointsCalculated ?? 0;
+    // CRITICAL FIX: pointsCalculatedが0でもtotalAmountがある場合は再計算する
+    if (pointsToAward === 0 && candidate.totalAmount && candidate.totalAmount > 0) {
+      pointsToAward = Math.floor(candidate.totalAmount * 0.01);
+      console.log(`[AI AutoApprove Scheduler] pointsCalculated was 0 but totalAmount=${candidate.totalAmount}, recalculated points: ${pointsToAward}pt for receipt #${candidate.id}`);
+      // DBのpointsCalculatedも更新
+      try {
+        const { db: dbInst } = await import("./db");
+        const { lineReceipts: lrSchema } = await import("../drizzle/schema");
+        const { eq: eqFn } = await import("drizzle-orm");
+        if (dbInst) {
+          await dbInst.update(lrSchema).set({ pointsCalculated: pointsToAward }).where(eqFn(lrSchema.id, candidate.id));
+        }
+      } catch (fixErr) {
+        console.error(`[AI AutoApprove Scheduler] Failed to fix pointsCalculated:`, fixErr);
+      }
+    }
 
     try {
       await updateLineReceiptStatus(candidate.id, "approved", adminUserId,

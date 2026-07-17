@@ -18325,6 +18325,11 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         
         // 確変チャンス結果を確認し、確変ポイント（1.5%）を適用
         let pointsToAward = input.pointsOverride ?? receipt.pointsCalculated ?? 0;
+        // CRITICAL FIX: pointsCalculatedが0でもtotalAmountがある場合は再計算する
+        if (pointsToAward === 0 && receipt.totalAmount && receipt.totalAmount > 0) {
+          pointsToAward = Math.floor(receipt.totalAmount * 0.01);
+          console.log(`[Receipt] pointsCalculated was 0 but totalAmount=${receipt.totalAmount}, recalculated points: ${pointsToAward}pt for receipt #${input.id}`);
+        }
         let kakuhenApplied = false;
         if (!input.pointsOverride) {
           try {
@@ -19051,6 +19056,22 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         
         // 確変チャンス結果を確認し、確変ポイント（1.5%）を適用
         let pointsToAward = input.pointsOverride ?? receipt.pointsCalculated ?? 0;
+        // CRITICAL FIX: pointsCalculatedが0でもtotalAmountがある場合は再計算する
+        if (pointsToAward === 0 && receipt.totalAmount && receipt.totalAmount > 0) {
+          pointsToAward = Math.floor(receipt.totalAmount * 0.01);
+          console.log(`[LINE Receipt] pointsCalculated was 0 but totalAmount=${receipt.totalAmount}, recalculated points: ${pointsToAward}pt`);
+          // DBのpointsCalculatedも更新しておく
+          try {
+            const { db: dbInstance } = await import("./db");
+            const { lineReceipts: lr } = await import("../drizzle/schema");
+            const { eq: eqOp } = await import("drizzle-orm");
+            if (dbInstance) {
+              await dbInstance.update(lr).set({ pointsCalculated: pointsToAward }).where(eqOp(lr.id, input.id));
+            }
+          } catch (fixErr) {
+            console.error(`[LINE Receipt] Failed to fix pointsCalculated in DB:`, fixErr);
+          }
+        }
         let kakuhenApplied = false;
         if (!input.pointsOverride) {
           try {
@@ -20237,6 +20258,11 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           
           // ===== STEP 4: Auto-Approve! =====
           let pointsToAward = candidate.pointsCalculated ?? 0;
+          // CRITICAL FIX: pointsCalculatedが0でもtotalAmountがある場合は再計算する
+          if (pointsToAward === 0 && candidate.totalAmount && candidate.totalAmount > 0) {
+            pointsToAward = Math.floor(candidate.totalAmount * 0.01);
+            console.log(`[AI AutoApprove Batch] pointsCalculated was 0 but totalAmount=${candidate.totalAmount}, recalculated points: ${pointsToAward}pt for receipt #${candidate.id}`);
+          }
           // 確変チャンス結果を確認し、確変ポイント（1.5%）を適用
           try {
             const kakuhenResult = await getKakuhenResultByReceiptId("line_receipt", candidate.id);
@@ -20498,6 +20524,11 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             
             // Award points (確変チャンス結果を確認し、確変ポイントを適用)
             let pointsToAward = receipt.pointsCalculated ?? 0;
+            // CRITICAL FIX: pointsCalculatedが0でもtotalAmountがある場合は再計算する
+            if (pointsToAward === 0 && receipt.totalAmount && receipt.totalAmount > 0) {
+              pointsToAward = Math.floor(receipt.totalAmount * 0.01);
+              console.log(`[Override] pointsCalculated was 0 but totalAmount=${receipt.totalAmount}, recalculated points: ${pointsToAward}pt for receipt #${receipt.id}`);
+            }
             try {
               const kakuhenResult = await getKakuhenResultByReceiptId("line_receipt", receipt.id);
               if (kakuhenResult && kakuhenResult.isKakuhen && kakuhenResult.actualPoints > 0) {
