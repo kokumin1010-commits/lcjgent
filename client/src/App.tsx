@@ -162,6 +162,7 @@ const FestivalApplyLiver = lazy(() => import("./pages/FestivalApplyLiver"));
 const FestivalApplyGeneral = lazy(() => import("./pages/FestivalApplyGeneral"));
 const LcfLogin = lazy(() => import("./pages/LcfLogin"));
 const LcfMypage = lazy(() => import("./pages/LcfMypage"));
+const LcfAdmin = lazy(() => import("./pages/LcfAdmin"));
 const FestivalAdmin = lazy(() => import("./pages/FestivalAdmin"));
 const ProductLab = lazy(() => import("./pages/ProductLab"));
 const SelectionCenter = lazy(() => import("./pages/SelectionCenter"));
@@ -582,6 +583,7 @@ function Router() {
         <Route path="/livecommercefestival/2026/apply/general" component={FestivalApplyGeneral} />
         <Route path="/lcf/login" component={LcfLogin} />
         <Route path="/lcf/mypage" component={LcfMypage} />
+        <Route path="/lcf/admin" component={LcfAdmin} />
         <Route path="/livecommercefestival/2026" component={LiveCommerceFestival} />
         <Route path="/livecommercefestival" component={LiveCommerceFestivalTop} />
 

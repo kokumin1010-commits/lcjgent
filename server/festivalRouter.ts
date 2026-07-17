@@ -3,7 +3,7 @@
  * - 公開: 企業/ライバー/一般の申込受付 + 自動アカウント作成
  * - 管理: 申込一覧・ステータス管理・CSVエクスポート
  */
-import { router, publicProcedure, protectedProcedure } from "./_core/trpc";
+import { router, publicProcedure, protectedProcedure, t } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
@@ -18,6 +18,23 @@ import {
 } from "../drizzle/schema";
 import { eq, desc, and, sql, count } from "drizzle-orm";
 import { createFestivalAccount, verifyFestivalToken } from "./festivalAuthRouter";
+
+// Festival admin procedure: allows both lcjmall staff AND LCF admin (lcf_token with role=admin)
+const festivalAdminProcedure = t.procedure.use(async ({ ctx, next }) => {
+  // Check 1: lcjmall staff auth
+  if ((ctx as any).user) {
+    return next({ ctx });
+  }
+  // Check 2: LCF admin token
+  const lcfToken = (ctx.req as any)?.cookies?.lcf_token;
+  if (lcfToken) {
+    const payload = await verifyFestivalToken(lcfToken);
+    if (payload && payload.role === "admin") {
+      return next({ ctx: { ...ctx, lcfAdmin: payload } as any });
+    }
+  }
+  throw new TRPCError({ code: "UNAUTHORIZED", message: "管理者権限が必要です" });
+});
 
 export const festivalRouter = router({
   // ===== 公開API: 申込受付 =====
@@ -236,7 +253,7 @@ export const festivalRouter = router({
   // ===== 管理API: 一覧・ステータス管理 =====
 
   // 企業申込み一覧
-  listCompany: protectedProcedure
+  listCompany: festivalAdminProcedure
     .input(z.object({
       status: z.string().optional(),
       eventYear: z.string().optional(),
@@ -255,7 +272,7 @@ export const festivalRouter = router({
     }),
 
   // ライバー申込み一覧
-  listLiver: protectedProcedure
+  listLiver: festivalAdminProcedure
     .input(z.object({
       status: z.string().optional(),
       eventYear: z.string().optional(),
@@ -274,7 +291,7 @@ export const festivalRouter = router({
     }),
 
   // 一般来場申込み一覧
-  listGeneral: protectedProcedure
+  listGeneral: festivalAdminProcedure
     .input(z.object({
       status: z.string().optional(),
       eventYear: z.string().optional(),
@@ -293,7 +310,7 @@ export const festivalRouter = router({
     }),
 
   // ステータス更新（全タイプ共通）
-  updateStatus: protectedProcedure
+  updateStatus: festivalAdminProcedure
     .input(z.object({
       type: z.enum(["company", "liver", "general"]),
       id: z.number(),
@@ -318,7 +335,7 @@ export const festivalRouter = router({
   // ===== イベント設定管理 =====
 
   // イベント設定取得
-  getEventSettings: protectedProcedure
+  getEventSettings: festivalAdminProcedure
     .input(z.object({ eventYear: z.string().optional() }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
@@ -330,7 +347,7 @@ export const festivalRouter = router({
     }),
 
   // イベント設定更新
-  updateEventSettings: protectedProcedure
+  updateEventSettings: festivalAdminProcedure
     .input(z.object({
       eventYear: z.string().optional(),
       eventName: z.string().optional(),
@@ -376,7 +393,7 @@ export const festivalRouter = router({
   // ===== スポンサー管理 =====
 
   // スポンサー一覧
-  listSponsors: protectedProcedure
+  listSponsors: festivalAdminProcedure
     .input(z.object({ eventYear: z.string().optional() }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
@@ -388,7 +405,7 @@ export const festivalRouter = router({
     }),
 
   // スポンサー追加
-  addSponsor: protectedProcedure
+  addSponsor: festivalAdminProcedure
     .input(z.object({
       companyName: z.string().min(1),
       tier: z.enum(["platinum", "gold", "silver", "bronze", "partner"]),
@@ -413,7 +430,7 @@ export const festivalRouter = router({
     }),
 
   // スポンサー更新
-  updateSponsor: protectedProcedure
+  updateSponsor: festivalAdminProcedure
     .input(z.object({
       id: z.number(),
       companyName: z.string().optional(),
@@ -438,7 +455,7 @@ export const festivalRouter = router({
     }),
 
   // スポンサー削除
-  deleteSponsor: protectedProcedure
+  deleteSponsor: festivalAdminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -450,7 +467,7 @@ export const festivalRouter = router({
   // ===== LINE登録者管理 =====
 
   // LINE登録者一覧
-  listLineRegistrations: protectedProcedure
+  listLineRegistrations: festivalAdminProcedure
     .input(z.object({ eventYear: z.string().optional() }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
@@ -480,7 +497,7 @@ export const festivalRouter = router({
     }),
 
   // LINE登録者数
-  lineRegistrationCount: protectedProcedure
+  lineRegistrationCount: festivalAdminProcedure
     .input(z.object({ eventYear: z.string().optional() }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
@@ -492,7 +509,7 @@ export const festivalRouter = router({
     }),
 
   // 統計情報
-  stats: protectedProcedure
+  stats: festivalAdminProcedure
     .input(z.object({ eventYear: z.string().optional() }).optional())
     .query(async ({ input }) => {
       const db = await getDb();

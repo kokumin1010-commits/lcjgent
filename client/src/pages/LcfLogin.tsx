@@ -14,8 +14,12 @@ export default function LcfLogin() {
   const [error, setError] = useState('');
 
   const loginMutation = trpc.festivalAuth.login.useMutation({
-    onSuccess: () => {
-      setLocation('/lcf/mypage');
+    onSuccess: (data) => {
+      if (data.account?.accountType === 'admin') {
+        setLocation('/lcf/admin');
+      } else {
+        setLocation('/lcf/mypage');
+      }
     },
     onError: (err) => {
       setError(err.message || 'ログインに失敗しました');
