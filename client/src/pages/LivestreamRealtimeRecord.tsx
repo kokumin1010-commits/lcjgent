@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Clock, ShoppingCart, Package, TrendingUp, Edit2, Check, X, Camera, Loader2, ImageIcon, Gift, Upload } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Clock, ShoppingCart, Package, TrendingUp, Edit2, Check, X, Camera, Loader2, ImageIcon, Gift, Upload, BarChart2, TrendingDown } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -67,6 +68,38 @@ export default function LivestreamRealtimeRecord() {
     const names = new Set(records.map(r => r.productName));
     return Array.from(names);
   }, [records]);
+
+  // CSV比較ダイアログ用state
+  const [compareDialogOpen, setCompareDialogOpen] = useState(false);
+  const [compareProductName, setCompareProductName] = useState("");
+  const [compareProductRecords, setCompareProductRecords] = useState<any[]>([]);
+
+  // CSV最新スナップショットの商品データ取得
+  const { data: csvSnapshotsForCompare } = trpc.csvSnapshot.getCsvSnapshots.useQuery(
+    { livestreamId },
+    { enabled: livestreamId > 0 }
+  );
+  const latestSnapshotId = useMemo(() => {
+    if (!csvSnapshotsForCompare || csvSnapshotsForCompare.length === 0) return 0;
+    return csvSnapshotsForCompare[csvSnapshotsForCompare.length - 1].id;
+  }, [csvSnapshotsForCompare]);
+  const { data: csvProductsForCompare } = trpc.csvSnapshot.getCsvSnapshotProducts.useQuery(
+    { snapshotId: latestSnapshotId },
+    { enabled: latestSnapshotId > 0 }
+  );
+
+  // CSV商品から名前で検索（部分一致）
+  const findCsvProduct = (name: string) => {
+    if (!csvProductsForCompare || !name) return null;
+    // まず完全一致
+    const exact = csvProductsForCompare.find(p => p.productName === name);
+    if (exact) return exact;
+    // 部分一致（商品名の先頭部分）
+    const partial = csvProductsForCompare.find(p => 
+      p.productName.includes(name) || name.includes(p.productName)
+    );
+    return partial || null;
+  };
 
   // Mutation
   const addMutation = trpc.realtimeRecord.add.useMutation({
@@ -518,10 +551,27 @@ export default function LivestreamRealtimeRecord() {
                       return (
                         <div key={productName} className="bg-gray-800/60 border border-gray-700 rounded-lg overflow-hidden">
                           {/* Product header */}
-                          <div className="px-4 py-3 bg-gray-800/80 border-b border-gray-700">
-                            <span className="text-base font-bold text-white">{productName}</span>
-                            {productRecords.length > 1 && (
-                              <span className="ml-2 text-xs text-gray-400">({productRecords.length}回記録)</span>
+                          <div className="px-4 py-3 bg-gray-800/80 border-b border-gray-700 flex items-center justify-between">
+                            <div>
+                              <span className="text-base font-bold text-white">{productName}</span>
+                              {productRecords.length > 1 && (
+                                <span className="ml-2 text-xs text-gray-400">({productRecords.length}回記録)</span>
+                              )}
+                            </div>
+                            {csvProductsForCompare && csvProductsForCompare.length > 0 && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-[10px] text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/30 gap-1"
+                                onClick={() => {
+                                  setCompareProductName(productName);
+                                  setCompareProductRecords(productRecords);
+                                  setCompareDialogOpen(true);
+                                }}
+                              >
+                                <BarChart2 className="h-3.5 w-3.5" />
+                                CSV比較
+                              </Button>
                             )}
                           </div>
                           {/* Time-point data rows */}
@@ -958,6 +1008,213 @@ export default function LivestreamRealtimeRecord() {
         {/* 📊 CSV/Excel商品分析セクション */}
         <CsvSnapshotAnalysis livestreamId={livestreamId} liverId={livestream?.liverId} timeSlot={timeSlot} onProductsAdded={() => refetch()} />
 
+        {/* CSV比較ダイアログ */}
+        <Dialog open={compareDialogOpen} onOpenChange={setCompareDialogOpen}>
+          <DialogContent className="max-w-2xl bg-gray-900 border-gray-700 text-white max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-white flex items-center gap-2">
+                <BarChart2 className="h-5 w-5 text-emerald-400" />
+                CSV最終データとの比較
+              </DialogTitle>
+            </DialogHeader>
+            {(() => {
+              const csvProduct = findCsvProduct(compareProductName);
+              if (!csvProduct) {
+                return (
+                  <div className="py-8 text-center">
+                    <p className="text-gray-400 text-sm">「{compareProductName}」に一致するCSV商品が見つかりません</p>
+                    <p className="text-gray-500 text-xs mt-2">以下のCSV商品から手動で選択してください：</p>
+                    {csvProductsForCompare && (
+                      <div className="mt-3 max-h-[300px] overflow-y-auto space-y-1">
+                        {csvProductsForCompare.map(p => (
+                          <div
+                            key={p.id}
+                            className="text-left px-3 py-2 bg-gray-800/50 rounded cursor-pointer hover:bg-emerald-900/30 transition-colors"
+                            onClick={() => {
+                              setCompareProductName(p.productName);
+                            }}
+                          >
+                            <p className="text-xs text-white truncate">{p.productName}</p>
+                            <div className="flex gap-2 mt-0.5">
+                              <span className="text-[9px] text-green-400">GMV:¥{Number(p.gmv || 0).toLocaleString()}</span>
+                              <span className="text-[9px] text-blue-400">注文:{p.orderCount || 0}件</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // CSV最終データ
+              const csvGmv = Number(csvProduct.gmv) || 0;
+              const csvOrders = Number(csvProduct.orderCount) || 0;
+              const csvImpressions = Number(csvProduct.impressionCount) || 0;
+              const csvClickRate = Number(csvProduct.clickRate) || 0;
+              const csvGpm = Number(csvProduct.gpm) || 0;
+              const csvSkuConv = Number(csvProduct.skuConversionRate) || 0;
+              const csvCartAdd = Number(csvProduct.cartAddCount) || 0;
+              const csvClickCount = Number(csvProduct.clickCount) || 0;
+              const csvUnitPrice = csvOrders > 0 ? Math.round(csvGmv / csvOrders) : 0;
+
+              // 手動記録の最新データ
+              const latestManual = compareProductRecords[0];
+              const manualPrice = latestManual ? Number(latestManual.productPrice) || 0 : 0;
+              const manualQuantity = latestManual ? latestManual.quantitySold || 0 : 0;
+              const manualCart = latestManual ? latestManual.cartAddCount || 0 : 0;
+              const manualGmv = manualPrice * manualQuantity;
+
+              return (
+                <div className="space-y-4">
+                  {/* 商品名 */}
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <p className="text-xs text-gray-400 mb-1">CSV商品名</p>
+                    <p className="text-sm text-white font-medium">{csvProduct.productName}</p>
+                  </div>
+
+                  {/* 比較テーブル */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-700">
+                          <th className="text-left py-2 px-2 text-gray-400 font-normal">指標</th>
+                          <th className="text-right py-2 px-2 text-blue-400 font-normal">手動記録 (最新)</th>
+                          <th className="text-right py-2 px-2 text-emerald-400 font-normal">CSV最終データ</th>
+                          <th className="text-right py-2 px-2 text-gray-400 font-normal">差分</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-700/50">
+                        <tr>
+                          <td className="py-2 px-2 text-gray-300">単価</td>
+                          <td className="py-2 px-2 text-right text-white">¥{manualPrice.toLocaleString()}</td>
+                          <td className="py-2 px-2 text-right text-white">¥{csvUnitPrice.toLocaleString()}</td>
+                          <td className="py-2 px-2 text-right">
+                            {csvUnitPrice - manualPrice !== 0 && (
+                              <span className={csvUnitPrice - manualPrice > 0 ? 'text-green-400' : 'text-red-400'}>
+                                {csvUnitPrice - manualPrice > 0 ? '+' : ''}¥{(csvUnitPrice - manualPrice).toLocaleString()}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 px-2 text-gray-300">出単数</td>
+                          <td className="py-2 px-2 text-right text-white">{manualQuantity}件</td>
+                          <td className="py-2 px-2 text-right text-white">{csvOrders}件</td>
+                          <td className="py-2 px-2 text-right">
+                            {csvOrders - manualQuantity !== 0 && (
+                              <span className={csvOrders - manualQuantity > 0 ? 'text-green-400' : 'text-red-400'}>
+                                {csvOrders - manualQuantity > 0 ? '+' : ''}{csvOrders - manualQuantity}件
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 px-2 text-gray-300">カート</td>
+                          <td className="py-2 px-2 text-right text-white">{manualCart}</td>
+                          <td className="py-2 px-2 text-right text-white">{csvCartAdd}</td>
+                          <td className="py-2 px-2 text-right">
+                            {csvCartAdd - manualCart !== 0 && (
+                              <span className={csvCartAdd - manualCart > 0 ? 'text-green-400' : 'text-red-400'}>
+                                {csvCartAdd - manualCart > 0 ? '+' : ''}{csvCartAdd - manualCart}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 px-2 text-gray-300">GMV</td>
+                          <td className="py-2 px-2 text-right text-white">¥{manualGmv.toLocaleString()}</td>
+                          <td className="py-2 px-2 text-right text-white">¥{csvGmv.toLocaleString()}</td>
+                          <td className="py-2 px-2 text-right">
+                            {csvGmv - manualGmv !== 0 && (
+                              <span className={csvGmv - manualGmv > 0 ? 'text-green-400' : 'text-red-400'}>
+                                {csvGmv - manualGmv > 0 ? '+' : ''}¥{(csvGmv - manualGmv).toLocaleString()}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* CSV追加指標 */}
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <p className="text-xs text-gray-400 font-bold mb-2">CSV最終データ詳細</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {csvImpressions > 0 && (
+                        <div className="bg-gray-700/50 rounded px-2 py-1.5">
+                          <p className="text-[9px] text-gray-500">曝光</p>
+                          <p className="text-xs text-white font-medium">{csvImpressions.toLocaleString()}</p>
+                        </div>
+                      )}
+                      {csvClickCount > 0 && (
+                        <div className="bg-gray-700/50 rounded px-2 py-1.5">
+                          <p className="text-[9px] text-gray-500">クリック</p>
+                          <p className="text-xs text-white font-medium">{csvClickCount.toLocaleString()}</p>
+                        </div>
+                      )}
+                      {csvClickRate > 0 && (
+                        <div className="bg-gray-700/50 rounded px-2 py-1.5">
+                          <p className="text-[9px] text-gray-500">クリック率</p>
+                          <p className="text-xs text-cyan-400 font-medium">{(csvClickRate * 100).toFixed(2)}%</p>
+                        </div>
+                      )}
+                      {csvSkuConv > 0 && (
+                        <div className="bg-gray-700/50 rounded px-2 py-1.5">
+                          <p className="text-[9px] text-gray-500">SKU転化率</p>
+                          <p className="text-xs text-purple-400 font-medium">{(csvSkuConv * 100).toFixed(2)}%</p>
+                        </div>
+                      )}
+                      {csvGpm > 0 && (
+                        <div className="bg-gray-700/50 rounded px-2 py-1.5">
+                          <p className="text-[9px] text-gray-500">千次観看</p>
+                          <p className="text-xs text-amber-400 font-medium">¥{csvGpm.toLocaleString()}</p>
+                        </div>
+                      )}
+                      {Number(csvProduct.availableStock) > 0 && (
+                        <div className="bg-gray-700/50 rounded px-2 py-1.5">
+                          <p className="text-[9px] text-gray-500">在庫</p>
+                          <p className={`text-xs font-medium ${Number(csvProduct.availableStock) <= 5 ? 'text-red-400' : 'text-white'}`}>{csvProduct.availableStock}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 時系列比較（手動記録の各時間帯 vs CSV最終） */}
+                  {compareProductRecords.length > 1 && (
+                    <div className="bg-gray-800/50 rounded-lg p-3">
+                      <p className="text-xs text-gray-400 font-bold mb-2">時系列変化（手動記録 → CSV最終）</p>
+                      <div className="space-y-1">
+                        {compareProductRecords.map((rec, idx) => {
+                          const recGmv = (Number(rec.productPrice) || 0) * (rec.quantitySold || 0);
+                          return (
+                            <div key={rec.id} className="flex items-center justify-between bg-gray-700/30 rounded px-2 py-1.5">
+                              <span className="text-[10px] font-mono text-blue-300">{rec.timeSlot}</span>
+                              <div className="flex items-center gap-3 text-[10px]">
+                                <span className="text-gray-300">出単:{rec.quantitySold}件</span>
+                                <span className="text-gray-300">カート:{rec.cartAddCount || 0}</span>
+                                <span className="text-green-400">GMV:¥{recGmv.toLocaleString()}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {/* CSV最終データ行 */}
+                        <div className="flex items-center justify-between bg-emerald-900/30 border border-emerald-700/50 rounded px-2 py-1.5">
+                          <span className="text-[10px] font-mono text-emerald-300">最終(CSV)</span>
+                          <div className="flex items-center gap-3 text-[10px]">
+                            <span className="text-emerald-300">出単:{csvOrders}件</span>
+                            <span className="text-emerald-300">カート:{csvCartAdd}</span>
+                            <span className="text-emerald-400 font-bold">GMV:¥{csvGmv.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
 
       </div>
     </div>
