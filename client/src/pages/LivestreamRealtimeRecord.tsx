@@ -73,6 +73,7 @@ export default function LivestreamRealtimeRecord() {
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [compareProductName, setCompareProductName] = useState("");
   const [compareProductRecords, setCompareProductRecords] = useState<any[]>([]);
+  const [csvSearchQuery, setCsvSearchQuery] = useState("");
 
   // CSV最新スナップショットの商品データ取得
   const { data: csvSnapshotsForCompare } = trpc.csvSnapshot.getCsvSnapshots.useQuery(
@@ -1009,8 +1010,8 @@ export default function LivestreamRealtimeRecord() {
         <CsvSnapshotAnalysis livestreamId={livestreamId} liverId={livestream?.liverId} timeSlot={timeSlot} onProductsAdded={() => refetch()} />
 
         {/* CSV比較ダイアログ */}
-        <Dialog open={compareDialogOpen} onOpenChange={setCompareDialogOpen}>
-          <DialogContent className="max-w-2xl bg-gray-900 border-gray-700 text-white max-h-[85vh] overflow-y-auto">
+        <Dialog open={compareDialogOpen} onOpenChange={(open) => { setCompareDialogOpen(open); if (!open) setCsvSearchQuery(''); }}>
+          <DialogContent className="max-w-4xl w-[90vw] bg-gray-900 border-gray-700 text-white max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-white flex items-center gap-2">
                 <BarChart2 className="h-5 w-5 text-emerald-400" />
@@ -1020,29 +1021,45 @@ export default function LivestreamRealtimeRecord() {
             {(() => {
               const csvProduct = findCsvProduct(compareProductName);
               if (!csvProduct) {
+                const filteredProducts = csvProductsForCompare?.filter(p => {
+                  if (!csvSearchQuery) return true;
+                  return p.productName.toLowerCase().includes(csvSearchQuery.toLowerCase());
+                }) || [];
                 return (
-                  <div className="py-8 text-center">
-                    <p className="text-gray-400 text-sm">「{compareProductName}」に一致するCSV商品が見つかりません</p>
-                    <p className="text-gray-500 text-xs mt-2">以下のCSV商品から手動で選択してください：</p>
-                    {csvProductsForCompare && (
-                      <div className="mt-3 max-h-[300px] overflow-y-auto space-y-1">
-                        {csvProductsForCompare.map(p => (
-                          <div
-                            key={p.id}
-                            className="text-left px-3 py-2 bg-gray-800/50 rounded cursor-pointer hover:bg-emerald-900/30 transition-colors"
-                            onClick={() => {
-                              setCompareProductName(p.productName);
-                            }}
-                          >
-                            <p className="text-xs text-white truncate">{p.productName}</p>
-                            <div className="flex gap-2 mt-0.5">
-                              <span className="text-[9px] text-green-400">GMV:¥{Number(p.gmv || 0).toLocaleString()}</span>
-                              <span className="text-[9px] text-blue-400">注文:{p.orderCount || 0}件</span>
-                            </div>
+                  <div className="py-4">
+                    <p className="text-gray-400 text-sm text-center">「{compareProductName}」に一致するCSV商品が見つかりません</p>
+                    <p className="text-gray-500 text-xs mt-2 text-center">以下のCSV商品から選択してください：</p>
+                    {/* 検索ボックス */}
+                    <div className="mt-3 mb-2">
+                      <Input
+                        placeholder="商品名で検索..."
+                        value={csvSearchQuery}
+                        onChange={(e) => setCsvSearchQuery(e.target.value)}
+                        className="bg-gray-800 border-gray-600 text-white text-sm h-9"
+                      />
+                    </div>
+                    <div className="max-h-[400px] overflow-y-auto space-y-1">
+                      {filteredProducts.map(p => (
+                        <div
+                          key={p.id}
+                          className="text-left px-3 py-2.5 bg-gray-800/50 rounded cursor-pointer hover:bg-emerald-900/30 transition-colors border border-transparent hover:border-emerald-700/50"
+                          onClick={() => {
+                            setCompareProductName(p.productName);
+                            setCsvSearchQuery('');
+                          }}
+                        >
+                          <p className="text-sm text-white">{p.productName}</p>
+                          <div className="flex gap-3 mt-1">
+                            <span className="text-[10px] text-green-400">GMV:¥{Number(p.gmv || 0).toLocaleString()}</span>
+                            <span className="text-[10px] text-blue-400">注文:{p.orderCount || 0}件</span>
+                            <span className="text-[10px] text-amber-400">GPM:¥{Number(p.gpm || 0).toLocaleString()}</span>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        </div>
+                      ))}
+                      {filteredProducts.length === 0 && (
+                        <p className="text-center text-gray-500 text-xs py-4">該当する商品がありません</p>
+                      )}
+                    </div>
                   </div>
                 );
               }
