@@ -1,13 +1,13 @@
 /**
  * CSV/Excel Snapshot Analysis Component
- * TikTok Shop商品データのアップロード・比較分析・AI分析
+ * TikTok Shop商品データのアップロード・比較分析・AI分析・商品選択追加
  */
 import { useState, useRef, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, FileSpreadsheet, TrendingUp, TrendingDown, AlertTriangle, Brain, Loader2, Trash2, BarChart3, ArrowUpDown, ChevronDown, ChevronUp } from "lucide-react";
+import { Upload, FileSpreadsheet, TrendingUp, TrendingDown, AlertTriangle, Brain, Loader2, Trash2, BarChart3, ArrowUpDown, ChevronDown, ChevronUp, ShoppingCart, CheckSquare, Square } from "lucide-react";
 import { toast } from "sonner";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from "recharts";
 import * as XLSX from "xlsx";
@@ -16,6 +16,7 @@ interface CsvSnapshotAnalysisProps {
   livestreamId: number;
   liverId?: number | null;
   timeSlot: string;
+  onProductsAdded?: () => void; // callback to refetch records after adding
 }
 
 // Column mapping from Chinese headers to internal field names
@@ -67,9 +68,9 @@ function parseNumber(val: any): number {
   return isNaN(num) ? 0 : num;
 }
 
-type TabType = 'upload' | 'timeline' | 'compare' | 'analysis';
+type TabType = 'upload' | 'select' | 'timeline' | 'compare' | 'analysis';
 
-export default function CsvSnapshotAnalysis({ livestreamId, liverId, timeSlot }: CsvSnapshotAnalysisProps) {
+export default function CsvSnapshotAnalysis({ livestreamId, liverId, timeSlot, onProductsAdded }: CsvSnapshotAnalysisProps) {
   const [activeTab, setActiveTab] = useState<TabType>('upload');
   const [isUploading, setIsUploading] = useState(false);
   const [compareIdA, setCompareIdA] = useState<string>("");
@@ -79,10 +80,22 @@ export default function CsvSnapshotAnalysis({ livestreamId, liverId, timeSlot }:
   const [expandedProducts, setExpandedProducts] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 商品選択状態
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
+  const [isAddingProducts, setIsAddingProducts] = useState(false);
+  const [productSortBy, setProductSortBy] = useState<'gmv' | 'orders' | 'gpm' | 'impressions'>('gmv');
+
   // Queries
   const { data: csvSnapshots, refetch: refetchSnapshots } = trpc.csvSnapshot.getCsvSnapshots.useQuery(
     { livestreamId },
     { enabled: livestreamId > 0 }
+  );
+
+  // Get products for selected snapshot
+  const { data: snapshotProducts, isLoading: isLoadingProducts } = trpc.csvSnapshot.getCsvSnapshotProducts.useQuery(
+    { snapshotId: parseInt(selectedSnapshotId) },
+    { enabled: !!selectedSnapshotId && parseInt(selectedSnapshotId) > 0 }
   );
 
   const { data: comparisonData } = trpc.csvSnapshot.compareCsvSnapshots.useQuery(
@@ -96,6 +109,9 @@ export default function CsvSnapshotAnalysis({ livestreamId, liverId, timeSlot }:
       toast.success(`CSVアップロード完了！${data.snapshot.totalProducts}商品, GMV: ¥${data.snapshot.totalGmv.toLocaleString()}`);
       refetchSnapshots();
       setIsUploading(false);
+      // Auto-select the new snapshot for product selection
+      setSelectedSnapshotId(String(data.snapshot.id));
+      setActiveTab('select');
     },
     onError: (err) => {
       toast.error(`アップロードエラー: ${err.message}`);
@@ -119,6 +135,20 @@ export default function CsvSnapshotAnalysis({ livestreamId, liverId, timeSlot }:
     onError: (err) => {
       toast.error(`AI分析エラー: ${err.message}`);
       setIsAnalyzing(false);
+    },
+  });
+
+  // CSV商品を商品記録に追加
+  const addToRecordMutation = trpc.csvSnapshot.addCsvProductsToRecord.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.count}件の商品を商品記録に追加しました！`);
+      setSelectedProductIds(new Set());
+      setIsAddingProducts(false);
+      onProductsAdded?.(); // trigger parent refetch
+    },
+    onError: (err) => {
+      toast.error(`追加エラー: ${err.message}`);
+      setIsAddingProducts(false);
     },
   });
 
@@ -236,8 +266,67 @@ export default function CsvSnapshotAnalysis({ livestreamId, liverId, timeSlot }:
     analyzeMutation.mutate({ livestreamId });
   }, [livestreamId, analyzeMutation]);
 
-  const tabs: { key: TabType; label: string; icon: any }[] = [
+  // 商品選択ハンドラー
+  const toggleProductSelection = (productId: number) => {
+    setSelectedProductIds(prev => {
+      const next = new Set(prev);
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
+  };
+
+  const selectAllProducts = () => {
+    if (!snapshotProducts) return;
+    setSelectedProductIds(new Set(snapshotProducts.map(p => p.id)));
+  };
+
+  const deselectAllProducts = () => {
+    setSelectedProductIds(new Set());
+  };
+
+  const handleAddToRecord = () => {
+    if (selectedProductIds.size === 0) {
+      toast.error("商品を選択してください");
+      return;
+    }
+    setIsAddingProducts(true);
+    addToRecordMutation.mutate({
+      livestreamId,
+      liverId: liverId || undefined,
+      timeSlot,
+      productIds: Array.from(selectedProductIds),
+    });
+  };
+
+  // Sort products
+  const sortedProducts = useMemo(() => {
+    if (!snapshotProducts) return [];
+    return [...snapshotProducts].sort((a, b) => {
+      switch (productSortBy) {
+        case 'gmv': return (Number(b.gmv) || 0) - (Number(a.gmv) || 0);
+        case 'orders': return (Number(b.orderCount) || 0) - (Number(a.orderCount) || 0);
+        case 'gpm': return (Number(b.gpm) || 0) - (Number(a.gpm) || 0);
+        case 'impressions': return (Number(b.impressionCount) || 0) - (Number(a.impressionCount) || 0);
+        default: return 0;
+      }
+    });
+  }, [snapshotProducts, productSortBy]);
+
+  // Auto-select latest snapshot when switching to select tab
+  const handleSelectTabClick = useCallback(() => {
+    setActiveTab('select');
+    if (!selectedSnapshotId && csvSnapshots && csvSnapshots.length > 0) {
+      setSelectedSnapshotId(String(csvSnapshots[csvSnapshots.length - 1].id));
+    }
+  }, [csvSnapshots, selectedSnapshotId]);
+
+  const tabs: { key: TabType; label: string; icon: any; onClick?: () => void }[] = [
     { key: 'upload', label: 'アップロード', icon: Upload },
+    { key: 'select', label: '商品選択', icon: ShoppingCart, onClick: handleSelectTabClick },
     { key: 'timeline', label: 'GMV推移', icon: TrendingUp },
     { key: 'compare', label: '比較分析', icon: ArrowUpDown },
     { key: 'analysis', label: 'AI分析', icon: Brain },
@@ -267,7 +356,7 @@ export default function CsvSnapshotAnalysis({ livestreamId, liverId, timeSlot }:
               size="sm"
               variant={activeTab === tab.key ? 'default' : 'ghost'}
               className={`text-[10px] h-7 px-2 whitespace-nowrap ${activeTab === tab.key ? 'bg-emerald-600' : 'text-gray-400'}`}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => tab.onClick ? tab.onClick() : setActiveTab(tab.key)}
             >
               <tab.icon className="h-3 w-3 mr-1" />
               {tab.label}
@@ -359,6 +448,200 @@ export default function CsvSnapshotAnalysis({ livestreamId, liverId, timeSlot }:
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 商品選択 Tab - CSV商品から商品記録に追加 */}
+        {activeTab === 'select' && (
+          <div className="space-y-3">
+            {csvSnapshots && csvSnapshots.length > 0 ? (
+              <>
+                {/* Snapshot selector */}
+                <div>
+                  <p className="text-[9px] text-gray-500 mb-1">CSVデータを選択</p>
+                  <Select value={selectedSnapshotId} onValueChange={(val) => { setSelectedSnapshotId(val); setSelectedProductIds(new Set()); }}>
+                    <SelectTrigger className="h-8 bg-gray-800 border-gray-700 text-xs text-white">
+                      <SelectValue placeholder="CSVを選択..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {csvSnapshots.slice().reverse().map(s => (
+                        <SelectItem key={s.id} value={String(s.id)}>
+                          {s.timeSlot} - {s.fileName} ({s.totalProducts}商品)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Product list */}
+                {isLoadingProducts ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-emerald-400" />
+                    <span className="ml-2 text-xs text-gray-400">商品データ読み込み中...</span>
+                  </div>
+                ) : sortedProducts.length > 0 ? (
+                  <>
+                    {/* Controls */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-[10px] h-6 text-emerald-400 hover:text-emerald-300"
+                          onClick={selectAllProducts}
+                        >
+                          全選択
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-[10px] h-6 text-gray-400 hover:text-gray-300"
+                          onClick={deselectAllProducts}
+                        >
+                          全解除
+                        </Button>
+                        <span className="text-[10px] text-emerald-400 font-bold">
+                          {selectedProductIds.size}件選択中
+                        </span>
+                      </div>
+                      {/* Sort */}
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] text-gray-500">並替:</span>
+                        {(['gmv', 'orders', 'gpm', 'impressions'] as const).map(sort => (
+                          <Button
+                            key={sort}
+                            size="sm"
+                            variant="ghost"
+                            className={`text-[9px] h-5 px-1.5 ${productSortBy === sort ? 'text-emerald-400 bg-emerald-900/30' : 'text-gray-500'}`}
+                            onClick={() => setProductSortBy(sort)}
+                          >
+                            {sort === 'gmv' ? 'GMV' : sort === 'orders' ? '注文' : sort === 'gpm' ? 'GPM' : '曝光'}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Product list */}
+                    <div className="space-y-1 max-h-[400px] overflow-y-auto">
+                      {sortedProducts.map((product, idx) => {
+                        const isSelected = selectedProductIds.has(product.id);
+                        const gmv = Number(product.gmv) || 0;
+                        const orders = Number(product.orderCount) || 0;
+                        const impressions = Number(product.impressionCount) || 0;
+                        const clickRate = Number(product.clickRate) || 0;
+                        const gpm = Number(product.gpm) || 0;
+                        const skuConv = Number(product.skuConversionRate) || 0;
+                        const cartAdd = Number(product.cartAddCount) || 0;
+
+                        return (
+                          <div
+                            key={product.id}
+                            className={`rounded-lg px-3 py-2 cursor-pointer transition-all ${
+                              isSelected
+                                ? 'bg-emerald-900/40 border border-emerald-600/60'
+                                : 'bg-gray-800/40 border border-gray-700/30 hover:bg-gray-800/70'
+                            }`}
+                            onClick={() => toggleProductSelection(product.id)}
+                          >
+                            <div className="flex items-start gap-2">
+                              {/* Checkbox */}
+                              <div className="mt-0.5 shrink-0">
+                                {isSelected ? (
+                                  <CheckSquare className="h-4 w-4 text-emerald-400" />
+                                ) : (
+                                  <Square className="h-4 w-4 text-gray-500" />
+                                )}
+                              </div>
+                              {/* Product info */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[9px] text-gray-500 font-mono">#{idx + 1}</span>
+                                  <p className="text-[11px] text-white font-medium truncate">{product.productName}</p>
+                                </div>
+                                {/* Metrics row */}
+                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                  {gmv > 0 && (
+                                    <span className="text-[9px] bg-green-900/40 text-green-400 px-1.5 py-0.5 rounded">
+                                      GMV:¥{gmv.toLocaleString()}
+                                    </span>
+                                  )}
+                                  {orders > 0 && (
+                                    <span className="text-[9px] bg-blue-900/40 text-blue-400 px-1.5 py-0.5 rounded">
+                                      注文:{orders}件
+                                    </span>
+                                  )}
+                                  {impressions > 0 && (
+                                    <span className="text-[9px] bg-gray-700/60 text-gray-300 px-1.5 py-0.5 rounded">
+                                      曝光:{impressions.toLocaleString()}
+                                    </span>
+                                  )}
+                                  {clickRate > 0 && (
+                                    <span className="text-[9px] bg-cyan-900/40 text-cyan-400 px-1.5 py-0.5 rounded">
+                                      クリック率:{(clickRate * 100).toFixed(2)}%
+                                    </span>
+                                  )}
+                                  {skuConv > 0 && (
+                                    <span className="text-[9px] bg-purple-900/40 text-purple-400 px-1.5 py-0.5 rounded">
+                                      SKU転化:{(skuConv * 100).toFixed(2)}%
+                                    </span>
+                                  )}
+                                  {gpm > 0 && (
+                                    <span className="text-[9px] bg-amber-900/40 text-amber-400 px-1.5 py-0.5 rounded">
+                                      千次観看:¥{gpm.toLocaleString()}
+                                    </span>
+                                  )}
+                                  {cartAdd > 0 && (
+                                    <span className="text-[9px] bg-orange-900/40 text-orange-400 px-1.5 py-0.5 rounded">
+                                      カート:{cartAdd}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Add to record button */}
+                    <Button
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 text-sm"
+                      onClick={handleAddToRecord}
+                      disabled={selectedProductIds.size === 0 || isAddingProducts}
+                    >
+                      {isAddingProducts ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />追加中...</>
+                      ) : (
+                        <><ShoppingCart className="h-4 w-4 mr-2" />選択した{selectedProductIds.size}件を商品記録に追加</>
+                      )}
+                    </Button>
+                  </>
+                ) : selectedSnapshotId ? (
+                  <div className="text-center py-8">
+                    <FileSpreadsheet className="h-8 w-8 text-gray-600 mx-auto mb-2" />
+                    <p className="text-xs text-gray-500">商品データが見つかりません</p>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <ShoppingCart className="h-8 w-8 text-gray-600 mx-auto mb-2" />
+                    <p className="text-xs text-gray-500">上のセレクトからCSVデータを選択してください</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <FileSpreadsheet className="h-8 w-8 text-gray-600 mx-auto mb-2" />
+                <p className="text-xs text-gray-500">まずCSVをアップロードしてください</p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-[10px] h-6 text-emerald-400 mt-2"
+                  onClick={() => setActiveTab('upload')}
+                >
+                  アップロードタブへ →
+                </Button>
               </div>
             )}
           </div>

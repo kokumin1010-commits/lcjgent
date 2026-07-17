@@ -341,6 +341,80 @@ ${productSummary}
       }
     }),
 
+  // CSV商品を商品記録に一括追加
+  addCsvProductsToRecord: protectedProcedure
+    .input(z.object({
+      livestreamId: z.number(),
+      liverId: z.number().optional(),
+      timeSlot: z.string().min(1),
+      productIds: z.array(z.number()).min(1), // livestream_csv_products.id の配列
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB not available' });
+
+      // Get selected CSV products
+      const allProducts = await db.select()
+        .from(livestreamCsvProducts)
+        .where(eq(livestreamCsvProducts.livestreamId, input.livestreamId));
+      
+      const selectedProducts = allProducts.filter(p => input.productIds.includes(p.id));
+      if (selectedProducts.length === 0) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: '選択された商品が見つかりません' });
+      }
+
+      // Insert into realtime records
+      const mysql2 = await import('mysql2/promise');
+      const pool = mysql2.createPool(process.env.DATABASE_URL!);
+      
+      // Ensure table exists
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS livestream_realtime_records (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          livestreamId INT NOT NULL,
+          liverId INT DEFAULT NULL,
+          productName VARCHAR(500) NOT NULL,
+          productPrice BIGINT DEFAULT NULL,
+          quantitySold INT NOT NULL DEFAULT 0,
+          cartAddCount INT DEFAULT 0,
+          timeSlot VARCHAR(20) NOT NULL,
+          recordedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+          recordedBy VARCHAR(255) DEFAULT NULL,
+          notes TEXT DEFAULT NULL,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+        )
+      `);
+
+      let count = 0;
+      for (const p of selectedProducts) {
+        const orderCount = Number(p.orderCount) || 0;
+        const cartAdd = Number(p.cartAddCount) || 0;
+        const gmv = Number(p.gmv) || 0;
+        // Calculate unit price from GMV / orderCount
+        const unitPrice = (gmv > 0 && orderCount > 0) ? Math.round(gmv / orderCount) : null;
+        
+        // Build notes with CSV metrics
+        const noteParts: string[] = [];
+        if (gmv > 0) noteParts.push(`GMV:¥${gmv.toLocaleString()}`);
+        if (Number(p.skuOrderCount) > 0) noteParts.push(`SKU:${p.skuOrderCount}`);
+        if (Number(p.impressionCount) > 0) noteParts.push(`曝光:${Number(p.impressionCount).toLocaleString()}`);
+        if (Number(p.clickCount) > 0) noteParts.push(`クリック:${Number(p.clickCount).toLocaleString()}`);
+        if (Number(p.clickRate) > 0) noteParts.push(`クリック率:${(Number(p.clickRate) * 100).toFixed(2)}%`);
+        if (Number(p.skuConversionRate) > 0) noteParts.push(`SKU転化:${(Number(p.skuConversionRate) * 100).toFixed(2)}%`);
+        if (Number(p.gpm) > 0) noteParts.push(`千次観看:¥${Number(p.gpm).toLocaleString()}`);
+        const noteStr = noteParts.length > 0 ? `[CSV] ${noteParts.join(' / ')}` : '[CSV]';
+
+        await pool.query(
+          `INSERT INTO livestream_realtime_records (livestreamId, liverId, productName, productPrice, quantitySold, cartAddCount, timeSlot, recordedBy, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [input.livestreamId, input.liverId || null, p.productName, unitPrice, orderCount, cartAdd, input.timeSlot, ctx.user.name || ctx.user.email, noteStr]
+        );
+        count++;
+      }
+      await pool.end();
+      console.log(`[addCsvProductsToRecord] Added ${count} CSV products to record for livestream ${input.livestreamId}`);
+      return { success: true, count };
+    }),
+
   // CSVスナップショット削除
   deleteCsvSnapshot: protectedProcedure
     .input(z.object({

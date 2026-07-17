@@ -956,7 +956,7 @@ export default function LivestreamRealtimeRecord() {
           </CardContent>
         </Card>
         {/* 📊 CSV/Excel商品分析セクション */}
-        <CsvSnapshotAnalysis livestreamId={livestreamId} liverId={livestream?.liverId} timeSlot={timeSlot} />
+        <CsvSnapshotAnalysis livestreamId={livestreamId} liverId={livestream?.liverId} timeSlot={timeSlot} onProductsAdded={() => refetch()} />
 
 
       </div>
