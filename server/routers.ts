@@ -15364,6 +15364,21 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
         }
       }),
 
+    // Update livestream screenshot URL (for manual upload from liver mypage)
+    updateLivestreamScreenshot: publicProcedure
+      .input(z.object({
+        livestreamId: z.number(),
+        screenshotUrl: z.string(),
+        screenshotKey: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        await pool.query(
+          `UPDATE brand_livestreams SET screenshotUrl = ?, screenshotKey = ? WHERE id = ?`,
+          [input.screenshotUrl, input.screenshotKey, input.livestreamId]
+        );
+        return { success: true };
+      }),
+
     // Analyze screenshot to extract livestream data
     analyzeScreenshot: rateLimitedPublicProcedure
       .input(z.object({
@@ -28790,11 +28805,11 @@ JSON配列のみを出力してください。`;
               [metrics.viewerCount, input.livestreamId]
             );
           }
-          // Also update screenshotUrl with the latest snapshot image
+          // Also update screenshotUrl with the latest snapshot image (always update to latest)
           if (imageUrl) {
             await pool.query(
-              `UPDATE brand_livestreams SET screenshotUrl = ? WHERE id = ? AND (screenshotUrl IS NULL OR screenshotUrl = '')`,
-              [imageUrl, input.livestreamId]
+              `UPDATE brand_livestreams SET screenshotUrl = ?, screenshotKey = ? WHERE id = ?`,
+              [imageUrl, fileKey, input.livestreamId]
             );
           }
           // Update GMV if snapshot has higher value

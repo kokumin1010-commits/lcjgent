@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { clearLiverToken } from "@/lib/liverAuth";
@@ -49,7 +49,8 @@ import {
   ArrowUpDown,
   Trophy,
   Search,
-  GitCompareArrows
+  GitCompareArrows,
+  Camera
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -239,6 +240,75 @@ export default function LiverMypage() {
       toast.error(`${lt('stream.deleteError')}: ${error.message}`);
     },
   });
+
+  // スクショアップロード用
+  const screenshotFileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingLivestreamId, setUploadingLivestreamId] = useState<number | null>(null);
+  const uploadScreenshotMutation = trpc.liverManagement.uploadScreenshot.useMutation({
+    onSuccess: async (data, variables) => {
+      // アップロード成功後、livestreamのscreenshotUrlを更新
+      if (uploadingLivestreamId) {
+        await updateLivestreamScreenshotMutation.mutateAsync({
+          livestreamId: uploadingLivestreamId,
+          screenshotUrl: data.url,
+          screenshotKey: data.key,
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast.error(`アップロード失敗: ${error.message}`);
+      setUploadingLivestreamId(null);
+    },
+  });
+  const updateLivestreamScreenshotMutation = trpc.liverManagement.updateLivestreamScreenshot.useMutation({
+    onSuccess: () => {
+      toast.success('スクショを保存しました');
+      refetchLivestreams();
+      setUploadingLivestreamId(null);
+    },
+    onError: (error: any) => {
+      toast.error(`保存失敗: ${error.message}`);
+      setUploadingLivestreamId(null);
+    },
+  });
+
+  const handleScreenshotUpload = (livestreamId: number) => {
+    setUploadingLivestreamId(livestreamId);
+    screenshotFileInputRef.current?.click();
+  };
+
+  const onScreenshotFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadingLivestreamId) return;
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (!file.type.startsWith('image/') && !allowedTypes.some(t => file.name.toLowerCase().endsWith(t.split('/')[1]))) {
+      toast.error('画像ファイルを選択してください');
+      setUploadingLivestreamId(null);
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('10MB以下の画像を選択してください');
+      setUploadingLivestreamId(null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(',')[1];
+      uploadScreenshotMutation.mutate({
+        base64,
+        filename: file.name,
+        liverId: liverInfo?.id,
+      });
+    };
+    reader.onerror = () => {
+      toast.error('ファイル読み込みエラー');
+      setUploadingLivestreamId(null);
+    };
+    reader.readAsDataURL(file);
+    // Reset file input
+    if (screenshotFileInputRef.current) screenshotFileInputRef.current.value = '';
+  };
 
   // LINE連携コード発行mutation
   const generateLineLinkCodeMutation = trpc.liver.generateLineLinkCode.useMutation({
@@ -768,6 +838,14 @@ export default function LiverMypage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white">
+      {/* Hidden file input for screenshot upload */}
+      <input
+        type="file"
+        ref={screenshotFileInputRef}
+        className="hidden"
+        accept="image/*"
+        onChange={onScreenshotFileChange}
+      />
       {/* 目標達成お祝いアニメーション */}
       <GoalAchievedConfetti 
         trigger={showSalesConfetti} 
@@ -1678,7 +1756,7 @@ export default function LiverMypage() {
                         </div>
                       )}
                       {/* スクショサムネイル */}
-                      {(ls as any).snapshotImageUrl && (
+                      {(ls as any).snapshotImageUrl ? (
                         <div className="mt-2 pl-12">
                           <img
                             src={(ls as any).snapshotImageUrl}
@@ -1690,6 +1768,24 @@ export default function LiverMypage() {
                               setPreviewImageUrl((ls as any).snapshotImageUrl);
                             }}
                           />
+                        </div>
+                      ) : (
+                        <div className="mt-2 pl-12">
+                          <button
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] bg-gray-700/60 hover:bg-gray-600/80 text-gray-300 hover:text-white rounded border border-dashed border-gray-500 transition-colors"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleScreenshotUpload(ls.id);
+                            }}
+                            disabled={uploadingLivestreamId === ls.id}
+                          >
+                            {uploadingLivestreamId === ls.id ? (
+                              <><span className="animate-spin">⏳</span> アップロード中...</>
+                            ) : (
+                              <><Camera className="h-3 w-3" /> スクショを追加</>
+                            )}
+                          </button>
                         </div>
                       )}
                     </CardContent>
