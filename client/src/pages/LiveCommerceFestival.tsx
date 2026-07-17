@@ -34,6 +34,7 @@ const IMAGES = {
   // 出演者写真
   tsubame: "/speakers/tsubame.webp",
   kyogokuRyu: "/speakers/kyogoku-ryu.webp",
+  yun: "/manus-storage/yun-guest_35b1a386.webp",
 };
 
 // ============================================================
@@ -429,6 +430,15 @@ function SpeakersSection() {
       image: null,
       hasPhoto: false,
     },
+    { 
+      name: "ゆん", 
+      title: "YouTuber / タレント", 
+      stat: "SNS総フォロワー", 
+      statValue: "290", 
+      statUnit: "万人超",
+      image: IMAGES.yun,
+      hasPhoto: true,
+    },
   ];
   
   return (
@@ -440,7 +450,7 @@ function SpeakersSection() {
         </div>
         
         {/* Main Speakers - Photo Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-5">
           {mainSpeakers.map((s, i) => (
             <div key={i} className="rounded-2xl overflow-hidden bg-[#1a1a1a] shadow-xl hover:shadow-2xl transition-all hover:scale-[1.03] group">
               {/* Photo area */}
@@ -875,7 +885,7 @@ function SponsorSection() {
           <div className="p-6 rounded-xl border border-white/10 bg-white/[0.02]">
             <div className="text-xs text-gray-500 mb-1">66社（先着審査制）</div>
             <h3 className="text-lg font-bold mb-1">会場ブース出展</h3>
-            <p className="text-3xl font-black mb-4">60<span className="text-lg">万円</span></p>
+            <p className="text-3xl font-black mb-4">100<span className="text-lg">万円</span></p>
             <ul className="text-sm text-gray-300 space-y-2">
               <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" /> 標準ブース（2m×2m）</li>
               <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" /> 企業名一覧掲出</li>
