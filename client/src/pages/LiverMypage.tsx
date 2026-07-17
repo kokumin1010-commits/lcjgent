@@ -48,7 +48,8 @@ import {
   ShieldAlert,
   ArrowUpDown,
   Trophy,
-  Search
+  Search,
+  GitCompareArrows
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -103,6 +104,8 @@ export default function LiverMypage() {
   const [showProductsSection, setShowProductsSection] = useState(false);
   const [setSortBy, setSetSortBy] = useState<'revenue' | 'quantity' | 'date' | 'discount'>('revenue');
   const [setSearchQuery, setSetSearchQuery] = useState('');
+  const [similarSetsDialogOpen, setSimilarSetsDialogOpen] = useState(false);
+  const [selectedSetForCompare, setSelectedSetForCompare] = useState<any>(null);
   const [productSortBy, setProductSortBy] = useState<'gmv' | 'quantity' | 'efficiency'>('gmv');
   const [expandedBrandId, setExpandedBrandId] = useState<number | null>(null);
   const [goalSalesInput, setGoalSalesInput] = useState('');
@@ -1963,9 +1966,21 @@ export default function LiverMypage() {
                           <span className="text-[10px] text-white/40">
                             {language === 'ja' ? '販売数' : 'Qty'}: {set.quantitySold || 0}
                           </span>
-                          <span className="text-xs font-semibold text-amber-400">
-                            {language === 'ja' ? '売上合計' : 'Total'}: ¥{Number(set.totalRevenue || 0).toLocaleString()}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setSelectedSetForCompare(set);
+                                setSimilarSetsDialogOpen(true);
+                              }}
+                              className="text-[10px] px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30 transition-colors flex items-center gap-1"
+                            >
+                              <GitCompareArrows className="h-3 w-3" />
+                              {language === 'ja' ? '類似セット' : 'Similar'}
+                            </button>
+                            <span className="text-xs font-semibold text-amber-400">
+                              {language === 'ja' ? '売上合計' : 'Total'}: ¥{Number(set.totalRevenue || 0).toLocaleString()}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -2023,6 +2038,143 @@ export default function LiverMypage() {
             </CardContent>
           </Card>
         )}
+
+        {/* 類似セット比較ダイアログ */}
+        <Dialog open={similarSetsDialogOpen} onOpenChange={setSimilarSetsDialogOpen}>
+          <DialogContent className="max-w-lg w-[95vw] bg-gray-900 border-gray-700 text-white max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-white flex items-center gap-2 text-sm">
+                <GitCompareArrows className="h-4 w-4 text-purple-400" />
+                類似セット比較
+              </DialogTitle>
+              <DialogDescription className="text-white/50 text-xs">
+                商品の重複率が高い過去のセットを表示しています
+              </DialogDescription>
+            </DialogHeader>
+            {selectedSetForCompare && setAnalysis?.sets && (() => {
+              // 類似セット検出ロジック：商品名の重複率でスコアリング
+              const currentItems = (selectedSetForCompare.items || []).map((item: any) => item.productName?.toLowerCase().trim());
+              const similarSets = setAnalysis.sets
+                .filter((s: any) => s.id !== selectedSetForCompare.id)
+                .map((s: any) => {
+                  const otherItems = (s.items || []).map((item: any) => item.productName?.toLowerCase().trim());
+                  // 共通商品数をカウント
+                  const commonItems = currentItems.filter((name: string) => 
+                    otherItems.some((other: string) => other?.includes(name) || name?.includes(other))
+                  );
+                  const maxLen = Math.max(currentItems.length, otherItems.length);
+                  const similarity = maxLen > 0 ? commonItems.length / maxLen : 0;
+                  return { ...s, similarity, commonCount: commonItems.length };
+                })
+                .filter((s: any) => s.similarity > 0.2) // 20%以上の重複があるもの
+                .sort((a: any, b: any) => b.similarity - a.similarity);
+
+              return (
+                <div className="space-y-3">
+                  {/* 選択中のセット */}
+                  <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs font-semibold text-purple-300">選択中: {selectedSetForCompare.setName}</p>
+                      <span className="text-xs font-bold text-green-400">¥{Number(selectedSetForCompare.setPrice || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[10px] text-white/50">
+                      <span>{selectedSetForCompare.livestreamDate ? new Date(selectedSetForCompare.livestreamDate).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }) : ''}</span>
+                      <span>販売数: {selectedSetForCompare.quantitySold || 0}</span>
+                      <span>売上: ¥{Number(selectedSetForCompare.totalRevenue || 0).toLocaleString()}</span>
+                      {selectedSetForCompare.discountRate > 0 && <span className="text-red-400">{selectedSetForCompare.discountRate}%OFF</span>}
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {(selectedSetForCompare.items || []).map((item: any, idx: number) => (
+                        <span key={idx} className="text-[9px] bg-purple-500/20 text-purple-200 px-1.5 py-0.5 rounded">
+                          {item.productName}{item.quantity > 1 ? ` ×${item.quantity}` : ''}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 類似セット一覧 */}
+                  {similarSets.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-white/60 font-medium">類似セット ({similarSets.length}件)</p>
+                      {similarSets.map((sim: any, idx: number) => {
+                        const revDiff = (sim.totalRevenue || 0) - (selectedSetForCompare.totalRevenue || 0);
+                        const qtyDiff = (sim.quantitySold || 0) - (selectedSetForCompare.quantitySold || 0);
+                        return (
+                          <div key={sim.id} className="bg-gray-800/60 border border-gray-600/30 rounded-lg p-3">
+                            <div className="flex items-start justify-between mb-1.5">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] bg-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded">
+                                    {Math.round(sim.similarity * 100)}%一致
+                                  </span>
+                                  <p className="text-xs font-semibold text-white">{sim.setName}</p>
+                                </div>
+                                <p className="text-[10px] text-white/40 mt-0.5">
+                                  {sim.livestreamDate ? new Date(sim.livestreamDate).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }) : ''}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs font-bold text-green-400">¥{Number(sim.setPrice || 0).toLocaleString()}</p>
+                                {sim.discountRate > 0 && (
+                                  <span className="text-[9px] text-red-400">{sim.discountRate}%OFF</span>
+                                )}
+                              </div>
+                            </div>
+                            {/* 商品タグ */}
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {(sim.items || []).map((item: any, iIdx: number) => {
+                                const isCommon = currentItems.some((name: string) => 
+                                  item.productName?.toLowerCase().includes(name) || name?.includes(item.productName?.toLowerCase())
+                                );
+                                return (
+                                  <span key={iIdx} className={`text-[9px] px-1.5 py-0.5 rounded ${
+                                    isCommon ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-gray-700/50 text-white/50'
+                                  }`}>
+                                    {item.productName}{item.quantity > 1 ? ` ×${item.quantity}` : ''}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                            {/* 実績比較 */}
+                            <div className="grid grid-cols-3 gap-2 text-center bg-gray-700/20 rounded p-1.5">
+                              <div>
+                                <p className="text-[10px] text-white/40">販売数</p>
+                                <p className="text-xs font-bold text-white">{sim.quantitySold || 0}</p>
+                                <p className={`text-[9px] ${qtyDiff > 0 ? 'text-green-400' : qtyDiff < 0 ? 'text-red-400' : 'text-white/30'}`}>
+                                  {qtyDiff > 0 ? '+' : ''}{qtyDiff}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-white/40">売上</p>
+                                <p className="text-xs font-bold text-amber-400">¥{Number(sim.totalRevenue || 0).toLocaleString()}</p>
+                                <p className={`text-[9px] ${revDiff > 0 ? 'text-green-400' : revDiff < 0 ? 'text-red-400' : 'text-white/30'}`}>
+                                  {revDiff > 0 ? '+' : ''}¥{revDiff.toLocaleString()}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-white/40">共通商品</p>
+                                <p className="text-xs font-bold text-purple-300">{sim.commonCount}点</p>
+                                <p className="text-[9px] text-white/30">
+                                  / {(sim.items || []).length}点中
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <GitCompareArrows className="h-8 w-8 text-white/20 mx-auto mb-2" />
+                      <p className="text-xs text-white/40">類似するセットが見つかりませんでした</p>
+                      <p className="text-[10px] text-white/30 mt-1">商品の重複率が20%以上のセットが表示されます</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
 
         {/* 配信プランニング（シミュレーター） */}
         {brandDurationStats && brandDurationStats.length > 0 && (
