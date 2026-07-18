@@ -106,6 +106,7 @@ export default function LiverMypage() {
   const [setSortBy, setSetSortBy] = useState<'revenue' | 'quantity' | 'date' | 'discount'>('revenue');
   const [setSearchQuery, setSetSearchQuery] = useState('');
   const [similarSetsDialogOpen, setSimilarSetsDialogOpen] = useState(false);
+  const [similarSetsSortKey, setSimilarSetsSortKey] = useState<'similarity' | 'revenue' | 'quantity' | 'date'>('similarity');
   const [selectedSetForCompare, setSelectedSetForCompare] = useState<any>(null);
   const [productSortBy, setProductSortBy] = useState<'gmv' | 'quantity' | 'efficiency'>('gmv');
   const [expandedBrandId, setExpandedBrandId] = useState<number | null>(null);
@@ -2150,7 +2151,7 @@ export default function LiverMypage() {
             {selectedSetForCompare && setAnalysis?.sets && (() => {
               // 類似セット検出ロジック：商品名の重複率でスコアリング
               const currentItems = (selectedSetForCompare.items || []).map((item: any) => item.productName?.toLowerCase().trim());
-              const similarSets = setAnalysis.sets
+              const similarSetsRaw = setAnalysis.sets
                 .filter((s: any) => s.id !== selectedSetForCompare.id)
                 .map((s: any) => {
                   const otherItems = (s.items || []).map((item: any) => item.productName?.toLowerCase().trim());
@@ -2162,8 +2163,18 @@ export default function LiverMypage() {
                   const similarity = maxLen > 0 ? commonItems.length / maxLen : 0;
                   return { ...s, similarity, commonCount: commonItems.length };
                 })
-                .filter((s: any) => s.similarity > 0.2) // 20%以上の重複があるもの
-                .sort((a: any, b: any) => b.similarity - a.similarity);
+                .filter((s: any) => s.similarity > 0.2); // 20%以上の重複があるもの
+
+              // ソート適用
+              const similarSets = [...similarSetsRaw].sort((a: any, b: any) => {
+                switch (similarSetsSortKey) {
+                  case 'revenue': return (b.totalRevenue || 0) - (a.totalRevenue || 0);
+                  case 'quantity': return (b.quantitySold || 0) - (a.quantitySold || 0);
+                  case 'date': return new Date(b.livestreamDate || 0).getTime() - new Date(a.livestreamDate || 0).getTime();
+                  case 'similarity':
+                  default: return b.similarity - a.similarity;
+                }
+              });
 
               return (
                 <div className="space-y-3">
@@ -2191,7 +2202,29 @@ export default function LiverMypage() {
                   {/* 類似セット一覧 */}
                   {similarSets.length > 0 ? (
                     <div className="space-y-2">
-                      <p className="text-xs text-white/60 font-medium">類似セット ({similarSets.length}件)</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-white/60 font-medium">類似セット ({similarSets.length}件)</p>
+                        <div className="flex gap-1">
+                          {[
+                            { key: 'similarity' as const, label: '一致率' },
+                            { key: 'revenue' as const, label: '売上' },
+                            { key: 'quantity' as const, label: '販売数' },
+                            { key: 'date' as const, label: '日付' },
+                          ].map(opt => (
+                            <button
+                              key={opt.key}
+                              onClick={() => setSimilarSetsSortKey(opt.key)}
+                              className={`text-[9px] px-2 py-0.5 rounded-full transition-all ${
+                                similarSetsSortKey === opt.key
+                                  ? 'bg-purple-500/40 text-purple-200 border border-purple-400/50'
+                                  : 'bg-gray-700/40 text-white/40 hover:text-white/60 border border-transparent'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                       {similarSets.map((sim: any, idx: number) => {
                         const revDiff = (sim.totalRevenue || 0) - (selectedSetForCompare.totalRevenue || 0);
                         const qtyDiff = (sim.quantitySold || 0) - (selectedSetForCompare.quantitySold || 0);
