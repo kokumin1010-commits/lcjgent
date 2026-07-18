@@ -1648,6 +1648,12 @@ export default function LiverMypage() {
                                   {lt("csv.productCsvNotImported")}
                                 </span>
                               )}
+                              {/* リアルタイム記録バッジ */}
+                              {(ls as any).realtimeRecordCount > 0 && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-red-500/20 border border-red-500/50 rounded text-[10px] text-red-300 font-medium animate-pulse">
+                                  🔴 記録{(ls as any).realtimeRecordCount}件
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
                               <p className="text-xs text-white">
@@ -1691,6 +1697,12 @@ export default function LiverMypage() {
                       {ls.brandName && (
                         <p className="text-[10px] text-white mt-1 pl-12">
                           {ls.brandName}
+                        </p>
+                      )}
+                      {/* リアルタイム記録者表示 */}
+                      {(ls as any).realtimeRecordedBy && (ls as any).realtimeRecordedBy.length > 0 && (
+                        <p className="text-[10px] text-purple-300 mt-0.5 pl-12">
+                          👤 記録: {(ls as any).realtimeRecordedBy.join(', ')}
                         </p>
                       )}
                       {/* セット組みサマリー（タップで展開） */}

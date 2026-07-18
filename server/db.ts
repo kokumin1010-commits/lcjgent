@@ -4312,6 +4312,27 @@ export async function getLivestreamsByLiverId(liverId: number, month?: string) {
     }
   }
 
+  // リアルタイム記録数と記録者名を取得
+  let realtimeRecordMap: Record<number, { count: number; recordedBy: string[] }> = {};
+  if (livestreamIds.length > 0) {
+    try {
+      const rtRows = await db.execute(
+        sql`SELECT livestreamId, COUNT(*) as cnt, GROUP_CONCAT(DISTINCT recordedBy) as recorders FROM livestream_realtime_records WHERE livestreamId IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`,`)}) GROUP BY livestreamId`
+      );
+      for (const row of (rtRows as any)[0] || rtRows || []) {
+        const lsId = (row as any).livestreamId;
+        if (lsId) {
+          realtimeRecordMap[lsId] = {
+            count: Number((row as any).cnt) || 0,
+            recordedBy: ((row as any).recorders || '').split(',').filter((s: string) => s.trim()),
+          };
+        }
+      }
+    } catch (e) {
+      // Table might not exist yet, ignore
+    }
+  }
+
   // createdByからユーザー名を取得（配信の作成元タグ表示用）
   const createdByIds = [...new Set(livestreamRows.map(l => l.createdBy).filter(id => id > 0))];
   let createdByNameMap: Record<number, string> = {};
@@ -4345,6 +4366,8 @@ export async function getLivestreamsByLiverId(liverId: number, month?: string) {
       totalSetRevenue: (setsDetailMap[l.id] || []).reduce((sum, s) => sum + s.totalRevenue, 0),
       createdByTag,
       createdByName: createdByNameMap[l.createdBy] || (l.createdBy === 0 ? 'System' : `ID:${l.createdBy}`),
+      realtimeRecordCount: realtimeRecordMap[l.id]?.count || 0,
+      realtimeRecordedBy: realtimeRecordMap[l.id]?.recordedBy || [],
     };
   });
 }

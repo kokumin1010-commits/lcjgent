@@ -404,7 +404,7 @@ export default function LivestreamRealtimeRecord() {
                       <div key={idx} className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-2">
                         <span className="text-lg font-bold text-indigo-400 w-6 text-center">{idx + 1}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-white font-medium truncate">{item.productName}</p>
+                          <p className="text-xs text-white font-medium">{item.productName}</p>
                           <p className="text-[10px] text-gray-400">{item.suggestedTimeSlot} • {item.reason}</p>
                         </div>
                         <span className="text-[10px] text-green-400 font-bold shrink-0">{item.expectedConversionBoost}</span>
@@ -550,13 +550,17 @@ export default function LivestreamRealtimeRecord() {
                       const productRecords = grouped[productName];
                       const latestRecord = productRecords[0]; // sorted by newest first
                       return (
-                        <div key={productName} className="bg-gray-800/60 border border-gray-700 rounded-lg overflow-hidden">
+                        <div key={productName} className="bg-gray-800/60 border border-gray-700 rounded-lg">
                           {/* Product header */}
                           <div className="px-4 py-3 bg-gray-800/80 border-b border-gray-700 flex items-center justify-between">
-                            <div>
-                              <span className="text-base font-bold text-white">{productName}</span>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-base font-bold text-white break-words">{productName}</span>
                               {productRecords.length > 1 && (
                                 <span className="ml-2 text-xs text-gray-400">({productRecords.length}回記録)</span>
+                              )}
+                              {/* 記録者表示 */}
+                              {productRecords[0]?.recordedBy && (
+                                <span className="ml-2 text-[10px] text-purple-300 bg-purple-900/30 px-1.5 py-0.5 rounded">👤 {productRecords[0].recordedBy}</span>
                               )}
                             </div>
                             {csvProductsForCompare && csvProductsForCompare.length > 0 && (
