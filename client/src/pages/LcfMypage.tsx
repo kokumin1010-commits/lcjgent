@@ -54,15 +54,15 @@ function CountdownTimer() {
 
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { label: string; className: string }> = {
-    new: { label: '審査中', className: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-    confirmed: { label: '承認済み', className: 'bg-green-500/20 text-green-400 border-green-500/30' },
-    rejected: { label: '不承認', className: 'bg-red-500/20 text-red-400 border-red-500/30' },
+    new: { label: '参加確定', className: 'bg-green-500/20 text-green-400 border-green-500/30' },
+    confirmed: { label: '参加確定', className: 'bg-green-500/20 text-green-400 border-green-500/30' },
+    rejected: { label: '無効', className: 'bg-red-500/20 text-red-400 border-red-500/30' },
     cancelled: { label: 'キャンセル', className: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
   };
   const c = config[status] || config.new;
   return (
     <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border ${c.className}`}>
-      {status === 'confirmed' && <CheckCircle2 className="w-3 h-3" />}
+      {(status === 'confirmed' || status === 'new') && <CheckCircle2 className="w-3 h-3" />}
       {c.label}
     </span>
   );
@@ -259,7 +259,7 @@ export default function LcfMypage() {
             <div className="space-y-2">
               {[
                 { label: '申し込み完了', done: true },
-                { label: '出展費用のお支払い', done: (app as any)?.status === 'confirmed' },
+                { label: '参加確定', done: true },
                 { label: 'TikTok Shopセラーアカウント連携', done: false },
                 { label: '商材情報の登録（最大3SKU）', done: false },
                 { label: 'ライバーマッチング確定', done: false },
@@ -286,7 +286,7 @@ export default function LcfMypage() {
             <div className="space-y-2">
               {[
                 { label: '申し込み完了', done: true },
-                { label: '参加確認メール受信', done: (app as any)?.status === 'confirmed' },
+                { label: '参加確定', done: true },
                 { label: '希望商材エントリー', done: false },
                 { label: 'マッチング確定', done: false },
                 { label: 'TikTok Shop TAP連携', done: false },

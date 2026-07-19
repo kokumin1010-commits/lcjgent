@@ -82,6 +82,7 @@ export const festivalRouter = router({
           matchingProducts: input.matchingProducts || null,
           targetAudience: input.targetAudience,
           salesLicense: input.salesLicense,
+          status: "confirmed",
           eventYear: "2026",
         });
         insertId = (result as any)[0]?.insertId || 0;
@@ -153,6 +154,7 @@ export const festivalRouter = router({
           matchingPreference: input.matchingPreference,
           portraitRightsConsent: "agreed",
           complianceConsent: "agreed",
+          status: "confirmed",
           eventYear: "2026",
         });
         insertId = (result as any)[0]?.insertId || 0;
@@ -217,6 +219,7 @@ export const festivalRouter = router({
           visitPurposes: input.visitPurposes,
           portraitRightsConsent: "agreed",
           complianceConsent: "agreed",
+          status: "confirmed",
           eventYear: "2026",
         });
         insertId = (result as any)[0]?.insertId || 0;

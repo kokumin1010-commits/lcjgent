@@ -44,8 +44,8 @@ type StatusType = "new" | "confirmed" | "rejected" | "cancelled";
 
 const STATUS_CONFIG: Record<StatusType, { label: string; color: string }> = {
   new: { label: "新規", color: "bg-blue-500" },
-  confirmed: { label: "確認済み", color: "bg-green-500" },
-  rejected: { label: "却下", color: "bg-red-500" },
+  confirmed: { label: "参加確定", color: "bg-green-500" },
+  rejected: { label: "無効", color: "bg-red-500" },
   cancelled: { label: "キャンセル", color: "bg-gray-500" },
 };
 
@@ -275,7 +275,7 @@ function ApplicationsPanel() {
             <SelectItem value="all">全て</SelectItem>
             <SelectItem value="new">新規</SelectItem>
             <SelectItem value="confirmed">確認済み</SelectItem>
-            <SelectItem value="rejected">却下</SelectItem>
+            <SelectItem value="cancelled">キャンセル</SelectItem>
             <SelectItem value="cancelled">キャンセル</SelectItem>
           </SelectContent>
         </Select>
@@ -312,7 +312,7 @@ function ApplicationsPanel() {
                 <SelectContent>
                   <SelectItem value="new">新規</SelectItem>
                   <SelectItem value="confirmed">確認済み</SelectItem>
-                  <SelectItem value="rejected">却下</SelectItem>
+                  <SelectItem value="cancelled">キャンセル</SelectItem>
                   <SelectItem value="cancelled">キャンセル</SelectItem>
                 </SelectContent>
               </Select>

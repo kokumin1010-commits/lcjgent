@@ -24,9 +24,9 @@ type AppTab = "company" | "liver" | "general";
 type StatusType = "new" | "confirmed" | "rejected" | "cancelled";
 
 const STATUS_CONFIG: Record<StatusType, { label: string; color: string; icon: any }> = {
-  new: { label: "新規", color: "bg-blue-100 text-blue-800", icon: Clock },
-  confirmed: { label: "確認済み", color: "bg-green-100 text-green-800", icon: CheckCircle },
-  rejected: { label: "却下", color: "bg-red-100 text-red-800", icon: XCircle },
+  new: { label: "申込済み", color: "bg-blue-100 text-blue-800", icon: Clock },
+  confirmed: { label: "参加確定", color: "bg-green-100 text-green-800", icon: CheckCircle },
+  rejected: { label: "無効", color: "bg-red-100 text-red-800", icon: XCircle },
   cancelled: { label: "キャンセル", color: "bg-gray-100 text-gray-800", icon: XCircle },
 };
 
@@ -180,7 +180,7 @@ function ApplicationsPanel() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [detailDialog, setDetailDialog] = useState<{ type: AppTab; data: any } | null>(null);
   const [statusDialog, setStatusDialog] = useState<{ type: AppTab; id: number; currentStatus: string } | null>(null);
-  const [newStatus, setNewStatus] = useState<StatusType>("new");
+  const [newStatus, setNewStatus] = useState<StatusType>("confirmed");
   const [statusNotes, setStatusNotes] = useState("");
 
   const { data: stats } = trpc.festival.stats.useQuery({ eventYear: "2026" });
@@ -332,9 +332,7 @@ function ApplicationsPanel() {
           <SelectTrigger className="w-[160px] bg-white/5 border-white/10 text-white"><SelectValue placeholder="ステータス" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全て</SelectItem>
-            <SelectItem value="new">新規</SelectItem>
-            <SelectItem value="confirmed">確認済み</SelectItem>
-            <SelectItem value="rejected">却下</SelectItem>
+            <SelectItem value="confirmed">参加確定</SelectItem>
             <SelectItem value="cancelled">キャンセル</SelectItem>
           </SelectContent>
         </Select>
@@ -365,9 +363,7 @@ function ApplicationsPanel() {
               <Select value={newStatus} onValueChange={(v) => setNewStatus(v as StatusType)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="new">新規</SelectItem>
-                  <SelectItem value="confirmed">確認済み</SelectItem>
-                  <SelectItem value="rejected">却下</SelectItem>
+                  <SelectItem value="confirmed">参加確定</SelectItem>
                   <SelectItem value="cancelled">キャンセル</SelectItem>
                 </SelectContent>
               </Select>

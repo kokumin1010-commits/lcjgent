@@ -24,7 +24,7 @@ export const festivalCompanyApplications = mysqlTable("festival_company_applicat
   targetAudience: text("target_audience").notNull(),
   salesLicense: text("sales_license").notNull(),
   // メタ情報
-  status: mysqlEnum("status", ["new", "confirmed", "rejected", "cancelled"]).default("new").notNull(),
+  status: mysqlEnum("status", ["new", "confirmed", "rejected", "cancelled"]).default("confirmed").notNull(),
   notes: text("notes"),
   eventYear: varchar("event_year", { length: 10 }).notNull().default("2026"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -52,7 +52,7 @@ export const festivalLiverApplications = mysqlTable("festival_liver_applications
   portraitRightsConsent: mysqlEnum("portrait_rights_consent", ["agreed"]).notNull(),
   complianceConsent: mysqlEnum("compliance_consent", ["agreed"]).notNull(),
   // メタ情報
-  status: mysqlEnum("status", ["new", "confirmed", "rejected", "cancelled"]).default("new").notNull(),
+  status: mysqlEnum("status", ["new", "confirmed", "rejected", "cancelled"]).default("confirmed").notNull(),
   notes: text("notes"),
   eventYear: varchar("event_year", { length: 10 }).notNull().default("2026"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -78,7 +78,7 @@ export const festivalGeneralApplications = mysqlTable("festival_general_applicat
   portraitRightsConsent: mysqlEnum("portrait_rights_consent", ["agreed"]).notNull(),
   complianceConsent: mysqlEnum("compliance_consent", ["agreed"]).notNull(),
   // メタ情報
-  status: mysqlEnum("status", ["new", "confirmed", "rejected", "cancelled"]).default("new").notNull(),
+  status: mysqlEnum("status", ["new", "confirmed", "rejected", "cancelled"]).default("confirmed").notNull(),
   notes: text("notes"),
   eventYear: varchar("event_year", { length: 10 }).notNull().default("2026"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

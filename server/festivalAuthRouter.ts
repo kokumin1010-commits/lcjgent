@@ -259,6 +259,17 @@ export const festivalAuthRouter = router({
           results.push(`application_id: ${e.message?.substring(0, 200)}`);
         }
 
+        // Change DEFAULT for status columns to 'confirmed' (no approval needed)
+        const statusTables = ['festival_company_applications', 'festival_liver_applications', 'festival_general_applications'];
+        for (const tbl of statusTables) {
+          try {
+            await conn.execute(`ALTER TABLE ${tbl} ALTER COLUMN status SET DEFAULT 'confirmed'`);
+            results.push(`${tbl}: default changed to confirmed`);
+          } catch (e: any) {
+            results.push(`${tbl} default: ${e.message?.substring(0, 100)}`);
+          }
+        }
+
         await conn.end();
       } catch (e: any) {
         results.push(`error: ${e.message?.substring(0, 400)}`);
