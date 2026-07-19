@@ -2040,8 +2040,8 @@ export default function LiverMypage() {
                               <Tag className="h-3 w-3 text-amber-400 flex-shrink-0" />
                               <p className="text-sm font-semibold text-white break-words">{set.setName}</p>
                             </div>
-                            <p className="text-[10px] text-white/40 mt-0.5 ml-5">
-                              {set.livestreamDate ? new Date(set.livestreamDate).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }) : ''}
+                            <p className="text-[10px] font-bold text-yellow-400 mt-0.5 ml-5">
+                              {set.livestreamDate ? new Date(set.livestreamDate).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) + '日' : ''}
                             </p>
                           </div>
                           <div className="text-right flex-shrink-0">
@@ -2064,7 +2064,10 @@ export default function LiverMypage() {
                                 <span className="text-white/40 ml-2 flex-shrink-0">¥{Number(item.originalPrice || 0).toLocaleString()}</span>
                               </div>
                             ))}
-                            <div className="flex items-center justify-end mt-1 pt-1 border-t border-gray-600/10">
+                            <div className="flex items-center justify-between mt-1 pt-1 border-t border-gray-600/10">
+                              <span className="text-[11px] font-semibold text-white/50">
+                                元値合計: ¥{set.items.reduce((sum: number, item: any) => sum + (Number(item.originalPrice) || 0) * (Number(item.quantity) || 1), 0).toLocaleString()}
+                              </span>
                               <span className="text-[11px] font-semibold text-cyan-400">
                                 合計 {set.items.reduce((sum: number, item: any) => sum + (Number(item.quantity) || 1), 0)}点
                               </span>
