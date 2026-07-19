@@ -877,22 +877,19 @@ export default function LivestreamRealtimeRecord() {
 
                 {/* スクショ履歴 */}
                 {snapshots && snapshots.length > 0 && (
-                  <div className="space-y-2 mt-3">
+                  <div className="space-y-3 mt-3">
                     <p className="text-xs text-gray-400 font-bold">解析履歴 ({snapshots.length}件)</p>
-                    {snapshots.slice().reverse().map(snap => (
-                      <div key={snap.id} className="bg-gray-800/50 rounded-lg px-3 py-2">
-                        {/* スクショサムネイル */}
-                        {(snap as any).imageUrl && (
-                          <div className="mb-2">
-                            <img
-                              src={(snap as any).imageUrl}
-                              alt={`スクショ ${snap.timeSlot}`}
-                              className="w-full max-h-40 object-contain rounded border border-gray-700 cursor-pointer hover:opacity-80"
-                              onClick={() => window.open((snap as any).imageUrl, '_blank')}
-                            />
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between">
+                    {snapshots.slice().reverse().map(snap => {
+                      // 商品リストからGMV合算を計算（表示用）
+                      const products = (snap as any).products || [];
+                      const productsGmvTotal = products.reduce((sum: number, p: any) => sum + (p.attributedGmv || 0), 0);
+                      const productsTotalOrders = products.reduce((sum: number, p: any) => sum + (p.salesCount || 0), 0);
+                      const displayGmv = snap.gmv || productsGmvTotal;
+                      const displayOrders = snap.orderCount || productsTotalOrders;
+                      return (
+                      <div key={snap.id} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+                        {/* ヘッダー: 時刻 + 信頼度 + GPM */}
+                        <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             {editingSnapshotId === snap.id ? (
                               <div className="flex items-center gap-1">
@@ -900,22 +897,22 @@ export default function LivestreamRealtimeRecord() {
                                   type="time"
                                   value={editSnapshotTime}
                                   onChange={(e) => setEditSnapshotTime(e.target.value)}
-                                  className="bg-gray-700 border border-gray-600 text-white text-[10px] font-mono rounded px-1 py-0.5 w-[70px]"
+                                  className="bg-gray-700 border border-gray-600 text-white text-xs font-mono rounded px-1.5 py-0.5 w-[80px]"
                                 />
                                 <button
                                   onClick={() => {
                                     updateSnapshotTimeMutation.mutate({ id: snap.id, timeSlot: editSnapshotTime });
                                   }}
-                                  className="text-green-400 hover:text-green-300 text-[10px]"
+                                  className="text-green-400 hover:text-green-300 text-xs"
                                 >✓</button>
                                 <button
                                   onClick={() => setEditingSnapshotId(null)}
-                                  className="text-gray-400 hover:text-gray-300 text-[10px]"
+                                  className="text-gray-400 hover:text-gray-300 text-xs"
                                 >✗</button>
                               </div>
                             ) : (
                               <span
-                                className="text-[10px] font-mono text-purple-300 cursor-pointer hover:text-purple-100 hover:underline"
+                                className="text-sm font-bold font-mono text-purple-300 cursor-pointer hover:text-purple-100 hover:underline"
                                 onClick={() => {
                                   setEditingSnapshotId(snap.id);
                                   setEditSnapshotTime(snap.timeSlot);
@@ -923,46 +920,78 @@ export default function LivestreamRealtimeRecord() {
                                 title="クリックで時間を編集"
                               >{snap.timeSlot}</span>
                             )}
-                            <span className={`text-[9px] px-1.5 py-0.5 rounded ${snap.confidence === 'high' ? 'bg-green-900/50 text-green-400' : snap.confidence === 'medium' ? 'bg-yellow-900/50 text-yellow-400' : 'bg-red-900/50 text-red-400'}`}>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${snap.confidence === 'high' ? 'bg-green-900/50 text-green-400' : snap.confidence === 'medium' ? 'bg-yellow-900/50 text-yellow-400' : 'bg-red-900/50 text-red-400'}`}>
                               {snap.confidence}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="text-green-400 font-bold">¥{(snap.gpm || 0).toLocaleString()}</span>
-                            <span className="text-gray-400 text-[10px]">GPM</span>
-                          </div>
+                          {snap.gpm ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-green-400 font-bold text-sm">¥{snap.gpm.toLocaleString()}</span>
+                              <span className="text-gray-500 text-[10px]">GPM</span>
+                            </div>
+                          ) : null}
                         </div>
-                        <div className="grid grid-cols-4 gap-1 mt-1.5">
-                          <div className="text-center">
-                            <p className="text-[9px] text-gray-500">派生GMV</p>
-                            <p className="text-[10px] text-white">¥{(snap.gmv || 0).toLocaleString()}</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-[9px] text-gray-500">インプレ</p>
-                            <p className="text-[10px] text-white">{snap.impressions ? `${(snap.impressions / 1000).toFixed(1)}K` : '-'}</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-[9px] text-gray-500">視聴者</p>
-                            <p className="text-[10px] text-white">{snap.viewerCount ? `${(snap.viewerCount / 1000).toFixed(1)}K` : '-'}</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-[9px] text-gray-500">販売数</p>
-                            <p className="text-[10px] text-white">{snap.orderCount || '-'}</p>
-                          </div>
-                        </div>
-                        {(snap.tapThroughRate || snap.commentRate || snap.followRate) && (
-                          <div className="flex gap-2 mt-1 text-[9px] text-gray-400">
-                            {snap.tapThroughRate && <span>タップ:{snap.tapThroughRate}</span>}
-                            {snap.commentRate && <span>コメント:{snap.commentRate}</span>}
-                            {snap.followRate && <span>フォロー:{snap.followRate}</span>}
+
+                        {/* スクショサムネイル */}
+                        {(snap as any).imageUrl && (
+                          <div className="mb-2">
+                            <img
+                              src={(snap as any).imageUrl}
+                              alt={`スクショ ${snap.timeSlot}`}
+                              className="w-full max-h-48 object-contain rounded-md border border-gray-600 cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => window.open((snap as any).imageUrl, '_blank')}
+                            />
                           </div>
                         )}
+
+                        {/* 指標グリッド */}
+                        <div className="grid grid-cols-4 gap-2 mt-2 bg-gray-900/50 rounded-md p-2">
+                          <div className="text-center">
+                            <p className="text-[10px] text-gray-500 mb-0.5">派生GMV</p>
+                            <p className={`text-xs font-bold ${displayGmv > 0 ? 'text-amber-400' : 'text-gray-500'}`}>
+                              {displayGmv > 0 ? `¥${displayGmv.toLocaleString()}` : '¥0'}
+                            </p>
+                            {!snap.gmv && productsGmvTotal > 0 && (
+                              <p className="text-[8px] text-gray-600">(商品合算)</p>
+                            )}
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[10px] text-gray-500 mb-0.5">インプレ</p>
+                            <p className="text-xs font-bold text-white">{snap.impressions ? `${(snap.impressions / 1000).toFixed(1)}K` : '-'}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[10px] text-gray-500 mb-0.5">視聴者</p>
+                            <p className="text-xs font-bold text-white">{snap.viewerCount ? `${(snap.viewerCount / 1000).toFixed(1)}K` : '-'}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[10px] text-gray-500 mb-0.5">販売数</p>
+                            <p className={`text-xs font-bold ${displayOrders > 0 ? 'text-white' : 'text-gray-500'}`}>
+                              {displayOrders > 0 ? displayOrders.toLocaleString() : '-'}
+                            </p>
+                            {!snap.orderCount && productsTotalOrders > 0 && (
+                              <p className="text-[8px] text-gray-600">(商品合算)</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 追加指標（タップ率等） */}
+                        {(snap.tapThroughRate || snap.commentRate || snap.followRate || snap.avgViewDuration) && (
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[10px] text-gray-400">
+                            {snap.tapThroughRate && <span>📱 タップ率: <span className="text-white">{snap.tapThroughRate}</span></span>}
+                            {snap.commentRate && <span>💬 コメント率: <span className="text-white">{snap.commentRate}</span></span>}
+                            {snap.followRate && <span>➕ フォロー率: <span className="text-white">{snap.followRate}</span></span>}
+                            {snap.avgViewDuration && <span>⏱ 平均視聴: <span className="text-white">{snap.avgViewDuration}</span></span>}
+                          </div>
+                        )}
+
                         {/* 商品リスト表示 */}
-                        {(snap as any).products && (snap as any).products.length > 0 && (
-                          <p className="text-[9px] text-purple-400 mt-1">📦 {(snap as any).products.length}件の商品を自動記録済み</p>
+                        {products.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-gray-700/50">
+                            <p className="text-[10px] text-purple-400 font-medium">📦 {products.length}件の商品を自動記録済み</p>
+                          </div>
                         )}
                       </div>
-                    ))}
+                    );})}
                   </div>
                 )}
               </div>

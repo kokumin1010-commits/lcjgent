@@ -28709,9 +28709,25 @@ JSON配列のみを出力してください。`;
           metrics = { confidence: "low" };
         }
 
-        // 4. Save to DB (raw mysql2 pool.query to completely bypass drizzle ORM issues)
-        // Extract products from metrics before saving
+        // 3.5. If GMV is missing but products have attributedGmv, calculate from products
         const products = metrics.products || [];
+        if (!metrics.gmv && products.length > 0) {
+          const totalGmv = products.reduce((sum: number, p: any) => sum + (p.attributedGmv || 0), 0);
+          if (totalGmv > 0) {
+            metrics.gmv = totalGmv;
+            console.log(`[addSnapshot] GMV calculated from products: ¥${totalGmv.toLocaleString()} (${products.length} products)`);
+          }
+        }
+        // Calculate orderCount from products if missing
+        if (!metrics.orderCount && products.length > 0) {
+          const totalOrders = products.reduce((sum: number, p: any) => sum + (p.salesCount || 0), 0);
+          if (totalOrders > 0) {
+            metrics.orderCount = totalOrders;
+            console.log(`[addSnapshot] orderCount calculated from products: ${totalOrders}`);
+          }
+        }
+
+        // 4. Save to DB (raw mysql2 pool.query to completely bypass drizzle ORM issues)
         const rawJson = JSON.stringify(metrics);
         const productsJson = products.length > 0 ? JSON.stringify(products) : null;
         const mysql2 = await import('mysql2/promise');
