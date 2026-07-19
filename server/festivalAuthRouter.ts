@@ -179,25 +179,37 @@ export const festivalAuthRouter = router({
   runMigration: publicProcedure
     .mutation(async () => {
       const db = await getDb();
-      if (!db) return { success: false, error: "DB not available" };
+      if (!db) return { success: false, error: "DB not available", results: [] };
       const results: string[] = [];
+      
+      // First check current table structure
+      try {
+        const [cols]: any = await db.execute(sql.raw(`SHOW COLUMNS FROM festival_accounts`));
+        results.push(`columns: ${JSON.stringify(cols?.map((c: any) => c.Field || c.COLUMN_NAME))}`);
+      } catch (e: any) {
+        results.push(`show_cols_error: ${e.message?.substring(0, 300)}`);
+      }
+
+      // Try adding role column
       try {
         await db.execute(sql.raw(`ALTER TABLE festival_accounts ADD COLUMN role ENUM('applicant', 'admin') NOT NULL DEFAULT 'applicant' AFTER account_type`));
         results.push("role column added");
       } catch (e: any) {
-        results.push(`role: ${e.message?.substring(0, 100)}`);
+        results.push(`role_error: ${e.message?.substring(0, 300)}`);
       }
+      // Try updating account_type
       try {
         await db.execute(sql.raw(`ALTER TABLE festival_accounts MODIFY COLUMN account_type ENUM('company','liver','general','admin') NOT NULL`));
         results.push("account_type updated");
       } catch (e: any) {
-        results.push(`account_type: ${e.message?.substring(0, 100)}`);
+        results.push(`account_type_error: ${e.message?.substring(0, 300)}`);
       }
+      // Try making application_id nullable
       try {
         await db.execute(sql.raw(`ALTER TABLE festival_accounts MODIFY COLUMN application_id INT NULL`));
         results.push("application_id nullable");
       } catch (e: any) {
-        results.push(`application_id: ${e.message?.substring(0, 100)}`);
+        results.push(`application_id_error: ${e.message?.substring(0, 300)}`);
       }
       return { success: true, results };
     }),
