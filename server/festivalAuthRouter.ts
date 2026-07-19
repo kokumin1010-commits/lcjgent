@@ -20,32 +20,34 @@ async function ensureFestivalAdminSchema() {
   migrationDone = true;
   try {
     const db = await getDb();
-    if (!db) return;
-    // Add role column
-    await db.execute(sql`ALTER TABLE festival_accounts ADD COLUMN role ENUM('applicant', 'admin') NOT NULL DEFAULT 'applicant' AFTER account_type`);
-    console.log("[LCF] role column added");
-  } catch (e: any) {
-    if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('Duplicate column')) {
-      console.log("[LCF] role migration:", e.message?.substring(0, 100));
+    if (!db) { console.log("[LCF] DB not available for migration"); return; }
+    // Add role column using sql.raw (same as ensureFestivalTables)
+    try {
+      await db.execute(sql.raw(`ALTER TABLE festival_accounts ADD COLUMN role ENUM('applicant', 'admin') NOT NULL DEFAULT 'applicant' AFTER account_type`));
+      console.log("[LCF] role column added");
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column') && e.code !== 'ER_DUP_FIELDNAME') {
+        console.log("[LCF] role migration error:", e.message?.substring(0, 200));
+      } else {
+        console.log("[LCF] role column already exists");
+      }
     }
-  }
-  try {
-    const db = await getDb();
-    if (!db) return;
     // Update account_type enum
-    await db.execute(sql`ALTER TABLE festival_accounts MODIFY COLUMN account_type ENUM('company', 'liver', 'general', 'admin') NOT NULL`);
-    console.log("[LCF] account_type enum updated");
-  } catch (e: any) {
-    // ignore if already done
-  }
-  try {
-    const db = await getDb();
-    if (!db) return;
+    try {
+      await db.execute(sql.raw(`ALTER TABLE festival_accounts MODIFY COLUMN account_type ENUM('company','liver','general','admin') NOT NULL`));
+      console.log("[LCF] account_type enum updated");
+    } catch (e: any) {
+      // ignore if already done
+    }
     // Make application_id nullable
-    await db.execute(sql`ALTER TABLE festival_accounts MODIFY COLUMN application_id INT NULL`);
-    console.log("[LCF] application_id made nullable");
+    try {
+      await db.execute(sql.raw(`ALTER TABLE festival_accounts MODIFY COLUMN application_id INT NULL`));
+      console.log("[LCF] application_id made nullable");
+    } catch (e: any) {
+      // ignore
+    }
   } catch (e: any) {
-    // ignore
+    console.error("[LCF] Migration failed:", e.message);
   }
 }
 // Run migration on import
@@ -173,6 +175,33 @@ export async function createFestivalAccount(params: {
 }
 
 export const festivalAuthRouter = router({
+  // 一時的なマイグレーションエンドポイント
+  runMigration: publicProcedure
+    .mutation(async () => {
+      const db = await getDb();
+      if (!db) return { success: false, error: "DB not available" };
+      const results: string[] = [];
+      try {
+        await db.execute(sql.raw(`ALTER TABLE festival_accounts ADD COLUMN role ENUM('applicant', 'admin') NOT NULL DEFAULT 'applicant' AFTER account_type`));
+        results.push("role column added");
+      } catch (e: any) {
+        results.push(`role: ${e.message?.substring(0, 100)}`);
+      }
+      try {
+        await db.execute(sql.raw(`ALTER TABLE festival_accounts MODIFY COLUMN account_type ENUM('company','liver','general','admin') NOT NULL`));
+        results.push("account_type updated");
+      } catch (e: any) {
+        results.push(`account_type: ${e.message?.substring(0, 100)}`);
+      }
+      try {
+        await db.execute(sql.raw(`ALTER TABLE festival_accounts MODIFY COLUMN application_id INT NULL`));
+        results.push("application_id nullable");
+      } catch (e: any) {
+        results.push(`application_id: ${e.message?.substring(0, 100)}`);
+      }
+      return { success: true, results };
+    }),
+
   // ログイン
   login: publicProcedure
     .input(z.object({
