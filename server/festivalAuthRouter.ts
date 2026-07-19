@@ -185,12 +185,37 @@ export const festivalAuthRouter = router({
         conn = await (mysql as any).createConnection(process.env.DATABASE_URL);
         results.push(`connected to DB`);
 
-        // Check current columns
+        // Check what tables exist
+        const [tables]: any = await conn.execute(`SHOW TABLES`);
+        const tableNames = tables.map((t: any) => Object.values(t)[0]);
+        results.push(`tables (${tableNames.length}): ${tableNames.filter((t: string) => t.includes('festival')).join(', ')}`);
+
+        // Create festival_accounts if not exists (with role column from the start)
+        await conn.execute(`
+          CREATE TABLE IF NOT EXISTS festival_accounts (
+            id int AUTO_INCREMENT NOT NULL,
+            email varchar(320) NOT NULL,
+            password_hash varchar(255) NOT NULL,
+            account_type enum('company','liver','general','admin') NOT NULL,
+            role enum('applicant','admin') NOT NULL DEFAULT 'applicant',
+            application_id int NULL,
+            display_name varchar(255) NOT NULL,
+            is_active tinyint(1) NOT NULL DEFAULT 1,
+            last_login_at timestamp NULL,
+            created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uk_email (email)
+          )
+        `);
+        results.push("festival_accounts table ensured");
+
+        // Check columns after creation
         const [cols]: any = await conn.execute(`SHOW COLUMNS FROM festival_accounts`);
         const colNames = cols.map((c: any) => c.Field);
         results.push(`columns: ${JSON.stringify(colNames)}`);
 
-        // Add role column if not exists
+        // Add role column if not exists (for existing tables without role)
         if (!colNames.includes('role')) {
           await conn.execute(`ALTER TABLE festival_accounts ADD COLUMN role ENUM('applicant', 'admin') NOT NULL DEFAULT 'applicant' AFTER account_type`);
           results.push("role column added");
