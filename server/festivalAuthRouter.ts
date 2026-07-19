@@ -13,6 +13,15 @@ import { eq, and, sql } from "drizzle-orm";
 import * as crypto from "crypto";
 import * as jose from "jose";
 
+// Helper: parse cookie from request header (no cookie-parser middleware)
+function getCookie(req: any, name: string): string | undefined {
+  const cookieHeader = req?.headers?.cookie;
+  if (!cookieHeader) return undefined;
+  const match = cookieHeader.split(';').find((c: string) => c.trim().startsWith(`${name}=`));
+  if (!match) return undefined;
+  return match.split('=').slice(1).join('=').trim();
+}
+
 // Auto-migration: ensure festival_accounts has role column and admin support
 let migrationDone = false;
 async function ensureFestivalAdminSchema() {
@@ -320,7 +329,7 @@ export const festivalAuthRouter = router({
   // 自分の情報取得
   me: publicProcedure
     .query(async ({ ctx }) => {
-      const token = (ctx.req as any)?.cookies?.lcf_token;
+      const token = getCookie(ctx.req, 'lcf_token');
       if (!token) return null;
 
       const payload = await verifyFestivalToken(token);
@@ -367,7 +376,7 @@ export const festivalAuthRouter = router({
       newPassword: z.string().min(6, "パスワードは6文字以上にしてください"),
     }))
     .mutation(async ({ input, ctx }) => {
-      const token = (ctx.req as any)?.cookies?.lcf_token;
+      const token = getCookie(ctx.req, 'lcf_token');
       if (!token) throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインしてください" });
 
       const payload = await verifyFestivalToken(token);
@@ -417,7 +426,7 @@ export const festivalAuthRouter = router({
 
       if (existingAdmins.length > 0) {
         // Admin exists - require lcf_token with admin role
-        const token = (ctx.req as any)?.cookies?.lcf_token;
+        const token = getCookie(ctx.req, 'lcf_token');
         if (!token) throw new TRPCError({ code: "UNAUTHORIZED", message: "管理者権限が必要です" });
         const payload = await verifyFestivalToken(token);
         if (!payload || payload.role !== "admin") {
@@ -445,7 +454,7 @@ export const festivalAuthRouter = router({
     }).optional())
     .query(async ({ input, ctx }) => {
       // Admin check via main auth OR lcf admin token
-      const lcfToken = (ctx.req as any)?.cookies?.lcf_token;
+      const lcfToken = getCookie(ctx.req, 'lcf_token');
       const lcfPayload = lcfToken ? await verifyFestivalToken(lcfToken) : null;
       if (!(ctx as any).user && lcfPayload?.role !== "admin") throw new TRPCError({ code: "UNAUTHORIZED" });
 
