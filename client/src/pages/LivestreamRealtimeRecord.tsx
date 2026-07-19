@@ -541,10 +541,11 @@ export default function LivestreamRealtimeRecord() {
               const productNames = Object.keys(grouped);
               return (
                 <div className="mt-6 pt-4 border-t border-gray-700">
-                  <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                  <h4 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
                     <ShoppingCart className="h-4 w-4 text-green-400" />
                     商品記録 ({productNames.length}商品 / {records.length}件)
                   </h4>
+                  <p className="text-[10px] text-gray-400 mb-3">※ 左の<span className="text-blue-300 font-mono">時刻</span>は記録した時間（HH:MM形式）です。クリックで編集できます。</p>
                   <div className="space-y-4">
                     {productNames.map(productName => {
                       const productRecords = grouped[productName];
@@ -552,9 +553,9 @@ export default function LivestreamRealtimeRecord() {
                       return (
                         <div key={productName} className="bg-gray-800/60 border border-gray-700 rounded-lg">
                           {/* Product header */}
-                          <div className="px-4 py-3 bg-gray-800/80 border-b border-gray-700 flex items-center justify-between">
-                            <div className="flex-1 min-w-0">
-                              <span className="text-base font-bold text-white break-words">{productName}</span>
+                          <div className="px-4 py-3 bg-gray-800/80 border-b border-gray-700 flex flex-wrap items-center justify-between gap-2">
+                            <div className="w-full">
+                              <span className="text-base font-bold text-white">{productName}</span>
                               {productRecords.length > 1 && (
                                 <span className="ml-2 text-xs text-gray-400">({productRecords.length}回記録)</span>
                               )}
@@ -685,7 +686,7 @@ export default function LivestreamRealtimeRecord() {
                                               setEditTimeSlot(record.timeSlot || '');
                                               setEditNotes(record.notes || '');
                                             }}
-                                            title="クリックで編集"
+                                            title="記録時刻（クリックで編集）"
                                           >{record.timeSlot}</span>
                                           {record.productPrice && (
                                             <span className="text-sm text-gray-300">単価: <span className="text-green-400 font-bold">¥{Number(record.productPrice).toLocaleString()}</span></span>
@@ -880,6 +881,17 @@ export default function LivestreamRealtimeRecord() {
                     <p className="text-xs text-gray-400 font-bold">解析履歴 ({snapshots.length}件)</p>
                     {snapshots.slice().reverse().map(snap => (
                       <div key={snap.id} className="bg-gray-800/50 rounded-lg px-3 py-2">
+                        {/* スクショサムネイル */}
+                        {(snap as any).imageUrl && (
+                          <div className="mb-2">
+                            <img
+                              src={(snap as any).imageUrl}
+                              alt={`スクショ ${snap.timeSlot}`}
+                              className="w-full max-h-40 object-contain rounded border border-gray-700 cursor-pointer hover:opacity-80"
+                              onClick={() => window.open((snap as any).imageUrl, '_blank')}
+                            />
+                          </div>
+                        )}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             {editingSnapshotId === snap.id ? (
