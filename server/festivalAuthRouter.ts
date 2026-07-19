@@ -183,6 +183,9 @@ export const festivalAuthRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
 
+      // Ensure role column exists
+      if (!migrationDone) await ensureFestivalAdminSchema();
+
       const [account] = await db.select().from(festivalAccounts)
         .where(eq(festivalAccounts.email, input.email))
         .limit(1);
@@ -317,6 +320,10 @@ export const festivalAuthRouter = router({
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+
+      // Ensure role column exists before proceeding
+      migrationDone = false;
+      await ensureFestivalAdminSchema();
 
       // Check if any admin exists
       const existingAdmins = await db.select().from(festivalAccounts)

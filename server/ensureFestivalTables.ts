@@ -258,6 +258,26 @@ async function ensureNewFestivalTables(db: any): Promise<void> {
       )
     `));
     console.log("[FestivalTables] \u2705 New festival tables ensured");
+
+    // Ensure festival_accounts has role column and admin support
+    try {
+      await db.execute(sql.raw(`ALTER TABLE festival_accounts ADD COLUMN role ENUM('applicant', 'admin') NOT NULL DEFAULT 'applicant' AFTER account_type`));
+      console.log("[FestivalTables] \u2705 role column added to festival_accounts");
+    } catch (e: any) {
+      // Ignore if column already exists
+    }
+    try {
+      await db.execute(sql.raw(`ALTER TABLE festival_accounts MODIFY COLUMN account_type ENUM('company','liver','general','admin') NOT NULL`));
+      console.log("[FestivalTables] \u2705 account_type enum updated");
+    } catch (e: any) {
+      // Ignore if already done
+    }
+    try {
+      await db.execute(sql.raw(`ALTER TABLE festival_accounts MODIFY COLUMN application_id INT NULL`));
+      console.log("[FestivalTables] \u2705 application_id made nullable");
+    } catch (e: any) {
+      // Ignore if already done
+    }
   } catch (err: any) {
     console.error("[FestivalTables] Error creating new tables:", err.message);
   }
