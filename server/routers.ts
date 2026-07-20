@@ -13032,6 +13032,7 @@ ${conversationText}
           category: z.enum(["delivery", "meeting", "live", "other"]).optional(),
           liverId: z.number().optional(),
           liverName: z.string().optional(),
+          liveAccount: z.string().min(1, "直播アカウントは必須です"),
           brandId: z.number().optional(),
           lineGroupId: z.string().optional(),
           isRecurring: z.boolean().optional(),
@@ -13050,6 +13051,7 @@ ${conversationText}
           category: input.category || "other",
           liverId: input.liverId,
           liverName: input.liverName,
+          liveAccount: input.liveAccount,
           brandId: input.brandId,
           lineGroupId: input.lineGroupId,
           isRecurring: input.isRecurring || false,
@@ -13074,6 +13076,7 @@ ${conversationText}
           category: z.enum(["delivery", "meeting", "live", "other"]).optional(),
           liverId: z.number().optional(),
           liverName: z.string().optional(),
+          liveAccount: z.string().optional(),
           brandId: z.number().optional(),
           lineGroupId: z.string().optional(),
           status: z.enum(["scheduled", "completed", "cancelled"]).optional(),
@@ -13092,6 +13095,7 @@ ${conversationText}
         if (data.category !== undefined) updateData.category = data.category;
         if (data.liverId !== undefined) updateData.liverId = data.liverId;
         if (data.liverName !== undefined) updateData.liverName = data.liverName;
+        if (data.liveAccount !== undefined) updateData.liveAccount = data.liveAccount;
         if (data.brandId !== undefined) updateData.brandId = data.brandId;
         if (data.lineGroupId !== undefined) updateData.lineGroupId = data.lineGroupId;
         if (data.status !== undefined) updateData.status = data.status;

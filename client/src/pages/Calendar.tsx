@@ -97,6 +97,7 @@ export default function CalendarPage() {
     endTime: "",
     category: "other" as "delivery" | "meeting" | "live" | "other",
     liverName: "",
+    liveAccount: "",
     notes: "",
   });
 
@@ -166,6 +167,7 @@ export default function CalendarPage() {
       endTime: "",
       category: "other",
       liverName: "",
+      liveAccount: "",
       notes: "",
     });
   };
@@ -206,6 +208,7 @@ export default function CalendarPage() {
       endTime: endDate ? endDate.toISOString().slice(0, 16) : "",
       category: schedule.category,
       liverName: schedule.liverName || "",
+      liveAccount: (schedule as any).liveAccount || "",
       notes: "",
     });
   };
@@ -215,6 +218,10 @@ export default function CalendarPage() {
 
     if (!formData.title || !formData.startTime) {
       toast.error("タイトルと開始時間は必須です");
+      return;
+    }
+    if (!formData.liveAccount) {
+      toast.error("直播アカウントは必須です");
       return;
     }
 
@@ -227,6 +234,7 @@ export default function CalendarPage() {
         endTime: formData.endTime || undefined,
         category: formData.category,
         liverName: formData.liverName || undefined,
+        liveAccount: formData.liveAccount,
       });
     } else {
       createMutation.mutate({
@@ -236,6 +244,7 @@ export default function CalendarPage() {
         endTime: formData.endTime || undefined,
         category: formData.category,
         liverName: formData.liverName || undefined,
+        liveAccount: formData.liveAccount,
       });
     }
   };
@@ -372,6 +381,22 @@ export default function CalendarPage() {
                       <SelectItem value="other">その他</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="liveAccount">直播アカウント *</Label>
+                  <Input
+                    id="liveAccount"
+                    value={formData.liveAccount}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        liveAccount: e.target.value,
+                      }))
+                    }
+                    placeholder="直播アカウントを入力（必須）"
+                    required
+                  />
                 </div>
 
                 <div className="space-y-2">
