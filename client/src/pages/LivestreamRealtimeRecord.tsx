@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 import CsvSnapshotAnalysis from "@/components/CsvSnapshotAnalysis";
+import ProductTimelineAnalysis from "@/components/ProductTimelineAnalysis";
 // 30分刻みのタイムスロット生成
 function generateTimeSlots(): string[] {
   const slots: string[] = [];
@@ -778,6 +779,11 @@ export default function LivestreamRealtimeRecord() {
             })()}
           </CardContent>
         </Card>
+
+        {/* 📊 商品タイムライン分析（スナップショットデータから） */}
+        {snapshots && snapshots.length >= 2 && (
+          <ProductTimelineAnalysis snapshots={snapshots} />
+        )}
 
         {/* 時間帯別サマリー */}
         {timeSlotSummary.length > 0 && (
