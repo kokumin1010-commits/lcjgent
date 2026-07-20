@@ -127,6 +127,7 @@ type Schedule = {
   isAllDay?: boolean;
   category?: string | null;
   liverName?: string | null;
+  liveAccount?: string | null;
   liverId?: number | null;
   brandId?: number | null;
   brandIds?: number[] | null;
@@ -1415,7 +1416,12 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                             <span className="font-medium">{schedule.title}</span>
                           </div>
                           {schedule.liverName && (
-                            <div className="text-[9px] opacity-70 truncate">{schedule.liverName}</div>
+                            <div className="text-[9px] opacity-70 truncate">
+                              {schedule.liverName}
+                              {(schedule as any).liveAccount && (
+                                <span className="ml-0.5 text-blue-400">@{(schedule as any).liveAccount}</span>
+                              )}
+                            </div>
                           )}
                           {schedule.locationId && locationMap.get(schedule.locationId) && (
                             <div className="text-[9px] opacity-70 truncate flex items-center gap-0.5">
@@ -1608,6 +1614,9 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                               {schedule.liverName && (
                                 <div className="text-xs text-gray-500 truncate">
                                   {schedule.liverName}
+                                  {(schedule as any).liveAccount && (
+                                    <span className="ml-1 text-blue-500">@{(schedule as any).liveAccount}</span>
+                                  )}
                                   {liverUidMap.get(schedule.liverName) && (
                                     <span className="ml-1 text-gray-400">({liverUidMap.get(schedule.liverName)})</span>
                                   )}
@@ -1813,6 +1822,9 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                         {schedule.liverName && (
                           <p className="text-sm text-gray-500 truncate">
                             {schedule.liverName}
+                            {(schedule as any).liveAccount && (
+                              <span className="ml-1 text-blue-500">@{(schedule as any).liveAccount}</span>
+                            )}
                             {liverUidMap.get(schedule.liverName) && (
                               <span className="ml-1 text-xs text-gray-400">({liverUidMap.get(schedule.liverName)})</span>
                             )}
@@ -1901,6 +1913,9 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                         {selectedSchedule.liverName.charAt(0)}
                       </div>
                       <span>{selectedSchedule.liverName}</span>
+                      {(selectedSchedule as any).liveAccount && (
+                        <span className="text-sm text-blue-500 ml-1">@{(selectedSchedule as any).liveAccount}</span>
+                      )}
                       {liverUidMap.get(selectedSchedule.liverName) && (
                         <span className="text-xs text-gray-400">({liverUidMap.get(selectedSchedule.liverName)})</span>
                       )}

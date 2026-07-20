@@ -3179,6 +3179,7 @@ export async function getSchedulesByDateRange(startDate: Date, endDate: Date) {
       category: schedules.category,
       liverId: schedules.liverId,
       liverName: schedules.liverName,
+      liveAccount: schedules.liveAccount,
       brandId: schedules.brandId,
       brandIds: schedules.brandIds,
       lineGroupId: schedules.lineGroupId,
@@ -22248,6 +22249,7 @@ export async function getTodaySchedulesForSuggestion(targetDate?: string) {
       category: schedules.category,
       liverId: schedules.liverId,
       liverName: schedules.liverName,
+      liveAccount: schedules.liveAccount,
       brandId: schedules.brandId,
       lineGroupId: schedules.lineGroupId,
       status: schedules.status,
@@ -23325,6 +23327,7 @@ export async function getSchedulesByBrandId(
       category: schedules.category,
       liverId: schedules.liverId,
       liverName: schedules.liverName,
+      liveAccount: schedules.liveAccount,
       brandId: schedules.brandId,
       brandIds: schedules.brandIds,
       status: schedules.status,
@@ -23355,6 +23358,7 @@ export async function getDistinctLiversForBrandSchedules(brandId: number) {
     .selectDistinct({
       liverId: schedules.liverId,
       liverName: schedules.liverName,
+      liveAccount: schedules.liveAccount,
     })
     .from(schedules)
     .where(
@@ -25186,6 +25190,7 @@ export async function getLiverComplianceStats(liverId: number, yearMonth?: strin
         startTime: schedules.startTime,
         liverId: schedules.liverId,
         liverName: schedules.liverName,
+      liveAccount: schedules.liveAccount,
       })
       .from(schedules)
       .where(sql`${sql.join(scheduleConditions, sql` AND `)}`);
