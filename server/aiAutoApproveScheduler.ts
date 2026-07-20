@@ -1056,6 +1056,54 @@ ${statisticsPrompt}${learningPrompt}`,
       continue;
     }
 
+    // ===== STEP 3.5: No order number → reject =====
+    const finalOrderNumber = orderNumberMap.get(candidate.id);
+    if (!finalOrderNumber) {
+      // OCRでもLLMでも注文番号が検出できなかった → 自動却下
+      await updateLineReceiptStatus(candidate.id, "rejected", adminUserId,
+        `[AI自動却下] 注文番号なし: OCR・AI画像解析の両方で注文番号を検出できませんでした`);
+      try {
+        const appUrl = process.env.APP_URL || "https://lcjmall.com";
+        const rejectMsg = `❌ レシートが承認されませんでした\n\n注文番号が確認できませんでした。\n\n以下の情報が見えるようにスクリーンショットを撮り直してください🙏\n\n① 注文番号（16-19桁の数字）\n② 配達ステータス（配達済み）\n③ 合計金額（税込）\n\nお問い合わせ: ${appUrl}/mypage`;
+        await pushMsg(candidate.lineUserId, [{ type: "text", text: rejectMsg }]);
+      } catch (notifyErr) {
+        console.error(`[AI AutoApprove Scheduler] LINE rejection notification error:`, notifyErr);
+      }
+      try {
+        await createReceiptReviewLog({
+          receiptType: "line_receipt",
+          receiptId: candidate.id,
+          decision: "rejected",
+          rejectionCategory: "missing_order_number",
+          rejectionNote: `AI自動却下: 注文番号なし（OCR・LLM両方で未検出）`,
+          totalAmount: candidate.totalAmount ?? undefined,
+          hasOrderNumber: "no",
+          imageCount: candidate.imageUrls?.length ?? 1,
+          fraudScore: candidate.fraudScore ?? undefined,
+          fraudFlagCount: candidate.fraudFlags?.length ?? 0,
+          pointsCalculated: candidate.pointsCalculated ?? undefined,
+          reviewedBy: adminUserId,
+        });
+      } catch (logErr) {
+        console.error(`[AI AutoApprove Scheduler] Failed to log no-order-number rejection:`, logErr);
+      }
+      results.push({
+        id: candidate.id,
+        action: "rejected_ai" as const,
+        reason: `注文番号なし（OCR・LLM両方で未検出）`,
+        confidence: aiConfidence,
+        orderNumber: undefined,
+        amount: candidate.totalAmount ?? undefined,
+        lineUserId: candidate.lineUserId,
+        storeName: candidate.storeName ?? undefined,
+        imageUrl: candidate.imageUrl ?? undefined,
+        reasonCode: "NO_ORDER_NUMBER",
+        beforeStatus: candidate.status,
+        afterStatus: "rejected",
+      });
+      continue;
+    }
+
     // ===== STEP 4: Auto-Approve! =====
     let pointsToAward = candidate.pointsCalculated ?? 0;
     // CRITICAL FIX: pointsCalculatedが0でもtotalAmountがある場合は再計算する
