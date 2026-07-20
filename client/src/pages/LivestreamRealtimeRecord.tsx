@@ -75,6 +75,7 @@ export default function LivestreamRealtimeRecord() {
   const [compareProductName, setCompareProductName] = useState("");
   const [compareProductRecords, setCompareProductRecords] = useState<any[]>([]);
   const [csvSearchQuery, setCsvSearchQuery] = useState("");
+  const [expandedRecordIds, setExpandedRecordIds] = useState<Set<number>>(new Set());
 
   // CSV最新スナップショットの商品データ取得
   const { data: csvSnapshotsForCompare } = trpc.csvSnapshot.getCsvSnapshots.useQuery(
@@ -670,65 +671,70 @@ export default function LivestreamRealtimeRecord() {
                                     </div>
                                   </div>
                                 ) : (
-                                  /* 表示モード - 1行目: 商品情報+AIデータ、 2行目: メモ */
-                                  <div>
-                                    {/* 1行目: 時間+単価+出単+カート + AIデータバッジ（同じ行） */}
-                                    <div className="flex items-start justify-between">
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                          <span
-                                            className="text-xs font-mono text-blue-300 bg-blue-900/30 px-2 py-0.5 rounded min-w-[50px] text-center cursor-pointer hover:bg-blue-800/50 hover:text-blue-100"
-                                            onClick={() => {
-                                              setEditingId(record.id);
-                                              setEditProductName(record.productName);
-                                              setEditPrice(record.productPrice ? String(record.productPrice) : '0');
-                                              setEditQuantity(String(record.quantitySold));
-                                              setEditCartAdd(String(record.cartAddCount || 0));
-                                              setEditTimeSlot(record.timeSlot || '');
-                                              setEditNotes(record.notes || '');
-                                            }}
-                                            title="記録時刻（クリックで編集）"
-                                          >{record.timeSlot}</span>
-                                          {record.productPrice && (
-                                            <span className="text-sm text-gray-300">単価: <span className="text-green-400 font-bold">¥{Number(record.productPrice).toLocaleString()}</span></span>
-                                          )}
-                                          <span className="text-sm text-gray-300">出単: <span className="text-yellow-400 font-bold">{record.quantitySold}件</span></span>
-                                          {(record.cartAddCount || 0) > 0 && (
-                                            <span className="text-sm text-gray-300">カート: <span className="text-amber-400 font-bold">{record.cartAddCount}</span></span>
-                                          )}
-                                          {/* AI解析データバッジ（カートの後ろに同じ行で表示） */}
-                                          {record.notes && (() => {
-                                            const lines = record.notes.split('\n');
-                                            const aiLine = lines.find((l: string) => l.startsWith('[AI]'));
-                                            if (!aiLine) return null;
-                                            const aiData = aiLine.replace('[AI] ', '').replace('[AI]', '');
-                                            const parts = aiData.split(' / ');
-                                            return (
-                                              <>
-                                                <span className="text-gray-600 mx-0.5">|</span>
-                                                {parts.map((part: string, idx: number) => {
-                                                  const colonIdx = part.indexOf(':');
-                                                  if (colonIdx <= 0) return null;
-                                                  const label = part.substring(0, colonIdx);
-                                                  const value = part.substring(colonIdx + 1);
-                                                  return (
-                                                    <span key={idx} className="inline-flex items-center gap-0.5 text-[11px] bg-gray-700/60 border border-gray-600/50 rounded px-1.5 py-0.5">
-                                                      <span className="text-gray-400">{label.trim()}:</span>
-                                                      <span className="text-cyan-300 font-medium">{value.trim()}</span>
-                                                    </span>
-                                                  );
-                                                })}
-                                              </>
-                                            );
-                                          })()}
-                                        </div>
+                                  /* 表示モード - コンパクト表示 + タップで展開 */
+                                  <div
+                                    className="cursor-pointer select-none"
+                                    onClick={(e) => {
+                                      // 編集・削除ボタンのクリックは除外
+                                      if ((e.target as HTMLElement).closest('button')) return;
+                                      setExpandedRecordIds(prev => {
+                                        const next = new Set(prev);
+                                        if (next.has(record.id)) next.delete(record.id);
+                                        else next.add(record.id);
+                                        return next;
+                                      });
+                                    }}
+                                  >
+                                    {/* メイン行: 時間 + 出単 + カート + GMV（コンパクト） */}
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+                                        <span
+                                          className="text-xs font-mono text-blue-300 bg-blue-900/30 px-2 py-0.5 rounded min-w-[50px] text-center cursor-pointer hover:bg-blue-800/50 hover:text-blue-100"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingId(record.id);
+                                            setEditProductName(record.productName);
+                                            setEditPrice(record.productPrice ? String(record.productPrice) : '0');
+                                            setEditQuantity(String(record.quantitySold));
+                                            setEditCartAdd(String(record.cartAddCount || 0));
+                                            setEditTimeSlot(record.timeSlot || '');
+                                            setEditNotes(record.notes || '');
+                                          }}
+                                          title="記録時刻（クリックで編集）"
+                                        >{record.timeSlot}</span>
+                                        {record.productPrice && (
+                                          <span className="text-sm text-gray-300">単価: <span className="text-green-400 font-bold">¥{Number(record.productPrice).toLocaleString()}</span></span>
+                                        )}
+                                        <span className="text-sm text-gray-300">出単: <span className="text-yellow-400 font-bold">{record.quantitySold}件</span></span>
+                                        {(record.cartAddCount || 0) > 0 && (
+                                          <span className="text-sm text-gray-300">カート: <span className="text-amber-400 font-bold">{record.cartAddCount}</span></span>
+                                        )}
+                                        {/* GMVだけ常に表示（AI解析データから） */}
+                                        {record.notes && (() => {
+                                          const lines = record.notes.split('\n');
+                                          const aiLine = lines.find((l: string) => l.startsWith('[AI]'));
+                                          if (!aiLine) return null;
+                                          const gmvMatch = aiLine.match(/GMV[：:]([^/]+)/);
+                                          if (!gmvMatch) return null;
+                                          return (
+                                            <span className="inline-flex items-center gap-0.5 text-[11px] bg-emerald-900/40 border border-emerald-700/50 rounded px-1.5 py-0.5">
+                                              <span className="text-gray-400">GMV:</span>
+                                              <span className="text-emerald-300 font-medium">{gmvMatch[1].trim()}</span>
+                                            </span>
+                                          );
+                                        })()}
                                       </div>
                                       <div className="flex items-center gap-1 ml-2 shrink-0">
+                                        {/* 展開インジケーター */}
+                                        {record.notes && record.notes.includes('[AI]') && (
+                                          <span className={`text-gray-500 text-xs transition-transform duration-200 ${expandedRecordIds.has(record.id) ? 'rotate-180' : ''}`}>▼</span>
+                                        )}
                                         <Button
                                           size="sm"
                                           variant="ghost"
                                           className="h-7 w-7 p-0 text-gray-400 hover:text-blue-400"
-                                          onClick={() => {
+                                          onClick={(e) => {
+                                            e.stopPropagation();
                                             setEditingId(record.id);
                                             setEditProductName(record.productName);
                                             setEditPrice(record.productPrice ? String(record.productPrice) : '0');
@@ -744,7 +750,8 @@ export default function LivestreamRealtimeRecord() {
                                           size="sm"
                                           variant="ghost"
                                           className="h-7 w-7 p-0 text-gray-400 hover:text-red-400"
-                                          onClick={() => {
+                                          onClick={(e) => {
+                                            e.stopPropagation();
                                             if (confirm("この記録を削除しますか？")) {
                                               deleteMutation.mutate({ id: record.id });
                                             }
@@ -754,7 +761,33 @@ export default function LivestreamRealtimeRecord() {
                                         </Button>
                                       </div>
                                     </div>
-                                    {/* 2行目: メモ・コメントエリア（商品情報と分離、元々GMVがあった場所） */}
+                                    {/* 展開時: AI解析データの詳細 */}
+                                    {expandedRecordIds.has(record.id) && record.notes && (() => {
+                                      const lines = record.notes.split('\n');
+                                      const aiLine = lines.find((l: string) => l.startsWith('[AI]'));
+                                      if (!aiLine) return null;
+                                      const aiData = aiLine.replace('[AI] ', '').replace('[AI]', '');
+                                      const parts = aiData.split(' / ');
+                                      return (
+                                        <div className="mt-2 ml-[58px] p-2 bg-gray-800/50 rounded-md border border-gray-700/30">
+                                          <div className="flex flex-wrap gap-1.5">
+                                            {parts.map((part: string, idx: number) => {
+                                              const colonIdx = part.indexOf(':');
+                                              if (colonIdx <= 0) return null;
+                                              const label = part.substring(0, colonIdx);
+                                              const value = part.substring(colonIdx + 1);
+                                              return (
+                                                <span key={idx} className="inline-flex items-center gap-0.5 text-[11px] bg-gray-700/60 border border-gray-600/50 rounded px-1.5 py-0.5">
+                                                  <span className="text-gray-400">{label.trim()}:</span>
+                                                  <span className="text-cyan-300 font-medium">{value.trim()}</span>
+                                                </span>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
+                                    {/* メモ表示 */}
                                     {record.notes && (() => {
                                       const lines = record.notes.split('\n');
                                       const userComment = lines.filter((l: string) => !l.startsWith('[AI]') && l.trim() !== '' && l !== '[AI解析]').join(' ');
