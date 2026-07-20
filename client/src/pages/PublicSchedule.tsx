@@ -228,6 +228,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
     isAllDay: false,
     category: "other" as "delivery" | "meeting" | "live" | "other",
     liverName: "",
+    liveAccount: "",
     isNewLiver: false,
     newLiverName: "",
     // ブランド選択（複数選択可能）
@@ -411,6 +412,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
       isAllDay: false,
       category: "other",
       liverName: "",
+      liveAccount: "",
       isNewLiver: false,
       newLiverName: "",
       brandIds: [],
@@ -817,6 +819,12 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
       return;
     }
     
+    // 直播アカウント必須チェック
+    if (!newSchedule.liveAccount.trim()) {
+      toast.error("直播アカウントを入力してください");
+      return;
+    }
+    
     // 繰り返し設定の場合、繰り返し終了日が必須
     if (newSchedule.repeatType !== "none" && !newSchedule.repeatUntil) {
       toast.error("繰り返し終了日を設定してください");
@@ -869,6 +877,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
         endTime: endTimeUTC.toISOString(),
         category: newSchedule.category,
         liverName: defaultLiverName,
+        liveAccount: newSchedule.liveAccount,
         scheduleGroupId: selectedGroupId || undefined, // 選択中のグループIDを送信
         brandIds: newSchedule.brandIds, // 複数ブランドIDを送信
         locationId: newSchedule.locationId, // 配信場所IDを送信
@@ -2575,6 +2584,21 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
             </div>
             );
           })()}
+
+          {/* 直播アカウント入力（必須） */}
+          <div className="px-4 py-3 border-b">
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 text-pink-500">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              </div>
+              <Input
+                placeholder="直播アカウントを入力 *"
+                value={newSchedule.liveAccount}
+                onChange={(e) => setNewSchedule(prev => ({ ...prev, liveAccount: e.target.value }))}
+                className="border-0 p-0 h-auto focus-visible:ring-0 flex-1 placeholder:text-gray-400"
+              />
+            </div>
+          </div>
 
           {/* Location Selection */}
           {locationsData && locationsData.length > 0 && (

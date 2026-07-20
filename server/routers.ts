@@ -13285,6 +13285,7 @@ ${conversationText}
           isAllDay: z.boolean().optional(),
           category: z.enum(["delivery", "meeting", "live", "other"]).optional(),
           liverName: z.string().min(1),
+          liveAccount: z.string().min(1, "直播アカウントは必須です"),
           notes: z.string().optional(),
           scheduleGroupId: z.number().optional(), // スケジュールグループID
           brandId: z.number().optional(), // ブランドID（後方互換）
@@ -13301,6 +13302,7 @@ ${conversationText}
           isAllDay: input.isAllDay || false,
           category: input.category || "other",
           liverName: input.liverName,
+          liveAccount: input.liveAccount,
           notes: input.notes,
           scheduleGroupId: input.scheduleGroupId,
           brandId: input.brandIds?.[0] ?? input.brandId, // 後方互換: 最初のブランドをbrandIdにも保存
