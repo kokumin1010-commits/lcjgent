@@ -13032,7 +13032,7 @@ ${conversationText}
           category: z.enum(["delivery", "meeting", "live", "other"]).optional(),
           liverId: z.number().optional(),
           liverName: z.string().optional(),
-          liveAccount: z.string().min(1, "直播アカウントは必須です"),
+          liveAccount: z.string().optional(),
           brandId: z.number().optional(),
           lineGroupId: z.string().optional(),
           isRecurring: z.boolean().optional(),
@@ -13285,7 +13285,7 @@ ${conversationText}
           isAllDay: z.boolean().optional(),
           category: z.enum(["delivery", "meeting", "live", "other"]).optional(),
           liverName: z.string().min(1),
-          liveAccount: z.string().min(1, "直播アカウントは必須です"),
+          liveAccount: z.string().optional(),
           notes: z.string().optional(),
           scheduleGroupId: z.number().optional(), // スケジュールグループID
           brandId: z.number().optional(), // ブランドID（後方互換）
