@@ -314,15 +314,41 @@ export default function LivestreamRealtimeRecord() {
       .map(([slot, data]) => ({ timeSlot: slot, ...data }));
   }, [records]);
 
-  // 合計
+  // 合計（優先順位: CSV最新 > AI解析スナップショット最新 > 手動記録累加）
   const totals = useMemo(() => {
-    if (!records || records.length === 0) return { quantity: 0, revenue: 0, cartAdds: 0 };
-    return records.reduce((acc, r) => ({
+    // 1. CSVスナップショットがあればその最新値を使用
+    if (csvSnapshotsForCompare && csvSnapshotsForCompare.length > 0) {
+      const latestCsv = csvSnapshotsForCompare[csvSnapshotsForCompare.length - 1];
+      if ((latestCsv as any).totalGmv || (latestCsv as any).totalOrders) {
+        return {
+          quantity: (latestCsv as any).totalOrders || 0,
+          revenue: (latestCsv as any).totalGmv || 0,
+          cartAdds: 0,
+          source: 'csv' as const,
+        };
+      }
+    }
+    // 2. AI解析スナップショットがあればその最新値を使用（累計値なので最新=全体）
+    if (snapshots && snapshots.length > 0) {
+      const latestSnap = snapshots[snapshots.length - 1];
+      if ((latestSnap as any).gmv || (latestSnap as any).orderCount) {
+        return {
+          quantity: (latestSnap as any).orderCount || 0,
+          revenue: (latestSnap as any).gmv || 0,
+          cartAdds: 0,
+          source: 'snapshot' as const,
+        };
+      }
+    }
+    // 3. フォールバック: 手動記録の累加
+    if (!records || records.length === 0) return { quantity: 0, revenue: 0, cartAdds: 0, source: 'manual' as const };
+    const manual = records.reduce((acc, r) => ({
       quantity: acc.quantity + r.quantitySold,
       revenue: acc.revenue + (Number(r.productPrice) || 0) * r.quantitySold,
       cartAdds: acc.cartAdds + (r.cartAddCount || 0),
     }), { quantity: 0, revenue: 0, cartAdds: 0 });
-  }, [records]);
+    return { ...manual, source: 'manual' as const };
+  }, [csvSnapshotsForCompare, snapshots, records]);
 
   // timeSlots no longer needed - using native time input
 
@@ -348,6 +374,11 @@ export default function LivestreamRealtimeRecord() {
           <div className="text-right">
             <p className="text-xs text-green-400 font-bold">¥{totals.revenue.toLocaleString()}</p>
             <p className="text-[10px] text-gray-400">{totals.quantity}件出単</p>
+            {(totals as any).source && (totals as any).source !== 'manual' && (
+              <p className="text-[8px] text-indigo-400">
+                {(totals as any).source === 'csv' ? 'CSV' : 'スクショ'}
+              </p>
+            )}
           </div>
         </div>
       </div>
