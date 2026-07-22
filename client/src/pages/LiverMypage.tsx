@@ -554,7 +554,7 @@ export default function LiverMypage() {
     });
 
     const sales = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.salesAmount || ls.gmv || 0), 0);
-    const gmv = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.gmv || ls.salesAmount || 0), 0);
+    const gmv = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.salesAmount || ls.gmv || 0), 0);
     const viewerCount = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.viewerCount || 0), 0);
     const orderCount = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.orderCount || 0), 0);
     

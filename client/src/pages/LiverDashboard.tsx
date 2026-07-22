@@ -1064,7 +1064,7 @@ export default function LiverDashboard() {
                   ? new Date(stream.livestreamEndTime).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" })
                   : "";
                 
-                const gmv = Number(stream.gmv || stream.salesAmount || 0);
+                const gmv = Number(stream.salesAmount || stream.gmv || 0);
                 const duration = Number(stream.duration || 0);
                 const durationHours = duration > 0 ? (duration / 60).toFixed(1) : "---";
                 const viewers = Number(stream.viewerCount || 0);

@@ -876,8 +876,7 @@ export async function getAllBrands(filters?: { status?: string; search?: string 
         .from(brandLivestreams)
         .where(and(eq(brandLivestreams.brandId, brand.id), isNull(brandLivestreams.deletedAt)));
       
-      const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
-      
+            const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.salesAmount || ls.gmv || 0), 0);
       // Get total contract amount (fixedFee) from contracts (exclude soft-deleted)
       const contracts = await db
         .select({
@@ -4108,7 +4107,7 @@ export async function calculateContractRoas(contractId: number, fixedFee: number
   }
   
   // Calculate totals
-  const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
+  const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.salesAmount || ls.gmv || 0), 0);
   const totalImpressions = livestreams.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
   
   // Ad value calculation: impressions × ¥15 (CPM ¥15,000)
@@ -9376,7 +9375,7 @@ export async function getLiverSalesStatsByBrand(brandId: number) {
       if (!liverStats[ls.liverId]) {
         liverStats[ls.liverId] = { totalGmv: 0, livestreamCount: 0 };
       }
-      liverStats[ls.liverId].totalGmv += ls.gmv || 0;
+      liverStats[ls.liverId].totalGmv += ls.salesAmount || ls.gmv || 0;
       liverStats[ls.liverId].livestreamCount += 1;
     }
   }
@@ -11327,7 +11326,7 @@ export async function getHourlySalesAnalysis(month?: string) {
     const jstDate = new Date(ls.livestreamDate.getTime() + 9 * 60 * 60 * 1000);
     const hour = jstDate.getUTCHours();
     
-    hourlyData[hour].totalSales += Number(ls.gmv || ls.salesAmount || 0);
+    hourlyData[hour].totalSales += Number(ls.salesAmount || ls.gmv || 0);
     hourlyData[hour].livestreamCount += 1;
     hourlyData[hour].totalViewers += Number(ls.viewerCount || 0);
     hourlyData[hour].totalDuration += Number(ls.duration || 0);
@@ -11410,7 +11409,7 @@ export async function getDayOfWeekPerformance(month?: string) {
     const jstDate = new Date(ls.livestreamDate.getTime() + 9 * 60 * 60 * 1000);
     const dayOfWeek = jstDate.getUTCDay();
     
-    dayData[dayOfWeek].totalSales += Number(ls.gmv || ls.salesAmount || 0);
+    dayData[dayOfWeek].totalSales += Number(ls.salesAmount || ls.gmv || 0);
     dayData[dayOfWeek].livestreamCount += 1;
     dayData[dayOfWeek].totalViewers += Number(ls.viewerCount || 0);
     dayData[dayOfWeek].totalDuration += Number(ls.duration || 0);

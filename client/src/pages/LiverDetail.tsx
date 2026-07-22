@@ -456,7 +456,7 @@ export default function LiverDetail() {
                         }
                       </td>
                       <td className="text-right py-3 px-2 text-yellow-500">
-                        {formatCurrency(stream.gmv || stream.salesAmount || 0)}
+                        {formatCurrency(stream.salesAmount || stream.gmv || 0)}
                       </td>
                       <td className="text-center py-3 px-2">
                         <Link href={`/livestreams/${stream.id}`}>

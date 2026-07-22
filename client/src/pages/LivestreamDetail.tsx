@@ -1309,7 +1309,7 @@ export default function LivestreamDetail() {
                 <div className="flex justify-between items-center">
                   <span className="text-red-500 font-medium">売上合計</span>
                   <span className="text-xl font-bold text-yellow-500">
-                    ¥{formatCurrency(livestream.gmv || livestream.salesAmount || 0)}
+                    ¥{formatCurrency(livestream.salesAmount || livestream.gmv || 0)}
                   </span>
                 </div>
 

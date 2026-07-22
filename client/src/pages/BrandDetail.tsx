@@ -733,7 +733,7 @@ function ContractRoasDisplay({ contractId, fixedFee, onLinkClick, onViewDetails 
     return null;
   }
 
-  const totalGmv = linkedLivestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
+  const totalGmv = linkedLivestreams.reduce((sum, ls) => sum + (ls.salesAmount || ls.gmv || 0), 0);
   const totalImpressions = linkedLivestreams.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
   const adValue = totalImpressions * 15; // CPM ¥15,000
   // 総価値 = GMV + 広告換算費用（節約できた価値）
@@ -2113,7 +2113,7 @@ ${proposal.proposalContent}
   };
 
   // Calculate GMV totals from livestreams data (CSV商品別売上インポート済みのみ)
-  const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
+  const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.salesAmount || ls.gmv || 0), 0);
   const currentMonth = new Date().toISOString().slice(0, 7);
   const currentMonthData = monthlyGmvSummary.find(m => m.month === currentMonth);
   const monthlyGmvValue = currentMonthData?.gmv || 0;
@@ -2756,8 +2756,8 @@ ${proposal.proposalContent}
                                       </div>
                                       <div className="flex items-center gap-4">
                                         <span className="text-xs text-cyan-300">{ls.duration ? `${ls.duration}分` : '-'}</span>
-                                        {(ls.gmv || 0) > 0 ? (
-                                          <span className="text-xs text-green-400">¥{(ls.gmv || 0).toLocaleString()}</span>
+                                        {(ls.salesAmount || ls.gmv || 0) > 0 ? (
+                                          <span className="text-xs text-green-400">¥{(ls.salesAmount || ls.gmv || 0).toLocaleString()}</span>
                                         ) : (
                                           <span className="text-xs text-gray-600">-</span>
                                         )}
@@ -3911,7 +3911,7 @@ ${proposal.proposalContent}
               });
 
               // Calculate summary
-              const summaryGmv = filteredLivestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
+              const summaryGmv = filteredLivestreams.reduce((sum, ls) => sum + (ls.salesAmount || ls.gmv || 0), 0);
               const summarySalesCount = filteredLivestreams.reduce((sum, ls) => sum + (ls.salesCount || 0), 0);
               const summaryDuration = filteredLivestreams.reduce((sum, ls) => sum + (ls.duration || 0), 0);
               const summaryImpressions = filteredLivestreams.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
@@ -3941,7 +3941,7 @@ ${proposal.proposalContent}
                   return true;
                 });
               })();
-              const prevGmv = prevPeriodLivestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
+              const prevGmv = prevPeriodLivestreams.reduce((sum, ls) => sum + (ls.salesAmount || ls.gmv || 0), 0);
               const gmvGrowth = prevGmv > 0 ? ((summaryGmv - prevGmv) / prevGmv * 100) : null;
 
               // Account breakdown
@@ -3949,7 +3949,7 @@ ${proposal.proposalContent}
               const accountGmvMap = new Map<string, number>();
               filteredLivestreams.forEach(ls => {
                 if (ls.streamerName) {
-                  accountGmvMap.set(ls.streamerName, (accountGmvMap.get(ls.streamerName) || 0) + (ls.gmv || 0));
+                  accountGmvMap.set(ls.streamerName, (accountGmvMap.get(ls.streamerName) || 0) + (ls.salesAmount || ls.gmv || 0));
                 }
               });
 
@@ -4123,7 +4123,7 @@ ${proposal.proposalContent}
                           {ls.salesCount?.toLocaleString() || "-"}
                         </td>
                         <td className="py-3 px-2 text-right text-pink-400 font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                          {(ls.gmv || 0) > 0 ? formatCurrency(ls.gmv) : '-'}
+                          {(ls.salesAmount || ls.gmv || 0) > 0 ? formatCurrency(ls.salesAmount || ls.gmv) : '-'}
                         </td>
                         <td className="py-3 px-2 text-right text-orange-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {ls.cartAddCount?.toLocaleString() || "-"}
@@ -5527,7 +5527,7 @@ ${proposal.proposalContent}
                   <Label className="text-gray-400">GMV</Label>
                   <Input
                     type="number"
-                    value={editingLivestream.gmv || editingLivestream.salesAmount || ""}
+                    value={editingLivestream.salesAmount || editingLivestream.gmv || ""}
                     onChange={(e) => setEditingLivestream({ ...editingLivestream, gmv: parseInt(e.target.value) || 0 })}
                     className="bg-black/60 border-red-900/50 text-white mt-1"
                   />
@@ -5836,7 +5836,7 @@ ${proposal.proposalContent}
                           </div>
                           <div className="flex items-center gap-4 text-sm text-gray-400 mt-1">
                             <span>{ls.streamerName}</span>
-                            <span className="text-cyan-400">GMV: {formatCurrency(ls.gmv)}</span>
+                            <span className="text-cyan-400">GMV: {formatCurrency(ls.salesAmount || ls.gmv)}</span>
                             <span className="text-pink-400">曝光: {(ls.impressions || 0).toLocaleString()}</span>
                           </div>
                         </div>
@@ -5884,7 +5884,7 @@ ${proposal.proposalContent}
                               <span>{formatDate(ls.livestreamDate)}</span>
                               <span className="text-gray-400">-</span>
                               <span className="text-gray-300">{ls.streamerName}</span>
-                              <span className="text-cyan-400 ml-2">{formatCurrency(ls.gmv)}</span>
+                              <span className="text-cyan-400 ml-2">{formatCurrency(ls.salesAmount || ls.gmv)}</span>
                             </div>
                           </SelectItem>
                         ))
@@ -5900,7 +5900,7 @@ ${proposal.proposalContent}
                       <div>
                         <p className="text-[10px] text-gray-500">GMV合計</p>
                         <p className="text-sm font-bold text-cyan-400">
-                          {formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0))}
+                          {formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.salesAmount || ls.gmv || 0), 0))}
                         </p>
                       </div>
                       <div>
@@ -5929,7 +5929,7 @@ ${proposal.proposalContent}
                           <span className="text-xs text-gray-400">📊 広告効果ROAS</span>
                           <span className="text-xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
                             {(() => {
-                              const totalGmv = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0);
+                              const totalGmv = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.salesAmount || ls.gmv || 0), 0);
                               const totalImpressions = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0);
                               const adValue = totalImpressions * 15;
                               const totalValue = totalGmv + adValue;
@@ -5941,7 +5941,7 @@ ${proposal.proposalContent}
                         </div>
                         <div className="text-xs text-emerald-400 font-medium">
                           {(() => {
-                            const totalGmv = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0);
+                            const totalGmv = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.salesAmount || ls.gmv || 0), 0);
                             const totalImpressions = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0);
                             const adValue = totalImpressions * 15;
                             const totalValue = totalGmv + adValue;
@@ -5953,7 +5953,7 @@ ${proposal.proposalContent}
                         </div>
                         <div className="text-[8px] text-gray-600 mt-0.5">
                           {(() => {
-                            const totalGmv = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0);
+                            const totalGmv = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.salesAmount || ls.gmv || 0), 0);
                             const totalImpressions = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0);
                             const adValue = totalImpressions * 15;
                             return `※ (GMV${formatCurrency(totalGmv)}+広告換算${formatCurrency(adValue)})÷固定費${formatCurrency(editingContract.fixedFee || 0)}`;
@@ -7331,7 +7331,7 @@ ${proposal.proposalContent}
                           {ls.livestreamDate ? new Date(ls.livestreamDate).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' }) : ''} - {ls.streamerName || (language === 'zh' ? '未知主播' : '不明')}
                         </div>
                         <div className="text-xs text-gray-500">
-                          GMV: {(ls.gmv || 0) > 0 ? `¥${(ls.gmv || 0).toLocaleString()}` : '-'}
+                          GMV: {(ls.salesAmount || ls.gmv || 0) > 0 ? `¥${(ls.salesAmount || ls.gmv || 0).toLocaleString()}` : '-'}
                         </div>
                       </div>
                     </label>
@@ -8400,7 +8400,7 @@ ${proposal.proposalContent}
 
               {/* ROASサマリー */}
               {linkedLivestreamDetailData.length > 0 && linkedLivestreamContractInfo.fixedFee > 0 && (() => {
-                const totalGmv = linkedLivestreamDetailData.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
+                const totalGmv = linkedLivestreamDetailData.reduce((sum, ls) => sum + (ls.salesAmount || ls.gmv || 0), 0);
                 const totalImpressions = linkedLivestreamDetailData.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
                 const adValue = totalImpressions * 15;
                 const fixedFee = linkedLivestreamContractInfo.fixedFee || 0;
