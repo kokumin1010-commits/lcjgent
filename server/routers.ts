@@ -2243,9 +2243,11 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 - 「已签收」「Delivered」
 - プログレスバーで「配達済み」が完了（緑/ティールのチェックマーク）
 
-=== 金額の抽出 ===
-- 「合計金額（税込）」「合計」「支払い金額」の横の金額 → totalAmount
-- 通貨記号（¥￥）とカンマを除去して数値のみ（例: ¥2,832 → 2832）
+=== 金額の抽出（最重要） ===
+- 「合計金額（税込）」「合計」「支払い金額」「お支払い合計」の横の金額 → totalAmount
+- 通貨記号（¥￥円）とカンマを除去して数値のみ（例: ¥2,832 → 2832, ¥3,021 → 3021）
+- totalAmountは必ず数値型（number）で返すこと。0やnullは金額が本当に読み取れない場合のみ
+- 画像内に金額が表示されている場合は必ず抽出すること
 - 商品の単価と数量も個別に抽出
 - 送料、割引額、支払い方法も抽出
 
@@ -2262,6 +2264,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
 === 出力ルール ===
 - 注文番号の抽出を最優先。画像を隅々までスキャンすること
+- 金額の抽出も最重要。画像に金額が見えていれば必ず数値で返すこと
 - 抽出できない項目はnullを返す
 - 必ずJSON形式のみで回答（説明文は不要）
 - 複数画像がある場合は統合して回答
@@ -2272,18 +2275,73 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                     content: imageContents,
                   },
                 ],
+                response_format: {
+                  type: "json_schema",
+                  json_schema: {
+                    name: "receipt_ocr",
+                    strict: false,
+                    schema: {
+                      type: "object",
+                      properties: {
+                        isTikTokShop: { type: ["boolean", "null"], description: "TikTok Shopかどうか" },
+                        isDelivered: { type: ["boolean", "null"], description: "配達済みかどうか" },
+                        orderNumber: { type: ["string", "null"], description: "注文番号（16-19桁）" },
+                        allOrderNumbers: { type: ["array", "null"], items: { type: "string" }, description: "検出した全注文番号" },
+                        totalAmount: { type: ["number", "null"], description: "合計金額（数値、¥やカンマを除去した数値）" },
+                        orderDate: { type: ["string", "null"], description: "注文日" },
+                        shopName: { type: ["string", "null"], description: "ショップ名" },
+                        productName: { type: ["string", "null"], description: "商品名" },
+                        orderNumberSource: { type: ["string", "null"], description: "注文番号の検出場所" },
+                        items: { type: ["array", "null"], items: { type: "object", properties: { productName: { type: ["string", "null"] }, unitPrice: { type: ["number", "null"] }, quantity: { type: ["number", "null"] }, variant: { type: ["string", "null"] } } }, description: "商品一覧" },
+                        deliveryInfo: { type: ["object", "null"], properties: { recipientName: { type: ["string", "null"] }, phoneNumber: { type: ["string", "null"] }, postalCode: { type: ["string", "null"] }, address: { type: ["string", "null"] }, deliveryStatus: { type: ["string", "null"] }, deliveryDate: { type: ["string", "null"] }, returnDeadline: { type: ["string", "null"] } }, description: "配送情報" },
+                        paymentInfo: { type: ["object", "null"], properties: { subtotal: { type: ["number", "null"] }, shippingFee: { type: ["number", "null"] }, discount: { type: ["number", "null"] }, totalAmount: { type: ["number", "null"] }, paymentMethod: { type: ["string", "null"] } }, description: "支払い情報" },
+                      },
+                      required: ["isTikTokShop", "isDelivered", "orderNumber", "totalAmount"],
+                    },
+                  },
+                },
               });
               
               messageContent = typeof ocrResult.choices[0].message.content === "string" 
                 ? ocrResult.choices[0].message.content : null;
               let jsonStr = messageContent || "{}";
+              // Robust JSON extraction: handle code fences and extra text around JSON
               if (jsonStr.includes("```json")) {
                 jsonStr = jsonStr.replace(/```json\s*/g, "").replace(/```\s*/g, "");
               } else if (jsonStr.includes("```")) {
                 jsonStr = jsonStr.replace(/```\s*/g, "");
               }
               jsonStr = jsonStr.trim();
-              ocrData = JSON.parse(jsonStr);
+              // Try direct parse first, then regex extraction as fallback
+              try {
+                ocrData = JSON.parse(jsonStr);
+              } catch {
+                // Fallback: extract JSON object from response text
+                const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                  ocrData = JSON.parse(jsonMatch[0]);
+                } else {
+                  throw new Error("JSON extraction failed from LLM response");
+                }
+              }
+              
+              // Additional totalAmount recovery: if top-level totalAmount is missing but paymentInfo.totalAmount exists
+              if ((!ocrData.totalAmount || ocrData.totalAmount <= 0) && ocrData.paymentInfo?.totalAmount && ocrData.paymentInfo.totalAmount > 0) {
+                ocrData.totalAmount = ocrData.paymentInfo.totalAmount;
+                console.log(`[Web Receipt BG] Recovered totalAmount from paymentInfo: ¥${ocrData.totalAmount}`);
+              }
+              // Also try summing items if totalAmount still missing
+              if ((!ocrData.totalAmount || ocrData.totalAmount <= 0) && ocrData.items && Array.isArray(ocrData.items) && ocrData.items.length > 0) {
+                const itemsSum = ocrData.items.reduce((sum: number, item: any) => {
+                  const price = item.unitPrice || 0;
+                  const qty = item.quantity || 1;
+                  return sum + (price * qty);
+                }, 0);
+                if (itemsSum > 0) {
+                  ocrData.totalAmount = itemsSum;
+                  console.log(`[Web Receipt BG] Recovered totalAmount from items sum: ¥${itemsSum}`);
+                }
+              }
             } catch (aiError: any) {
               // AI解析失敗 → ステータスをanalysis_failedに更新（お客様には既に完了を返している）
               console.error(`[Web Receipt BG] AI analysis failed for receipt ${receiptId}:`, aiError);
