@@ -1337,3 +1337,238 @@ ${statisticsPrompt}${learningPrompt}`,
     hasMore,
   };
 }
+
+
+// ============================================================
+// STEP 5: 金額再認識バッチ処理
+// 承認済みだがtotalAmount=0のレシートを自動的にLLMで再認識し、
+// 金額が検出されたらポイントを補発する。
+// 既存のスケジューラーとは独立して動作し、サーバー起動時に自動開始。
+// ============================================================
+
+const REOCR_BATCH_SIZE = 10; // 1回あたりの処理件数
+const REOCR_INTERVAL_MS = 60 * 60 * 1000; // 1時間ごとに実行
+const REOCR_DELAY_BETWEEN_CALLS_MS = 2000; // LLM呼び出し間隔
+let reocrIntervalId: ReturnType<typeof setInterval> | null = null;
+let isReocrProcessing = false;
+
+/**
+ * 金額再認識スケジューラーを開始
+ * サーバー起動時に呼び出される
+ */
+export function startAmountReocrScheduler() {
+  if (reocrIntervalId) {
+    console.log("[Amount ReOCR] Already running");
+    return;
+  }
+  console.log("[Amount ReOCR] Starting scheduler (every 1 hour, batch size: 10)");
+  
+  // 起動30秒後に初回実行
+  setTimeout(() => {
+    runAmountReocr().catch(err => {
+      console.error("[Amount ReOCR] Initial run error:", err.message);
+    });
+  }, 30000);
+  
+  // 1時間ごとに実行
+  reocrIntervalId = setInterval(() => {
+    runAmountReocr().catch(err => {
+      console.error("[Amount ReOCR] Scheduled run error:", err.message);
+    });
+  }, REOCR_INTERVAL_MS);
+}
+
+/**
+ * 金額再認識スケジューラーを停止
+ */
+export function stopAmountReocrScheduler() {
+  if (reocrIntervalId) {
+    clearInterval(reocrIntervalId);
+    reocrIntervalId = null;
+  }
+  console.log("[Amount ReOCR] Stopped");
+}
+
+/**
+ * 金額再認識のメイン処理
+ */
+async function runAmountReocr() {
+  if (isReocrProcessing) {
+    console.log("[Amount ReOCR] Already processing, skipping");
+    return;
+  }
+  isReocrProcessing = true;
+  
+  try {
+    const { getDb } = await import("./db");
+    const { lineReceipts } = await import("../drizzle/schema");
+    const { eq, and, sql, isNull, or } = await import("drizzle-orm");
+    const { awardPointsForLineReceipt, updateLineReceiptOcr } = await import("./db");
+    
+    const db = await getDb();
+    if (!db) {
+      console.log("[Amount ReOCR] Database not available");
+      return;
+    }
+    
+    // 承認済み + totalAmount=0 or NULL + 画像あり + reocrAttempts < 3 のレシートを取得
+    const candidates = await db
+      .select({
+        id: lineReceipts.id,
+        lineUserId: lineReceipts.lineUserId,
+        imageUrl: lineReceipts.imageUrl,
+        imageUrls: lineReceipts.imageUrls,
+        totalAmount: lineReceipts.totalAmount,
+        pointsCalculated: lineReceipts.pointsCalculated,
+        pointsAwarded: lineReceipts.pointsAwarded,
+        storeName: lineReceipts.storeName,
+        orderNumber: lineReceipts.orderNumber,
+      })
+      .from(lineReceipts)
+      .where(
+        and(
+          eq(lineReceipts.status, "approved"),
+          or(
+            eq(lineReceipts.totalAmount, 0),
+            isNull(lineReceipts.totalAmount)
+          ),
+          sql`${lineReceipts.imageUrl} IS NOT NULL AND ${lineReceipts.imageUrl} != ''`,
+          // reviewNoteに[reocr_done]マークがないものだけ処理
+          sql`(${lineReceipts.reviewNote} IS NULL OR ${lineReceipts.reviewNote} NOT LIKE '%[reocr_done]%')`
+        )
+      )
+      .limit(REOCR_BATCH_SIZE);
+    
+    if (candidates.length === 0) {
+      console.log("[Amount ReOCR] No candidates to process");
+      return;
+    }
+    
+    console.log(`[Amount ReOCR] Processing ${candidates.length} receipts...`);
+    
+    let detectedCount = 0;
+    let failedCount = 0;
+    let awardedPoints = 0;
+    
+    for (const receipt of candidates) {
+      try {
+        // 画像URLを取得
+        let imageUrls: string[] = [];
+        if (receipt.imageUrls && Array.isArray(receipt.imageUrls) && receipt.imageUrls.length > 0) {
+          imageUrls = receipt.imageUrls as string[];
+        } else if (receipt.imageUrl) {
+          imageUrls = [receipt.imageUrl];
+        }
+        
+        if (imageUrls.length === 0) {
+          // 画像なし - マーク済みにする
+          await db.execute(sql`
+            UPDATE line_receipts SET reviewNote = CONCAT(COALESCE(reviewNote, ''), ' [reocr_done:no_image]') WHERE id = ${receipt.id}
+          `);
+          continue;
+        }
+        
+        // LLMで金額を認識
+        const content: any[] = [
+          {
+            type: "text",
+            text: `この画像はレシートまたは注文詳細のスクリーンショットです。画像から合計金額を読み取ってください。
+「合計」「お支払い金額」「Total」「小計」などの金額を探してください。
+【最重要】金額が画像に表示されている場合は、必ず正確に数値で返してください。金額が見つからない場合のみ0を返してください。`
+          }
+        ];
+        
+        for (const url of imageUrls.slice(0, 3)) { // 最大3枚
+          content.push({
+            type: "image_url",
+            image_url: { url, detail: "high" }
+          });
+        }
+        
+        const llmResult = await invokeLLM({
+          messages: [{ role: "user", content }],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "receipt_amount",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  totalAmount: { type: "number", description: "合計金額（円）。見つからない場合は0" },
+                  orderNumber: { type: ["string", "null"], description: "注文番号。見つからない場合はnull" }
+                },
+                required: ["totalAmount", "orderNumber"],
+                additionalProperties: false
+              }
+            }
+          }
+        });
+        
+        const responseText = llmResult?.choices?.[0]?.message?.content || '{}';
+        let parsed: { totalAmount: number; orderNumber: string | null };
+        try {
+          parsed = JSON.parse(responseText);
+        } catch {
+          const match = responseText.match(/\{[\s\S]*\}/);
+          parsed = match ? JSON.parse(match[0]) : { totalAmount: 0, orderNumber: null };
+        }
+        
+        const amount = Math.round(Number(parsed.totalAmount) || 0);
+        const orderNum = parsed.orderNumber || null;
+        
+        if (amount > 0) {
+          const points = Math.floor(amount * 0.01);
+          detectedCount++;
+          
+          // totalAmountとpointsCalculatedを更新
+          await updateLineReceiptOcr(receipt.id, {
+            totalAmount: amount,
+            pointsCalculated: points,
+            orderNumber: orderNum || receipt.orderNumber || undefined,
+          });
+          
+          // ポイント補発（既に付与済みの場合はスキップされる - idempotent）
+          if (points > 0 && (!receipt.pointsAwarded || receipt.pointsAwarded === 0)) {
+            const awardResult = await awardPointsForLineReceipt(receipt.id, points);
+            if (awardResult && !awardResult.skipped) {
+              awardedPoints += points;
+            }
+          }
+          
+          // マーク済み
+          await db.execute(sql`
+            UPDATE line_receipts SET reviewNote = CONCAT(COALESCE(reviewNote, ''), ' [reocr_done:${sql.raw(String(amount))}]') WHERE id = ${receipt.id}
+          `);
+          
+          console.log(`[Amount ReOCR] #${receipt.id} | ¥${amount} → ${points}pt | order: ${orderNum || 'N/A'}`);
+        } else {
+          // 金額検出できず - マーク済みにする
+          await db.execute(sql`
+            UPDATE line_receipts SET reviewNote = CONCAT(COALESCE(reviewNote, ''), ' [reocr_done:0]') WHERE id = ${receipt.id}
+          `);
+        }
+        
+        // LLM呼び出し間隔
+        await new Promise(resolve => setTimeout(resolve, REOCR_DELAY_BETWEEN_CALLS_MS));
+        
+      } catch (err: any) {
+        failedCount++;
+        console.error(`[Amount ReOCR] #${receipt.id} error:`, err.message?.substring(0, 80));
+        // エラーでもマーク（無限ループ防止）
+        try {
+          await db.execute(sql`
+            UPDATE line_receipts SET reviewNote = CONCAT(COALESCE(reviewNote, ''), ' [reocr_error]') WHERE id = ${receipt.id}
+          `);
+        } catch { /* ignore */ }
+      }
+    }
+    
+    console.log(`[Amount ReOCR] Batch complete: detected=${detectedCount}, failed=${failedCount}, points_awarded=${awardedPoints}pt`);
+    
+  } catch (error: any) {
+    console.error("[Amount ReOCR] Fatal error:", error.message);
+  } finally {
+    isReocrProcessing = false;
+  }
+}

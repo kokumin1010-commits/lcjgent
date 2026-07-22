@@ -15,7 +15,7 @@ import { checkAndSendReminders } from "../reminderScheduler";
 import { startGroupFollowUpScheduler } from "../groupFollowUpScheduler";
 import { startResponseReminderScheduler } from "../responseReminderScheduler";
 import { startScheduleReminderScheduler } from "../scheduleReminderScheduler";
-import { startAiAutoApproveScheduler } from "../aiAutoApproveScheduler";
+import { startAiAutoApproveScheduler, startAmountReocrScheduler } from "../aiAutoApproveScheduler";
 import { startLineReminderScheduler } from "../lineReminderScheduler";
 import { startAutoPostScheduler } from "../autoPostScheduler";
 import { startSeoMonitor } from "../seoMonitor";
@@ -2398,6 +2398,9 @@ async function startServer() {
     
     // Start AI auto-approve scheduled trigger (auto-triggers at JST 9:00, 12:00, 18:00)
     startAiAutoApproveScheduledTrigger();
+    
+    // Start amount re-OCR scheduler (re-recognizes amounts for approved receipts with totalAmount=0)
+    startAmountReocrScheduler();
     
     // Start step email scheduler (sends step emails every 1 hour)
     startStepEmailScheduler();
