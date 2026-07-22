@@ -1104,6 +1104,47 @@ ${statisticsPrompt}${learningPrompt}`,
       continue;
     }
 
+    // ===== STEP 3.7: No amount → skip (人間審査) =====
+    if (!candidate.totalAmount || candidate.totalAmount <= 0) {
+      // 金額が0または不明の場合は自動承認しない → on_holdで人間審査
+      console.log(`[AI AutoApprove Scheduler] Receipt #${candidate.id}: 金額不明(totalAmount=${candidate.totalAmount}) → on_hold(人間審査必要)`);
+      await updateLineReceiptStatus(candidate.id, "on_hold", adminUserId,
+        `[AI保留] 金額不明: 購入金額が検出できないため自動承認できません（confidence: ${aiConfidence}%）`);
+      try {
+        await createReceiptReviewLog({
+          receiptType: "line_receipt",
+          receiptId: candidate.id,
+          decision: "on_hold",
+          rejectionCategory: "missing_amount",
+          rejectionNote: `AI保留: 金額不明（totalAmount=${candidate.totalAmount}）`,
+          totalAmount: candidate.totalAmount ?? undefined,
+          hasOrderNumber: finalOrderNumber ? "yes" : "no",
+          imageCount: candidate.imageUrls?.length ?? 1,
+          fraudScore: candidate.fraudScore ?? undefined,
+          fraudFlagCount: candidate.fraudFlags?.length ?? 0,
+          pointsCalculated: candidate.pointsCalculated ?? undefined,
+          reviewedBy: adminUserId,
+        });
+      } catch (logErr) {
+        console.error(`[AI AutoApprove Scheduler] Failed to log missing-amount hold:`, logErr);
+      }
+      results.push({
+        id: candidate.id,
+        action: "skipped" as const,
+        reason: `金額不明（自動承認不可）→ 人間審査必要`,
+        confidence: aiConfidence,
+        orderNumber: finalOrderNumber,
+        amount: candidate.totalAmount ?? undefined,
+        lineUserId: candidate.lineUserId,
+        storeName: candidate.storeName ?? undefined,
+        imageUrl: candidate.imageUrl ?? undefined,
+        reasonCode: "MISSING_AMOUNT",
+        beforeStatus: candidate.status,
+        afterStatus: "on_hold",
+      });
+      continue;
+    }
+
     // ===== STEP 4: Auto-Approve! =====
     let pointsToAward = candidate.pointsCalculated ?? 0;
     // CRITICAL FIX: pointsCalculatedが0でもtotalAmountがある場合は再計算する
