@@ -80,6 +80,7 @@ export default function LivestreamDetail() {
   const [formData, setFormData] = useState({
     livestreamDate: "",
     livestreamEndTime: "",
+    streamerName: "",
     salesAmount: "",
     viewerCount: "",
     duration: "",
@@ -125,10 +126,16 @@ export default function LivestreamDetail() {
     id: livestreamId,
   });
 
-  // ライバーが自分の配信を編集できるかどうか判定
+    // ライバーが自分の配信を編集できるかどうか判定
   const isOwnerLiver = !!(liverInfo && livestream && livestream.liverId === liverInfo.id);
   const canEdit = isAdmin || isOwnerLiver;
   
+  // 配信アカウント一覧を取得（同じライバーの過去の配信アカウント）
+  const { data: streamerAccounts } = trpc.liverManagement.getStreamerAccounts.useQuery(
+    { liverId: livestream?.liverId! },
+    { enabled: !!livestream?.liverId }
+  );
+
     const { data: brands } = trpc.brand.list.useQuery();
 
   // Brand editing state
@@ -230,6 +237,7 @@ export default function LivestreamDetail() {
       setFormData({
         livestreamDate: formatDateTimeLocal(livestream.livestreamDate),
         livestreamEndTime: formatDateTimeLocal(livestream.livestreamEndTime),
+        streamerName: livestream.streamerName || "",
         salesAmount: livestream.salesAmount?.toString() || livestream.gmv?.toString() || "",
         viewerCount: livestream.viewerCount?.toString() || "",
         duration: livestream.duration?.toString() || "",
@@ -774,6 +782,7 @@ export default function LivestreamDetail() {
         id: livestreamId,
         livestreamDate: formData.livestreamDate,
         livestreamEndTime: formData.livestreamEndTime || null,
+        streamerName: formData.streamerName || null,
         salesAmount: formData.salesAmount ? parseInt(formData.salesAmount, 10) : null,
         viewerCount: formData.viewerCount ? parseInt(formData.viewerCount, 10) : null,
         duration: formData.duration ? parseFloat(formData.duration) : null,
@@ -877,6 +886,42 @@ export default function LivestreamDetail() {
             {isEditing ? (
               // Edit Mode
               <div className="space-y-6">
+                {/* 配信アカウント */}
+                <div className="space-y-2">
+                  <Label className="text-red-500 flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    配信アカウント
+                  </Label>
+                  <Select
+                    value={formData.streamerName}
+                    onValueChange={(value) => setFormData({ ...formData, streamerName: value === "__custom__" ? "" : value })}
+                  >
+                    <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                      <SelectValue placeholder="アカウントを選択..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {streamerAccounts?.map((account) => (
+                        <SelectItem key={account} value={account}>
+                          @{account}
+                        </SelectItem>
+                      ))}
+                      {livestream?.liver?.tiktokAccount && !streamerAccounts?.includes(livestream.liver.tiktokAccount) && (
+                        <SelectItem value={livestream.liver.tiktokAccount}>
+                          @{livestream.liver.tiktokAccount}
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {/* 自由入力フォールバック */}
+                  <Input
+                    type="text"
+                    placeholder="または直接入力: @username"
+                    value={formData.streamerName}
+                    onChange={(e) => setFormData({ ...formData, streamerName: e.target.value })}
+                    className="bg-gray-800 border-gray-700 text-white text-sm"
+                  />
+                </div>
+
                 {/* Delivery Period */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -1290,6 +1335,14 @@ export default function LivestreamDetail() {
             ) : (
               // View Mode
               <div className="space-y-6">
+                {/* 配信アカウント */}
+                {livestream.streamerName && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-red-500 font-medium">配信アカウント</span>
+                    <span className="text-white font-medium">@{livestream.streamerName}</span>
+                  </div>
+                )}
+
                 {/* Delivery Period */}
                 <div className="flex justify-between items-start">
                   <span className="text-red-500 font-medium">配信期間</span>

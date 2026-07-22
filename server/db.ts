@@ -27502,3 +27502,19 @@ export async function getRepliesByEmail(toEmail: string) {
     .where(inArray(salesEmailReplies.logId, logIds))
     .orderBy(desc(salesEmailReplies.receivedAt));
 }
+
+
+// Get distinct streamer account names used by a specific liver
+export async function getStreamerAccountsByLiverId(liverId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const results = await db
+    .selectDistinct({ streamerName: brandLivestreams.streamerName })
+    .from(brandLivestreams)
+    .where(and(
+      eq(brandLivestreams.liverId, liverId),
+      isNull(brandLivestreams.deletedAt)
+    ))
+    .orderBy(brandLivestreams.streamerName);
+  return results.map(r => r.streamerName).filter(Boolean);
+}

@@ -1441,6 +1441,7 @@ export default function LiverDetailNew() {
                     <th className="text-left py-3 px-3 text-cyan-400">{tr.start}</th>
                     <th className="text-center py-3 px-3 text-cyan-500/50">-</th>
                     <th className="text-left py-3 px-3 text-cyan-400">{tr.end}</th>
+                    <th className="text-left py-3 px-3 text-cyan-400">{language === 'zh' ? '账号' : 'アカウント'}</th>
                     <th className="text-center py-3 px-3 text-cyan-400">{tr.duration}</th>
                     <th className="text-right py-3 px-3 text-cyan-400">{tr.salesTotal}</th>
                     <th className="text-center py-3 px-3"></th>
@@ -1449,7 +1450,7 @@ export default function LiverDetailNew() {
                 <tbody>
                   {livestreamsLoading ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-8">
+                      <td colSpan={7} className="text-center py-8">
                         <Skeleton className="h-8 w-full bg-cyan-900/30" />
                       </td>
                     </tr>
@@ -1472,6 +1473,9 @@ export default function LiverDetailNew() {
                             ? formatDate(stream.livestreamEndTime)
                             : "-"
                           }
+                        </td>
+                        <td className="py-4 px-3 text-xs text-cyan-200">
+                          {stream.streamerName ? `@${stream.streamerName}` : "-"}
                         </td>
                         <td className="text-center py-4 px-3 text-cyan-300 font-mono">
                           {stream.duration 
@@ -1496,7 +1500,7 @@ export default function LiverDetailNew() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="text-center py-8 text-cyan-500/50">
+                      <td colSpan={7} className="text-center py-8 text-cyan-500/50">
                         {tr.noHistory}
                       </td>
                     </tr>

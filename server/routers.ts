@@ -235,6 +235,7 @@ import {
   deleteProductCategoryMapping,
   getDistinctMappingCategories,
   getLivestreamById,
+  getStreamerAccountsByLiverId,
   updateLivestreamResult,
   getLiversWithStats,
   createBrandEditLog,
@@ -14196,6 +14197,14 @@ ${conversationText}
         return { ...livestream, brand, liver, livestreamBrands: brandsWithDetails };
       }),
 
+    // Get distinct streamer accounts used by a liver (配信アカウント一覧)
+    getStreamerAccounts: publicProcedure
+      .input(z.object({ liverId: z.number() }))
+      .query(async ({ input }) => {
+        const accounts = await getStreamerAccountsByLiverId(input.liverId);
+        return accounts;
+      }),
+
     // Update livestream result (配信結果の記録)
     updateLivestreamResult: protectedProcedure
       .input(z.object({
@@ -15273,6 +15282,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
         brandId: z.number().optional(),
         livestreamDate: z.string().optional(),
         livestreamEndTime: z.string().optional().nullable(),
+        streamerName: z.string().optional().nullable(), // 配信アカウント名
         salesAmount: z.number().optional().nullable(),
         viewerCount: z.number().optional().nullable(),
         duration: z.number().optional().nullable(),
@@ -15324,6 +15334,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
           return result;
         };
         
+        if (data.streamerName !== undefined) updateData.streamerName = data.streamerName;
         if (data.brandId !== undefined) updateData.brandId = data.brandId;
         if (data.livestreamDate !== undefined) {
           updateData.livestreamDate = parseJstToUtc(data.livestreamDate);
