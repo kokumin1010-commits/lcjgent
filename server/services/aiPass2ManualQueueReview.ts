@@ -379,7 +379,18 @@ export async function runAiPass2ManualQueueReview(config: Pass2Config): Promise<
 
     const isTikTok = ocrData.isTikTokShop === true;
     const isDelivered = ocrData.isDelivered === true;
-    const ocrConf = parseFloat(candidate.ocrConfidence || "0");
+    let ocrConf = parseFloat(candidate.ocrConfidence || "0");
+
+    // Recalculate ocrConfidence if missing (legacy receipts uploaded before the fix)
+    // At this point we have ocrData available, so we can derive confidence from data quality
+    if (ocrConf === 0 && isTikTok && isDelivered && (candidate.totalAmount ?? 0) > 0) {
+      let recalculated = 90; // base: TikTok + delivered + amount confirmed
+      if (orderNumber) recalculated += 6; // order number = 96
+      if (ocrData.shopName) recalculated += 1; // shop name = 97
+      if (ocrData.deliveryInfo?.recipientName) recalculated += 1; // delivery info = 98
+      ocrConf = Math.min(recalculated, 98);
+      console.log(`[AI Pass2] Recalculated ocrConfidence for receipt #${candidate.id}: ${ocrConf}% (was null/0)`);
+    }
 
     // Fast path: High OCR confidence with good data
     if (isTikTok && isDelivered && orderNumber && (candidate.totalAmount ?? 0) > 0 && ocrConf >= 95) {
