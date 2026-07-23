@@ -2486,6 +2486,17 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             // 8. ポイント計算 & OCRデータ保存
             const pointsCalculated = Math.floor(ocrData.totalAmount * 0.01);
             
+            // Calculate ocrConfidence based on extracted data quality
+            // This is critical for the AI auto-approve scheduler's fast path
+            // At this point: isTikTokShop=true, isDelivered=true, totalAmount>0 are guaranteed
+            // (earlier validation already returned/rejected if these were false)
+            let calculatedOcrConfidence = 90; // base: TikTok + delivered + amount confirmed
+            if (ocrData.orderNumber) calculatedOcrConfidence += 6; // order number detected = 96
+            if (ocrData.shopName) calculatedOcrConfidence += 1; // shop name detected = 97
+            if (ocrData.deliveryInfo?.recipientName) calculatedOcrConfidence += 1; // delivery info = 98
+            // Cap at 98 (leave 100 for perfect manual verification)
+            calculatedOcrConfidence = Math.min(calculatedOcrConfidence, 98);
+            
             const { updateLineReceiptOcr } = await import("./db");
             await updateLineReceiptOcr(receiptId, {
               storeName: ocrData.shopName || "TikTok Shop",
@@ -2494,6 +2505,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               currency: "JPY",
               orderNumber: ocrData.orderNumber || null,
               ocrRawText: JSON.stringify(ocrData),
+              ocrConfidence: String(calculatedOcrConfidence),
               pointsCalculated,
               imageUrls: uploadedImages.map(i => i.url),
               imageKeys: uploadedImages.map(i => i.key),
