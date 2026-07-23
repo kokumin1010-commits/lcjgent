@@ -354,15 +354,22 @@ export async function runAiPass2ManualQueueReview(config: Pass2Config): Promise<
       continue;
     }
 
-    // ---- CHECK 6: High fraud flags → KEEP_MANUAL ----
+    // ---- CHECK 6: High fraud flags → KEEP_MANUAL (upgraded) ----
+    // Only block on truly dangerous fraud flags (duplicate_order = exact same order number reuse)
+    // Allow AI to override soft flags like similar_order_number, high_amount, rapid_submission
     const fraudFlagCount = candidate.fraudFlags?.length ?? 0;
-    if (fraudFlagCount >= 3) {
+    const fraudFlagsArr: string[] = Array.isArray(candidate.fraudFlags) ? candidate.fraudFlags : [];
+    const hasDuplicateOrder = fraudFlagsArr.includes("duplicate_order");
+    const hasHardFraudFlags = hasDuplicateOrder || fraudFlagsArr.includes("same_image_reuse");
+    
+    if (hasHardFraudFlags && fraudFlagCount >= 2) {
+      // Hard fraud flags (duplicate_order, same_image_reuse) → must stay manual
       results.push({
         receiptId: candidate.id,
         lineUserId: candidate.lineUserId,
         action: "keep_manual",
         reasonCode: "HIGH_FRAUD_FLAGS",
-        reason: `不正フラグ${fraudFlagCount}件 → 手動審査必要`,
+        reason: `不正フラグ(${fraudFlagsArr.join(',')}) → 手動審査必要`,
         orderNumber,
         totalAmount: candidate.totalAmount ?? undefined,
       });
@@ -370,6 +377,11 @@ export async function runAiPass2ManualQueueReview(config: Pass2Config): Promise<
       progress.processed++;
       config.onProgress?.(progress);
       continue;
+    }
+    // Soft fraud flags (similar_order_number, high_amount, rapid_submission) → allow AI override
+    const hasSoftFraudOnly = fraudFlagCount > 0 && !hasHardFraudFlags;
+    if (hasSoftFraudOnly) {
+      console.log(`[AI Pass2] Receipt #${candidate.id} has soft fraud flags [${fraudFlagsArr.join(',')}] (score=${candidate.fraudScore}) - allowing AI override`);
     }
 
     // ---- STEP 6: LLM Image Judgment ----
@@ -395,7 +407,8 @@ export async function runAiPass2ManualQueueReview(config: Pass2Config): Promise<
     // Fast path: High OCR confidence with good data
     if (isTikTok && isDelivered && orderNumber && (candidate.totalAmount ?? 0) > 0 && ocrConf >= 95) {
       aiConfidence = 96;
-      aiReason = "OCRデータ良好(OCR信頼度" + ocrConf + "%): TikTok Shop確認済み + 配達済み + 注文番号あり + 金額あり";
+      const fraudOverrideNote = hasSoftFraudOnly ? ` [Fraud Override: ${fraudFlagsArr.join(',')}]` : '';
+      aiReason = "OCRデータ良好(OCR信頼度" + ocrConf + "%): TikTok Shop確認済み + 配達済み + 注文番号あり + 金額あり" + fraudOverrideNote;
     } else {
       // Need LLM evaluation
       try {
