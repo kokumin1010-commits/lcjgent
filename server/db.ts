@@ -25251,7 +25251,9 @@ export async function getLiverComplianceStats(liverId: number, yearMonth?: strin
   for (const ls of livestreams) {
     if (ls.livestreamDate && ls.createdAt) {
       const diffMs = new Date(ls.createdAt).getTime() - new Date(ls.livestreamDate).getTime();
-      const diffHours = diffMs / (1000 * 60 * 60);
+      // FIX: Use Math.round() to match real-time check in routers.ts (line 14712)
+      // Without rounding, 48.4h would be marked late here but OK in real-time notification
+      const diffHours = Math.round(diffMs / (1000 * 60 * 60));
       if (diffHours <= 48) {
         onTimeRegistrations.push(ls);
       } else {
@@ -25265,7 +25267,9 @@ export async function getLiverComplianceStats(liverId: number, yearMonth?: strin
     ? Math.round((onTimeRegistrations.length / livestreams.length) * 100)
     : 100;
 
-  // 3. Brand input rate (check if livestreamBrands has entries for each livestream)
+  // 3. Brand input rate (check if livestreamBrands junction table has entries for each livestream)
+  // FIX: Also check brand_livestreams.brandId as a fallback - if the main record has a brandId,
+  // it means brand was selected during registration even if livestream_brands junction failed
   const livestreamIds = livestreams.map(ls => ls.id);
   let brandInputStreams = 0;
   let noBrandInputStreams = 0;
@@ -25280,8 +25284,19 @@ export async function getLiverComplianceStats(liverId: number, yearMonth?: strin
     
     const livestreamsWithBrands = new Set(brandEntries.map(be => be.livestreamId));
     
+    // Also check if the livestream record itself has a brandId set (from brand_livestreams.brandId)
+    // This covers cases where createLivestreamBrand failed but the main record has brand info
+    const livestreamsWithPrimaryBrand = new Set<number>();
+    if (livestreamIds.length > 0) {
+      const primaryBrandCheck = await db
+        .select({ id: brandLivestreams.id, brandId: brandLivestreams.brandId })
+        .from(brandLivestreams)
+        .where(sql`${brandLivestreams.id} IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`, `)}) AND ${brandLivestreams.brandId} IS NOT NULL`);
+      primaryBrandCheck.forEach(r => livestreamsWithPrimaryBrand.add(r.id));
+    }
+    
     for (const ls of livestreams) {
-      if (livestreamsWithBrands.has(ls.id)) {
+      if (livestreamsWithBrands.has(ls.id) || livestreamsWithPrimaryBrand.has(ls.id)) {
         brandInputStreams++;
       } else {
         noBrandInputStreams++;
@@ -25330,6 +25345,7 @@ export async function getLiverComplianceStats(liverId: number, yearMonth?: strin
     });
   
   // Re-check properly for noBrandList
+  // FIX: Also consider primary brandId from brand_livestreams table
   const livestreamsWithBrandsSet = new Set<number>();
   if (livestreamIds.length > 0) {
     const brandEntries2 = await db
@@ -25337,6 +25353,12 @@ export async function getLiverComplianceStats(liverId: number, yearMonth?: strin
       .from(livestreamBrands)
       .where(sql`${livestreamBrands.livestreamId} IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`, `)})`);
     brandEntries2.forEach(be => livestreamsWithBrandsSet.add(be.livestreamId));
+    // Also add livestreams that have a primary brandId set
+    const primaryBrandCheck2 = await db
+      .select({ id: brandLivestreams.id })
+      .from(brandLivestreams)
+      .where(sql`${brandLivestreams.id} IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`, `)}) AND ${brandLivestreams.brandId} IS NOT NULL`);
+    primaryBrandCheck2.forEach(r => livestreamsWithBrandsSet.add(r.id));
   }
   
   const noBrandList = livestreams
@@ -25349,6 +25371,7 @@ export async function getLiverComplianceStats(liverId: number, yearMonth?: strin
     }));
 
   // Calculate consecutive late registrations (from most recent)
+  // FIX: Use Math.round() consistent with the 48h check above
   let consecutiveLate = 0;
   const sortedByDate = [...livestreams].sort((a, b) => 
     new Date(b.livestreamDate).getTime() - new Date(a.livestreamDate).getTime()
@@ -25356,7 +25379,7 @@ export async function getLiverComplianceStats(liverId: number, yearMonth?: strin
   for (const ls of sortedByDate) {
     if (ls.livestreamDate && ls.createdAt) {
       const diffMs = new Date(ls.createdAt).getTime() - new Date(ls.livestreamDate).getTime();
-      const diffHours = diffMs / (1000 * 60 * 60);
+      const diffHours = Math.round(diffMs / (1000 * 60 * 60));
       if (diffHours > 48) {
         consecutiveLate++;
       } else {
