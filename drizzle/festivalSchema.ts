@@ -168,3 +168,20 @@ export const festivalLineRegistrations = mysqlTable("festival_line_registrations
 });
 export type FestivalLineRegistration = typeof festivalLineRegistrations.$inferSelect;
 export type InsertFestivalLineRegistration = typeof festivalLineRegistrations.$inferInsert;
+
+/**
+ * Live Commerce Festival - アクティビティログ（アカウントの操作履歴）
+ */
+export const festivalActivityLogs = mysqlTable("festival_activity_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  accountId: int("account_id").notNull(),
+  accountEmail: varchar("account_email", { length: 320 }).notNull(),
+  accountType: mysqlEnum("account_type", ["company", "liver", "general", "admin"]).notNull(),
+  action: varchar("action", { length: 100 }).notNull(), // login, logout, view_dashboard, submit_application, update_profile, password_reset, etc.
+  details: text("details"), // JSON形式で追加情報
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: varchar("user_agent", { length: 500 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type FestivalActivityLog = typeof festivalActivityLogs.$inferSelect;
+export type InsertFestivalActivityLog = typeof festivalActivityLogs.$inferInsert;

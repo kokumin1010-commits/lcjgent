@@ -15,9 +15,38 @@ import {
   festivalSponsors,
   festivalLineRegistrations,
   festivalAccounts,
+  festivalActivityLogs,
 } from "../drizzle/schema";
 import { eq, desc, and, sql, count } from "drizzle-orm";
 import { createFestivalAccount, verifyFestivalToken } from "./festivalAuthRouter";
+
+// Helper: log activity
+async function logActivity(opts: {
+  accountId: number;
+  accountEmail: string;
+  accountType: "company" | "liver" | "general" | "admin";
+  action: string;
+  details?: string;
+  req?: any;
+}) {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    const ipAddress = opts.req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim() || opts.req?.socket?.remoteAddress || null;
+    const userAgent = opts.req?.headers?.['user-agent']?.substring(0, 500) || null;
+    await db.insert(festivalActivityLogs).values({
+      accountId: opts.accountId,
+      accountEmail: opts.accountEmail,
+      accountType: opts.accountType,
+      action: opts.action,
+      details: opts.details || null,
+      ipAddress,
+      userAgent,
+    });
+  } catch (e) {
+    console.error('[LCF ActivityLog] Failed to log:', e);
+  }
+}
 
 // Helper: parse cookie from request header (no cookie-parser middleware)
 function getCookieFromReq(req: any, name: string): string | undefined {
@@ -117,6 +146,10 @@ export const festivalRouter = router({
         // アカウント作成に失敗しても申込みは成功とする
       }
 
+            // Log activity
+      if (accountInfo) {
+        logActivity({ accountId: insertId, accountEmail: input.email, accountType: 'company', action: 'submit_application', details: JSON.stringify({ companyName: input.companyName }), req: ctx.req });
+      }
       return {
         success: true,
         message: "企業申込みを受け付けました",
@@ -127,7 +160,6 @@ export const festivalRouter = router({
         } : null,
       };
     }),
-
   // ライバー＆インフルエンサー申込み
   submitLiver: publicProcedure
     .input(z.object({
@@ -186,6 +218,10 @@ export const festivalRouter = router({
         console.error("[Festival] Account creation error:", err.message);
       }
 
+            // Log activity
+      if (accountInfo) {
+        logActivity({ accountId: insertId, accountEmail: input.email, accountType: 'liver', action: 'submit_application', details: JSON.stringify({ liverName: input.liverName }), req: ctx.req });
+      }
       return {
         success: true,
         message: "ライバー申込みを受け付けました",
@@ -196,7 +232,6 @@ export const festivalRouter = router({
         } : null,
       };
     }),
-
   // 一般来場申込み
   submitGeneral: publicProcedure
     .input(z.object({
@@ -251,6 +286,10 @@ export const festivalRouter = router({
         console.error("[Festival] Account creation error:", err.message);
       }
 
+            // Log activity
+      if (accountInfo) {
+        logActivity({ accountId: insertId, accountEmail: input.email, accountType: 'general', action: 'submit_application', details: JSON.stringify({ name: input.name }), req: ctx.req });
+      }
       return {
         success: true,
         message: "一般来場申込みを受け付けました",
@@ -261,7 +300,6 @@ export const festivalRouter = router({
         } : null,
       };
     }),
-
   // ===== 管理API: 一覧・ステータス管理 =====
 
   // 企業申込み一覧
@@ -575,5 +613,37 @@ export const festivalRouter = router({
           .limit(1);
         return { accountType: 'general', application: app || null, account: { id: account.id, email: account.email, displayName: account.displayName } };
       }
+    }),
+
+  // ===== アクティビティログAPI =====
+  // アクティビティログ一覧取得（管理者専用）
+  listActivityLogs: festivalAdminProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      action: z.string().optional(),
+      limit: z.number().min(1).max(200).default(50),
+      offset: z.number().min(0).default(0),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { logs: [], total: 0 };
+      const limit = input?.limit || 50;
+      const offset = input?.offset || 0;
+      const conditions: any[] = [];
+      if (input?.accountId) {
+        conditions.push(eq(festivalActivityLogs.accountId, input.accountId));
+      }
+      if (input?.action) {
+        conditions.push(eq(festivalActivityLogs.action, input.action));
+      }
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+      const [totalResult] = await db.select({ count: count() }).from(festivalActivityLogs)
+        .where(whereClause);
+      const logs = await db.select().from(festivalActivityLogs)
+        .where(whereClause)
+        .orderBy(desc(festivalActivityLogs.createdAt))
+        .limit(limit)
+        .offset(offset);
+      return { logs, total: totalResult?.count || 0 };
     }),
 });

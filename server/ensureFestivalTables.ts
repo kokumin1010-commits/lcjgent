@@ -279,6 +279,25 @@ async function ensureNewFestivalTables(db: any): Promise<void> {
     } catch (e: any) {
       // Ignore if already done
     }
+    // Activity logs table
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS festival_activity_logs (
+        id INT AUTO_INCREMENT,
+        account_id INT NOT NULL,
+        account_email VARCHAR(320) NOT NULL,
+        account_type ENUM('company','liver','general','admin') NOT NULL,
+        action VARCHAR(100) NOT NULL,
+        details TEXT,
+        ip_address VARCHAR(45),
+        user_agent VARCHAR(500),
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_activity_account_id (account_id),
+        INDEX idx_activity_action (action),
+        INDEX idx_activity_created_at (created_at)
+      )
+    `));
+    console.log("[FestivalTables] \u2705 festival_activity_logs table ensured");
   } catch (err: any) {
     console.error("[FestivalTables] Error creating new tables:", err.message);
   }

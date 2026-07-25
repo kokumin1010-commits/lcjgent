@@ -8,7 +8,7 @@ import { router, publicProcedure } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
-import { festivalAccounts } from "../drizzle/schema";
+import { festivalAccounts, festivalActivityLogs } from "../drizzle/schema";
 import { eq, and, sql } from "drizzle-orm";
 import * as crypto from "crypto";
 import * as jose from "jose";
@@ -311,6 +311,20 @@ export const festivalAuthRouter = router({
       await db.update(festivalAccounts)
         .set({ lastLoginAt: new Date() })
         .where(eq(festivalAccounts.id, account.id));
+      // Log activity
+      try {
+        const ipAddress = ctx.req?.headers?.['x-forwarded-for']?.toString().split(',')[0]?.trim() || null;
+        const userAgent = ctx.req?.headers?.['user-agent']?.substring(0, 500) || null;
+        await db.insert(festivalActivityLogs).values({
+          accountId: account.id,
+          accountEmail: account.email,
+          accountType: account.accountType as any,
+          action: 'login',
+          details: null,
+          ipAddress,
+          userAgent,
+        });
+      } catch (e) { console.error('[LCF ActivityLog] login log failed:', e); }
 
       const token = await createFestivalToken(account.id, account.email, account.accountType, account.role);
 
@@ -508,10 +522,24 @@ export const festivalAuthRouter = router({
 
       const newPassword = generatePassword();
       const newHash = hashPassword(newPassword);
-      await db.update(festivalAccounts)
+            await db.update(festivalAccounts)
         .set({ passwordHash: newHash })
         .where(eq(festivalAccounts.id, input.accountId));
-
+      // Log activity
+      try {
+        const adminEmail = lcfPayload?.email || (ctx as any).user?.email || 'system';
+        const ipAddress = ctx.req?.headers?.['x-forwarded-for']?.toString().split(',')[0]?.trim() || null;
+        const userAgent = ctx.req?.headers?.['user-agent']?.substring(0, 500) || null;
+        await db.insert(festivalActivityLogs).values({
+          accountId: account.id,
+          accountEmail: account.email,
+          accountType: account.accountType as any,
+          action: 'password_reset',
+          details: JSON.stringify({ resetBy: adminEmail }),
+          ipAddress,
+          userAgent,
+        });
+      } catch (e) { console.error('[LCF ActivityLog] password_reset log failed:', e); }
       return { success: true, email: account.email, newPassword };
     }),
 });

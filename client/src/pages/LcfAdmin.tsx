@@ -9,7 +9,7 @@ import { trpc } from '@/lib/trpc';
 import {
   LayoutDashboard, Users, Building2, Mic2, Calendar, Trophy,
   Search, Download, Eye, CheckCircle, XCircle, Clock, Loader2,
-  LogOut, Settings, MessageCircle, UserPlus
+  LogOut, Settings, MessageCircle, UserPlus, Activity
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 
-type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts";
+type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity";
 type AppTab = "company" | "liver" | "general";
 type StatusType = "new" | "confirmed" | "rejected" | "cancelled";
 
@@ -62,6 +62,7 @@ export default function LcfAdmin() {
     { key: "event" as MainTab, label: "イベント設定", icon: Calendar },
     { key: "sponsors" as MainTab, label: "スポンサー", icon: Trophy },
     { key: "accounts" as MainTab, label: "アカウント", icon: UserPlus },
+    { key: "activity" as MainTab, label: "操作履歴", icon: Activity },
   ];
 
   return (
@@ -114,6 +115,7 @@ export default function LcfAdmin() {
         {mainTab === "event" && <EventPanel />}
         {mainTab === "sponsors" && <SponsorsPanel />}
         {mainTab === "accounts" && <AccountsPanel />}
+        {mainTab === "activity" && <ActivityLogPanel />}
       </div>
     </div>
   );
@@ -651,6 +653,114 @@ function AccountsPanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ===== Activity Log =====
+function ActivityLogPanel() {
+  const [page, setPage] = useState(0);
+  const [actionFilter, setActionFilter] = useState("all");
+  const limit = 30;
+
+  const { data, isLoading } = trpc.festival.listActivityLogs.useQuery({
+    limit,
+    offset: page * limit,
+    action: actionFilter !== "all" ? actionFilter : undefined,
+  });
+
+  const actionLabels: Record<string, string> = {
+    login: "ログイン",
+    submit_application: "申込送信",
+    password_reset: "PWリセット",
+    view_dashboard: "ダッシュボード閲覧",
+    update_profile: "プロフィール更新",
+  };
+
+  const actionColors: Record<string, string> = {
+    login: "bg-blue-100 text-blue-800",
+    submit_application: "bg-green-100 text-green-800",
+    password_reset: "bg-amber-100 text-amber-800",
+    view_dashboard: "bg-gray-100 text-gray-800",
+    update_profile: "bg-purple-100 text-purple-800",
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-bold text-white">操作履歴（アクティビティログ）</h2>
+        <div className="flex items-center gap-2">
+          <Select value={actionFilter} onValueChange={setActionFilter}>
+            <SelectTrigger className="w-[160px] bg-white/5 border-white/10 text-white">
+              <SelectValue placeholder="全て" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全て</SelectItem>
+              <SelectItem value="login">ログイン</SelectItem>
+              <SelectItem value="submit_application">申込送信</SelectItem>
+              <SelectItem value="password_reset">PWリセット</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <Card className="bg-white/5 border-white/10">
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-amber-400" /></div>
+          ) : !data?.logs?.length ? (
+            <div className="p-8 text-center text-gray-500">操作履歴がありません</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/10 text-gray-400">
+                  <th className="text-left p-3">日時</th>
+                  <th className="text-left p-3">アカウント</th>
+                  <th className="text-left p-3">タイプ</th>
+                  <th className="text-left p-3">操作</th>
+                  <th className="text-left p-3">詳細</th>
+                  <th className="text-left p-3">IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.logs.map((log: any) => (
+                  <tr key={log.id} className="border-b border-white/5 hover:bg-white/5">
+                    <td className="p-3 text-gray-400 text-xs whitespace-nowrap">
+                      {new Date(log.createdAt).toLocaleString("ja-JP")}
+                    </td>
+                    <td className="p-3 text-white text-xs font-mono">{log.accountEmail}</td>
+                    <td className="p-3">
+                      <Badge className={log.accountType === "admin" ? "bg-amber-100 text-amber-800" : log.accountType === "company" ? "bg-blue-100 text-blue-800" : log.accountType === "liver" ? "bg-pink-100 text-pink-800" : "bg-green-100 text-green-800"}>
+                        {log.accountType}
+                      </Badge>
+                    </td>
+                    <td className="p-3">
+                      <Badge className={actionColors[log.action] || "bg-gray-100 text-gray-800"}>
+                        {actionLabels[log.action] || log.action}
+                      </Badge>
+                    </td>
+                    <td className="p-3 text-gray-400 text-xs max-w-[200px] truncate">
+                      {log.details ? (() => { try { const d = JSON.parse(log.details); return Object.values(d).join(', '); } catch { return log.details; } })() : "-"}
+                    </td>
+                    <td className="p-3 text-gray-500 text-xs font-mono">{log.ipAddress || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Pagination */}
+      {data && data.total > limit && (
+        <div className="flex justify-between items-center">
+          <p className="text-sm text-gray-400">全{data.total}件中 {page * limit + 1}〜{Math.min((page + 1) * limit, data.total)}件</p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>前へ</Button>
+            <Button variant="outline" size="sm" disabled={(page + 1) * limit >= data.total} onClick={() => setPage(p => p + 1)}>次へ</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
