@@ -539,6 +539,7 @@ function AccountsPanel() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [resetResult, setResetResult] = useState<{email: string; newPassword: string} | null>(null);
   const utils = trpc.useUtils();
 
   const createAdmin = trpc.festivalAuth.createAdmin.useMutation({
@@ -546,6 +547,12 @@ function AccountsPanel() {
       utils.festivalAuth.listAccounts.invalidate();
       setShowCreate(false);
       setEmail(""); setPassword(""); setDisplayName("");
+    },
+  });
+
+  const resetPassword = trpc.festivalAuth.resetPassword.useMutation({
+    onSuccess: (data) => {
+      setResetResult({ email: data.email, newPassword: data.newPassword });
     },
   });
 
@@ -558,28 +565,56 @@ function AccountsPanel() {
         </Button>
       </div>
 
+      {/* パスワードリセット結果表示 */}
+      {resetResult && (
+        <Card className="bg-green-900/30 border-green-500/30">
+          <CardContent className="p-4">
+            <p className="text-green-300 font-medium mb-2">パスワードをリセットしました</p>
+            <p className="text-sm text-gray-300">メール: <span className="text-white font-mono">{resetResult.email}</span></p>
+            <p className="text-sm text-gray-300">新パスワード: <span className="text-white font-mono bg-white/10 px-2 py-0.5 rounded">{resetResult.newPassword}</span></p>
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => setResetResult(null)}>閉じる</Button>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="bg-white/5 border-white/10">
         <CardContent className="p-0">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/10 text-gray-400">
+                <th className="text-left p-3">ID</th>
                 <th className="text-left p-3">名前</th>
-                <th className="text-left p-3">メール</th>
+                <th className="text-left p-3">メール(ログインID)</th>
                 <th className="text-left p-3">タイプ</th>
+                <th className="text-left p-3">登録日</th>
                 <th className="text-left p-3">最終ログイン</th>
+                <th className="text-left p-3">操作</th>
               </tr>
             </thead>
             <tbody>
               {accounts?.map((acc: any) => (
                 <tr key={acc.id} className="border-b border-white/5 hover:bg-white/5">
+                  <td className="p-3 text-gray-500 font-mono text-xs">#{acc.id}</td>
                   <td className="p-3 text-white font-medium">{acc.displayName}</td>
-                  <td className="p-3 text-gray-400">{acc.email}</td>
+                  <td className="p-3 text-gray-300 font-mono text-xs">{acc.email}</td>
                   <td className="p-3">
-                    <Badge className={acc.accountType === "admin" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}>
+                    <Badge className={acc.accountType === "admin" ? "bg-amber-100 text-amber-800" : acc.accountType === "company" ? "bg-blue-100 text-blue-800" : acc.accountType === "liver" ? "bg-pink-100 text-pink-800" : "bg-green-100 text-green-800"}>
                       {acc.accountType}
                     </Badge>
                   </td>
-                  <td className="p-3 text-gray-400">{acc.lastLoginAt ? new Date(acc.lastLoginAt).toLocaleDateString("ja-JP") : "-"}</td>
+                  <td className="p-3 text-gray-400 text-xs">{new Date(acc.createdAt).toLocaleDateString("ja-JP")}</td>
+                  <td className="p-3 text-gray-400 text-xs">{acc.lastLoginAt ? new Date(acc.lastLoginAt).toLocaleString("ja-JP") : "未ログイン"}</td>
+                  <td className="p-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-7"
+                      onClick={() => resetPassword.mutate({ accountId: acc.id })}
+                      disabled={resetPassword.isPending}
+                    >
+                      {resetPassword.isPending ? "..." : "PWリセット"}
+                    </Button>
+                  </td>
                 </tr>
               ))}
             </tbody>

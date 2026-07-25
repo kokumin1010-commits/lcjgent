@@ -19,14 +19,23 @@ import {
 import { eq, desc, and, sql, count } from "drizzle-orm";
 import { createFestivalAccount, verifyFestivalToken } from "./festivalAuthRouter";
 
+// Helper: parse cookie from request header (no cookie-parser middleware)
+function getCookieFromReq(req: any, name: string): string | undefined {
+  const cookieHeader = req?.headers?.cookie;
+  if (!cookieHeader) return undefined;
+  const match = cookieHeader.split(';').find((c: string) => c.trim().startsWith(`${name}=`));
+  if (!match) return undefined;
+  return match.split('=').slice(1).join('=').trim();
+}
+
 // Festival admin procedure: allows both lcjmall staff AND LCF admin (lcf_token with role=admin)
 const festivalAdminProcedure = t.procedure.use(async ({ ctx, next }) => {
   // Check 1: lcjmall staff auth
   if ((ctx as any).user) {
     return next({ ctx });
   }
-  // Check 2: LCF admin token
-  const lcfToken = (ctx.req as any)?.cookies?.lcf_token;
+  // Check 2: LCF admin token (manual cookie parse - no cookie-parser middleware)
+  const lcfToken = getCookieFromReq(ctx.req, 'lcf_token');
   if (lcfToken) {
     const payload = await verifyFestivalToken(lcfToken);
     if (payload && payload.role === "admin") {
@@ -539,7 +548,7 @@ export const festivalRouter = router({
   // 自分の申し込み情報を取得
   getMyApplication: publicProcedure
     .query(async ({ ctx }) => {
-      const token = (ctx.req as any)?.cookies?.lcf_token;
+      const token = getCookieFromReq(ctx.req, 'lcf_token');
       if (!token) return null;
       const payload = await verifyFestivalToken(token);
       if (!payload) return null;

@@ -488,4 +488,30 @@ export const festivalAuthRouter = router({
 
       return result;
     }),
+
+  // パスワードリセット（管理者用）- 新しいパスワードを生成して返す
+  resetPassword: publicProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      // Admin check
+      const lcfToken = getCookie(ctx.req, 'lcf_token');
+      const lcfPayload = lcfToken ? await verifyFestivalToken(lcfToken) : null;
+      if (!(ctx as any).user && lcfPayload?.role !== "admin") throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+
+      const [account] = await db.select().from(festivalAccounts)
+        .where(eq(festivalAccounts.id, input.accountId))
+        .limit(1);
+      if (!account) throw new TRPCError({ code: "NOT_FOUND", message: "アカウントが見つかりません" });
+
+      const newPassword = generatePassword();
+      const newHash = hashPassword(newPassword);
+      await db.update(festivalAccounts)
+        .set({ passwordHash: newHash })
+        .where(eq(festivalAccounts.id, input.accountId));
+
+      return { success: true, email: account.email, newPassword };
+    }),
 });
