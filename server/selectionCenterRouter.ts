@@ -1654,4 +1654,98 @@ export const selectionCenterRouter = router({
       }
       return { unitCost: 0 };
     }),
+
+  // ========== 公開カタログ（ライバー勧誘用） ==========
+  // ブランド一覧（商品数付き）- ログイン不要
+  getCatalogBrands: publicProcedure.query(async () => {
+    const pool = getPool();
+    const [rows] = await pool.query(`
+      SELECT 
+        sp.brandId,
+        sp.brandName,
+        COUNT(*) as productCount,
+        GROUP_CONCAT(DISTINCT sp.categoryId) as categoryIds
+      FROM selection_products sp
+      WHERE sp.status = 'online' AND sp.deletedAt IS NULL
+      GROUP BY sp.brandId, sp.brandName
+      ORDER BY productCount DESC
+    `) as any;
+    // ブランドロゴも取得
+    const brandIds = rows.map((r: any) => r.brandId).filter(Boolean);
+    let brandLogos: Record<number, string> = {};
+    if (brandIds.length > 0) {
+      const [brands] = await pool.query(
+        `SELECT id, logoUrl, category, larkCategory FROM brands WHERE id IN (${brandIds.map(() => '?').join(',')})`,
+        brandIds
+      ) as any;
+      for (const b of brands) {
+        brandLogos[b.id] = b.logoUrl || '';
+      }
+    }
+    return rows.map((r: any) => ({
+      brandId: r.brandId,
+      brandName: r.brandName,
+      productCount: Number(r.productCount),
+      logoUrl: brandLogos[r.brandId] || '',
+    }));
+  }),
+
+  // カタログ商品一覧（公開情報のみ）- ログイン不要
+  getCatalogProducts: publicProcedure.input(z.object({
+    brandId: z.number().optional(),
+    search: z.string().optional(),
+    limit: z.number().optional().default(50),
+    offset: z.number().optional().default(0),
+  })).query(async ({ input }) => {
+    const pool = getPool();
+    let where = "WHERE sp.status = 'online' AND sp.deletedAt IS NULL";
+    const params: any[] = [];
+    if (input.brandId) {
+      where += ' AND sp.brandId = ?';
+      params.push(input.brandId);
+    }
+    if (input.search) {
+      where += ' AND (sp.productName LIKE ? OR sp.brandName LIKE ?)';
+      params.push(`%${input.search}%`, `%${input.search}%`);
+    }
+    // 合計件数
+    const [countResult] = await pool.query(
+      `SELECT COUNT(*) as total FROM selection_products sp ${where}`,
+      params
+    ) as any;
+    const total = countResult[0]?.total || 0;
+    // 商品一覧（公開情報のみ - 原価・仕入れ情報は除外）
+    const [products] = await pool.query(
+      `SELECT 
+        sp.id, sp.productName, sp.brandName, sp.brandId,
+        sp.price, sp.marketPrice, sp.images,
+        sp.commissionType, sp.commissionValue,
+        sp.sellingPoints, sp.productLink, sp.stock,
+        sp.categoryId
+      FROM selection_products sp
+      ${where}
+      ORDER BY sp.createdAt DESC
+      LIMIT ? OFFSET ?`,
+      [...params, input.limit, input.offset]
+    ) as any;
+    return { products, total };
+  }),
+
+  // カタログ統計情報（公開）- ログイン不要
+  getCatalogStats: publicProcedure.query(async () => {
+    const pool = getPool();
+    const [stats] = await pool.query(`
+      SELECT 
+        COUNT(*) as totalProducts,
+        COUNT(DISTINCT brandId) as totalBrands,
+        COUNT(DISTINCT categoryId) as totalCategories
+      FROM selection_products
+      WHERE status = 'online' AND deletedAt IS NULL
+    `) as any;
+    return {
+      totalProducts: Number(stats[0]?.totalProducts || 0),
+      totalBrands: Number(stats[0]?.totalBrands || 0),
+      totalCategories: Number(stats[0]?.totalCategories || 0),
+    };
+  }),
 });

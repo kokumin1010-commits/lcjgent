@@ -81,6 +81,7 @@ const LiverForgotPassword = lazy(() => import("./pages/LiverForgotPassword"));
 const LiverResetPassword = lazy(() => import("./pages/LiverResetPassword"));
 const LiverProductSelect = lazy(() => import("./pages/LiverProductSelect"));
 const LiverProductCatalog = lazy(() => import("./pages/LiverProductCatalog"));
+const Catalog = lazy(() => import("./pages/Catalog"));
 const LiverDashboard = lazy(() => import("./pages/LiverDashboard"));
 const LiverAiCoach = lazy(() => import("./pages/LiverAiCoach"));
 const LiverLineSetup = lazy(() => import("./pages/LiverLineSetup"));
@@ -487,6 +488,9 @@ function Router() {
           </ProtectedLiverRoute>
         </Route>
         
+        {/* Public Catalog - ライバー勧誘用公開カタログ */}
+        <Route path={"/catalog"} component={Catalog} />
+
         {/* Liver Self-Service Pages - 認証が必要なページ */}
         <Route path={"/liver/register"} component={LiverRegister} />
         <Route path={"/liver/login"} component={LiverLogin} />
