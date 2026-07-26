@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles } from "lucide-react";
+import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -2870,6 +2870,7 @@ export default function SelectionCenter() {
           <TabsTrigger value="selections"><ClipboardList className="h-4 w-4 mr-1" />{t("sc.tab.selections")}</TabsTrigger>
           <TabsTrigger value="polls"><Vote className="h-4 w-4 mr-1" />{t("sc.tab.polls")}</TabsTrigger>
           <TabsTrigger value="lp-links"><Link2 className="h-4 w-4 mr-1" />LPリンク</TabsTrigger>
+          <TabsTrigger value="procurement"><ShoppingCart className="h-4 w-4 mr-1" />仕入れ</TabsTrigger>
         </TabsList>
         <TabsContent value="products"><ProductsTab /></TabsContent>
         <TabsContent value="liver-selection"><LiverSelectionTab /></TabsContent>
@@ -2879,6 +2880,7 @@ export default function SelectionCenter() {
         <TabsContent value="selections"><SelectionsTab /></TabsContent>
         <TabsContent value="polls"><PollsTab /></TabsContent>
         <TabsContent value="lp-links"><LPLinksTab /></TabsContent>
+        <TabsContent value="procurement"><ProcurementTab /></TabsContent>
       </Tabs>
     </div>
   );
@@ -3022,5 +3024,525 @@ function BrandSearchSelect({ brands, value, onChange, placeholder }: {
         </div>
       )}
     </div>
+  );
+}
+
+// ==================== Procurement Tab (仕入れ管理) ====================
+function ProcurementTab() {
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [filterBrandId, setFilterBrandId] = useState<number | undefined>(undefined);
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<any>(null);
+
+  const brandsQuery = trpc.brand.list.useQuery();
+  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 500 });
+
+  const ordersQuery = trpc.selectionCenter.getProcurementOrders.useQuery({
+    brandId: filterBrandId,
+    status: filterStatus === "all" ? undefined : filterStatus as any,
+    year: selectedYear,
+    month: selectedMonth,
+    limit: 200,
+    offset: 0,
+  });
+
+  const summaryQuery = trpc.selectionCenter.getProcurementSummary.useQuery({
+    year: selectedYear,
+    month: selectedMonth,
+  });
+
+  const createMutation = trpc.selectionCenter.createProcurementOrder.useMutation({
+    onSuccess: () => {
+      toast.success("発注を作成しました");
+      ordersQuery.refetch();
+      summaryQuery.refetch();
+      setShowCreateDialog(false);
+    },
+    onError: (e) => toast.error("エラー: " + e.message),
+  });
+
+  const updateMutation = trpc.selectionCenter.updateProcurementOrder.useMutation({
+    onSuccess: () => {
+      toast.success("更新しました");
+      ordersQuery.refetch();
+      summaryQuery.refetch();
+      setEditingOrder(null);
+    },
+    onError: (e) => toast.error("エラー: " + e.message),
+  });
+
+  const deleteMutation = trpc.selectionCenter.deleteProcurementOrder.useMutation({
+    onSuccess: () => {
+      toast.success("削除しました");
+      ordersQuery.refetch();
+      summaryQuery.refetch();
+    },
+    onError: (e) => toast.error("エラー: " + e.message),
+  });
+
+  const orders = ordersQuery.data?.orders || [];
+  const summary = summaryQuery.data;
+  const brands = brandsQuery.data || [];
+  const products = productsQuery.data?.items || [];
+
+  const statusLabels: Record<string, string> = {
+    pending: "発注待ち",
+    ordered: "発注済み",
+    received: "入荷済み",
+    cancelled: "キャンセル",
+  };
+
+  const statusColors: Record<string, string> = {
+    pending: "bg-yellow-100 text-yellow-800",
+    ordered: "bg-blue-100 text-blue-800",
+    received: "bg-green-100 text-green-800",
+    cancelled: "bg-red-100 text-red-800",
+  };
+
+  // Month navigation
+  const goToPrevMonth = () => {
+    if (selectedMonth === 1) {
+      setSelectedYear(selectedYear - 1);
+      setSelectedMonth(12);
+    } else {
+      setSelectedMonth(selectedMonth - 1);
+    }
+  };
+  const goToNextMonth = () => {
+    if (selectedMonth === 12) {
+      setSelectedYear(selectedYear + 1);
+      setSelectedMonth(1);
+    } else {
+      setSelectedMonth(selectedMonth + 1);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={goToPrevMonth}>&lt;</Button>
+          <span className="text-lg font-semibold">{selectedYear}年{selectedMonth}月</span>
+          <Button variant="outline" size="sm" onClick={goToNextMonth}>&gt;</Button>
+        </div>
+        <Button onClick={() => setShowCreateDialog(true)}>
+          <Plus className="h-4 w-4 mr-1" />新規発注
+        </Button>
+      </div>
+
+      {/* Summary Cards */}
+      {summary && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="pt-4">
+              <p className="text-xs text-muted-foreground">月間仕入れ合計</p>
+              <p className="text-2xl font-bold text-blue-600">
+                ¥{Number(summary.grandTotal?.totalAmount || 0).toLocaleString()}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {summary.grandTotal?.orderCount || 0}件 / {Number(summary.grandTotal?.totalQuantity || 0).toLocaleString()}個
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <p className="text-xs text-muted-foreground">ブランド数</p>
+              <p className="text-2xl font-bold text-purple-600">
+                {summary.brandSummary?.length || 0}社
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <p className="text-xs text-muted-foreground">平均発注単価</p>
+              <p className="text-2xl font-bold text-orange-600">
+                ¥{summary.grandTotal?.orderCount ? Math.round(Number(summary.grandTotal.totalAmount) / Number(summary.grandTotal.orderCount)).toLocaleString() : 0}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Brand Summary */}
+      {summary?.brandSummary && summary.brandSummary.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">ブランド別仕入れ</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {summary.brandSummary.map((b: any) => (
+                <div key={b.brandId} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                  <div>
+                    <p className="font-medium text-sm">{b.brandName || `Brand #${b.brandId}`}</p>
+                    <p className="text-xs text-muted-foreground">{b.orderCount}件 / {Number(b.totalQuantity).toLocaleString()}個</p>
+                  </div>
+                  <p className="font-bold text-sm">¥{Number(b.totalAmount).toLocaleString()}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="ステータス" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全て</SelectItem>
+            <SelectItem value="pending">発注待ち</SelectItem>
+            <SelectItem value="ordered">発注済み</SelectItem>
+            <SelectItem value="received">入荷済み</SelectItem>
+            <SelectItem value="cancelled">キャンセル</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={String(filterBrandId || "all")} onValueChange={v => setFilterBrandId(v === "all" ? undefined : Number(v))}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="ブランド" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全ブランド</SelectItem>
+            {brands.map((b: any) => (
+              <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Orders Table */}
+      <Card>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left p-3 font-medium">発注日</th>
+                  <th className="text-left p-3 font-medium">ブランド</th>
+                  <th className="text-left p-3 font-medium">商品名</th>
+                  <th className="text-right p-3 font-medium">数量</th>
+                  <th className="text-right p-3 font-medium">単価</th>
+                  <th className="text-right p-3 font-medium">合計</th>
+                  <th className="text-center p-3 font-medium">ステータス</th>
+                  <th className="text-center p-3 font-medium">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-8 text-muted-foreground">
+                      {ordersQuery.isLoading ? "読み込み中..." : "この月の仕入れデータはありません"}
+                    </td>
+                  </tr>
+                ) : (
+                  orders.map((order: any) => (
+                    <tr key={order.id} className="border-b hover:bg-muted/30">
+                      <td className="p-3">{order.orderDate ? new Date(order.orderDate).toLocaleDateString('ja-JP') : '-'}</td>
+                      <td className="p-3">{order.brandName}</td>
+                      <td className="p-3 max-w-[200px] truncate">{order.productName}</td>
+                      <td className="p-3 text-right">{Number(order.quantity).toLocaleString()}</td>
+                      <td className="p-3 text-right">¥{Number(order.unitCost).toLocaleString()}</td>
+                      <td className="p-3 text-right font-medium">¥{Number(order.totalCost).toLocaleString()}</td>
+                      <td className="p-3 text-center">
+                        <Badge className={statusColors[order.status] || "bg-gray-100 text-gray-800"}>
+                          {statusLabels[order.status] || order.status}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          {order.status === 'pending' && (
+                            <Button variant="ghost" size="sm" onClick={() => updateMutation.mutate({ id: order.id, status: 'ordered' })} title="発注済みにする">
+                              <CheckCircle className="h-4 w-4 text-blue-600" />
+                            </Button>
+                          )}
+                          {order.status === 'ordered' && (
+                            <Button variant="ghost" size="sm" onClick={() => updateMutation.mutate({ id: order.id, status: 'received' })} title="入荷済みにする">
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" onClick={() => setEditingOrder(order)} title="編集">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => {
+                            if (confirm("この発注を削除しますか？")) {
+                              deleteMutation.mutate({ id: order.id });
+                            }
+                          }} title="削除">
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Create Dialog */}
+      <ProcurementCreateDialog
+        open={showCreateDialog}
+        onClose={() => setShowCreateDialog(false)}
+        brands={brands}
+        products={products}
+        onSubmit={(data) => createMutation.mutate(data)}
+        isLoading={createMutation.isPending}
+      />
+
+      {/* Edit Dialog */}
+      {editingOrder && (
+        <ProcurementEditDialog
+          order={editingOrder}
+          onClose={() => setEditingOrder(null)}
+          onSubmit={(data) => updateMutation.mutate(data)}
+          isLoading={updateMutation.isPending}
+        />
+      )}
+    </div>
+  );
+}
+
+// ==================== Procurement Create Dialog ====================
+function ProcurementCreateDialog({ open, onClose, brands, products, onSubmit, isLoading }: {
+  open: boolean;
+  onClose: () => void;
+  brands: any[];
+  products: any[];
+  onSubmit: (data: any) => void;
+  isLoading: boolean;
+}) {
+  const [form, setForm] = useState({
+    brandId: 0,
+    brandName: "",
+    productId: undefined as number | undefined,
+    productName: "",
+    quantity: 1,
+    unitCost: 0,
+    orderDate: new Date().toISOString().split('T')[0],
+    status: "pending" as string,
+    memo: "",
+  });
+
+  const filteredProducts = useMemo(() => {
+    if (!form.brandId) return products;
+    return products.filter((p: any) => p.brandId === form.brandId);
+  }, [products, form.brandId]);
+
+  const handleProductSelect = (productId: number) => {
+    const product = products.find((p: any) => p.id === productId);
+    if (product) {
+      setForm({
+        ...form,
+        productId: product.id,
+        productName: product.productName,
+        unitCost: Number(product.purchasePrice || product.costPrice || product.price || 0),
+      });
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!form.brandId || !form.productName || form.quantity < 1) {
+      toast.error("ブランド、商品名、数量は必須です");
+      return;
+    }
+    onSubmit({
+      brandId: form.brandId,
+      brandName: form.brandName,
+      productId: form.productId,
+      productName: form.productName,
+      quantity: form.quantity,
+      unitCost: form.unitCost,
+      orderDate: form.orderDate,
+      status: form.status,
+      memo: form.memo || undefined,
+    });
+  };
+
+  if (!open) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>新規仕入れ発注</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>ブランド *</Label>
+            <Select value={String(form.brandId || "")} onValueChange={v => {
+              const brand = brands.find((b: any) => b.id === Number(v));
+              setForm({ ...form, brandId: Number(v), brandName: brand?.name || "" });
+            }}>
+              <SelectTrigger>
+                <SelectValue placeholder="ブランドを選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {brands.map((b: any) => (
+                  <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>商品 (選択 or 手入力)</Label>
+            {filteredProducts.length > 0 && (
+              <Select value={String(form.productId || "")} onValueChange={v => handleProductSelect(Number(v))}>
+                <SelectTrigger className="mb-2">
+                  <SelectValue placeholder="商品を選択..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredProducts.map((p: any) => (
+                    <SelectItem key={p.id} value={String(p.id)}>{p.productName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Input
+              placeholder="商品名を入力"
+              value={form.productName}
+              onChange={e => setForm({ ...form, productName: e.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>数量 *</Label>
+              <Input type="number" min={1} value={form.quantity} onChange={e => setForm({ ...form, quantity: Number(e.target.value) })} />
+            </div>
+            <div>
+              <Label>単価 (円)</Label>
+              <Input type="number" min={0} value={form.unitCost} onChange={e => setForm({ ...form, unitCost: Number(e.target.value) })} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>発注日</Label>
+              <Input type="date" value={form.orderDate} onChange={e => setForm({ ...form, orderDate: e.target.value })} />
+            </div>
+            <div>
+              <Label>ステータス</Label>
+              <Select value={form.status} onValueChange={v => setForm({ ...form, status: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">発注待ち</SelectItem>
+                  <SelectItem value="ordered">発注済み</SelectItem>
+                  <SelectItem value="received">入荷済み</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label>合計金額</Label>
+            <p className="text-lg font-bold text-blue-600">¥{(form.quantity * form.unitCost).toLocaleString()}</p>
+          </div>
+          <div>
+            <Label>メモ</Label>
+            <Textarea value={form.memo} onChange={e => setForm({ ...form, memo: e.target.value })} placeholder="備考を入力..." rows={2} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>キャンセル</Button>
+          <Button onClick={handleSubmit} disabled={isLoading}>
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+            発注作成
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ==================== Procurement Edit Dialog ====================
+function ProcurementEditDialog({ order, onClose, onSubmit, isLoading }: {
+  order: any;
+  onClose: () => void;
+  onSubmit: (data: any) => void;
+  isLoading: boolean;
+}) {
+  const [form, setForm] = useState({
+    quantity: Number(order.quantity),
+    unitCost: Number(order.unitCost),
+    status: order.status,
+    memo: order.memo || "",
+    orderDate: order.orderDate ? new Date(order.orderDate).toISOString().split('T')[0] : "",
+  });
+
+  const handleSubmit = () => {
+    onSubmit({
+      id: order.id,
+      quantity: form.quantity,
+      unitCost: form.unitCost,
+      status: form.status,
+      memo: form.memo,
+      orderDate: form.orderDate,
+    });
+  };
+
+  return (
+    <Dialog open={true} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>発注編集: {order.productName}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="text-sm text-muted-foreground">
+            ブランド: {order.brandName}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>数量</Label>
+              <Input type="number" min={1} value={form.quantity} onChange={e => setForm({ ...form, quantity: Number(e.target.value) })} />
+            </div>
+            <div>
+              <Label>単価 (円)</Label>
+              <Input type="number" min={0} value={form.unitCost} onChange={e => setForm({ ...form, unitCost: Number(e.target.value) })} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>発注日</Label>
+              <Input type="date" value={form.orderDate} onChange={e => setForm({ ...form, orderDate: e.target.value })} />
+            </div>
+            <div>
+              <Label>ステータス</Label>
+              <Select value={form.status} onValueChange={v => setForm({ ...form, status: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">発注待ち</SelectItem>
+                  <SelectItem value="ordered">発注済み</SelectItem>
+                  <SelectItem value="received">入荷済み</SelectItem>
+                  <SelectItem value="cancelled">キャンセル</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label>合計金額</Label>
+            <p className="text-lg font-bold text-blue-600">¥{(form.quantity * form.unitCost).toLocaleString()}</p>
+          </div>
+          <div>
+            <Label>メモ</Label>
+            <Textarea value={form.memo} onChange={e => setForm({ ...form, memo: e.target.value })} rows={2} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>キャンセル</Button>
+          <Button onClick={handleSubmit} disabled={isLoading}>
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+            更新
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

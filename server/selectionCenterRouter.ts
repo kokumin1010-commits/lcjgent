@@ -1332,4 +1332,200 @@ export const selectionCenterRouter = router({
     }
     return { success: true, imported, skipped: bpRows.length - imported };
   }),
+
+  // ========== Procurement Management (仕入れ管理) ==========
+
+  getProcurementOrders: protectedProcedure
+    .input(z.object({
+      brandId: z.number().optional(),
+      status: z.enum(['pending', 'ordered', 'received', 'cancelled']).optional(),
+      year: z.number().optional(),
+      month: z.number().optional(),
+      limit: z.number().default(100),
+      offset: z.number().default(0),
+    }).optional())
+    .query(async ({ input }) => {
+      const pool = getPool();
+      const filters = input || {};
+      let where = 'WHERE 1=1';
+      const params: any[] = [];
+      if (filters.brandId) {
+        where += ' AND brandId = ?';
+        params.push(filters.brandId);
+      }
+      if (filters.status) {
+        where += ' AND status = ?';
+        params.push(filters.status);
+      }
+      if (filters.year && filters.month) {
+        where += ' AND YEAR(orderDate) = ? AND MONTH(orderDate) = ?';
+        params.push(filters.year, filters.month);
+      } else if (filters.year) {
+        where += ' AND YEAR(orderDate) = ?';
+        params.push(filters.year);
+      }
+      const countParams = [...params];
+      params.push(filters.limit || 100, filters.offset || 0);
+      const [rows] = await pool.query(
+        `SELECT * FROM procurement_orders ${where} ORDER BY orderDate DESC, id DESC LIMIT ? OFFSET ?`,
+        params
+      ) as any;
+      const [countResult] = await pool.query(
+        `SELECT COUNT(*) as total FROM procurement_orders ${where}`,
+        countParams
+      ) as any;
+      return { orders: rows, total: countResult[0]?.total || 0 };
+    }),
+
+  createProcurementOrder: protectedProcedure
+    .input(z.object({
+      brandId: z.number(),
+      brandName: z.string(),
+      productId: z.number().optional(),
+      productName: z.string(),
+      quantity: z.number().min(1),
+      unitCost: z.number().min(0),
+      orderDate: z.string(), // YYYY-MM-DD
+      status: z.enum(['pending', 'ordered', 'received', 'cancelled']).default('pending'),
+      memo: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = getPool();
+      const totalCost = input.quantity * input.unitCost;
+      const [result] = await pool.query(
+        `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, status, memo, createdBy)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          input.brandId,
+          input.brandName,
+          input.productId || null,
+          input.productName,
+          input.quantity,
+          input.unitCost,
+          totalCost,
+          input.orderDate,
+          input.status,
+          input.memo || null,
+          (ctx.user as any)?.id || 0,
+        ]
+      ) as any;
+      return { success: true, id: result.insertId };
+    }),
+
+  updateProcurementOrder: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      quantity: z.number().min(1).optional(),
+      unitCost: z.number().min(0).optional(),
+      status: z.enum(['pending', 'ordered', 'received', 'cancelled']).optional(),
+      memo: z.string().optional(),
+      orderDate: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const pool = getPool();
+      const updates: string[] = [];
+      const params: any[] = [];
+      if (input.status !== undefined) {
+        updates.push('status = ?');
+        params.push(input.status);
+      }
+      if (input.memo !== undefined) {
+        updates.push('memo = ?');
+        params.push(input.memo);
+      }
+      if (input.orderDate !== undefined) {
+        updates.push('orderDate = ?');
+        params.push(input.orderDate);
+      }
+      if (input.quantity !== undefined) {
+        updates.push('quantity = ?');
+        params.push(input.quantity);
+      }
+      if (input.unitCost !== undefined) {
+        updates.push('unitCost = ?');
+        params.push(input.unitCost);
+      }
+      // Recalculate totalCost if quantity or unitCost changed
+      if (input.quantity !== undefined || input.unitCost !== undefined) {
+        // Fetch current values
+        const [current] = await pool.query(
+          'SELECT quantity, unitCost FROM procurement_orders WHERE id = ?',
+          [input.id]
+        ) as any;
+        if (current.length > 0) {
+          const qty = input.quantity ?? current[0].quantity;
+          const cost = input.unitCost ?? Number(current[0].unitCost);
+          updates.push('totalCost = ?');
+          params.push(qty * cost);
+        }
+      }
+      if (updates.length === 0) return { success: false, message: 'No fields to update' };
+      params.push(input.id);
+      await pool.query(
+        `UPDATE procurement_orders SET ${updates.join(', ')} WHERE id = ?`,
+        params
+      );
+      return { success: true };
+    }),
+
+  deleteProcurementOrder: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const pool = getPool();
+      await pool.query('DELETE FROM procurement_orders WHERE id = ?', [input.id]);
+      return { success: true };
+    }),
+
+  getProcurementSummary: protectedProcedure
+    .input(z.object({
+      year: z.number().optional(),
+      month: z.number().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const pool = getPool();
+      const filters = input || {};
+      let where = 'WHERE 1=1';
+      const params: any[] = [];
+      if (filters.year && filters.month) {
+        where += ' AND YEAR(orderDate) = ? AND MONTH(orderDate) = ?';
+        params.push(filters.year, filters.month);
+      } else if (filters.year) {
+        where += ' AND YEAR(orderDate) = ?';
+        params.push(filters.year);
+      }
+      // Brand-level summary
+      const [brandSummary] = await pool.query(
+        `SELECT brandId, brandName, 
+                COUNT(*) as orderCount,
+                SUM(totalCost) as totalAmount,
+                SUM(quantity) as totalQuantity
+         FROM procurement_orders ${where}
+         GROUP BY brandId, brandName
+         ORDER BY totalAmount DESC`,
+        params
+      ) as any;
+      // Monthly trend
+      const [monthlyTrend] = await pool.query(
+        `SELECT YEAR(orderDate) as year, MONTH(orderDate) as month,
+                SUM(totalCost) as totalAmount,
+                COUNT(*) as orderCount,
+                SUM(quantity) as totalQuantity
+         FROM procurement_orders ${where}
+         GROUP BY YEAR(orderDate), MONTH(orderDate)
+         ORDER BY year DESC, month DESC
+         LIMIT 12`,
+        params
+      ) as any;
+      // Grand total
+      const [grandTotal] = await pool.query(
+        `SELECT SUM(totalCost) as totalAmount, COUNT(*) as orderCount, SUM(quantity) as totalQuantity
+         FROM procurement_orders ${where}`,
+        params
+      ) as any;
+      return {
+        brandSummary: brandSummary || [],
+        monthlyTrend: monthlyTrend || [],
+        grandTotal: grandTotal[0] || { totalAmount: 0, orderCount: 0, totalQuantity: 0 },
+      };
+    }),
 });

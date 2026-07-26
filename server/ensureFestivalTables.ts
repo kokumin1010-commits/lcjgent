@@ -298,6 +298,31 @@ async function ensureNewFestivalTables(db: any): Promise<void> {
       )
     `));
     console.log("[FestivalTables] \u2705 festival_activity_logs table ensured");
+
+    // Procurement orders table for selection center
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS procurement_orders (
+        id INT AUTO_INCREMENT,
+        brandId INT NOT NULL,
+        brandName VARCHAR(255) NOT NULL,
+        productId INT,
+        productName VARCHAR(500) NOT NULL,
+        quantity INT NOT NULL DEFAULT 1,
+        unitCost DECIMAL(12,2) NOT NULL DEFAULT 0,
+        totalCost DECIMAL(14,2) NOT NULL DEFAULT 0,
+        orderDate DATE NOT NULL,
+        status ENUM('pending','ordered','received','cancelled') NOT NULL DEFAULT 'pending',
+        memo TEXT,
+        createdBy INT NOT NULL DEFAULT 0,
+        createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_procurement_brand (brandId),
+        INDEX idx_procurement_date (orderDate),
+        INDEX idx_procurement_status (status)
+      )
+    `));
+    console.log("[FestivalTables] \u2705 procurement_orders table ensured");
   } catch (err: any) {
     console.error("[FestivalTables] Error creating new tables:", err.message);
   }
