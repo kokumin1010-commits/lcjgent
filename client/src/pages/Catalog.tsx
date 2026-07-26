@@ -3,16 +3,49 @@ import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Package, Search, Building2, ShoppingBag, ArrowRight, Star, X } from "lucide-react";
+import { Package, Search, ShoppingBag, ArrowRight, Star, X, Lock } from "lucide-react";
 
 /**
  * 公開カタログページ - ライブコマーサー勧誘用
  * ログイン不要でLCJの取り扱いブランド・商品一覧を閲覧可能
+ * ライバー登録済みの場合は卸値・報酬率も表示
  * URL: /catalog
  */
+
+// ブランド名の頭文字を取得してアバターに使う
+function getBrandInitial(name: string): string {
+  if (!name) return "?";
+  // 日本語・中国語の場合は最初の1文字
+  const firstChar = name.charAt(0);
+  if (/[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]/.test(firstChar)) {
+    return firstChar;
+  }
+  // 英語の場合は最初の2文字（大文字）
+  return name.slice(0, 2).toUpperCase();
+}
+
+// ブランド名からユニークな色を生成
+function getBrandColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colors = [
+    "from-violet-500/30 to-purple-600/30",
+    "from-blue-500/30 to-indigo-600/30",
+    "from-emerald-500/30 to-teal-600/30",
+    "from-rose-500/30 to-pink-600/30",
+    "from-amber-500/30 to-orange-600/30",
+    "from-cyan-500/30 to-sky-600/30",
+    "from-fuchsia-500/30 to-purple-600/30",
+    "from-lime-500/30 to-green-600/30",
+  ];
+  return colors[Math.abs(hash) % colors.length];
+}
+
 export default function Catalog() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
+  const [selectedBrand, setSelectedBrand] = useState<any>(null);
   const [viewMode, setViewMode] = useState<"brands" | "products">("brands");
 
   // 統計情報
@@ -21,9 +54,9 @@ export default function Catalog() {
   // ブランド一覧
   const { data: brands = [], isLoading: brandsLoading } = trpc.selectionCenter.getCatalogBrands.useQuery();
 
-  // 商品一覧
+  // 商品一覧 - brandIds配列で合併ブランドの全商品を取得
   const { data: productsData, isLoading: productsLoading } = trpc.selectionCenter.getCatalogProducts.useQuery({
-    brandId: selectedBrandId || undefined,
+    brandIds: selectedBrand?.brandIds || undefined,
     search: searchQuery.trim() || undefined,
     limit: 100,
     offset: 0,
@@ -31,6 +64,7 @@ export default function Catalog() {
 
   const products = productsData?.products || [];
   const totalProducts = productsData?.total || 0;
+  const isAuthenticated = productsData?.isAuthenticated || false;
 
   // ブランド検索フィルター
   const filteredBrands = useMemo(() => {
@@ -40,20 +74,18 @@ export default function Catalog() {
   }, [brands, searchQuery]);
 
   // ブランド選択時
-  const handleBrandSelect = (brandId: number) => {
-    setSelectedBrandId(brandId);
+  const handleBrandSelect = (brand: any) => {
+    setSelectedBrand(brand);
     setViewMode("products");
     setSearchQuery("");
   };
 
   // 戻る
   const handleBackToBrands = () => {
-    setSelectedBrandId(null);
+    setSelectedBrand(null);
     setViewMode("brands");
     setSearchQuery("");
   };
-
-  const selectedBrand = brands.find((b: any) => b.brandId === selectedBrandId);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950">
@@ -102,7 +134,7 @@ export default function Catalog() {
       <div className="sticky top-0 z-50 bg-slate-950/90 backdrop-blur-xl border-b border-white/5">
         <div className="max-w-6xl mx-auto px-4 py-3">
           <div className="flex items-center gap-3">
-            {viewMode === "products" && selectedBrandId && (
+            {viewMode === "products" && selectedBrand && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -126,22 +158,21 @@ export default function Catalog() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => { setViewMode("products"); setSelectedBrandId(null); }}
+                onClick={() => { setViewMode("products"); setSelectedBrand(null); }}
                 className="text-gray-300 border-white/10 hover:border-indigo-500/50 hover:text-white shrink-0"
               >
                 <ShoppingBag className="h-4 w-4 mr-1" />
                 全商品
               </Button>
             )}
-            {viewMode === "products" && !selectedBrandId && (
+            {viewMode === "products" && !selectedBrand && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleBackToBrands}
                 className="text-gray-300 border-white/10 hover:border-indigo-500/50 hover:text-white shrink-0"
               >
-                <Building2 className="h-4 w-4 mr-1" />
-                ブランド
+                ブランド一覧
               </Button>
             )}
           </div>
@@ -149,7 +180,7 @@ export default function Catalog() {
       </div>
 
       {/* Content */}
-      <main className="max-w-6xl mx-auto px-4 py-6 pb-20">
+      <main className="max-w-6xl mx-auto px-4 py-6 pb-32">
         {viewMode === "brands" ? (
           <>
             {/* Brand Grid */}
@@ -168,7 +199,7 @@ export default function Catalog() {
               </div>
             ) : filteredBrands.length === 0 ? (
               <div className="text-center py-20">
-                <Building2 className="h-16 w-16 text-gray-700 mx-auto mb-4" />
+                <Package className="h-16 w-16 text-gray-700 mx-auto mb-4" />
                 <p className="text-gray-500">該当するブランドがありません</p>
               </div>
             ) : (
@@ -176,15 +207,17 @@ export default function Catalog() {
                 {filteredBrands.map((brand: any) => (
                   <button
                     key={brand.brandId}
-                    onClick={() => handleBrandSelect(brand.brandId)}
+                    onClick={() => handleBrandSelect(brand)}
                     className="group bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] hover:border-indigo-500/30 rounded-xl p-4 text-left transition-all duration-200 hover:scale-[1.02]"
                   >
-                    {/* Brand Logo */}
-                    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center mb-3 overflow-hidden">
+                    {/* Brand Logo / Avatar */}
+                    <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${getBrandColor(brand.brandName)} flex items-center justify-center mb-3 overflow-hidden`}>
                       {brand.logoUrl ? (
                         <img src={brand.logoUrl} alt={brand.brandName} className="w-full h-full object-cover rounded-lg" />
                       ) : (
-                        <Building2 className="h-5 w-5 text-indigo-400" />
+                        <span className="text-white font-bold text-sm">
+                          {getBrandInitial(brand.brandName)}
+                        </span>
                       )}
                     </div>
                     {/* Brand Name */}
@@ -207,11 +240,13 @@ export default function Catalog() {
             <div className="mb-4">
               {selectedBrand && (
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center overflow-hidden">
+                  <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${getBrandColor(selectedBrand.brandName)} flex items-center justify-center overflow-hidden`}>
                     {selectedBrand.logoUrl ? (
                       <img src={selectedBrand.logoUrl} alt={selectedBrand.brandName} className="w-full h-full object-cover rounded-lg" />
                     ) : (
-                      <Building2 className="h-4 w-4 text-indigo-400" />
+                      <span className="text-white font-bold text-xs">
+                        {getBrandInitial(selectedBrand.brandName)}
+                      </span>
                     )}
                   </div>
                   <div>
@@ -220,7 +255,7 @@ export default function Catalog() {
                   </div>
                 </div>
               )}
-              {!selectedBrandId && (
+              {!selectedBrand && (
                 <h2 className="text-lg font-semibold text-white">
                   全商品一覧
                   <span className="text-gray-400 text-sm font-normal ml-2">
@@ -278,14 +313,36 @@ export default function Catalog() {
                             {product.brandName}
                           </Badge>
                         </div>
-                        <div className="flex items-end justify-between pt-1">
-                          <span className="text-yellow-400 font-bold text-base">
-                            ¥{Number(product.price || 0).toLocaleString()}
-                          </span>
-                          {product.commissionValue && Number(product.commissionValue) > 0 && (
-                            <span className="text-[10px] text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded">
-                              報酬 {product.commissionType === 'percentage' ? `${product.commissionValue}%` : `¥${Number(product.commissionValue).toLocaleString()}`}
+                        <div className="pt-1 space-y-1">
+                          {/* 販売価格 */}
+                          <div className="flex items-end justify-between">
+                            <span className="text-yellow-400 font-bold text-base">
+                              ¥{Number(product.price || 0).toLocaleString()}
                             </span>
+                          </div>
+                          
+                          {/* 卸値・報酬率 - 認証済みなら表示、未認証ならロック表示 */}
+                          {isAuthenticated ? (
+                            <div className="flex flex-wrap gap-1">
+                              {product.purchasePrice && Number(product.purchasePrice) > 0 && (
+                                <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                                  卸値 ¥{Number(product.purchasePrice).toLocaleString()}
+                                </span>
+                              )}
+                              {product.commissionValue && Number(product.commissionValue) > 0 && (
+                                <span className="text-[10px] text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded">
+                                  報酬 {product.commissionType === 'percentage' ? `${product.commissionValue}%` : `¥${Number(product.commissionValue).toLocaleString()}`}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <a
+                              href="/liver/register"
+                              className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-indigo-400 transition-colors no-underline"
+                            >
+                              <Lock className="h-2.5 w-2.5" />
+                              <span>登録して卸値・報酬を確認</span>
+                            </a>
                           )}
                         </div>
                       </div>

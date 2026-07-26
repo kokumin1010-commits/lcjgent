@@ -4,6 +4,8 @@ import mysql from "mysql2/promise";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
 import { invokeLLM } from "./_core/llm";
+import { jwtVerify } from "jose";
+import { ENV } from "./_core/env";
 
 // Direct mysql2 connection pool (bypass drizzle issues on Railway)
 let _pool: mysql.Pool | null = null;
@@ -1682,25 +1684,65 @@ export const selectionCenterRouter = router({
         brandLogos[b.id] = b.logoUrl || '';
       }
     }
-    return rows.map((r: any) => ({
-      brandId: r.brandId,
-      brandName: r.brandName,
-      productCount: Number(r.productCount),
-      logoUrl: brandLogos[r.brandId] || '',
-    }));
+    // 同名ブランドを合併（FLORASIS/花西子、栄進製薬/Dietmaruなど表記揺れを統合）
+    const normalizeKey = (name: string): string => {
+      const n = name.toLowerCase().replace(/[\s\(\)（）/／・]+/g, '');
+      // FLORASIS / 花西子 系統
+      if (n.includes('florasis') || n.includes('花西子')) return 'florasis';
+      // 栄進製薬 / Dietmaru 系統
+      if (n.includes('栄進') || n.includes('dietmaru')) return 'eishin';
+      return n;
+    };
+    const merged: Record<string, { brandIds: number[]; brandName: string; productCount: number; logoUrl: string }> = {};
+    for (const r of rows) {
+      const key = normalizeKey(r.brandName);
+      if (merged[key]) {
+        merged[key].brandIds.push(r.brandId);
+        merged[key].productCount += Number(r.productCount);
+        // ロゴがあるものを優先
+        if (!merged[key].logoUrl && brandLogos[r.brandId]) {
+          merged[key].logoUrl = brandLogos[r.brandId];
+        }
+        // 商品数が多い方の名前を使う
+        if (Number(r.productCount) > merged[key].productCount - Number(r.productCount)) {
+          merged[key].brandName = r.brandName;
+        }
+      } else {
+        merged[key] = {
+          brandIds: [r.brandId],
+          brandName: r.brandName,
+          productCount: Number(r.productCount),
+          logoUrl: brandLogos[r.brandId] || '',
+        };
+      }
+    }
+    return Object.values(merged)
+      .sort((a, b) => b.productCount - a.productCount)
+      .map(m => ({
+        brandId: m.brandIds[0], // 代表ID
+        brandIds: m.brandIds, // 全ID（商品取得用）
+        brandName: m.brandName,
+        productCount: m.productCount,
+        logoUrl: m.logoUrl,
+      }));
   }),
 
-  // カタログ商品一覧（公開情報のみ）- ログイン不要
+  // カタログ商品一覧 - ログイン不要だが、ライバー認証済みなら卸値・報酬率も返す
   getCatalogProducts: publicProcedure.input(z.object({
     brandId: z.number().optional(),
+    brandIds: z.array(z.number()).optional(),
     search: z.string().optional(),
     limit: z.number().optional().default(50),
     offset: z.number().optional().default(0),
-  })).query(async ({ input }) => {
+  })).query(async ({ input, ctx }) => {
     const pool = getPool();
     let where = "WHERE sp.status = 'online' AND sp.deletedAt IS NULL";
     const params: any[] = [];
-    if (input.brandId) {
+    // brandIds配列対応（合併ブランド用）
+    if (input.brandIds && input.brandIds.length > 0) {
+      where += ` AND sp.brandId IN (${input.brandIds.map(() => '?').join(',')})`;
+      params.push(...input.brandIds);
+    } else if (input.brandId) {
       where += ' AND sp.brandId = ?';
       params.push(input.brandId);
     }
@@ -1714,21 +1756,49 @@ export const selectionCenterRouter = router({
       params
     ) as any;
     const total = countResult[0]?.total || 0;
-    // 商品一覧（公開情報のみ - 原価・仕入れ情報は除外）
+
+    // ライバー認証チェック（トークンがあれば卸値・報酬率も返す）
+    let isAuthenticated = false;
+    try {
+      const authHeader = (ctx as any).req?.headers?.authorization;
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.slice(7);
+        const secret = new TextEncoder().encode(ENV.cookieSecret);
+        const { payload } = await jwtVerify(token, secret);
+        if (payload && (payload.type === 'liver' || payload.role === 'admin')) {
+          isAuthenticated = true;
+        }
+      }
+      // 管理者セッションもチェック
+      if (!isAuthenticated && (ctx as any).user) {
+        isAuthenticated = true;
+      }
+    } catch {
+      // 認証失敗は無視（公開情報のみ返す）
+    }
+
+    // 商品一覧
+    const selectFields = isAuthenticated
+      ? `sp.id, sp.productName, sp.brandName, sp.brandId,
+         sp.price, sp.marketPrice, sp.images,
+         sp.commissionType, sp.commissionValue,
+         sp.purchasePrice,
+         sp.sellingPoints, sp.productLink, sp.stock,
+         sp.categoryId`
+      : `sp.id, sp.productName, sp.brandName, sp.brandId,
+         sp.price, sp.marketPrice, sp.images,
+         sp.sellingPoints, sp.productLink, sp.stock,
+         sp.categoryId`;
+
     const [products] = await pool.query(
-      `SELECT 
-        sp.id, sp.productName, sp.brandName, sp.brandId,
-        sp.price, sp.marketPrice, sp.images,
-        sp.commissionType, sp.commissionValue,
-        sp.sellingPoints, sp.productLink, sp.stock,
-        sp.categoryId
+      `SELECT ${selectFields}
       FROM selection_products sp
       ${where}
       ORDER BY sp.createdAt DESC
       LIMIT ? OFFSET ?`,
       [...params, input.limit, input.offset]
     ) as any;
-    return { products, total };
+    return { products, total, isAuthenticated };
   }),
 
   // カタログ統計情報（公開）- ログイン不要
