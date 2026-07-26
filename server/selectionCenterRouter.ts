@@ -1807,14 +1807,26 @@ export const selectionCenterRouter = router({
     const [stats] = await pool.query(`
       SELECT 
         COUNT(*) as totalProducts,
-        COUNT(DISTINCT brandId) as totalBrands,
         COUNT(DISTINCT categoryId) as totalCategories
       FROM selection_products
       WHERE status = 'online' AND deletedAt IS NULL
     `) as any;
+    // ブランド数は合併後の数をカウント（getCatalogBrandsと同じロジック）
+    const [brandRows] = await pool.query(`
+      SELECT brandName FROM selection_products
+      WHERE status = 'online' AND deletedAt IS NULL
+      GROUP BY brandName
+    `) as any;
+    const normalizeKey = (name: string): string => {
+      const n = name.toLowerCase().replace(/[\s\(\)（）/／・]+/g, '');
+      if (n.includes('florasis') || n.includes('花西子')) return 'florasis';
+      if (n.includes('栄進') || n.includes('dietmaru')) return 'eishin';
+      return n;
+    };
+    const uniqueBrands = new Set(brandRows.map((r: any) => normalizeKey(r.brandName)));
     return {
       totalProducts: Number(stats[0]?.totalProducts || 0),
-      totalBrands: Number(stats[0]?.totalBrands || 0),
+      totalBrands: uniqueBrands.size,
       totalCategories: Number(stats[0]?.totalCategories || 0),
     };
   }),
