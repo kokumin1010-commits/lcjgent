@@ -2967,17 +2967,39 @@ function BrandSearchSelect({ brands, value, onChange, placeholder }: {
 }) {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const selectedBrand = brands.find((b: any) => b.id === value);
+
+  // ブランド合併ロジック（重複排除）
+  const mergedBrands = useMemo(() => {
+    const normalizeKey = (name: string): string => {
+      const n = name.toLowerCase().replace(/[\s\(\)（）/／・]+/g, '');
+      if (n.includes('florasis') || n.includes('花西子')) return 'florasis';
+      if (n.includes('栄進') || n.includes('dietmaru')) return 'eishin';
+      if (n.includes('kyogoku') || n.includes('京極')) return 'kyogoku';
+      if (n.includes('方里') || n.includes('funny') || n.includes('ファンリー')) return 'funli';
+      if (n.includes('mistine')) return 'mistine';
+      if (n.includes('ibiza')) return 'ibiza';
+      if (n.includes('リコアセラム') || n.includes('ricoa')) return 'ricoa';
+      if (n.includes('星睿肌') || n.includes('rikareal')) return 'rikareal';
+      if (n.includes('siinono')) return 'siinono';
+      return n;
+    };
+    const merged: Record<string, { id: number; name: string }> = {};
+    for (const b of brands) {
+      const key = normalizeKey(b.name || '');
+      if (!merged[key]) {
+        merged[key] = { id: b.id, name: b.name };
+      }
+    }
+    return Object.values(merged);
+  }, [brands]);
+
+  const selectedBrand = mergedBrands.find((b) => b.id === value) || brands.find((b: any) => b.id === value);
 
   const filteredBrands = useMemo(() => {
-    if (!searchTerm) return brands;
+    if (!searchTerm) return mergedBrands;
     const lower = searchTerm.toLowerCase();
-    return brands.filter((b: any) =>
-      (b.name || "").toLowerCase().includes(lower) ||
-      (b.nameJa || "").toLowerCase().includes(lower) ||
-      (b.nameEn || "").toLowerCase().includes(lower)
-    );
-  }, [brands, searchTerm]);
+    return mergedBrands.filter((b) => b.name.toLowerCase().includes(lower));
+  }, [mergedBrands, searchTerm]);
 
   return (
     <div className="relative">
@@ -2987,7 +3009,7 @@ function BrandSearchSelect({ brands, value, onChange, placeholder }: {
         className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span className={selectedBrand ? "" : "text-muted-foreground"}>
-          {selectedBrand ? selectedBrand.name : (placeholder || "选择品牌...")}
+          {selectedBrand ? selectedBrand.name : (placeholder || "ブランドを選択...")}
         </span>
         <Search className="h-4 w-4 opacity-50" />
       </button>
@@ -2995,7 +3017,7 @@ function BrandSearchSelect({ brands, value, onChange, placeholder }: {
         <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md">
           <div className="p-2 border-b">
             <Input
-              placeholder="搜索品牌名..."
+              placeholder="ブランド名で検索..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="h-8"
@@ -3004,9 +3026,9 @@ function BrandSearchSelect({ brands, value, onChange, placeholder }: {
           </div>
           <div className="max-h-[200px] overflow-y-auto p-1">
             {filteredBrands.length === 0 ? (
-              <div className="py-4 text-center text-sm text-muted-foreground">未找到品牌</div>
+              <div className="py-4 text-center text-sm text-muted-foreground">ブランドが見つかりません</div>
             ) : (
-              filteredBrands.map((b: any) => (
+              filteredBrands.map((b) => (
                 <button
                   key={b.id}
                   type="button"
@@ -3339,6 +3361,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
   const [form, setForm] = useState({
     brandId: 0,
     brandName: "",
+    brandIds: [] as number[], // 合併ブランドの全ID
     productId: undefined as number | undefined,
     productName: "",
     quantity: 1,
@@ -3346,30 +3369,52 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
     orderDate: new Date().toISOString().split('T')[0],
     status: "pending" as string,
     memo: "",
-    registerCost: true, // 原価も同時登録するかどうか
+    registerCost: true,
   });
+
+  // ブランド合併ロジック（カタログと同じ）
+  const mergedBrands = useMemo(() => {
+    const normalizeKey = (name: string): string => {
+      const n = name.toLowerCase().replace(/[\s\(\)（）/／・]+/g, '');
+      if (n.includes('florasis') || n.includes('花西子')) return 'florasis';
+      if (n.includes('栄進') || n.includes('dietmaru')) return 'eishin';
+      if (n.includes('kyogoku') || n.includes('京極')) return 'kyogoku';
+      if (n.includes('方里') || n.includes('funny') || n.includes('ファンリー')) return 'funli';
+      if (n.includes('mistine')) return 'mistine';
+      if (n.includes('ibiza')) return 'ibiza';
+      if (n.includes('リコアセラム') || n.includes('ricoa')) return 'ricoa';
+      if (n.includes('星睿肌') || n.includes('rikareal')) return 'rikareal';
+      if (n.includes('siinono')) return 'siinono';
+      return n;
+    };
+    const merged: Record<string, { ids: number[]; name: string; count: number }> = {};
+    for (const b of brands) {
+      const key = normalizeKey(b.name || '');
+      if (merged[key]) {
+        merged[key].ids.push(b.id);
+        merged[key].count++;
+      } else {
+        merged[key] = { ids: [b.id], name: b.name, count: 1 };
+      }
+    }
+    return Object.values(merged).sort((a, b) => a.name.localeCompare(b.name));
+  }, [brands]);
 
   // ブランド検索
   const [brandSearch, setBrandSearch] = useState("");
   const [brandDropdownOpen, setBrandDropdownOpen] = useState(false);
   const filteredBrands = useMemo(() => {
-    if (!brandSearch) return brands;
+    if (!brandSearch) return mergedBrands;
     const lower = brandSearch.toLowerCase();
-    return brands.filter((b: any) =>
-      (b.name || "").toLowerCase().includes(lower) ||
-      (b.nameJa || "").toLowerCase().includes(lower) ||
-      (b.nameEn || "").toLowerCase().includes(lower)
-    );
-  }, [brands, brandSearch]);
+    return mergedBrands.filter((b) => b.name.toLowerCase().includes(lower));
+  }, [mergedBrands, brandSearch]);
 
-  // 商品検索
-  const [productSearch, setProductSearch] = useState("");
-  const [productDropdownOpen, setProductDropdownOpen] = useState(false);
-  const searchProductsQuery = trpc.selectionCenter.searchProductsForProcurement.useQuery(
-    { search: productSearch, brandId: form.brandId || undefined, limit: 30 },
-    { enabled: productDropdownOpen && (productSearch.length > 0 || form.brandId > 0) }
+  // ブランド選択後に商品を自動取得
+  const brandProductsQuery = trpc.selectionCenter.searchProductsForProcurement.useQuery(
+    { brandIds: form.brandIds.length > 0 ? form.brandIds : undefined, limit: 50 },
+    { enabled: form.brandIds.length > 0 }
   );
-  const searchResults = searchProductsQuery.data || [];
+  const brandProducts = brandProductsQuery.data || [];
 
   const handleProductSelect = (product: any) => {
     setForm({
@@ -3378,8 +3423,6 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
       productName: product.productName,
       unitCost: Number(product.purchasePrice || product.price || 0),
     });
-    setProductSearch(product.productName);
-    setProductDropdownOpen(false);
   };
 
   const handleSubmit = () => {
@@ -3405,12 +3448,12 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>新規仕入れ発注</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          {/* ブランド検索付きセレクト */}
+          {/* ブランド検索付きセレクト（合併済み） */}
           <div>
             <Label>ブランド *</Label>
             <div className="relative">
@@ -3439,18 +3482,18 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
                     {filteredBrands.length === 0 ? (
                       <div className="py-4 text-center text-sm text-muted-foreground">ブランドが見つかりません</div>
                     ) : (
-                      filteredBrands.map((b: any) => (
+                      filteredBrands.map((b, idx) => (
                         <button
-                          key={b.id}
+                          key={idx}
                           type="button"
-                          className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground cursor-pointer flex items-center gap-2 ${b.id === form.brandId ? 'bg-accent' : ''}`}
+                          className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground cursor-pointer flex items-center gap-2 ${b.ids[0] === form.brandId ? 'bg-accent' : ''}`}
                           onClick={() => {
-                            setForm({ ...form, brandId: b.id, brandName: b.name });
+                            setForm({ ...form, brandId: b.ids[0], brandName: b.name, brandIds: b.ids, productId: undefined, productName: "", unitCost: 0 });
                             setBrandDropdownOpen(false);
                             setBrandSearch("");
                           }}
                         >
-                          {b.id === form.brandId && <Check className="h-3 w-3" />}
+                          {b.ids[0] === form.brandId && <Check className="h-3 w-3" />}
                           <span>{b.name}</span>
                         </button>
                       ))
@@ -3461,50 +3504,64 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
             </div>
           </div>
 
-          {/* 商品検索 */}
-          <div>
-            <Label>商品名 * (検索して選択 or 手入力)</Label>
-            <div className="relative">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="商品名・バーコードで検索..."
-                  value={productSearch}
-                  onChange={e => {
-                    setProductSearch(e.target.value);
-                    setForm({ ...form, productName: e.target.value, productId: undefined });
-                    setProductDropdownOpen(true);
-                  }}
-                  onFocus={() => setProductDropdownOpen(true)}
-                  className="pl-9"
-                />
-              </div>
-              {productDropdownOpen && searchResults.length > 0 && (
-                <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md">
-                  <div className="max-h-[200px] overflow-y-auto p-1">
-                    {searchResults.map((p: any) => (
+          {/* ブランド選択後に商品一覧を画像付きで自動表示 */}
+          {form.brandIds.length > 0 && (
+            <div>
+              <Label>商品を選択 *</Label>
+              {brandProductsQuery.isLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">商品を読み込み中...</span>
+                </div>
+              ) : brandProducts.length === 0 ? (
+                <div className="py-4 text-center text-sm text-muted-foreground border rounded-md">
+                  このブランドに登録された商品がありません
+                </div>
+              ) : (
+                <div className="border rounded-md max-h-[240px] overflow-y-auto">
+                  {brandProducts.map((p: any) => {
+                    let imgUrl = '';
+                    try { const imgs = JSON.parse(p.images || '[]'); imgUrl = imgs[0] || ''; } catch {}
+                    const isSelected = form.productId === p.id;
+                    return (
                       <button
                         key={p.id}
                         type="button"
-                        className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                        className={`w-full text-left px-3 py-2 flex items-center gap-3 border-b last:border-b-0 hover:bg-accent/50 transition-colors ${isSelected ? 'bg-blue-50 border-blue-200' : ''}`}
                         onClick={() => handleProductSelect(p)}
                       >
-                        <div className="flex items-center gap-2">
-                          {p.images && (() => { try { const imgs = JSON.parse(p.images); return imgs[0] ? <img src={imgs[0]} className="w-8 h-8 rounded object-cover" /> : null; } catch { return null; } })()}
-                          <div className="flex-1 min-w-0">
-                            <p className="truncate font-medium">{p.productName}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {p.brandName}{p.purchasePrice ? ` | 原価: ¥${Number(p.purchasePrice).toLocaleString()}` : ''}{p.barcode ? ` | ${p.barcode}` : ''}
-                            </p>
+                        {imgUrl ? (
+                          <img src={imgUrl} className="w-12 h-12 rounded object-cover flex-shrink-0 border" />
+                        ) : (
+                          <div className="w-12 h-12 rounded bg-muted flex items-center justify-center flex-shrink-0 border">
+                            <Package className="w-5 h-5 text-muted-foreground" />
                           </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm truncate ${isSelected ? 'font-bold text-blue-700' : 'font-medium'}`}>{p.productName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {p.purchasePrice ? `原価: ¥${Number(p.purchasePrice).toLocaleString()}` : ''}
+                            {p.price ? `${p.purchasePrice ? ' | ' : ''}売価: ¥${Number(p.price).toLocaleString()}` : ''}
+                            {p.barcode ? ` | ${p.barcode}` : ''}
+                          </p>
                         </div>
+                        {isSelected && <Check className="h-4 w-4 text-blue-600 flex-shrink-0" />}
                       </button>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
               )}
+              {/* 手入力オプション */}
+              <div className="mt-2">
+                <Input
+                  placeholder="商品名を手入力することもできます..."
+                  value={form.productId ? '' : form.productName}
+                  onChange={e => setForm({ ...form, productName: e.target.value, productId: undefined })}
+                  className="text-sm"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

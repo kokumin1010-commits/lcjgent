@@ -1538,13 +1538,17 @@ export const selectionCenterRouter = router({
     .input(z.object({
       search: z.string().optional(),
       brandId: z.number().optional(),
+      brandIds: z.array(z.number()).optional(),
       limit: z.number().default(50),
     }))
     .query(async ({ input }) => {
       const pool = getPool();
       let where = 'WHERE sp.deletedAt IS NULL';
       const params: any[] = [];
-      if (input.brandId) {
+      if (input.brandIds && input.brandIds.length > 0) {
+        where += ` AND sp.brandId IN (${input.brandIds.map(() => '?').join(',')})`;
+        params.push(...input.brandIds);
+      } else if (input.brandId) {
         where += ' AND sp.brandId = ?';
         params.push(input.brandId);
       }
