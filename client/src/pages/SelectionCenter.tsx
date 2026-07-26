@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2 } from "lucide-react";
+import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -2871,6 +2871,7 @@ export default function SelectionCenter() {
           <TabsTrigger value="polls"><Vote className="h-4 w-4 mr-1" />{t("sc.tab.polls")}</TabsTrigger>
           <TabsTrigger value="lp-links"><Link2 className="h-4 w-4 mr-1" />LPリンク</TabsTrigger>
           <TabsTrigger value="procurement"><ShoppingCart className="h-4 w-4 mr-1" />仕入れ</TabsTrigger>
+          <TabsTrigger value="cost-management"><Lock className="h-4 w-4 mr-1" />原価管理</TabsTrigger>
           <TabsTrigger value="brands" onClick={() => { window.location.href = '/master/brands'; }}><Building2 className="h-4 w-4 mr-1" />ブランド管理</TabsTrigger>
         </TabsList>
         <TabsContent value="products"><ProductsTab /></TabsContent>
@@ -2882,6 +2883,7 @@ export default function SelectionCenter() {
         <TabsContent value="polls"><PollsTab /></TabsContent>
         <TabsContent value="lp-links"><LPLinksTab /></TabsContent>
         <TabsContent value="procurement"><ProcurementTab /></TabsContent>
+        <TabsContent value="cost-management"><CostManagementTab /></TabsContent>
         <TabsContent value="brands"><div className="p-8 text-center text-muted-foreground">ブランド管理ページに移動しています...</div></TabsContent>
       </Tabs>
     </div>
@@ -3112,6 +3114,16 @@ function ProcurementTab() {
     onError: (e) => console.error("原価登録エラー:", e.message),
   });
 
+  const batchCreateMutation = trpc.selectionCenter.createBatchProcurementOrders.useMutation({
+    onSuccess: (result) => {
+      toast.success(`${result.count}件の発注を作成しました`);
+      ordersQuery.refetch();
+      summaryQuery.refetch();
+      setShowCreateDialog(false);
+    },
+    onError: (e) => toast.error("エラー: " + e.message),
+  });
+
   const orders = ordersQuery.data?.orders || [];
   const summary = summaryQuery.data;
   const brands = brandsQuery.data || [];
@@ -3167,12 +3179,12 @@ function ProcurementTab() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardContent className="pt-4">
-              <p className="text-xs text-muted-foreground">月間仕入れ合計</p>
+              <p className="text-xs text-muted-foreground">月間発注件数</p>
               <p className="text-2xl font-bold text-blue-600">
-                ¥{Number(summary.grandTotal?.totalAmount || 0).toLocaleString()}
+                {summary.grandTotal?.orderCount || 0}件
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                {summary.grandTotal?.orderCount || 0}件 / {Number(summary.grandTotal?.totalQuantity || 0).toLocaleString()}個
+                合計 {Number(summary.grandTotal?.totalQuantity || 0).toLocaleString()}個
               </p>
             </CardContent>
           </Card>
@@ -3186,9 +3198,9 @@ function ProcurementTab() {
           </Card>
           <Card>
             <CardContent className="pt-4">
-              <p className="text-xs text-muted-foreground">平均発注単価</p>
-              <p className="text-2xl font-bold text-orange-600">
-                ¥{summary.grandTotal?.orderCount ? Math.round(Number(summary.grandTotal.totalAmount) / Number(summary.grandTotal.orderCount)).toLocaleString() : 0}
+              <p className="text-xs text-muted-foreground">確認済排期</p>
+              <p className="text-2xl font-bold text-green-600">
+                {orders.filter((o: any) => o.status === 'received').length}件
               </p>
             </CardContent>
           </Card>
@@ -3209,7 +3221,6 @@ function ProcurementTab() {
                     <p className="font-medium text-sm">{b.brandName || `Brand #${b.brandId}`}</p>
                     <p className="text-xs text-muted-foreground">{b.orderCount}件 / {Number(b.totalQuantity).toLocaleString()}個</p>
                   </div>
-                  <p className="font-bold text-sm">¥{Number(b.totalAmount).toLocaleString()}</p>
                 </div>
               ))}
             </div>
@@ -3250,8 +3261,6 @@ function ProcurementTab() {
                   <th className="text-left p-3 font-medium">ブランド</th>
                   <th className="text-left p-3 font-medium">商品名</th>
                   <th className="text-right p-3 font-medium">数量</th>
-                  <th className="text-right p-3 font-medium">単価</th>
-                  <th className="text-right p-3 font-medium">合計</th>
                   <th className="text-center p-3 font-medium">ステータス</th>
                   <th className="text-center p-3 font-medium">操作</th>
                 </tr>
@@ -3259,7 +3268,7 @@ function ProcurementTab() {
               <tbody>
                 {orders.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <td colSpan={6} className="text-center py-8 text-muted-foreground">
                       {ordersQuery.isLoading ? "読み込み中..." : "この月の仕入れデータはありません"}
                     </td>
                   </tr>
@@ -3270,8 +3279,6 @@ function ProcurementTab() {
                       <td className="p-3">{order.brandName}</td>
                       <td className="p-3 max-w-[200px] truncate">{order.productName}</td>
                       <td className="p-3 text-right">{Number(order.quantity).toLocaleString()}</td>
-                      <td className="p-3 text-right">¥{Number(order.unitCost).toLocaleString()}</td>
-                      <td className="p-3 text-right font-medium">¥{Number(order.totalCost).toLocaleString()}</td>
                       <td className="p-3 text-center">
                         <Badge className={statusColors[order.status] || "bg-gray-100 text-gray-800"}>
                           {statusLabels[order.status] || order.status}
@@ -3316,25 +3323,9 @@ function ProcurementTab() {
         onClose={() => setShowCreateDialog(false)}
         brands={brands}
         onSubmit={(data) => {
-          // 原価登録オプションがある場合、発注作成後に原価も登録
-          const { registerCost, ...orderData } = data;
-          createMutation.mutate(orderData, {
-            onSuccess: () => {
-              if (registerCost && data.productId && data.unitCost > 0) {
-                registerCostMutation.mutate({
-                  productId: data.productId,
-                  productName: data.productName,
-                  brandId: data.brandId,
-                  brandName: data.brandName,
-                  unitCost: data.unitCost,
-                  effectiveDate: data.orderDate,
-                  memo: `仕入れ発注時に登録`,
-                });
-              }
-            },
-          });
+          batchCreateMutation.mutate(data);
         }}
-        isLoading={createMutation.isPending}
+        isLoading={batchCreateMutation.isPending}
       />
 
       {/* Edit Dialog */}
@@ -3350,7 +3341,7 @@ function ProcurementTab() {
   );
 }
 
-// ==================== Procurement Create Dialog (検索付き・原価自動入力) ====================
+// ==================== Procurement Create Dialog (複数商品選択対応・原価非表示) ====================
 function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }: {
   open: boolean;
   onClose: () => void;
@@ -3358,19 +3349,14 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
   onSubmit: (data: any) => void;
   isLoading: boolean;
 }) {
-  const [form, setForm] = useState({
-    brandId: 0,
-    brandName: "",
-    brandIds: [] as number[], // 合併ブランドの全ID
-    productId: undefined as number | undefined,
-    productName: "",
-    quantity: 1,
-    unitCost: 0,
-    orderDate: new Date().toISOString().split('T')[0],
-    status: "pending" as string,
-    memo: "",
-    registerCost: true,
-  });
+  const [brandId, setBrandId] = useState(0);
+  const [brandName, setBrandName] = useState("");
+  const [brandIds, setBrandIds] = useState<number[]>([]);
+  const [selectedItems, setSelectedItems] = useState<Array<{ productId?: number; productName: string; quantity: number }>>([]);
+  const [manualProductName, setManualProductName] = useState("");
+  const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
+  const [status, setStatus] = useState("pending");
+  const [memo, setMemo] = useState("");
 
   // ブランド合併ロジック（カタログと同じ）
   const mergedBrands = useMemo(() => {
@@ -3411,38 +3397,77 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
 
   // ブランド選択後に商品を自動取得
   const brandProductsQuery = trpc.selectionCenter.searchProductsForProcurement.useQuery(
-    { brandIds: form.brandIds.length > 0 ? form.brandIds : undefined, limit: 50 },
-    { enabled: form.brandIds.length > 0 }
+    { brandIds: brandIds.length > 0 ? brandIds : undefined, limit: 50 },
+    { enabled: brandIds.length > 0 }
   );
   const brandProducts = brandProductsQuery.data || [];
 
-  const handleProductSelect = (product: any) => {
-    setForm({
-      ...form,
-      productId: product.id,
-      productName: product.productName,
-      unitCost: Number(product.purchasePrice || product.price || 0),
-    });
+  // 商品をトグル選択
+  const toggleProduct = (product: any) => {
+    const exists = selectedItems.find(i => i.productId === product.id);
+    if (exists) {
+      setSelectedItems(selectedItems.filter(i => i.productId !== product.id));
+    } else {
+      setSelectedItems([...selectedItems, { productId: product.id, productName: product.productName, quantity: 1 }]);
+    }
+  };
+
+  // 手入力商品を追加
+  const addManualProduct = () => {
+    if (!manualProductName.trim()) return;
+    setSelectedItems([...selectedItems, { productName: manualProductName.trim(), quantity: 1 }]);
+    setManualProductName("");
+  };
+
+  // 数量変更
+  const updateQuantity = (index: number, quantity: number) => {
+    const updated = [...selectedItems];
+    updated[index] = { ...updated[index], quantity: Math.max(1, quantity) };
+    setSelectedItems(updated);
+  };
+
+  // 商品削除
+  const removeItem = (index: number) => {
+    setSelectedItems(selectedItems.filter((_, i) => i !== index));
   };
 
   const handleSubmit = () => {
-    if (!form.brandId || !form.productName || form.quantity < 1) {
-      toast.error("ブランド、商品名、数量は必須です");
+    if (!brandId) {
+      toast.error("ブランドを選択してください");
+      return;
+    }
+    if (selectedItems.length === 0) {
+      toast.error("商品を少なくとも1つ選択してください");
       return;
     }
     onSubmit({
-      brandId: form.brandId,
-      brandName: form.brandName,
-      productId: form.productId,
-      productName: form.productName,
-      quantity: form.quantity,
-      unitCost: form.unitCost,
-      orderDate: form.orderDate,
-      status: form.status,
-      memo: form.memo || undefined,
-      registerCost: form.registerCost,
+      brandId,
+      brandName,
+      orderDate,
+      status,
+      memo: memo || undefined,
+      items: selectedItems.map(item => ({
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        unitCost: 0, // 原価は原価管理タブで別途管理
+      })),
     });
   };
+
+  // リセット
+  useEffect(() => {
+    if (open) {
+      setBrandId(0);
+      setBrandName("");
+      setBrandIds([]);
+      setSelectedItems([]);
+      setManualProductName("");
+      setOrderDate(new Date().toISOString().split('T')[0]);
+      setStatus("pending");
+      setMemo("");
+    }
+  }, [open]);
 
   if (!open) return null;
 
@@ -3462,8 +3487,8 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
                 onClick={() => setBrandDropdownOpen(!brandDropdownOpen)}
                 className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring"
               >
-                <span className={form.brandName ? "" : "text-muted-foreground"}>
-                  {form.brandName || "ブランドを検索..."}
+                <span className={brandName ? "" : "text-muted-foreground"}>
+                  {brandName || "ブランドを検索..."}
                 </span>
                 <Search className="h-4 w-4 opacity-50" />
               </button>
@@ -3486,14 +3511,17 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
                         <button
                           key={idx}
                           type="button"
-                          className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground cursor-pointer flex items-center gap-2 ${b.ids[0] === form.brandId ? 'bg-accent' : ''}`}
+                          className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground cursor-pointer flex items-center gap-2 ${b.ids[0] === brandId ? 'bg-accent' : ''}`}
                           onClick={() => {
-                            setForm({ ...form, brandId: b.ids[0], brandName: b.name, brandIds: b.ids, productId: undefined, productName: "", unitCost: 0 });
+                            setBrandId(b.ids[0]);
+                            setBrandName(b.name);
+                            setBrandIds(b.ids);
+                            setSelectedItems([]);
                             setBrandDropdownOpen(false);
                             setBrandSearch("");
                           }}
                         >
-                          {b.ids[0] === form.brandId && <Check className="h-3 w-3" />}
+                          {b.ids[0] === brandId && <Check className="h-3 w-3" />}
                           <span>{b.name}</span>
                         </button>
                       ))
@@ -3504,10 +3532,10 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
             </div>
           </div>
 
-          {/* ブランド選択後に商品一覧を画像付きで自動表示 */}
-          {form.brandIds.length > 0 && (
+          {/* ブランド選択後に商品一覧を画像付きで表示（複数選択可能） */}
+          {brandIds.length > 0 && (
             <div>
-              <Label>商品を選択 *</Label>
+              <Label>商品を選択 *（複数選択可）</Label>
               {brandProductsQuery.isLoading ? (
                 <div className="flex items-center justify-center py-6">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -3518,69 +3546,91 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
                   このブランドに登録された商品がありません
                 </div>
               ) : (
-                <div className="border rounded-md max-h-[240px] overflow-y-auto">
+                <div className="border rounded-md max-h-[200px] overflow-y-auto">
                   {brandProducts.map((p: any) => {
                     let imgUrl = '';
                     try { const imgs = JSON.parse(p.images || '[]'); imgUrl = imgs[0] || ''; } catch {}
-                    const isSelected = form.productId === p.id;
+                    const isSelected = selectedItems.some(i => i.productId === p.id);
                     return (
                       <button
                         key={p.id}
                         type="button"
                         className={`w-full text-left px-3 py-2 flex items-center gap-3 border-b last:border-b-0 hover:bg-accent/50 transition-colors ${isSelected ? 'bg-blue-50 border-blue-200' : ''}`}
-                        onClick={() => handleProductSelect(p)}
+                        onClick={() => toggleProduct(p)}
                       >
+                        <Checkbox checked={isSelected} className="flex-shrink-0" />
                         {imgUrl ? (
-                          <img src={imgUrl} className="w-12 h-12 rounded object-cover flex-shrink-0 border" />
+                          <img src={imgUrl} className="w-10 h-10 rounded object-cover flex-shrink-0 border" />
                         ) : (
-                          <div className="w-12 h-12 rounded bg-muted flex items-center justify-center flex-shrink-0 border">
-                            <Package className="w-5 h-5 text-muted-foreground" />
+                          <div className="w-10 h-10 rounded bg-muted flex items-center justify-center flex-shrink-0 border">
+                            <Package className="w-4 h-4 text-muted-foreground" />
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm truncate ${isSelected ? 'font-bold text-blue-700' : 'font-medium'}`}>{p.productName}</p>
                           <p className="text-xs text-muted-foreground">
-                            {p.purchasePrice ? `原価: ¥${Number(p.purchasePrice).toLocaleString()}` : ''}
-                            {p.price ? `${p.purchasePrice ? ' | ' : ''}売価: ¥${Number(p.price).toLocaleString()}` : ''}
-                            {p.barcode ? ` | ${p.barcode}` : ''}
+                            {p.price ? `売価: ¥${Number(p.price).toLocaleString()}` : ''}
+                            {p.barcode ? `${p.price ? ' | ' : ''}${p.barcode}` : ''}
                           </p>
                         </div>
-                        {isSelected && <Check className="h-4 w-4 text-blue-600 flex-shrink-0" />}
                       </button>
                     );
                   })}
                 </div>
               )}
               {/* 手入力オプション */}
-              <div className="mt-2">
+              <div className="mt-2 flex gap-2">
                 <Input
-                  placeholder="商品名を手入力することもできます..."
-                  value={form.productId ? '' : form.productName}
-                  onChange={e => setForm({ ...form, productName: e.target.value, productId: undefined })}
-                  className="text-sm"
+                  placeholder="商品名を手入力で追加..."
+                  value={manualProductName}
+                  onChange={e => setManualProductName(e.target.value)}
+                  className="text-sm flex-1"
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addManualProduct(); } }}
                 />
+                <Button type="button" variant="outline" size="sm" onClick={addManualProduct} disabled={!manualProductName.trim()}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* 選択済み商品一覧（商品ごとに数量設定） */}
+          {selectedItems.length > 0 && (
+            <div>
+              <Label>選択済み商品 ({selectedItems.length}件)</Label>
+              <div className="border rounded-md divide-y mt-1">
+                {selectedItems.map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-3 px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{item.productName}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Label className="text-xs text-muted-foreground whitespace-nowrap">数量:</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={item.quantity}
+                        onChange={e => updateQuantity(idx, Number(e.target.value))}
+                        className="w-16 h-7 text-sm text-center"
+                      />
+                      <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="h-7 w-7 p-0">
+                        <X className="h-3 w-3 text-red-500" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>数量 *</Label>
-              <Input type="number" min={1} value={form.quantity} onChange={e => setForm({ ...form, quantity: Number(e.target.value) })} />
-            </div>
-            <div>
-              <Label>原価/単価 (円)</Label>
-              <Input type="number" min={0} value={form.unitCost} onChange={e => setForm({ ...form, unitCost: Number(e.target.value) })} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
               <Label>発注日</Label>
-              <Input type="date" value={form.orderDate} onChange={e => setForm({ ...form, orderDate: e.target.value })} />
+              <Input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} />
             </div>
             <div>
               <Label>ステータス</Label>
-              <Select value={form.status} onValueChange={v => setForm({ ...form, status: v })}>
+              <Select value={status} onValueChange={v => setStatus(v)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -3592,32 +3642,16 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
               </Select>
             </div>
           </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>合計金額</Label>
-              <p className="text-lg font-bold text-blue-600">¥{(form.quantity * form.unitCost).toLocaleString()}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={form.registerCost}
-                onCheckedChange={(v) => setForm({ ...form, registerCost: !!v })}
-                id="register-cost"
-              />
-              <label htmlFor="register-cost" className="text-xs text-muted-foreground cursor-pointer">
-                原価も登録する
-              </label>
-            </div>
-          </div>
           <div>
             <Label>メモ</Label>
-            <Textarea value={form.memo} onChange={e => setForm({ ...form, memo: e.target.value })} placeholder="備考を入力..." rows={2} />
+            <Textarea value={memo} onChange={e => setMemo(e.target.value)} placeholder="備考を入力..." rows={2} />
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>キャンセル</Button>
-          <Button onClick={handleSubmit} disabled={isLoading}>
+          <Button onClick={handleSubmit} disabled={isLoading || selectedItems.length === 0}>
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-            発注作成
+            {selectedItems.length > 0 ? `${selectedItems.length}件発注作成` : '発注作成'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -3709,5 +3743,402 @@ function ProcurementEditDialog({ order, onClose, onSubmit, isLoading }: {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ==================== Cost Management Tab (原価管理・パスワード保護) ====================
+function CostManagementTab() {
+  const [authenticated, setAuthenticated] = useState(false);
+  const [password, setPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+
+  const COST_PASSWORD = "lcj59";
+
+  const handlePasswordSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (password === COST_PASSWORD) {
+      setAuthenticated(true);
+      setPasswordError("");
+    } else {
+      setPasswordError("パスワードが正しくありません");
+    }
+  };
+
+  if (!authenticated) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="w-full max-w-sm">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-2">
+              <Lock className="h-6 w-6 text-amber-600" />
+            </div>
+            <CardTitle className="text-lg">原価管理</CardTitle>
+            <p className="text-sm text-muted-foreground">アクセスにはパスワードが必要です</p>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div>
+                <Input
+                  type="password"
+                  placeholder="パスワードを入力..."
+                  value={password}
+                  onChange={e => { setPassword(e.target.value); setPasswordError(""); }}
+                  autoFocus
+                />
+                {passwordError && <p className="text-xs text-red-500 mt-1">{passwordError}</p>}
+              </div>
+              <Button type="submit" className="w-full">認証</Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return <CostManagementContent />;
+}
+
+function CostManagementContent() {
+  const [filterBrandId, setFilterBrandId] = useState<number | undefined>(undefined);
+  const [editingCost, setEditingCost] = useState<any>(null);
+
+  const brandsQuery = trpc.brand.list.useQuery();
+  const brands = brandsQuery.data || [];
+
+  // 原価履歴取得
+  const costHistoryQuery = trpc.selectionCenter.getProductCostHistory.useQuery({
+    brandId: filterBrandId,
+    limit: 100,
+  });
+  const costHistory = costHistoryQuery.data || [];
+
+  // 仕入れ発注データ（原価付き）
+  const ordersQuery = trpc.selectionCenter.getProcurementOrders.useQuery({
+    brandId: filterBrandId,
+    limit: 200,
+    offset: 0,
+  });
+  const orders = (ordersQuery.data?.orders || []).filter((o: any) => Number(o.unitCost) > 0);
+
+  // 原価登録ミューテーション
+  const registerCostMutation = trpc.selectionCenter.registerProductCost.useMutation({
+    onSuccess: () => {
+      toast.success("原価を更新しました");
+      costHistoryQuery.refetch();
+      setEditingCost(null);
+    },
+    onError: (e) => toast.error("エラー: " + e.message),
+  });
+
+  // 発注の原価を更新
+  const updateOrderMutation = trpc.selectionCenter.updateProcurementOrder.useMutation({
+    onSuccess: () => {
+      toast.success("原価を更新しました");
+      ordersQuery.refetch();
+    },
+    onError: (e) => toast.error("エラー: " + e.message),
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <DollarSign className="h-5 w-5 text-amber-600" />
+          原価管理
+        </h2>
+      </div>
+
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <BrandSearchSelect
+          brands={[{ id: 0, name: "全ブランド" }, ...brands]}
+          value={filterBrandId || 0}
+          onChange={(id, _name) => setFilterBrandId(id === 0 ? undefined : id)}
+          placeholder="ブランドで絞り込み..."
+        />
+      </div>
+
+      {/* 仕入れ発注の原価一覧 */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">仕入れ発注 原価一覧</CardTitle>
+          <p className="text-xs text-muted-foreground">各発注の原価を管理します。クリックで編集できます。</p>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left p-3 font-medium">発注日</th>
+                  <th className="text-left p-3 font-medium">ブランド</th>
+                  <th className="text-left p-3 font-medium">商品名</th>
+                  <th className="text-right p-3 font-medium">数量</th>
+                  <th className="text-right p-3 font-medium">原価/単価</th>
+                  <th className="text-right p-3 font-medium">合計原価</th>
+                  <th className="text-center p-3 font-medium">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ordersQuery.isLoading ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-8 text-muted-foreground">読み込み中...</td>
+                  </tr>
+                ) : orders.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-8 text-muted-foreground">原価が登録された発注はありません</td>
+                  </tr>
+                ) : (
+                  orders.map((order: any) => (
+                    <tr key={order.id} className="border-b hover:bg-muted/30">
+                      <td className="p-3">{order.orderDate ? new Date(order.orderDate).toLocaleDateString('ja-JP') : '-'}</td>
+                      <td className="p-3">{order.brandName}</td>
+                      <td className="p-3 max-w-[200px] truncate">{order.productName}</td>
+                      <td className="p-3 text-right">{Number(order.quantity).toLocaleString()}</td>
+                      <td className="p-3 text-right font-medium">¥{Number(order.unitCost).toLocaleString()}</td>
+                      <td className="p-3 text-right font-bold text-amber-600">¥{Number(order.totalCost).toLocaleString()}</td>
+                      <td className="p-3 text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingCost(order)}
+                          title="原価を編集"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 全発注に原価を設定（原価が未設定のもの） */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">原価未設定の発注</CardTitle>
+          <p className="text-xs text-muted-foreground">原価が設定されていない発注に原価を入力できます。</p>
+        </CardHeader>
+        <CardContent className="p-0">
+          <PendingCostOrders filterBrandId={filterBrandId} onUpdate={() => ordersQuery.refetch()} />
+        </CardContent>
+      </Card>
+
+      {/* 原価履歴 */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">原価変更履歴</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left p-3 font-medium">適用日</th>
+                  <th className="text-left p-3 font-medium">ブランド</th>
+                  <th className="text-left p-3 font-medium">商品名</th>
+                  <th className="text-right p-3 font-medium">原価</th>
+                  <th className="text-left p-3 font-medium">メモ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {costHistory.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-8 text-muted-foreground">原価履歴がありません</td>
+                  </tr>
+                ) : (
+                  costHistory.map((c: any) => (
+                    <tr key={c.id} className="border-b hover:bg-muted/30">
+                      <td className="p-3">{c.effectiveDate ? new Date(c.effectiveDate).toLocaleDateString('ja-JP') : '-'}</td>
+                      <td className="p-3">{c.brandName}</td>
+                      <td className="p-3 max-w-[200px] truncate">{c.productName}</td>
+                      <td className="p-3 text-right font-bold text-amber-600">¥{Number(c.unitCost).toLocaleString()}</td>
+                      <td className="p-3 text-xs text-muted-foreground">{c.memo || '-'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 原価編集ダイアログ */}
+      {editingCost && (
+        <Dialog open={!!editingCost} onOpenChange={(v) => !v && setEditingCost(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>原価を編集</DialogTitle>
+            </DialogHeader>
+            <CostEditForm
+              order={editingCost}
+              onSubmit={(unitCost) => {
+                updateOrderMutation.mutate({ id: editingCost.id, unitCost });
+                // Also register to cost history
+                if (editingCost.productId) {
+                  registerCostMutation.mutate({
+                    productId: editingCost.productId,
+                    productName: editingCost.productName,
+                    brandId: editingCost.brandId,
+                    brandName: editingCost.brandName,
+                    unitCost,
+                    effectiveDate: editingCost.orderDate || new Date().toISOString().split('T')[0],
+                    memo: "原価管理タブから更新",
+                  });
+                }
+                setEditingCost(null);
+              }}
+              onClose={() => setEditingCost(null)}
+              isLoading={updateOrderMutation.isPending}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+// 原価編集フォーム
+function CostEditForm({ order, onSubmit, onClose, isLoading }: {
+  order: any;
+  onSubmit: (unitCost: number) => void;
+  onClose: () => void;
+  isLoading: boolean;
+}) {
+  const [unitCost, setUnitCost] = useState(Number(order.unitCost) || 0);
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label>商品名</Label>
+        <p className="text-sm font-medium">{order.productName}</p>
+      </div>
+      <div>
+        <Label>ブランド</Label>
+        <p className="text-sm text-muted-foreground">{order.brandName}</p>
+      </div>
+      <div>
+        <Label>数量</Label>
+        <p className="text-sm">{Number(order.quantity).toLocaleString()}個</p>
+      </div>
+      <div>
+        <Label>原価/単価 (円)</Label>
+        <Input
+          type="number"
+          min={0}
+          value={unitCost}
+          onChange={e => setUnitCost(Number(e.target.value))}
+          autoFocus
+        />
+      </div>
+      <div>
+        <Label>合計原価</Label>
+        <p className="text-lg font-bold text-amber-600">¥{(Number(order.quantity) * unitCost).toLocaleString()}</p>
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose}>キャンセル</Button>
+        <Button onClick={() => onSubmit(unitCost)} disabled={isLoading}>
+          {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+          更新
+        </Button>
+      </DialogFooter>
+    </div>
+  );
+}
+
+// 原価未設定の発注一覧
+function PendingCostOrders({ filterBrandId, onUpdate }: { filterBrandId?: number; onUpdate: () => void }) {
+  const ordersQuery = trpc.selectionCenter.getProcurementOrders.useQuery({
+    brandId: filterBrandId,
+    limit: 200,
+    offset: 0,
+  });
+  const pendingOrders = (ordersQuery.data?.orders || []).filter((o: any) => !o.unitCost || Number(o.unitCost) === 0);
+
+  const updateOrderMutation = trpc.selectionCenter.updateProcurementOrder.useMutation({
+    onSuccess: () => {
+      toast.success("原価を設定しました");
+      ordersQuery.refetch();
+      onUpdate();
+    },
+    onError: (e) => toast.error("エラー: " + e.message),
+  });
+
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editCost, setEditCost] = useState(0);
+
+  if (pendingOrders.length === 0) {
+    return <div className="p-6 text-center text-sm text-muted-foreground">原価未設定の発注はありません</div>;
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b bg-muted/50">
+            <th className="text-left p-3 font-medium">発注日</th>
+            <th className="text-left p-3 font-medium">ブランド</th>
+            <th className="text-left p-3 font-medium">商品名</th>
+            <th className="text-right p-3 font-medium">数量</th>
+            <th className="text-right p-3 font-medium">原価設定</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pendingOrders.map((order: any) => (
+            <tr key={order.id} className="border-b hover:bg-muted/30">
+              <td className="p-3">{order.orderDate ? new Date(order.orderDate).toLocaleDateString('ja-JP') : '-'}</td>
+              <td className="p-3">{order.brandName}</td>
+              <td className="p-3 max-w-[180px] truncate">{order.productName}</td>
+              <td className="p-3 text-right">{Number(order.quantity).toLocaleString()}</td>
+              <td className="p-3 text-right">
+                {editingId === order.id ? (
+                  <div className="flex items-center gap-1 justify-end">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={editCost}
+                      onChange={e => setEditCost(Number(e.target.value))}
+                      className="w-20 h-7 text-sm text-right"
+                      autoFocus
+                    />
+                    <Button
+                      size="sm"
+                      className="h-7 px-2"
+                      onClick={() => {
+                        updateOrderMutation.mutate({ id: order.id, unitCost: editCost });
+                        setEditingId(null);
+                      }}
+                      disabled={updateOrderMutation.isPending}
+                    >
+                      <Check className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2"
+                      onClick={() => setEditingId(null)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7"
+                    onClick={() => { setEditingId(order.id); setEditCost(0); }}
+                  >
+                    原価を設定
+                  </Button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

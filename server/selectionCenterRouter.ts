@@ -1661,6 +1661,48 @@ export const selectionCenterRouter = router({
       return { unitCost: 0 };
     }),
 
+  // バッチ発注（複数商品を一括発注）
+  createBatchProcurementOrders: protectedProcedure
+    .input(z.object({
+      brandId: z.number(),
+      brandName: z.string(),
+      orderDate: z.string(),
+      status: z.enum(['pending', 'ordered', 'received', 'cancelled']).default('pending'),
+      memo: z.string().optional(),
+      items: z.array(z.object({
+        productId: z.number().optional(),
+        productName: z.string(),
+        quantity: z.number().min(1),
+        unitCost: z.number().min(0).default(0),
+      })),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = getPool();
+      const results: number[] = [];
+      for (const item of input.items) {
+        const totalCost = item.quantity * item.unitCost;
+        const [result] = await pool.query(
+          `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, status, memo, createdBy)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            input.brandId,
+            input.brandName,
+            item.productId || null,
+            item.productName,
+            item.quantity,
+            item.unitCost,
+            totalCost,
+            input.orderDate,
+            input.status,
+            input.memo || null,
+            (ctx.user as any)?.id || 0,
+          ]
+        ) as any;
+        results.push(result.insertId);
+      }
+      return { success: true, ids: results, count: results.length };
+    }),
+
   // ========== 公開カタログ（ライバー勧誘用） ==========
   // ブランド一覧（商品数付き）- ログイン不要
   getCatalogBrands: publicProcedure.query(async () => {
