@@ -1528,4 +1528,130 @@ export const selectionCenterRouter = router({
         grandTotal: grandTotal[0] || { totalAmount: 0, orderCount: 0, totalQuantity: 0 },
       };
     }),
+
+  // ========== Product Cost Management (原価管理) ==========
+
+  // 商品検索（仕入れ用 - ブランド名・商品名で検索）
+  searchProductsForProcurement: protectedProcedure
+    .input(z.object({
+      search: z.string().optional(),
+      brandId: z.number().optional(),
+      limit: z.number().default(50),
+    }))
+    .query(async ({ input }) => {
+      const pool = getPool();
+      let where = 'WHERE sp.deletedAt IS NULL';
+      const params: any[] = [];
+      if (input.brandId) {
+        where += ' AND sp.brandId = ?';
+        params.push(input.brandId);
+      }
+      if (input.search) {
+        where += ' AND (sp.productName LIKE ? OR sp.brandName LIKE ? OR sp.barcode LIKE ?)';
+        params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`);
+      }
+      params.push(input.limit);
+      const [rows] = await pool.query(
+        `SELECT sp.id, sp.productName, sp.brandId, sp.brandName, sp.price, sp.purchasePrice, sp.barcode, sp.images
+         FROM selection_products sp ${where}
+         ORDER BY sp.productName ASC LIMIT ?`,
+        params
+      ) as any;
+      return rows || [];
+    }),
+
+  // 原価登録
+  registerProductCost: protectedProcedure
+    .input(z.object({
+      productId: z.number(),
+      productName: z.string(),
+      brandId: z.number(),
+      brandName: z.string(),
+      unitCost: z.number().min(0),
+      currency: z.string().default('JPY'),
+      supplier: z.string().optional(),
+      effectiveDate: z.string(), // YYYY-MM-DD
+      memo: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = getPool();
+      // Insert cost history
+      await pool.query(
+        `INSERT INTO product_cost_history (productId, productName, brandId, brandName, unitCost, currency, supplier, effectiveDate, memo, createdBy)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          input.productId,
+          input.productName,
+          input.brandId,
+          input.brandName,
+          input.unitCost,
+          input.currency,
+          input.supplier || null,
+          input.effectiveDate,
+          input.memo || null,
+          (ctx.user as any)?.id || 0,
+        ]
+      );
+      // Also update selection_products.purchasePrice
+      try {
+        await pool.query(
+          `UPDATE selection_products SET purchasePrice = ? WHERE id = ?`,
+          [input.unitCost, input.productId]
+        );
+      } catch (e) {
+        // Ignore if column doesn't exist
+      }
+      return { success: true };
+    }),
+
+  // 原価履歴取得
+  getProductCostHistory: protectedProcedure
+    .input(z.object({
+      productId: z.number().optional(),
+      brandId: z.number().optional(),
+      limit: z.number().default(50),
+    }).optional())
+    .query(async ({ input }) => {
+      const pool = getPool();
+      const filters = input || {};
+      let where = 'WHERE 1=1';
+      const params: any[] = [];
+      if (filters.productId) {
+        where += ' AND productId = ?';
+        params.push(filters.productId);
+      }
+      if (filters.brandId) {
+        where += ' AND brandId = ?';
+        params.push(filters.brandId);
+      }
+      params.push(filters.limit || 50);
+      const [rows] = await pool.query(
+        `SELECT * FROM product_cost_history ${where} ORDER BY effectiveDate DESC, id DESC LIMIT ?`,
+        params
+      ) as any;
+      return rows || [];
+    }),
+
+  // 最新原価取得（商品IDで）
+  getLatestProductCost: protectedProcedure
+    .input(z.object({
+      productId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      const pool = getPool();
+      const [rows] = await pool.query(
+        `SELECT unitCost FROM product_cost_history WHERE productId = ? ORDER BY effectiveDate DESC, id DESC LIMIT 1`,
+        [input.productId]
+      ) as any;
+      if (rows.length > 0) return { unitCost: Number(rows[0].unitCost) };
+      // Fallback to selection_products.purchasePrice
+      const [productRows] = await pool.query(
+        `SELECT purchasePrice FROM selection_products WHERE id = ?`,
+        [input.productId]
+      ) as any;
+      if (productRows.length > 0 && productRows[0].purchasePrice) {
+        return { unitCost: Number(productRows[0].purchasePrice) };
+      }
+      return { unitCost: 0 };
+    }),
 });

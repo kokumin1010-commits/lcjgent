@@ -323,6 +323,29 @@ async function ensureNewFestivalTables(db: any): Promise<void> {
       )
     `));
     console.log("[FestivalTables] \u2705 procurement_orders table ensured");
+
+    // Product cost history table (原価登録・履歴管理)
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS product_cost_history (
+        id INT AUTO_INCREMENT,
+        productId INT NOT NULL,
+        productName VARCHAR(500) NOT NULL,
+        brandId INT NOT NULL,
+        brandName VARCHAR(255) NOT NULL,
+        unitCost DECIMAL(12,2) NOT NULL DEFAULT 0,
+        currency VARCHAR(10) NOT NULL DEFAULT 'JPY',
+        supplier VARCHAR(255) DEFAULT NULL,
+        effectiveDate DATE NOT NULL,
+        memo TEXT,
+        createdBy INT NOT NULL DEFAULT 0,
+        createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_cost_product (productId),
+        INDEX idx_cost_brand (brandId),
+        INDEX idx_cost_date (effectiveDate)
+      )
+    `));
+    console.log("[FestivalTables] \u2705 product_cost_history table ensured");
   } catch (err: any) {
     console.error("[FestivalTables] Error creating new tables:", err.message);
   }

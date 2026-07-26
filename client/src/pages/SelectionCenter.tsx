@@ -3037,7 +3037,6 @@ function ProcurementTab() {
   const [editingOrder, setEditingOrder] = useState<any>(null);
 
   const brandsQuery = trpc.brand.list.useQuery();
-  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 500 });
 
   const ordersQuery = trpc.selectionCenter.getProcurementOrders.useQuery({
     brandId: filterBrandId,
@@ -3082,10 +3081,16 @@ function ProcurementTab() {
     onError: (e) => toast.error("エラー: " + e.message),
   });
 
+  const registerCostMutation = trpc.selectionCenter.registerProductCost.useMutation({
+    onSuccess: () => {
+      toast.success("原価を登録しました");
+    },
+    onError: (e) => console.error("原価登録エラー:", e.message),
+  });
+
   const orders = ordersQuery.data?.orders || [];
   const summary = summaryQuery.data;
   const brands = brandsQuery.data || [];
-  const products = productsQuery.data?.items || [];
 
   const statusLabels: Record<string, string> = {
     pending: "発注待ち",
@@ -3202,17 +3207,12 @@ function ProcurementTab() {
             <SelectItem value="cancelled">キャンセル</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={String(filterBrandId || "all")} onValueChange={v => setFilterBrandId(v === "all" ? undefined : Number(v))}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="ブランド" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全ブランド</SelectItem>
-            {brands.map((b: any) => (
-              <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <BrandSearchSelect
+          brands={[{ id: 0, name: "全ブランド" }, ...brands]}
+          value={filterBrandId || 0}
+          onChange={(id, _name) => setFilterBrandId(id === 0 ? undefined : id)}
+          placeholder="ブランドで絞り込み..."
+        />
       </div>
 
       {/* Orders Table */}
@@ -3291,8 +3291,25 @@ function ProcurementTab() {
         open={showCreateDialog}
         onClose={() => setShowCreateDialog(false)}
         brands={brands}
-        products={products}
-        onSubmit={(data) => createMutation.mutate(data)}
+        onSubmit={(data) => {
+          // 原価登録オプションがある場合、発注作成後に原価も登録
+          const { registerCost, ...orderData } = data;
+          createMutation.mutate(orderData, {
+            onSuccess: () => {
+              if (registerCost && data.productId && data.unitCost > 0) {
+                registerCostMutation.mutate({
+                  productId: data.productId,
+                  productName: data.productName,
+                  brandId: data.brandId,
+                  brandName: data.brandName,
+                  unitCost: data.unitCost,
+                  effectiveDate: data.orderDate,
+                  memo: `仕入れ発注時に登録`,
+                });
+              }
+            },
+          });
+        }}
         isLoading={createMutation.isPending}
       />
 
@@ -3309,12 +3326,11 @@ function ProcurementTab() {
   );
 }
 
-// ==================== Procurement Create Dialog ====================
-function ProcurementCreateDialog({ open, onClose, brands, products, onSubmit, isLoading }: {
+// ==================== Procurement Create Dialog (検索付き・原価自動入力) ====================
+function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }: {
   open: boolean;
   onClose: () => void;
   brands: any[];
-  products: any[];
   onSubmit: (data: any) => void;
   isLoading: boolean;
 }) {
@@ -3328,23 +3344,40 @@ function ProcurementCreateDialog({ open, onClose, brands, products, onSubmit, is
     orderDate: new Date().toISOString().split('T')[0],
     status: "pending" as string,
     memo: "",
+    registerCost: true, // 原価も同時登録するかどうか
   });
 
-  const filteredProducts = useMemo(() => {
-    if (!form.brandId) return products;
-    return products.filter((p: any) => p.brandId === form.brandId);
-  }, [products, form.brandId]);
+  // ブランド検索
+  const [brandSearch, setBrandSearch] = useState("");
+  const [brandDropdownOpen, setBrandDropdownOpen] = useState(false);
+  const filteredBrands = useMemo(() => {
+    if (!brandSearch) return brands;
+    const lower = brandSearch.toLowerCase();
+    return brands.filter((b: any) =>
+      (b.name || "").toLowerCase().includes(lower) ||
+      (b.nameJa || "").toLowerCase().includes(lower) ||
+      (b.nameEn || "").toLowerCase().includes(lower)
+    );
+  }, [brands, brandSearch]);
 
-  const handleProductSelect = (productId: number) => {
-    const product = products.find((p: any) => p.id === productId);
-    if (product) {
-      setForm({
-        ...form,
-        productId: product.id,
-        productName: product.productName,
-        unitCost: Number(product.purchasePrice || product.costPrice || product.price || 0),
-      });
-    }
+  // 商品検索
+  const [productSearch, setProductSearch] = useState("");
+  const [productDropdownOpen, setProductDropdownOpen] = useState(false);
+  const searchProductsQuery = trpc.selectionCenter.searchProductsForProcurement.useQuery(
+    { search: productSearch, brandId: form.brandId || undefined, limit: 30 },
+    { enabled: productDropdownOpen && (productSearch.length > 0 || form.brandId > 0) }
+  );
+  const searchResults = searchProductsQuery.data || [];
+
+  const handleProductSelect = (product: any) => {
+    setForm({
+      ...form,
+      productId: product.id,
+      productName: product.productName,
+      unitCost: Number(product.purchasePrice || product.price || 0),
+    });
+    setProductSearch(product.productName);
+    setProductDropdownOpen(false);
   };
 
   const handleSubmit = () => {
@@ -3362,6 +3395,7 @@ function ProcurementCreateDialog({ open, onClose, brands, products, onSubmit, is
       orderDate: form.orderDate,
       status: form.status,
       memo: form.memo || undefined,
+      registerCost: form.registerCost,
     });
   };
 
@@ -3369,54 +3403,114 @@ function ProcurementCreateDialog({ open, onClose, brands, products, onSubmit, is
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>新規仕入れ発注</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {/* ブランド検索付きセレクト */}
           <div>
             <Label>ブランド *</Label>
-            <Select value={String(form.brandId || "")} onValueChange={v => {
-              const brand = brands.find((b: any) => b.id === Number(v));
-              setForm({ ...form, brandId: Number(v), brandName: brand?.name || "" });
-            }}>
-              <SelectTrigger>
-                <SelectValue placeholder="ブランドを選択" />
-              </SelectTrigger>
-              <SelectContent>
-                {brands.map((b: any) => (
-                  <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setBrandDropdownOpen(!brandDropdownOpen)}
+                className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <span className={form.brandName ? "" : "text-muted-foreground"}>
+                  {form.brandName || "ブランドを検索..."}
+                </span>
+                <Search className="h-4 w-4 opacity-50" />
+              </button>
+              {brandDropdownOpen && (
+                <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md">
+                  <div className="p-2 border-b">
+                    <Input
+                      placeholder="ブランド名で検索..."
+                      value={brandSearch}
+                      onChange={e => setBrandSearch(e.target.value)}
+                      className="h-8"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="max-h-[200px] overflow-y-auto p-1">
+                    {filteredBrands.length === 0 ? (
+                      <div className="py-4 text-center text-sm text-muted-foreground">ブランドが見つかりません</div>
+                    ) : (
+                      filteredBrands.map((b: any) => (
+                        <button
+                          key={b.id}
+                          type="button"
+                          className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground cursor-pointer flex items-center gap-2 ${b.id === form.brandId ? 'bg-accent' : ''}`}
+                          onClick={() => {
+                            setForm({ ...form, brandId: b.id, brandName: b.name });
+                            setBrandDropdownOpen(false);
+                            setBrandSearch("");
+                          }}
+                        >
+                          {b.id === form.brandId && <Check className="h-3 w-3" />}
+                          <span>{b.name}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* 商品検索 */}
           <div>
-            <Label>商品 (選択 or 手入力)</Label>
-            {filteredProducts.length > 0 && (
-              <Select value={String(form.productId || "")} onValueChange={v => handleProductSelect(Number(v))}>
-                <SelectTrigger className="mb-2">
-                  <SelectValue placeholder="商品を選択..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredProducts.map((p: any) => (
-                    <SelectItem key={p.id} value={String(p.id)}>{p.productName}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <Input
-              placeholder="商品名を入力"
-              value={form.productName}
-              onChange={e => setForm({ ...form, productName: e.target.value })}
-            />
+            <Label>商品名 * (検索して選択 or 手入力)</Label>
+            <div className="relative">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="商品名・バーコードで検索..."
+                  value={productSearch}
+                  onChange={e => {
+                    setProductSearch(e.target.value);
+                    setForm({ ...form, productName: e.target.value, productId: undefined });
+                    setProductDropdownOpen(true);
+                  }}
+                  onFocus={() => setProductDropdownOpen(true)}
+                  className="pl-9"
+                />
+              </div>
+              {productDropdownOpen && searchResults.length > 0 && (
+                <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md">
+                  <div className="max-h-[200px] overflow-y-auto p-1">
+                    {searchResults.map((p: any) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                        onClick={() => handleProductSelect(p)}
+                      >
+                        <div className="flex items-center gap-2">
+                          {p.images && (() => { try { const imgs = JSON.parse(p.images); return imgs[0] ? <img src={imgs[0]} className="w-8 h-8 rounded object-cover" /> : null; } catch { return null; } })()}
+                          <div className="flex-1 min-w-0">
+                            <p className="truncate font-medium">{p.productName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {p.brandName}{p.purchasePrice ? ` | 原価: ¥${Number(p.purchasePrice).toLocaleString()}` : ''}{p.barcode ? ` | ${p.barcode}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>数量 *</Label>
               <Input type="number" min={1} value={form.quantity} onChange={e => setForm({ ...form, quantity: Number(e.target.value) })} />
             </div>
             <div>
-              <Label>単価 (円)</Label>
+              <Label>原価/単価 (円)</Label>
               <Input type="number" min={0} value={form.unitCost} onChange={e => setForm({ ...form, unitCost: Number(e.target.value) })} />
             </div>
           </div>
@@ -3439,9 +3533,21 @@ function ProcurementCreateDialog({ open, onClose, brands, products, onSubmit, is
               </Select>
             </div>
           </div>
-          <div>
-            <Label>合計金額</Label>
-            <p className="text-lg font-bold text-blue-600">¥{(form.quantity * form.unitCost).toLocaleString()}</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>合計金額</Label>
+              <p className="text-lg font-bold text-blue-600">¥{(form.quantity * form.unitCost).toLocaleString()}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={form.registerCost}
+                onCheckedChange={(v) => setForm({ ...form, registerCost: !!v })}
+                id="register-cost"
+              />
+              <label htmlFor="register-cost" className="text-xs text-muted-foreground cursor-pointer">
+                原価も登録する
+              </label>
+            </div>
           </div>
           <div>
             <Label>メモ</Label>
