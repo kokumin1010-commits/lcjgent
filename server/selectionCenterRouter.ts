@@ -1733,10 +1733,14 @@ export const selectionCenterRouter = router({
     // 同名ブランドを合併（FLORASIS/花西子、栄進製薬/Dietmaruなど表記揺れを統合）
     const normalizeKey = (name: string): string => {
       const n = name.toLowerCase().replace(/[\s\(\)（）/／・]+/g, '');
-      // FLORASIS / 花西子 系統
-      if (n.includes('florasis') || n.includes('花西子')) return 'florasis';
-      // 栄進製薬 / Dietmaru 系統
-      if (n.includes('栄進') || n.includes('dietmaru')) return 'eishin';
+      // FLORASIS / 花西子 / 玉容花養 系統
+      if (n.includes('florasis') || n.includes('花西子') || n.includes('玉容花養')) return 'florasis';
+      // 栄進製薬 / Dietmaru / ellecime 系統
+      if (n.includes('栄進') || n.includes('dietmaru') || n.includes('ellecime') || n.includes('荣进')) return 'eishin';
+      // 方里 / FUNNY / SIINONO 系統
+      if (n.includes('方里') || n.includes('funny') || n.includes('siinono') || n.includes('ファンリー')) return 'funny';
+      // 星睿肌 / RikaReal / リコアセラム 系統
+      if (n.includes('星睿肌') || n.includes('rikareal') || n.includes('リカリアル') || n.includes('リコアセラム') || n.includes('ricoaserum')) return 'rikareal';
       return n;
     };
     const merged: Record<string, { brandIds: number[]; brandName: string; productCount: number; logoUrl: string }> = {};
