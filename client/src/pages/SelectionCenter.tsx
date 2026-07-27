@@ -3277,7 +3277,7 @@ function ProcurementTab() {
                     <tr key={order.id} className="border-b hover:bg-muted/30">
                       <td className="p-3">{order.orderDate ? new Date(order.orderDate).toLocaleDateString('ja-JP') : '-'}</td>
                       <td className="p-3">{order.brandName}</td>
-                      <td className="p-3 max-w-[200px] truncate">{order.productName}</td>
+                      <td className="p-3">{order.productName}</td>
                       <td className="p-3 text-right">{Number(order.quantity).toLocaleString()}</td>
                       <td className="p-3 text-center">
                         <Badge className={statusColors[order.status] || "bg-gray-100 text-gray-800"}>
@@ -3746,7 +3746,9 @@ function ProcurementEditDialog({ order, onClose, onSubmit, isLoading }: {
 
 // ==================== Cost Management Tab (原価管理・パスワード保護) ====================
 function CostManagementTab() {
-  const [authenticated, setAuthenticated] = useState(false);
+  const [authenticated, setAuthenticated] = useState(() => {
+    return sessionStorage.getItem('cost_management_auth') === 'authenticated';
+  });
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
 
@@ -3756,6 +3758,7 @@ function CostManagementTab() {
     e?.preventDefault();
     if (password === COST_PASSWORD) {
       setAuthenticated(true);
+      sessionStorage.setItem('cost_management_auth', 'authenticated');
       setPasswordError("");
     } else {
       setPasswordError("パスワードが正しくありません");
@@ -3896,7 +3899,7 @@ function CostManagementContent() {
                     <tr key={order.id} className="border-b hover:bg-muted/30">
                       <td className="p-3">{order.orderDate ? new Date(order.orderDate).toLocaleDateString('ja-JP') : '-'}</td>
                       <td className="p-3">{order.brandName}</td>
-                      <td className="p-3 max-w-[200px] truncate">{order.productName}</td>
+                      <td className="p-3">{order.productName}</td>
                       <td className="p-3 text-right">{Number(order.quantity).toLocaleString()}</td>
                       <td className="p-3 text-right font-medium">¥{Number(order.unitCost).toLocaleString()}</td>
                       <td className="p-3 text-right font-bold text-amber-600">¥{Number(order.totalCost).toLocaleString()}</td>
@@ -3957,7 +3960,7 @@ function CostManagementContent() {
                     <tr key={c.id} className="border-b hover:bg-muted/30">
                       <td className="p-3">{c.effectiveDate ? new Date(c.effectiveDate).toLocaleDateString('ja-JP') : '-'}</td>
                       <td className="p-3">{c.brandName}</td>
-                      <td className="p-3 max-w-[200px] truncate">{c.productName}</td>
+                      <td className="p-3">{c.productName}</td>
                       <td className="p-3 text-right font-bold text-amber-600">¥{Number(c.unitCost).toLocaleString()}</td>
                       <td className="p-3 text-xs text-muted-foreground">{c.memo || '-'}</td>
                     </tr>
@@ -4105,7 +4108,7 @@ function PendingCostOrders({ filterBrandId, onUpdate }: { filterBrandId?: number
             <tr key={order.id} className="border-b hover:bg-muted/30">
               <td className="p-3">{order.orderDate ? new Date(order.orderDate).toLocaleDateString('ja-JP') : '-'}</td>
               <td className="p-3">{order.brandName}</td>
-              <td className="p-3 max-w-[180px] truncate">{order.productName}</td>
+              <td className="p-3">{order.productName}</td>
               <td className="p-3 text-right">{Number(order.quantity).toLocaleString()}</td>
               <td className="p-3 text-right">
                 {editingId === order.id ? (
