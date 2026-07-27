@@ -2964,32 +2964,32 @@ function LPLinksTab() {
 function BrandSearchSelect({ brands, value, onChange, placeholder }: {
   brands: any[];
   value: number | undefined;
-  onChange: (brandId: number, brandName: string) => void;
+  onChange: (brandId: number, brandName: string, allIds?: number[]) => void;
   placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // ブランド合併ロジック（重複排除）
+  // ブランド合併ロジック（重複排除）- 合併ブランドの全IDを保持
   const mergedBrands = useMemo(() => {
     const normalizeKey = (name: string): string => {
       const n = name.toLowerCase().replace(/[\s\(\)（）/／・]+/g, '');
-      if (n.includes('florasis') || n.includes('花西子')) return 'florasis';
-      if (n.includes('栄進') || n.includes('dietmaru')) return 'eishin';
+      if (n.includes('florasis') || n.includes('花西子') || n.includes('玉容花養')) return 'florasis';
+      if (n.includes('栄進') || n.includes('dietmaru') || n.includes('ellecime') || n.includes('荣进')) return 'eishin';
       if (n.includes('kyogoku') || n.includes('京極')) return 'kyogoku';
-      if (n.includes('方里') || n.includes('funny') || n.includes('ファンリー')) return 'funli';
+      if (n.includes('方里') || n.includes('funny') || n.includes('ファンリー') || n.includes('siinono')) return 'funli';
       if (n.includes('mistine')) return 'mistine';
-      if (n.includes('ibiza')) return 'ibiza';
-      if (n.includes('リコアセラム') || n.includes('ricoa')) return 'ricoa';
-      if (n.includes('星睿肌') || n.includes('rikareal')) return 'rikareal';
-      if (n.includes('siinono')) return 'siinono';
+      if (n.includes('ibiza') || n.includes('イビサ')) return 'ibiza';
+      if (n.includes('リコアセラム') || n.includes('ricoa') || n.includes('星睿肌') || n.includes('rikareal') || n.includes('リカリアル')) return 'rikareal';
       return n;
     };
-    const merged: Record<string, { id: number; name: string }> = {};
+    const merged: Record<string, { id: number; name: string; allIds: number[] }> = {};
     for (const b of brands) {
       const key = normalizeKey(b.name || '');
       if (!merged[key]) {
-        merged[key] = { id: b.id, name: b.name };
+        merged[key] = { id: b.id, name: b.name, allIds: [b.id] };
+      } else {
+        merged[key].allIds.push(b.id);
       }
     }
     return Object.values(merged);
@@ -3036,7 +3036,7 @@ function BrandSearchSelect({ brands, value, onChange, placeholder }: {
                   type="button"
                   className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground cursor-pointer flex items-center gap-2 ${b.id === value ? 'bg-accent' : ''}`}
                   onClick={() => {
-                    onChange(b.id, b.name);
+                    onChange(b.id, b.name, b.allIds || [b.id]);
                     setOpen(false);
                     setSearchTerm("");
                   }}
@@ -3362,15 +3362,13 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
   const mergedBrands = useMemo(() => {
     const normalizeKey = (name: string): string => {
       const n = name.toLowerCase().replace(/[\s\(\)（）/／・]+/g, '');
-      if (n.includes('florasis') || n.includes('花西子')) return 'florasis';
-      if (n.includes('栄進') || n.includes('dietmaru')) return 'eishin';
+      if (n.includes('florasis') || n.includes('花西子') || n.includes('玉容花養')) return 'florasis';
+      if (n.includes('栄進') || n.includes('dietmaru') || n.includes('ellecime') || n.includes('荣进')) return 'eishin';
       if (n.includes('kyogoku') || n.includes('京極')) return 'kyogoku';
-      if (n.includes('方里') || n.includes('funny') || n.includes('ファンリー')) return 'funli';
+      if (n.includes('方里') || n.includes('funny') || n.includes('ファンリー') || n.includes('siinono')) return 'funli';
       if (n.includes('mistine')) return 'mistine';
-      if (n.includes('ibiza')) return 'ibiza';
-      if (n.includes('リコアセラム') || n.includes('ricoa')) return 'ricoa';
-      if (n.includes('星睿肌') || n.includes('rikareal')) return 'rikareal';
-      if (n.includes('siinono')) return 'siinono';
+      if (n.includes('ibiza') || n.includes('イビサ')) return 'ibiza';
+      if (n.includes('リコアセラム') || n.includes('ricoa') || n.includes('星睿肌') || n.includes('rikareal') || n.includes('リカリアル')) return 'rikareal';
       return n;
     };
     const merged: Record<string, { ids: number[]; name: string; count: number }> = {};
@@ -4168,6 +4166,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
   onSuccess: () => void;
 }) {
   const [selectedBrandId, setSelectedBrandId] = useState<number | undefined>(undefined);
+  const [selectedBrandIds, setSelectedBrandIds] = useState<number[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [manualProductName, setManualProductName] = useState("");
   const [unitCost, setUnitCost] = useState<number>(0);
@@ -4176,9 +4175,9 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
   const [memo, setMemo] = useState("");
   const [isManualInput, setIsManualInput] = useState(false);
 
-  // 商品検索
+  // 商品検索（合併ブランドの全IDで検索）
   const productsQuery = trpc.selectionCenter.searchProductsForProcurement.useQuery(
-    { brandId: selectedBrandId, limit: 100 },
+    { brandIds: selectedBrandIds.length > 0 ? selectedBrandIds : undefined, brandId: selectedBrandId, limit: 100 },
     { enabled: !!selectedBrandId }
   );
   const products = productsQuery.data || [];
@@ -4196,6 +4195,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
 
   const handleReset = () => {
     setSelectedBrandId(undefined);
+    setSelectedBrandIds([]);
     setSelectedProduct(null);
     setManualProductName("");
     setUnitCost(0);
@@ -4246,8 +4246,9 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
               <BrandSearchSelect
                 brands={brands}
                 value={selectedBrandId || 0}
-                onChange={(id, _name) => {
+                onChange={(id, _name, allIds) => {
                   setSelectedBrandId(id === 0 ? undefined : id);
+                  setSelectedBrandIds(allIds || [id]);
                   setSelectedProduct(null);
                   setIsManualInput(false);
                 }}
