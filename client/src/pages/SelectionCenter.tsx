@@ -3471,7 +3471,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>新規仕入れ発注</DialogTitle>
         </DialogHeader>
@@ -3565,7 +3565,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm truncate ${isSelected ? 'font-bold text-blue-700' : 'font-medium'}`}>{p.productName}</p>
+                          <p className={`text-sm break-words ${isSelected ? 'font-bold text-blue-700' : 'font-medium'}`}>{p.productName}</p>
                           <p className="text-xs text-muted-foreground">
                             {p.price ? `売価: ¥${Number(p.price).toLocaleString()}` : ''}
                             {p.barcode ? `${p.price ? ' | ' : ''}${p.barcode}` : ''}
@@ -3600,7 +3600,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
                 {selectedItems.map((item, idx) => (
                   <div key={idx} className="flex items-center gap-3 px-3 py-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{item.productName}</p>
+                      <p className="text-sm font-medium break-words">{item.productName}</p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <Label className="text-xs text-muted-foreground whitespace-nowrap">数量:</Label>
@@ -3857,12 +3857,14 @@ function CostManagementContent() {
 
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
-        <BrandSearchSelect
-          brands={[{ id: 0, name: "全ブランド" }, ...brands]}
-          value={filterBrandId || 0}
-          onChange={(id, _name) => setFilterBrandId(id === 0 ? undefined : id)}
-          placeholder="ブランドで絞り込み..."
-        />
+        <div className="w-[280px]">
+          <BrandSearchSelect
+            brands={[{ id: 0, name: "全ブランド" }, ...brands]}
+            value={filterBrandId || 0}
+            onChange={(id, _name) => setFilterBrandId(id === 0 ? undefined : id)}
+            placeholder="ブランドで絞り込み..."
+          />
+        </div>
       </div>
 
       {/* 仕入れ発注の原価一覧 */}
@@ -4233,7 +4235,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { handleReset(); onClose(); } }}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5 text-amber-600" />
@@ -4295,7 +4297,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{p.productName}</p>
+                            <p className="text-sm font-medium break-words">{p.productName}</p>
                             <p className="text-xs text-muted-foreground">
                               売価: ¥{Number(p.price || 0).toLocaleString()}
                               {p.purchasePrice && Number(p.purchasePrice) > 0 && (
