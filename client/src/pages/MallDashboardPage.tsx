@@ -79,7 +79,7 @@ function GrowthBadge({ current, previous }: { current: number; previous: number 
   );
 }
 
-function DashboardContent() {
+function DashboardContent({ onStatusClick }: { onStatusClick?: (status: string) => void }) {
   const { data: stats, isLoading: statsLoading } = trpc.mall.getDashboardStats.useQuery();
   const [chartPeriod, setChartPeriod] = useState<"daily" | "monthly">("daily");
   const { data: salesChart, isLoading: chartLoading } = trpc.mall.getSalesChart.useQuery({ period: chartPeriod, months: 6 });
@@ -181,19 +181,19 @@ function DashboardContent() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-yellow-50 border border-yellow-100">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-yellow-50 border border-yellow-100 cursor-pointer hover:shadow-md transition-shadow active:scale-[0.97]" onClick={() => onStatusClick?.("pending")}>
                 <span className="text-sm text-yellow-700">決済待ち</span>
                 <span className="text-lg font-bold text-yellow-700">{pendingOrders}</span>
               </div>
-              <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 border border-green-100">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 border border-green-100 cursor-pointer hover:shadow-md transition-shadow active:scale-[0.97]" onClick={() => onStatusClick?.("paid")}>
                 <span className="text-sm text-green-700">決済完了</span>
                 <span className="text-lg font-bold text-green-700">{paidOrders}</span>
               </div>
-              <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 border border-blue-100">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 border border-blue-100 cursor-pointer hover:shadow-md transition-shadow active:scale-[0.97]" onClick={() => onStatusClick?.("shipped")}>
                 <span className="text-sm text-blue-700">発送済み</span>
                 <span className="text-lg font-bold text-blue-700">{shippedOrders}</span>
               </div>
-              <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-200">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-200 cursor-pointer hover:shadow-md transition-shadow active:scale-[0.97]" onClick={() => onStatusClick?.("delivered")}>
                 <span className="text-sm text-gray-700">配達完了</span>
                 <span className="text-lg font-bold text-gray-700">{deliveredOrders}</span>
               </div>
@@ -385,6 +385,12 @@ export default function MallDashboardPage() {
   }, []);
   const [, setLocation] = useLocation();
   const { loading, user } = useAuth();
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string | undefined>(undefined);
+
+  const handleStatusClick = (status: string) => {
+    setOrderStatusFilter(status);
+    setActiveTab("orders");
+  };
 
   if (loading) {
     return (
@@ -443,10 +449,10 @@ export default function MallDashboardPage() {
 
       {/* Content */}
       <div className="p-4">
-        {activeTab === "dashboard" && <DashboardContent />}
+        {activeTab === "dashboard" && <DashboardContent onStatusClick={handleStatusClick} />}
         {activeTab === "products" && <ProductManagement />}
         {activeTab === "brands-categories" && <MallBrandCategoryManagement />}
-        {activeTab === "orders" && <OrderManagement />}
+        {activeTab === "orders" && <OrderManagement initialStatusFilter={orderStatusFilter as any} />}
         {activeTab === "members" && <MallMembers />}
         {activeTab === "receipts" && <LineReceiptManagement />}
         {activeTab === "reviews" && <ReviewManagement />}

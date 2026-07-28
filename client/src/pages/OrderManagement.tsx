@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,11 +70,17 @@ type InlineShippingState = {
 
 interface OrderManagementProps {
   onMemberClick?: (memberId: number) => void;
+  initialStatusFilter?: OrderStatus | "all";
 }
 
-export default function OrderManagement({ onMemberClick }: OrderManagementProps) {
+export default function OrderManagement({ onMemberClick, initialStatusFilter }: OrderManagementProps) {
   const [, setLocation] = useLocation();
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">(initialStatusFilter || "all");
+  useEffect(() => {
+    if (initialStatusFilter !== undefined) {
+      setStatusFilter(initialStatusFilter);
+    }
+  }, [initialStatusFilter]);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [downloadingInvoice, setDownloadingInvoice] = useState<Record<string, boolean>>({});
   const utils = trpc.useUtils();
