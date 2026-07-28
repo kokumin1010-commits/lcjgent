@@ -3435,7 +3435,14 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
   const [brandId, setBrandId] = useState(0);
   const [brandName, setBrandName] = useState("");
   const [brandIds, setBrandIds] = useState<number[]>([]);
-  const [selectedItems, setSelectedItems] = useState<Array<{ productId?: number; productName: string; quantity: number }>>([]);
+  const [selectedItems, setSelectedItems] = useState<Array<{ productId?: number; productName: string; quantity: number; brandId?: number; brandName?: string }>>([])
+  // 商品あいまい検索（全商品横断）
+  const [productSearch, setProductSearch] = useState("");
+  const [productSearchDebounced, setProductSearchDebounced] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setProductSearchDebounced(productSearch), 300);
+    return () => clearTimeout(timer);
+  }, [productSearch]);
   const [manualProductName, setManualProductName] = useState("");
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
   const [status, setStatus] = useState("pending");
@@ -3486,13 +3493,20 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
   );
   const brandProducts = brandProductsQuery.data || [];
 
+  // 全商品横断あいまい検索
+  const globalSearchQuery = trpc.selectionCenter.searchProductsForProcurement.useQuery(
+    { search: productSearchDebounced, limit: 30 },
+    { enabled: productSearchDebounced.length >= 1 }
+  );
+  const globalSearchResults = globalSearchQuery.data || [];
+
   // 商品をトグル選択
   const toggleProduct = (product: any) => {
     const exists = selectedItems.find(i => i.productId === product.id);
     if (exists) {
       setSelectedItems(selectedItems.filter(i => i.productId !== product.id));
     } else {
-      setSelectedItems([...selectedItems, { productId: product.id, productName: product.productName, quantity: 1 }]);
+      setSelectedItems([...selectedItems, { productId: product.id, productName: product.productName, quantity: 1, brandId: product.brandId, brandName: product.brandName }]);
     }
   };
 
@@ -3516,17 +3530,16 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
   };
 
   const handleSubmit = () => {
-    if (!brandId) {
-      toast.error("ブランドを選択してください");
-      return;
-    }
     if (selectedItems.length === 0) {
       toast.error("商品を少なくとも1つ選択してください");
       return;
     }
+    // ブランドが選択されていない場合、最初の商品のブランドを使用
+    const effectiveBrandId = brandId || selectedItems[0]?.brandId || 0;
+    const effectiveBrandName = brandName || selectedItems[0]?.brandName || "未指定";
     onSubmit({
-      brandId,
-      brandName,
+      brandId: effectiveBrandId,
+      brandName: effectiveBrandName,
       orderDate,
       status,
       memo: memo || undefined,
@@ -3550,6 +3563,8 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
       setBrandIds([]);
       setSelectedItems([]);
       setManualProductName("");
+      setProductSearch("");
+      setProductSearchDebounced("");
       setOrderDate(new Date().toISOString().split('T')[0]);
       setStatus("pending");
       setMemo("");
@@ -3568,9 +3583,80 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
           <DialogTitle>新規仕入れ発注</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          {/* ブランド検索付きセレクト（合併済み） */}
+          {/* 全商品横断検索（ID・商品名あいまい検索） */}
           <div>
-            <Label>ブランド *</Label>
+            <Label>搜索商品（ID・商品名・バーコード）</Label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="商品ID、商品名、バーコードで検索..."
+                value={productSearch}
+                onChange={e => setProductSearch(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+            {productSearchDebounced.length >= 1 && (
+              <div className="mt-1 border rounded-md max-h-[200px] overflow-y-auto">
+                {globalSearchQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-xs text-muted-foreground">検索中...</span>
+                  </div>
+                ) : globalSearchResults.length === 0 ? (
+                  <div className="py-4 text-center text-sm text-muted-foreground">該当商品が見つかりません</div>
+                ) : (
+                  globalSearchResults.map((p: any) => {
+                    let imgUrl = '';
+                    try { const imgs = JSON.parse(p.images || '[]'); imgUrl = imgs[0] || ''; } catch {}
+                    const isSelected = selectedItems.some(i => i.productId === p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className={`w-full text-left px-3 py-2 flex items-center gap-3 border-b last:border-b-0 hover:bg-accent/50 transition-colors ${isSelected ? 'bg-blue-50 border-blue-200' : ''}`}
+                        onClick={() => toggleProduct(p)}
+                      >
+                        <Checkbox checked={isSelected} className="flex-shrink-0" />
+                        {imgUrl ? (
+                          <img src={imgUrl} className="w-10 h-10 rounded object-cover flex-shrink-0 border" />
+                        ) : (
+                          <div className="w-10 h-10 rounded bg-muted flex items-center justify-center flex-shrink-0 border">
+                            <Package className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm break-words ${isSelected ? 'font-bold text-blue-700' : 'font-medium'}`}>{p.productName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            ID: {p.id} | {p.brandName || ''}
+                            {p.price ? ` | ¥${Number(p.price).toLocaleString()}` : ''}
+                            {p.barcode ? ` | ${p.barcode}` : ''}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 手入力オプション */}
+          <div className="flex gap-2">
+            <Input
+              placeholder="商品名を手入力で追加..."
+              value={manualProductName}
+              onChange={e => setManualProductName(e.target.value)}
+              className="text-sm flex-1"
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addManualProduct(); } }}
+            />
+            <Button type="button" variant="outline" size="sm" onClick={addManualProduct} disabled={!manualProductName.trim()}>
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* ブランド検索付きセレクト（合併済み）- 任意 */}
+          <div>
+            <Label>ブランド（任意・ブランド別絞り込み）</Label>
             <div className="relative">
               <button
                 type="button"
@@ -3625,7 +3711,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
           {/* ブランド選択後に商品一覧を画像付きで表示（複数選択可能） */}
           {brandIds.length > 0 && (
             <div>
-              <Label>商品を選択 *（複数選択可）</Label>
+              <Label>ブランド内商品（複数選択可）</Label>
               {brandProductsQuery.isLoading ? (
                 <div className="flex items-center justify-center py-6">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -3668,19 +3754,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
                   })}
                 </div>
               )}
-              {/* 手入力オプション */}
-              <div className="mt-2 flex gap-2">
-                <Input
-                  placeholder="商品名を手入力で追加..."
-                  value={manualProductName}
-                  onChange={e => setManualProductName(e.target.value)}
-                  className="text-sm flex-1"
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addManualProduct(); } }}
-                />
-                <Button type="button" variant="outline" size="sm" onClick={addManualProduct} disabled={!manualProductName.trim()}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
+
             </div>
           )}
 

@@ -1614,8 +1614,8 @@ export const selectionCenterRouter = router({
         params.push(input.brandId);
       }
       if (input.search) {
-        where += ' AND (sp.productName LIKE ? OR sp.brandName LIKE ? OR sp.barcode LIKE ?)';
-        params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`);
+        where += ' AND (sp.productName LIKE ? OR sp.brandName LIKE ? OR sp.barcode LIKE ? OR CAST(sp.id AS CHAR) LIKE ?)';
+        params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`, `%${input.search}%`);
       }
       params.push(input.limit);
       const [rows] = await pool.query(
