@@ -1926,7 +1926,12 @@ function PerformancesTab() {
   const [expandedLivestream, setExpandedLivestream] = useState<number | null>(null);
   const [selectedStreamer, setSelectedStreamer] = useState<string>("Ryu kyogoku");
   const [sortMode, setSortMode] = useState<"potential" | "gmv" | "impressions">("potential");
-  
+  const [editingLowestPrice, setEditingLowestPrice] = useState<string | null>(null);
+  const [lowestPriceInput, setLowestPriceInput] = useState("");
+  const updateLowestPriceMutation = trpc.selectionCenter.updateProduct.useMutation({
+    onSuccess: () => { performanceQuery.refetch(); setEditingLowestPrice(null); toast.success('历史最低价已更新'); },
+    onError: (err: any) => { toast.error(err.message || '更新失败'); },
+  });
   const streamerNamesQuery = trpc.selectionCenter.getStreamerNames.useQuery();
   const streamerFilter = selectedStreamer && selectedStreamer !== '__all__' ? selectedStreamer : undefined;
   const performanceQuery = trpc.selectionCenter.getProductPerformanceHistory.useQuery({
@@ -2118,13 +2123,49 @@ function PerformancesTab() {
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {t("sc.perf.streamCount").replace("{count}", String(product.livestreamCount))} ・ {t("sc.perf.avgPrice")} ¥{product.totalItemsSold > 0 ? Math.round(product.totalGmv / product.totalItemsSold).toLocaleString() : '0'}
                         {(() => {
+                          const manualPrice = (product as any).manualLowestPrice;
                           const prices = product.history
                             .map((h: any) => h.itemsSold > 0 ? Math.round(h.gmv / h.itemsSold) : (h.unitPrice || 0))
                             .filter((p: number) => p > 0);
-                          const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
-                          return minPrice > 0 ? (
-                            <span className="ml-2 text-red-500 font-medium">・ 历史最低价 ¥{minPrice.toLocaleString()}</span>
-                          ) : null;
+                          const systemMinPrice = prices.length > 0 ? Math.min(...prices) : 0;
+                          const displayPrice = manualPrice || systemMinPrice;
+                          const isEditing = editingLowestPrice === product.productName;
+                          if (isEditing) {
+                            return (
+                              <span className="ml-2 inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                <span className="text-red-500">・ 历史最低价</span>
+                                <input
+                                  type="number"
+                                  className="w-20 h-5 text-xs border rounded px-1"
+                                  value={lowestPriceInput}
+                                  onChange={(e) => setLowestPriceInput(e.target.value)}
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      // Find product ID from selection_products by name
+                                      const val = lowestPriceInput ? String(lowestPriceInput) : null;
+                                      // We need product ID - search in getProducts
+                                      updateLowestPriceMutation.mutate({ id: (product as any).selectionProductId || 0, historicalLowestPrice: val });
+                                    } else if (e.key === 'Escape') {
+                                      setEditingLowestPrice(null);
+                                    }
+                                  }}
+                                />
+                                <button className="text-[10px] text-green-600 hover:underline" onClick={() => {
+                                  const val = lowestPriceInput ? String(lowestPriceInput) : null;
+                                  updateLowestPriceMutation.mutate({ id: (product as any).selectionProductId || 0, historicalLowestPrice: val });
+                                }}>✓</button>
+                                <button className="text-[10px] text-gray-400 hover:underline" onClick={() => setEditingLowestPrice(null)}>✗</button>
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="ml-2 font-medium inline-flex items-center gap-1">
+                              <span className="text-red-500">・ 历史最低价 ¥{displayPrice > 0 ? displayPrice.toLocaleString() : '--'}</span>
+                              {manualPrice ? <span className="text-[10px] text-blue-500">(手動)</span> : displayPrice > 0 ? <span className="text-[10px] text-gray-400">(系统)</span> : null}
+                              <button className="text-[10px] text-blue-500 hover:underline ml-1" onClick={(e) => { e.stopPropagation(); setEditingLowestPrice(product.productName); setLowestPriceInput(manualPrice ? String(manualPrice) : ''); }}>编辑</button>
+                            </span>
+                          );
                         })()}
                       </p>
                     </div>

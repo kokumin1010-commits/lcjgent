@@ -174,6 +174,13 @@ export const selectionCenterRouter = router({
         results.push(`FAIL: ${e.message}`);
       }
     }
+    // Add historicalLowestPrice column if not exists
+    try {
+      await pool.query(`ALTER TABLE selection_products ADD COLUMN historicalLowestPrice DECIMAL(10,2) DEFAULT NULL`);
+      results.push('OK: added historicalLowestPrice column');
+    } catch (e: any) {
+      if (!e.message.includes('Duplicate column')) results.push(`INFO: historicalLowestPrice: ${e.message}`);
+    }
     return { results };
   }),
 
@@ -367,6 +374,7 @@ export const selectionCenterRouter = router({
     deliveryTime: z.string().nullable().optional(),
     suggestedPrice: z.string().nullable().optional(),
     mechanism: z.string().nullable().optional(),
+    historicalLowestPrice: z.string().nullable().optional(),
   })).mutation(async ({ input }) => {
     const pool = getPool();
     const { id, ...data } = input;
@@ -891,7 +899,32 @@ export const selectionCenterRouter = router({
     // Sort by total GMV descending
     results.sort((a, b) => b.totalGmv - a.totalGmv);
     
-    return results;
+    // Fetch manual historicalLowestPrice from selection_products
+    const productNames = results.map(r => r.productName);
+    let manualPriceMap = new Map<string, number>();
+    let productIdMap = new Map<string, number>();
+    if (productNames.length > 0) {
+      try {
+        const [spRows] = await pool.query(
+          `SELECT id, productName, historicalLowestPrice FROM selection_products WHERE productName IN (${productNames.map(() => '?').join(',')}) AND deletedAt IS NULL`,
+          productNames
+        ) as any;
+        for (const row of spRows) {
+          if (row.historicalLowestPrice) {
+            manualPriceMap.set(row.productName, Number(row.historicalLowestPrice));
+          }
+          if (!productIdMap.has(row.productName)) {
+            productIdMap.set(row.productName, row.id);
+          }
+        }
+      } catch (e) { /* ignore if column doesn't exist yet */ }
+    }
+    
+    return results.map(r => ({
+      ...r,
+      manualLowestPrice: manualPriceMap.get(r.productName) || null,
+      selectionProductId: productIdMap.get(r.productName) || null,
+    }));
   }),
 
   // ========== CSV Import History with Download ==========
