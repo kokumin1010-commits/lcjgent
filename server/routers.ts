@@ -4815,6 +4815,63 @@ ${staffDetails.map(s => `\n【${s.staffName}】(${s.reportCount}件)\n${s.allWor
         return { success: true };
       }),
 
+    // ブランド合併（重複ブランドを統合）
+    merge: protectedProcedure
+      .input(z.object({
+        targetBrandId: z.number(), // 統合先（残すブランド）
+        sourceBrandId: z.number(), // 統合元（削除されるブランド）
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const { targetBrandId, sourceBrandId } = input;
+        if (targetBrandId === sourceBrandId) throw new Error("同じブランドを合併できません");
+
+        // 統合先ブランドが存在するか確認
+        const targetBrand = await getBrandById(targetBrandId);
+        if (!targetBrand) throw new Error("統合先ブランドが見つかりません");
+        const sourceBrand = await getBrandById(sourceBrandId);
+        if (!sourceBrand) throw new Error("統合元ブランドが見つかりません");
+
+        // 関連データを統合先に移行
+        // 1. brandProducts
+        await db.update(brandProducts).set({ brandId: targetBrandId }).where(and(eq(brandProducts.brandId, sourceBrandId), isNull(brandProducts.deletedAt)));
+        // 2. brandActivities
+        await db.update(brandActivities).set({ brandId: targetBrandId }).where(and(eq(brandActivities.brandId, sourceBrandId), isNull(brandActivities.deletedAt)));
+        // 3. brandContracts
+        await db.update(brandContracts).set({ brandId: targetBrandId }).where(and(eq(brandContracts.brandId, sourceBrandId), isNull(brandContracts.deletedAt)));
+        // 4. brandMemos
+        await db.update(brandMemos).set({ brandId: targetBrandId }).where(and(eq(brandMemos.brandId, sourceBrandId), isNull(brandMemos.deletedAt)));
+        // 5. brandFiles
+        await db.update(brandFiles).set({ brandId: targetBrandId }).where(and(eq(brandFiles.brandId, sourceBrandId), isNull(brandFiles.deletedAt)));
+        // 6. brandLivestreams
+        await db.update(brandLivestreams).set({ brandId: targetBrandId }).where(and(eq(brandLivestreams.brandId, sourceBrandId), isNull(brandLivestreams.deletedAt)));
+        // 7. livestreamBrands
+        await db.update(livestreamBrands).set({ brandId: targetBrandId }).where(eq(livestreamBrands.brandId, sourceBrandId));
+        // 8. selection_products (raw SQL since it's not in drizzle schema)
+        const pool = (await import("./selectionCenterRouter")).getPool();
+        await pool.query(`UPDATE selection_products SET brandId = ?, brandName = ? WHERE brandId = ? AND deletedAt IS NULL`, [targetBrandId, targetBrand.name, sourceBrandId]);
+        // 9. procurement_orders
+        await pool.query(`UPDATE procurement_orders SET brandId = ?, brandName = ? WHERE brandId = ?`, [targetBrandId, targetBrand.name, sourceBrandId]);
+        // 10-15: その他のbrandId参照テーブルも移行（raw SQLで安全に）
+        const mergeTables = [
+          'tiktok_tap_reports', 'tiktok_tap_live_reports', 'tiktok_tap_video_reports',
+          'brand_ad_reports', 'brand_short_videos', 'brand_sample_applications',
+          'brand_monthly_gmv_targets', 'brand_addition_logs'
+        ];
+        for (const table of mergeTables) {
+          try {
+            await pool.query(`UPDATE ${table} SET brandId = ? WHERE brandId = ?`, [targetBrandId, sourceBrandId]);
+          } catch (e) { /* table may not exist */ }
+        }
+
+        // 統合元ブランドをソフトデリート
+        await db.update(brands).set({ deletedAt: new Date() }).where(eq(brands.id, sourceBrandId));
+
+        console.log(`[Brand Merge] Merged brand #${sourceBrandId} (${sourceBrand.name}) into #${targetBrandId} (${targetBrand.name})`);
+        return { success: true, message: `「${sourceBrand.name}」を「${targetBrand.name}」に合併しました` };
+      }),
+
     statistics: protectedProcedure.query(async () => {
       return await getBrandStatistics();
     }),

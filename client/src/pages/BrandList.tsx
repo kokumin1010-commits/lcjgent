@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake, Trash2, Target, AlertTriangle, Flame, RefreshCw, Users, Tag, Crown, History, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake, Trash2, Target, AlertTriangle, Flame, RefreshCw, Users, Tag, Crown, History, Clock, CheckCircle, XCircle, Merge, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -164,6 +164,10 @@ export default function BrandList() {
   // 削除関連の状態
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
 
+  // ブランド合併関連の状態
+  const [mergeSource, setMergeSource] = useState<{ id: number; name: string } | null>(null);
+  const [mergeTargetId, setMergeTargetId] = useState<number | null>(null);
+
   const utils = trpc.useUtils();
 
   const { data: brandsData, isLoading } = trpc.brand.list.useQuery({
@@ -181,6 +185,31 @@ export default function BrandList() {
       toast.error("削除に失敗しました: " + err.message);
     },
   });
+
+  const mergeMutation = trpc.brand.merge.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(data.message || "ブランドを合併しました");
+      setMergeSource(null);
+      setMergeTargetId(null);
+      utils.brand.list.invalidate();
+    },
+    onError: (err: any) => {
+      toast.error("合併に失敗しました: " + err.message);
+    },
+  });
+
+  const handleMerge = (e: React.MouseEvent, brand: { id: number; name: string }) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMergeSource(brand);
+    setMergeTargetId(null);
+  };
+
+  const confirmMerge = () => {
+    if (mergeSource && mergeTargetId) {
+      mergeMutation.mutate({ targetBrandId: mergeTargetId, sourceBrandId: mergeSource.id });
+    }
+  };
 
   const syncLarkMutation = trpc.brand.syncLark.useMutation({
     onSuccess: (data: any) => {
@@ -830,8 +859,15 @@ export default function BrandList() {
                     </div>
                   )}
 
-                  {/* 削除ボタン */}
-                  <div className="flex justify-end">
+                  {/* 操作ボタン */}
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={(e) => handleMerge(e, { id: brand.id, name: brand.name })}
+                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-400 transition-colors px-2 py-1 rounded hover:bg-blue-500/10"
+                    >
+                      <Merge className="h-3.5 w-3.5" />
+                      合併
+                    </button>
                     <button
                       onClick={(e) => handleDelete(e, { id: brand.id, name: brand.name })}
                       className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-red-500/10"
@@ -872,6 +908,43 @@ export default function BrandList() {
               disabled={deleteMutation.isPending}
             >
               {deleteMutation.isPending ? "削除中..." : "削除する"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ブランド合併ダイアログ */}
+      <AlertDialog open={!!mergeSource} onOpenChange={(open) => { if (!open) { setMergeSource(null); setMergeTargetId(null); } }}>
+        <AlertDialogContent className="bg-gray-900 border-gray-700 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">ブランドを合併</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              <strong className="text-blue-400">{mergeSource?.name}</strong> を他のブランドに合併します。商品・配信・契約等の全データが統合先に移行され、このブランドは削除されます。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-3">
+            <label className="text-sm text-gray-300 mb-2 block">統合先ブランドを選択:</label>
+            <select
+              className="w-full bg-gray-800 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
+              value={mergeTargetId || ''}
+              onChange={(e) => setMergeTargetId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">選択してください...</option>
+              {(brandsData || []).filter((b: any) => b.id !== mergeSource?.id).map((b: any) => (
+                <option key={b.id} value={b.id}>{b.name} (ID: {b.id})</option>
+              ))}
+            </select>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white">
+              キャンセル
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmMerge}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={!mergeTargetId || mergeMutation.isPending}
+            >
+              {mergeMutation.isPending ? "合併中..." : "合併する"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

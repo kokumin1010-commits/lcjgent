@@ -9,7 +9,7 @@ import { ENV } from "./_core/env";
 
 // Direct mysql2 connection pool (bypass drizzle issues on Railway)
 let _pool: mysql.Pool | null = null;
-function getPool() {
+export function getPool() {
   if (!_pool && process.env.DATABASE_URL) {
     _pool = mysql.createPool(process.env.DATABASE_URL);
   }
