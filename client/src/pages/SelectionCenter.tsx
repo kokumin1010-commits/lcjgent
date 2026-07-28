@@ -4507,7 +4507,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { handleReset(); onClose(); } }}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5 text-amber-600" />
@@ -4545,7 +4545,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
                 </div>
               ) : products.length > 0 && !isManualInput ? (
                 <div className="mt-1 space-y-2">
-                  <div className="max-h-[200px] overflow-y-auto border rounded-md">
+                  <div className="max-h-[350px] overflow-y-auto border rounded-md">
                     {products.map((p: any) => {
                       const images = (() => { try { return JSON.parse(p.images || '[]'); } catch { return []; } })();
                       const thumb = images[0] || '';
