@@ -2943,6 +2943,7 @@ export default function SelectionCenter() {
       }} className="space-y-4">
         <TabsList>
           <TabsTrigger value="products"><Package className="h-4 w-4 mr-1" />{t("sc.tab.products")}</TabsTrigger>
+          <TabsTrigger value="bundles"><Layers className="h-4 w-4 mr-1" />套组管理</TabsTrigger>
           <TabsTrigger value="liver-selection"><ShoppingBag className="h-4 w-4 mr-1" />{t("sc.tab.liverSelection")}</TabsTrigger>
           <TabsTrigger value="schedules"><Calendar className="h-4 w-4 mr-1" />{t("sc.tab.schedules")}</TabsTrigger>
           <TabsTrigger value="performances"><TrendingUp className="h-4 w-4 mr-1" />{t("sc.tab.performances")}</TabsTrigger>
@@ -2952,11 +2953,11 @@ export default function SelectionCenter() {
           <TabsTrigger value="lp-links"><Link2 className="h-4 w-4 mr-1" />LPリンク</TabsTrigger>
           <TabsTrigger value="procurement"><ShoppingCart className="h-4 w-4 mr-1" />进货</TabsTrigger>
           <TabsTrigger value="cost-management"><Lock className="h-4 w-4 mr-1" />成本管理</TabsTrigger>
-          <TabsTrigger value="bundles"><Layers className="h-4 w-4 mr-1" />套组管理</TabsTrigger>
           <TabsTrigger value="catalog" onClick={() => { window.open('/catalog', '_blank'); }}><ExternalLink className="h-4 w-4 mr-1" />カタログ</TabsTrigger>
           <TabsTrigger value="brands" onClick={() => { window.location.href = '/master/brands'; }}><Building2 className="h-4 w-4 mr-1" />ブランド管理</TabsTrigger>
         </TabsList>
         <TabsContent value="products"><ProductsTab /></TabsContent>
+        <TabsContent value="bundles"><BundlesTab /></TabsContent>
         <TabsContent value="liver-selection"><LiverSelectionTab /></TabsContent>
         <TabsContent value="schedules"><SchedulesTab /></TabsContent>
         <TabsContent value="performances"><PerformancesTab /></TabsContent>
@@ -2966,7 +2967,6 @@ export default function SelectionCenter() {
         <TabsContent value="lp-links"><LPLinksTab /></TabsContent>
         <TabsContent value="procurement"><ProcurementTab /></TabsContent>
         <TabsContent value="cost-management"><CostManagementTab /></TabsContent>
-        <TabsContent value="bundles"><BundlesTab /></TabsContent>
         <TabsContent value="brands"><div className="p-8 text-center text-muted-foreground">ブランド管理ページに移動しています...</div></TabsContent>
       </Tabs>
     </div>
