@@ -3347,7 +3347,10 @@ function ProcurementTab() {
                   <th className="text-left p-3 font-medium">発注日</th>
                   <th className="text-left p-3 font-medium">ブランド</th>
                   <th className="text-left p-3 font-medium">商品名</th>
-                  <th className="text-right p-3 font-medium">数量</th>
+                  <th className="text-center p-3 font-medium">待支付</th>
+                  <th className="text-center p-3 font-medium">待发货</th>
+                  <th className="text-center p-3 font-medium">每单数量</th>
+                  <th className="text-right p-3 font-medium">採購数</th>
                   <th className="text-center p-3 font-medium">ステータス</th>
                   <th className="text-center p-3 font-medium">操作</th>
                 </tr>
