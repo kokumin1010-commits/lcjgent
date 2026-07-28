@@ -1730,6 +1730,9 @@ export const selectionCenterRouter = router({
       orderDate: z.string(),
       status: z.enum(['pending', 'ordered', 'received', 'cancelled']).default('pending'),
       memo: z.string().optional(),
+      liveRoom: z.string().optional(),
+      shopName: z.string().optional(),
+      productLink: z.string().optional(),
       items: z.array(z.object({
         productId: z.number().optional(),
         productName: z.string(),
@@ -1739,12 +1742,18 @@ export const selectionCenterRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const pool = getPool();
+      // Ensure new columns exist
+      try {
+        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS liveRoom VARCHAR(100) DEFAULT NULL`);
+        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS shopName VARCHAR(255) DEFAULT NULL`);
+        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS productLink TEXT DEFAULT NULL`);
+      } catch (e) { /* columns may already exist */ }
       const results: number[] = [];
       for (const item of input.items) {
         const totalCost = item.quantity * item.unitCost;
         const [result] = await pool.query(
-          `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, status, memo, createdBy)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, status, memo, liveRoom, shopName, productLink, createdBy)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             input.brandId,
             input.brandName,
@@ -1756,6 +1765,9 @@ export const selectionCenterRouter = router({
             input.orderDate,
             input.status,
             input.memo || null,
+            input.liveRoom || null,
+            input.shopName || null,
+            input.productLink || null,
             (ctx.user as any)?.id || 0,
           ]
         ) as any;

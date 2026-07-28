@@ -3440,6 +3440,9 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
   const [status, setStatus] = useState("pending");
   const [memo, setMemo] = useState("");
+  const [liveRoom, setLiveRoom] = useState("kg");
+  const [shopName, setShopName] = useState("LCJ店铺");
+  const [productLink, setProductLink] = useState("");
 
   // ブランド合併ロジック（カタログと同じ）
   const mergedBrands = useMemo(() => {
@@ -3527,6 +3530,9 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
       orderDate,
       status,
       memo: memo || undefined,
+      liveRoom: liveRoom || undefined,
+      shopName: shopName || undefined,
+      productLink: productLink || undefined,
       items: selectedItems.map(item => ({
         productId: item.productId,
         productName: item.productName,
@@ -3547,6 +3553,9 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
       setOrderDate(new Date().toISOString().split('T')[0]);
       setStatus("pending");
       setMemo("");
+      setLiveRoom("kg");
+      setShopName("LCJ店铺");
+      setProductLink("");
     }
   }, [open]);
 
@@ -3706,8 +3715,29 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>発注日</Label>
+              <Label>日期</Label>
               <Input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} />
+            </div>
+            <div>
+              <Label>直播间</Label>
+              <Select value={liveRoom} onValueChange={v => setLiveRoom(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="kg">kg</SelectItem>
+                  <SelectItem value="shiho">shiho</SelectItem>
+                  <SelectItem value="nana">nana</SelectItem>
+                  <SelectItem value="hazuki">hazuki</SelectItem>
+                  <SelectItem value="商品カード">商品カード</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>店铺名称</Label>
+              <Input value={shopName} onChange={e => setShopName(e.target.value)} placeholder="LCJ店铺" />
             </div>
             <div>
               <Label>ステータス</Label>
@@ -3722,6 +3752,10 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div>
+            <Label>商品链接或ID</Label>
+            <Input value={productLink} onChange={e => setProductLink(e.target.value)} placeholder="允许复制粘贴即可" />
           </div>
           <div>
             <Label>メモ</Label>
