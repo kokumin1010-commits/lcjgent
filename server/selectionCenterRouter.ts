@@ -16,6 +16,43 @@ function getPool() {
   return _pool!;
 }
 
+// Auto-init: create tables on import (runs once at server startup)
+(async () => {
+  try {
+    if (process.env.DATABASE_URL) {
+      const pool = mysql.createPool(process.env.DATABASE_URL);
+      await pool.query(`CREATE TABLE IF NOT EXISTS product_bundles (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        bundleName VARCHAR(255) NOT NULL,
+        bundleNameCn VARCHAR(255) DEFAULT NULL,
+        description TEXT DEFAULT NULL,
+        price DECIMAL(10,2) DEFAULT NULL,
+        marketPrice DECIMAL(10,2) DEFAULT NULL,
+        stock INT DEFAULT 0,
+        images JSON DEFAULT NULL,
+        status ENUM('draft','online','offline') DEFAULT 'draft',
+        createdBy INT DEFAULT 0,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        deletedAt TIMESTAMP DEFAULT NULL
+      )`);
+      await pool.query(`CREATE TABLE IF NOT EXISTS bundle_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        bundleId INT NOT NULL,
+        productId INT NOT NULL,
+        quantity INT DEFAULT 1,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_bundle (bundleId),
+        INDEX idx_product (productId)
+      )`);
+      console.log('[SelectionCenter] product_bundles & bundle_items tables ensured');
+      await pool.end();
+    }
+  } catch (e: any) {
+    console.log('[SelectionCenter] Auto-init tables skipped:', e.message);
+  }
+})();
+
 export const selectionCenterRouter = router({
   // ========== Setup / Migration ==========
   setupTables: protectedProcedure.mutation(async () => {
