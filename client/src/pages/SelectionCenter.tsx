@@ -3262,13 +3262,17 @@ function ProcurementTab() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardContent className="pt-4">
-              <p className="text-xs text-muted-foreground">月間発注件数</p>
+              <p className="text-xs text-muted-foreground">月間订单数</p>
               <p className="text-2xl font-bold text-blue-600">
                 {summary.grandTotal?.orderCount || 0}件
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                合計 {Number(summary.grandTotal?.totalQuantity || 0).toLocaleString()}個
+                採購数: {Number(summary.grandTotal?.totalQuantity || 0).toLocaleString()}個
               </p>
+              <div className="flex gap-3 mt-1">
+                <span className="text-xs text-orange-600">待支付: {orders.reduce((sum: number, o: any) => sum + Number(o.pendingPaymentQty || 0), 0)}個</span>
+                <span className="text-xs text-blue-600">待发货: {orders.reduce((sum: number, o: any) => sum + Number(o.pendingShipQty || 0), 0)}個</span>
+              </div>
             </CardContent>
           </Card>
           <Card>
@@ -3351,7 +3355,7 @@ function ProcurementTab() {
               <tbody>
                 {orders.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <td colSpan={8} className="text-center py-8 text-muted-foreground">
                       {ordersQuery.isLoading ? "読み込み中..." : "この月の仕入れデータはありません"}
                     </td>
                   </tr>
@@ -3435,7 +3439,9 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
   const [brandId, setBrandId] = useState(0);
   const [brandName, setBrandName] = useState("");
   const [brandIds, setBrandIds] = useState<number[]>([]);
-  const [selectedItems, setSelectedItems] = useState<Array<{ productId?: number; productName: string; quantity: number; brandId?: number; brandName?: string; orderStatus?: string }>>([])
+  const [selectedItems, setSelectedItems] = useState<Array<{ productId?: number; productName: string; pendingPaymentQty: number; pendingShipQty: number; brandId?: number; brandName?: string }>>([])
+  // 総採購数量 = 待支付 + 待发货
+  const getTotalQty = (item: { pendingPaymentQty: number; pendingShipQty: number }) => item.pendingPaymentQty + item.pendingShipQty;
   // 商品あいまい検索（全商品横断）
   const [productSearch, setProductSearch] = useState("");
   const [productSearchDebounced, setProductSearchDebounced] = useState("");
@@ -3506,34 +3512,34 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
     if (exists) {
       setSelectedItems(selectedItems.filter(i => i.productId !== product.id));
     } else {
-      setSelectedItems([...selectedItems, { productId: product.id, productName: product.productName, quantity: 1, brandId: product.brandId, brandName: product.brandName }]);
+      setSelectedItems([...selectedItems, { productId: product.id, productName: product.productName, pendingPaymentQty: 0, pendingShipQty: 1, brandId: product.brandId, brandName: product.brandName }]);
     }
   };
 
   // 手入力商品を追加
   const addManualProduct = () => {
     if (!manualProductName.trim()) return;
-    setSelectedItems([...selectedItems, { productName: manualProductName.trim(), quantity: 1 }]);
+    setSelectedItems([...selectedItems, { productName: manualProductName.trim(), pendingPaymentQty: 0, pendingShipQty: 1 }]);
     setManualProductName("");
   };
 
-  // 数量変更
-  const updateQuantity = (index: number, quantity: number) => {
+  // 待支付数量変更
+  const updatePendingPaymentQty = (index: number, qty: number) => {
     const updated = [...selectedItems];
-    updated[index] = { ...updated[index], quantity: Math.max(1, quantity) };
+    updated[index] = { ...updated[index], pendingPaymentQty: Math.max(0, qty) };
+    setSelectedItems(updated);
+  };
+
+  // 待发货数量変更
+  const updatePendingShipQty = (index: number, qty: number) => {
+    const updated = [...selectedItems];
+    updated[index] = { ...updated[index], pendingShipQty: Math.max(0, qty) };
     setSelectedItems(updated);
   };
 
   // 商品削除
   const removeItem = (index: number) => {
     setSelectedItems(selectedItems.filter((_, i) => i !== index));
-  };
-
-  // 订单情况更新
-  const updateOrderStatus = (index: number, orderStatus: string) => {
-    const updated = [...selectedItems];
-    updated[index] = { ...updated[index], orderStatus: orderStatus || undefined };
-    setSelectedItems(updated);
   };
 
   const handleSubmit = () => {
@@ -3556,9 +3562,10 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
       items: selectedItems.map(item => ({
         productId: item.productId,
         productName: item.productName,
-        quantity: item.quantity,
+        quantity: getTotalQty(item),
         unitCost: 0, // 原価は原価管理タブで別途管理
-        orderStatus: item.orderStatus || undefined,
+        pendingPaymentQty: item.pendingPaymentQty,
+        pendingShipQty: item.pendingShipQty,
       })),
     });
   };
@@ -3766,45 +3773,43 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
             </div>
           )}
 
-          {/* 選択済み商品一覧（商品ごとに数量設定） */}
+          {/* 選択済み商品一覧（商品ごとに待支付/待发货数量設定） */}
           {selectedItems.length > 0 && (
             <div>
-              <Label>選択済み商品 ({selectedItems.length}件)</Label>
+              <Label>選択済み商品 ({selectedItems.length}件・総採購数: {selectedItems.reduce((sum, i) => sum + getTotalQty(i), 0)}個)</Label>
               <div className="border rounded-md divide-y mt-1">
                 {selectedItems.map((item, idx) => (
-                  <div key={idx} className="flex flex-col gap-1 px-3 py-2">
-                    <div className="flex items-center gap-3">
+                  <div key={idx} className="flex flex-col gap-1.5 px-3 py-2">
+                    <div className="flex items-center gap-2">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium break-words">{item.productName}</p>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <Label className="text-xs text-muted-foreground whitespace-nowrap">数量:</Label>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">合计: {getTotalQty(item)}個</span>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="h-7 w-7 p-0 flex-shrink-0">
+                        <X className="h-3 w-3 text-red-500" />
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="flex items-center gap-1">
+                        <Label className="text-xs text-orange-600 whitespace-nowrap">待支付:</Label>
                         <Input
                           type="number"
-                          min={1}
-                          value={item.quantity}
-                          onChange={e => updateQuantity(idx, Number(e.target.value))}
-                          className="w-16 h-7 text-sm text-center"
+                          min={0}
+                          value={item.pendingPaymentQty}
+                          onChange={e => updatePendingPaymentQty(idx, Number(e.target.value))}
+                          className="w-14 h-7 text-sm text-center"
                         />
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="h-7 w-7 p-0">
-                          <X className="h-3 w-3 text-red-500" />
-                        </Button>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-muted-foreground whitespace-nowrap">订单情况:</Label>
-                      <select
-                        value={item.orderStatus || ''}
-                        onChange={e => updateOrderStatus(idx, e.target.value)}
-                        className="h-7 text-xs border rounded px-2 bg-background"
-                      >
-                        <option value="">未设定</option>
-                        <option value="待发货">待发货</option>
-                        <option value="等待中">等待中</option>
-                        <option value="已发货">已发货</option>
-                        <option value="已到达">已到达</option>
-                        <option value="已取消">已取消</option>
-                      </select>
+                      <div className="flex items-center gap-1">
+                        <Label className="text-xs text-blue-600 whitespace-nowrap">待发货:</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={item.pendingShipQty}
+                          onChange={e => updatePendingShipQty(idx, Number(e.target.value))}
+                          className="w-14 h-7 text-sm text-center"
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}
