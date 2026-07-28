@@ -102,6 +102,30 @@ export const selectionCenterRouter = router({
         createdBy INT DEFAULT 0,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
+      `CREATE TABLE IF NOT EXISTS product_bundles (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        bundleName VARCHAR(255) NOT NULL,
+        bundleNameCn VARCHAR(255) DEFAULT NULL,
+        description TEXT DEFAULT NULL,
+        price DECIMAL(10,2) DEFAULT NULL,
+        marketPrice DECIMAL(10,2) DEFAULT NULL,
+        stock INT DEFAULT 0,
+        images JSON DEFAULT NULL,
+        status ENUM('draft','online','offline') DEFAULT 'draft',
+        createdBy INT DEFAULT 0,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        deletedAt TIMESTAMP DEFAULT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS bundle_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        bundleId INT NOT NULL,
+        productId INT NOT NULL,
+        quantity INT DEFAULT 1,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_bundle (bundleId),
+        INDEX idx_product (productId)
+      )`,
     ];
     const results: string[] = [];
     for (const stmt of createStatements) {
@@ -1891,4 +1915,138 @@ export const selectionCenterRouter = router({
       await pool.query(`DELETE FROM product_cost_history WHERE id = ?`, [input.id]);
       return { success: true };
     }),
+
+  // ========== Bundle (套组) Management ==========
+  getBundles: protectedProcedure.input(z.object({
+    search: z.string().optional(),
+    status: z.string().optional(),
+  }).optional()).query(async ({ input }) => {
+    const pool = getPool();
+    let where = 'WHERE pb.deletedAt IS NULL';
+    const params: any[] = [];
+    if (input?.search) {
+      where += ' AND (pb.bundleName LIKE ? OR pb.bundleNameCn LIKE ?)';
+      params.push(`%${input.search}%`, `%${input.search}%`);
+    }
+    if (input?.status && input.status !== 'all') {
+      where += ' AND pb.status = ?';
+      params.push(input.status);
+    }
+    const [rows] = await pool.query(`SELECT pb.* FROM product_bundles pb ${where} ORDER BY pb.createdAt DESC`, params) as any;
+    const bundles = [];
+    for (const bundle of rows) {
+      const [items] = await pool.query(
+        `SELECT bi.*, sp.productName, sp.productNameCn, sp.price, sp.images, sp.brandName, sp.stock as productStock
+         FROM bundle_items bi LEFT JOIN selection_products sp ON bi.productId = sp.id WHERE bi.bundleId = ?`,
+        [bundle.id]
+      ) as any;
+      bundles.push({ ...bundle, items });
+    }
+    return bundles;
+  }),
+
+  getBundleById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
+    const pool = getPool();
+    const [rows] = await pool.query(`SELECT * FROM product_bundles WHERE id = ? AND deletedAt IS NULL`, [input.id]) as any;
+    if (!rows[0]) return null;
+    const [items] = await pool.query(
+      `SELECT bi.*, sp.productName, sp.productNameCn, sp.price, sp.images, sp.brandName, sp.stock as productStock
+       FROM bundle_items bi LEFT JOIN selection_products sp ON bi.productId = sp.id WHERE bi.bundleId = ?`,
+      [input.id]
+    ) as any;
+    return { ...rows[0], items };
+  }),
+
+  createBundle: protectedProcedure.input(z.object({
+    bundleName: z.string(),
+    bundleNameCn: z.string().optional(),
+    description: z.string().optional(),
+    price: z.number().optional(),
+    marketPrice: z.number().optional(),
+    stock: z.number().optional(),
+    images: z.array(z.string()).optional(),
+    status: z.enum(['draft', 'online', 'offline']).optional(),
+    items: z.array(z.object({ productId: z.number(), quantity: z.number().default(1) })),
+  })).mutation(async ({ input, ctx }) => {
+    const pool = getPool();
+    const [result] = await pool.query(
+      `INSERT INTO product_bundles (bundleName, bundleNameCn, description, price, marketPrice, stock, images, status, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [input.bundleName, input.bundleNameCn || null, input.description || null, input.price || null, input.marketPrice || null, input.stock || 0, JSON.stringify(input.images || []), input.status || 'draft', (ctx.user as any)?.id || 0]
+    ) as any;
+    const bundleId = result.insertId;
+    for (const item of input.items) {
+      await pool.query(`INSERT INTO bundle_items (bundleId, productId, quantity) VALUES (?, ?, ?)`, [bundleId, item.productId, item.quantity]);
+    }
+    return { id: bundleId };
+  }),
+
+  updateBundle: protectedProcedure.input(z.object({
+    id: z.number(),
+    bundleName: z.string().optional(),
+    bundleNameCn: z.string().optional(),
+    description: z.string().optional(),
+    price: z.number().optional(),
+    marketPrice: z.number().optional(),
+    stock: z.number().optional(),
+    images: z.array(z.string()).optional(),
+    status: z.enum(['draft', 'online', 'offline']).optional(),
+    items: z.array(z.object({ productId: z.number(), quantity: z.number().default(1) })).optional(),
+  })).mutation(async ({ input }) => {
+    const pool = getPool();
+    const updates: string[] = [];
+    const params: any[] = [];
+    if (input.bundleName !== undefined) { updates.push('bundleName = ?'); params.push(input.bundleName); }
+    if (input.bundleNameCn !== undefined) { updates.push('bundleNameCn = ?'); params.push(input.bundleNameCn); }
+    if (input.description !== undefined) { updates.push('description = ?'); params.push(input.description); }
+    if (input.price !== undefined) { updates.push('price = ?'); params.push(input.price); }
+    if (input.marketPrice !== undefined) { updates.push('marketPrice = ?'); params.push(input.marketPrice); }
+    if (input.stock !== undefined) { updates.push('stock = ?'); params.push(input.stock); }
+    if (input.images !== undefined) { updates.push('images = ?'); params.push(JSON.stringify(input.images)); }
+    if (input.status !== undefined) { updates.push('status = ?'); params.push(input.status); }
+    if (updates.length > 0) {
+      params.push(input.id);
+      await pool.query(`UPDATE product_bundles SET ${updates.join(', ')} WHERE id = ?`, params);
+    }
+    if (input.items !== undefined) {
+      await pool.query(`DELETE FROM bundle_items WHERE bundleId = ?`, [input.id]);
+      for (const item of input.items) {
+        await pool.query(`INSERT INTO bundle_items (bundleId, productId, quantity) VALUES (?, ?, ?)`, [input.id, item.productId, item.quantity]);
+      }
+    }
+    return { success: true };
+  }),
+
+  deleteBundle: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+    const pool = getPool();
+    await pool.query(`UPDATE product_bundles SET deletedAt = NOW() WHERE id = ?`, [input.id]);
+    return { success: true };
+  }),
+
+  getBundlesForProduct: protectedProcedure.input(z.object({ productId: z.number() })).query(async ({ input }) => {
+    const pool = getPool();
+    const [rows] = await pool.query(
+      `SELECT pb.id, pb.bundleName, pb.bundleNameCn, pb.price, pb.status, bi.quantity
+       FROM bundle_items bi JOIN product_bundles pb ON bi.bundleId = pb.id
+       WHERE bi.productId = ? AND pb.deletedAt IS NULL`,
+      [input.productId]
+    ) as any;
+    return rows;
+  }),
+
+  getOnlineBundles: publicProcedure.query(async () => {
+    const pool = getPool();
+    const [rows] = await pool.query(
+      `SELECT pb.* FROM product_bundles pb WHERE pb.status = 'online' AND pb.deletedAt IS NULL ORDER BY pb.createdAt DESC`
+    ) as any;
+    const bundles = [];
+    for (const bundle of rows) {
+      const [items] = await pool.query(
+        `SELECT bi.*, sp.productName, sp.productNameCn, sp.price, sp.images, sp.brandName
+         FROM bundle_items bi LEFT JOIN selection_products sp ON bi.productId = sp.id WHERE bi.bundleId = ?`,
+        [bundle.id]
+      ) as any;
+      bundles.push({ ...bundle, items });
+    }
+    return bundles;
+  }),
 });

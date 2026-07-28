@@ -10,10 +10,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock, HelpCircle } from "lucide-react";
+import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock, HelpCircle, Layers } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
+
+// ==================== Product Bundle Badge ====================
+function ProductBundleBadge({ productId }: { productId: number }) {
+  const bundlesQuery = trpc.selectionCenter.getBundlesForProduct.useQuery({ productId });
+  const bundles = bundlesQuery.data || [];
+  if (bundles.length === 0) return <span className="text-muted-foreground text-xs">-</span>;
+  return (
+    <div className="flex flex-wrap gap-1 justify-center">
+      {bundles.map((b: any) => (
+        <span key={b.id} className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium whitespace-nowrap">
+          <Layers className="h-2.5 w-2.5" />{b.bundleName}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 // ==================== Products Tab ====================
 function ProductsTab() {
@@ -100,6 +116,7 @@ function ProductsTab() {
               <th className="text-right p-3 font-medium">{t("sc.commission")}</th>
               <th className="text-center p-3 font-medium">{t("sc.stock")}</th>
               <th className="text-center p-3 font-medium">{t("sc.status")}</th>
+              <th className="text-center p-3 font-medium">套组</th>
               <th className="text-center p-3 font-medium">{t("sc.actions")}</th>
             </tr>
           </thead>
@@ -154,6 +171,7 @@ function ProductsTab() {
                     {product.commissionValue ? (product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`) : "-"}
                   </td>
                   <td className="p-3 text-center">{product.stock ?? "-"}</td>
+                  <td className="p-3 text-center"><ProductBundleBadge productId={product.id} /></td>
                   <td className="p-3 text-center">
                     <Badge variant={product.status === "online" ? "default" : product.status === "draft" ? "secondary" : "outline"}>
                       {product.status === "online" ? t("sc.online") : product.status === "draft" ? t("sc.draft") : t("sc.offline")}
@@ -186,7 +204,7 @@ function ProductsTab() {
               );
             })}
             {(!productsQuery.data?.items || productsQuery.data.items.length === 0) && (
-              <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">{t("sc.noProducts")}</td></tr>
+              <tr><td colSpan={11} className="p-8 text-center text-muted-foreground">{t("sc.noProducts")}</td></tr>
             )}
           </tbody>
         </table>
@@ -1028,6 +1046,9 @@ function LiverSelectionTab() {
         </div>
       </div>
 
+      {/* Online Bundles Section */}
+      <OnlineBundlesSection selectedLiverId={selectedLiverId} />
+
       {/* Product Detail Dialog */}
       <Dialog open={!!detailProduct} onOpenChange={(open) => { if (!open) setDetailProduct(null); }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -1163,6 +1184,65 @@ function LiverSelectionTab() {
       </Dialog>
 
 
+    </div>
+  );
+}
+
+// ==================== Online Bundles Section (for LiverSelection) ====================
+function OnlineBundlesSection({ selectedLiverId }: { selectedLiverId: string }) {
+  const bundlesQuery = trpc.selectionCenter.getOnlineBundles.useQuery();
+  const bundles = bundlesQuery.data || [];
+
+  if (bundles.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+        <Layers className="h-4 w-4" />
+        套组商品 ({bundles.length})
+      </h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {bundles.map((bundle: any) => (
+          <Card key={bundle.id} className="overflow-hidden hover:shadow-md transition-shadow border-2 border-purple-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Badge className="bg-purple-100 text-purple-700 border-purple-200">套组</Badge>
+                <h3 className="font-semibold">{bundle.bundleName}</h3>
+              </div>
+              {bundle.bundleNameCn && <p className="text-xs text-muted-foreground mb-2">{bundle.bundleNameCn}</p>}
+              {bundle.description && <p className="text-xs text-muted-foreground mb-2">{bundle.description}</p>}
+              <div className="flex items-center gap-3 mb-3">
+                <span className="font-bold text-orange-600 text-lg">¥{Number(bundle.price || 0).toLocaleString()}</span>
+                {bundle.marketPrice && Number(bundle.marketPrice) > Number(bundle.price || 0) && (
+                  <>
+                    <span className="text-muted-foreground line-through text-sm">¥{Number(bundle.marketPrice).toLocaleString()}</span>
+                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5">
+                      {Math.round((1 - Number(bundle.price || 0) / Number(bundle.marketPrice)) * 100)}%OFF
+                    </Badge>
+                  </>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">包含商品:</p>
+                {bundle.items?.map((item: any) => {
+                  const imgs = item.images ? (typeof item.images === 'string' ? JSON.parse(item.images) : item.images) : [];
+                  return (
+                    <div key={item.id} className="flex items-center gap-2 bg-muted/30 rounded px-2 py-1.5 text-xs">
+                      {imgs.length > 0 ? <img src={imgs[0]} className="w-6 h-6 rounded object-cover" /> : <Package className="w-4 h-4 text-muted-foreground" />}
+                      <span className="flex-1 truncate">{item.productName}</span>
+                      <span className="text-muted-foreground">×{item.quantity || 1}</span>
+                      <span className="text-muted-foreground">¥{Number(item.price || 0).toLocaleString()}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-between mt-3 pt-2 border-t">
+                <span className="text-xs text-muted-foreground">库存: {bundle.stock}</span>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
@@ -2872,6 +2952,7 @@ export default function SelectionCenter() {
           <TabsTrigger value="lp-links"><Link2 className="h-4 w-4 mr-1" />LPリンク</TabsTrigger>
           <TabsTrigger value="procurement"><ShoppingCart className="h-4 w-4 mr-1" />进货</TabsTrigger>
           <TabsTrigger value="cost-management"><Lock className="h-4 w-4 mr-1" />成本管理</TabsTrigger>
+          <TabsTrigger value="bundles"><Layers className="h-4 w-4 mr-1" />套组管理</TabsTrigger>
           <TabsTrigger value="catalog" onClick={() => { window.open('/catalog', '_blank'); }}><ExternalLink className="h-4 w-4 mr-1" />カタログ</TabsTrigger>
           <TabsTrigger value="brands" onClick={() => { window.location.href = '/master/brands'; }}><Building2 className="h-4 w-4 mr-1" />ブランド管理</TabsTrigger>
         </TabsList>
@@ -2885,6 +2966,7 @@ export default function SelectionCenter() {
         <TabsContent value="lp-links"><LPLinksTab /></TabsContent>
         <TabsContent value="procurement"><ProcurementTab /></TabsContent>
         <TabsContent value="cost-management"><CostManagementTab /></TabsContent>
+        <TabsContent value="bundles"><BundlesTab /></TabsContent>
         <TabsContent value="brands"><div className="p-8 text-center text-muted-foreground">ブランド管理ページに移動しています...</div></TabsContent>
       </Tabs>
     </div>
@@ -4429,6 +4511,343 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
           >
             {registerCostMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
             登记
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ==================== Bundles (套组) Tab ====================
+function BundlesTab() {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editBundle, setEditBundle] = useState<any>(null);
+
+  const bundlesQuery = trpc.selectionCenter.getBundles.useQuery({
+    search: search || undefined,
+    status: statusFilter === "all" ? undefined : statusFilter,
+  });
+  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 500 });
+
+  const createMutation = trpc.selectionCenter.createBundle.useMutation({
+    onSuccess: () => { bundlesQuery.refetch(); setShowCreateDialog(false); toast.success("套组创建成功"); },
+    onError: (err) => { toast.error(err.message || "创建失败"); },
+  });
+  const updateMutation = trpc.selectionCenter.updateBundle.useMutation({
+    onSuccess: () => { bundlesQuery.refetch(); setEditBundle(null); toast.success("套组更新成功"); },
+    onError: (err) => { toast.error(err.message || "更新失败"); },
+  });
+  const deleteMutation = trpc.selectionCenter.deleteBundle.useMutation({
+    onSuccess: () => { bundlesQuery.refetch(); toast.success("套组已删除"); },
+  });
+  const statusMutation = trpc.selectionCenter.updateBundle.useMutation({
+    onSuccess: () => { bundlesQuery.refetch(); toast.success("状态已更新"); },
+  });
+
+  const bundles = bundlesQuery.data || [];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="搜索套组名称..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部</SelectItem>
+            <SelectItem value="draft">草稿</SelectItem>
+            <SelectItem value="online">已上架</SelectItem>
+            <SelectItem value="offline">已下架</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button onClick={() => setShowCreateDialog(true)}><Plus className="h-4 w-4 mr-1" />创建套组</Button>
+      </div>
+
+      {/* Bundles List */}
+      <div className="grid gap-4">
+        {bundles.map((bundle: any) => (
+          <Card key={bundle.id} className="overflow-hidden">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="font-semibold text-lg">{bundle.bundleName}</h3>
+                    {bundle.bundleNameCn && <span className="text-sm text-muted-foreground">({bundle.bundleNameCn})</span>}
+                    <Badge variant={bundle.status === "online" ? "default" : bundle.status === "draft" ? "secondary" : "outline"}>
+                      {bundle.status === "online" ? "已上架" : bundle.status === "draft" ? "草稿" : "已下架"}
+                    </Badge>
+                  </div>
+                  {bundle.description && <p className="text-sm text-muted-foreground mb-2">{bundle.description}</p>}
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="font-medium text-orange-600">套组价: ¥{Number(bundle.price || 0).toLocaleString()}</span>
+                    {bundle.marketPrice && <span className="text-muted-foreground line-through">¥{Number(bundle.marketPrice).toLocaleString()}</span>}
+                    <span>库存: {bundle.stock}</span>
+                    <span>包含 {bundle.items?.length || 0} 个商品</span>
+                  </div>
+                  {/* Items preview */}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {bundle.items?.map((item: any) => (
+                      <div key={item.id} className="flex items-center gap-1.5 bg-muted/50 rounded px-2 py-1 text-xs">
+                        {(() => {
+                          const imgs = item.images ? (typeof item.images === 'string' ? JSON.parse(item.images) : item.images) : [];
+                          return imgs.length > 0 ? <img src={imgs[0]} className="w-5 h-5 rounded object-cover" /> : <Package className="w-4 h-4 text-muted-foreground" />;
+                        })()}
+                        <span className="max-w-[120px] truncate">{item.productName}</span>
+                        {item.quantity > 1 && <span className="text-muted-foreground">×{item.quantity}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 ml-4">
+                  {bundle.status !== "online" && (
+                    <Button variant="ghost" size="sm" onClick={() => statusMutation.mutate({ id: bundle.id, status: "online" })} title="上架">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    </Button>
+                  )}
+                  {bundle.status === "online" && (
+                    <Button variant="ghost" size="sm" onClick={() => statusMutation.mutate({ id: bundle.id, status: "offline" })} title="下架">
+                      <Eye className="h-4 w-4 text-orange-600" />
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={() => setEditBundle(bundle)}>
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => { if (confirm("确定要删除此套组吗？")) deleteMutation.mutate({ id: bundle.id }); }}>
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        {bundles.length === 0 && (
+          <div className="p-12 text-center text-muted-foreground">
+            <Layers className="h-12 w-12 mx-auto mb-3 opacity-30" />
+            <p>暂无套组</p>
+            <p className="text-xs mt-1">点击「创建套组」开始组合商品</p>
+          </div>
+        )}
+      </div>
+
+      {/* Create/Edit Bundle Dialog */}
+      <BundleFormDialog
+        open={showCreateDialog || !!editBundle}
+        onClose={() => { setShowCreateDialog(false); setEditBundle(null); }}
+        bundle={editBundle}
+        products={productsQuery.data?.items || []}
+        onSubmit={(data: any) => {
+          if (editBundle) {
+            updateMutation.mutate({ id: editBundle.id, ...data });
+          } else {
+            createMutation.mutate(data);
+          }
+        }}
+        loading={createMutation.isPending || updateMutation.isPending}
+      />
+    </div>
+  );
+}
+
+function BundleFormDialog({ open, onClose, bundle, products, onSubmit, loading }: any) {
+  const [form, setForm] = useState<any>({});
+  const [selectedItems, setSelectedItems] = useState<{ productId: number; quantity: number }[]>([]);
+  const [productSearch, setProductSearch] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      if (bundle) {
+        setForm({
+          bundleName: bundle.bundleName || "",
+          bundleNameCn: bundle.bundleNameCn || "",
+          description: bundle.description || "",
+          price: bundle.price ? Number(bundle.price) : "",
+          marketPrice: bundle.marketPrice ? Number(bundle.marketPrice) : "",
+          stock: bundle.stock || 0,
+          status: bundle.status || "draft",
+        });
+        setSelectedItems(bundle.items?.map((i: any) => ({ productId: i.productId, quantity: i.quantity || 1 })) || []);
+      } else {
+        setForm({ bundleName: "", bundleNameCn: "", description: "", price: "", marketPrice: "", stock: 0, status: "draft" });
+        setSelectedItems([]);
+      }
+      setProductSearch("");
+    }
+  }, [open, bundle]);
+
+  const filteredProducts = useMemo(() => {
+    if (!productSearch) return products.slice(0, 20);
+    return products.filter((p: any) =>
+      p.productName?.toLowerCase().includes(productSearch.toLowerCase()) ||
+      p.productNameCn?.toLowerCase().includes(productSearch.toLowerCase()) ||
+      p.brandName?.toLowerCase().includes(productSearch.toLowerCase())
+    ).slice(0, 20);
+  }, [products, productSearch]);
+
+  const handleSubmit = () => {
+    if (!form.bundleName) { toast.error("请输入套组名称"); return; }
+    if (selectedItems.length === 0) { toast.error("请至少选择一个商品"); return; }
+    onSubmit({
+      ...form,
+      price: form.price ? Number(form.price) : undefined,
+      marketPrice: form.marketPrice ? Number(form.marketPrice) : undefined,
+      stock: Number(form.stock) || 0,
+      items: selectedItems,
+    });
+  };
+
+  const toggleProduct = (productId: number) => {
+    setSelectedItems(prev => {
+      const exists = prev.find(i => i.productId === productId);
+      if (exists) return prev.filter(i => i.productId !== productId);
+      return [...prev, { productId, quantity: 1 }];
+    });
+  };
+
+  const updateQuantity = (productId: number, quantity: number) => {
+    setSelectedItems(prev => prev.map(i => i.productId === productId ? { ...i, quantity: Math.max(1, quantity) } : i));
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{bundle ? "编辑套组" : "创建套组"}</DialogTitle>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-6">
+          {/* Left: Form */}
+          <div className="space-y-4">
+            <div>
+              <Label>套组名称 *</Label>
+              <Input value={form.bundleName} onChange={e => setForm({ ...form, bundleName: e.target.value })} placeholder="例: 美容护肤3件套" />
+            </div>
+            <div>
+              <Label>中文名称</Label>
+              <Input value={form.bundleNameCn} onChange={e => setForm({ ...form, bundleNameCn: e.target.value })} placeholder="中文别名（可选）" />
+            </div>
+            <div>
+              <Label>套组描述</Label>
+              <Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="套组说明..." rows={3} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>套组价格 (¥)</Label>
+                <Input type="number" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="0" />
+              </div>
+              <div>
+                <Label>市场价 (¥)</Label>
+                <Input type="number" value={form.marketPrice} onChange={e => setForm({ ...form, marketPrice: e.target.value })} placeholder="0" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>库存</Label>
+                <Input type="number" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} />
+              </div>
+              <div>
+                <Label>状态</Label>
+                <Select value={form.status} onValueChange={v => setForm({ ...form, status: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">草稿</SelectItem>
+                    <SelectItem value="online">上架</SelectItem>
+                    <SelectItem value="offline">下架</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Selected Items Summary */}
+            {selectedItems.length > 0 && (
+              <div className="border rounded-lg p-3 space-y-2">
+                <p className="text-sm font-medium">已选商品 ({selectedItems.length})</p>
+                {selectedItems.map(item => {
+                  const product = products.find((p: any) => p.id === item.productId);
+                  return (
+                    <div key={item.productId} className="flex items-center justify-between text-sm bg-muted/30 rounded px-2 py-1.5">
+                      <span className="truncate flex-1 mr-2">{product?.productName || `ID:${item.productId}`}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">×</span>
+                        <Input
+                          type="number"
+                          value={item.quantity}
+                          onChange={e => updateQuantity(item.productId, parseInt(e.target.value) || 1)}
+                          className="w-16 h-7 text-center text-xs"
+                          min={1}
+                        />
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => toggleProduct(item.productId)}>
+                          <X className="h-3 w-3 text-red-500" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {form.price && (
+                  <div className="text-xs text-muted-foreground pt-1 border-t">
+                    单品总价: ¥{selectedItems.reduce((sum, item) => {
+                      const product = products.find((p: any) => p.id === item.productId);
+                      return sum + (Number(product?.price || 0) * item.quantity);
+                    }, 0).toLocaleString()}
+                    {" → "}套组价: ¥{Number(form.price).toLocaleString()}
+                    {" ("}节省 ¥{(selectedItems.reduce((sum, item) => {
+                      const product = products.find((p: any) => p.id === item.productId);
+                      return sum + (Number(product?.price || 0) * item.quantity);
+                    }, 0) - Number(form.price)).toLocaleString()}{")"}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Right: Product Selection */}
+          <div className="space-y-3">
+            <div>
+              <Label>选择商品</Label>
+              <div className="relative mt-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="搜索商品名/品牌..." value={productSearch} onChange={e => setProductSearch(e.target.value)} className="pl-9" />
+              </div>
+            </div>
+            <div className="border rounded-lg max-h-[400px] overflow-y-auto">
+              {filteredProducts.map((product: any) => {
+                const isSelected = selectedItems.some(i => i.productId === product.id);
+                const imgs = product.images ? (typeof product.images === 'string' ? JSON.parse(product.images) : product.images) : [];
+                return (
+                  <div
+                    key={product.id}
+                    className={`flex items-center gap-3 p-2.5 border-b last:border-b-0 cursor-pointer hover:bg-muted/30 transition-colors ${isSelected ? 'bg-blue-50' : ''}`}
+                    onClick={() => toggleProduct(product.id)}
+                  >
+                    <Checkbox checked={isSelected} />
+                    {imgs.length > 0 ? (
+                      <img src={imgs[0]} className="w-8 h-8 rounded object-cover" />
+                    ) : (
+                      <div className="w-8 h-8 rounded bg-muted flex items-center justify-center">
+                        <Package className="w-4 h-4 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{product.productName}</p>
+                      <p className="text-xs text-muted-foreground">{product.brandName} · ¥{Number(product.price || 0).toLocaleString()}</p>
+                    </div>
+                    {isSelected && <Check className="h-4 w-4 text-blue-600" />}
+                  </div>
+                );
+              })}
+              {filteredProducts.length === 0 && (
+                <div className="p-6 text-center text-muted-foreground text-sm">没有找到商品</div>
+              )}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button onClick={handleSubmit} disabled={loading}>
+            {loading && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+            {bundle ? "保存修改" : "创建套组"}
           </Button>
         </DialogFooter>
       </DialogContent>
