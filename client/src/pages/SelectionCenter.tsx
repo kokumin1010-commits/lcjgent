@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock } from "lucide-react";
+import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock, HelpCircle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -145,7 +145,7 @@ function ProductsTab() {
                   <td className="p-3 text-muted-foreground">
                     <span className="flex items-center gap-1">
                       {product.brandName}
-                      {!!product.hasTikTokBackend && <span className="inline-block text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium whitespace-nowrap cursor-pointer hover:bg-emerald-200 transition-colors" onClick={(e) => { e.stopPropagation(); window.open(`/master/brands/${product.brandId}`, '_blank'); }} title="TikTok Shop後台操作権限あり - クリックでブランド詳細を開く">{t("sc.tiktokBackend")}</span>}
+                      {!!product.hasTikTokBackend && <span className="inline-flex items-center gap-0.5 text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium whitespace-nowrap cursor-pointer hover:bg-emerald-200 transition-colors" onClick={(e) => { e.stopPropagation(); window.open(`/master/brands/${product.brandId}`, '_blank'); }} title="TikTok Shop後台操作権限あり - クリックでブランド詳細を開く">{t("sc.tiktokBackend")}<HelpCircle className="h-2.5 w-2.5 opacity-60" /></span>}
                     </span>
                   </td>
                   <td className="p-3">{category ? (() => { const parent = categoriesQuery.data?.find((p: any) => p.id === category.parentId); const parentStr = parent ? (parent.nameCn ? `${parent.name}(${parent.nameCn})` : parent.name) + " / " : ""; const catStr = category.nameCn ? `${category.name}(${category.nameCn})` : category.name; return parentStr + catStr; })() : "-"}</td>
@@ -937,7 +937,7 @@ function LiverSelectionTab() {
                     {product.productNameCn && <p className="text-xs text-blue-400 truncate">{product.productNameCn}</p>}
                     <p className="text-sm text-muted-foreground flex items-center gap-1">
                       {product.brandName}
-                      {!!product.hasTikTokBackend && <span className="inline-block text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium cursor-pointer hover:bg-emerald-200 transition-colors" onClick={(e) => { e.stopPropagation(); window.open(`/master/brands/${product.brandId}`, '_blank'); }} title="TikTok Shop後台操作権限あり - クリックでブランド詳細を開く">{t("sc.tiktokBackend")}</span>}
+                      {!!product.hasTikTokBackend && <span className="inline-flex items-center gap-0.5 text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium cursor-pointer hover:bg-emerald-200 transition-colors" onClick={(e) => { e.stopPropagation(); window.open(`/master/brands/${product.brandId}`, '_blank'); }} title="TikTok Shop後台操作権限あり - クリックでブランド詳細を開く">{t("sc.tiktokBackend")}<HelpCircle className="h-2.5 w-2.5 opacity-60" /></span>}
                     </p>
                     {product.selfOperated ? (
                       <div className="flex items-center gap-2 mt-2 text-sm flex-wrap">
