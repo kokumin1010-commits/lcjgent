@@ -2117,6 +2117,15 @@ function PerformancesTab() {
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {t("sc.perf.streamCount").replace("{count}", String(product.livestreamCount))} ・ {t("sc.perf.avgPrice")} ¥{product.totalItemsSold > 0 ? Math.round(product.totalGmv / product.totalItemsSold).toLocaleString() : '0'}
+                        {(() => {
+                          const prices = product.history
+                            .map((h: any) => h.itemsSold > 0 ? Math.round(h.gmv / h.itemsSold) : (h.unitPrice || 0))
+                            .filter((p: number) => p > 0);
+                          const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+                          return minPrice > 0 ? (
+                            <span className="ml-2 text-red-500 font-medium">・ 历史最低价 ¥{minPrice.toLocaleString()}</span>
+                          ) : null;
+                        })()}
                       </p>
                     </div>
                     <div className="flex items-center gap-4 text-right text-xs">
