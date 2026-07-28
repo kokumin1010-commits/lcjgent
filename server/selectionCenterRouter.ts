@@ -1880,4 +1880,15 @@ export const selectionCenterRouter = router({
       totalCategories: Number(stats[0]?.totalCategories || 0),
     };
   }),
+
+  // 原価履歴削除
+  deleteProductCostHistory: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const pool = getPool();
+      await pool.query(`DELETE FROM product_cost_history WHERE id = ?`, [input.id]);
+      return { success: true };
+    }),
 });

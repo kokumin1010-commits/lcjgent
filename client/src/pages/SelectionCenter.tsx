@@ -2870,8 +2870,8 @@ export default function SelectionCenter() {
           <TabsTrigger value="selections"><ClipboardList className="h-4 w-4 mr-1" />{t("sc.tab.selections")}</TabsTrigger>
           <TabsTrigger value="polls"><Vote className="h-4 w-4 mr-1" />{t("sc.tab.polls")}</TabsTrigger>
           <TabsTrigger value="lp-links"><Link2 className="h-4 w-4 mr-1" />LPリンク</TabsTrigger>
-          <TabsTrigger value="procurement"><ShoppingCart className="h-4 w-4 mr-1" />仕入れ</TabsTrigger>
-          <TabsTrigger value="cost-management"><Lock className="h-4 w-4 mr-1" />原価管理</TabsTrigger>
+          <TabsTrigger value="procurement"><ShoppingCart className="h-4 w-4 mr-1" />进货</TabsTrigger>
+          <TabsTrigger value="cost-management"><Lock className="h-4 w-4 mr-1" />成本管理</TabsTrigger>
           <TabsTrigger value="brands" onClick={() => { window.location.href = '/master/brands'; }}><Building2 className="h-4 w-4 mr-1" />ブランド管理</TabsTrigger>
         </TabsList>
         <TabsContent value="products"><ProductsTab /></TabsContent>
@@ -3761,7 +3761,7 @@ function CostManagementTab() {
       sessionStorage.setItem('cost_management_auth', 'authenticated');
       setPasswordError("");
     } else {
-      setPasswordError("パスワードが正しくありません");
+      setPasswordError("密码不正确");
     }
   };
 
@@ -3773,22 +3773,22 @@ function CostManagementTab() {
             <div className="mx-auto w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-2">
               <Lock className="h-6 w-6 text-amber-600" />
             </div>
-            <CardTitle className="text-lg">原価管理</CardTitle>
-            <p className="text-sm text-muted-foreground">アクセスにはパスワードが必要です</p>
+            <CardTitle className="text-lg">成本管理</CardTitle>
+            <p className="text-sm text-muted-foreground">访问需要密码</p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handlePasswordSubmit} className="space-y-4">
               <div>
                 <Input
                   type="password"
-                  placeholder="パスワードを入力..."
+                  placeholder="请输入密码..."
                   value={password}
                   onChange={e => { setPassword(e.target.value); setPasswordError(""); }}
                   autoFocus
                 />
                 {passwordError && <p className="text-xs text-red-500 mt-1">{passwordError}</p>}
               </div>
-              <Button type="submit" className="w-full">認証</Button>
+              <Button type="submit" className="w-full">验证</Button>
             </form>
           </CardContent>
         </Card>
@@ -3832,6 +3832,15 @@ function CostManagementContent() {
     onError: (e) => toast.error("エラー: " + e.message),
   });
 
+  // 原価履歴削除
+  const deleteCostHistoryMutation = trpc.selectionCenter.deleteProductCostHistory.useMutation({
+    onSuccess: () => {
+      toast.success("已删除");
+      costHistoryQuery.refetch();
+    },
+    onError: (e) => toast.error("删除失败: " + e.message),
+  });
+
   // 発注の原価を更新
   const updateOrderMutation = trpc.selectionCenter.updateProcurementOrder.useMutation({
     onSuccess: () => {
@@ -3847,11 +3856,11 @@ function CostManagementContent() {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <DollarSign className="h-5 w-5 text-amber-600" />
-          原価管理
+          成本管理
         </h2>
         <Button onClick={() => setShowRegisterDialog(true)} className="gap-1">
           <Plus className="h-4 w-4" />
-          原価登録
+          登记成本
         </Button>
       </div>
 
@@ -3859,42 +3868,42 @@ function CostManagementContent() {
       <div className="flex items-center gap-3 flex-wrap">
         <div className="w-[280px]">
           <BrandSearchSelect
-            brands={[{ id: 0, name: "全ブランド" }, ...brands]}
+            brands={[{ id: 0, name: "全部品牌" }, ...brands]}
             value={filterBrandId || 0}
             onChange={(id, _name) => setFilterBrandId(id === 0 ? undefined : id)}
-            placeholder="ブランドで絞り込み..."
+            placeholder="按品牌筛选..."
           />
         </div>
       </div>
 
-      {/* 仕入れ発注の原価一覧 */}
+      {/* 进货订单成本一览 */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">仕入れ発注 原価一覧</CardTitle>
-          <p className="text-xs text-muted-foreground">各発注の原価を管理します。クリックで編集できます。</p>
+          <CardTitle className="text-sm">进货订单 成本一览</CardTitle>
+          <p className="text-xs text-muted-foreground">管理各订单的成本。点击可编辑。</p>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="text-left p-3 font-medium">発注日</th>
-                  <th className="text-left p-3 font-medium">ブランド</th>
+                  <th className="text-left p-3 font-medium">下单日</th>
+                  <th className="text-left p-3 font-medium">品牌</th>
                   <th className="text-left p-3 font-medium">商品名</th>
                   <th className="text-right p-3 font-medium">数量</th>
-                  <th className="text-right p-3 font-medium">原価/単価</th>
-                  <th className="text-right p-3 font-medium">合計原価</th>
+                  <th className="text-right p-3 font-medium">成本/单价</th>
+                  <th className="text-right p-3 font-medium">合计成本</th>
                   <th className="text-center p-3 font-medium">操作</th>
                 </tr>
               </thead>
               <tbody>
                 {ordersQuery.isLoading ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-muted-foreground">読み込み中...</td>
+                    <td colSpan={7} className="text-center py-8 text-muted-foreground">加载中...</td>
                   </tr>
                 ) : orders.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-muted-foreground">原価が登録された発注はありません</td>
+                    <td colSpan={7} className="text-center py-8 text-muted-foreground">暂无已登记成本的订单</td>
                   </tr>
                 ) : (
                   orders.map((order: any) => (
@@ -3910,7 +3919,7 @@ function CostManagementContent() {
                           variant="ghost"
                           size="sm"
                           onClick={() => setEditingCost(order)}
-                          title="原価を編集"
+                          title="编辑成本"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -3924,38 +3933,39 @@ function CostManagementContent() {
         </CardContent>
       </Card>
 
-      {/* 全発注に原価を設定（原価が未設定のもの） */}
+      {/* 未设定成本的订单 */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">原価未設定の発注</CardTitle>
-          <p className="text-xs text-muted-foreground">原価が設定されていない発注に原価を入力できます。</p>
+          <CardTitle className="text-sm">未设定成本的订单</CardTitle>
+          <p className="text-xs text-muted-foreground">可以为未设定成本的订单输入成本。</p>
         </CardHeader>
         <CardContent className="p-0">
           <PendingCostOrders filterBrandId={filterBrandId} onUpdate={() => ordersQuery.refetch()} />
         </CardContent>
       </Card>
 
-      {/* 原価履歴 */}
+      {/* 成本变更历史 */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">原価変更履歴</CardTitle>
+          <CardTitle className="text-sm">成本变更历史</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="text-left p-3 font-medium">適用日</th>
-                  <th className="text-left p-3 font-medium">ブランド</th>
+                  <th className="text-left p-3 font-medium">生效日</th>
+                  <th className="text-left p-3 font-medium">品牌</th>
                   <th className="text-left p-3 font-medium">商品名</th>
-                  <th className="text-right p-3 font-medium">原価</th>
-                  <th className="text-left p-3 font-medium">メモ</th>
+                  <th className="text-right p-3 font-medium">成本</th>
+                  <th className="text-left p-3 font-medium">备注</th>
+                  <th className="text-center p-3 font-medium">操作</th>
                 </tr>
               </thead>
               <tbody>
                 {costHistory.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-8 text-muted-foreground">原価履歴がありません</td>
+                    <td colSpan={6} className="text-center py-8 text-muted-foreground">暂无成本历史</td>
                   </tr>
                 ) : (
                   costHistory.map((c: any) => (
@@ -3965,6 +3975,21 @@ function CostManagementContent() {
                       <td className="p-3">{c.productName}</td>
                       <td className="p-3 text-right font-bold text-amber-600">¥{Number(c.unitCost).toLocaleString()}</td>
                       <td className="p-3 text-xs text-muted-foreground">{c.memo || '-'}</td>
+                      <td className="p-3 text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => {
+                            if (confirm('确定要删除这条成本记录吗？')) {
+                              deleteCostHistoryMutation.mutate({ id: c.id });
+                            }
+                          }}
+                          title="删除"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -3990,7 +4015,7 @@ function CostManagementContent() {
         <Dialog open={!!editingCost} onOpenChange={(v) => !v && setEditingCost(null)}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>原価を編集</DialogTitle>
+              <DialogTitle>编辑成本</DialogTitle>
             </DialogHeader>
             <CostEditForm
               order={editingCost}
@@ -4005,7 +4030,7 @@ function CostManagementContent() {
                     brandName: editingCost.brandName,
                     unitCost,
                     effectiveDate: editingCost.orderDate || new Date().toISOString().split('T')[0],
-                    memo: "原価管理タブから更新",
+                    memo: "从成本管理页更新",
                   });
                 }
                 setEditingCost(null);
@@ -4036,15 +4061,15 @@ function CostEditForm({ order, onSubmit, onClose, isLoading }: {
         <p className="text-sm font-medium">{order.productName}</p>
       </div>
       <div>
-        <Label>ブランド</Label>
+        <Label>品牌</Label>
         <p className="text-sm text-muted-foreground">{order.brandName}</p>
       </div>
       <div>
         <Label>数量</Label>
-        <p className="text-sm">{Number(order.quantity).toLocaleString()}個</p>
+        <p className="text-sm">{Number(order.quantity).toLocaleString()}个</p>
       </div>
       <div>
-        <Label>原価/単価 (円)</Label>
+        <Label>成本/单价 (圆)</Label>
         <Input
           type="number"
           min={0}
@@ -4054,11 +4079,11 @@ function CostEditForm({ order, onSubmit, onClose, isLoading }: {
         />
       </div>
       <div>
-        <Label>合計原価</Label>
+        <Label>合计成本</Label>
         <p className="text-lg font-bold text-amber-600">¥{(Number(order.quantity) * unitCost).toLocaleString()}</p>
       </div>
       <DialogFooter>
-        <Button variant="outline" onClick={onClose}>キャンセル</Button>
+        <Button variant="outline" onClick={onClose}>取消</Button>
         <Button onClick={() => onSubmit(unitCost)} disabled={isLoading}>
           {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
           更新
@@ -4079,18 +4104,18 @@ function PendingCostOrders({ filterBrandId, onUpdate }: { filterBrandId?: number
 
   const updateOrderMutation = trpc.selectionCenter.updateProcurementOrder.useMutation({
     onSuccess: () => {
-      toast.success("原価を設定しました");
+      toast.success("已设定成本");
       ordersQuery.refetch();
       onUpdate();
     },
-    onError: (e) => toast.error("エラー: " + e.message),
+    onError: (e) => toast.error("错误: " + e.message),
   });
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editCost, setEditCost] = useState(0);
 
   if (pendingOrders.length === 0) {
-    return <div className="p-6 text-center text-sm text-muted-foreground">原価未設定の発注はありません</div>;
+    return <div className="p-6 text-center text-sm text-muted-foreground">暂无未设定成本的订单</div>;
   }
 
   return (
@@ -4098,11 +4123,11 @@ function PendingCostOrders({ filterBrandId, onUpdate }: { filterBrandId?: number
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b bg-muted/50">
-            <th className="text-left p-3 font-medium">発注日</th>
-            <th className="text-left p-3 font-medium">ブランド</th>
+            <th className="text-left p-3 font-medium">下单日</th>
+            <th className="text-left p-3 font-medium">品牌</th>
             <th className="text-left p-3 font-medium">商品名</th>
             <th className="text-right p-3 font-medium">数量</th>
-            <th className="text-right p-3 font-medium">原価設定</th>
+            <th className="text-right p-3 font-medium">设定成本</th>
           </tr>
         </thead>
         <tbody>
@@ -4150,7 +4175,7 @@ function PendingCostOrders({ filterBrandId, onUpdate }: { filterBrandId?: number
                     className="h-7"
                     onClick={() => { setEditingId(order.id); setEditCost(0); }}
                   >
-                    原価を設定
+                    设定成本
                   </Button>
                 )}
               </td>
@@ -4190,7 +4215,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
   // 原価登録ミューテーション
   const registerCostMutation = trpc.selectionCenter.registerProductCost.useMutation({
     onSuccess: () => {
-      toast.success("原価を登録しました");
+      toast.success("已登记成本");
       onSuccess();
       handleReset();
       onClose();
@@ -4216,7 +4241,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
     const brandName = brands.find(b => b.id === selectedBrandId)?.name || "";
 
     if (!selectedBrandId || !productName || unitCost <= 0) {
-      toast.error("ブランド、商品名、原価を入力してください");
+      toast.error("请输入品牌、商品名、成本");
       return;
     }
 
@@ -4246,7 +4271,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
         <div className="space-y-4">
           {/* ブランド選択 */}
           <div>
-            <Label className="text-sm font-medium">ブランド *</Label>
+            <Label className="text-sm font-medium">品牌 *</Label>
             <div className="mt-1">
               <BrandSearchSelect
                 brands={brands}
@@ -4257,7 +4282,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
                   setSelectedProduct(null);
                   setIsManualInput(false);
                 }}
-                placeholder="ブランドを選択..."
+                placeholder="选择品牌..."
               />
             </div>
           </div>
@@ -4265,11 +4290,11 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
           {/* 商品選択 */}
           {selectedBrandId && (
             <div>
-              <Label className="text-sm font-medium">商品を選択 *</Label>
+              <Label className="text-sm font-medium">选择商品 *</Label>
               {productsQuery.isLoading ? (
                 <div className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  商品を読み込み中...
+                  加载商品中...
                 </div>
               ) : products.length > 0 && !isManualInput ? (
                 <div className="mt-1 space-y-2">
@@ -4299,9 +4324,9 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium break-words">{p.productName}</p>
                             <p className="text-xs text-muted-foreground">
-                              売価: ¥{Number(p.price || 0).toLocaleString()}
+                              售价: ¥{Number(p.price || 0).toLocaleString()}
                               {p.purchasePrice && Number(p.purchasePrice) > 0 && (
-                                <span className="ml-2 text-amber-600">現原価: ¥{Number(p.purchasePrice).toLocaleString()}</span>
+                                <span className="ml-2 text-amber-600">当前成本: ¥{Number(p.purchasePrice).toLocaleString()}</span>
                               )}
                             </p>
                           </div>
@@ -4315,13 +4340,13 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
                     className="text-xs text-blue-600 hover:underline"
                     onClick={() => setIsManualInput(true)}
                   >
-                    商品が見つからない場合は手入力 →
+                    找不到商品？手动输入 →
                   </button>
                 </div>
               ) : (
                 <div className="mt-1 space-y-2">
                   <Input
-                    placeholder="商品名を手入力..."
+                    placeholder="手动输入商品名..."
                     value={manualProductName}
                     onChange={e => setManualProductName(e.target.value)}
                   />
@@ -4331,7 +4356,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
                       className="text-xs text-blue-600 hover:underline"
                       onClick={() => setIsManualInput(false)}
                     >
-                      ← 商品リストから選択
+                      ← 从商品列表选择
                     </button>
                   )}
                 </div>
@@ -4344,7 +4369,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-sm font-medium">原価/単価 (円) *</Label>
+                  <Label className="text-sm font-medium">成本/单价 (圆) *</Label>
                   <Input
                     type="number"
                     min={0}
@@ -4366,7 +4391,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-sm font-medium">適用日</Label>
+                  <Label className="text-sm font-medium">生效日</Label>
                   <Input
                     type="date"
                     value={effectiveDate}
@@ -4374,7 +4399,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
                   />
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">合計原価</Label>
+                  <Label className="text-sm font-medium">合计成本</Label>
                   <p className="text-lg font-bold text-amber-600 mt-1">
                     ¥{(unitCost * quantity).toLocaleString()}
                   </p>
@@ -4382,9 +4407,9 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
               </div>
 
               <div>
-                <Label className="text-sm font-medium">メモ</Label>
+                <Label className="text-sm font-medium">备注</Label>
                 <Input
-                  placeholder="備考を入力..."
+                  placeholder="输入备注..."
                   value={memo}
                   onChange={e => setMemo(e.target.value)}
                 />
@@ -4395,14 +4420,14 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
 
         <DialogFooter className="mt-4">
           <Button variant="outline" onClick={() => { handleReset(); onClose(); }}>
-            キャンセル
+            取消
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={registerCostMutation.isPending || !selectedBrandId || (!selectedProduct && !manualProductName) || unitCost <= 0}
           >
             {registerCostMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-            登録
+            登记
           </Button>
         </DialogFooter>
       </DialogContent>
