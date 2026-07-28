@@ -167,6 +167,7 @@ const LcfAdmin = lazy(() => import("./pages/LcfAdmin"));
 const FestivalAdmin = lazy(() => import("./pages/FestivalAdmin"));
 const ProductLab = lazy(() => import("./pages/ProductLab"));
 const SelectionCenter = lazy(() => import("./pages/SelectionCenter"));
+const StaffSchedule = lazy(() => import("./pages/StaffSchedule"));
 const AccountManagement = lazy(() => import("./pages/AccountManagement"));
 const BarcodeScanner = lazy(() => import("./pages/BarcodeScanner"));
 const ProductGranenzyme = lazy(() => import("./pages/ProductGranenzyme"));
@@ -453,6 +454,7 @@ function Router() {
         {/* Public Pages - Schedule */}
         <Route path={"/s"} component={PublicSchedule} />
         <Route path={"/s/:name"} component={PublicLiverSchedule} />
+        <Route path={"/staff-schedule"} component={StaffSchedule} />
         <Route path={"/mobmart/s"} component={MobmartSchedule} />
         <Route path={"/mobmart/livers"} component={MobmartLiverList} />
         

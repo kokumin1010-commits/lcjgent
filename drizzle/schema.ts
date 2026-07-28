@@ -6464,3 +6464,28 @@ export const livestreamCsvProducts = mysqlTable("livestream_csv_products", {
 });
 export type LivestreamCsvProduct = typeof livestreamCsvProducts.$inferSelect;
 export type InsertLivestreamCsvProduct = typeof livestreamCsvProducts.$inferInsert;
+
+
+/**
+ * Staff Schedules table for managing staff work schedules
+ * スタッフ出勤スケジュール管理テーブル
+ * 
+ * 中国スタッフ・日本スタッフの出勤時間帯をカレンダー形式で管理
+ */
+export const staffSchedules = mysqlTable("staff_schedules", {
+  id: int("id").autoincrement().primaryKey(),
+  staffId: int("staffId").notNull(), // References staff.id
+  // 日時
+  date: timestamp("date").notNull(), // 出勤日
+  startTime: varchar("startTime", { length: 10 }).notNull(), // 開始時間 (HH:MM)
+  endTime: varchar("endTime", { length: 10 }).notNull(), // 終了時間 (HH:MM)
+  // メモ
+  notes: text("notes"),
+  // 色（カレンダー表示用）
+  color: varchar("color", { length: 20 }),
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type StaffSchedule = typeof staffSchedules.$inferSelect;
+export type InsertStaffSchedule = typeof staffSchedules.$inferInsert;

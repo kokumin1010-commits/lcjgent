@@ -29464,6 +29464,131 @@ JSON形式で推薦順序を返してください。`;
         return { success: true };
       }),
   }),
+  staffSchedule: router({
+    // Get staff schedules for a date range
+    getByDateRange: protectedProcedure
+      .input(z.object({
+        startDate: z.string(),
+        endDate: z.string(),
+        country: z.string().optional(), // "日本" or "中国" filter
+      }))
+      .query(async ({ input }) => {
+        const pool = (await import('./selectionCenterRouter.js')).getPool();
+        const [rows] = await pool.query(
+          `SELECT ss.*, s.name as staffName, s.country, s.avatarUrl, s.department
+           FROM staff_schedules ss
+           JOIN staff s ON ss.staffId = s.id
+           WHERE ss.date >= ? AND ss.date <= ?
+           ${input.country ? 'AND s.country = ?' : ''}
+           ORDER BY ss.date, ss.startTime`,
+          input.country 
+            ? [input.startDate, input.endDate, input.country]
+            : [input.startDate, input.endDate]
+        );
+        return rows as any[];
+      }),
+
+    // Create a staff schedule
+    create: protectedProcedure
+      .input(z.object({
+        staffId: z.number(),
+        date: z.string(),
+        startTime: z.string(),
+        endTime: z.string(),
+        notes: z.string().optional(),
+        color: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const pool = (await import('./selectionCenterRouter.js')).getPool();
+        // Ensure table exists
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS staff_schedules (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            staffId INT NOT NULL,
+            date TIMESTAMP NOT NULL,
+            startTime VARCHAR(10) NOT NULL,
+            endTime VARCHAR(10) NOT NULL,
+            notes TEXT,
+            color VARCHAR(20),
+            createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          )
+        `);
+        const [result] = await pool.query(
+          `INSERT INTO staff_schedules (staffId, date, startTime, endTime, notes, color) VALUES (?, ?, ?, ?, ?, ?)`,
+          [input.staffId, input.date, input.startTime, input.endTime, input.notes || null, input.color || null]
+        );
+        return { id: (result as any).insertId };
+      }),
+
+    // Update a staff schedule
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        startTime: z.string().optional(),
+        endTime: z.string().optional(),
+        notes: z.string().optional(),
+        color: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const pool = (await import('./selectionCenterRouter.js')).getPool();
+        const updates: string[] = [];
+        const values: any[] = [];
+        if (input.startTime !== undefined) { updates.push('startTime = ?'); values.push(input.startTime); }
+        if (input.endTime !== undefined) { updates.push('endTime = ?'); values.push(input.endTime); }
+        if (input.notes !== undefined) { updates.push('notes = ?'); values.push(input.notes); }
+        if (input.color !== undefined) { updates.push('color = ?'); values.push(input.color); }
+        if (updates.length > 0) {
+          values.push(input.id);
+          await pool.query(`UPDATE staff_schedules SET ${updates.join(', ')} WHERE id = ?`, values);
+        }
+        return { success: true };
+      }),
+
+    // Delete a staff schedule
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const pool = (await import('./selectionCenterRouter.js')).getPool();
+        await pool.query('DELETE FROM staff_schedules WHERE id = ?', [input.id]);
+        return { success: true };
+      }),
+
+    // Batch create staff schedules (for recurring shifts)
+    batchCreate: protectedProcedure
+      .input(z.object({
+        staffId: z.number(),
+        dates: z.array(z.string()),
+        startTime: z.string(),
+        endTime: z.string(),
+        notes: z.string().optional(),
+        color: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const pool = (await import('./selectionCenterRouter.js')).getPool();
+        // Ensure table exists
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS staff_schedules (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            staffId INT NOT NULL,
+            date TIMESTAMP NOT NULL,
+            startTime VARCHAR(10) NOT NULL,
+            endTime VARCHAR(10) NOT NULL,
+            notes TEXT,
+            color VARCHAR(20),
+            createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          )
+        `);
+        for (const date of input.dates) {
+          await pool.query(
+            `INSERT INTO staff_schedules (staffId, date, startTime, endTime, notes, color) VALUES (?, ?, ?, ?, ?, ?)`,
+            [input.staffId, date, input.startTime, input.endTime, input.notes || null, input.color || null]
+          );
+        }
+        return { success: true, count: input.dates.length };
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;
 
