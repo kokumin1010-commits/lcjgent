@@ -8850,13 +8850,14 @@ Respond with a JSON object.`,
           const fileKey = `business-cards/${ctx.user.id}/${nanoid()}.${input.mimeType.split("/")[1] || "jpg"}`;
           const { url: imageUrl, key: imageKey } = await storagePut(fileKey, imageBuffer, input.mimeType);
 
-          // Use LLM to extract business card information
+          // Use LLM to extract business card information (vision model for OCR)
           const ocrResult = await invokeLLM({
+          model: "gemini-3-flash-preview",
           messages: [
             {
               role: "system",
-              content: `You are a business card OCR assistant. Extract all information from the business card image and return it in JSON format.
-Extract the following fields if available:
+              content: `You are a business card OCR assistant specialized in Japanese business cards. Extract all information from the business card image and return it in JSON format.
+Extract the following fields (use empty string "" if not found):
 - name: Full name (氏名)
 - nameReading: Name reading/pronunciation (読み仮名) if visible
 - company: Company name (会社名)
@@ -8869,7 +8870,7 @@ Extract the following fields if available:
 - address: Full address (住所)
 - website: Website URL
 
-Return ONLY valid JSON, no markdown or explanation.`,
+Return ONLY valid JSON, no markdown or explanation. Use empty string for fields not found on the card.`,
             },
             {
               role: "user",
@@ -8882,7 +8883,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
                 },
                 {
                   type: "text",
-                  text: "Please extract all business card information from this image.",
+                  text: "この名刺から全ての情報を抽出してください。日本語の名刺です。",
                 },
               ],
             },
@@ -8907,7 +8908,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
                   address: { type: "string", description: "Address" },
                   website: { type: "string", description: "Website URL" },
                 },
-                required: ["name"],
+                required: ["name", "nameReading", "company", "department", "position", "email", "phone", "mobile", "fax", "address", "website"],
                 additionalProperties: false,
               },
             },
@@ -8929,9 +8930,9 @@ Return ONLY valid JSON, no markdown or explanation.`,
           imageKey,
           extractedInfo,
         };
-      } catch (error) {
-        console.error("Business card upload/OCR error:", error);
-        throw new Error("名刺の解析に失敗しました。画像を確認して再試行してください。");
+      } catch (error: any) {
+        console.error("Business card upload/OCR error:", error?.message || error);
+        throw new Error(`名刺の解析に失敗しました: ${error?.message || '不明なエラー'}。画像を確認して再試行してください。`);
       }
     }),
 
