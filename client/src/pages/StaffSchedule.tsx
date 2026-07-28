@@ -43,7 +43,7 @@ type StaffScheduleEntry = {
 
 export default function StaffSchedule() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [activeTab, setActiveTab] = useState<"中国" | "日本">("中国");
+  const [activeTabs, setActiveTabs] = useState<Set<string>>(new Set(["中国", "日本"]));
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedStaffFilter, setSelectedStaffFilter] = useState<number | null>(null);
@@ -68,17 +68,32 @@ export default function StaffSchedule() {
   // Fetch staff list
   const { data: staffList } = trpc.staff.listActive.useQuery();
 
-  // Filter staff by country
+  // Toggle tab selection
+  const toggleTab = (tab: string) => {
+    setActiveTabs(prev => {
+      const next = new Set(prev);
+      if (next.has(tab)) {
+        // Don't allow deselecting all
+        if (next.size > 1) next.delete(tab);
+      } else {
+        next.add(tab);
+      }
+      return next;
+    });
+  };
+
+  // Filter staff by selected countries
   const filteredStaff = useMemo(() => {
     if (!staffList) return [];
-    return staffList.filter((s: any) => s.country === activeTab);
-  }, [staffList, activeTab]);
+    return staffList.filter((s: any) => activeTabs.has(s.country));
+  }, [staffList, activeTabs]);
 
-  // Fetch schedules
+  // Fetch schedules - when both selected, don't pass country filter
+  const countryFilter = activeTabs.size === 1 ? Array.from(activeTabs)[0] : undefined;
   const { data: schedules, refetch: refetchSchedules } = trpc.staffSchedule.getByDateRange.useQuery({
     startDate: startOfMonth,
     endDate: endOfMonth,
-    country: activeTab,
+    country: countryFilter,
   });
 
   // Mutations
@@ -204,21 +219,21 @@ export default function StaffSchedule() {
           </div>
         </div>
 
-        {/* Tabs: 中国 / 日本 */}
+        {/* Tabs: 中国 / 日本 (multi-select) */}
         <div className="flex gap-2 mt-3">
           <Button
-            variant={activeTab === "中国" ? "default" : "outline"}
+            variant={activeTabs.has("中国") ? "default" : "outline"}
             size="sm"
-            onClick={() => setActiveTab("中国")}
-            className={activeTab === "中国" ? "bg-red-500 hover:bg-red-600" : ""}
+            onClick={() => toggleTab("中国")}
+            className={activeTabs.has("中国") ? "bg-red-500 hover:bg-red-600" : ""}
           >
             🇨🇳 中国スタッフ
           </Button>
           <Button
-            variant={activeTab === "日本" ? "default" : "outline"}
+            variant={activeTabs.has("日本") ? "default" : "outline"}
             size="sm"
-            onClick={() => setActiveTab("日本")}
-            className={activeTab === "日本" ? "bg-blue-500 hover:bg-blue-600" : ""}
+            onClick={() => toggleTab("日本")}
+            className={activeTabs.has("日本") ? "bg-blue-500 hover:bg-blue-600" : ""}
           >
             🇯🇵 日本スタッフ
           </Button>
