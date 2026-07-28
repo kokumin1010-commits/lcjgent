@@ -1738,6 +1738,7 @@ export const selectionCenterRouter = router({
         productName: z.string(),
         quantity: z.number().min(1),
         unitCost: z.number().min(0).default(0),
+        orderStatus: z.string().optional(), // 具体订单情况（待发货、等待中等）
       })),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -1747,13 +1748,14 @@ export const selectionCenterRouter = router({
         await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS liveRoom VARCHAR(100) DEFAULT NULL`);
         await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS shopName VARCHAR(255) DEFAULT NULL`);
         await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS productLink TEXT DEFAULT NULL`);
+        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS orderStatus VARCHAR(100) DEFAULT NULL`);
       } catch (e) { /* columns may already exist */ }
       const results: number[] = [];
       for (const item of input.items) {
         const totalCost = item.quantity * item.unitCost;
         const [result] = await pool.query(
-          `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, status, memo, liveRoom, shopName, productLink, createdBy)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, status, memo, liveRoom, shopName, productLink, orderStatus, createdBy)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             input.brandId,
             input.brandName,
@@ -1768,6 +1770,7 @@ export const selectionCenterRouter = router({
             input.liveRoom || null,
             input.shopName || null,
             input.productLink || null,
+            item.orderStatus || null,
             (ctx.user as any)?.id || 0,
           ]
         ) as any;

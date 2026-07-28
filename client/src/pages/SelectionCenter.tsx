@@ -3435,7 +3435,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
   const [brandId, setBrandId] = useState(0);
   const [brandName, setBrandName] = useState("");
   const [brandIds, setBrandIds] = useState<number[]>([]);
-  const [selectedItems, setSelectedItems] = useState<Array<{ productId?: number; productName: string; quantity: number; brandId?: number; brandName?: string }>>([])
+  const [selectedItems, setSelectedItems] = useState<Array<{ productId?: number; productName: string; quantity: number; brandId?: number; brandName?: string; orderStatus?: string }>>([])
   // 商品あいまい検索（全商品横断）
   const [productSearch, setProductSearch] = useState("");
   const [productSearchDebounced, setProductSearchDebounced] = useState("");
@@ -3529,6 +3529,13 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
     setSelectedItems(selectedItems.filter((_, i) => i !== index));
   };
 
+  // 订单情况更新
+  const updateOrderStatus = (index: number, orderStatus: string) => {
+    const updated = [...selectedItems];
+    updated[index] = { ...updated[index], orderStatus: orderStatus || undefined };
+    setSelectedItems(updated);
+  };
+
   const handleSubmit = () => {
     if (selectedItems.length === 0) {
       toast.error("商品を少なくとも1つ選択してください");
@@ -3551,6 +3558,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
         productName: item.productName,
         quantity: item.quantity,
         unitCost: 0, // 原価は原価管理タブで別途管理
+        orderStatus: item.orderStatus || undefined,
       })),
     });
   };
@@ -3764,22 +3772,39 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
               <Label>選択済み商品 ({selectedItems.length}件)</Label>
               <div className="border rounded-md divide-y mt-1">
                 {selectedItems.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-3 px-3 py-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium break-words">{item.productName}</p>
+                  <div key={idx} className="flex flex-col gap-1 px-3 py-2">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium break-words">{item.productName}</p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Label className="text-xs text-muted-foreground whitespace-nowrap">数量:</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={item.quantity}
+                          onChange={e => updateQuantity(idx, Number(e.target.value))}
+                          className="w-16 h-7 text-sm text-center"
+                        />
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="h-7 w-7 p-0">
+                          <X className="h-3 w-3 text-red-500" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Label className="text-xs text-muted-foreground whitespace-nowrap">数量:</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={item.quantity}
-                        onChange={e => updateQuantity(idx, Number(e.target.value))}
-                        className="w-16 h-7 text-sm text-center"
-                      />
-                      <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="h-7 w-7 p-0">
-                        <X className="h-3 w-3 text-red-500" />
-                      </Button>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs text-muted-foreground whitespace-nowrap">订单情况:</Label>
+                      <select
+                        value={item.orderStatus || ''}
+                        onChange={e => updateOrderStatus(idx, e.target.value)}
+                        className="h-7 text-xs border rounded px-2 bg-background"
+                      >
+                        <option value="">未设定</option>
+                        <option value="待发货">待发货</option>
+                        <option value="等待中">等待中</option>
+                        <option value="已发货">已发货</option>
+                        <option value="已到达">已到达</option>
+                        <option value="已取消">已取消</option>
+                      </select>
                     </div>
                   </div>
                 ))}
