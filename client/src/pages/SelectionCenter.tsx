@@ -3262,16 +3262,16 @@ function ProcurementTab() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardContent className="pt-4">
-              <p className="text-xs text-muted-foreground">月間订单数</p>
+              <p className="text-xs text-muted-foreground">月間订单数 / 採購数</p>
               <p className="text-2xl font-bold text-blue-600">
-                {summary.grandTotal?.orderCount || 0}件
+                {orders.reduce((sum: number, o: any) => sum + Number(o.pendingPaymentQty || 0) + Number(o.pendingShipQty || 0), 0)}单
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                採購数: {Number(summary.grandTotal?.totalQuantity || 0).toLocaleString()}個
+              <p className="text-sm text-muted-foreground mt-1">
+                採購数: <span className="font-bold text-foreground">{Number(summary.grandTotal?.totalQuantity || 0).toLocaleString()}件</span>
               </p>
               <div className="flex gap-3 mt-1">
-                <span className="text-xs text-orange-600">待支付: {orders.reduce((sum: number, o: any) => sum + Number(o.pendingPaymentQty || 0), 0)}個</span>
-                <span className="text-xs text-blue-600">待发货: {orders.reduce((sum: number, o: any) => sum + Number(o.pendingShipQty || 0), 0)}個</span>
+                <span className="text-xs text-orange-600">待支付: {orders.reduce((sum: number, o: any) => sum + Number(o.pendingPaymentQty || 0), 0)}单</span>
+                <span className="text-xs text-blue-600">待发货: {orders.reduce((sum: number, o: any) => sum + Number(o.pendingShipQty || 0), 0)}单</span>
               </div>
             </CardContent>
           </Card>
@@ -3355,7 +3355,7 @@ function ProcurementTab() {
               <tbody>
                 {orders.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <td colSpan={9} className="text-center py-8 text-muted-foreground">
                       {ordersQuery.isLoading ? "読み込み中..." : "この月の仕入れデータはありません"}
                     </td>
                   </tr>
@@ -3365,7 +3365,10 @@ function ProcurementTab() {
                       <td className="p-3">{order.orderDate ? new Date(order.orderDate).toLocaleDateString('ja-JP') : '-'}</td>
                       <td className="p-3">{order.brandName}</td>
                       <td className="p-3">{order.productName}</td>
-                      <td className="p-3 text-right">{Number(order.quantity).toLocaleString()}</td>
+                      <td className="p-3 text-center"><span className="text-orange-600 font-medium">{Number(order.pendingPaymentQty || 0)}</span></td>
+                      <td className="p-3 text-center"><span className="text-blue-600 font-medium">{Number(order.pendingShipQty || 0)}</span></td>
+                      <td className="p-3 text-center">{Number(order.qtyPerOrder || 1)}</td>
+                      <td className="p-3 text-right font-medium">{Number(order.quantity).toLocaleString()}</td>
                       <td className="p-3 text-center">
                         <Badge className={statusColors[order.status] || "bg-gray-100 text-gray-800"}>
                           {statusLabels[order.status] || order.status}
@@ -3439,9 +3442,11 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
   const [brandId, setBrandId] = useState(0);
   const [brandName, setBrandName] = useState("");
   const [brandIds, setBrandIds] = useState<number[]>([]);
-  const [selectedItems, setSelectedItems] = useState<Array<{ productId?: number; productName: string; pendingPaymentQty: number; pendingShipQty: number; brandId?: number; brandName?: string }>>([])
-  // 総採購数量 = 待支付 + 待发货
-  const getTotalQty = (item: { pendingPaymentQty: number; pendingShipQty: number }) => item.pendingPaymentQty + item.pendingShipQty;
+  const [selectedItems, setSelectedItems] = useState<Array<{ productId?: number; productName: string; pendingPaymentQty: number; pendingShipQty: number; qtyPerOrder: number; brandId?: number; brandName?: string }>>([])
+  // 订单数 = 待支付 + 待发货
+  const getOrderCount = (item: { pendingPaymentQty: number; pendingShipQty: number }) => item.pendingPaymentQty + item.pendingShipQty;
+  // 採購数 = 订单数 × 每单数量
+  const getProcurementQty = (item: { pendingPaymentQty: number; pendingShipQty: number; qtyPerOrder: number }) => (item.pendingPaymentQty + item.pendingShipQty) * item.qtyPerOrder;
   // 商品あいまい検索（全商品横断）
   const [productSearch, setProductSearch] = useState("");
   const [productSearchDebounced, setProductSearchDebounced] = useState("");
@@ -3512,14 +3517,14 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
     if (exists) {
       setSelectedItems(selectedItems.filter(i => i.productId !== product.id));
     } else {
-      setSelectedItems([...selectedItems, { productId: product.id, productName: product.productName, pendingPaymentQty: 0, pendingShipQty: 1, brandId: product.brandId, brandName: product.brandName }]);
+      setSelectedItems([...selectedItems, { productId: product.id, productName: product.productName, pendingPaymentQty: 0, pendingShipQty: 1, qtyPerOrder: 1, brandId: product.brandId, brandName: product.brandName }]);
     }
   };
 
   // 手入力商品を追加
   const addManualProduct = () => {
     if (!manualProductName.trim()) return;
-    setSelectedItems([...selectedItems, { productName: manualProductName.trim(), pendingPaymentQty: 0, pendingShipQty: 1 }]);
+    setSelectedItems([...selectedItems, { productName: manualProductName.trim(), pendingPaymentQty: 0, pendingShipQty: 1, qtyPerOrder: 1 }]);
     setManualProductName("");
   };
 
@@ -3534,6 +3539,13 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
   const updatePendingShipQty = (index: number, qty: number) => {
     const updated = [...selectedItems];
     updated[index] = { ...updated[index], pendingShipQty: Math.max(0, qty) };
+    setSelectedItems(updated);
+  };
+
+  // 每单数量変更
+  const updateQtyPerOrder = (index: number, qty: number) => {
+    const updated = [...selectedItems];
+    updated[index] = { ...updated[index], qtyPerOrder: Math.max(1, qty) };
     setSelectedItems(updated);
   };
 
@@ -3562,10 +3574,11 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
       items: selectedItems.map(item => ({
         productId: item.productId,
         productName: item.productName,
-        quantity: getTotalQty(item),
+        quantity: getProcurementQty(item),
         unitCost: 0, // 原価は原価管理タブで別途管理
         pendingPaymentQty: item.pendingPaymentQty,
         pendingShipQty: item.pendingShipQty,
+        qtyPerOrder: item.qtyPerOrder,
       })),
     });
   };
@@ -3773,10 +3786,10 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
             </div>
           )}
 
-          {/* 選択済み商品一覧（商品ごとに待支付/待发货数量設定） */}
+          {/* 選択済み商品一覧 */}
           {selectedItems.length > 0 && (
             <div>
-              <Label>選択済み商品 ({selectedItems.length}件・総採購数: {selectedItems.reduce((sum, i) => sum + getTotalQty(i), 0)}個)</Label>
+              <Label>選択済み商品 ({selectedItems.length}件・総订单数: {selectedItems.reduce((sum, i) => sum + getOrderCount(i), 0)}・総採購数: {selectedItems.reduce((sum, i) => sum + getProcurementQty(i), 0)}個)</Label>
               <div className="border rounded-md divide-y mt-1">
                 {selectedItems.map((item, idx) => (
                   <div key={idx} className="flex flex-col gap-1.5 px-3 py-2">
@@ -3784,7 +3797,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium break-words">{item.productName}</p>
                       </div>
-                      <span className="text-xs text-muted-foreground flex-shrink-0">合计: {getTotalQty(item)}個</span>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">订单: {getOrderCount(item)} × {item.qtyPerOrder} = <span className="font-medium text-foreground">{getProcurementQty(item)}件</span></span>
                       <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="h-7 w-7 p-0 flex-shrink-0">
                         <X className="h-3 w-3 text-red-500" />
                       </Button>
@@ -3807,6 +3820,16 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
                           min={0}
                           value={item.pendingShipQty}
                           onChange={e => updatePendingShipQty(idx, Number(e.target.value))}
+                          className="w-14 h-7 text-sm text-center"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Label className="text-xs text-green-600 whitespace-nowrap">每单数量:</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={item.qtyPerOrder}
+                          onChange={e => updateQtyPerOrder(idx, Number(e.target.value))}
                           className="w-14 h-7 text-sm text-center"
                         />
                       </div>

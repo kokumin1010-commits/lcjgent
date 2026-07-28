@@ -1738,8 +1738,9 @@ export const selectionCenterRouter = router({
         productName: z.string(),
         quantity: z.number().min(0),
         unitCost: z.number().min(0).default(0),
-        pendingPaymentQty: z.number().min(0).optional(), // 待支付数量
-        pendingShipQty: z.number().min(0).optional(), // 待发货数量
+        pendingPaymentQty: z.number().min(0).optional(), // 待支付订单数
+        pendingShipQty: z.number().min(0).optional(), // 待发货订单数
+        qtyPerOrder: z.number().min(1).optional(), // 每单数量（福利时可能是2）
       })),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -1752,19 +1753,20 @@ export const selectionCenterRouter = router({
         await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS orderStatus VARCHAR(100) DEFAULT NULL`);
         await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS pendingPaymentQty INT DEFAULT 0`);
         await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS pendingShipQty INT DEFAULT 0`);
+        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS qtyPerOrder INT DEFAULT 1`);
       } catch (e) { /* columns may already exist */ }
       const results: number[] = [];
       for (const item of input.items) {
         const totalCost = item.quantity * item.unitCost;
         const [result] = await pool.query(
-          `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, status, memo, liveRoom, shopName, productLink, pendingPaymentQty, pendingShipQty, createdBy)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, status, memo, liveRoom, shopName, productLink, pendingPaymentQty, pendingShipQty, qtyPerOrder, createdBy)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             input.brandId,
             input.brandName,
             item.productId || null,
             item.productName,
-            item.quantity || ((item.pendingPaymentQty || 0) + (item.pendingShipQty || 0)),
+            item.quantity || ((item.pendingPaymentQty || 0) + (item.pendingShipQty || 0)) * (item.qtyPerOrder || 1),
             item.unitCost,
             totalCost,
             input.orderDate,
@@ -1775,6 +1777,7 @@ export const selectionCenterRouter = router({
             input.productLink || null,
             item.pendingPaymentQty || 0,
             item.pendingShipQty || 0,
+            item.qtyPerOrder || 1,
             (ctx.user as any)?.id || 0,
           ]
         ) as any;
