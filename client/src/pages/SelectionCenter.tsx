@@ -4204,7 +4204,7 @@ function CostManagementContent() {
                   <th className="text-left p-3 font-medium">生效日</th>
                   <th className="text-left p-3 font-medium">品牌</th>
                   <th className="text-left p-3 font-medium">商品名</th>
-                  <th className="text-right p-3 font-medium">成本</th>
+                  <th className="text-right p-3 font-medium">成本（税后）</th>
                   <th className="text-left p-3 font-medium">备注</th>
                   <th className="text-center p-3 font-medium">操作</th>
                 </tr>
