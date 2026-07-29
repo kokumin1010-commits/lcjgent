@@ -37,6 +37,7 @@ import ReviewManagement from "./ReviewManagement";
 import KakuhenManagement from "./KakuhenManagement";
 import ReviewProductList from "./ReviewProductList";
 import BWExchangeAdmin from "./BWExchangeAdmin";
+import ReferralAdminTab from "./ReferralAdminTab";
 
 const TABS = [
   { id: "dashboard", label: "ダッシュボード", icon: LayoutDashboard },
@@ -48,6 +49,7 @@ const TABS = [
   { id: "reviews", label: "口コミ管理", icon: Receipt },
   { id: "review-products", label: "レビュー商品一覧", icon: Package },
   { id: "kakuhen", label: "確変チャンス", icon: TrendingUp },
+  { id: "referrals", label: "紹介一覧", icon: Users },
   { id: "beauty-wallet", label: "BW交換", icon: Wallet },
 ] as const;
 
@@ -458,6 +460,7 @@ export default function MallDashboardPage() {
         {activeTab === "reviews" && <ReviewManagement />}
         {activeTab === "review-products" && <ReviewProductList />}
         {activeTab === "kakuhen" && <KakuhenManagement />}
+        {activeTab === "referrals" && <ReferralAdminTab />}
         {activeTab === "beauty-wallet" && <BWExchangeAdmin />}
       </div>
     </div>

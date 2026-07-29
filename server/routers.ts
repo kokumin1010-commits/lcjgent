@@ -564,6 +564,9 @@ import {
   getUserReferralHistory,
   getUserSpinHistoryList,
   calculateTitleLevel,
+  getFriendReferralAdminStats,
+  getFriendReferralHistory,
+  getFriendReferralLeaderboardAdmin,
   createKakuhenResult,
   getKakuhenResultById,
   getKakuhenResultsByUserId,
@@ -26092,6 +26095,26 @@ ${topProductsContext}
         const items = await getSpinRewardItems(input.isSpecial);
         return items.map(i => ({ id: i.id, label: i.label, emoji: i.emoji, points: i.points, color: i.color, probability: parseFloat(String(i.probability)) }));
       }),
+    // 管理画面用: 紹介統計
+    adminStats: protectedProcedure.query(async () => {
+      const campaign = await getActiveReferralCampaign();
+      if (!campaign) return null;
+      return await getFriendReferralAdminStats(campaign.id);
+    }),
+    // 管理画面用: 紹介履歴一覧
+    adminHistory: protectedProcedure
+      .input(z.object({ limit: z.number().default(50), offset: z.number().default(0) }))
+      .query(async ({ input }) => {
+        const campaign = await getActiveReferralCampaign();
+        if (!campaign) return { items: [], total: 0 };
+        return await getFriendReferralHistory(campaign.id, input.limit, input.offset);
+      }),
+    // 管理画面用: 完全ランキング（名前マスクなし）
+    adminLeaderboard: protectedProcedure.query(async () => {
+      const campaign = await getActiveReferralCampaign();
+      if (!campaign) return [];
+      return await getFriendReferralLeaderboardAdmin(campaign.id);
+    }),
   }),
 
   // ============================================================

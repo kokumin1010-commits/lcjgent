@@ -16409,6 +16409,124 @@ export function calculateTitleLevel(totalReferrals: number): string {
 }
 
 // ============================================================
+// Friend Referral Admin Functions
+// ============================================================
+
+/** 友達招待チャレンジの管理統計を取得 */
+export async function getFriendReferralAdminStats(campaignId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // 総参加者数（進捗レコードがある人）
+  const participantsResult = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(userReferralProgress)
+    .where(eq(userReferralProgress.campaignId, campaignId));
+  const totalParticipants = participantsResult[0]?.count || 0;
+  // 総招待数
+  const referralsResult = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(friendReferrals)
+    .where(eq(friendReferrals.campaignId, campaignId));
+  const totalReferrals = referralsResult[0]?.count || 0;
+  // 総付与ポイント（招待者+被招待者）
+  const pointsResult = await db.select({
+    referrerTotal: sql<number>`COALESCE(SUM(referrerPointsAwarded), 0)`,
+    inviteeTotal: sql<number>`COALESCE(SUM(inviteePointsAwarded), 0)`,
+  }).from(friendReferrals).where(eq(friendReferrals.campaignId, campaignId));
+  const totalPointsAwarded = (pointsResult[0]?.referrerTotal || 0) + (pointsResult[0]?.inviteeTotal || 0);
+  // 今日の招待数
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayResult = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(friendReferrals)
+    .where(and(
+      eq(friendReferrals.campaignId, campaignId),
+      gte(friendReferrals.createdAt, today)
+    ));
+  const todayReferrals = todayResult[0]?.count || 0;
+  // アクティブ紹介者数（1人以上招待した人）
+  const activeResult = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(userReferralProgress)
+    .where(and(
+      eq(userReferralProgress.campaignId, campaignId),
+      gt(userReferralProgress.totalReferrals, 0)
+    ));
+  const activeReferrers = activeResult[0]?.count || 0;
+  return {
+    totalParticipants,
+    totalReferrals,
+    totalPointsAwarded,
+    todayReferrals,
+    activeReferrers,
+  };
+}
+
+/** 友達招待の全履歴を取得（管理画面用、ページネーション付き） */
+export async function getFriendReferralHistory(campaignId: number, limit = 50, offset = 0) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const referrals = await db.select().from(friendReferrals)
+    .where(eq(friendReferrals.campaignId, campaignId))
+    .orderBy(desc(friendReferrals.createdAt))
+    .limit(limit)
+    .offset(offset);
+  // ユーザー情報を付加
+  const enriched = [];
+  for (const r of referrals) {
+    const referrer = await db.select({ displayName: lineUsers.displayName, pictureUrl: lineUsers.pictureUrl })
+      .from(lineUsers).where(eq(lineUsers.id, r.referrerLineUserId)).limit(1);
+    const invitee = await db.select({ displayName: lineUsers.displayName, pictureUrl: lineUsers.pictureUrl })
+      .from(lineUsers).where(eq(lineUsers.id, r.inviteeLineUserId)).limit(1);
+    enriched.push({
+      ...r,
+      referrerName: referrer[0]?.displayName || "匿名",
+      referrerPictureUrl: referrer[0]?.pictureUrl || null,
+      inviteeName: invitee[0]?.displayName || "匿名",
+      inviteePictureUrl: invitee[0]?.pictureUrl || null,
+    });
+  }
+  // 総件数
+  const totalResult = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(friendReferrals)
+    .where(eq(friendReferrals.campaignId, campaignId));
+  return { items: enriched, total: totalResult[0]?.count || 0 };
+}
+
+/** 友達招待ランキング（管理画面用、制限なし） */
+export async function getFriendReferralLeaderboardAdmin(campaignId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const results = await db
+    .select({
+      lineUserId: userReferralProgress.lineUserId,
+      referralCode: userReferralProgress.referralCode,
+      totalReferrals: userReferralProgress.totalReferrals,
+      totalPointsEarned: userReferralProgress.totalPointsEarned,
+      currentStage: userReferralProgress.currentStage,
+      titleLevel: userReferralProgress.titleLevel,
+      pendingSpins: userReferralProgress.pendingSpins,
+      pendingSpecialSpins: userReferralProgress.pendingSpecialSpins,
+      createdAt: userReferralProgress.createdAt,
+    })
+    .from(userReferralProgress)
+    .where(and(
+      eq(userReferralProgress.campaignId, campaignId),
+      gt(userReferralProgress.totalReferrals, 0)
+    ))
+    .orderBy(desc(userReferralProgress.totalReferrals));
+  // ユーザー名を取得
+  const enriched = [];
+  for (const r of results) {
+    const user = await db.select({ displayName: lineUsers.displayName, pictureUrl: lineUsers.pictureUrl })
+      .from(lineUsers).where(eq(lineUsers.id, r.lineUserId)).limit(1);
+    enriched.push({
+      ...r,
+      displayName: user[0]?.displayName || "匿名ユーザー",
+      pictureUrl: user[0]?.pictureUrl || null,
+    });
+  }
+  return enriched;
+}
+
+// ============================================================
 // Blog Functions
 // ============================================================
 
