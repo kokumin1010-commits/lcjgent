@@ -2966,7 +2966,8 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
-        await createStaff({
+        // Create staff record
+        const result = await createStaff({
           name: input.name,
           nameEn: input.nameEn,
           email: input.email,
@@ -2984,6 +2985,17 @@ export const appRouter = router({
           employmentType: input.employmentType || "fulltime",
           isActive: "active",
         });
+        
+        // Also create a report_staff entry and link them
+        const staffId = Number((result as any)[0]?.insertId || 0);
+        if (staffId > 0) {
+          await createReportStaff({
+            name: input.name,
+            country: input.country || "日本",
+            linkedStaffId: staffId,
+          });
+        }
+        
         return { success: true };
       }),
 
@@ -3750,10 +3762,23 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
+        let linkedStaffId = input.linkedStaffId || null;
+        
+        // If no linkedStaffId provided, auto-create a staff entry
+        if (!linkedStaffId) {
+          const staffResult = await createStaff({
+            name: input.name,
+            email: `${input.name.toLowerCase().replace(/[\s\u3000]+/g, '.')}@lcj.placeholder`,
+            country: input.country,
+            isActive: "active",
+          });
+          linkedStaffId = Number((staffResult as any)[0]?.insertId || 0) || null;
+        }
+        
         const reportStaffMember = await createReportStaff({
           name: input.name,
           country: input.country,
-          linkedStaffId: input.linkedStaffId || null,
+          linkedStaffId: linkedStaffId,
         });
         return reportStaffMember;
       }),
