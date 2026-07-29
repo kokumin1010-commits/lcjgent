@@ -129,6 +129,7 @@ function DashboardLayoutContent({
     { icon: MessageSquare, label: t("nav.line"), path: "/master/line" },
     { icon: MessageCircle, label: "チャット", path: "/master/chat", hasBadge: true, badgeType: "chat" as const },
     { icon: Calendar, label: t("nav.calendar"), path: "/s" },
+    { icon: Calendar, label: "スタッフスケジュール", path: "/staff-schedule" },
     { icon: Video, label: t("nav.livers"), path: "/master/livers" },
     { icon: Zap, label: t("nav.liverCommand") || "ライバー司令塔", path: "/master/livers-dashboard" },
     { icon: Bot, label: "ライバー成長ダッシュボード", path: "/master/ai-coach" },
