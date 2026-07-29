@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, ChevronLeft, ChevronRight, Plus, X, Clock, User } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight, Plus, X, Clock, User, Users } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
@@ -42,28 +42,28 @@ type StaffScheduleEntry = {
 };
 
 export default function StaffSchedule() {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<string>(getJSTDateKey(new Date()));
   const [activeTabs, setActiveTabs] = useState<Set<string>>(new Set(["中国", "日本"]));
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedStaffFilter, setSelectedStaffFilter] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<"today" | "calendar">("today");
 
   // Form state
   const [formStaffId, setFormStaffId] = useState<number | null>(null);
+  const [formDate, setFormDate] = useState<string>(getJSTDateKey(new Date()));
   const [formStartTime, setFormStartTime] = useState("09:00");
   const [formEndTime, setFormEndTime] = useState("18:00");
   const [formNotes, setFormNotes] = useState("");
 
-  // Get date range for current month
-  const startOfMonth = useMemo(() => {
-    const d = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    return d.toISOString().split('T')[0];
-  }, [currentDate]);
-
-  const endOfMonth = useMemo(() => {
-    const d = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-    return d.toISOString().split('T')[0] + " 23:59:59";
-  }, [currentDate]);
+  // Get date range for fetching (current month + buffer)
+  const dateRange = useMemo(() => {
+    const d = new Date(selectedDate + 'T12:00:00');
+    const start = new Date(d.getFullYear(), d.getMonth(), 1);
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    return {
+      startDate: start.toISOString().split('T')[0],
+      endDate: end.toISOString().split('T')[0] + " 23:59:59",
+    };
+  }, [selectedDate]);
 
   // Fetch staff list
   const { data: staffList } = trpc.staff.listActive.useQuery();
@@ -73,7 +73,6 @@ export default function StaffSchedule() {
     setActiveTabs(prev => {
       const next = new Set(prev);
       if (next.has(tab)) {
-        // Don't allow deselecting all
         if (next.size > 1) next.delete(tab);
       } else {
         next.add(tab);
@@ -88,11 +87,11 @@ export default function StaffSchedule() {
     return staffList.filter((s: any) => activeTabs.has(s.country));
   }, [staffList, activeTabs]);
 
-  // Fetch schedules - when both selected, don't pass country filter
+  // Fetch schedules
   const countryFilter = activeTabs.size === 1 ? Array.from(activeTabs)[0] : undefined;
   const { data: schedules, refetch: refetchSchedules } = trpc.staffSchedule.getByDateRange.useQuery({
-    startDate: startOfMonth,
-    endDate: endOfMonth,
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
     country: countryFilter,
   });
 
@@ -117,75 +116,43 @@ export default function StaffSchedule() {
 
   const resetForm = () => {
     setFormStaffId(null);
+    setFormDate(selectedDate);
     setFormStartTime("09:00");
     setFormEndTime("18:00");
     setFormNotes("");
   };
 
-  // Generate calendar days
-  const calendarDays = useMemo(() => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const days: { dateKey: string; day: number; isCurrentMonth: boolean }[] = [];
-
-    // Days from previous month (start on Monday)
-    const startDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
-    for (let i = startDayOfWeek - 1; i >= 0; i--) {
-      const d = new Date(year, month, -i);
-      days.push({ dateKey: getJSTDateKey(d), day: d.getDate(), isCurrentMonth: false });
-    }
-
-    // Days of current month
-    for (let i = 1; i <= lastDay.getDate(); i++) {
-      const d = new Date(year, month, i);
-      days.push({ dateKey: getJSTDateKey(d), day: i, isCurrentMonth: true });
-    }
-
-    // Fill remaining
-    const remaining = 42 - days.length;
-    for (let i = 1; i <= remaining; i++) {
-      const d = new Date(year, month + 1, i);
-      days.push({ dateKey: getJSTDateKey(d), day: d.getDate(), isCurrentMonth: false });
-    }
-
-    return days;
-  }, [currentDate]);
-
-  // Group schedules by date
-  const schedulesByDate = useMemo(() => {
-    const map: Record<string, StaffScheduleEntry[]> = {};
-    if (!schedules) return map;
-    for (const s of schedules as StaffScheduleEntry[]) {
-      const dateKey = new Date(s.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
-      if (!map[dateKey]) map[dateKey] = [];
-      map[dateKey].push(s);
-    }
-    return map;
-  }, [schedules]);
-
   // Staff color map
   const staffColorMap = useMemo(() => {
     const map: Record<number, string> = {};
-    filteredStaff.forEach((s: any, i: number) => {
+    if (!staffList) return map;
+    staffList.forEach((s: any, i: number) => {
       map[s.id] = getStaffColor(s.id, i);
     });
     return map;
-  }, [filteredStaff]);
+  }, [staffList]);
 
-  const goToPreviousMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-  const goToNextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-  const goToToday = () => setCurrentDate(new Date());
+  // Get schedules for selected date
+  const todaySchedules = useMemo(() => {
+    if (!schedules) return [];
+    return (schedules as StaffScheduleEntry[]).filter(s => {
+      const dateKey = new Date(s.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+      return dateKey === selectedDate;
+    });
+  }, [schedules, selectedDate]);
+
+  // Group by country
+  const cnSchedules = todaySchedules.filter(s => s.country === "中国");
+  const jpSchedules = todaySchedules.filter(s => s.country === "日本");
 
   const handleCreateSchedule = () => {
-    if (!formStaffId || !selectedDate) {
+    if (!formStaffId || !formDate) {
       toast.error("スタッフと日付を選択してください");
       return;
     }
     createMutation.mutate({
       staffId: formStaffId,
-      date: selectedDate,
+      date: formDate,
       startTime: formStartTime,
       endTime: formEndTime,
       notes: formNotes || undefined,
@@ -194,142 +161,283 @@ export default function StaffSchedule() {
   };
 
   const today = getJSTDateKey(new Date());
+  const isToday = selectedDate === today;
+
+  // Date navigation
+  const goToPrevDay = () => {
+    const d = new Date(selectedDate + 'T12:00:00');
+    d.setDate(d.getDate() - 1);
+    setSelectedDate(getJSTDateKey(d));
+  };
+  const goToNextDay = () => {
+    const d = new Date(selectedDate + 'T12:00:00');
+    d.setDate(d.getDate() + 1);
+    setSelectedDate(getJSTDateKey(d));
+  };
+  const goToToday = () => setSelectedDate(today);
+
+  // Format date for display
+  const displayDate = useMemo(() => {
+    const d = new Date(selectedDate + 'T12:00:00');
+    const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${weekdays[d.getDay()]}）`;
+  }, [selectedDate]);
+
+  // Week view dates (7 days centered around selected date)
+  const weekDates = useMemo(() => {
+    const d = new Date(selectedDate + 'T12:00:00');
+    const dayOfWeek = d.getDay() === 0 ? 6 : d.getDay() - 1; // Monday = 0
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - dayOfWeek);
+    const dates: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const dd = new Date(monday);
+      dd.setDate(monday.getDate() + i);
+      dates.push(getJSTDateKey(dd));
+    }
+    return dates;
+  }, [selectedDate]);
+
+  // Get schedule count for a date
+  const getScheduleCount = (dateKey: string) => {
+    if (!schedules) return 0;
+    return (schedules as StaffScheduleEntry[]).filter(s => {
+      const dk = new Date(s.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+      return dk === dateKey;
+    }).length;
+  };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-white border-b px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Calendar className="h-6 w-6 text-blue-600" />
-            <div>
-              <h1 className="text-xl font-bold">
-                {currentDate.getFullYear()}年{currentDate.getMonth() + 1}月
-              </h1>
-              <p className="text-sm text-gray-500">スタッフスケジュール</p>
+      <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Users className="h-6 w-6 text-blue-600" />
+              <div>
+                <h1 className="text-lg font-bold">
+                  {isToday ? "今日の値班" : displayDate}
+                </h1>
+                {isToday && <p className="text-xs text-gray-500">{displayDate}</p>}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => { setShowCreateDialog(true); setFormDate(selectedDate); }}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                追加
+              </Button>
+              <Link href="/s">
+                <Button variant="outline" size="sm">ライバースケジュール</Button>
+              </Link>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Link href="/s">
-              <Button variant="outline" size="sm">ライバースケジュール</Button>
-            </Link>
-            <Button onClick={goToToday} variant="outline" size="sm">今日</Button>
-            <Button onClick={goToPreviousMonth} variant="ghost" size="icon"><ChevronLeft className="h-4 w-4" /></Button>
-            <Button onClick={goToNextMonth} variant="ghost" size="icon"><ChevronRight className="h-4 w-4" /></Button>
+
+          {/* Date navigation */}
+          <div className="flex items-center gap-2 mt-3">
+            <Button onClick={goToPrevDay} variant="ghost" size="icon" className="h-8 w-8">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button onClick={goToToday} variant={isToday ? "default" : "outline"} size="sm" className={isToday ? "bg-blue-600" : ""}>
+              今日
+            </Button>
+            <Button onClick={goToNextDay} variant="ghost" size="icon" className="h-8 w-8">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
-        </div>
 
-        {/* Tabs: 中国 / 日本 (multi-select) */}
-        <div className="flex gap-2 mt-3">
-          <Button
-            variant={activeTabs.has("中国") ? "default" : "outline"}
-            size="sm"
-            onClick={() => toggleTab("中国")}
-            className={activeTabs.has("中国") ? "bg-red-500 hover:bg-red-600" : ""}
-          >
-            🇨🇳 中国スタッフ
-          </Button>
-          <Button
-            variant={activeTabs.has("日本") ? "default" : "outline"}
-            size="sm"
-            onClick={() => toggleTab("日本")}
-            className={activeTabs.has("日本") ? "bg-blue-500 hover:bg-blue-600" : ""}
-          >
-            🇯🇵 日本スタッフ
-          </Button>
-        </div>
+          {/* Week mini-nav */}
+          <div className="flex gap-1 mt-2 overflow-x-auto pb-1">
+            {weekDates.map((dateKey, i) => {
+              const d = new Date(dateKey + 'T12:00:00');
+              const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
+              const count = getScheduleCount(dateKey);
+              const isSelected = dateKey === selectedDate;
+              const isTodayDate = dateKey === today;
+              return (
+                <button
+                  key={dateKey}
+                  onClick={() => setSelectedDate(dateKey)}
+                  className={cn(
+                    "flex flex-col items-center px-3 py-1.5 rounded-lg min-w-[48px] transition-all",
+                    isSelected ? "bg-blue-600 text-white shadow-md" : "bg-white hover:bg-gray-100 border",
+                    isTodayDate && !isSelected && "border-blue-400"
+                  )}
+                >
+                  <span className={cn("text-[10px]", isSelected ? "text-blue-100" : "text-gray-500")}>{weekdays[i]}</span>
+                  <span className={cn("text-sm font-bold", isSelected ? "text-white" : "")}>{d.getDate()}</span>
+                  {count > 0 && (
+                    <span className={cn(
+                      "text-[9px] rounded-full px-1.5",
+                      isSelected ? "bg-blue-400 text-white" : "bg-blue-100 text-blue-600"
+                    )}>{count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-        {/* Staff filter chips */}
-        <div className="flex gap-1 mt-2 flex-wrap">
-          <button
-            onClick={() => setSelectedStaffFilter(null)}
-            className={cn(
-              "px-2 py-0.5 rounded-full text-xs font-medium transition-all",
-              selectedStaffFilter === null
-                ? "bg-gray-800 text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            )}
-          >
-            すべて
-          </button>
-          {filteredStaff.map((s: any, i: number) => (
-            <button
-              key={s.id}
-              onClick={() => setSelectedStaffFilter(selectedStaffFilter === s.id ? null : s.id)}
-              className={cn(
-                "px-2 py-0.5 rounded-full text-xs font-medium transition-all",
-                selectedStaffFilter === s.id
-                  ? "text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              )}
-              style={selectedStaffFilter === s.id ? { backgroundColor: staffColorMap[s.id] } : {}}
+          {/* Country tabs */}
+          <div className="flex gap-2 mt-2">
+            <Button
+              variant={activeTabs.has("中国") ? "default" : "outline"}
+              size="sm"
+              onClick={() => toggleTab("中国")}
+              className={cn("h-7 text-xs", activeTabs.has("中国") ? "bg-red-500 hover:bg-red-600" : "")}
             >
-              {s.name}
-            </button>
-          ))}
+              🇨🇳 中国
+            </Button>
+            <Button
+              variant={activeTabs.has("日本") ? "default" : "outline"}
+              size="sm"
+              onClick={() => toggleTab("日本")}
+              className={cn("h-7 text-xs", activeTabs.has("日本") ? "bg-blue-500 hover:bg-blue-600" : "")}
+            >
+              🇯🇵 日本
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Calendar Grid */}
-      <div className="p-2">
-        {/* Day headers */}
-        <div className="grid grid-cols-7 text-center text-xs font-medium text-gray-500 mb-1">
-          <div>月</div><div>火</div><div>水</div><div>木</div><div>金</div>
-          <div className="text-blue-500">土</div><div className="text-red-500">日</div>
-        </div>
-
-        {/* Calendar cells */}
-        <div className="grid grid-cols-7 gap-px bg-gray-200 border border-gray-200 rounded-lg overflow-hidden">
-          {calendarDays.map((day, idx) => {
-            const daySchedules = (schedulesByDate[day.dateKey] || [])
-              .filter(s => selectedStaffFilter === null || s.staffId === selectedStaffFilter);
-            const isToday = day.dateKey === today;
-            const dayOfWeek = idx % 7;
-
-            return (
-              <div
-                key={idx}
-                className={cn(
-                  "bg-white min-h-[100px] p-1 cursor-pointer hover:bg-blue-50 transition-colors relative",
-                  !day.isCurrentMonth && "bg-gray-50 opacity-50"
+      {/* Main content - Today's staff */}
+      <div className="p-4 space-y-4">
+        {todaySchedules.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-xl border">
+            <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500 font-medium">この日のスケジュールはありません</p>
+            <p className="text-gray-400 text-sm mt-1">「追加」ボタンからスケジュールを登録してください</p>
+            <Button
+              onClick={() => { setShowCreateDialog(true); setFormDate(selectedDate); }}
+              className="mt-4 bg-blue-600 hover:bg-blue-700"
+              size="sm"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              スケジュールを追加
+            </Button>
+          </div>
+        ) : (
+          <>
+            {/* Summary */}
+            <div className="bg-white rounded-xl border p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-bold text-sm text-gray-700">
+                  {isToday ? "本日の出勤者" : `${displayDate} の出勤者`}
+                </h2>
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                  {todaySchedules.length}名
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {activeTabs.has("中国") && cnSchedules.length > 0 && (
+                  <div className="bg-red-50 rounded-lg p-2">
+                    <div className="text-xs text-red-600 font-medium mb-1">🇨🇳 中国 ({cnSchedules.length}名)</div>
+                  </div>
                 )}
-                onClick={() => {
-                  setSelectedDate(day.dateKey);
-                  setShowCreateDialog(true);
-                }}
-              >
-                <div className={cn(
-                  "text-xs font-medium mb-0.5",
-                  isToday && "bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center",
-                  !isToday && dayOfWeek === 5 && "text-blue-500",
-                  !isToday && dayOfWeek === 6 && "text-red-500",
-                )}>
-                  {day.day}
+                {activeTabs.has("日本") && jpSchedules.length > 0 && (
+                  <div className="bg-blue-50 rounded-lg p-2">
+                    <div className="text-xs text-blue-600 font-medium mb-1">🇯🇵 日本 ({jpSchedules.length}名)</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Staff list - China */}
+            {activeTabs.has("中国") && cnSchedules.length > 0 && (
+              <div className="bg-white rounded-xl border overflow-hidden">
+                <div className="px-4 py-2 bg-red-50 border-b flex items-center gap-2">
+                  <span className="text-sm">🇨🇳</span>
+                  <span className="text-sm font-bold text-red-700">中国チーム</span>
+                  <span className="text-xs text-red-500 ml-auto">{cnSchedules.length}名出勤</span>
                 </div>
-                {/* Schedule entries */}
-                <div className="space-y-0.5">
-                  {daySchedules.slice(0, 4).map((s) => (
-                    <div
-                      key={s.id}
-                      className="text-[10px] leading-tight px-1 py-0.5 rounded truncate"
-                      style={{
-                        backgroundColor: (s.color || staffColorMap[s.staffId] || '#ddd') + '30',
-                        color: s.color || staffColorMap[s.staffId] || '#333',
-                        borderLeft: `2px solid ${s.color || staffColorMap[s.staffId] || '#999'}`,
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <span className="font-medium">{s.startTime}</span> {s.staffName}
+                <div className="divide-y">
+                  {cnSchedules.map((s) => (
+                    <div key={s.id} className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                        style={{ backgroundColor: s.color || staffColorMap[s.staffId] || '#999' }}
+                      >
+                        {s.staffName.charAt(0)}
+                      </div>
+                      <div className="ml-3 flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate">{s.staffName}</div>
+                        {s.department && <div className="text-xs text-gray-500">{s.department}</div>}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-gray-400" />
+                          {s.startTime} - {s.endTime}
+                        </div>
+                        {s.notes && <div className="text-[10px] text-gray-400 mt-0.5">{s.notes}</div>}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-gray-300 hover:text-red-500 ml-2 shrink-0"
+                        onClick={() => {
+                          if (confirm("このスケジュールを削除しますか？")) {
+                            deleteMutation.mutate({ id: s.id });
+                          }
+                        }}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
                     </div>
                   ))}
-                  {daySchedules.length > 4 && (
-                    <div className="text-[10px] text-gray-400 pl-1">+{daySchedules.length - 4}</div>
-                  )}
                 </div>
               </div>
-            );
-          })}
-        </div>
+            )}
+
+            {/* Staff list - Japan */}
+            {activeTabs.has("日本") && jpSchedules.length > 0 && (
+              <div className="bg-white rounded-xl border overflow-hidden">
+                <div className="px-4 py-2 bg-blue-50 border-b flex items-center gap-2">
+                  <span className="text-sm">🇯🇵</span>
+                  <span className="text-sm font-bold text-blue-700">日本チーム</span>
+                  <span className="text-xs text-blue-500 ml-auto">{jpSchedules.length}名出勤</span>
+                </div>
+                <div className="divide-y">
+                  {jpSchedules.map((s) => (
+                    <div key={s.id} className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                        style={{ backgroundColor: s.color || staffColorMap[s.staffId] || '#999' }}
+                      >
+                        {s.staffName.charAt(0)}
+                      </div>
+                      <div className="ml-3 flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate">{s.staffName}</div>
+                        {s.department && <div className="text-xs text-gray-500">{s.department}</div>}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-gray-400" />
+                          {s.startTime} - {s.endTime}
+                        </div>
+                        {s.notes && <div className="text-[10px] text-gray-400 mt-0.5">{s.notes}</div>}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-gray-300 hover:text-red-500 ml-2 shrink-0"
+                        onClick={() => {
+                          if (confirm("このスケジュールを削除しますか？")) {
+                            deleteMutation.mutate({ id: s.id });
+                          }
+                        }}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Create Schedule Dialog */}
@@ -338,7 +446,7 @@ export default function StaffSchedule() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Plus className="h-5 w-5 text-blue-600" />
-              スタッフスケジュール追加
+              スケジュール追加
             </DialogTitle>
           </DialogHeader>
 
@@ -348,8 +456,8 @@ export default function StaffSchedule() {
               <label className="text-sm font-medium text-gray-700">日付</label>
               <Input
                 type="date"
-                value={selectedDate || ""}
-                onChange={(e) => setSelectedDate(e.target.value)}
+                value={formDate}
+                onChange={(e) => setFormDate(e.target.value)}
               />
             </div>
 
@@ -415,54 +523,6 @@ export default function StaffSchedule() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Day detail - show when clicking a day with existing schedules */}
-      {selectedDate && schedulesByDate[selectedDate] && schedulesByDate[selectedDate].length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4 max-h-[40vh] overflow-y-auto z-20">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-sm">
-              {selectedDate} のスケジュール ({schedulesByDate[selectedDate]?.filter(s => selectedStaffFilter === null || s.staffId === selectedStaffFilter).length}件)
-            </h3>
-            <Button variant="ghost" size="icon" onClick={() => setSelectedDate(null)}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="space-y-2">
-            {(schedulesByDate[selectedDate] || [])
-              .filter(s => selectedStaffFilter === null || s.staffId === selectedStaffFilter)
-              .map((s) => (
-              <div key={s.id} className="flex items-center justify-between p-2 rounded-lg border">
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: s.color || staffColorMap[s.staffId] || '#999' }}
-                  />
-                  <div>
-                    <div className="text-sm font-medium">{s.staffName}</div>
-                    <div className="text-xs text-gray-500 flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {s.startTime} - {s.endTime}
-                      {s.notes && <span className="ml-2 text-gray-400">({s.notes})</span>}
-                    </div>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-red-400 hover:text-red-600"
-                  onClick={() => {
-                    if (confirm("このスケジュールを削除しますか？")) {
-                      deleteMutation.mutate({ id: s.id });
-                    }
-                  }}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
