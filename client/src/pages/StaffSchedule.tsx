@@ -5,7 +5,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, ChevronLeft, ChevronRight, Plus, X, Clock, User, Users, Search, Filter } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Clock, User, Users, Search, Filter } from "lucide-react";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
@@ -54,13 +56,14 @@ export default function StaffSchedule() {
 
   // Form state
   const [formStaffId, setFormStaffId] = useState<number | null>(null);
-  const [formDate, setFormDate] = useState<string>(getJSTDateKey(new Date()));
+  const [formDates, setFormDates] = useState<Date[]>([new Date()]);
   const [formStartTime, setFormStartTime] = useState("09:00");
   const [formEndTime, setFormEndTime] = useState("18:00");
   const [formNotes, setFormNotes] = useState("");
   const [formShift, setFormShift] = useState<string>("morning"); // morning | evening
   const [formIsFollowBroadcast, setFormIsFollowBroadcast] = useState(false);
   const [formAnchor, setFormAnchor] = useState<string>(""); // 主播名 (required when 跟播)
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Get date range for fetching based on view mode
   const dateRange = useMemo(() => {
@@ -169,12 +172,6 @@ export default function StaffSchedule() {
 
   // Mutations
   const createMutation = trpc.staffSchedule.create.useMutation({
-    onSuccess: () => {
-      toast.success("スケジュールを追加しました");
-      refetchSchedules();
-      setShowCreateDialog(false);
-      resetForm();
-    },
     onError: (e) => toast.error("エラー: " + e.message),
   });
 
@@ -188,13 +185,14 @@ export default function StaffSchedule() {
 
   const resetForm = () => {
     setFormStaffId(null);
-    setFormDate(selectedDate);
+    setFormDates([new Date(selectedDate + 'T12:00:00')]);
     setFormShift("morning");
     setFormStartTime("09:00");
     setFormEndTime("18:00");
     setFormNotes("");
     setFormIsFollowBroadcast(false);
     setFormAnchor("");
+    setIsSubmitting(false);
   };
 
   // Staff color map
@@ -295,13 +293,13 @@ export default function StaffSchedule() {
     return dates;
   }, [selectedDate]);
 
-  const handleCreateSchedule = () => {
-    if (!formStaffId || !formDate) {
+  const handleCreateSchedule = async () => {
+    if (!formStaffId || formDates.length === 0) {
       toast.error("スタッフと日付を選択してください");
       return;
     }
     if (formIsFollowBroadcast && !formAnchor.trim()) {
-      toast.error("跟播模式では主播を選択してください");
+      toast.error("跟播モードでは主播を選択してください");
       return;
     }
     const shiftLabel = SHIFT_PRESETS[formShift]?.label || "早班";
@@ -312,14 +310,36 @@ export default function StaffSchedule() {
     }
     const notesStr = [...tags, formNotes].filter(Boolean).join(" ").trim();
     
-    createMutation.mutate({
-      staffId: formStaffId,
-      date: formDate,
-      startTime: formStartTime,
-      endTime: formEndTime,
-      notes: notesStr || undefined,
-      color: staffColorMap[formStaffId] || undefined,
-    });
+    setIsSubmitting(true);
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const dateObj of formDates) {
+      const dateStr = getJSTDateKey(dateObj);
+      try {
+        await createMutation.mutateAsync({
+          staffId: formStaffId,
+          date: dateStr,
+          startTime: formStartTime,
+          endTime: formEndTime,
+          notes: notesStr || undefined,
+          color: staffColorMap[formStaffId] || undefined,
+        });
+        successCount++;
+      } catch (e) {
+        errorCount++;
+      }
+    }
+    
+    if (successCount > 0) {
+      toast.success(`${successCount}件のスケジュールを追加しました`);
+      refetchSchedules();
+    }
+    if (errorCount > 0) {
+      toast.error(`${errorCount}件の登録に失敗しました`);
+    }
+    setShowCreateDialog(false);
+    resetForm();
   };
 
   const today = getJSTDateKey(new Date());
@@ -945,14 +965,46 @@ export default function StaffSchedule() {
               </div>
             )}
 
-            {/* Date */}
+            {/* Multi-Date Picker */}
             <div>
-              <label className="text-sm font-medium text-gray-700">日付</label>
-              <Input
-                type="date"
-                value={formDate}
-                onChange={(e) => setFormDate(e.target.value)}
-              />
+              <label className="text-sm font-medium text-gray-700">日付 *（複数選択可）</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal mt-1">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formDates.length === 0
+                      ? "日付を選択..."
+                      : formDates.length === 1
+                        ? getJSTDateKey(formDates[0])
+                        : `${formDates.length}日間選択中`}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarPicker
+                    mode="multiple"
+                    selected={formDates}
+                    onSelect={(dates) => setFormDates(dates || [])}
+                  />
+                </PopoverContent>
+              </Popover>
+              {formDates.length > 1 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {formDates
+                    .sort((a, b) => a.getTime() - b.getTime())
+                    .map((d, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-200">
+                        {d.getMonth() + 1}/{d.getDate()}
+                        <button
+                          type="button"
+                          onClick={() => setFormDates(formDates.filter((_, idx) => idx !== i))}
+                          className="hover:text-red-500"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                </div>
+              )}
             </div>
 
             {/* Staff selection */}
@@ -1023,8 +1075,8 @@ export default function StaffSchedule() {
             <Button variant="outline" onClick={() => { setShowCreateDialog(false); resetForm(); }}>
               キャンセル
             </Button>
-            <Button onClick={handleCreateSchedule} disabled={createMutation.isPending}>
-              {createMutation.isPending ? "追加中..." : "追加"}
+            <Button onClick={handleCreateSchedule} disabled={isSubmitting || formDates.length === 0}>
+              {isSubmitting ? "追加中..." : formDates.length > 1 ? `${formDates.length}日分追加` : "追加"}
             </Button>
           </DialogFooter>
         </DialogContent>
