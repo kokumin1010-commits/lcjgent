@@ -56,6 +56,7 @@ export default function StaffSchedule() {
   const [formShift, setFormShift] = useState<string>("morning"); // morning | evening | relay
   const [formPosition, setFormPosition] = useState<string>("operations"); // operations | business | onsite
   const [formIsFollowBroadcast, setFormIsFollowBroadcast] = useState(false);
+  const [formAnchor, setFormAnchor] = useState<string>(""); // 主播名 (required when 跟播)
 
   // Get date range for fetching (current month + buffer)
   const dateRange = useMemo(() => {
@@ -70,6 +71,8 @@ export default function StaffSchedule() {
 
   // Fetch staff list
   const { data: staffList } = trpc.staff.listActive.useQuery();
+  // Fetch livers list for anchor selection
+  const { data: liversList } = trpc.liverManagement.list.useQuery();
 
   // Toggle tab selection
   const toggleTab = (tab: string) => {
@@ -164,6 +167,7 @@ export default function StaffSchedule() {
     setFormNotes("");
     setFormPosition("operations");
     setFormIsFollowBroadcast(false);
+    setFormAnchor("");
   };
 
   // Staff color map
@@ -185,20 +189,34 @@ export default function StaffSchedule() {
     });
   }, [schedules, selectedDate]);
 
-  // Group by country
-  const cnSchedules = todaySchedules.filter(s => s.country === "中国");
-  const jpSchedules = todaySchedules.filter(s => s.country === "日本");
+  // Sort helper: 跟播 entries first
+  const sortFollowFirst = (a: StaffScheduleEntry, b: StaffScheduleEntry) => {
+    const aIsFollow = a.notes?.includes("[跟播]") ? 1 : 0;
+    const bIsFollow = b.notes?.includes("[跟播]") ? 1 : 0;
+    return bIsFollow - aIsFollow; // 跟播 first
+  };
+
+  // Group by country, 跟播 prioritized
+  const cnSchedules = todaySchedules.filter(s => s.country === "中国").sort(sortFollowFirst);
+  const jpSchedules = todaySchedules.filter(s => s.country === "日本").sort(sortFollowFirst);
 
   const handleCreateSchedule = () => {
     if (!formStaffId || !formDate) {
       toast.error("スタッフと日付を選択してください");
       return;
     }
+    if (formIsFollowBroadcast && !formAnchor.trim()) {
+      toast.error("跟播模式では主播を選択してください");
+      return;
+    }
     // Build notes with metadata tags
     const posLabel = POSITION_CONFIG[formPosition]?.label || "运营";
     const shiftLabel = SHIFT_PRESETS[formShift]?.label || "早班";
     const tags: string[] = [`[${posLabel}]`, `[${shiftLabel}]`];
-    if (formIsFollowBroadcast) tags.push("[跟播]");
+    if (formIsFollowBroadcast) {
+      tags.push("[跟播]");
+      tags.push(`[主播:${formAnchor.trim()}]`);
+    }
     const notesStr = [...tags, formNotes].filter(Boolean).join(" ").trim();
     
     createMutation.mutate({
@@ -410,7 +428,8 @@ export default function StaffSchedule() {
                     const hasPosition = notes.match(/\[(运营|商务|现场)\]/);
                     const hasShift = notes.match(/\[(早班|晚班|接力晚班)\]/);
                     const hasFollow = notes.includes("[跟播]");
-                    const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|接力晚班|跟播)\]/g, "").trim();
+                    const anchorMatch = notes.match(/\[主播:(.+?)\]/);
+                    const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|接力晚班|跟播)\]/g, "").replace(/\[主播:.+?\]/g, "").trim();
                     const posColor = hasPosition?.[1] === "运营" ? "bg-blue-500" : hasPosition?.[1] === "商务" ? "bg-orange-500" : hasPosition?.[1] === "现场" ? "bg-green-500" : "";
                     return (
                       <div key={s.id} className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors">
@@ -435,7 +454,7 @@ export default function StaffSchedule() {
                                 "bg-purple-100 text-purple-700"
                               )}>{hasShift[1]}</span>
                             )}
-                            {hasFollow && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">📹跟播</span>}
+                            {hasFollow && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">📹跟播{anchorMatch ? ` → ${anchorMatch[1]}` : ""}</span>}
                             {cleanNotes && <span className="text-[10px] text-gray-400">{cleanNotes}</span>}
                           </div>
                         </div>
@@ -478,7 +497,8 @@ export default function StaffSchedule() {
                     const hasPosition = notes.match(/\[(运营|商务|现场)\]/);
                     const hasShift = notes.match(/\[(早班|晚班|接力晚班)\]/);
                     const hasFollow = notes.includes("[跟播]");
-                    const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|接力晚班|跟播)\]/g, "").trim();
+                    const anchorMatch = notes.match(/\[主播:(.+?)\]/);
+                    const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|接力晚班|跟播)\]/g, "").replace(/\[主播:.+?\]/g, "").trim();
                     const posColor = hasPosition?.[1] === "运营" ? "bg-blue-500" : hasPosition?.[1] === "商务" ? "bg-orange-500" : hasPosition?.[1] === "现场" ? "bg-green-500" : "";
                     return (
                       <div key={s.id} className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors">
@@ -503,7 +523,7 @@ export default function StaffSchedule() {
                                 "bg-purple-100 text-purple-700"
                               )}>{hasShift[1]}</span>
                             )}
-                            {hasFollow && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">📹跟播</span>}
+                            {hasFollow && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">📹跟播{anchorMatch ? ` → ${anchorMatch[1]}` : ""}</span>}
                             {cleanNotes && <span className="text-[10px] text-gray-400">{cleanNotes}</span>}
                           </div>
                         </div>
@@ -631,6 +651,29 @@ export default function StaffSchedule() {
               </label>
               <span className="text-xs text-gray-400">（勾选后运营部/ライバー部优先展示）</span>
             </div>
+
+            {/* Anchor (主播) selection - required when 跟播 */}
+            {formIsFollowBroadcast && (
+              <div>
+                <label className="text-sm font-medium text-gray-700">主播 *</label>
+                <p className="text-xs text-orange-500 mt-0.5 mb-1">跟播对象のライバーを選択してください</p>
+                <Select
+                  value={formAnchor}
+                  onValueChange={(v) => setFormAnchor(v)}
+                >
+                  <SelectTrigger className="border-orange-300 focus:ring-orange-500">
+                    <SelectValue placeholder="主播を選択..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(liversList || []).map((liver: any) => (
+                      <SelectItem key={liver.id} value={liver.name}>
+                        {liver.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Date */}
             <div>
