@@ -4539,11 +4539,24 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
   const [effectiveDate, setEffectiveDate] = useState(new Date().toISOString().split('T')[0]);
   const [memo, setMemo] = useState("");
   const [isManualInput, setIsManualInput] = useState(false);
+  const [productSearch, setProductSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  // 商品検索（合併ブランドの全IDで検索）
+  // Debounce product search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(productSearch), 300);
+    return () => clearTimeout(timer);
+  }, [productSearch]);
+
+  // 商品検索（ブランド選択 or 商品名検索で絞り込み）
   const productsQuery = trpc.selectionCenter.searchProductsForProcurement.useQuery(
-    { brandIds: selectedBrandIds.length > 0 ? selectedBrandIds : undefined, brandId: selectedBrandId, limit: 100 },
-    { enabled: !!selectedBrandId }
+    {
+      brandIds: selectedBrandIds.length > 0 ? selectedBrandIds : undefined,
+      brandId: selectedBrandId,
+      search: debouncedSearch || undefined,
+      limit: 100,
+    },
+    { enabled: !!selectedBrandId || debouncedSearch.length >= 2 }
   );
   const products = productsQuery.data || [];
 
@@ -4568,22 +4581,26 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
     setEffectiveDate(new Date().toISOString().split('T')[0]);
     setMemo("");
     setIsManualInput(false);
+    setProductSearch("");
+    setDebouncedSearch("");
   };
 
   const handleSubmit = () => {
     const productName = isManualInput ? manualProductName : (selectedProduct?.productName || "");
     const productId = isManualInput ? 0 : (selectedProduct?.id || 0);
-    const brandName = brands.find(b => b.id === selectedBrandId)?.name || "";
+    // Use brand from selected product if no brand was explicitly chosen
+    const effectiveBrandId = selectedBrandId || selectedProduct?.brandId;
+    const brandName = brands.find(b => b.id === effectiveBrandId)?.name || selectedProduct?.brandName || "";
 
-    if (!selectedBrandId || !productName || unitCost <= 0) {
-      toast.error("请输入品牌、商品名、成本");
+    if (!effectiveBrandId || !productName || unitCost <= 0) {
+      toast.error("请选择商品并输入成本");
       return;
     }
 
     registerCostMutation.mutate({
       productId,
       productName,
-      brandId: selectedBrandId,
+      brandId: effectiveBrandId,
       brandName,
       unitCost,
       effectiveDate,
@@ -4595,35 +4612,54 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { handleReset(); onClose(); } }}>
-      <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl w-[95vw] max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-amber-600" />
+          <DialogTitle className="flex items-center gap-2 text-lg">
+            <DollarSign className="h-6 w-6 text-amber-600" />
             原価登録
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* ブランド選択 */}
-          <div>
-            <Label className="text-sm font-medium">品牌 *</Label>
-            <div className="mt-1">
-              <BrandSearchSelect
-                brands={brands}
-                value={selectedBrandId || 0}
-                onChange={(id, _name, allIds) => {
-                  setSelectedBrandId(id === 0 ? undefined : id);
-                  setSelectedBrandIds(allIds || [id]);
-                  setSelectedProduct(null);
-                  setIsManualInput(false);
-                }}
-                placeholder="选择品牌..."
-              />
+        <div className="space-y-5">
+          {/* ブランド選択 + 商品検索 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-medium">品牌</Label>
+              <div className="mt-1">
+                <BrandSearchSelect
+                  brands={brands}
+                  value={selectedBrandId || 0}
+                  onChange={(id, _name, allIds) => {
+                    setSelectedBrandId(id === 0 ? undefined : id);
+                    setSelectedBrandIds(allIds || [id]);
+                    setSelectedProduct(null);
+                    setIsManualInput(false);
+                  }}
+                  placeholder="选择品牌..."
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">商品検索</Label>
+              <div className="mt-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-9"
+                  placeholder="商品名で検索..."
+                  value={productSearch}
+                  onChange={e => {
+                    setProductSearch(e.target.value);
+                    setSelectedProduct(null);
+                    setIsManualInput(false);
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">品牌を選択せずに商品名だけで検索も可能です</p>
             </div>
           </div>
 
           {/* 商品選択 */}
-          {selectedBrandId && (
+          {(selectedBrandId || debouncedSearch.length >= 2) && (
             <div>
               <Label className="text-sm font-medium">选择商品 *</Label>
               {productsQuery.isLoading ? (
@@ -4633,7 +4669,8 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
                 </div>
               ) : products.length > 0 && !isManualInput ? (
                 <div className="mt-1 space-y-2">
-                  <div className="max-h-[350px] overflow-y-auto border rounded-md">
+                  <div className="text-xs text-muted-foreground mb-1">{products.length}件の商品が見つかりました</div>
+                <div className="max-h-[450px] overflow-y-auto border rounded-md">
                     {products.map((p: any) => {
                       const images = (() => { try { return JSON.parse(p.images || '[]'); } catch { return []; } })();
                       const thumb = images[0] || '';
@@ -4641,7 +4678,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
                       return (
                         <div
                           key={p.id}
-                          className={`flex items-center gap-3 p-2 cursor-pointer hover:bg-muted/50 border-b last:border-b-0 ${isSelected ? 'bg-amber-50 border-amber-200' : ''}`}
+                          className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 border-b last:border-b-0 ${isSelected ? 'bg-amber-50 border-amber-200' : ''}`}
                           onClick={() => {
                             setSelectedProduct(p);
                             if (p.purchasePrice && Number(p.purchasePrice) > 0) {
@@ -4650,14 +4687,15 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
                           }}
                         >
                           {thumb ? (
-                            <img src={thumb} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
+                            <img src={thumb} alt="" className="w-14 h-14 rounded object-cover flex-shrink-0" />
                           ) : (
-                            <div className="w-10 h-10 rounded bg-muted flex items-center justify-center flex-shrink-0">
-                              <Package className="h-5 w-5 text-muted-foreground" />
+                            <div className="w-14 h-14 rounded bg-muted flex items-center justify-center flex-shrink-0">
+                              <Package className="h-6 w-6 text-muted-foreground" />
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium break-words">{p.productName}</p>
+                            {p.brandName && <p className="text-xs text-muted-foreground">品牌: {p.brandName}</p>}
                             <p className="text-xs text-muted-foreground">
                               售价: ¥{Number(p.price || 0).toLocaleString()}
                               {p.purchasePrice && Number(p.purchasePrice) > 0 && (
@@ -4759,7 +4797,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={registerCostMutation.isPending || !selectedBrandId || (!selectedProduct && !manualProductName) || unitCost <= 0}
+            disabled={registerCostMutation.isPending || (!selectedBrandId && !selectedProduct?.brandId) || (!selectedProduct && !manualProductName) || unitCost <= 0}
           >
             {registerCostMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
             登记
