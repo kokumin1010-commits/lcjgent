@@ -69,6 +69,7 @@ export default function ReceiptUpload() {
   const [showKakuhenPopup, setShowKakuhenPopup] = useState(false);
   const [autoTransitionCountdown, setAutoTransitionCountdown] = useState<number | null>(null);
   const [directKakuhenReceiptId, setDirectKakuhenReceiptId] = useState<number | null>(null);
+  const [referralBonusOffer, setReferralBonusOffer] = useState<{ id: number; bonusPoints: number; expiresAt: string } | null>(null);
 
   // URLパラメータからセッショントークンを復元（LINEアプリ→外部ブラウザ遷移対応）
   useEffect(() => {
@@ -249,9 +250,12 @@ export default function ReceiptUpload() {
     setShowKakuhenPopup(false);
   }, []);
 
-  const handleKakuhenComplete = useCallback(() => {
+  const handleKakuhenComplete = useCallback((result: any) => {
     setFlowPhase("complete");
     toast.success("ポイント申請＋レビューが完了しました！");
+    if (result?.referralBonusOffer) {
+      setReferralBonusOffer(result.referralBonusOffer);
+    }
   }, []);
 
   const handleKakuhenSkip = useCallback(() => {
@@ -340,13 +344,19 @@ export default function ReceiptUpload() {
           </div>
         </div>
 
-        <div className="max-w-lg mx-auto px-4 py-12 text-center space-y-6">
+        <div className="max-w-lg mx-auto px-4 py-8 text-center space-y-6">
           <div className="text-6xl">🎉</div>
           <h2 className="text-2xl font-black text-gray-900">申請完了！</h2>
           <p className="text-gray-600">
             レシート申請とレビューが正常に完了しました。<br />
             ポイントは審査後に付与されます。
           </p>
+
+          {/* 招待ボーナスオファー */}
+          {referralBonusOffer && (
+            <ReferralBonusOfferCard offer={referralBonusOffer} />
+          )}
+
           <div className="flex flex-col gap-3 max-w-xs mx-auto">
             <Button
               className="w-full bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600"
@@ -628,6 +638,112 @@ export default function ReceiptUpload() {
             </Card>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+
+// ===== 招待ボーナスオファーカード =====
+function ReferralBonusOfferCard({ offer }: { offer: { id: number; bonusPoints: number; expiresAt: string } }) {
+  const [copied, setCopied] = useState(false);
+  const { data: myProgress } = trpc.friendReferral.getMyProgress.useQuery(undefined, { retry: 1 });
+  const referralCode = myProgress?.progress?.referralCode || "";
+
+  // 残り時間計算
+  const [timeLeft, setTimeLeft] = useState("");
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = Date.now();
+      const expires = new Date(offer.expiresAt).getTime();
+      const diff = expires - now;
+      if (diff <= 0) {
+        setTimeLeft("期限切れ");
+        return;
+      }
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      setTimeLeft(`${hours}時間${minutes}分`);
+    };
+    updateTimer();
+    const interval = setInterval(updateTimer, 60000);
+    return () => clearInterval(interval);
+  }, [offer.expiresAt]);
+
+  const handleCopy = () => {
+    if (!referralCode) return;
+    navigator.clipboard.writeText(referralCode);
+    setCopied(true);
+    haptic.doubleTap();
+    toast.success("招待コードをコピーしました！", { icon: "📋" });
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShareLINE = () => {
+    if (!referralCode) return;
+    haptic.doubleTap();
+    const siteUrl = `${window.location.origin}/register/${referralCode}`;
+    const text = encodeURIComponent(`🎁 LCJ MALLで一緒にポイントGET！\n招待コード: ${referralCode}\n登録で50ptプレゼント✨\n\n👇 ここから登録 👇\n${siteUrl}`);
+    window.open(`https://line.me/R/share?text=${text}`, "_blank");
+  };
+
+  if (!referralCode) return null;
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 via-orange-500 to-red-500 p-[2px] animate-pulse-slow mx-auto max-w-sm">
+      <div className="rounded-2xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-5 text-left">
+        {/* Header */}
+        <div className="text-center mb-4">
+          <div className="text-3xl mb-1">🎰</div>
+          <h3 className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-amber-400">
+            スペシャルボーナス発生！
+          </h3>
+        </div>
+
+        {/* Bonus amount */}
+        <div className="text-center bg-gradient-to-r from-yellow-900/40 to-amber-900/40 rounded-xl py-4 px-3 mb-4 border border-yellow-700/50">
+          <div className="text-sm text-yellow-300/80 mb-1">友達を1人招待で</div>
+          <div className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-amber-300">
+            +{offer.bonusPoints}pt
+          </div>
+          <div className="text-sm text-yellow-300/80 mt-1">ボーナス確定！</div>
+        </div>
+
+        {/* Timer */}
+        <div className="flex items-center justify-center gap-2 mb-4 text-red-300">
+          <Clock className="h-4 w-4" />
+          <span className="text-sm font-bold">残り {timeLeft}</span>
+        </div>
+
+        {/* Referral code */}
+        <div className="bg-gray-800/80 rounded-xl p-3 mb-3 text-center border border-gray-700">
+          <div className="text-xs text-gray-400 mb-1">あなたの招待コード</div>
+          <div className="text-xl font-black tracking-[0.2em] text-yellow-400">{referralCode}</div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex gap-2 mb-2">
+          <Button
+            onClick={handleCopy}
+            variant="outline"
+            className="flex-1 border-yellow-700 text-yellow-400 hover:bg-yellow-900/30 text-sm"
+          >
+            {copied ? "✓ コピー済" : "📋 コピー"}
+          </Button>
+          <Button
+            onClick={handleShareLINE}
+            className="flex-1 bg-[#06C755] hover:bg-[#05b34c] text-white font-bold text-sm"
+          >
+            LINEで送る
+          </Button>
+        </div>
+
+        {/* Link to full page */}
+        <Link href="/friend-challenge">
+          <Button variant="ghost" className="w-full text-yellow-400/70 hover:text-yellow-400 text-xs mt-1">
+            友達招待チャレンジの詳細 →
+          </Button>
+        </Link>
       </div>
     </div>
   );

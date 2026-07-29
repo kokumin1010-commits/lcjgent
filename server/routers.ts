@@ -567,6 +567,9 @@ import {
   getFriendReferralAdminStats,
   getFriendReferralHistory,
   getFriendReferralLeaderboardAdmin,
+  createReferralBonusOffer,
+  getActiveReferralBonusOffer,
+  claimReferralBonusOffer,
   createKakuhenResult,
   getKakuhenResultById,
   getKakuhenResultsByUserId,
@@ -23303,6 +23306,25 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           bonusPoints,
         });
 
+        // === 招待ボーナスオファー発行 ===
+        let referralBonusOffer: { id: number; bonusPoints: number; expiresAt: Date } | null = null;
+        try {
+          if (userId) {
+            // 既にアクティブなオファーがなければ新規発行
+            const existingOffer = await getActiveReferralBonusOffer(userId);
+            if (!existingOffer) {
+              const campaign = await getActiveReferralCampaign();
+              if (campaign) {
+                referralBonusOffer = await createReferralBonusOffer(userId, campaign.id, 500);
+              }
+            } else {
+              referralBonusOffer = { id: existingOffer.id, bonusPoints: existingOffer.bonusPoints, expiresAt: existingOffer.expiresAt };
+            }
+          }
+        } catch (err: any) {
+          console.error("[Kakuhen] Failed to create referral bonus offer:", err.message);
+        }
+
         return {
           resultId,
           isKakuhen,
@@ -23316,6 +23338,11 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           bonusPoints,
           orderAmount: orderAmount,
           dailyPlaysRemaining: DAILY_LIMIT - todayCount - 1,
+          referralBonusOffer: referralBonusOffer ? {
+            id: referralBonusOffer.id,
+            bonusPoints: referralBonusOffer.bonusPoints,
+            expiresAt: referralBonusOffer.expiresAt,
+          } : null,
         };
       }),
 
@@ -25917,6 +25944,30 @@ ${topProductsContext}
           description: "友達招待チャレンジ 招待ボーナス",
         });
 
+        // === 招待ボーナスオファーのクレーム（500ptボーナス） ===
+        let bonusOfferClaimed = false;
+        try {
+          const activeOffer = await getActiveReferralBonusOffer(referrerProgress.lineUserId);
+          if (activeOffer) {
+            await claimReferralBonusOffer(activeOffer.id, 0); // referralIdは不明なので0
+            // ボーナスポイント付与
+            const referrerUser = await getLineUserById(referrerProgress.lineUserId);
+            const referrerBonusPointId = referrerUser?.lineUserId || `email_${referrerProgress.lineUserId}`;
+            const { createLinePointTransaction: createBonusPt } = await import("./db");
+            await createBonusPt({
+              lineUserId: referrerBonusPointId,
+              type: "earn",
+              amount: activeOffer.bonusPoints,
+              referenceType: "system",
+              description: `招待ボーナスオファー達成！ +${activeOffer.bonusPoints}pt`,
+            });
+            bonusOfferClaimed = true;
+            console.log(`[FriendChallenge] Bonus offer ${activeOffer.id} claimed for user ${referrerProgress.lineUserId}: +${activeOffer.bonusPoints}pt`);
+          }
+        } catch (bonusErr: any) {
+          console.error(`[FriendChallenge] Failed to claim bonus offer:`, bonusErr.message);
+        }
+
         // 進捗更新
         const titleLevel = calculateTitleLevel(newTotalReferrals);
         await updateUserReferralProgress(currentProgress.id, {
@@ -25969,6 +26020,10 @@ ${topProductsContext}
             }
             
             notifMessage += `\n✅ 保有中の全ポイントの有効期限が6ヶ月延長されました！\n`;
+            if (bonusOfferClaimed) {
+              notifMessage += `\n🎉🎉🎉 招待ボーナスオファー達成！🎉🎉🎉\n`;
+              notifMessage += `💰 スペシャルボーナス +500pt GET！\n`;
+            }
             notifMessage += `\n📣 この調子でどんどん友達を招待して\n最大5,000ptをGETしよう！🔥\n\n`;
             notifMessage += `👉 招待チャレンジを確認\n${appUrl}/friend-challenge`;
             
@@ -25987,6 +26042,8 @@ ${topProductsContext}
           newTotalReferrals,
           pendingSpins: currentProgress.pendingSpins + newSpins,
           pendingSpecialSpins: currentProgress.pendingSpecialSpins + newSpecialSpins,
+          bonusOfferClaimed,
+          bonusOfferPoints: bonusOfferClaimed ? 500 : 0,
         };
       }),
 

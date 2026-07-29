@@ -50,6 +50,11 @@ interface KakuhenResult {
   reviewRating?: number;
   reviewText?: string;
   reviewTags?: string[];
+  referralBonusOffer?: {
+    id: number;
+    bonusPoints: number;
+    expiresAt: string;
+  } | null;
 }
 
 // ===== Quick Tags =====

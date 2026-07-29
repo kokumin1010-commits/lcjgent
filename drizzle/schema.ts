@@ -6489,3 +6489,22 @@ export const staffSchedules = mysqlTable("staff_schedules", {
 });
 export type StaffSchedule = typeof staffSchedules.$inferSelect;
 export type InsertStaffSchedule = typeof staffSchedules.$inferInsert;
+
+/**
+ * 招待ボーナスオファー
+ * 確変チャンス完了後に発行される期間限定の招待ボーナス
+ * 24時間以内に1人招待で500pt付与
+ */
+export const referralBonusOffers = mysqlTable("referral_bonus_offers", {
+  id: int("id").autoincrement().primaryKey(),
+  lineUserId: int("lineUserId").notNull(),
+  campaignId: int("campaignId").notNull(),
+  bonusPoints: int("bonusPoints").notNull().default(500),
+  status: varchar("status", { length: 20 }).notNull().default("active"), // active, claimed, expired
+  expiresAt: timestamp("expiresAt").notNull(),
+  claimedAt: timestamp("claimedAt"),
+  triggeredByReferralId: int("triggeredByReferralId"), // どの招待で達成したか
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ReferralBonusOffer = typeof referralBonusOffers.$inferSelect;
+export type InsertReferralBonusOffer = typeof referralBonusOffers.$inferInsert;
