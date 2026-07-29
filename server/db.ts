@@ -18051,6 +18051,7 @@ export async function getReceiptReviewStats() {
     threeStarCount: sql<number>`SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END)`,
     twoStarCount: sql<number>`SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END)`,
     oneStarCount: sql<number>`SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END)`,
+    uniqueProductCount: sql<number>`COUNT(DISTINCT productName)`,
   }).from(receiptReviews).where(eq(receiptReviews.isVisible, true));
   return stats[0];
 }

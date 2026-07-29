@@ -114,10 +114,10 @@ export default function ReviewManagement() {
               <span className="text-sm text-muted-foreground">レビュー商品数</span>
               <Package className="h-4 w-4 text-blue-500" />
             </div>
-            {rankingLoading ? (
+            {statsLoading ? (
               <Skeleton className="h-8 w-20" />
             ) : (
-              <div className="text-2xl font-bold">{ranking?.length || 0}</div>
+              <div className="text-2xl font-bold">{Number(stats?.uniqueProductCount || 0).toLocaleString()}</div>
             )}
           </CardContent>
         </Card>

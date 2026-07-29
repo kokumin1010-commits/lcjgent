@@ -49,6 +49,7 @@ interface PopupTracker {
   cumulativeWins: number;      // accumulated "winnings" for display
   pageViews: number;           // page views in current session
   lastVisitDate: string;       // last visit date for "returning user" detection
+  lastSpinTimestamp: number;   // timestamp when user last completed a spin
 }
 
 function getTracker(): PopupTracker {
@@ -63,6 +64,7 @@ function getTracker(): PopupTracker {
     cumulativeWins: 0,
     pageViews: 0,
     lastVisitDate: "",
+    lastSpinTimestamp: 0,
   };
 }
 
@@ -112,11 +114,16 @@ export function useRandomSpinPopup() {
     const tracker = getTracker();
     const today = getTodayStr();
 
+    // 24-hour cooldown after spinning
+    if (tracker.lastSpinTimestamp && (Date.now() - tracker.lastSpinTimestamp) < 24 * 60 * 60 * 1000) {
+      return false;
+    }
+
     // Already shown in this session
     if (tracker.sessionShown) return false;
 
-    // Daily limit reached (max 2/day)
-    if (tracker.lastShownDate === today && tracker.dailyCount >= 2) return false;
+    // Daily limit reached (max 1/day after cooldown)
+    if (tracker.lastShownDate === today && tracker.dailyCount >= 1) return false;
 
     return true;
   }, []);
@@ -198,10 +205,11 @@ export function useRandomSpinPopup() {
     setShowPopup(false);
   }, []);
 
-  // Record cumulative win
+  // Record cumulative win and mark spin timestamp
   const recordWin = useCallback((points: number) => {
     const tracker = getTracker();
     tracker.cumulativeWins = (tracker.cumulativeWins || 0) + points;
+    tracker.lastSpinTimestamp = Date.now();
     saveTracker(tracker);
   }, []);
 
