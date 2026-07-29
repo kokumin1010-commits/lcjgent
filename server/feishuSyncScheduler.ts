@@ -42,10 +42,8 @@ function normalizeBrandName(name: string): string {
   n = n.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
   // 小文字に統一
   n = n.toLowerCase();
-  // スペースを統一して除去
-  n = n.replace(/[\s\u3000]+/g, '');
-  // 末尾の特殊文字を除去
-  n = n.replace(/[・\-_]+$/, '');
+  // スペース・ドット・ハイフン・アンダースコア・中点を全て除去（A.GLOBAL vs A GLOBAL 等の重複防止）
+  n = n.replace(/[\s\u3000.\-_・]+/g, '');
   return n;
 }
 

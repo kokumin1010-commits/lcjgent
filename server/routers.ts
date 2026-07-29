@@ -4747,6 +4747,23 @@ ${staffDetails.map(s => `\n【${s.staffName}】(${s.reportCount}件)\n${s.allWor
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // 重複チェック: 同名ブランドが既に存在する場合はエラー
+        const existingBrands = await getAllBrands();
+        function normalizeBrandNameForCheck(name: string): string {
+          let n = name.trim();
+          n = n.replace(/[\(（].*?[\)）]/g, ''); // カッコ内除去
+          n = n.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)); // 全角→半角
+          n = n.toLowerCase();
+          n = n.replace(/[\s\u3000.\-_・]+/g, ''); // スペース・記号除去
+          return n;
+        }
+        const normalizedInput = normalizeBrandNameForCheck(input.name);
+        const duplicate = existingBrands.find(b => 
+          b.brandName && normalizeBrandNameForCheck(b.brandName) === normalizedInput
+        );
+        if (duplicate) {
+          throw new Error(`同名のブランド「${duplicate.brandName}」(ID: ${duplicate.id}) が既に存在します。新規作成ではなく、既存ブランドの編集をご利用ください。`);
+        }
         const brand = await createBrand({
           ...input,
           createdBy: ctx.user.id,
@@ -4931,54 +4948,6 @@ ${staffDetails.map(s => `\n【${s.staffName}】(${s.reportCount}件)\n${s.allWor
 
         console.log(`[Brand Merge] Merged brand #${sourceBrandId} (${sourceBrand.name}) into #${targetBrandId} (${targetBrand.name})`);
         return { success: true, message: `「${sourceBrand.name}」を「${targetBrand.name}」に合併しました` };
-      }),
-
-    // [TEMPORARY] Batch merge endpoint with secret key - REMOVE AFTER USE
-    batchMerge: publicProcedure
-      .input(z.object({
-        secretKey: z.string(),
-        merges: z.array(z.object({
-          targetBrandId: z.number(),
-          sourceBrandId: z.number(),
-        })),
-      }))
-      .mutation(async ({ input }) => {
-        if (input.secretKey !== 'lcj-merge-2026-temp-key-x9k2m') {
-          throw new Error('Invalid secret key');
-        }
-        const db = await getDb();
-        if (!db) throw new Error('Database not available');
-        const results: { source: number; target: number; status: string; message?: string }[] = [];
-        for (const m of input.merges) {
-          try {
-            const targetBrand = await getBrandById(m.targetBrandId);
-            const sourceBrand = await getBrandById(m.sourceBrandId);
-            if (!targetBrand || !sourceBrand) {
-              results.push({ source: m.sourceBrandId, target: m.targetBrandId, status: 'skip', message: 'Brand not found' });
-              continue;
-            }
-            await db.update(brandProducts).set({ brandId: m.targetBrandId }).where(and(eq(brandProducts.brandId, m.sourceBrandId), isNull(brandProducts.deletedAt)));
-            await db.update(brandActivities).set({ brandId: m.targetBrandId }).where(and(eq(brandActivities.brandId, m.sourceBrandId), isNull(brandActivities.deletedAt)));
-            await db.update(brandContracts).set({ brandId: m.targetBrandId }).where(and(eq(brandContracts.brandId, m.sourceBrandId), isNull(brandContracts.deletedAt)));
-            await db.update(brandMemos).set({ brandId: m.targetBrandId }).where(and(eq(brandMemos.brandId, m.sourceBrandId), isNull(brandMemos.deletedAt)));
-            await db.update(brandFiles).set({ brandId: m.targetBrandId }).where(and(eq(brandFiles.brandId, m.sourceBrandId), isNull(brandFiles.deletedAt)));
-            await db.update(brandLivestreams).set({ brandId: m.targetBrandId }).where(and(eq(brandLivestreams.brandId, m.sourceBrandId), isNull(brandLivestreams.deletedAt)));
-            await db.update(livestreamBrands).set({ brandId: m.targetBrandId }).where(eq(livestreamBrands.brandId, m.sourceBrandId));
-            const pool = (await import("./selectionCenterRouter")).getPool();
-            await pool.query(`UPDATE selection_products SET brandId = ?, brandName = ? WHERE brandId = ? AND deletedAt IS NULL`, [m.targetBrandId, targetBrand.name, m.sourceBrandId]);
-            await pool.query(`UPDATE procurement_orders SET brandId = ?, brandName = ? WHERE brandId = ?`, [m.targetBrandId, targetBrand.name, m.sourceBrandId]);
-            const mergeTables = ['tiktok_tap_reports', 'tiktok_tap_live_reports', 'tiktok_tap_video_reports', 'brand_ad_reports', 'brand_short_videos', 'brand_sample_applications', 'brand_monthly_gmv_targets', 'brand_addition_logs'];
-            for (const table of mergeTables) {
-              try { await pool.query(`UPDATE ${table} SET brandId = ? WHERE brandId = ?`, [m.targetBrandId, m.sourceBrandId]); } catch (e) { /* skip */ }
-            }
-            await db.update(brands).set({ deletedAt: new Date() }).where(eq(brands.id, m.sourceBrandId));
-            results.push({ source: m.sourceBrandId, target: m.targetBrandId, status: 'success' });
-            console.log(`[Batch Merge] Merged #${m.sourceBrandId} into #${m.targetBrandId}`);
-          } catch (e: any) {
-            results.push({ source: m.sourceBrandId, target: m.targetBrandId, status: 'error', message: e.message });
-          }
-        }
-        return { results };
       }),
 
     statistics: protectedProcedure.query(async () => {
