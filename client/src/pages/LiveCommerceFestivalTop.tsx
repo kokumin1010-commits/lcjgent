@@ -9,6 +9,9 @@
  */
 import { useState, useEffect, useRef } from 'react';
 
+// ★ メンテナンスモード: trueの場合「準備中」ページを表示
+const MAINTENANCE_MODE = true;
+
 // Asset URLs (CDN)
 const LOGO_URL = 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ZjvFdcWckPHcZxCi.png';
 const HERO_BG_URL = 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/msZWaikKboqlefJH.png';
@@ -456,6 +459,33 @@ function LCFFooter() {
 
 /* ─── Main Page Component ─── */
 export default function LiveCommerceFestivalTop() {
+  // メンテナンスモード: 準備中ページを表示
+  if (MAINTENANCE_MODE) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="text-center px-6 max-w-lg">
+          <div className="mb-8">
+            <img src={LOGO_URL} alt="Live Commerce Festival" className="w-48 mx-auto opacity-90" />
+          </div>
+          <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
+            準備中
+          </h1>
+          <p className="text-gray-400 text-lg mb-6">
+            Live Commerce Festival は現在準備中です。<br />
+            まもなく公開予定ですので、しばらくお待ちください。
+          </p>
+          <div className="inline-flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 rounded-full px-5 py-2.5">
+            <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
+            <span className="text-yellow-400 text-sm font-medium">Coming Soon</span>
+          </div>
+          <div className="mt-10 text-gray-600 text-xs">
+            &copy; 2026 Live Commerce Festival 実行委員会
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
       <TopBar />

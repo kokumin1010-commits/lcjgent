@@ -47,7 +47,13 @@ const STEPS: Step[] = [
   { id: 'agree', question: '最後に確認です！ ✅', type: 'checkbox', required: true },
 ];
 
+const MAINTENANCE_MODE = true;
+
 export default function FestivalApplyGeneral() {
+  if (MAINTENANCE_MODE) {
+    window.location.href = '/livecommercefestival';
+    return null;
+  }
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [inputValue, setInputValue] = useState('');
