@@ -4100,6 +4100,7 @@ function CostManagementContent() {
   const [filterBrandId, setFilterBrandId] = useState<number | undefined>(undefined);
   const [editingCost, setEditingCost] = useState<any>(null);
   const [showRegisterDialog, setShowRegisterDialog] = useState(false);
+  const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
 
   const brandsQuery = trpc.brand.list.useQuery();
   const brands = brandsQuery.data || [];
@@ -4251,6 +4252,7 @@ function CostManagementContent() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
+                  <th className="text-left p-3 font-medium">图片</th>
                   <th className="text-left p-3 font-medium">生效日</th>
                   <th className="text-left p-3 font-medium">品牌</th>
                   <th className="text-left p-3 font-medium">商品名</th>
@@ -4262,11 +4264,25 @@ function CostManagementContent() {
               <tbody>
                 {costHistory.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-8 text-muted-foreground">暂无成本历史</td>
+                    <td colSpan={7} className="text-center py-8 text-muted-foreground">暂无成本历史</td>
                   </tr>
                 ) : (
                   costHistory.map((c: any) => (
                     <tr key={c.id} className="border-b hover:bg-muted/30">
+                      <td className="p-3">
+                        {c.imageUrl ? (
+                          <img
+                            src={c.imageUrl}
+                            alt={c.productName}
+                            className="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => setEnlargedImage(c.imageUrl)}
+                          />
+                        ) : (
+                          <div className="w-10 h-10 bg-muted rounded flex items-center justify-center">
+                            <Package className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                        )}
+                      </td>
                       <td className="p-3">{c.effectiveDate ? new Date(c.effectiveDate).toLocaleDateString('ja-JP') : '-'}</td>
                       <td className="p-3">{c.brandName}</td>
                       <td className="p-3">{c.productName}</td>
@@ -4308,6 +4324,28 @@ function CostManagementContent() {
       />
 
       {/* 原価編集ダイアログ */}
+      {/* 画像拡大モーダル */}
+      {enlargedImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          onClick={() => setEnlargedImage(null)}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={enlargedImage}
+              alt="商品画像"
+              className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+            />
+            <button
+              onClick={() => setEnlargedImage(null)}
+              className="absolute -top-3 -right-3 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg hover:bg-gray-100 text-gray-700 font-bold"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
       {editingCost && (
         <Dialog open={!!editingCost} onOpenChange={(v) => !v && setEditingCost(null)}>
           <DialogContent className="max-w-md">

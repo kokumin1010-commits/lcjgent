@@ -1726,10 +1726,19 @@ export const selectionCenterRouter = router({
       }
       params.push(filters.limit || 50);
       const [rows] = await pool.query(
-        `SELECT * FROM product_cost_history ${where} ORDER BY effectiveDate DESC, id DESC LIMIT ?`,
+        `SELECT pch.*, sp.images as productImages FROM product_cost_history pch LEFT JOIN selection_products sp ON pch.productId = sp.id ${where.replace(/WHERE/,'WHERE').replace(/productId/g,'pch.productId').replace(/brandId/g,'pch.brandId')} ORDER BY pch.effectiveDate DESC, pch.id DESC LIMIT ?`,
         params
       ) as any;
-      return rows || [];
+      return (rows || []).map((r: any) => {
+        let imageUrl = null;
+        if (r.productImages) {
+          try {
+            const imgs = typeof r.productImages === 'string' ? JSON.parse(r.productImages) : r.productImages;
+            if (Array.isArray(imgs) && imgs.length > 0) imageUrl = imgs[0];
+          } catch {}
+        }
+        return { ...r, imageUrl, productImages: undefined };
+      });
     }),
 
   // 最新原価取得（商品IDで）
