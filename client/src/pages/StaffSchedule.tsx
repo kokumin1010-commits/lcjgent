@@ -43,7 +43,7 @@ type StaffScheduleEntry = {
 
 export default function StaffSchedule() {
   const [selectedDate, setSelectedDate] = useState<string>(getJSTDateKey(new Date()));
-  const [activeTabs, setActiveTabs] = useState<Set<string>>(new Set(["中国", "日本"]));
+  const [activeTab, setActiveTab] = useState<string>("全部"); // "全部" | "中国" | "日本"
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [viewMode, setViewMode] = useState<"today" | "calendar">("today");
 
@@ -73,18 +73,12 @@ export default function StaffSchedule() {
   // Fetch livers list for anchor selection
   const { data: liversList } = trpc.liverManagement.list.useQuery();
 
-  // Toggle tab selection
-  const toggleTab = (tab: string) => {
-    setActiveTabs(prev => {
-      const next = new Set(prev);
-      if (next.has(tab)) {
-        if (next.size > 1) next.delete(tab);
-      } else {
-        next.add(tab);
-      }
-      return next;
-    });
-  };
+  // Available countries from HR data
+  const availableCountries = useMemo(() => {
+    if (!staffList) return [];
+    const countries = [...new Set(staffList.map((s: any) => s.country).filter(Boolean))];
+    return countries;
+  }, [staffList]);
 
   // 跟播部門リスト（跟播人員として優先表示する部門）
   const FOLLOW_BROADCAST_DEPTS = ["運営部", "ライバー部"];
@@ -121,11 +115,12 @@ export default function StaffSchedule() {
     }
   };
 
-  // Filter staff by selected countries
+  // Filter staff by selected country tab
   const filteredStaff = useMemo(() => {
     if (!staffList) return [];
-    return staffList.filter((s: any) => activeTabs.has(s.country));
-  }, [staffList, activeTabs]);
+    if (activeTab === "全部") return staffList;
+    return staffList.filter((s: any) => s.country === activeTab);
+  }, [staffList, activeTab]);
 
   // Sorted staff for dropdown: 跟播 staff first when followBroadcast is checked
   const sortedStaffForDropdown = useMemo(() => {
@@ -139,7 +134,7 @@ export default function StaffSchedule() {
   }, [filteredStaff, formIsFollowBroadcast]);
 
   // Fetch schedules
-  const countryFilter = activeTabs.size === 1 ? Array.from(activeTabs)[0] : undefined;
+  const countryFilter = activeTab !== "全部" ? activeTab : undefined;
   const { data: schedules, refetch: refetchSchedules } = trpc.staffSchedule.getByDateRange.useQuery({
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
@@ -355,24 +350,36 @@ export default function StaffSchedule() {
             })}
           </div>
 
-          {/* Country tabs */}
+          {/* Country tabs - switch mode with 全部 */}
           <div className="flex gap-2 mt-2">
             <Button
-              variant={activeTabs.has("中国") ? "default" : "outline"}
+              variant={activeTab === "全部" ? "default" : "outline"}
               size="sm"
-              onClick={() => toggleTab("中国")}
-              className={cn("h-7 text-xs", activeTabs.has("中国") ? "bg-red-500 hover:bg-red-600" : "")}
+              onClick={() => setActiveTab("全部")}
+              className={cn("h-7 text-xs", activeTab === "全部" ? "bg-gray-700 hover:bg-gray-800" : "")}
             >
-              🇨🇳 中国
+              全部
             </Button>
-            <Button
-              variant={activeTabs.has("日本") ? "default" : "outline"}
-              size="sm"
-              onClick={() => toggleTab("日本")}
-              className={cn("h-7 text-xs", activeTabs.has("日本") ? "bg-blue-500 hover:bg-blue-600" : "")}
-            >
-              🇯🇵 日本
-            </Button>
+            {availableCountries.includes("中国") && (
+              <Button
+                variant={activeTab === "中国" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setActiveTab("中国")}
+                className={cn("h-7 text-xs", activeTab === "中国" ? "bg-red-500 hover:bg-red-600" : "")}
+              >
+                🇨🇳 中国
+              </Button>
+            )}
+            {availableCountries.includes("日本") && (
+              <Button
+                variant={activeTab === "日本" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setActiveTab("日本")}
+                className={cn("h-7 text-xs", activeTab === "日本" ? "bg-blue-500 hover:bg-blue-600" : "")}
+              >
+                🇯🇵 日本
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -422,12 +429,12 @@ export default function StaffSchedule() {
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {activeTabs.has("中国") && cnSchedules.length > 0 && (
+                {(activeTab === "全部" || activeTab === "中国") && cnSchedules.length > 0 && (
                   <div className="bg-red-50 rounded-lg p-2">
                     <div className="text-xs text-red-600 font-medium mb-1">🇨🇳 中国 ({cnSchedules.length}名)</div>
                   </div>
                 )}
-                {activeTabs.has("日本") && jpSchedules.length > 0 && (
+                {(activeTab === "全部" || activeTab === "日本") && jpSchedules.length > 0 && (
                   <div className="bg-blue-50 rounded-lg p-2">
                     <div className="text-xs text-blue-600 font-medium mb-1">🇯🇵 日本 ({jpSchedules.length}名)</div>
                   </div>
@@ -436,7 +443,7 @@ export default function StaffSchedule() {
             </div>
 
             {/* Staff list - China */}
-            {activeTabs.has("中国") && cnSchedules.length > 0 && (
+            {(activeTab === "全部" || activeTab === "中国") && cnSchedules.length > 0 && (
               <div className="bg-white rounded-xl border overflow-hidden">
                 <div className="px-4 py-2 bg-red-50 border-b flex items-center gap-2">
                   <span className="text-sm">🇨🇳</span>
@@ -505,7 +512,7 @@ export default function StaffSchedule() {
             )}
 
             {/* Staff list - Japan */}
-            {activeTabs.has("日本") && jpSchedules.length > 0 && (
+            {(activeTab === "全部" || activeTab === "日本") && jpSchedules.length > 0 && (
               <div className="bg-white rounded-xl border overflow-hidden">
                 <div className="px-4 py-2 bg-blue-50 border-b flex items-center gap-2">
                   <span className="text-sm">🇯🇵</span>
