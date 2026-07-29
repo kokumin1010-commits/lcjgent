@@ -53,7 +53,7 @@ export default function StaffSchedule() {
   const [formStartTime, setFormStartTime] = useState("09:00");
   const [formEndTime, setFormEndTime] = useState("18:00");
   const [formNotes, setFormNotes] = useState("");
-  const [formShift, setFormShift] = useState<string>("morning"); // morning | evening | relay
+  const [formShift, setFormShift] = useState<string>("morning"); // morning | evening
   const [formPosition, setFormPosition] = useState<string>("operations"); // operations | business | onsite
   const [formIsFollowBroadcast, setFormIsFollowBroadcast] = useState(false);
   const [formAnchor, setFormAnchor] = useState<string>(""); // 主播名 (required when 跟播)
@@ -94,7 +94,6 @@ export default function StaffSchedule() {
   const SHIFT_PRESETS: Record<string, { start: string; end: string; label: string }> = {
     morning: { start: "09:00", end: "18:00", label: "早班" },
     evening: { start: "15:00", end: "23:00", label: "晚班" },
-    relay: { start: "15:00", end: "23:00", label: "接力晚班" },
   };
 
   // Position config
@@ -384,10 +383,7 @@ export default function StaffSchedule() {
             <span className="inline-block w-2 h-2 rounded-full bg-indigo-400"></span>
             🌙 晚班 15:00-23:00
           </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-purple-400"></span>
-            🔄 接力晚班 15:00-23:00
-          </span>
+
         </div>
       </div>
 
@@ -445,10 +441,10 @@ export default function StaffSchedule() {
                   {cnSchedules.map((s) => {
                     const notes = s.notes || "";
                     const hasPosition = notes.match(/\[(运营|商务|现场)\]/);
-                    const hasShift = notes.match(/\[(早班|晚班|接力晚班)\]/);
+                    const hasShift = notes.match(/\[(早班|晚班)\]/);
                     const hasFollow = notes.includes("[跟播]");
                     const anchorMatch = notes.match(/\[主播:(.+?)\]/);
-                    const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|接力晚班|跟播)\]/g, "").replace(/\[主播:.+?\]/g, "").trim();
+                    const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|跟播)\]/g, "").replace(/\[主播:.+?\]/g, "").trim();
                     const posColor = hasPosition?.[1] === "运营" ? "bg-blue-500" : hasPosition?.[1] === "商务" ? "bg-orange-500" : hasPosition?.[1] === "现场" ? "bg-green-500" : "";
                     return (
                       <div key={s.id} className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors">
@@ -468,9 +464,7 @@ export default function StaffSchedule() {
                           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                             {hasShift && (
                               <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium",
-                                hasShift[1] === "早班" ? "bg-blue-100 text-blue-700" :
-                                hasShift[1] === "晚班" ? "bg-indigo-100 text-indigo-700" :
-                                "bg-purple-100 text-purple-700"
+                                hasShift[1] === "早班" ? "bg-blue-100 text-blue-700" : "bg-indigo-100 text-indigo-700"
                               )}>{hasShift[1]}</span>
                             )}
                             {hasFollow && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">📹跟播{anchorMatch ? ` → ${anchorMatch[1]}` : ""}</span>}
@@ -514,10 +508,10 @@ export default function StaffSchedule() {
                   {jpSchedules.map((s) => {
                     const notes = s.notes || "";
                     const hasPosition = notes.match(/\[(运营|商务|现场)\]/);
-                    const hasShift = notes.match(/\[(早班|晚班|接力晚班)\]/);
+                    const hasShift = notes.match(/\[(早班|晚班)\]/);
                     const hasFollow = notes.includes("[跟播]");
                     const anchorMatch = notes.match(/\[主播:(.+?)\]/);
-                    const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|接力晚班|跟播)\]/g, "").replace(/\[主播:.+?\]/g, "").trim();
+                    const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|跟播)\]/g, "").replace(/\[主播:.+?\]/g, "").trim();
                     const posColor = hasPosition?.[1] === "运营" ? "bg-blue-500" : hasPosition?.[1] === "商务" ? "bg-orange-500" : hasPosition?.[1] === "现场" ? "bg-green-500" : "";
                     return (
                       <div key={s.id} className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors">
@@ -537,9 +531,7 @@ export default function StaffSchedule() {
                           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                             {hasShift && (
                               <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium",
-                                hasShift[1] === "早班" ? "bg-blue-100 text-blue-700" :
-                                hasShift[1] === "晚班" ? "bg-indigo-100 text-indigo-700" :
-                                "bg-purple-100 text-purple-700"
+                                hasShift[1] === "早班" ? "bg-blue-100 text-blue-700" : "bg-indigo-100 text-indigo-700"
                               )}>{hasShift[1]}</span>
                             )}
                             {hasFollow && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">📹跟播{anchorMatch ? ` → ${anchorMatch[1]}` : ""}</span>}
@@ -607,18 +599,9 @@ export default function StaffSchedule() {
                 >
                   🌙 晚班
                 </Button>
-                <Button
-                  type="button"
-                  variant={formShift === "relay" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleShiftChange("relay")}
-                  className={cn("flex-1", formShift === "relay" ? "bg-purple-600 hover:bg-purple-700" : "")}
-                >
-                  🔄 接力晚班
-                </Button>
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                {formShift === "morning" ? "早班 09:00-18:00" : formShift === "evening" ? "晚班 15:00-23:00" : "接力晚班 15:00-23:00"}
+                {formShift === "morning" ? "早班 09:00-18:00" : "晚班 15:00-23:00"}
               </p>
             </div>
 
