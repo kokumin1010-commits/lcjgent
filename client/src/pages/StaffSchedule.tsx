@@ -54,7 +54,6 @@ export default function StaffSchedule() {
   const [formEndTime, setFormEndTime] = useState("18:00");
   const [formNotes, setFormNotes] = useState("");
   const [formShift, setFormShift] = useState<string>("morning"); // morning | evening
-  const [formPosition, setFormPosition] = useState<string>("operations"); // operations | business | onsite
   const [formIsFollowBroadcast, setFormIsFollowBroadcast] = useState(false);
   const [formAnchor, setFormAnchor] = useState<string>(""); // 主播名 (required when 跟播)
 
@@ -101,6 +100,15 @@ export default function StaffSchedule() {
     operations: { label: "运营", color: "#2563EB", dotColor: "bg-blue-500" },
     business: { label: "商务", color: "#F97316", dotColor: "bg-orange-500" },
     onsite: { label: "现场", color: "#22C55E", dotColor: "bg-green-500" },
+  };
+
+  // Map HR department to position key
+  const getDeptPositionKey = (dept: string): string => {
+    if (!dept) return "operations";
+    if (dept.includes("営業") || dept.includes("商務") || dept.includes("商务")) return "business";
+    if (dept.includes("現場") || dept.includes("動画") || dept.includes("现场") || dept.includes("动画")) return "onsite";
+    // Default: 運営部, 経理部, 技術部, ライバー部 etc → operations
+    return "operations";
   };
 
   // Handle shift change - auto fill time
@@ -164,7 +172,6 @@ export default function StaffSchedule() {
     setFormStartTime("09:00");
     setFormEndTime("18:00");
     setFormNotes("");
-    setFormPosition("operations");
     setFormIsFollowBroadcast(false);
     setFormAnchor("");
   };
@@ -208,8 +215,10 @@ export default function StaffSchedule() {
       toast.error("跟播模式では主播を選択してください");
       return;
     }
-    // Build notes with metadata tags
-    const posLabel = POSITION_CONFIG[formPosition]?.label || "运营";
+    // Build notes with metadata tags - derive position from staff's HR department
+    const selectedStaff = staffList?.find((s: any) => s.id === formStaffId);
+    const posKey = getDeptPositionKey(selectedStaff?.department || "");
+    const posLabel = POSITION_CONFIG[posKey]?.label || "运营";
     const shiftLabel = SHIFT_PRESETS[formShift]?.label || "早班";
     const tags: string[] = [`[${posLabel}]`, `[${shiftLabel}]`];
     if (formIsFollowBroadcast) {
@@ -224,7 +233,7 @@ export default function StaffSchedule() {
       startTime: formStartTime,
       endTime: formEndTime,
       notes: notesStr || undefined,
-      color: POSITION_CONFIG[formPosition]?.color || staffColorMap[formStaffId] || undefined,
+      color: POSITION_CONFIG[posKey]?.color || staffColorMap[formStaffId] || undefined,
     });
   };
 
@@ -605,39 +614,20 @@ export default function StaffSchedule() {
               </p>
             </div>
 
-            {/* Position Type */}
-            <div>
-              <label className="text-sm font-medium text-gray-700">岗位 *</label>
-              <div className="flex gap-2 mt-1">
-                <Button
-                  type="button"
-                  variant={formPosition === "operations" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setFormPosition("operations")}
-                  className={cn("flex-1", formPosition === "operations" ? "bg-blue-500 hover:bg-blue-600" : "")}
-                >
-                  🟢 运营
-                </Button>
-                <Button
-                  type="button"
-                  variant={formPosition === "business" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setFormPosition("business")}
-                  className={cn("flex-1", formPosition === "business" ? "bg-orange-500 hover:bg-orange-600" : "")}
-                >
-                  🟠 商务
-                </Button>
-                <Button
-                  type="button"
-                  variant={formPosition === "onsite" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setFormPosition("onsite")}
-                  className={cn("flex-1", formPosition === "onsite" ? "bg-green-500 hover:bg-green-600" : "")}
-                >
-                  🟢 现场
-                </Button>
-              </div>
-            </div>
+            {/* Position display - auto-derived from selected staff's department */}
+            {formStaffId && (() => {
+              const selectedStaff = staffList?.find((s: any) => s.id === formStaffId);
+              const dept = selectedStaff?.department || "";
+              const posKey = getDeptPositionKey(dept);
+              const posConfig = POSITION_CONFIG[posKey];
+              return (
+                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-md">
+                  <span className={cn("w-3 h-3 rounded-full", posConfig?.dotColor || "bg-gray-400")} />
+                  <span className="text-sm font-medium">岗位: {posConfig?.label || dept || "未设定"}</span>
+                  {dept && <span className="text-xs text-gray-400">({dept})</span>}
+                </div>
+              );
+            })()}
 
             {/* Follow Broadcast toggle */}
             <div className="flex items-center gap-2">
