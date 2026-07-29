@@ -50,8 +50,8 @@ export default function StaffSchedule() {
   // Form state
   const [formStaffId, setFormStaffId] = useState<number | null>(null);
   const [formDate, setFormDate] = useState<string>(getJSTDateKey(new Date()));
-  const [formStartTime, setFormStartTime] = useState("10:00");
-  const [formEndTime, setFormEndTime] = useState("19:00");
+  const [formStartTime, setFormStartTime] = useState("09:00");
+  const [formEndTime, setFormEndTime] = useState("18:00");
   const [formNotes, setFormNotes] = useState("");
   const [formShift, setFormShift] = useState<string>("morning"); // morning | evening | relay
   const [formPosition, setFormPosition] = useState<string>("operations"); // operations | business | onsite
@@ -92,9 +92,9 @@ export default function StaffSchedule() {
 
   // Shift presets
   const SHIFT_PRESETS: Record<string, { start: string; end: string; label: string }> = {
-    morning: { start: "10:00", end: "19:00", label: "早班" },
-    evening: { start: "14:00", end: "23:00", label: "晚班" },
-    relay: { start: "14:00", end: "23:00", label: "接力晚班" },
+    morning: { start: "09:00", end: "18:00", label: "早班" },
+    evening: { start: "15:00", end: "23:00", label: "晚班" },
+    relay: { start: "15:00", end: "23:00", label: "接力晚班" },
   };
 
   // Position config
@@ -162,8 +162,8 @@ export default function StaffSchedule() {
     setFormStaffId(null);
     setFormDate(selectedDate);
     setFormShift("morning");
-    setFormStartTime("10:00");
-    setFormEndTime("19:00");
+    setFormStartTime("09:00");
+    setFormEndTime("18:00");
     setFormNotes("");
     setFormPosition("operations");
     setFormIsFollowBroadcast(false);
@@ -369,6 +369,25 @@ export default function StaffSchedule() {
               🇯🇵 日本
             </Button>
           </div>
+        </div>
+      </div>
+
+      {/* Shift time info banner */}
+      <div className="px-4 pt-3">
+        <div className="flex items-center gap-4 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border">
+          <span className="font-medium text-gray-700">班次：</span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-2 h-2 rounded-full bg-blue-400"></span>
+            ☀️ 早班 09:00-18:00
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-2 h-2 rounded-full bg-indigo-400"></span>
+            🌙 晚班 15:00-23:00
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-2 h-2 rounded-full bg-purple-400"></span>
+            🔄 接力晚班 15:00-23:00
+          </span>
         </div>
       </div>
 
@@ -599,7 +618,7 @@ export default function StaffSchedule() {
                 </Button>
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                {formShift === "morning" ? "早班 10:00-19:00" : formShift === "evening" ? "晚班 14:00-23:00" : "接力晚班 14:00-23:00"}
+                {formShift === "morning" ? "早班 09:00-18:00" : formShift === "evening" ? "晚班 15:00-23:00" : "接力晚班 15:00-23:00"}
               </p>
             </div>
 
