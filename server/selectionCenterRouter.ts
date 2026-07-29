@@ -1647,12 +1647,12 @@ export const selectionCenterRouter = router({
         params.push(input.brandId);
       }
       if (input.search) {
-        where += ' AND (sp.productName LIKE ? OR sp.brandName LIKE ? OR sp.barcode LIKE ? OR CAST(sp.id AS CHAR) LIKE ?)';
-        params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`, `%${input.search}%`);
+        where += ' AND (sp.productName LIKE ? OR sp.productNameCn LIKE ? OR sp.brandName LIKE ? OR sp.barcode LIKE ? OR sp.productId LIKE ? OR CAST(sp.id AS CHAR) LIKE ?)';
+        params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`, `%${input.search}%`, `%${input.search}%`, `%${input.search}%`);
       }
       params.push(input.limit);
       const [rows] = await pool.query(
-        `SELECT sp.id, sp.productName, sp.brandId, sp.brandName, sp.price, sp.purchasePrice, sp.barcode, sp.images
+        `SELECT sp.id, sp.productName, sp.productNameCn, sp.brandId, sp.brandName, sp.price, sp.purchasePrice, sp.barcode, sp.productId, sp.images
          FROM selection_products sp ${where}
          ORDER BY sp.productName ASC LIMIT ?`,
         params
