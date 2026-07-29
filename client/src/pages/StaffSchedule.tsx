@@ -50,10 +50,12 @@ export default function StaffSchedule() {
   // Form state
   const [formStaffId, setFormStaffId] = useState<number | null>(null);
   const [formDate, setFormDate] = useState<string>(getJSTDateKey(new Date()));
-  const [formStartTime, setFormStartTime] = useState("09:00");
-  const [formEndTime, setFormEndTime] = useState("18:00");
+  const [formStartTime, setFormStartTime] = useState("10:00");
+  const [formEndTime, setFormEndTime] = useState("19:00");
   const [formNotes, setFormNotes] = useState("");
-  const [formScheduleType, setFormScheduleType] = useState<string>("normal"); // normal | followBroadcast
+  const [formShift, setFormShift] = useState<string>("morning"); // morning | evening | relay
+  const [formPosition, setFormPosition] = useState<string>("operations"); // operations | business | onsite
+  const [formIsFollowBroadcast, setFormIsFollowBroadcast] = useState(false);
 
   // Get date range for fetching (current month + buffer)
   const dateRange = useMemo(() => {
@@ -85,22 +87,46 @@ export default function StaffSchedule() {
   // 跟播部門リスト（跟播人員として優先表示する部門）
   const FOLLOW_BROADCAST_DEPTS = ["運営部", "ライバー部"];
 
+  // Shift presets
+  const SHIFT_PRESETS: Record<string, { start: string; end: string; label: string }> = {
+    morning: { start: "10:00", end: "19:00", label: "早班" },
+    evening: { start: "14:00", end: "23:00", label: "晚班" },
+    relay: { start: "14:00", end: "23:00", label: "接力晚班" },
+  };
+
+  // Position config
+  const POSITION_CONFIG: Record<string, { label: string; color: string; dotColor: string }> = {
+    operations: { label: "运营", color: "#2563EB", dotColor: "bg-blue-500" },
+    business: { label: "商务", color: "#F97316", dotColor: "bg-orange-500" },
+    onsite: { label: "现场", color: "#22C55E", dotColor: "bg-green-500" },
+  };
+
+  // Handle shift change - auto fill time
+  const handleShiftChange = (shift: string) => {
+    setFormShift(shift);
+    const preset = SHIFT_PRESETS[shift];
+    if (preset) {
+      setFormStartTime(preset.start);
+      setFormEndTime(preset.end);
+    }
+  };
+
   // Filter staff by selected countries
   const filteredStaff = useMemo(() => {
     if (!staffList) return [];
     return staffList.filter((s: any) => activeTabs.has(s.country));
   }, [staffList, activeTabs]);
 
-  // Sorted staff for dropdown: 跟播 staff first when scheduleType is followBroadcast
+  // Sorted staff for dropdown: 跟播 staff first when followBroadcast is checked
   const sortedStaffForDropdown = useMemo(() => {
     if (!filteredStaff) return [];
-    if (formScheduleType === "followBroadcast") {
+    if (formIsFollowBroadcast) {
       const followStaff = filteredStaff.filter((s: any) => FOLLOW_BROADCAST_DEPTS.includes(s.department));
       const otherStaff = filteredStaff.filter((s: any) => !FOLLOW_BROADCAST_DEPTS.includes(s.department));
       return [...followStaff, ...otherStaff];
     }
     return filteredStaff;
-  }, [filteredStaff, formScheduleType]);
+  }, [filteredStaff, formIsFollowBroadcast]);
 
   // Fetch schedules
   const countryFilter = activeTabs.size === 1 ? Array.from(activeTabs)[0] : undefined;
@@ -132,10 +158,12 @@ export default function StaffSchedule() {
   const resetForm = () => {
     setFormStaffId(null);
     setFormDate(selectedDate);
-    setFormStartTime("09:00");
-    setFormEndTime("18:00");
+    setFormShift("morning");
+    setFormStartTime("10:00");
+    setFormEndTime("19:00");
     setFormNotes("");
-    setFormScheduleType("normal");
+    setFormPosition("operations");
+    setFormIsFollowBroadcast(false);
   };
 
   // Staff color map
@@ -166,15 +194,20 @@ export default function StaffSchedule() {
       toast.error("スタッフと日付を選択してください");
       return;
     }
+    // Build notes with metadata tags
+    const posLabel = POSITION_CONFIG[formPosition]?.label || "运营";
+    const shiftLabel = SHIFT_PRESETS[formShift]?.label || "早班";
+    const tags: string[] = [`[${posLabel}]`, `[${shiftLabel}]`];
+    if (formIsFollowBroadcast) tags.push("[跟播]");
+    const notesStr = [...tags, formNotes].filter(Boolean).join(" ").trim();
+    
     createMutation.mutate({
       staffId: formStaffId,
       date: formDate,
       startTime: formStartTime,
       endTime: formEndTime,
-      notes: formScheduleType === "followBroadcast" 
-        ? (formNotes ? `[跟播] ${formNotes}` : "[跟播]")
-        : (formNotes || undefined),
-      color: staffColorMap[formStaffId] || undefined,
+      notes: notesStr || undefined,
+      color: POSITION_CONFIG[formPosition]?.color || staffColorMap[formStaffId] || undefined,
     });
   };
 
@@ -372,44 +405,61 @@ export default function StaffSchedule() {
                   <span className="text-xs text-red-500 ml-auto">{cnSchedules.length}名出勤</span>
                 </div>
                 <div className="divide-y">
-                  {cnSchedules.map((s) => (
-                    <div key={s.id} className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors">
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                        style={{ backgroundColor: s.color || staffColorMap[s.staffId] || '#999' }}
-                      >
-                        {s.staffName.charAt(0)}
-                      </div>
-                      <div className="ml-3 flex-1 min-w-0">
-                        <div className="text-sm font-medium text-gray-900 truncate">{s.staffName}</div>
-                        {s.department && <div className="text-xs text-gray-500">{s.department}</div>}
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-xs font-medium text-gray-700 flex items-center gap-1">
-                          <Clock className="h-3 w-3 text-gray-400" />
-                          {s.startTime} - {s.endTime}
+                  {cnSchedules.map((s) => {
+                    const notes = s.notes || "";
+                    const hasPosition = notes.match(/\[(运营|商务|现场)\]/);
+                    const hasShift = notes.match(/\[(早班|晚班|接力晚班)\]/);
+                    const hasFollow = notes.includes("[跟播]");
+                    const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|接力晚班|跟播)\]/g, "").trim();
+                    const posColor = hasPosition?.[1] === "运营" ? "bg-blue-500" : hasPosition?.[1] === "商务" ? "bg-orange-500" : hasPosition?.[1] === "现场" ? "bg-green-500" : "";
+                    return (
+                      <div key={s.id} className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors">
+                        {/* Position dot */}
+                        <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", posColor || "bg-gray-300")} />
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ml-2"
+                          style={{ backgroundColor: s.color || staffColorMap[s.staffId] || '#999' }}
+                        >
+                          {s.staffName.charAt(0)}
                         </div>
-                        {s.notes && (
-                          <div className="text-[10px] mt-0.5 flex items-center gap-1">
-                            {s.notes.includes("[跟播]") && <span className="bg-orange-100 text-orange-600 px-1 rounded font-medium">📹跟播</span>}
-                            <span className="text-gray-400">{s.notes.replace("[跟播]", "").trim()}</span>
+                        <div className="ml-3 flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 truncate">
+                            {hasPosition && <span className="text-xs text-gray-500">{hasPosition[1]} | </span>}
+                            {s.staffName}
                           </div>
-                        )}
+                          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                            {hasShift && (
+                              <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium",
+                                hasShift[1] === "早班" ? "bg-blue-100 text-blue-700" :
+                                hasShift[1] === "晚班" ? "bg-indigo-100 text-indigo-700" :
+                                "bg-purple-100 text-purple-700"
+                              )}>{hasShift[1]}</span>
+                            )}
+                            {hasFollow && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">📹跟播</span>}
+                            {cleanNotes && <span className="text-[10px] text-gray-400">{cleanNotes}</span>}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-gray-400" />
+                            {s.startTime} - {s.endTime}
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-gray-300 hover:text-red-500 ml-2 shrink-0"
+                          onClick={() => {
+                            if (confirm("このスケジュールを削除しますか？")) {
+                              deleteMutation.mutate({ id: s.id });
+                            }
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-gray-300 hover:text-red-500 ml-2 shrink-0"
-                        onClick={() => {
-                          if (confirm("このスケジュールを削除しますか？")) {
-                            deleteMutation.mutate({ id: s.id });
-                          }
-                        }}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -423,44 +473,61 @@ export default function StaffSchedule() {
                   <span className="text-xs text-blue-500 ml-auto">{jpSchedules.length}名出勤</span>
                 </div>
                 <div className="divide-y">
-                  {jpSchedules.map((s) => (
-                    <div key={s.id} className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors">
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                        style={{ backgroundColor: s.color || staffColorMap[s.staffId] || '#999' }}
-                      >
-                        {s.staffName.charAt(0)}
-                      </div>
-                      <div className="ml-3 flex-1 min-w-0">
-                        <div className="text-sm font-medium text-gray-900 truncate">{s.staffName}</div>
-                        {s.department && <div className="text-xs text-gray-500">{s.department}</div>}
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-xs font-medium text-gray-700 flex items-center gap-1">
-                          <Clock className="h-3 w-3 text-gray-400" />
-                          {s.startTime} - {s.endTime}
+                  {jpSchedules.map((s) => {
+                    const notes = s.notes || "";
+                    const hasPosition = notes.match(/\[(运营|商务|现场)\]/);
+                    const hasShift = notes.match(/\[(早班|晚班|接力晚班)\]/);
+                    const hasFollow = notes.includes("[跟播]");
+                    const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|接力晚班|跟播)\]/g, "").trim();
+                    const posColor = hasPosition?.[1] === "运营" ? "bg-blue-500" : hasPosition?.[1] === "商务" ? "bg-orange-500" : hasPosition?.[1] === "现场" ? "bg-green-500" : "";
+                    return (
+                      <div key={s.id} className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors">
+                        {/* Position dot */}
+                        <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", posColor || "bg-gray-300")} />
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ml-2"
+                          style={{ backgroundColor: s.color || staffColorMap[s.staffId] || '#999' }}
+                        >
+                          {s.staffName.charAt(0)}
                         </div>
-                        {s.notes && (
-                          <div className="text-[10px] mt-0.5 flex items-center gap-1">
-                            {s.notes.includes("[跟播]") && <span className="bg-orange-100 text-orange-600 px-1 rounded font-medium">📹跟播</span>}
-                            <span className="text-gray-400">{s.notes.replace("[跟播]", "").trim()}</span>
+                        <div className="ml-3 flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 truncate">
+                            {hasPosition && <span className="text-xs text-gray-500">{hasPosition[1]} | </span>}
+                            {s.staffName}
                           </div>
-                        )}
+                          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                            {hasShift && (
+                              <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium",
+                                hasShift[1] === "早班" ? "bg-blue-100 text-blue-700" :
+                                hasShift[1] === "晚班" ? "bg-indigo-100 text-indigo-700" :
+                                "bg-purple-100 text-purple-700"
+                              )}>{hasShift[1]}</span>
+                            )}
+                            {hasFollow && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">📹跟播</span>}
+                            {cleanNotes && <span className="text-[10px] text-gray-400">{cleanNotes}</span>}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-gray-400" />
+                            {s.startTime} - {s.endTime}
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-gray-300 hover:text-red-500 ml-2 shrink-0"
+                          onClick={() => {
+                            if (confirm("このスケジュールを削除しますか？")) {
+                              deleteMutation.mutate({ id: s.id });
+                            }
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-gray-300 hover:text-red-500 ml-2 shrink-0"
-                        onClick={() => {
-                          if (confirm("このスケジュールを削除しますか？")) {
-                            deleteMutation.mutate({ id: s.id });
-                          }
-                        }}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -479,29 +546,90 @@ export default function StaffSchedule() {
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Schedule Type */}
+            {/* Shift Type */}
             <div>
-              <label className="text-sm font-medium text-gray-700">タイプ</label>
+              <label className="text-sm font-medium text-gray-700">班次 *</label>
               <div className="flex gap-2 mt-1">
                 <Button
                   type="button"
-                  variant={formScheduleType === "normal" ? "default" : "outline"}
+                  variant={formShift === "morning" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setFormScheduleType("normal")}
-                  className={cn("flex-1", formScheduleType === "normal" ? "bg-blue-600 hover:bg-blue-700" : "")}
+                  onClick={() => handleShiftChange("morning")}
+                  className={cn("flex-1", formShift === "morning" ? "bg-blue-600 hover:bg-blue-700" : "")}
                 >
-                  通常勤務
+                  ☀️ 早班
                 </Button>
                 <Button
                   type="button"
-                  variant={formScheduleType === "followBroadcast" ? "default" : "outline"}
+                  variant={formShift === "evening" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setFormScheduleType("followBroadcast")}
-                  className={cn("flex-1", formScheduleType === "followBroadcast" ? "bg-orange-500 hover:bg-orange-600" : "")}
+                  onClick={() => handleShiftChange("evening")}
+                  className={cn("flex-1", formShift === "evening" ? "bg-indigo-600 hover:bg-indigo-700" : "")}
                 >
-                  📹 跟播
+                  🌙 晚班
+                </Button>
+                <Button
+                  type="button"
+                  variant={formShift === "relay" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleShiftChange("relay")}
+                  className={cn("flex-1", formShift === "relay" ? "bg-purple-600 hover:bg-purple-700" : "")}
+                >
+                  🔄 接力晚班
                 </Button>
               </div>
+              <p className="text-xs text-gray-400 mt-1">
+                {formShift === "morning" ? "早班 10:00-19:00" : formShift === "evening" ? "晚班 14:00-23:00" : "接力晚班 14:00-23:00"}
+              </p>
+            </div>
+
+            {/* Position Type */}
+            <div>
+              <label className="text-sm font-medium text-gray-700">岗位 *</label>
+              <div className="flex gap-2 mt-1">
+                <Button
+                  type="button"
+                  variant={formPosition === "operations" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFormPosition("operations")}
+                  className={cn("flex-1", formPosition === "operations" ? "bg-blue-500 hover:bg-blue-600" : "")}
+                >
+                  🟢 运营
+                </Button>
+                <Button
+                  type="button"
+                  variant={formPosition === "business" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFormPosition("business")}
+                  className={cn("flex-1", formPosition === "business" ? "bg-orange-500 hover:bg-orange-600" : "")}
+                >
+                  🟠 商务
+                </Button>
+                <Button
+                  type="button"
+                  variant={formPosition === "onsite" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFormPosition("onsite")}
+                  className={cn("flex-1", formPosition === "onsite" ? "bg-green-500 hover:bg-green-600" : "")}
+                >
+                  🟢 现场
+                </Button>
+              </div>
+            </div>
+
+            {/* Follow Broadcast toggle */}
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="followBroadcast"
+                checked={formIsFollowBroadcast}
+                onChange={(e) => setFormIsFollowBroadcast(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+              />
+              <label htmlFor="followBroadcast" className="text-sm font-medium text-gray-700">
+                📹 跟播
+              </label>
+              <span className="text-xs text-gray-400">（勾选后运营部/ライバー部优先展示）</span>
             </div>
 
             {/* Date */}
@@ -517,7 +645,7 @@ export default function StaffSchedule() {
             {/* Staff selection */}
             <div>
               <label className="text-sm font-medium text-gray-700">スタッフ *</label>
-              {formScheduleType === "followBroadcast" && (
+              {formIsFollowBroadcast && (
                 <p className="text-xs text-orange-500 mt-0.5 mb-1">跟播人員（運営部・ライバー部）が優先表示されます</p>
               )}
               <Select
@@ -530,13 +658,13 @@ export default function StaffSchedule() {
                 <SelectContent>
                   {sortedStaffForDropdown.map((s: any, idx: number) => {
                     const isFollowDept = FOLLOW_BROADCAST_DEPTS.includes(s.department);
-                    const showDivider = formScheduleType === "followBroadcast" && idx > 0 && 
+                    const showDivider = formIsFollowBroadcast && idx > 0 && 
                       isFollowDept !== FOLLOW_BROADCAST_DEPTS.includes(sortedStaffForDropdown[idx - 1]?.department);
                     return (
                       <React.Fragment key={s.id}>
                         {showDivider && <div className="border-t my-1 mx-2" />}
                         <SelectItem value={s.id.toString()}>
-                          {formScheduleType === "followBroadcast" && isFollowDept && "⭐ "}
+                          {formIsFollowBroadcast && isFollowDept && "⭐ "}
                           {s.name} {s.department ? `(${s.department})` : ''}
                         </SelectItem>
                       </React.Fragment>
