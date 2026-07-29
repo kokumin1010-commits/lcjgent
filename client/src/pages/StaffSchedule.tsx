@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -53,6 +53,7 @@ export default function StaffSchedule() {
   const [formStartTime, setFormStartTime] = useState("09:00");
   const [formEndTime, setFormEndTime] = useState("18:00");
   const [formNotes, setFormNotes] = useState("");
+  const [formScheduleType, setFormScheduleType] = useState<string>("normal"); // normal | followBroadcast
 
   // Get date range for fetching (current month + buffer)
   const dateRange = useMemo(() => {
@@ -81,11 +82,25 @@ export default function StaffSchedule() {
     });
   };
 
+  // 跟播部門リスト（跟播人員として優先表示する部門）
+  const FOLLOW_BROADCAST_DEPTS = ["運営部", "ライバー部"];
+
   // Filter staff by selected countries
   const filteredStaff = useMemo(() => {
     if (!staffList) return [];
     return staffList.filter((s: any) => activeTabs.has(s.country));
   }, [staffList, activeTabs]);
+
+  // Sorted staff for dropdown: 跟播 staff first when scheduleType is followBroadcast
+  const sortedStaffForDropdown = useMemo(() => {
+    if (!filteredStaff) return [];
+    if (formScheduleType === "followBroadcast") {
+      const followStaff = filteredStaff.filter((s: any) => FOLLOW_BROADCAST_DEPTS.includes(s.department));
+      const otherStaff = filteredStaff.filter((s: any) => !FOLLOW_BROADCAST_DEPTS.includes(s.department));
+      return [...followStaff, ...otherStaff];
+    }
+    return filteredStaff;
+  }, [filteredStaff, formScheduleType]);
 
   // Fetch schedules
   const countryFilter = activeTabs.size === 1 ? Array.from(activeTabs)[0] : undefined;
@@ -120,6 +135,7 @@ export default function StaffSchedule() {
     setFormStartTime("09:00");
     setFormEndTime("18:00");
     setFormNotes("");
+    setFormScheduleType("normal");
   };
 
   // Staff color map
@@ -155,7 +171,9 @@ export default function StaffSchedule() {
       date: formDate,
       startTime: formStartTime,
       endTime: formEndTime,
-      notes: formNotes || undefined,
+      notes: formScheduleType === "followBroadcast" 
+        ? (formNotes ? `[跟播] ${formNotes}` : "[跟播]")
+        : (formNotes || undefined),
       color: staffColorMap[formStaffId] || undefined,
     });
   };
@@ -371,7 +389,12 @@ export default function StaffSchedule() {
                           <Clock className="h-3 w-3 text-gray-400" />
                           {s.startTime} - {s.endTime}
                         </div>
-                        {s.notes && <div className="text-[10px] text-gray-400 mt-0.5">{s.notes}</div>}
+                        {s.notes && (
+                          <div className="text-[10px] mt-0.5 flex items-center gap-1">
+                            {s.notes.includes("[跟播]") && <span className="bg-orange-100 text-orange-600 px-1 rounded font-medium">📹跟播</span>}
+                            <span className="text-gray-400">{s.notes.replace("[跟播]", "").trim()}</span>
+                          </div>
+                        )}
                       </div>
                       <Button
                         variant="ghost"
@@ -417,7 +440,12 @@ export default function StaffSchedule() {
                           <Clock className="h-3 w-3 text-gray-400" />
                           {s.startTime} - {s.endTime}
                         </div>
-                        {s.notes && <div className="text-[10px] text-gray-400 mt-0.5">{s.notes}</div>}
+                        {s.notes && (
+                          <div className="text-[10px] mt-0.5 flex items-center gap-1">
+                            {s.notes.includes("[跟播]") && <span className="bg-orange-100 text-orange-600 px-1 rounded font-medium">📹跟播</span>}
+                            <span className="text-gray-400">{s.notes.replace("[跟播]", "").trim()}</span>
+                          </div>
+                        )}
                       </div>
                       <Button
                         variant="ghost"
@@ -451,6 +479,31 @@ export default function StaffSchedule() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Schedule Type */}
+            <div>
+              <label className="text-sm font-medium text-gray-700">タイプ</label>
+              <div className="flex gap-2 mt-1">
+                <Button
+                  type="button"
+                  variant={formScheduleType === "normal" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFormScheduleType("normal")}
+                  className={cn("flex-1", formScheduleType === "normal" ? "bg-blue-600 hover:bg-blue-700" : "")}
+                >
+                  通常勤務
+                </Button>
+                <Button
+                  type="button"
+                  variant={formScheduleType === "followBroadcast" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFormScheduleType("followBroadcast")}
+                  className={cn("flex-1", formScheduleType === "followBroadcast" ? "bg-orange-500 hover:bg-orange-600" : "")}
+                >
+                  📹 跟播
+                </Button>
+              </div>
+            </div>
+
             {/* Date */}
             <div>
               <label className="text-sm font-medium text-gray-700">日付</label>
@@ -464,6 +517,9 @@ export default function StaffSchedule() {
             {/* Staff selection */}
             <div>
               <label className="text-sm font-medium text-gray-700">スタッフ *</label>
+              {formScheduleType === "followBroadcast" && (
+                <p className="text-xs text-orange-500 mt-0.5 mb-1">跟播人員（運営部・ライバー部）が優先表示されます</p>
+              )}
               <Select
                 value={formStaffId?.toString() || ""}
                 onValueChange={(v) => setFormStaffId(parseInt(v))}
@@ -472,11 +528,20 @@ export default function StaffSchedule() {
                   <SelectValue placeholder="スタッフを選択..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {filteredStaff.map((s: any) => (
-                    <SelectItem key={s.id} value={s.id.toString()}>
-                      {s.name} {s.department ? `(${s.department})` : ''}
-                    </SelectItem>
-                  ))}
+                  {sortedStaffForDropdown.map((s: any, idx: number) => {
+                    const isFollowDept = FOLLOW_BROADCAST_DEPTS.includes(s.department);
+                    const showDivider = formScheduleType === "followBroadcast" && idx > 0 && 
+                      isFollowDept !== FOLLOW_BROADCAST_DEPTS.includes(sortedStaffForDropdown[idx - 1]?.department);
+                    return (
+                      <React.Fragment key={s.id}>
+                        {showDivider && <div className="border-t my-1 mx-2" />}
+                        <SelectItem value={s.id.toString()}>
+                          {formScheduleType === "followBroadcast" && isFollowDept && "⭐ "}
+                          {s.name} {s.department ? `(${s.department})` : ''}
+                        </SelectItem>
+                      </React.Fragment>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
