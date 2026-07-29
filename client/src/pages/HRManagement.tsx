@@ -1018,10 +1018,15 @@ export default function HRManagement() {
   const { data: stats } = trpc.staff.statistics.useQuery();
 
   const autoLinkMutation = trpc.staff.autoLinkReportStaff.useMutation({
-    onSuccess: (data) => {
-      toast.success(`${data.linkedCount}件の紐付けを自動実行しました`);
+    onSuccess: (data: any) => {
+      const msgs: string[] = [];
+      if (data.linkedCount > 0) msgs.push(`${data.linkedCount}件紐付け`);
+      if (data.createdStaffCount > 0) msgs.push(`${data.createdStaffCount}件スタッフ作成`);
+      if (data.createdReportStaffCount > 0) msgs.push(`${data.createdReportStaffCount}件レポートスタッフ作成`);
+      toast.success(msgs.length > 0 ? `自動同期完了: ${msgs.join('、')}` : "全て同期済みです");
       utils.staff.listReportStaffUnified.invalidate();
       utils.staff.statistics.invalidate();
+      utils.staff.listActive.invalidate();
     },
     onError: (error) => toast.error("自動紐付けに失敗しました", { description: error.message }),
   });

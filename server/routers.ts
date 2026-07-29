@@ -3233,8 +3233,44 @@ export const appRouter = router({
 
     // HR: Auto-link reportStaff to staff by name matching
     autoLinkReportStaff: protectedProcedure.mutation(async () => {
+      // Step 1: Link existing report_staff to staff by name matching
       const linkedCount = await autoLinkReportStaffToStaff();
-      return { linkedCount };
+      
+      // Step 2: Create staff entries for unlinked report_staff (active only)
+      const allReportStaff = await getAllReportStaff();
+      let createdStaffCount = 0;
+      for (const rs of allReportStaff) {
+        if (!rs.linkedStaffId && rs.isActive === "active") {
+          const staffResult = await createStaff({
+            name: rs.name,
+            email: `${rs.name.toLowerCase().replace(/[\s\u3000]+/g, '.')}@lcj.placeholder`,
+            country: rs.country,
+            isActive: "active",
+          });
+          const newStaffId = Number((staffResult as any)[0]?.insertId || 0);
+          if (newStaffId > 0) {
+            await updateReportStaff(rs.id, { linkedStaffId: newStaffId });
+            createdStaffCount++;
+          }
+        }
+      }
+      
+      // Step 3: Create report_staff entries for staff without report_staff links
+      const allStaffList = await getAllStaff();
+      const linkedStaffIds = new Set(allReportStaff.filter(rs => rs.linkedStaffId).map(rs => rs.linkedStaffId));
+      let createdReportStaffCount = 0;
+      for (const s of allStaffList) {
+        if (s.isActive === "active" && !linkedStaffIds.has(s.id)) {
+          await createReportStaff({
+            name: s.name,
+            country: s.country || "\u65e5\u672c",
+            linkedStaffId: s.id,
+          });
+          createdReportStaffCount++;
+        }
+      }
+      
+      return { linkedCount, createdStaffCount, createdReportStaffCount };
     }),
 
     // HR: Create staff record from reportStaff and link them
