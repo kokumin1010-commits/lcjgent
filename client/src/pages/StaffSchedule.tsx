@@ -498,7 +498,7 @@ export default function StaffSchedule() {
             </div>
             <div className="flex items-center gap-2">
               <Button
-                onClick={() => { setShowCreateDialog(true); setFormDate(selectedDate); }}
+                onClick={() => { setShowCreateDialog(true); setFormDates([new Date(selectedDate + 'T12:00:00')]); }}
                 size="sm"
                 className="bg-blue-600 hover:bg-blue-700"
               >
@@ -549,34 +549,55 @@ export default function StaffSchedule() {
 
           {/* Week mini-nav (daily view only) */}
           {viewMode === "daily" && (
-            <div className="flex gap-1 mt-2 overflow-x-auto pb-1">
-              {weekDates.map((dateKey, i) => {
-                const d = new Date(dateKey + 'T12:00:00');
-                const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
-                const count = getScheduleCount(dateKey);
-                const isSelected = dateKey === selectedDate;
-                const isTodayDate = dateKey === today;
-                return (
-                  <button
-                    key={dateKey}
-                    onClick={() => setSelectedDate(dateKey)}
-                    className={cn(
-                      "flex flex-col items-center px-3 py-1.5 rounded-lg min-w-[48px] transition-all",
-                      isSelected ? "bg-blue-600 text-white shadow-md" : "bg-white hover:bg-gray-100 border",
-                      isTodayDate && !isSelected && "border-blue-400"
-                    )}
-                  >
-                    <span className={cn("text-[10px]", isSelected ? "text-blue-100" : "text-gray-500")}>{weekdays[i]}</span>
-                    <span className={cn("text-sm font-bold", isSelected ? "text-white" : "")}>{d.getDate()}</span>
-                    {count > 0 && (
-                      <span className={cn(
-                        "text-[9px] rounded-full px-1.5",
-                        isSelected ? "bg-blue-400 text-white" : "bg-blue-100 text-blue-600"
-                      )}>{count}</span>
-                    )}
-                  </button>
-                );
-              })}
+            <div className="flex items-center gap-2 mt-2">
+              <div className="flex gap-1 overflow-x-auto pb-1 flex-1">
+                {weekDates.map((dateKey, i) => {
+                  const d = new Date(dateKey + 'T12:00:00');
+                  const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
+                  const count = getScheduleCount(dateKey);
+                  const isSelected = dateKey === selectedDate;
+                  const isTodayDate = dateKey === today;
+                  return (
+                    <button
+                      key={dateKey}
+                      onClick={() => setSelectedDate(dateKey)}
+                      className={cn(
+                        "flex flex-col items-center px-3 py-1.5 rounded-lg min-w-[48px] transition-all",
+                        isSelected ? "bg-blue-600 text-white shadow-md" : "bg-white hover:bg-gray-100 border",
+                        isTodayDate && !isSelected && "border-blue-400"
+                      )}
+                    >
+                      <span className={cn("text-[10px]", isSelected ? "text-blue-100" : "text-gray-500")}>{weekdays[i]}</span>
+                      <span className={cn("text-sm font-bold", isSelected ? "text-white" : "")}>{d.getDate()}</span>
+                      {count > 0 && (
+                        <span className={cn(
+                          "text-[9px] rounded-full px-1.5",
+                          isSelected ? "bg-blue-400 text-white" : "bg-blue-100 text-blue-600"
+                        )}>{count}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Date jump picker */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9 px-2 shrink-0">
+                    <CalendarIcon className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <CalendarPicker
+                    mode="single"
+                    selected={new Date(selectedDate + 'T12:00:00')}
+                    onSelect={(date) => {
+                      if (date) {
+                        setSelectedDate(getJSTDateKey(date));
+                      }
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           )}
 
@@ -674,7 +695,7 @@ export default function StaffSchedule() {
                 <p className="text-gray-500 font-medium">この日のスケジュールはありません</p>
                 <p className="text-gray-400 text-sm mt-1">「追加」ボタンからスケジュールを登録してください</p>
                 <Button
-                  onClick={() => { setShowCreateDialog(true); setFormDate(selectedDate); }}
+                  onClick={() => { setShowCreateDialog(true); setFormDates([new Date(selectedDate + 'T12:00:00')]); }}
                   className="mt-4 bg-blue-600 hover:bg-blue-700"
                   size="sm"
                 >
