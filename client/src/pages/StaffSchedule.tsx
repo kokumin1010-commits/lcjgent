@@ -215,12 +215,9 @@ export default function StaffSchedule() {
       toast.error("跟播模式では主播を選択してください");
       return;
     }
-    // Build notes with metadata tags - derive position from staff's HR department
-    const selectedStaff = staffList?.find((s: any) => s.id === formStaffId);
-    const posKey = getDeptPositionKey(selectedStaff?.department || "");
-    const posLabel = POSITION_CONFIG[posKey]?.label || "运营";
+    // Build notes with metadata tags (shift + follow broadcast only; position comes from HR)
     const shiftLabel = SHIFT_PRESETS[formShift]?.label || "早班";
-    const tags: string[] = [`[${posLabel}]`, `[${shiftLabel}]`];
+    const tags: string[] = [`[${shiftLabel}]`];
     if (formIsFollowBroadcast) {
       tags.push("[跟播]");
       tags.push(`[主播:${formAnchor.trim()}]`);
@@ -233,7 +230,7 @@ export default function StaffSchedule() {
       startTime: formStartTime,
       endTime: formEndTime,
       notes: notesStr || undefined,
-      color: POSITION_CONFIG[posKey]?.color || staffColorMap[formStaffId] || undefined,
+      color: staffColorMap[formStaffId] || undefined,
     });
   };
 
@@ -449,16 +446,18 @@ export default function StaffSchedule() {
                 <div className="divide-y">
                   {cnSchedules.map((s) => {
                     const notes = s.notes || "";
-                    const hasPosition = notes.match(/\[(运营|商务|现场)\]/);
                     const hasShift = notes.match(/\[(早班|晚班)\]/);
                     const hasFollow = notes.includes("[跟播]");
                     const anchorMatch = notes.match(/\[主播:(.+?)\]/);
                     const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|跟播)\]/g, "").replace(/\[主播:.+?\]/g, "").trim();
-                    const posColor = hasPosition?.[1] === "运营" ? "bg-blue-500" : hasPosition?.[1] === "商务" ? "bg-orange-500" : hasPosition?.[1] === "现场" ? "bg-green-500" : "";
+                    // Derive position from staff's HR department
+                    const dept = s.department || "";
+                    const posKey = getDeptPositionKey(dept);
+                    const posConfig = POSITION_CONFIG[posKey];
                     return (
                       <div key={s.id} className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors">
-                        {/* Position dot */}
-                        <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", posColor || "bg-gray-300")} />
+                        {/* Position dot from HR department */}
+                        <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", posConfig?.dotColor || "bg-gray-300")} />
                         <div
                           className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ml-2"
                           style={{ backgroundColor: s.color || staffColorMap[s.staffId] || '#999' }}
@@ -467,7 +466,7 @@ export default function StaffSchedule() {
                         </div>
                         <div className="ml-3 flex-1 min-w-0">
                           <div className="text-sm font-medium text-gray-900 truncate">
-                            {hasPosition && <span className="text-xs text-gray-500">{hasPosition[1]} | </span>}
+                            {s.department && <span className="text-xs text-gray-500">{s.department} | </span>}
                             {s.staffName}
                           </div>
                           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
@@ -516,16 +515,18 @@ export default function StaffSchedule() {
                 <div className="divide-y">
                   {jpSchedules.map((s) => {
                     const notes = s.notes || "";
-                    const hasPosition = notes.match(/\[(运营|商务|现场)\]/);
                     const hasShift = notes.match(/\[(早班|晚班)\]/);
                     const hasFollow = notes.includes("[跟播]");
                     const anchorMatch = notes.match(/\[主播:(.+?)\]/);
                     const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|跟播)\]/g, "").replace(/\[主播:.+?\]/g, "").trim();
-                    const posColor = hasPosition?.[1] === "运营" ? "bg-blue-500" : hasPosition?.[1] === "商务" ? "bg-orange-500" : hasPosition?.[1] === "现场" ? "bg-green-500" : "";
+                    // Derive position from staff's HR department
+                    const dept = s.department || "";
+                    const posKey = getDeptPositionKey(dept);
+                    const posConfig = POSITION_CONFIG[posKey];
                     return (
                       <div key={s.id} className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors">
-                        {/* Position dot */}
-                        <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", posColor || "bg-gray-300")} />
+                        {/* Position dot from HR department */}
+                        <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", posConfig?.dotColor || "bg-gray-300")} />
                         <div
                           className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ml-2"
                           style={{ backgroundColor: s.color || staffColorMap[s.staffId] || '#999' }}
@@ -534,7 +535,7 @@ export default function StaffSchedule() {
                         </div>
                         <div className="ml-3 flex-1 min-w-0">
                           <div className="text-sm font-medium text-gray-900 truncate">
-                            {hasPosition && <span className="text-xs text-gray-500">{hasPosition[1]} | </span>}
+                            {s.department && <span className="text-xs text-gray-500">{s.department} | </span>}
                             {s.staffName}
                           </div>
                           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
@@ -613,21 +614,6 @@ export default function StaffSchedule() {
                 {formShift === "morning" ? "早班 09:00-18:00" : "晚班 15:00-23:00"}
               </p>
             </div>
-
-            {/* Position display - auto-derived from selected staff's department */}
-            {formStaffId && (() => {
-              const selectedStaff = staffList?.find((s: any) => s.id === formStaffId);
-              const dept = selectedStaff?.department || "";
-              const posKey = getDeptPositionKey(dept);
-              const posConfig = POSITION_CONFIG[posKey];
-              return (
-                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-md">
-                  <span className={cn("w-3 h-3 rounded-full", posConfig?.dotColor || "bg-gray-400")} />
-                  <span className="text-sm font-medium">岗位: {posConfig?.label || dept || "未设定"}</span>
-                  {dept && <span className="text-xs text-gray-400">({dept})</span>}
-                </div>
-              );
-            })()}
 
             {/* Follow Broadcast toggle */}
             <div className="flex items-center gap-2">
