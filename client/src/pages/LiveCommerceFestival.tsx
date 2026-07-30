@@ -656,7 +656,7 @@ function SpecialLiversSection() {
       name: '超無課金',
       photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/VGjENlPPGvMTMRys.png',
       title: '起業家・インフルエンサー',
-      bio: 'SNS総フォロワー数1,000万人超のインフルエンサーであり、is N\'eat（イズニート）の代表。多くのトップライバーを抱え、自身もTikTokのトップライバーとして活動する傍ら、「TikTok Shop」などのライブコマースを活用し、多方面で活躍している。',
+      bio: 'TikTok LIVEで活躍するトップライバー・プロデューサー。卓越した配信力と企画力を武器に、多くのファンを獲得。ライバー事務所「is N\'eat」の代表として、次世代クリエイターの育成にも力を注いでいる。',
     },
     {
       name: '齋藤 鷹一',
