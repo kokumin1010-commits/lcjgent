@@ -209,4 +209,32 @@ export const userManagementRouter = router({
       await db.delete(users).where(eq(users.id, input.userId));
       return { success: true };
     }),
+
+  // Batch sync all staff user names from HR table
+  syncNames: adminProcedure.mutation(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+    // Get all staff records
+    const allStaff = await db.select({
+      email: staff.email,
+      name: staff.name,
+    }).from(staff);
+
+    // Get all users
+    const allUsers = await db.select().from(users);
+
+    let updatedCount = 0;
+    for (const staffRecord of allStaff) {
+      if (!staffRecord.name) continue;
+      // Find matching user by email
+      const matchingUser = allUsers.find(u => u.email.toLowerCase() === staffRecord.email.toLowerCase());
+      if (matchingUser && matchingUser.name !== staffRecord.name) {
+        await db.update(users).set({ name: staffRecord.name }).where(eq(users.id, matchingUser.id));
+        updatedCount++;
+      }
+    }
+
+    return { success: true, updatedCount };
+  }),
 });

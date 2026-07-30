@@ -46,14 +46,13 @@ export const authRouter = router({
 
       const hashedPassword = await bcrypt.hash(input.password, SALT_ROUNDS);
 
-      // スタッフは自動的にadminロールで登録
+            // スタッフは自動的にadminロールで登録、名前はHR表の名前を強制使用
       await createUser({
         email: input.email,
         password: hashedPassword,
-        name: input.name || staffMember.name,
+        name: staffMember.name,
         role: "admin",
       });
-
       return { success: true, staffName: staffMember.name };
     }),
 
@@ -83,24 +82,34 @@ export const authRouter = router({
 
       await updateUserLastSignedIn(user.id);
 
-      // Auto-promote to admin if user is in staff table
-      if (user.role !== 'admin') {
-        try {
-          const activeStaff = await getActiveStaff();
-          const isStaffMember = activeStaff.some(
-            (s: any) => s.email.toLowerCase() === input.email.toLowerCase()
-          );
-          if (isStaffMember) {
-            const db = await getDb();
-            if (db) {
-              await db.update(users).set({ role: 'admin' }).where(eq(users.id, user.id));
+      // Auto-promote to admin and sync name from HR table on login
+      try {
+        const activeStaff = await getActiveStaff();
+        const staffMemberLogin = activeStaff.find(
+          (s: any) => s.email && s.email.toLowerCase() === input.email.toLowerCase()
+        );
+        if (staffMemberLogin) {
+          const db = await getDb();
+          if (db) {
+            const updates: any = {};
+            if (user.role !== 'admin') {
+              updates.role = 'admin';
               user.role = 'admin' as any;
               console.log(`[Auth] Auto-promoted staff member to admin: ${input.email}`);
             }
+            // Sync name from HR table (force override)
+            if (staffMemberLogin.name && user.name !== staffMemberLogin.name) {
+              updates.name = staffMemberLogin.name;
+              user.name = staffMemberLogin.name;
+              console.log(`[Auth] Synced staff name: ${input.email} -> ${staffMemberLogin.name}`);
+            }
+            if (Object.keys(updates).length > 0) {
+              await db.update(users).set(updates).where(eq(users.id, user.id));
+            }
           }
-        } catch (e) {
-          console.error('[Auth] Failed to check staff auto-promote:', e);
         }
+      } catch (e) {
+        console.error('[Auth] Failed to check staff auto-promote/name-sync:', e);
       }
 
       // Create JWT token (10 years expiration for persistent login)
@@ -133,24 +142,33 @@ export const authRouter = router({
   me: publicProcedure.query(async ({ ctx }) => {
     if (!ctx.user) return null;
     
-    // Auto-promote to admin if user is in staff table (same logic as login)
-    if (ctx.user.role !== 'admin') {
-      try {
-        const activeStaff = await getActiveStaff();
-        const isStaffMember = activeStaff.some(
-          (s: any) => s.email && ctx.user!.email && s.email.toLowerCase() === ctx.user!.email.toLowerCase()
-        );
-        if (isStaffMember) {
-          const db = await getDb();
-          if (db) {
-            await db.update(users).set({ role: 'admin' }).where(eq(users.id, ctx.user.id));
+    // Auto-promote to admin and sync name from HR table
+    try {
+      const activeStaff = await getActiveStaff();
+      const staffMemberMe = activeStaff.find(
+        (s: any) => s.email && ctx.user!.email && s.email.toLowerCase() === ctx.user!.email.toLowerCase()
+      );
+      if (staffMemberMe) {
+        const db = await getDb();
+        if (db) {
+          const updates: any = {};
+          if (ctx.user.role !== 'admin') {
+            updates.role = 'admin';
             ctx.user.role = 'admin' as any;
             console.log(`[Auth] Auto-promoted staff member to admin via me endpoint: ${ctx.user.email}`);
           }
+          // Sync name from HR table
+          if (staffMemberMe.name && ctx.user.name !== staffMemberMe.name) {
+            updates.name = staffMemberMe.name;
+            ctx.user.name = staffMemberMe.name;
+          }
+          if (Object.keys(updates).length > 0) {
+            await db.update(users).set(updates).where(eq(users.id, ctx.user.id));
+          }
         }
-      } catch (e) {
-        console.error('[Auth] Failed to check staff auto-promote in me:', e);
       }
+    } catch (e) {
+      console.error('[Auth] Failed to check staff auto-promote/name-sync in me:', e);
     }
     
     return ctx.user;

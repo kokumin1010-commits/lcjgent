@@ -216,6 +216,16 @@ export default function SystemUserManagement() {
     },
   });
 
+  const syncNamesMutation = trpc.userManagement.syncNames.useMutation({
+    onSuccess: (data) => {
+      toast.success(language === "zh" ? `名前同歩完成，更新了 ${data.updatedCount} 个账号` : `名前同期完了、${data.updatedCount}件更新`);
+      utils.userManagement.list.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message || t.error);
+    },
+  });
+
   const handleConfirm = () => {
     if (!confirmAction) return;
     switch (confirmAction.type) {
@@ -265,10 +275,16 @@ export default function SystemUserManagement() {
           </h1>
           <p className="text-muted-foreground text-sm mt-1">{t.subtitle}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4 mr-1" />
-          {t.refresh}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => syncNamesMutation.mutate()} disabled={syncNamesMutation.isPending}>
+            <UserCheck className="h-4 w-4 mr-1" />
+            {language === "zh" ? "同步HR姓名" : "HR名前同期"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-1" />
+            {t.refresh}
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
