@@ -758,6 +758,7 @@ import { festivalRouter } from "./festivalRouter";
 import { festivalAuthRouter } from "./festivalAuthRouter";
 import { productLabRouter } from "./productLabRouter";
 import { pollRouter } from "./pollRouter";
+import { issueTrackerRouter } from "./issueTrackerRouter";
 import { kgStrategyRouter } from "./kgStrategyRouter";
 import { adDashboardRouter } from "./adDashboardRouter";
 import { svmRouter } from "./svmRouter";
@@ -28617,6 +28618,7 @@ JSON配列のみを出力してください。`;
   kgStrategy: kgStrategyRouter,
   account: accountRouter,
   poll: pollRouter,
+  issueTracker: issueTrackerRouter,
 
   // 配信中リアルタイム記録
   csvSnapshot: csvSnapshotRouter,

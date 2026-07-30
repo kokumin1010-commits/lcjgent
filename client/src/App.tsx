@@ -168,6 +168,7 @@ const FestivalAdmin = lazy(() => import("./pages/FestivalAdmin"));
 const ProductLab = lazy(() => import("./pages/ProductLab"));
 const SelectionCenter = lazy(() => import("./pages/SelectionCenter"));
 const StaffSchedule = lazy(() => import("./pages/StaffSchedule"));
+const IssueTracker = lazy(() => import("./pages/IssueTracker"));
 const AccountManagement = lazy(() => import("./pages/AccountManagement"));
 const BarcodeScanner = lazy(() => import("./pages/BarcodeScanner"));
 const ProductGranenzyme = lazy(() => import("./pages/ProductGranenzyme"));
@@ -272,7 +273,12 @@ function Router() {
             <StaffManagement />
           </DashboardLayout>
         </Route>
-        <Route path={"/master/control"}>
+        <Route path={"/master/issues"}>
+          <DashboardLayout>
+            <IssueTracker />
+          </DashboardLayout>
+        </Route>
+        <Route path={"master/control"}>
           <DashboardLayout>
             <MasterControl />
           </DashboardLayout>
