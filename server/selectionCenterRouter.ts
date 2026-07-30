@@ -1548,15 +1548,32 @@ export const selectionCenterRouter = router({
         updates.push('qtyPerOrder = ?');
         params.push(input.qtyPerOrder);
       }
+      // Recalculate quantity (採購数) when qtyPerOrder changes: quantity = (pendingPaymentQty + pendingShipQty) * qtyPerOrder
+      if (input.qtyPerOrder !== undefined) {
+        const [current2] = await pool.query(
+          'SELECT pendingPaymentQty, pendingShipQty FROM procurement_orders WHERE id = ?',
+          [input.id]
+        ) as any;
+        if (current2.length > 0) {
+          const newQty = (Number(current2[0].pendingPaymentQty || 0) + Number(current2[0].pendingShipQty || 0)) * input.qtyPerOrder;
+          updates.push('quantity = ?');
+          params.push(newQty);
+        }
+      }
       // Recalculate totalCost if quantity or unitCost changed
-      if (input.quantity !== undefined || input.unitCost !== undefined) {
+      if (input.quantity !== undefined || input.unitCost !== undefined || input.qtyPerOrder !== undefined) {
         // Fetch current values
         const [current] = await pool.query(
-          'SELECT quantity, unitCost FROM procurement_orders WHERE id = ?',
+          'SELECT quantity, unitCost, pendingPaymentQty, pendingShipQty, qtyPerOrder FROM procurement_orders WHERE id = ?',
           [input.id]
         ) as any;
         if (current.length > 0) {
-          const qty = input.quantity ?? current[0].quantity;
+          let qty: number;
+          if (input.qtyPerOrder !== undefined) {
+            qty = (Number(current[0].pendingPaymentQty || 0) + Number(current[0].pendingShipQty || 0)) * input.qtyPerOrder;
+          } else {
+            qty = input.quantity ?? Number(current[0].quantity);
+          }
           const cost = input.unitCost ?? Number(current[0].unitCost);
           updates.push('totalCost = ?');
           params.push(qty * cost);
