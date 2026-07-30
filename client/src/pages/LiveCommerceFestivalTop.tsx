@@ -10,7 +10,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 // ★ メンテナンスモード: trueの場合「準備中」ページを表示
-const MAINTENANCE_MODE = true;
+const MAINTENANCE_MODE = false;
 
 // Asset URLs (CDN)
 const LOGO_URL = 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ZjvFdcWckPHcZxCi.png';

@@ -35,7 +35,7 @@ const IMAGES = {
   happoBanquet: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/KzjrGXFLoNuYbLAY.jpg",
   happoGarden: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/yWeAfLGtjSSQDDwS.jpg",
   // 出演者写真
-  tsubame: "/speakers/tsubame.webp",
+
   kyogokuRyu: "/speakers/kyogoku-ryu.webp",
   yun: "/manus-storage/yun-guest_35b1a386.webp",
 };
@@ -433,15 +433,7 @@ function SpeakersSection() {
       image: IMAGES.kyogokuRyu,
       hasPhoto: true,
     },
-    { 
-      name: "燕", 
-      title: "トップコマースライバー", 
-      stat: "TikTokフォロワー", 
-      statValue: "50", 
-      statUnit: "万人",
-      image: IMAGES.tsubame,
-      hasPhoto: true,
-    },
+
     { 
       name: "プリンスこうや", 
       title: "株式会社MOB 取締役", 
