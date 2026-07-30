@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Clock, User, Users, Search, Filter } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Clock, User, Users, Search, Filter, BarChart3 } from "lucide-react";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
@@ -53,6 +53,11 @@ export default function StaffSchedule() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterFollowBroadcast, setFilterFollowBroadcast] = useState(false);
   const [filterShift, setFilterShift] = useState<string>("all"); // "all" | "morning" | "evening"
+  const [showStatsDialog, setShowStatsDialog] = useState(false);
+  const [statsMonth, setStatsMonth] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() + 1 };
+  });
 
   // Form state
   const [formStaffId, setFormStaffId] = useState<number | null>(null);
@@ -427,6 +432,12 @@ export default function StaffSchedule() {
     return { totalShifts, uniqueStaff: staffSet.size, followCount, morningCount, eveningCount };
   }, [schedules, viewMode, searchQuery, filterFollowBroadcast, filterShift]);
 
+  // Check if a date is in the past (before today JST)
+  const isPastDate = (dateStr: string) => {
+    const scheduleDate = new Date(dateStr).toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+    return scheduleDate < today;
+  };
+
   // Render a single staff entry row
   const renderStaffRow = (s: StaffScheduleEntry) => {
     const notes = s.notes || "";
@@ -467,18 +478,20 @@ export default function StaffSchedule() {
             {s.startTime} - {s.endTime}
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-gray-300 hover:text-red-500 ml-2 shrink-0"
-          onClick={() => {
-            if (confirm("このスケジュールを削除しますか？")) {
-              deleteMutation.mutate({ id: s.id });
-            }
-          }}
-        >
-          <X className="h-3 w-3" />
-        </Button>
+        {!isPastDate(s.date) && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-gray-300 hover:text-red-500 ml-2 shrink-0"
+            onClick={() => {
+              if (confirm("このスケジュールを削除しますか？")) {
+                deleteMutation.mutate({ id: s.id });
+              }
+            }}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        )}
       </div>
     );
   };
@@ -497,6 +510,15 @@ export default function StaffSchedule() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                onClick={() => setShowStatsDialog(true)}
+                size="sm"
+                variant="outline"
+                className="border-green-300 text-green-700 hover:bg-green-50"
+              >
+                <BarChart3 className="h-4 w-4 mr-1" />
+                統計
+              </Button>
               <Button
                 onClick={() => { setShowCreateDialog(true); setFormDates([new Date(selectedDate + 'T12:00:00')]); }}
                 size="sm"
@@ -1005,6 +1027,7 @@ export default function StaffSchedule() {
                     mode="multiple"
                     selected={formDates}
                     onSelect={(dates) => setFormDates(dates || [])}
+                    disabled={{ before: new Date() }}
                   />
                 </PopoverContent>
               </Popover>
@@ -1102,6 +1125,143 @@ export default function StaffSchedule() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Attendance Stats Dialog */}
+      <Dialog open={showStatsDialog} onOpenChange={setShowStatsDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-green-600" />
+              出勤統計
+            </DialogTitle>
+          </DialogHeader>
+          <AttendanceStatsContent
+            year={statsMonth.year}
+            month={statsMonth.month}
+            onChangeMonth={(y, m) => setStatsMonth({ year: y, month: m })}
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// Attendance Stats sub-component
+function AttendanceStatsContent({ year, month, onChangeMonth }: { year: number; month: number; onChangeMonth: (y: number, m: number) => void }) {
+  const { data: stats, isLoading } = trpc.staffSchedule.getAttendanceStats.useQuery({ year, month });
+
+  // Calculate current week number of the month
+  const now = new Date();
+  const currentWeekNum = Math.ceil(now.getDate() / 7);
+  const isCurrentMonth = now.getFullYear() === year && now.getMonth() + 1 === month;
+
+  const goPrevMonth = () => {
+    if (month === 1) onChangeMonth(year - 1, 12);
+    else onChangeMonth(year, month - 1);
+  };
+  const goNextMonth = () => {
+    if (month === 12) onChangeMonth(year + 1, 1);
+    else onChangeMonth(year, month + 1);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Month navigation */}
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" size="icon" onClick={goPrevMonth}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <span className="text-sm font-bold text-gray-700">{year}年{month}月</span>
+        <Button variant="ghost" size="icon" onClick={goNextMonth}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-8 text-gray-400">読み込み中...</div>
+      ) : !stats || stats.length === 0 ? (
+        <div className="text-center py-8 text-gray-400">この月のデータはありません</div>
+      ) : (
+        <>
+          {/* Summary */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-blue-50 rounded-lg p-3 text-center">
+              <div className="text-lg font-bold text-blue-600">{stats.reduce((sum, s) => sum + s.totalDays, 0)}</div>
+              <div className="text-[10px] text-gray-500">月間総シフト</div>
+            </div>
+            <div className="bg-green-50 rounded-lg p-3 text-center">
+              <div className="text-lg font-bold text-green-600">{stats.length}</div>
+              <div className="text-[10px] text-gray-500">出勤スタッフ数</div>
+            </div>
+            <div className="bg-orange-50 rounded-lg p-3 text-center">
+              <div className="text-lg font-bold text-orange-600">{stats.reduce((sum, s) => sum + s.followCount, 0)}</div>
+              <div className="text-[10px] text-gray-500">跟播回数</div>
+            </div>
+          </div>
+
+          {/* Per-person table */}
+          <div className="bg-white rounded-lg border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-gray-50 border-b">
+                  <th className="text-left px-3 py-2 font-medium text-gray-600">スタッフ</th>
+                  <th className="text-center px-2 py-2 font-medium text-gray-600">月計</th>
+                  {isCurrentMonth && (
+                    <th className="text-center px-2 py-2 font-medium text-green-600">今週</th>
+                  )}
+                  <th className="text-center px-2 py-2 font-medium text-blue-600">早班</th>
+                  <th className="text-center px-2 py-2 font-medium text-indigo-600">晚班</th>
+                  <th className="text-center px-2 py-2 font-medium text-orange-600">跟播</th>
+                  <th className="text-center px-2 py-2 font-medium text-gray-500">週別</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {stats.map((s: any) => (
+                  <tr key={s.staffId} className="hover:bg-gray-50">
+                    <td className="px-3 py-2">
+                      <div className="font-medium text-gray-900">{s.staffName}</div>
+                      <div className="text-[10px] text-gray-400">{s.department}</div>
+                    </td>
+                    <td className="text-center px-2 py-2">
+                      <span className="font-bold text-gray-800">{s.totalDays}</span>
+                      <span className="text-gray-400">日</span>
+                    </td>
+                    {isCurrentMonth && (
+                      <td className="text-center px-2 py-2">
+                        <span className="font-bold text-green-700">{s.weeklyBreakdown[currentWeekNum] || 0}</span>
+                        <span className="text-gray-400">日</span>
+                      </td>
+                    )}
+                    <td className="text-center px-2 py-2 text-blue-600 font-medium">{s.morningCount}</td>
+                    <td className="text-center px-2 py-2 text-indigo-600 font-medium">{s.eveningCount}</td>
+                    <td className="text-center px-2 py-2 text-orange-600 font-medium">{s.followCount}</td>
+                    <td className="text-center px-2 py-2">
+                      <div className="flex gap-0.5 justify-center">
+                        {[1, 2, 3, 4, 5].map(w => (
+                          <span
+                            key={w}
+                            className={cn(
+                              "inline-block w-5 h-5 rounded text-[9px] leading-5 text-center",
+                              s.weeklyBreakdown[w]
+                                ? isCurrentMonth && w === currentWeekNum
+                                  ? "bg-green-100 text-green-700 font-bold"
+                                  : "bg-blue-50 text-blue-600"
+                                : "bg-gray-50 text-gray-300"
+                            )}
+                            title={`第${w}週: ${s.weeklyBreakdown[w] || 0}日`}
+                          >
+                            {s.weeklyBreakdown[w] || 0}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

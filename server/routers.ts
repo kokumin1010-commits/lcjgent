@@ -29658,6 +29658,12 @@ JSON形式で推薦順序を返してください。`;
       }))
       .mutation(async ({ input }) => {
         const pool = (await import('./selectionCenterRouter.js')).getPool();
+        // Check if the date is in the past (JST)
+        const todayJST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+        const inputDate = input.date.split(' ')[0]; // handle "2025-01-01" or "2025-01-01 00:00:00"
+        if (inputDate < todayJST) {
+          throw new Error('過去の日付にスケジュールを追加できません');
+        }
         // Ensure table exists
         await pool.query(`
           CREATE TABLE IF NOT EXISTS staff_schedules (
@@ -29690,6 +29696,15 @@ JSON形式で推薦順序を返してください。`;
       }))
       .mutation(async ({ input }) => {
         const pool = (await import('./selectionCenterRouter.js')).getPool();
+        // Check if the schedule date is in the past (JST)
+        const [checkRows] = await pool.query('SELECT date FROM staff_schedules WHERE id = ?', [input.id]) as any;
+        if (checkRows.length > 0) {
+          const scheduleDate = new Date(checkRows[0].date).toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+          const todayJST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+          if (scheduleDate < todayJST) {
+            throw new Error('過去の日付のスケジュールは編集できません');
+          }
+        }
         const updates: string[] = [];
         const values: any[] = [];
         if (input.startTime !== undefined) { updates.push('startTime = ?'); values.push(input.startTime); }
@@ -29708,6 +29723,15 @@ JSON形式で推薦順序を返してください。`;
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         const pool = (await import('./selectionCenterRouter.js')).getPool();
+        // Check if the schedule date is in the past (JST)
+        const [rows] = await pool.query('SELECT date FROM staff_schedules WHERE id = ?', [input.id]) as any;
+        if (rows.length > 0) {
+          const scheduleDate = new Date(rows[0].date).toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+          const todayJST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+          if (scheduleDate < todayJST) {
+            throw new Error('過去の日付のスケジュールは削除できません');
+          }
+        }
         await pool.query('DELETE FROM staff_schedules WHERE id = ?', [input.id]);
         return { success: true };
       }),
@@ -29724,6 +29748,12 @@ JSON形式で推薦順序を返してください。`;
       }))
       .mutation(async ({ input }) => {
         const pool = (await import('./selectionCenterRouter.js')).getPool();
+        // Filter out past dates (JST)
+        const todayJST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+        const validDates = input.dates.filter(d => d.split(' ')[0] >= todayJST);
+        if (validDates.length === 0) {
+          throw new Error('過去の日付にスケジュールを追加できません');
+        }
         // Ensure table exists
         await pool.query(`
           CREATE TABLE IF NOT EXISTS staff_schedules (
@@ -29738,13 +29768,64 @@ JSON形式で推薦順序を返してください。`;
             updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
           )
         `);
-        for (const date of input.dates) {
+        for (const date of validDates) {
           await pool.query(
             `INSERT INTO staff_schedules (staffId, date, startTime, endTime, notes, color) VALUES (?, ?, ?, ?, ?, ?)`,
             [input.staffId, date, input.startTime, input.endTime, input.notes || null, input.color || null]
           );
         }
-        return { success: true, count: input.dates.length };
+        return { success: true, count: validDates.length };
+      }),
+
+    // Get attendance stats for a staff member (monthly/weekly)
+    getAttendanceStats: protectedProcedure
+      .input(z.object({
+        year: z.number(),
+        month: z.number(),
+      }))
+      .query(async ({ input }) => {
+        const pool = (await import('./selectionCenterRouter.js')).getPool();
+        // Get all schedules for the month
+        const startDate = `${input.year}-${String(input.month).padStart(2, '0')}-01`;
+        const lastDay = new Date(input.year, input.month, 0).getDate();
+        const endDate = `${input.year}-${String(input.month).padStart(2, '0')}-${lastDay}`;
+        const [rows] = await pool.query(
+          `SELECT ss.staffId, ss.date, ss.notes, s.name as staffName, s.department, s.country
+           FROM staff_schedules ss
+           JOIN staff s ON ss.staffId = s.id
+           WHERE ss.date >= ? AND ss.date <= ?
+           ORDER BY s.name, ss.date`,
+          [startDate, endDate + ' 23:59:59']
+        );
+        // Aggregate per staff
+        const staffMap: Record<number, { staffId: number; staffName: string; department: string; country: string; totalDays: number; morningCount: number; eveningCount: number; followCount: number; weeklyBreakdown: Record<number, number> }> = {};
+        (rows as any[]).forEach(row => {
+          if (!staffMap[row.staffId]) {
+            staffMap[row.staffId] = {
+              staffId: row.staffId,
+              staffName: row.staffName,
+              department: row.department || '',
+              country: row.country || '',
+              totalDays: 0,
+              morningCount: 0,
+              eveningCount: 0,
+              followCount: 0,
+              weeklyBreakdown: {},
+            };
+          }
+          const entry = staffMap[row.staffId];
+          entry.totalDays++;
+          const notes = row.notes || '';
+          if (notes.includes('[早班]')) entry.morningCount++;
+          if (notes.includes('[晚班]')) entry.eveningCount++;
+          if (notes.includes('[跟播]')) entry.followCount++;
+          // Determine which week of the month (1-5)
+          const dateObj = new Date(row.date);
+          const dayOfMonth = dateObj.getDate();
+          const weekNum = Math.ceil(dayOfMonth / 7);
+          entry.weeklyBreakdown[weekNum] = (entry.weeklyBreakdown[weekNum] || 0) + 1;
+        });
+        return Object.values(staffMap).sort((a, b) => b.totalDays - a.totalDays);
       }),
   }),
 });
