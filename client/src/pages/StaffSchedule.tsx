@@ -481,15 +481,6 @@ export default function StaffSchedule() {
           </div>
         </div>
         <div className="text-right shrink-0">
-          <div className="text-xs font-bold text-gray-600 mb-0.5">
-            {(() => {
-              const wd = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-              const wdColors = ['text-red-500', 'text-gray-600', 'text-gray-600', 'text-gray-600', 'text-gray-600', 'text-gray-600', 'text-blue-500'];
-              const dt = new Date(s.date);
-              const dayIdx = dt.getDay();
-              return <span className={wdColors[dayIdx]}>{dt.getMonth() + 1}/{dt.getDate()} {wd[dayIdx]}</span>;
-            })()}
-          </div>
           <div className="text-xs font-medium text-gray-700 flex items-center gap-1">
             <Clock className="h-3 w-3 text-gray-400" />
             {s.startTime} - {s.endTime}
@@ -744,6 +735,21 @@ export default function StaffSchedule() {
               </div>
             ) : (
               <>
+                {/* Date + Weekday header */}
+                <div className="flex items-center gap-2 mb-2">
+                  {(() => {
+                    const wd = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+                    const wdColors = ['text-red-500', 'text-gray-600', 'text-gray-600', 'text-gray-600', 'text-gray-600', 'text-gray-600', 'text-blue-500'];
+                    const dt = new Date(selectedDate + 'T12:00:00');
+                    const dayIdx = dt.getDay();
+                    return (
+                      <span className={`text-sm font-bold ${wdColors[dayIdx]}`}>
+                        {dt.getMonth() + 1}/{dt.getDate()} {wd[dayIdx]}
+                      </span>
+                    );
+                  })()}
+                </div>
+
                 {/* Summary */}
                 <div className="bg-white rounded-xl border p-4">
                   <div className="flex items-center justify-between mb-3">
