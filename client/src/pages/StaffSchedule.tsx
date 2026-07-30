@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Clock, User, Users, Search, Filter, BarChart3 } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Clock, User, Users, Search, Filter, BarChart3, Download } from "lucide-react";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
@@ -1166,8 +1166,9 @@ export default function StaffSchedule() {
 // Attendance Stats sub-component
 function AttendanceStatsContent({ year, month, onChangeMonth }: { year: number; month: number; onChangeMonth: (y: number, m: number) => void }) {
   const { data: stats, isLoading } = trpc.staffSchedule.getAttendanceStats.useQuery({ year, month });
+  const [filterDept, setFilterDept] = useState<string>("all");
+  const [filterStaff, setFilterStaff] = useState<string>("all");
 
-  // Calculate current week number of the month
   const now = new Date();
   const currentWeekNum = Math.ceil(now.getDate() / 7);
   const isCurrentMonth = now.getFullYear() === year && now.getMonth() + 1 === month;
@@ -1181,103 +1182,132 @@ function AttendanceStatsContent({ year, month, onChangeMonth }: { year: number; 
     else onChangeMonth(year, month + 1);
   };
 
+  // Get unique departments from stats
+  const departments = useMemo(() => {
+    if (!stats) return [];
+    return [...new Set(stats.map((s: any) => s.department).filter(Boolean))].sort();
+  }, [stats]);
+
+  // Filtered data
+  const filteredStats = useMemo(() => {
+    if (!stats) return [];
+    let result = stats as any[];
+    if (filterDept !== "all") result = result.filter(s => s.department === filterDept);
+    if (filterStaff !== "all") result = result.filter(s => String(s.staffId) === filterStaff);
+    return result;
+  }, [stats, filterDept, filterStaff]);
+
+  // CSV export
+  const exportCSV = () => {
+    if (!filteredStats.length) return;
+    const headers = ["名前", "部門", "月計(日)", "今週(日)", "早班", "晚班", "跟播", "W1", "W2", "W3", "W4", "W5"];
+    const rows = filteredStats.map((s: any) => [
+      s.staffName,
+      s.department,
+      s.totalDays,
+      isCurrentMonth ? (s.weeklyBreakdown[currentWeekNum] || 0) : "-",
+      s.morningCount,
+      s.eveningCount,
+      s.followCount,
+      s.weeklyBreakdown[1] || 0,
+      s.weeklyBreakdown[2] || 0,
+      s.weeklyBreakdown[3] || 0,
+      s.weeklyBreakdown[4] || 0,
+      s.weeklyBreakdown[5] || 0,
+    ]);
+    const bom = "\uFEFF";
+    const csv = bom + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `出勤統計_${year}年${month}月.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("CSVをダウンロードしました");
+  };
+
   return (
-    <div className="space-y-4">
-      {/* Month navigation */}
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" size="icon" onClick={goPrevMonth}>
+    <div className="space-y-3">
+      {/* Controls row: month nav + filters + export */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={goPrevMonth}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <span className="text-sm font-bold text-gray-700">{year}年{month}月</span>
-        <Button variant="ghost" size="icon" onClick={goNextMonth}>
+        <span className="text-sm font-bold text-gray-700 min-w-[80px] text-center">{year}年{month}月</span>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={goNextMonth}>
           <ChevronRight className="h-4 w-4" />
+        </Button>
+        <div className="h-4 w-px bg-gray-200 mx-1" />
+        <Select value={filterDept} onValueChange={setFilterDept}>
+          <SelectTrigger className="h-7 w-[100px] text-xs">
+            <SelectValue placeholder="部門" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部門</SelectItem>
+            {departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterStaff} onValueChange={setFilterStaff}>
+          <SelectTrigger className="h-7 w-[120px] text-xs">
+            <SelectValue placeholder="スタッフ" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全員</SelectItem>
+            {(stats || []).map((s: any) => <SelectItem key={s.staffId} value={String(s.staffId)}>{s.staffName}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <div className="flex-1" />
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={exportCSV} disabled={!filteredStats.length}>
+          <Download className="h-3 w-3" />
+          CSV出力
         </Button>
       </div>
 
       {isLoading ? (
-        <div className="text-center py-8 text-gray-400">読み込み中...</div>
-      ) : !stats || stats.length === 0 ? (
-        <div className="text-center py-8 text-gray-400">この月のデータはありません</div>
+        <div className="text-center py-6 text-gray-400 text-sm">読み込み中...</div>
+      ) : !filteredStats.length ? (
+        <div className="text-center py-6 text-gray-400 text-sm">データなし</div>
       ) : (
-        <>
-          {/* Summary */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="bg-blue-50 rounded-lg p-3 text-center">
-              <div className="text-lg font-bold text-blue-600">{stats.reduce((sum, s) => sum + s.totalDays, 0)}</div>
-              <div className="text-[10px] text-gray-500">月間総シフト</div>
-            </div>
-            <div className="bg-green-50 rounded-lg p-3 text-center">
-              <div className="text-lg font-bold text-green-600">{stats.length}</div>
-              <div className="text-[10px] text-gray-500">出勤スタッフ数</div>
-            </div>
-            <div className="bg-orange-50 rounded-lg p-3 text-center">
-              <div className="text-lg font-bold text-orange-600">{stats.reduce((sum, s) => sum + s.followCount, 0)}</div>
-              <div className="text-[10px] text-gray-500">跟播回数</div>
-            </div>
-          </div>
-
-          {/* Per-person table */}
-          <div className="bg-white rounded-lg border overflow-hidden">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-3 py-2 font-medium text-gray-600">スタッフ</th>
-                  <th className="text-center px-2 py-2 font-medium text-gray-600">月計</th>
-                  {isCurrentMonth && (
-                    <th className="text-center px-2 py-2 font-medium text-green-600">今週</th>
-                  )}
-                  <th className="text-center px-2 py-2 font-medium text-blue-600">早班</th>
-                  <th className="text-center px-2 py-2 font-medium text-indigo-600">晚班</th>
-                  <th className="text-center px-2 py-2 font-medium text-orange-600">跟播</th>
-                  <th className="text-center px-2 py-2 font-medium text-gray-500">週別</th>
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-gray-50 border-b text-gray-500">
+                <th className="text-left px-3 py-1.5 font-medium">名前</th>
+                <th className="text-left px-2 py-1.5 font-medium">部門</th>
+                <th className="text-center px-2 py-1.5 font-medium">月計</th>
+                {isCurrentMonth && <th className="text-center px-2 py-1.5 font-medium text-green-600">今週</th>}
+                <th className="text-center px-2 py-1.5 font-medium">早班</th>
+                <th className="text-center px-2 py-1.5 font-medium">晚班</th>
+                <th className="text-center px-2 py-1.5 font-medium">跟播</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filteredStats.map((s: any) => (
+                <tr key={s.staffId} className="hover:bg-gray-50">
+                  <td className="px-3 py-1.5 font-medium text-gray-900">{s.staffName}</td>
+                  <td className="px-2 py-1.5 text-gray-500">{s.department}</td>
+                  <td className="text-center px-2 py-1.5 font-bold">{s.totalDays}</td>
+                  {isCurrentMonth && <td className="text-center px-2 py-1.5 font-bold text-green-700">{s.weeklyBreakdown[currentWeekNum] || 0}</td>}
+                  <td className="text-center px-2 py-1.5 text-blue-600">{s.morningCount}</td>
+                  <td className="text-center px-2 py-1.5 text-indigo-600">{s.eveningCount}</td>
+                  <td className="text-center px-2 py-1.5 text-orange-600">{s.followCount}</td>
                 </tr>
-              </thead>
-              <tbody className="divide-y">
-                {stats.map((s: any) => (
-                  <tr key={s.staffId} className="hover:bg-gray-50">
-                    <td className="px-3 py-2">
-                      <div className="font-medium text-gray-900">{s.staffName}</div>
-                      <div className="text-[10px] text-gray-400">{s.department}</div>
-                    </td>
-                    <td className="text-center px-2 py-2">
-                      <span className="font-bold text-gray-800">{s.totalDays}</span>
-                      <span className="text-gray-400">日</span>
-                    </td>
-                    {isCurrentMonth && (
-                      <td className="text-center px-2 py-2">
-                        <span className="font-bold text-green-700">{s.weeklyBreakdown[currentWeekNum] || 0}</span>
-                        <span className="text-gray-400">日</span>
-                      </td>
-                    )}
-                    <td className="text-center px-2 py-2 text-blue-600 font-medium">{s.morningCount}</td>
-                    <td className="text-center px-2 py-2 text-indigo-600 font-medium">{s.eveningCount}</td>
-                    <td className="text-center px-2 py-2 text-orange-600 font-medium">{s.followCount}</td>
-                    <td className="text-center px-2 py-2">
-                      <div className="flex gap-0.5 justify-center">
-                        {[1, 2, 3, 4, 5].map(w => (
-                          <span
-                            key={w}
-                            className={cn(
-                              "inline-block w-5 h-5 rounded text-[9px] leading-5 text-center",
-                              s.weeklyBreakdown[w]
-                                ? isCurrentMonth && w === currentWeekNum
-                                  ? "bg-green-100 text-green-700 font-bold"
-                                  : "bg-blue-50 text-blue-600"
-                                : "bg-gray-50 text-gray-300"
-                            )}
-                            title={`第${w}週: ${s.weeklyBreakdown[w] || 0}日`}
-                          >
-                            {s.weeklyBreakdown[w] || 0}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-gray-50 border-t font-medium text-gray-700">
+                <td className="px-3 py-1.5">合計 ({filteredStats.length}名)</td>
+                <td className="px-2 py-1.5"></td>
+                <td className="text-center px-2 py-1.5">{filteredStats.reduce((sum: number, s: any) => sum + s.totalDays, 0)}</td>
+                {isCurrentMonth && <td className="text-center px-2 py-1.5 text-green-700">{filteredStats.reduce((sum: number, s: any) => sum + (s.weeklyBreakdown[currentWeekNum] || 0), 0)}</td>}
+                <td className="text-center px-2 py-1.5 text-blue-600">{filteredStats.reduce((sum: number, s: any) => sum + s.morningCount, 0)}</td>
+                <td className="text-center px-2 py-1.5 text-indigo-600">{filteredStats.reduce((sum: number, s: any) => sum + s.eveningCount, 0)}</td>
+                <td className="text-center px-2 py-1.5 text-orange-600">{filteredStats.reduce((sum: number, s: any) => sum + s.followCount, 0)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       )}
     </div>
   );
