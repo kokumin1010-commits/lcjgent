@@ -4438,6 +4438,21 @@ function CostManagementContent() {
     onError: (e) => toast.error("删除失败: " + e.message),
   });
 
+  // 原価履歴更新
+  const [editingCostRecord, setEditingCostRecord] = useState<any>(null);
+  const [editCostValue, setEditCostValue] = useState("");
+  const [editEffectiveDate, setEditEffectiveDate] = useState("");
+  const [editMemo, setEditMemo] = useState("");
+
+  const updateCostHistoryMutation = trpc.selectionCenter.updateProductCostHistory.useMutation({
+    onSuccess: () => {
+      toast.success("更新しました");
+      costHistoryQuery.refetch();
+      setEditingCostRecord(null);
+    },
+    onError: (e) => toast.error("更新失败: " + e.message),
+  });
+
   // 発注の原価を更新
   const updateOrderMutation = trpc.selectionCenter.updateProcurementOrder.useMutation({
     onSuccess: () => {
@@ -4588,19 +4603,35 @@ function CostManagementContent() {
                       <td className="p-3 text-right font-bold text-amber-600">¥{Number(c.unitCost).toLocaleString()}</td>
                       <td className="p-3 text-xs text-muted-foreground">{c.memo || '-'}</td>
                       <td className="p-3 text-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => {
-                            if (confirm('确定要删除这条成本记录吗？')) {
-                              deleteCostHistoryMutation.mutate({ id: c.id });
-                            }
-                          }}
-                          title="删除"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => {
+                              setEditingCostRecord(c);
+                              setEditCostValue(String(Number(c.unitCost)));
+                              setEditEffectiveDate(c.effectiveDate ? new Date(c.effectiveDate).toISOString().split('T')[0] : '');
+                              setEditMemo(c.memo || '');
+                            }}
+                            title="编辑"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => {
+                              if (confirm('确定要删除这条成本记录吗？')) {
+                                deleteCostHistoryMutation.mutate({ id: c.id });
+                              }
+                            }}
+                            title="删除"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -4622,7 +4653,64 @@ function CostManagementContent() {
         }}
       />
 
-      {/* 原価編集ダイアログ */}
+      {/* 原価履歴編集ダイアログ */}
+      {editingCostRecord && (
+        <Dialog open={!!editingCostRecord} onOpenChange={(v) => !v && setEditingCostRecord(null)}>
+          <DialogContent className="sm:max-w-[420px]">
+            <DialogHeader>
+              <DialogTitle>編集: {editingCostRecord.productName}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div>
+                <label className="text-sm font-medium">成本（税后）</label>
+                <input
+                  type="number"
+                  className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                  value={editCostValue}
+                  onChange={(e) => setEditCostValue(e.target.value)}
+                  placeholder="例: 2500"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">生效日</label>
+                <input
+                  type="date"
+                  className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                  value={editEffectiveDate}
+                  onChange={(e) => setEditEffectiveDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">备注</label>
+                <input
+                  type="text"
+                  className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                  value={editMemo}
+                  onChange={(e) => setEditMemo(e.target.value)}
+                  placeholder="备注信息"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setEditingCostRecord(null)}>取消</Button>
+              <Button
+                onClick={() => {
+                  updateCostHistoryMutation.mutate({
+                    id: editingCostRecord.id,
+                    unitCost: editCostValue ? Number(editCostValue) : undefined,
+                    effectiveDate: editEffectiveDate || undefined,
+                    memo: editMemo,
+                  });
+                }}
+                disabled={updateCostHistoryMutation.isPending}
+              >
+                {updateCostHistoryMutation.isPending ? '保存中...' : '保存'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* 画像拡大モーダル */}
       {enlargedImage && (
         <div

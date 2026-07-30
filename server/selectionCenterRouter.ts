@@ -2017,6 +2017,41 @@ export const selectionCenterRouter = router({
       return { success: true };
     }),
 
+  // 原価履歴更新
+  updateProductCostHistory: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      unitCost: z.number().min(0).optional(),
+      effectiveDate: z.string().optional(),
+      memo: z.string().optional(),
+      supplier: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const pool = getPool();
+      const updates: string[] = [];
+      const params: any[] = [];
+      if (input.unitCost !== undefined) { updates.push('unitCost = ?'); params.push(input.unitCost); }
+      if (input.effectiveDate !== undefined) { updates.push('effectiveDate = ?'); params.push(input.effectiveDate); }
+      if (input.memo !== undefined) { updates.push('memo = ?'); params.push(input.memo); }
+      if (input.supplier !== undefined) { updates.push('supplier = ?'); params.push(input.supplier); }
+      if (updates.length === 0) return { success: false };
+      params.push(input.id);
+      await pool.query(
+        `UPDATE product_cost_history SET ${updates.join(', ')} WHERE id = ?`,
+        params
+      );
+      // Also update selection_products.purchasePrice if unitCost changed
+      if (input.unitCost !== undefined) {
+        try {
+          const [rows] = await pool.query(`SELECT productId FROM product_cost_history WHERE id = ?`, [input.id]) as any;
+          if (rows.length > 0) {
+            await pool.query(`UPDATE selection_products SET purchasePrice = ? WHERE id = ?`, [input.unitCost, rows[0].productId]);
+          }
+        } catch (e) { /* ignore */ }
+      }
+      return { success: true };
+    }),
+
   // ========== Bundle (套组) Management ==========
   getBundles: protectedProcedure.input(z.object({
     search: z.string().optional(),
