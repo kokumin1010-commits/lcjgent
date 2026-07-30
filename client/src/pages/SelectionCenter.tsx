@@ -43,7 +43,7 @@ function ProductsTab() {
     search: search || undefined,
     status: statusFilter === "all" ? undefined : statusFilter as any,
     page: 1,
-    pageSize: 50,
+    pageSize: 500,
   });
 
   const categoriesQuery = trpc.selectionCenter.getCategories.useQuery();
@@ -1319,7 +1319,7 @@ function SelectionsTab() {
 function SchedulesTab() {
   const { t } = useLanguage();
   const schedulesQuery = trpc.selectionCenter.getSchedules.useQuery();
-  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 200 });
+  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 500 });
   const liversQuery = trpc.selectionCenter.getLivers.useQuery();
   const updateMutation = trpc.selectionCenter.updateSchedule.useMutation({
     onSuccess: () => { schedulesQuery.refetch(); toast.success(t("sc.schedules.updated")); },
@@ -2717,7 +2717,7 @@ function BrandPerformancePanel({ brandName, productName }: { brandName: string; 
 function PollsTab() {
   const { t } = useLanguage();
   const pollsQuery = trpc.poll.list.useQuery();
-  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 200 });
+  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 500 });
   const deleteMutation = trpc.poll.delete.useMutation({
     onSuccess: () => { pollsQuery.refetch(); toast.success(t("sc.polls.delete")); },
   });
@@ -3202,7 +3202,7 @@ function ProcurementTab() {
     status: filterStatus === "all" ? undefined : filterStatus as any,
     year: selectedYear,
     month: selectedMonth,
-    limit: 200,
+    limit: 500,
     offset: 0,
   });
 
@@ -4115,7 +4115,7 @@ function CostManagementContent() {
   // 仕入れ発注データ（原価付き）
   const ordersQuery = trpc.selectionCenter.getProcurementOrders.useQuery({
     brandId: filterBrandId,
-    limit: 200,
+    limit: 500,
     offset: 0,
   });
   const orders = (ordersQuery.data?.orders || []).filter((o: any) => Number(o.unitCost) > 0);
@@ -4432,7 +4432,7 @@ function CostEditForm({ order, onSubmit, onClose, isLoading }: {
 function PendingCostOrders({ filterBrandId, onUpdate }: { filterBrandId?: number; onUpdate: () => void }) {
   const ordersQuery = trpc.selectionCenter.getProcurementOrders.useQuery({
     brandId: filterBrandId,
-    limit: 200,
+    limit: 500,
     offset: 0,
   });
   const pendingOrders = (ordersQuery.data?.orders || []).filter((o: any) => !o.unitCost || Number(o.unitCost) === 0);
