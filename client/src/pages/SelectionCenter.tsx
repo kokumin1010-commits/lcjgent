@@ -3222,6 +3222,8 @@ function ProcurementTab() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [editingQtyOrderId, setEditingQtyOrderId] = useState<number | null>(null);
+  const [editingQtyValue, setEditingQtyValue] = useState<string>("");
   const [fukubukuroDetailOrder, setFukubukuroDetailOrder] = useState<any>(null);
   const [showFukubukuroCreate, setShowFukubukuroCreate] = useState(false);
 
@@ -3487,7 +3489,42 @@ function ProcurementTab() {
                       </td>
                       <td className="p-3 text-center"><span className="text-orange-600 font-medium">{Number(order.pendingPaymentQty || 0)}</span></td>
                       <td className="p-3 text-center"><span className="text-blue-600 font-medium">{Number(order.pendingShipQty || 0)}</span></td>
-                      <td className="p-3 text-center">{Number(order.qtyPerOrder || 1)}</td>
+                      <td className="p-3 text-center">
+                        {editingQtyOrderId === order.id ? (
+                          <input
+                            type="number"
+                            min={1}
+                            className="w-16 text-center border rounded px-1 py-0.5 text-sm"
+                            value={editingQtyValue}
+                            onChange={(e) => setEditingQtyValue(e.target.value)}
+                            onBlur={() => {
+                              const val = parseInt(editingQtyValue);
+                              if (val && val >= 1 && val !== Number(order.qtyPerOrder || 1)) {
+                                updateMutation.mutate({ id: order.id, qtyPerOrder: val });
+                              }
+                              setEditingQtyOrderId(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                (e.target as HTMLInputElement).blur();
+                              } else if (e.key === 'Escape') {
+                                setEditingQtyOrderId(null);
+                              }
+                            }}
+                            autoFocus
+                          />
+                        ) : (
+                          <span
+                            className="cursor-pointer hover:bg-blue-50 hover:text-blue-600 px-2 py-0.5 rounded transition-colors"
+                            onClick={() => {
+                              setEditingQtyOrderId(order.id);
+                              setEditingQtyValue(String(Number(order.qtyPerOrder || 1)));
+                            }}
+                          >
+                            {Number(order.qtyPerOrder || 1)}
+                          </span>
+                        )}
+                      </td>
                       <td className="p-3 text-right font-medium">{Number(order.quantity).toLocaleString()}</td>
                       <td className="p-3 text-center">
                         <Badge className={statusColors[order.status] || "bg-gray-100 text-gray-800"}>

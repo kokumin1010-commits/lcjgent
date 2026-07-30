@@ -1518,6 +1518,7 @@ export const selectionCenterRouter = router({
       status: z.enum(['pending', 'ordered', 'received', 'cancelled']).optional(),
       memo: z.string().optional(),
       orderDate: z.string().optional(),
+      qtyPerOrder: z.number().min(1).optional(),
     }))
     .mutation(async ({ input }) => {
       const pool = getPool();
@@ -1542,6 +1543,10 @@ export const selectionCenterRouter = router({
       if (input.unitCost !== undefined) {
         updates.push('unitCost = ?');
         params.push(input.unitCost);
+      }
+      if (input.qtyPerOrder !== undefined) {
+        updates.push('qtyPerOrder = ?');
+        params.push(input.qtyPerOrder);
       }
       // Recalculate totalCost if quantity or unitCost changed
       if (input.quantity !== undefined || input.unitCost !== undefined) {
