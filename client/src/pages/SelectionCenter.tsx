@@ -36,6 +36,7 @@ function ProductsTab() {
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [brandFilter, setBrandFilter] = useState<string>("all");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editProduct, setEditProduct] = useState<any>(null);
 
@@ -99,6 +100,33 @@ function ProductsTab() {
             <SelectItem value="offline">{t("sc.offline")}</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={brandFilter} onValueChange={setBrandFilter}>
+          <SelectTrigger className="w-[160px]"><SelectValue placeholder="ブランド" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全ブランド</SelectItem>
+            {(() => {
+              const brands = Array.from(new Set((productsQuery.data?.items || []).map((p: any) => p.brandName).filter(Boolean))).sort();
+              return brands.map((b: any) => <SelectItem key={b} value={b}>{b}</SelectItem>);
+            })()}
+          </SelectContent>
+        </Select>
+        <Button variant="outline" onClick={() => {
+          const products = (productsQuery.data?.items || []).filter((p: any) => {
+            if (brandFilter !== 'all' && p.brandName !== brandFilter) return false;
+            return true;
+          });
+          const headers = ['商品名', 'バーコード', 'ブランド', 'カテゴリ', '価格', '佣金', '在庫', 'ステータス'];
+          const rows = products.map((p: any) => [
+            p.productName || '', p.barcode || '', p.brandName || '', p.category || '',
+            p.price || 0, p.commission || 0, p.stock || 0, p.status || ''
+          ]);
+          const csv = '\uFEFF' + [headers.join(','), ...rows.map((r: any[]) => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n');
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url; a.download = `商品一覧_${brandFilter === 'all' ? '全ブランド' : brandFilter}.csv`; a.click();
+          URL.revokeObjectURL(url);
+          toast.success('CSVエクスポート完了');
+        }}><Download className="h-4 w-4 mr-1" />CSV出力</Button>
         <Button onClick={() => setShowCreateDialog(true)}><Plus className="h-4 w-4 mr-1" />{t("sc.addProduct")}</Button>
         <AiRecognitionButton onResult={(data) => { setEditProduct(null); setShowCreateDialog(true); setTimeout(() => { window.__aiProductData = data; window.dispatchEvent(new Event('ai-product-data')); }, 100); }} />
       </div>
@@ -121,7 +149,7 @@ function ProductsTab() {
             </tr>
           </thead>
           <tbody>
-            {productsQuery.data?.items?.map((product: any) => {
+            {productsQuery.data?.items?.filter((product: any) => brandFilter === 'all' || product.brandName === brandFilter).map((product: any) => {
               const category = categoriesQuery.data?.find((c: any) => c.id === product.categoryId);
               return (
                 <tr key={product.id} className="border-t hover:bg-muted/30">
