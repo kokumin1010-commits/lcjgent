@@ -4313,8 +4313,9 @@ function FukubukuroDetailDialog({ order, onClose }: { order: any; onClose: () =>
                       );
                     })()}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{item.productName}</p>
+                      <p className="text-sm font-medium truncate">{item.productName || '(未登録)'}</p>
                       {item.brandName && <p className="text-xs text-muted-foreground">{item.brandName}</p>}
+                      {(!item.productId || item.productId === 0) && <p className="text-xs text-orange-500">未マッチング</p>}
                     </div>
                     {item.price && <span className="text-sm text-muted-foreground">¥{Number(item.price).toLocaleString()}</span>}
                     {item.quantity > 1 && <Badge variant="secondary">×{item.quantity}</Badge>}

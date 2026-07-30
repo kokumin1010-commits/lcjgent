@@ -39,7 +39,8 @@ export function getPool() {
       await pool.query(`CREATE TABLE IF NOT EXISTS bundle_items (
         id INT AUTO_INCREMENT PRIMARY KEY,
         bundleId INT NOT NULL,
-        productId INT NOT NULL,
+        productId INT DEFAULT 0,
+        productName VARCHAR(500) DEFAULT NULL,
         quantity INT DEFAULT 1,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_bundle (bundleId),
@@ -157,7 +158,8 @@ export const selectionCenterRouter = router({
       `CREATE TABLE IF NOT EXISTS bundle_items (
         id INT AUTO_INCREMENT PRIMARY KEY,
         bundleId INT NOT NULL,
-        productId INT NOT NULL,
+        productId INT DEFAULT 0,
+        productName VARCHAR(500) DEFAULT NULL,
         quantity INT DEFAULT 1,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_bundle (bundleId),
@@ -2072,7 +2074,7 @@ export const selectionCenterRouter = router({
     const bundles = [];
     for (const bundle of rows) {
       const [items] = await pool.query(
-        `SELECT bi.*, sp.productName, sp.productNameCn, sp.price, sp.images, sp.brandName, sp.stock as productStock
+        `SELECT bi.*, COALESCE(sp.productName, bi.productName) as productName, sp.productNameCn, sp.price, sp.images, sp.brandName, sp.stock as productStock
          FROM bundle_items bi LEFT JOIN selection_products sp ON bi.productId = sp.id WHERE bi.bundleId = ?`,
         [bundle.id]
       ) as any;
@@ -2086,7 +2088,7 @@ export const selectionCenterRouter = router({
     const [rows] = await pool.query(`SELECT * FROM product_bundles WHERE id = ? AND deletedAt IS NULL`, [input.id]) as any;
     if (!rows[0]) return null;
     const [items] = await pool.query(
-      `SELECT bi.*, sp.productName, sp.productNameCn, sp.price, sp.images, sp.brandName, sp.stock as productStock
+      `SELECT bi.*, COALESCE(sp.productName, bi.productName) as productName, sp.productNameCn, sp.price, sp.images, sp.brandName, sp.stock as productStock
        FROM bundle_items bi LEFT JOIN selection_products sp ON bi.productId = sp.id WHERE bi.bundleId = ?`,
       [input.id]
     ) as any;
@@ -2177,7 +2179,7 @@ export const selectionCenterRouter = router({
     const bundles = [];
     for (const bundle of rows) {
       const [items] = await pool.query(
-        `SELECT bi.*, sp.productName, sp.productNameCn, sp.price, sp.images, sp.brandName
+        `SELECT bi.*, COALESCE(sp.productName, bi.productName) as productName, sp.productNameCn, sp.price, sp.images, sp.brandName
          FROM bundle_items bi LEFT JOIN selection_products sp ON bi.productId = sp.id WHERE bi.bundleId = ?`,
         [bundle.id]
       ) as any;
@@ -2250,14 +2252,15 @@ export const selectionCenterRouter = router({
       ) as any;
       const bundleId = bundleResult.insertId;
 
-      // 3. bundle_items に各商品を登録
+      // 3. bundle_items に各商品を登録（productNameカラムを追加して未登録商品も記録）
+      try {
+        await pool.query(`ALTER TABLE bundle_items ADD COLUMN IF NOT EXISTS productName VARCHAR(500) DEFAULT NULL`);
+      } catch (e) { /* column may already exist */ }
       for (const item of input.items) {
-        if (item.productId) {
-          await pool.query(
-            `INSERT INTO bundle_items (bundleId, productId, quantity) VALUES (?, ?, ?)`,
-            [bundleId, item.productId, item.quantity]
-          );
-        }
+        await pool.query(
+          `INSERT INTO bundle_items (bundleId, productId, quantity, productName) VALUES (?, ?, ?, ?)`,
+          [bundleId, item.productId || 0, item.quantity, item.productName]
+        );
       }
 
       // 4. procurement_order を作成（bundleId付き）
