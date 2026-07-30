@@ -2150,4 +2150,125 @@ export const selectionCenterRouter = router({
     }
     return bundles;
   }),
+
+  // ========== 福袋識別機能 ==========
+  // テキスト解析: 福袋テキストを行ごとに分割し、selection_productsとマッチング
+  parseFukubukuroText: protectedProcedure
+    .input(z.object({ text: z.string() }))
+    .mutation(async ({ input }) => {
+      const pool = getPool();
+      const lines = input.text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      // 1行目が「福袋」なら除外
+      const productLines = lines[0]?.includes('福袋') ? lines.slice(1) : lines;
+      const results: Array<{
+        inputName: string;
+        matched: boolean;
+        product?: { id: number; productName: string; brandId: number; brandName: string; price: number | null; images: string | null };
+      }> = [];
+      for (const name of productLines) {
+        if (!name) continue;
+        // LIKE検索でマッチング
+        const [rows] = await pool.query(
+          `SELECT id, productName, brandId, brandName, price, images FROM selection_products WHERE deletedAt IS NULL AND (productName LIKE ? OR productNameCn LIKE ?) LIMIT 1`,
+          [`%${name}%`, `%${name}%`]
+        ) as any;
+        if (rows.length > 0) {
+          results.push({ inputName: name, matched: true, product: rows[0] });
+        } else {
+          results.push({ inputName: name, matched: false });
+        }
+      }
+      return { items: results, totalLines: productLines.length };
+    }),
+
+  // 福袋発注作成: bundle + bundle_items + procurement_order(bundleId付き)を一括作成
+  createFukubukuroOrder: protectedProcedure
+    .input(z.object({
+      bundleName: z.string(),
+      items: z.array(z.object({
+        productId: z.number().optional(),
+        productName: z.string(),
+        quantity: z.number().default(1),
+      })),
+      orderDate: z.string(),
+      status: z.enum(['pending', 'ordered', 'received', 'cancelled']).default('pending'),
+      memo: z.string().optional(),
+      liveRoom: z.string().optional(),
+      shopName: z.string().optional(),
+      brandId: z.number().optional(),
+      brandName: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = getPool();
+      // 1. bundleIdカラムが存在するか確認・追加
+      try {
+        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS bundleId INT DEFAULT NULL`);
+      } catch (e) { /* column may already exist */ }
+      try {
+        await pool.query(`CREATE INDEX idx_procurement_bundle ON procurement_orders (bundleId)`);
+      } catch (e) { /* index may already exist */ }
+
+      // 2. product_bundles にバンドル作成
+      const [bundleResult] = await pool.query(
+        `INSERT INTO product_bundles (bundleName, description, status, createdBy) VALUES (?, ?, 'draft', ?)`,
+        [input.bundleName, `福袋: ${input.items.length}品`, (ctx.user as any)?.id || 0]
+      ) as any;
+      const bundleId = bundleResult.insertId;
+
+      // 3. bundle_items に各商品を登録
+      for (const item of input.items) {
+        if (item.productId) {
+          await pool.query(
+            `INSERT INTO bundle_items (bundleId, productId, quantity) VALUES (?, ?, ?)`,
+            [bundleId, item.productId, item.quantity]
+          );
+        }
+      }
+
+      // 4. procurement_order を作成（bundleId付き）
+      try {
+        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS liveRoom VARCHAR(100) DEFAULT NULL`);
+        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS shopName VARCHAR(255) DEFAULT NULL`);
+      } catch (e) { /* columns may already exist */ }
+
+      const effectiveBrandId = input.brandId || 0;
+      const effectiveBrandName = input.brandName || '福袋';
+      const totalQty = input.items.reduce((sum, i) => sum + i.quantity, 0);
+
+      const [orderResult] = await pool.query(
+        `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, status, memo, liveRoom, shopName, bundleId, createdBy)
+         VALUES (?, ?, NULL, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          effectiveBrandId,
+          effectiveBrandName,
+          `🎁 ${input.bundleName} (${input.items.length}品)`,
+          totalQty,
+          input.orderDate,
+          input.status,
+          input.memo || null,
+          input.liveRoom || null,
+          input.shopName || null,
+          bundleId,
+          (ctx.user as any)?.id || 0,
+        ]
+      ) as any;
+
+      return { success: true, bundleId, orderId: orderResult.insertId, itemCount: input.items.length };
+    }),
+
+  // 福袋に未登録商品を新規追加
+  addProductForFukubukuro: protectedProcedure
+    .input(z.object({
+      productName: z.string(),
+      brandId: z.number().optional(),
+      brandName: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = getPool();
+      const [result] = await pool.query(
+        `INSERT INTO selection_products (productName, brandId, brandName, status, createdBy) VALUES (?, ?, ?, 'draft', ?)`,
+        [input.productName, input.brandId || null, input.brandName || null, (ctx.user as any)?.id || 0]
+      ) as any;
+      return { id: result.insertId, productName: input.productName, brandId: input.brandId, brandName: input.brandName };
+    }),
 });

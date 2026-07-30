@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock, HelpCircle, Layers } from "lucide-react";
+import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock, HelpCircle, Layers, Gift, AlertTriangle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -3194,6 +3194,8 @@ function ProcurementTab() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [fukubukuroDetailOrder, setFukubukuroDetailOrder] = useState<any>(null);
+  const [showFukubukuroCreate, setShowFukubukuroCreate] = useState(false);
 
   const brandsQuery = trpc.brand.list.useQuery();
 
@@ -3257,6 +3259,16 @@ function ProcurementTab() {
     onError: (e) => toast.error("エラー: " + e.message),
   });
 
+  const fukubukuroCreateMutation = trpc.selectionCenter.createFukubukuroOrder.useMutation({
+    onSuccess: (result) => {
+      toast.success(`福袋発注を作成しました (${result.itemCount}品)`);
+      ordersQuery.refetch();
+      summaryQuery.refetch();
+      setShowFukubukuroCreate(false);
+    },
+    onError: (e) => toast.error("福袋作成エラー: " + e.message),
+  });
+
   const orders = ordersQuery.data?.orders || [];
   const summary = summaryQuery.data;
   const brands = brandsQuery.data || [];
@@ -3302,9 +3314,14 @@ function ProcurementTab() {
           <span className="text-lg font-semibold">{selectedYear}年{selectedMonth}月</span>
           <Button variant="outline" size="sm" onClick={goToNextMonth}>&gt;</Button>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)}>
-          <Plus className="h-4 w-4 mr-1" />新規発注
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setShowCreateDialog(true)}>
+            <Plus className="h-4 w-4 mr-1" />新規発注
+          </Button>
+          <Button variant="outline" onClick={() => setShowFukubukuroCreate(true)} className="border-purple-300 text-purple-700 hover:bg-purple-50">
+            <Gift className="h-4 w-4 mr-1" />福袋発注
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -3417,7 +3434,17 @@ function ProcurementTab() {
                     <tr key={order.id} className="border-b hover:bg-muted/30">
                       <td className="p-3">{order.orderDate ? new Date(order.orderDate).toLocaleDateString('ja-JP') : '-'}</td>
                       <td className="p-3">{order.brandName}</td>
-                      <td className="p-3">{order.productName}</td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-1">
+                          {order.bundleId && <Gift className="h-3.5 w-3.5 text-purple-500 flex-shrink-0" />}
+                          <span className={order.bundleId ? 'text-purple-700 font-medium' : ''}>{order.productName}</span>
+                          {order.bundleId && (
+                            <Button variant="ghost" size="sm" className="h-5 px-1 text-purple-500 hover:text-purple-700" onClick={() => setFukubukuroDetailOrder(order)} title="福袋詳細">
+                              <Eye className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-3 text-center"><span className="text-orange-600 font-medium">{Number(order.pendingPaymentQty || 0)}</span></td>
                       <td className="p-3 text-center"><span className="text-blue-600 font-medium">{Number(order.pendingShipQty || 0)}</span></td>
                       <td className="p-3 text-center">{Number(order.qtyPerOrder || 1)}</td>
@@ -3478,6 +3505,24 @@ function ProcurementTab() {
           onClose={() => setEditingOrder(null)}
           onSubmit={(data) => updateMutation.mutate(data)}
           isLoading={updateMutation.isPending}
+        />
+      )}
+
+      {/* Fukubukuro Create Dialog */}
+      {showFukubukuroCreate && (
+        <FukubukuroCreateDialog
+          open={showFukubukuroCreate}
+          onClose={() => setShowFukubukuroCreate(false)}
+          onSubmit={(data) => fukubukuroCreateMutation.mutate(data)}
+          isLoading={fukubukuroCreateMutation.isPending}
+        />
+      )}
+
+      {/* Fukubukuro Detail Dialog */}
+      {fukubukuroDetailOrder && (
+        <FukubukuroDetailDialog
+          order={fukubukuroDetailOrder}
+          onClose={() => setFukubukuroDetailOrder(null)}
         />
       )}
     </div>
@@ -4035,6 +4080,260 @@ function ProcurementEditDialog({ order, onClose, onSubmit, isLoading }: {
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
             更新
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ==================== Fukubukuro Create Dialog ====================
+function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (data: any) => void;
+  isLoading: boolean;
+}) {
+  const [text, setText] = useState("");
+  const [bundleName, setBundleName] = useState("");
+  const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
+  const [status, setStatus] = useState("pending");
+  const [memo, setMemo] = useState("");
+  const [liveRoom, setLiveRoom] = useState("kg");
+  const [shopName, setShopName] = useState("LCJ店铺");
+  const [parsedItems, setParsedItems] = useState<Array<{ inputName: string; matched: boolean; product?: any }>>([]);
+  const [isParsing, setIsParsing] = useState(false);
+
+  const parseMutation = trpc.selectionCenter.parseFukubukuroText.useMutation({
+    onSuccess: (data) => {
+      setParsedItems(data.items);
+      setIsParsing(false);
+      const matchedCount = data.items.filter(i => i.matched).length;
+      toast.success(`${data.totalLines}行解析: ${matchedCount}件マッチ, ${data.totalLines - matchedCount}件未マッチ`);
+    },
+    onError: (e) => { setIsParsing(false); toast.error("解析エラー: " + e.message); },
+  });
+
+  const handleParse = () => {
+    if (!text.trim()) { toast.error("テキストを入力してください"); return; }
+    setIsParsing(true);
+    parseMutation.mutate({ text: text.trim() });
+  };
+
+  const handleSubmit = () => {
+    if (parsedItems.length === 0) { toast.error("先にテキストを解析してください"); return; }
+    if (!bundleName.trim()) { toast.error("福袋名を入力してください"); return; }
+    onSubmit({
+      bundleName: bundleName.trim(),
+      items: parsedItems.map(item => ({
+        productId: item.product?.id,
+        productName: item.product?.productName || item.inputName,
+        quantity: 1,
+      })),
+      orderDate,
+      status,
+      memo: memo || undefined,
+      liveRoom: liveRoom || undefined,
+      shopName: shopName || undefined,
+      brandId: parsedItems.find(i => i.product?.brandId)?.product?.brandId,
+      brandName: parsedItems.find(i => i.product?.brandName)?.product?.brandName,
+    });
+  };
+
+  useEffect(() => {
+    if (open) {
+      setText(""); setBundleName(""); setParsedItems([]);
+      setOrderDate(new Date().toISOString().split('T')[0]);
+      setStatus("pending"); setMemo(""); setLiveRoom("kg"); setShopName("LCJ店铺");
+    }
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Gift className="h-5 w-5 text-purple-500" />
+            福袋発注作成
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {/* Step 1: Paste text */}
+          <div>
+            <Label className="text-sm font-medium">① 福袋内容を貼り付け（商品名を改行区切り）</Label>
+            <Textarea
+              value={text}
+              onChange={e => setText(e.target.value)}
+              placeholder="例:
+福袋 A
+商品名1
+商品名2
+商品名3"
+              rows={6}
+              className="mt-1 font-mono text-sm"
+            />
+            <Button onClick={handleParse} disabled={isParsing || !text.trim()} className="mt-2" variant="secondary">
+              {isParsing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Search className="h-4 w-4 mr-1" />}
+              商品マッチング実行
+            </Button>
+          </div>
+
+          {/* Step 2: Show parsed results */}
+          {parsedItems.length > 0 && (
+            <div>
+              <Label className="text-sm font-medium">② マッチング結果 ({parsedItems.filter(i => i.matched).length}/{parsedItems.length}件)</Label>
+              <div className="border rounded-md divide-y mt-1 max-h-[250px] overflow-y-auto">
+                {parsedItems.map((item, idx) => (
+                  <div key={idx} className={`flex items-center gap-3 px-3 py-2 ${item.matched ? 'bg-green-50' : 'bg-red-50'}`}>
+                    {item.matched ? (
+                      <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
+                    ) : (
+                      <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm">
+                        <span className="text-muted-foreground">入力:</span> {item.inputName}
+                      </p>
+                      {item.matched && item.product && (
+                        <p className="text-xs text-green-700">
+                          → {item.product.productName} ({item.product.brandName || 'ブランド未設定'})
+                        </p>
+                      )}
+                      {!item.matched && (
+                        <p className="text-xs text-red-600">※ 未登録商品（発注時に自動登録されます）</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Bundle name and order details */}
+          {parsedItems.length > 0 && (
+            <>
+              <div>
+                <Label className="text-sm font-medium">③ 福袋名</Label>
+                <Input value={bundleName} onChange={e => setBundleName(e.target.value)} placeholder="例: 福袋 Aセット" className="mt-1" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>日付</Label>
+                  <Input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} />
+                </div>
+                <div>
+                  <Label>直播间</Label>
+                  <Select value={liveRoom} onValueChange={v => setLiveRoom(v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="kg">kg</SelectItem>
+                      <SelectItem value="shiho">shiho</SelectItem>
+                      <SelectItem value="nana">nana</SelectItem>
+                      <SelectItem value="hazuki">hazuki</SelectItem>
+                      <SelectItem value="商品カード">商品カード</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>店铺名称</Label>
+                  <Input value={shopName} onChange={e => setShopName(e.target.value)} placeholder="LCJ店铺" />
+                </div>
+                <div>
+                  <Label>ステータス</Label>
+                  <Select value={status} onValueChange={v => setStatus(v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">発注待ち</SelectItem>
+                      <SelectItem value="ordered">発注済み</SelectItem>
+                      <SelectItem value="received">入荷済み</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label>メモ</Label>
+                <Textarea value={memo} onChange={e => setMemo(e.target.value)} placeholder="備考を入力..." rows={2} />
+              </div>
+            </>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>キャンセル</Button>
+          <Button onClick={handleSubmit} disabled={isLoading || parsedItems.length === 0 || !bundleName.trim()} className="bg-purple-600 hover:bg-purple-700">
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Gift className="h-4 w-4 mr-1" />}
+            福袋発注作成 ({parsedItems.length}品)
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ==================== Fukubukuro Detail Dialog ====================
+function FukubukuroDetailDialog({ order, onClose }: { order: any; onClose: () => void }) {
+  const bundleQuery = trpc.selectionCenter.getBundleById.useQuery(
+    { id: order.bundleId },
+    { enabled: !!order.bundleId }
+  );
+  const bundle = bundleQuery.data;
+
+  return (
+    <Dialog open={true} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Gift className="h-5 w-5 text-purple-500" />
+            福袋詳細: {order.productName}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          {bundleQuery.isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
+              <span className="ml-2 text-muted-foreground">読み込み中...</span>
+            </div>
+          ) : bundle ? (
+            <>
+              <div className="text-sm text-muted-foreground">
+                バンドル名: <span className="font-medium text-foreground">{bundle.bundleName}</span>
+                {bundle.description && <span className="ml-2">({bundle.description})</span>}
+              </div>
+              <div className="border rounded-md divide-y">
+                {bundle.items?.map((item: any, idx: number) => (
+                  <div key={idx} className="flex items-center gap-3 px-3 py-2">
+                    {(() => {
+                      const imgs = item.images ? (typeof item.images === 'string' ? JSON.parse(item.images) : item.images) : [];
+                      return imgs.length > 0 ? (
+                        <img src={imgs[0]} className="w-8 h-8 rounded object-cover flex-shrink-0 border" />
+                      ) : (
+                        <div className="w-8 h-8 rounded bg-muted flex items-center justify-center flex-shrink-0 border">
+                          <Package className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                      );
+                    })()}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{item.productName}</p>
+                      {item.brandName && <p className="text-xs text-muted-foreground">{item.brandName}</p>}
+                    </div>
+                    {item.price && <span className="text-sm text-muted-foreground">¥{Number(item.price).toLocaleString()}</span>}
+                    {item.quantity > 1 && <Badge variant="secondary">×{item.quantity}</Badge>}
+                  </div>
+                ))}
+              </div>
+              <div className="text-xs text-muted-foreground text-right">
+                合計 {bundle.items?.length || 0} 商品
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-yellow-500" />
+              <p>バンドル情報が見つかりません</p>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>閉じる</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
