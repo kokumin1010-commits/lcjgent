@@ -442,8 +442,8 @@ function SpeakersSection() {
       stat: "TikTok売上", 
       statValue: "8000", 
       statUnit: "万円",
-      image: null,
-      hasPhoto: false,
+      image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/iTHXCXcDGnQWMzkr.webp',
+      hasPhoto: true,
     },
     { 
       name: "JOY", 
