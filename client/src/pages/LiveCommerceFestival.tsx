@@ -196,6 +196,7 @@ export default function LiveCommerceFestival() {
         <HeroSection />
         <SpeakersSection />
         <GuestIntroSection />
+        <SpecialLiversSection />
         <CampaignBanner />
         <StatsSection />
         <LiveHighlightSection />
@@ -606,6 +607,115 @@ function GuestIntroSection() {
                     </a>
                   ))}
                 </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================
+// Special Livers Section — スペシャルライバー紹介
+// ============================================================
+function SpecialLiversSection() {
+  const reveal = useScrollReveal();
+  const livers = [
+    {
+      name: '破天荒夫婦',
+      photo: '/manus-storage/hatenkou_fufu_0c574d32.jpg',
+      title: 'インフルエンサー（総フォロワ数200万人超え）',
+      bio: 'りきやとみやびによる、人気の夫婦クリエイター。妻・みやびさんの破天荒で愛らしいキャラクターと、それを見守る夫・りきやさんの掛け合いが特徴で、日常の笑えるエピソードや家族の様子を発信し、多くのファンから支持されている。最近では、ライブコマースを積極的に取り込んでいる。',
+    },
+    {
+      name: 'かける',
+      photo: '/manus-storage/kakeru_4a2c022e.jpg',
+      title: 'インフルエンサー',
+      bio: 'TikTok歴8年の元カップルチャンネル「かけまる」のかける。2025年10月にTikTokショップアカウント「115SHOP」を設立し、自身もライブコマーサーとして現在活動中。月間1000万GMVを達成し、日本を代表するショップアカウントを目指し奮闘中。',
+    },
+    {
+      name: 'しんたろー',
+      photo: '/manus-storage/shintaro_66609e4d.png',
+      title: 'インフルエンサー',
+      bio: '登録者100万人超えのTikTokやYouTubeで大人気！武道館ライブを目標にアーティストとしても活動し、「シャッフルアイランド」などのリアリティ番組でも話題を集める注目のマルチインフルエンサー。',
+    },
+    {
+      name: '城崎仁',
+      photo: '/manus-storage/kinosaki_jin_e4b052f1.jpg',
+      title: 'インフルエンサー',
+      bio: '元カリスマホストのタレント。QVCなどのテレビ通販やライブコマース番組「城咲商店」で、驚異的な売上を誇る「カリスマ通販王」として活躍中。薬膳やダイエット、コスメ関連の専門資格も多数保持し、商品開発も手がける。',
+    },
+    {
+      name: '百獣のいちか',
+      photo: '/manus-storage/hyakuju_ichika_ce536724.png',
+      title: 'インフルエンサー・ライバー',
+      bio: '17LIVEを中心に活躍するトップライバー・インフルエンサー。2024年には同アプリの「超祭2024」でグランプリを獲得、月間獲得コイン数で世界2位を記録するなど日本一のライバーとして知られ、現在はライブコマース特化の配信事務所「株式会社スマートスタジオ」の代表も務めている。',
+    },
+    {
+      name: '超無課金',
+      photo: '/manus-storage/cho_mukakin_d2009cf9.png',
+      title: '起業家・インフルエンサー',
+      bio: 'SNS総フォロワー数1,000万人超のインフルエンサーであり、is N\'eat（イズニート）の代表。多くのトップライバーを抱え、自身もTikTokのトップライバーとして活動する傍ら、「TikTok Shop」などのライブコマースを活用し、多方面で活躍している。',
+    },
+    {
+      name: '齋藤 鷹一',
+      photo: '/manus-storage/saito_youichi_526c05e4.png',
+      title: 'インフルエンサー・一般社団法人 SPCA Tokyo代表',
+      bio: '犬猫の保護・譲渡活動を中心に、動物と人が共生できる社会の実現を目指し、保護・医療・リハビリ・譲渡まで一貫した支援活動を展開。TikTok Shopでは犬・猫に関する正しい知識を発信。自身が厳選したフードやおやつ、リードなどのペット用品を紹介し、動物と飼い主のより良い暮らしをサポートしている。',
+    },
+    {
+      name: 'toki',
+      photo: '/manus-storage/toki_9da0d6ec.jpg',
+      title: 'ライブコマーサー',
+      bio: 'TikTok Shopを中心にライブコマース事業に従事し、食品・日用品・美容商材など幅広いカテゴリーで販売を担当。数千万円規模のGMV創出にも携わり、商品の魅力を最大限に引き出すライブ配信を得意とする。企業・ブランド・視聴者をつなぐ新しい購買体験の創出を目指し活動している。',
+    },
+    {
+      name: '王明陽（おうめいよう）',
+      photo: '/manus-storage/ou_meiyou_8b2d6143.png',
+      title: 'ライブコマーサー',
+      bio: 'TikTokを教える人。TikTok Shop・ショート動画の最前線で活躍するクリエイター。商品の魅力を分かりやすく伝える発信力を武器に、多くの視聴者を惹きつけるコンテンツを制作。エンタメ性と販売力を兼ね備え、TikTok時代の新たな購買体験を生み出している。',
+    },
+    {
+      name: 'ライコマチャンネル',
+      photo: '/manus-storage/raikoma_channel_f605c382.png',
+      title: 'ライブコマーサー',
+      bio: '美容・ライフスタイルを中心に発信するTikTokクリエイター。親しみやすいトークとリアルな使用感レビューを強みに、視聴者目線で商品の魅力を分かりやすく届けている。ライブ配信では視聴者とのコミュニケーションを大切にしながら、楽しく信頼できるショッピング体験を提供している。',
+    },
+  ];
+
+  return (
+    <section className="bg-[#0a0a0a] py-16 md:py-20 px-4">
+      <div ref={reveal.ref} className={`max-w-6xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        <div className="text-center mb-10">
+          <p className="text-[#FFD700] text-sm font-bold tracking-widest mb-2">SPECIAL LIVERS</p>
+          <h2 className="text-3xl md:text-4xl font-black text-white">スペシャルライバー</h2>
+          <p className="text-gray-400 mt-2 text-sm">ライブコマース界を牽引するトップクリエイターが集結</p>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-5">
+          {livers.map((l, i) => (
+            <div
+              key={i}
+              className="bg-[#1a1a1a] rounded-xl overflow-hidden border border-gray-800 hover:border-[#FFD700]/40 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,215,0,0.1)] group"
+            >
+              {/* Photo */}
+              <div className="aspect-[3/4] relative overflow-hidden">
+                <img
+                  src={l.photo}
+                  alt={l.name}
+                  className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent" />
+                <div className="absolute bottom-2 left-2 right-2">
+                  <h3 className="text-sm md:text-base font-bold text-white drop-shadow-lg leading-tight">{l.name}</h3>
+                  <p className="text-[#FFD700] text-[10px] md:text-xs font-medium mt-0.5 line-clamp-1">{l.title}</p>
+                </div>
+              </div>
+
+              {/* Bio */}
+              <div className="p-3">
+                <p className="text-gray-400 text-[11px] leading-relaxed line-clamp-4">{l.bio}</p>
               </div>
             </div>
           ))}
