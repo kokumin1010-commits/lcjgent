@@ -6508,3 +6508,46 @@ export const referralBonusOffers = mysqlTable("referral_bonus_offers", {
 });
 export type ReferralBonusOffer = typeof referralBonusOffers.$inferSelect;
 export type InsertReferralBonusOffer = typeof referralBonusOffers.$inferInsert;
+
+/**
+ * 朝会記録テーブル
+ * 毎朝の朝会を録音→文字起こし→AI要約して保存
+ */
+export const morningMeetings = mysqlTable("morning_meetings", {
+  id: int("id").autoincrement().primaryKey(),
+  // 日付
+  date: varchar("date", { length: 10 }).notNull(), // YYYY-MM-DD
+  // 録音情報
+  audioUrl: text("audioUrl"), // S3に保存した音声ファイルURL
+  audioKey: varchar("audioKey", { length: 500 }), // S3 key
+  durationSeconds: int("durationSeconds"), // 録音時間（秒）
+  // 文字起こし
+  transcript: text("transcript"), // Whisperによる全文テキスト
+  language: varchar("language", { length: 10 }), // 検出された言語
+  // AI要約
+  summary: json("summary").$type<{
+    overview: string; // 全体サマリー
+    participants: Array<{
+      name: string;
+      todayTask: string; // 今日の最重要タスク
+      supportNeeded?: string; // 必要なサポート
+    }>;
+    actionItems: Array<{
+      person: string;
+      task: string;
+      deadline?: string;
+    }>;
+    cultureRuleRead?: boolean; // 企業文化朗読したか
+  }>(),
+  // ステータス
+  status: varchar("status", { length: 20 }).notNull().default("recording"), // recording, transcribing, summarizing, completed, failed
+  errorMessage: text("errorMessage"), // エラー時のメッセージ
+  // 記録者
+  createdBy: int("createdBy"), // user ID
+  createdByName: varchar("createdByName", { length: 100 }),
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type MorningMeeting = typeof morningMeetings.$inferSelect;
+export type InsertMorningMeeting = typeof morningMeetings.$inferInsert;

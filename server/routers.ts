@@ -17,6 +17,7 @@ import { selectionCenterRouter } from "./selectionCenterRouter";
 import { accountRouter } from "./accountRouter";
 import { isValidEmailForSending, getInvalidEmailReason } from "./emailValidator";
 import { csvSnapshotRouter } from "./csvSnapshotProcedures";
+import { morningMeetingRouter } from "./morningMeetingRouter";
 import {
   createStaff,
   getAllStaff,
@@ -29913,6 +29914,8 @@ JSON形式で推薦順序を返してください。`;
         return { success: true, duplicateGroups: duplicates.length, deletedRecords: deletedCount };
       }),
   }),
+  // 朝会録音・文字起こし・AI要約
+  morningMeeting: morningMeetingRouter,
 });
 export type AppRouter = typeof appRouter;
 

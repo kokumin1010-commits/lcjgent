@@ -33,7 +33,7 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp, ClipboardCheck, Inbox, Coins, Sparkles, Crown, Star, UserX, PartyPopper, FlaskConical, ShoppingBag, KeyRound } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp, ClipboardCheck, Inbox, Coins, Sparkles, Crown, Star, UserX, PartyPopper, FlaskConical, ShoppingBag, KeyRound, Mic } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -130,6 +130,7 @@ function DashboardLayoutContent({
     { icon: MessageCircle, label: "チャット", path: "/master/chat", hasBadge: true, badgeType: "chat" as const },
     { icon: Calendar, label: t("nav.calendar"), path: "/s" },
     { icon: Calendar, label: "スタッフスケジュール", path: "/staff-schedule" },
+    { icon: Mic, label: "朝会録音", path: "/master/morning-meeting" },
     { icon: Video, label: t("nav.livers"), path: "/master/livers" },
     { icon: Zap, label: t("nav.liverCommand") || "ライバー司令塔", path: "/master/livers-dashboard" },
     { icon: Bot, label: "ライバー成長ダッシュボード", path: "/master/ai-coach" },

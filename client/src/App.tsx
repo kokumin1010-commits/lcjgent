@@ -173,6 +173,7 @@ const SystemUserManagement = lazy(() => import("./pages/SystemUserManagement"));
 const AccountManagement = lazy(() => import("./pages/AccountManagement"));
 const BarcodeScanner = lazy(() => import("./pages/BarcodeScanner"));
 const ProductGranenzyme = lazy(() => import("./pages/ProductGranenzyme"));
+const MorningMeeting = lazy(() => import("./pages/MorningMeeting"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -662,6 +663,11 @@ function Router() {
         <Route path="/master/system-users">
           <DashboardLayout>
             <SystemUserManagement />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/morning-meeting">
+          <DashboardLayout>
+            <MorningMeeting />
           </DashboardLayout>
         </Route>
         <Route path="/barcode-scanner" component={BarcodeScanner} />
