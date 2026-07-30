@@ -514,9 +514,17 @@ function CreateIssueDialog({ open, onClose }: { open: boolean; onClose: () => vo
   );
   const utils = trpc.useUtils();
 
-  // Get staff list for assignee
-  const staffQuery = trpc.staff.list.useQuery();
-  const staffList = (staffQuery.data || []) as any[];
+  // Get staff list for assignee (active only, deduplicated)
+  const staffQuery = trpc.staff.listActive.useQuery();
+  const staffList = (() => {
+    const raw = (staffQuery.data || []) as any[];
+    const seen = new Set<string>();
+    return raw.filter((s: any) => {
+      if (!s.name || seen.has(s.name)) return false;
+      seen.add(s.name);
+      return true;
+    });
+  })();
 
   const handleAiSuggest = async () => {
     if (!form.title) return;
@@ -686,8 +694,16 @@ function IssueDetailDialog({ issueId, onClose }: { issueId: number; onClose: () 
   const archiveMutation = trpc.issueTracker.archiveToKnowledge.useMutation();
   const utils = trpc.useUtils();
 
-  const staffQuery = trpc.staff.list.useQuery();
-  const staffList = (staffQuery.data || []) as any[];
+  const staffQuery = trpc.staff.listActive.useQuery();
+  const staffList = (() => {
+    const raw = (staffQuery.data || []) as any[];
+    const seen = new Set<string>();
+    return raw.filter((s: any) => {
+      if (!s.name || seen.has(s.name)) return false;
+      seen.add(s.name);
+      return true;
+    });
+  })();
 
   if (isLoading || !issue) return null;
 
