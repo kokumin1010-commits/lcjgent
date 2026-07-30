@@ -690,7 +690,7 @@ function SpecialLiversSection() {
         <div className="text-center mb-10">
           <p className="text-[#FFD700] text-sm font-bold tracking-widest mb-2">SPECIAL LIVERS</p>
           <h2 className="text-3xl md:text-4xl font-black text-white">スペシャルライバー</h2>
-          <p className="text-gray-400 mt-2 text-sm">ライブコマース界を牽引するトップクリエイターが集結</p>
+
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-5">
@@ -709,7 +709,7 @@ function SpecialLiversSection() {
                 <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent" />
                 <div className="absolute bottom-2 left-2 right-2">
                   <h3 className="text-sm md:text-base font-bold text-white drop-shadow-lg leading-tight">{l.name}</h3>
-                  <p className="text-[#FFD700] text-[10px] md:text-xs font-medium mt-0.5 line-clamp-1">{l.title}</p>
+
                 </div>
               </div>
 
