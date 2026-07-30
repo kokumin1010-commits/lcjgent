@@ -188,18 +188,6 @@ export default function StaffSchedule() {
     onError: (e) => toast.error("エラー: " + e.message),
   });
 
-  const cleanupMutation = trpc.staffSchedule.cleanupDuplicates.useMutation({
-    onSuccess: (data) => {
-      if (data.deletedRecords > 0) {
-        toast.success(`重複${data.deletedRecords}件を削除しました`);
-        refetchSchedules();
-      } else {
-        toast.info("重複データはありません");
-      }
-    },
-    onError: (e) => toast.error("エラー: " + e.message),
-  });
-
   const resetForm = () => {
     setFormStaffId(null);
     setFormDates([new Date(selectedDate + 'T12:00:00')]);
@@ -493,11 +481,13 @@ export default function StaffSchedule() {
           </div>
         </div>
         <div className="text-right shrink-0">
-          <div className="text-[10px] text-gray-400 mb-0.5">
+          <div className="text-xs font-bold text-gray-600 mb-0.5">
             {(() => {
               const wd = ['日', '月', '火', '水', '木', '金', '土'];
+              const wdColors = ['text-red-500', 'text-gray-600', 'text-gray-600', 'text-gray-600', 'text-gray-600', 'text-gray-600', 'text-blue-500'];
               const dt = new Date(s.date);
-              return `${dt.getMonth() + 1}/${dt.getDate()}(${wd[dt.getDay()]})`;
+              const dayIdx = dt.getDay();
+              return <span className={wdColors[dayIdx]}>{dt.getMonth() + 1}/{dt.getDate()}({wd[dayIdx]})</span>;
             })()}
           </div>
           <div className="text-xs font-medium text-gray-700 flex items-center gap-1">
@@ -537,20 +527,6 @@ export default function StaffSchedule() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                onClick={() => {
-                  if (confirm("重複データをクリーンアップしますか？\n（同一人・同一日の重複を削除し、最新のレコードを保持します）")) {
-                    cleanupMutation.mutate();
-                  }
-                }}
-                size="sm"
-                variant="outline"
-                className="border-red-300 text-red-600 hover:bg-red-50"
-                disabled={cleanupMutation.isPending}
-              >
-                <X className="h-4 w-4 mr-1" />
-                重複削除
-              </Button>
               <Button
                 onClick={() => setShowStatsDialog(true)}
                 size="sm"
