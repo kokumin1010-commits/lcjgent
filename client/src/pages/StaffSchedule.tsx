@@ -736,21 +736,6 @@ export default function StaffSchedule() {
               </div>
             ) : (
               <>
-                {/* Date + Weekday header */}
-                <div className="flex items-center gap-2 mb-2">
-                  {(() => {
-                    const wd = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-                    const wdColors = ['text-red-500', 'text-gray-600', 'text-gray-600', 'text-gray-600', 'text-gray-600', 'text-gray-600', 'text-blue-500'];
-                    const dt = new Date(selectedDate + 'T12:00:00');
-                    const dayIdx = dt.getDay();
-                    return (
-                      <span className={`text-sm font-bold ${wdColors[dayIdx]}`}>
-                        {dt.getMonth() + 1}/{dt.getDate()} {wd[dayIdx]}
-                      </span>
-                    );
-                  })()}
-                </div>
-
                 {/* Summary */}
                 <div className="bg-white rounded-xl border p-4">
                   <div className="flex items-center justify-between mb-3">
@@ -841,6 +826,8 @@ export default function StaffSchedule() {
               {weekDates.map((dateKey, i) => {
                 const d = new Date(dateKey + 'T12:00:00');
                 const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
+                const cnWeekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+                const cnWdColors = ['text-gray-500', 'text-gray-500', 'text-gray-500', 'text-gray-500', 'text-gray-500', 'text-blue-500', 'text-red-500'];
                 const daySchedules = getSchedulesForDate(dateKey).sort(sortFollowFirst);
                 const isTodayDate = dateKey === today;
                 const isCollapsed = collapsedDays.has(dateKey);
@@ -863,6 +850,7 @@ export default function StaffSchedule() {
                       <span className={cn("text-sm font-bold", isTodayDate ? "text-blue-700" : "text-gray-700")}>
                         {d.getMonth() + 1}/{d.getDate()}
                       </span>
+                      <span className={cn("text-xs font-medium", isTodayDate ? "text-blue-500" : cnWdColors[i])}>{cnWeekdays[i]}</span>
                       {isTodayDate && <span className="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded">今日</span>}
                       <span className="text-xs text-gray-400 ml-auto">{daySchedules.length}名</span>
                     </div>
