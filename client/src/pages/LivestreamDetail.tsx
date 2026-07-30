@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, CheckCircle, XCircle, Sparkles, Package, User, Megaphone, HelpCircle, Pencil, Trash2, Save, Upload, X, Calendar, Clock, DollarSign, Eye, ShoppingCart, MousePointer, Heart, MessageCircle, Share2, UserPlus, Timer, Users, TrendingUp, FileSpreadsheet, AlertTriangle, Gift, Tag, Percent, Layers, Plus, Check, ChevronsUpDown } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, Sparkles, Package, User, Megaphone, HelpCircle, Pencil, Trash2, Save, Upload, X, Calendar, Clock, DollarSign, Eye, ShoppingCart, MousePointer, Heart, MessageCircle, Share2, UserPlus, Timer, Users, TrendingUp, FileSpreadsheet, AlertTriangle, Gift, Tag, Percent, Layers, Plus, Check, ChevronsUpDown, ClipboardPaste } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -111,6 +111,9 @@ export default function LivestreamDetail() {
   type SetItem = { productName: string; originalPrice: string; quantity: string };
   type SetData = { setName: string; setPrice: string; quantitySold: string; items: SetItem[] };
   const [editSets, setEditSets] = useState<SetData[]>([]);
+  const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
+  const [pasteTargetSetIndex, setPasteTargetSetIndex] = useState<number>(0);
+  const [pasteText, setPasteText] = useState('');
 
   // セット組み保存mutation
   const bulkCreateSetsMutation = trpc.livestreamSets.bulkCreate.useMutation({
@@ -1218,20 +1221,36 @@ export default function LivestreamDetail() {
                                 <Tag className="h-3 w-3" />
                                 セット内商品
                               </Label>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  const newSets = [...editSets];
-                                  newSets[setIndex].items.push({ productName: '', originalPrice: '', quantity: '1' });
-                                  setEditSets(newSets);
-                                }}
-                                className="text-gray-200 hover:text-white text-xs h-6 px-2"
-                              >
-                                <Plus className="h-3 w-3 mr-1" />
-                                商品追加
-                              </Button>
+                              <div className="flex gap-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setPasteTargetSetIndex(setIndex);
+                                    setPasteText('');
+                                    setPasteDialogOpen(true);
+                                  }}
+                                  className="text-purple-400 hover:text-purple-300 text-xs h-6 px-2"
+                                >
+                                  <ClipboardPaste className="h-3 w-3 mr-1" />
+                                  一括貼り付け
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newSets = [...editSets];
+                                    newSets[setIndex].items.push({ productName: '', originalPrice: '', quantity: '1' });
+                                    setEditSets(newSets);
+                                  }}
+                                  className="text-gray-200 hover:text-white text-xs h-6 px-2"
+                                >
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  商品追加
+                                </Button>
+                              </div>
                             </div>
 
                             {set.items.map((item, itemIndex) => (
@@ -2398,6 +2417,96 @@ export default function LivestreamDetail() {
               className="bg-yellow-600 hover:bg-yellow-700 text-white"
             >
               {saveBrandsMutation.isPending ? "保存中..." : "保存"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 一括貼り付けダイアログ */}
+      <Dialog open={pasteDialogOpen} onOpenChange={setPasteDialogOpen}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <ClipboardPaste className="h-4 w-4 text-purple-400" />
+              商品一括貼り付け
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-gray-400">
+              商品名、数量、価格をスペースまたはTabで区切って貼り付けてください。改行で区切ります。
+            </p>
+            <div className="bg-gray-800 rounded p-2 text-xs text-gray-400 font-mono">
+              <div>例: シグネチャーアイマスク　1　1682</div>
+              <div>　　 シグネチャーシャンプー　1　7812</div>
+            </div>
+            <Textarea
+              placeholder="商品名 数量 価格（改行で区切り）"
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              className="bg-gray-800 border-gray-700 text-white min-h-[150px] font-mono text-sm"
+            />
+            {pasteText.trim() && (
+              <div className="text-xs text-gray-400">
+                識別結果: {pasteText.trim().split('\n').filter(l => l.trim()).length} 件の商品
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPasteDialogOpen(false)}
+              className="border-gray-600 text-gray-300"
+            >
+              キャンセル
+            </Button>
+            <Button
+              onClick={() => {
+                if (!pasteText.trim()) return;
+                const lines = pasteText.trim().split('\n').filter(l => l.trim());
+                const newItems: SetItem[] = [];
+                for (const line of lines) {
+                  // Split by tab or multiple spaces
+                  const parts = line.trim().split(/\t+|\s{2,}/);
+                  if (parts.length >= 3) {
+                    // Format: productName quantity price
+                    newItems.push({
+                      productName: parts[0].trim(),
+                      quantity: parts[1].trim() || '1',
+                      originalPrice: parts[2].trim() || '0',
+                    });
+                  } else if (parts.length === 2) {
+                    // Try: productName quantity (no price) or productName price
+                    const second = parts[1].trim();
+                    if (Number(second) > 100) {
+                      // Likely price
+                      newItems.push({ productName: parts[0].trim(), quantity: '1', originalPrice: second });
+                    } else {
+                      // Likely quantity
+                      newItems.push({ productName: parts[0].trim(), quantity: second, originalPrice: '0' });
+                    }
+                  } else if (parts.length === 1 && parts[0].trim()) {
+                    // Just product name
+                    newItems.push({ productName: parts[0].trim(), quantity: '1', originalPrice: '0' });
+                  }
+                }
+                if (newItems.length > 0) {
+                  const newSets = [...editSets];
+                  // Replace empty default items or append
+                  const currentItems = newSets[pasteTargetSetIndex].items;
+                  if (currentItems.length === 1 && !currentItems[0].productName && !currentItems[0].originalPrice) {
+                    newSets[pasteTargetSetIndex].items = newItems;
+                  } else {
+                    newSets[pasteTargetSetIndex].items = [...currentItems, ...newItems];
+                  }
+                  setEditSets(newSets);
+                  setPasteDialogOpen(false);
+                  setPasteText('');
+                }
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+              disabled={!pasteText.trim()}
+            >
+              追加 ({pasteText.trim() ? pasteText.trim().split('\n').filter(l => l.trim()).length : 0}件)
             </Button>
           </DialogFooter>
         </DialogContent>
