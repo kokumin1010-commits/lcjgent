@@ -73,7 +73,7 @@ export const userManagementRouter = router({
           id: u.id,
           email: u.email,
           displayEmail,
-          name: u.name || staffRecord?.name || null,
+          name: staffRecord?.name || u.name || null,
           role: u.role,
           status: isDisabled ? "disabled" as const : "active" as const,
           department: staffRecord?.department || null,
