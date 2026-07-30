@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Clock, User, Users, Search, Filter, BarChart3, Download } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronDown, Plus, X, Clock, User, Users, Search, Filter, BarChart3, Download } from "lucide-react";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
@@ -53,6 +53,7 @@ export default function StaffSchedule() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterFollowBroadcast, setFilterFollowBroadcast] = useState(false);
   const [filterShift, setFilterShift] = useState<string>("all"); // "all" | "morning" | "evening"
+  const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set());
   const [showStatsDialog, setShowStatsDialog] = useState(false);
   const [statsMonth, setStatsMonth] = useState(() => {
     const now = new Date();
@@ -842,9 +843,22 @@ export default function StaffSchedule() {
                 const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
                 const daySchedules = getSchedulesForDate(dateKey).sort(sortFollowFirst);
                 const isTodayDate = dateKey === today;
+                const isCollapsed = collapsedDays.has(dateKey);
+                const toggleCollapse = () => {
+                  setCollapsedDays(prev => {
+                    const next = new Set(prev);
+                    if (next.has(dateKey)) next.delete(dateKey);
+                    else next.add(dateKey);
+                    return next;
+                  });
+                };
                 return (
                   <div key={dateKey} className={cn("bg-white rounded-xl border overflow-hidden", isTodayDate && "ring-2 ring-blue-400")}>
-                    <div className={cn("px-4 py-2 border-b flex items-center gap-2", isTodayDate ? "bg-blue-50" : "bg-gray-50")}>
+                    <div
+                      onClick={toggleCollapse}
+                      className={cn("px-4 py-2 border-b flex items-center gap-2 cursor-pointer select-none hover:bg-gray-100 transition-colors", isTodayDate ? "bg-blue-50 hover:bg-blue-100" : "bg-gray-50")}
+                    >
+                      <ChevronDown className={cn("h-4 w-4 text-gray-400 transition-transform", isCollapsed && "-rotate-90")} />
                       <span className={cn("text-xs font-bold", isTodayDate ? "text-blue-600" : "text-gray-500")}>{weekdays[i]}</span>
                       <span className={cn("text-sm font-bold", isTodayDate ? "text-blue-700" : "text-gray-700")}>
                         {d.getMonth() + 1}/{d.getDate()}
@@ -852,12 +866,14 @@ export default function StaffSchedule() {
                       {isTodayDate && <span className="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded">今日</span>}
                       <span className="text-xs text-gray-400 ml-auto">{daySchedules.length}名</span>
                     </div>
-                    {daySchedules.length > 0 ? (
-                      <div className="divide-y">
-                        {daySchedules.map(renderStaffRow)}
-                      </div>
-                    ) : (
-                      <div className="px-4 py-3 text-xs text-gray-400 text-center">スケジュールなし</div>
+                    {!isCollapsed && (
+                      daySchedules.length > 0 ? (
+                        <div className="divide-y">
+                          {daySchedules.map(renderStaffRow)}
+                        </div>
+                      ) : (
+                        <div className="px-4 py-3 text-xs text-gray-400 text-center">スケジュールなし</div>
+                      )
                     )}
                   </div>
                 );
