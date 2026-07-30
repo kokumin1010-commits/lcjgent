@@ -3269,6 +3269,18 @@ function ProcurementTab() {
     onError: (e) => toast.error("福袋作成エラー: " + e.message),
   });
 
+  const [fukubukuroEditOrder, setFukubukuroEditOrder] = useState<any>(null);
+
+  const fukubukuroUpdateMutation = trpc.selectionCenter.updateFukubukuroOrder.useMutation({
+    onSuccess: (result) => {
+      toast.success(`福袋を更新しました (${result.itemCount}品)`);
+      ordersQuery.refetch();
+      summaryQuery.refetch();
+      setFukubukuroEditOrder(null);
+    },
+    onError: (e) => toast.error("福袋更新エラー: " + e.message),
+  });
+
   const orders = ordersQuery.data?.orders || [];
   const summary = summaryQuery.data;
   const brands = brandsQuery.data || [];
@@ -3466,7 +3478,13 @@ function ProcurementTab() {
                               <CheckCircle className="h-4 w-4 text-green-600" />
                             </Button>
                           )}
-                          <Button variant="ghost" size="sm" onClick={() => setEditingOrder(order)} title="編集">
+                          <Button variant="ghost" size="sm" onClick={() => {
+                            if (order.bundleId) {
+                              setFukubukuroEditOrder(order);
+                            } else {
+                              setEditingOrder(order);
+                            }
+                          }} title="編集">
                             <Edit className="h-4 w-4" />
                           </Button>
                           <Button variant="ghost" size="sm" onClick={() => {
@@ -3523,6 +3541,16 @@ function ProcurementTab() {
         <FukubukuroDetailDialog
           order={fukubukuroDetailOrder}
           onClose={() => setFukubukuroDetailOrder(null)}
+        />
+      )}
+
+      {/* Fukubukuro Edit Dialog */}
+      {fukubukuroEditOrder && (
+        <FukubukuroEditDialog
+          order={fukubukuroEditOrder}
+          onClose={() => setFukubukuroEditOrder(null)}
+          onSubmit={(data) => fukubukuroUpdateMutation.mutate(data)}
+          isLoading={fukubukuroUpdateMutation.isPending}
         />
       )}
     </div>
@@ -4335,6 +4363,229 @@ function FukubukuroDetailDialog({ order, onClose }: { order: any; onClose: () =>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>閉じる</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ==================== Fukubukuro Edit Dialog ====================
+function FukubukuroEditDialog({ order, onClose, onSubmit, isLoading }: {
+  order: any;
+  onClose: () => void;
+  onSubmit: (data: any) => void;
+  isLoading: boolean;
+}) {
+  const bundleQuery = trpc.selectionCenter.getBundleById.useQuery(
+    { id: order.bundleId },
+    { enabled: !!order.bundleId }
+  );
+  const bundle = bundleQuery.data;
+
+  // Items state: each item has { productId, productName, quantity }
+  const [items, setItems] = useState<Array<{ productId?: number; productName: string; quantity: number }>>([]);
+  const [bundleName, setBundleName] = useState("");
+  const [orderDate, setOrderDate] = useState("");
+  const [status, setStatus] = useState("pending");
+  const [memo, setMemo] = useState("");
+  const [liveRoom, setLiveRoom] = useState("");
+  const [shopName, setShopName] = useState("");
+  const [newItemText, setNewItemText] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Initialize from bundle data
+  useEffect(() => {
+    if (bundle) {
+      setBundleName(bundle.bundleName || "");
+      setItems((bundle.items || []).map((item: any) => ({
+        productId: item.productId && item.productId > 0 ? item.productId : undefined,
+        productName: item.productName || '(未登録)',
+        quantity: item.quantity || 1,
+      })));
+    }
+    setOrderDate(order.orderDate ? new Date(order.orderDate).toISOString().split('T')[0] : "");
+    setStatus(order.status || "pending");
+    setMemo(order.memo || "");
+    setLiveRoom(order.liveRoom || "");
+    setShopName(order.shopName || "");
+  }, [bundle, order]);
+
+  const searchMutation = trpc.selectionCenter.searchProductsForProcurement.useMutation({
+    onSuccess: (data) => { setSearchResults(data); setIsSearching(false); },
+    onError: () => { setSearchResults([]); setIsSearching(false); },
+  });
+
+  const handleSearch = () => {
+    if (!newItemText.trim()) return;
+    setIsSearching(true);
+    searchMutation.mutate({ keyword: newItemText.trim() });
+  };
+
+  const addItem = (product?: any) => {
+    if (product) {
+      // Check if already in list
+      if (items.some(i => i.productId === product.id)) {
+        toast.error("この商品は既に追加されています");
+        return;
+      }
+      setItems([...items, { productId: product.id, productName: product.productName, quantity: 1 }]);
+    } else if (newItemText.trim()) {
+      setItems([...items, { productName: newItemText.trim(), quantity: 1 }]);
+    }
+    setNewItemText("");
+    setSearchResults([]);
+  };
+
+  const removeItem = (idx: number) => {
+    setItems(items.filter((_, i) => i !== idx));
+  };
+
+  const handleSubmit = () => {
+    if (items.length === 0) { toast.error("商品を追加してください"); return; }
+    if (!bundleName.trim()) { toast.error("福袋名を入力してください"); return; }
+    onSubmit({
+      orderId: order.id,
+      bundleId: order.bundleId,
+      bundleName: bundleName.trim(),
+      items: items.map(item => ({
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+      })),
+      orderDate,
+      status,
+      memo,
+      liveRoom,
+      shopName,
+      brandName: order.brandName,
+    });
+  };
+
+  return (
+    <Dialog open={true} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Gift className="h-5 w-5 text-purple-500" />
+            福袋編集: {order.productName}
+          </DialogTitle>
+        </DialogHeader>
+
+        {bundleQuery.isLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Bundle name */}
+            <div>
+              <Label>福袋名</Label>
+              <Input value={bundleName} onChange={e => setBundleName(e.target.value)} />
+            </div>
+
+            {/* Items list */}
+            <div>
+              <Label className="text-sm font-medium">商品リスト ({items.length}品)</Label>
+              <div className="border rounded-md divide-y mt-1 max-h-[200px] overflow-y-auto">
+                {items.map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-2 px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm truncate">{item.productName}</p>
+                      {!item.productId && <span className="text-xs text-orange-500">未マッチング</span>}
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => removeItem(idx)} className="text-red-500 h-6 w-6 p-0">
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+                {items.length === 0 && (
+                  <div className="text-center py-4 text-muted-foreground text-sm">商品がありません</div>
+                )}
+              </div>
+            </div>
+
+            {/* Add item */}
+            <div>
+              <Label className="text-sm font-medium">商品を追加</Label>
+              <div className="flex gap-2 mt-1">
+                <Input
+                  value={newItemText}
+                  onChange={e => setNewItemText(e.target.value)}
+                  placeholder="商品名を検索..."
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearch(); } }}
+                />
+                <Button variant="secondary" size="sm" onClick={handleSearch} disabled={isSearching || !newItemText.trim()}>
+                  {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => addItem()} disabled={!newItemText.trim()} title="未登録商品として追加">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {searchResults.length > 0 && (
+                <div className="border rounded-md mt-1 max-h-[150px] overflow-y-auto divide-y">
+                  {searchResults.map((p: any) => (
+                    <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted cursor-pointer" onClick={() => addItem(p)}>
+                      <Plus className="h-3 w-3 text-green-600" />
+                      <span className="text-sm truncate">{p.productName}</span>
+                      {p.brandName && <span className="text-xs text-muted-foreground">({p.brandName})</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Order details */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>日付</Label>
+                <Input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} />
+              </div>
+              <div>
+                <Label>直播间</Label>
+                <Select value={liveRoom} onValueChange={v => setLiveRoom(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="kg">kg</SelectItem>
+                    <SelectItem value="shiho">shiho</SelectItem>
+                    <SelectItem value="nana">nana</SelectItem>
+                    <SelectItem value="hazuki">hazuki</SelectItem>
+                    <SelectItem value="商品カード">商品カード</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>店舗名称</Label>
+                <Input value={shopName} onChange={e => setShopName(e.target.value)} />
+              </div>
+              <div>
+                <Label>ステータス</Label>
+                <Select value={status} onValueChange={v => setStatus(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">発注待ち</SelectItem>
+                    <SelectItem value="ordered">発注済み</SelectItem>
+                    <SelectItem value="received">入荷済み</SelectItem>
+                    <SelectItem value="cancelled">キャンセル</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>メモ</Label>
+              <Textarea value={memo} onChange={e => setMemo(e.target.value)} rows={2} />
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>キャンセル</Button>
+          <Button onClick={handleSubmit} disabled={isLoading || items.length === 0} className="bg-purple-600 hover:bg-purple-700">
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Gift className="h-4 w-4 mr-1" />}
+            福袋更新 ({items.length}品)
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

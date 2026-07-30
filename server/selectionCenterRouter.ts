@@ -2309,4 +2309,61 @@ export const selectionCenterRouter = router({
       ) as any;
       return { id: result.insertId, productName: input.productName, brandId: input.brandId, brandName: input.brandName };
     }),
+
+  // 福袋発注の商品リストを更新
+  updateFukubukuroOrder: protectedProcedure
+    .input(z.object({
+      orderId: z.number(),
+      bundleId: z.number(),
+      bundleName: z.string().optional(),
+      items: z.array(z.object({
+        productId: z.number().optional(),
+        productName: z.string(),
+        quantity: z.number().default(1),
+      })),
+      orderDate: z.string().optional(),
+      status: z.enum(['pending', 'ordered', 'received', 'cancelled']).optional(),
+      memo: z.string().optional(),
+      liveRoom: z.string().optional(),
+      shopName: z.string().optional(),
+      brandName: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const pool = getPool();
+      // 1. bundle_items を全削除して再挿入
+      await pool.query(`DELETE FROM bundle_items WHERE bundleId = ?`, [input.bundleId]);
+      try {
+        await pool.query(`ALTER TABLE bundle_items ADD COLUMN IF NOT EXISTS productName VARCHAR(500) DEFAULT NULL`);
+      } catch (e) { /* column may already exist */ }
+      for (const item of input.items) {
+        await pool.query(
+          `INSERT INTO bundle_items (bundleId, productId, quantity, productName) VALUES (?, ?, ?, ?)`,
+          [input.bundleId, item.productId || 0, item.quantity, item.productName]
+        );
+      }
+
+      // 2. product_bundles のバンドル名を更新
+      if (input.bundleName) {
+        await pool.query(
+          `UPDATE product_bundles SET bundleName = ?, description = ? WHERE id = ?`,
+          [input.bundleName, `福袋: ${input.items.length}品`, input.bundleId]
+        );
+      }
+
+      // 3. procurement_orders を更新
+      const totalQty = input.items.reduce((sum, i) => sum + i.quantity, 0);
+      const productName = `🎁 ${input.bundleName || ''} (${input.items.length}品)`;
+      const updates: string[] = ['productName = ?', 'quantity = ?'];
+      const params: any[] = [productName, totalQty];
+      if (input.orderDate) { updates.push('orderDate = ?'); params.push(input.orderDate); }
+      if (input.status) { updates.push('status = ?'); params.push(input.status); }
+      if (input.memo !== undefined) { updates.push('memo = ?'); params.push(input.memo || null); }
+      if (input.liveRoom !== undefined) { updates.push('liveRoom = ?'); params.push(input.liveRoom || null); }
+      if (input.shopName !== undefined) { updates.push('shopName = ?'); params.push(input.shopName || null); }
+      if (input.brandName !== undefined) { updates.push('brandName = ?'); params.push(input.brandName || null); }
+      params.push(input.orderId);
+      await pool.query(`UPDATE procurement_orders SET ${updates.join(', ')} WHERE id = ?`, params);
+
+      return { success: true, itemCount: input.items.length };
+    }),
 });
