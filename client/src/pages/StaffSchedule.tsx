@@ -188,6 +188,18 @@ export default function StaffSchedule() {
     onError: (e) => toast.error("エラー: " + e.message),
   });
 
+  const cleanupMutation = trpc.staffSchedule.cleanupDuplicates.useMutation({
+    onSuccess: (data) => {
+      if (data.deletedRecords > 0) {
+        toast.success(`重複${data.deletedRecords}件を削除しました`);
+        refetchSchedules();
+      } else {
+        toast.info("重複データはありません");
+      }
+    },
+    onError: (e) => toast.error("エラー: " + e.message),
+  });
+
   const resetForm = () => {
     setFormStaffId(null);
     setFormDates([new Date(selectedDate + 'T12:00:00')]);
@@ -316,13 +328,14 @@ export default function StaffSchedule() {
     const notesStr = [...tags, formNotes].filter(Boolean).join(" ").trim();
     
     setIsSubmitting(true);
-    let successCount = 0;
+    let createdCount = 0;
+    let updatedCount = 0;
     let errorCount = 0;
     
     for (const dateObj of formDates) {
       const dateStr = getJSTDateKey(dateObj);
       try {
-        await createMutation.mutateAsync({
+        const result = await createMutation.mutateAsync({
           staffId: formStaffId,
           date: dateStr,
           startTime: formStartTime,
@@ -330,14 +343,21 @@ export default function StaffSchedule() {
           notes: notesStr || undefined,
           color: staffColorMap[formStaffId] || undefined,
         });
-        successCount++;
+        if ((result as any)?.updated) {
+          updatedCount++;
+        } else {
+          createdCount++;
+        }
       } catch (e) {
         errorCount++;
       }
     }
     
-    if (successCount > 0) {
-      toast.success(`${successCount}件のスケジュールを追加しました`);
+    if (createdCount > 0 || updatedCount > 0) {
+      const msgs: string[] = [];
+      if (createdCount > 0) msgs.push(`${createdCount}件追加`);
+      if (updatedCount > 0) msgs.push(`${updatedCount}件更新`);
+      toast.success(msgs.join('、'));
       refetchSchedules();
     }
     if (errorCount > 0) {
@@ -473,6 +493,13 @@ export default function StaffSchedule() {
           </div>
         </div>
         <div className="text-right shrink-0">
+          <div className="text-[10px] text-gray-400 mb-0.5">
+            {(() => {
+              const wd = ['日', '月', '火', '水', '木', '金', '土'];
+              const dt = new Date(s.date);
+              return `${dt.getMonth() + 1}/${dt.getDate()}(${wd[dt.getDay()]})`;
+            })()}
+          </div>
           <div className="text-xs font-medium text-gray-700 flex items-center gap-1">
             <Clock className="h-3 w-3 text-gray-400" />
             {s.startTime} - {s.endTime}
@@ -510,6 +537,20 @@ export default function StaffSchedule() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                onClick={() => {
+                  if (confirm("重複データをクリーンアップしますか？\n（同一人・同一日の重複を削除し、最新のレコードを保持します）")) {
+                    cleanupMutation.mutate();
+                  }
+                }}
+                size="sm"
+                variant="outline"
+                className="border-red-300 text-red-600 hover:bg-red-50"
+                disabled={cleanupMutation.isPending}
+              >
+                <X className="h-4 w-4 mr-1" />
+                重複削除
+              </Button>
               <Button
                 onClick={() => setShowStatsDialog(true)}
                 size="sm"

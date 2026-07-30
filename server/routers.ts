@@ -29678,11 +29678,24 @@ JSON形式で推薦順序を返してください。`;
             updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
           )
         `);
+        // Check if same staffId + date already exists (upsert: update if exists)
+        const [existing] = await pool.query(
+          `SELECT id FROM staff_schedules WHERE staffId = ? AND DATE(date) = DATE(?)`,
+          [input.staffId, input.date]
+        ) as any;
+        if (existing.length > 0) {
+          // Update existing record
+          await pool.query(
+            `UPDATE staff_schedules SET startTime = ?, endTime = ?, notes = ?, color = ? WHERE id = ?`,
+            [input.startTime, input.endTime, input.notes || null, input.color || null, existing[0].id]
+          );
+          return { id: existing[0].id, updated: true };
+        }
         const [result] = await pool.query(
           `INSERT INTO staff_schedules (staffId, date, startTime, endTime, notes, color) VALUES (?, ?, ?, ?, ?, ?)`,
           [input.staffId, input.date, input.startTime, input.endTime, input.notes || null, input.color || null]
         );
-        return { id: (result as any).insertId };
+        return { id: (result as any).insertId, updated: false };
       }),
 
     // Update a staff schedule
@@ -29768,13 +29781,29 @@ JSON形式で推薦順序を返してください。`;
             updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
           )
         `);
+        let createdCount = 0;
+        let updatedCount = 0;
         for (const date of validDates) {
-          await pool.query(
-            `INSERT INTO staff_schedules (staffId, date, startTime, endTime, notes, color) VALUES (?, ?, ?, ?, ?, ?)`,
-            [input.staffId, date, input.startTime, input.endTime, input.notes || null, input.color || null]
-          );
+          // Check if same staffId + date already exists (upsert)
+          const [existing] = await pool.query(
+            `SELECT id FROM staff_schedules WHERE staffId = ? AND DATE(date) = DATE(?)`,
+            [input.staffId, date]
+          ) as any;
+          if (existing.length > 0) {
+            await pool.query(
+              `UPDATE staff_schedules SET startTime = ?, endTime = ?, notes = ?, color = ? WHERE id = ?`,
+              [input.startTime, input.endTime, input.notes || null, input.color || null, existing[0].id]
+            );
+            updatedCount++;
+          } else {
+            await pool.query(
+              `INSERT INTO staff_schedules (staffId, date, startTime, endTime, notes, color) VALUES (?, ?, ?, ?, ?, ?)`,
+              [input.staffId, date, input.startTime, input.endTime, input.notes || null, input.color || null]
+            );
+            createdCount++;
+          }
         }
-        return { success: true, count: validDates.length };
+        return { success: true, count: createdCount + updatedCount, created: createdCount, updated: updatedCount };
       }),
 
     // Get attendance stats for a staff member (monthly/weekly)
@@ -29826,6 +29855,34 @@ JSON形式で推薦順序を返してください。`;
           entry.weeklyBreakdown[weekNum] = (entry.weeklyBreakdown[weekNum] || 0) + 1;
         });
         return Object.values(staffMap).sort((a, b) => b.totalDays - a.totalDays);
+      }),
+
+    // Cleanup duplicate records (same staffId + same date, keep latest)
+    cleanupDuplicates: protectedProcedure
+      .mutation(async () => {
+        const pool = (await import('./selectionCenterRouter.js')).getPool();
+        // Find duplicates: same staffId + same DATE(date)
+        const [duplicates] = await pool.query(`
+          SELECT staffId, DATE(date) as dateKey, COUNT(*) as cnt, GROUP_CONCAT(id ORDER BY updatedAt DESC) as ids
+          FROM staff_schedules
+          GROUP BY staffId, DATE(date)
+          HAVING COUNT(*) > 1
+        `) as any;
+        let deletedCount = 0;
+        for (const row of duplicates) {
+          // Keep the first id (latest updated), delete the rest
+          const idList = row.ids.split(',').map((id: string) => parseInt(id.trim()));
+          const keepId = idList[0]; // latest updated
+          const deleteIds = idList.slice(1);
+          if (deleteIds.length > 0) {
+            await pool.query(
+              `DELETE FROM staff_schedules WHERE id IN (${deleteIds.map(() => '?').join(',')})`,
+              deleteIds
+            );
+            deletedCount += deleteIds.length;
+          }
+        }
+        return { success: true, duplicateGroups: duplicates.length, deletedRecords: deletedCount };
       }),
   }),
 });
