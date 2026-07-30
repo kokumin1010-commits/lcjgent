@@ -1569,29 +1569,54 @@ export const selectionCenterRouter = router({
         updates.push('qtyPerOrder = ?');
         params.push(input.qtyPerOrder);
       }
-      // Recalculate quantity (採購数) when qtyPerOrder changes: quantity = (pendingPaymentQty + pendingShipQty) * qtyPerOrder
+      // Recalculate quantity (採購数) when qtyPerOrder changes: quantity = itemTotalQty * qtyPerOrder
       if (input.qtyPerOrder !== undefined) {
         const [current2] = await pool.query(
-          'SELECT pendingPaymentQty, pendingShipQty FROM procurement_orders WHERE id = ?',
+          'SELECT bundleId, quantity, qtyPerOrder FROM procurement_orders WHERE id = ?',
           [input.id]
         ) as any;
         if (current2.length > 0) {
-          const newQty = (Number(current2[0].pendingPaymentQty || 0) + Number(current2[0].pendingShipQty || 0)) * input.qtyPerOrder;
+          let itemTotalQty: number;
+          if (current2[0].bundleId) {
+            // Fukubukuro: sum of bundle_items quantities
+            const [bundleItems] = await pool.query(
+              'SELECT SUM(quantity) as totalQty FROM bundle_items WHERE bundleId = ?',
+              [current2[0].bundleId]
+            ) as any;
+            itemTotalQty = Number(bundleItems[0]?.totalQty || 0);
+          } else {
+            // Non-bundle: derive base item qty from current quantity / current qtyPerOrder
+            const currentQtyPerOrder = Number(current2[0].qtyPerOrder || 1);
+            itemTotalQty = Math.round(Number(current2[0].quantity || 0) / currentQtyPerOrder) || 1;
+          }
+          const newQty = itemTotalQty * input.qtyPerOrder;
           updates.push('quantity = ?');
           params.push(newQty);
         }
       }
       // Recalculate totalCost if quantity or unitCost changed
       if (input.quantity !== undefined || input.unitCost !== undefined || input.qtyPerOrder !== undefined) {
-        // Fetch current values
+        // Fetch current values after quantity recalculation
         const [current] = await pool.query(
-          'SELECT quantity, unitCost, pendingPaymentQty, pendingShipQty, qtyPerOrder FROM procurement_orders WHERE id = ?',
+          'SELECT quantity, unitCost, bundleId, qtyPerOrder FROM procurement_orders WHERE id = ?',
           [input.id]
         ) as any;
         if (current.length > 0) {
           let qty: number;
           if (input.qtyPerOrder !== undefined) {
-            qty = (Number(current[0].pendingPaymentQty || 0) + Number(current[0].pendingShipQty || 0)) * input.qtyPerOrder;
+            // Use the same logic as above
+            let itemTotalQty: number;
+            if (current[0].bundleId) {
+              const [bundleItems] = await pool.query(
+                'SELECT SUM(quantity) as totalQty FROM bundle_items WHERE bundleId = ?',
+                [current[0].bundleId]
+              ) as any;
+              itemTotalQty = Number(bundleItems[0]?.totalQty || 0);
+            } else {
+              const currentQtyPerOrder = Number(current[0].qtyPerOrder || 1);
+              itemTotalQty = Math.round(Number(current[0].quantity || 0) / currentQtyPerOrder) || 1;
+            }
+            qty = itemTotalQty * input.qtyPerOrder;
           } else {
             qty = input.quantity ?? Number(current[0].quantity);
           }
@@ -2314,11 +2339,10 @@ export const selectionCenterRouter = router({
 
       const effectiveBrandId = input.brandId || 0;
       const effectiveBrandName = input.brandName || '福袋';
-      const totalQty = input.items.reduce((sum, i) => sum + i.quantity, 0);
-
+            const totalQty = input.items.reduce((sum, i) => sum + i.quantity, 0);
       const [orderResult] = await pool.query(
-        `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, status, memo, liveRoom, shopName, bundleId, createdBy)
-         VALUES (?, ?, NULL, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, status, memo, liveRoom, shopName, bundleId, qtyPerOrder, createdBy)
+         VALUES (?, ?, NULL, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, 1, ?)`,
         [
           effectiveBrandId,
           effectiveBrandName,
@@ -2394,7 +2418,11 @@ export const selectionCenterRouter = router({
       }
 
       // 3. procurement_orders を更新
-      const totalQty = input.items.reduce((sum, i) => sum + i.quantity, 0);
+      const itemTotalQty = input.items.reduce((sum, i) => sum + i.quantity, 0);
+      // Get current qtyPerOrder to calculate final quantity
+      const [orderRow] = await pool.query('SELECT qtyPerOrder FROM procurement_orders WHERE id = ?', [input.orderId]) as any;
+      const currentQtyPerOrder = Number(orderRow[0]?.qtyPerOrder || 1);
+      const totalQty = itemTotalQty * currentQtyPerOrder;
       const productName = `🎁 ${input.bundleName || ''} (${input.items.length}品)`;
       const updates: string[] = ['productName = ?', 'quantity = ?'];
       const params: any[] = [productName, totalQty];
