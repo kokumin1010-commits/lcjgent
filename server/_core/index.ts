@@ -947,7 +947,7 @@ async function startServer() {
   app.get("/livecommercefestival/2026", async (req, res, next) => {
     try {
       const ua = (req.headers["user-agent"] || "").toLowerCase();
-      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|line|linebot|linespider|Twitterbot|Slackbot|Discordbot|redditbot|Embedly|Quora Link Preview|outbrain|pinterest|vkShare|W3C_Validator/i.test(ua);
+      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|linebot|linespider|Slackbot|Discordbot|redditbot|Embedly|Quora Link Preview|outbrain|pinterest|vkShare|W3C_Validator/i.test(ua);
       const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
       const title = "LIVE COMMERCE FESTIVAL 2026 | 日本最大級のライブコマース祭典";
       const description = "2026年9月8日-9日、八芳園（東京・白金台）にて開催。オンライン×オフラインの融合で、コマースライバーと企業のマッチング・セミナー型祭典。出展企業80社+、来場ライバー300名。";
@@ -1029,7 +1029,7 @@ async function startServer() {
   app.get("/livecommercefestival", async (req, res, next) => {
     try {
       const ua = (req.headers["user-agent"] || "").toLowerCase();
-      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|line/i.test(ua);
+      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|linebot/i.test(ua);
       if (!isBot) return next();
       const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
       const title = "LIVE COMMERCE FESTIVAL | ライブコマース祭典";
@@ -2324,7 +2324,7 @@ async function startServer() {
     const host = req.get("host") || "";
     if (!host.includes("livecommercefestival")) return next();
     const ua = (req.headers["user-agent"] || "").toLowerCase();
-    const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|line/i.test(ua);
+    const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|linebot/i.test(ua);
     if (!isBot) return next(); // Non-bot: let SPA handle it (client-side domain check)
     // Bot: serve festival OGP HTML
     const baseUrl = `${req.protocol}://${req.get("host")}`;
