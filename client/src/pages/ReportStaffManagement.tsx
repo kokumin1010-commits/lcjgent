@@ -60,7 +60,7 @@ export default function ReportStaffManagement() {
 
   // Queries
   const { data: reportStaffList, isLoading } = trpc.reportStaff.list.useQuery();
-  const { data: taskStaffList } = trpc.staff.list.useQuery();
+  const { data: taskStaffList } = trpc.staff.listActive.useQuery();
 
   // Mutations
   const createMutation = trpc.reportStaff.create.useMutation({

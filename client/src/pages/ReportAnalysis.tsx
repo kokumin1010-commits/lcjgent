@@ -38,8 +38,8 @@ export default function ReportAnalysis() {
     error?: string;
   } | null>(null);
 
-  // Fetch report staff list
-  const { data: reportStaffList } = trpc.reportStaff.list.useQuery();
+  // Fetch report staff list (active only)
+  const { data: reportStaffList } = trpc.reportStaff.listActive.useQuery();
 
   // Individual analysis mutation
   const analyzeIndividual = trpc.report.analyzeIndividual.useMutation({

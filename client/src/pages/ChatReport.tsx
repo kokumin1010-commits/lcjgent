@@ -158,8 +158,8 @@ export default function ChatReport() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
-  // Get report staff list
-  const { data: staffList } = trpc.reportStaff.list.useQuery();
+  // Get report staff list (active only)
+  const { data: staffList } = trpc.reportStaff.listActive.useQuery();
   
   // Get chat history for selected staff
   const { data: chatHistory, refetch: refetchHistory } = trpc.chatReport.getSessionsByStaff.useQuery(

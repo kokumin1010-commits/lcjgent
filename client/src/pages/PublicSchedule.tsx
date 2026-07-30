@@ -326,9 +326,9 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
     },
   });
 
-  // Fetch staff list to check if current user is HR staff
-  const { data: staffList } = trpc.staff.list.useQuery(undefined, { enabled: !!adminUser });
-  const isStaffMember = adminUser && staffList?.some((s: any) => s.email === adminUser.email && s.isActive === 'active');
+  // Fetch active staff list to check if current user is HR staff
+  const { data: staffList } = trpc.staff.listActive.useQuery(undefined, { enabled: !!adminUser });
+  const isStaffMember = adminUser && staffList?.some((s: any) => s.email === adminUser.email);
 
   // Check if user can edit/delete this schedule (admin or staff can edit all)
   const canEditSchedule = (schedule: Schedule) => {

@@ -121,7 +121,7 @@ export default function TspContractTab() {
   const contractsQuery = trpc.tsp.listContracts.useQuery();
   const invoicesQuery = trpc.tsp.listInvoices.useQuery();
   const brandsQuery = trpc.brand.list.useQuery();
-  const staffQuery = trpc.staff.list.useQuery();
+  const staffQuery = trpc.staff.listActive.useQuery();
 
   // Brand/Staff lookup maps
   const brandsMap = new Map((brandsQuery.data || []).map((b: any) => [b.id, b]));
