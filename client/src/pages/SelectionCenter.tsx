@@ -417,6 +417,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
       suggestedPrice: form.selfOperated && form.suggestedPrice ? String(form.suggestedPrice) : undefined,
       mechanism: form.mechanism || undefined,
       historicalLowestPrice: form.historicalLowestPrice ? String(form.historicalLowestPrice) : undefined,
+      discountRate: form.discountRate ? String(form.discountRate) : undefined,
     };
     // Remove undefined values for cleaner payload
     Object.keys(submitData).forEach(k => { if (submitData[k] === undefined) delete submitData[k]; });
@@ -566,6 +567,15 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
             <div>
               <Label className="text-red-600 font-bold">历史最低价</Label>
               <Input type="number" value={form.historicalLowestPrice || ""} onChange={e => setForm({ ...form, historicalLowestPrice: e.target.value })} placeholder="例: 1980" className="border-red-200 focus:border-red-400" />
+            </div>
+
+          {/* 折扣率 */}
+            <div>
+              <Label className="text-orange-600 font-bold">折扣率 (%)</Label>
+              <Input type="number" step="0.1" min="0" max="100" value={form.discountRate || ""} onChange={e => setForm({ ...form, discountRate: e.target.value })} placeholder="手动输入折扣率，不填则自动计算（销售价÷市场价）" className="border-orange-200 focus:border-orange-400" />
+              {!form.discountRate && form.price && form.marketPrice && Number(form.marketPrice) > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">自动计算: {Math.round((1 - Number(form.price) / Number(form.marketPrice)) * 100)}% OFF</p>
+              )}
             </div>
 
           {/* 佣金タイプ + 佣金値 - 2 columns */}
@@ -1013,9 +1023,9 @@ function LiverSelectionTab() {
                           {product.marketPrice && Number(product.marketPrice) > 0 && Number(product.marketPrice) !== Number(product.price || 0) && (
                             <span className="text-muted-foreground line-through text-xs">¥{Number(product.marketPrice).toLocaleString()}</span>
                           )}
-                          {product.marketPrice && Number(product.marketPrice) > Number(product.price || 0) && (
+                          {(product.discountRate || (product.marketPrice && Number(product.marketPrice) > Number(product.price || 0))) && (
                             <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 shrink-0">
-                              {Math.round((1 - Number(product.price || 0) / Number(product.marketPrice)) * 100)}%OFF
+                              {product.discountRate ? `${Number(product.discountRate)}%OFF` : `${Math.round((1 - Number(product.price || 0) / Number(product.marketPrice)) * 100)}%OFF`}
                             </Badge>
                           )}
                         </div>
@@ -1151,9 +1161,11 @@ function LiverSelectionTab() {
                   <div>
                     <Label className="text-muted-foreground text-xs">{t("sc.liver.discount")}</Label>
                     <p className="font-bold text-red-600">
-                      {detailProduct.marketPrice && Number(detailProduct.marketPrice) > Number(detailProduct.price || 0)
-                        ? `${Math.round((1 - Number(detailProduct.price || 0) / Number(detailProduct.marketPrice)) * 100)}%OFF`
-                        : '-'}
+                      {detailProduct.discountRate
+                        ? `${Number(detailProduct.discountRate)}%OFF`
+                        : (detailProduct.marketPrice && Number(detailProduct.marketPrice) > Number(detailProduct.price || 0)
+                          ? `${Math.round((1 - Number(detailProduct.price || 0) / Number(detailProduct.marketPrice)) * 100)}%OFF`
+                          : '-')}
                     </p>
                   </div>
                 </div>

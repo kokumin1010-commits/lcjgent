@@ -183,6 +183,13 @@ export const selectionCenterRouter = router({
     } catch (e: any) {
       if (!e.message.includes('Duplicate column')) results.push(`INFO: historicalLowestPrice: ${e.message}`);
     }
+    // Add discountRate column if not exists
+    try {
+      await pool.query(`ALTER TABLE selection_products ADD COLUMN discountRate DECIMAL(5,2) DEFAULT NULL`);
+      results.push('OK: added discountRate column');
+    } catch (e: any) {
+      if (!e.message.includes('Duplicate column')) results.push(`INFO: discountRate: ${e.message}`);
+    }
     return { results };
   }),
 
@@ -323,23 +330,25 @@ export const selectionCenterRouter = router({
     suggestedPrice: z.string().optional(),
     mechanism: z.string().optional(),
     historicalLowestPrice: z.string().optional(),
+    discountRate: z.string().optional(),
   })).mutation(async ({ input, ctx }) => {
     const pool = getPool();
     const totalCost = (Number(input.purchasePrice) || 0) + (Number(input.shippingFee) || 0) + (Number(input.platformFee) || 0);
     try {
       const [result] = await pool.query(
-        `INSERT INTO selection_products (productName, productNameCn, productId, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, talentExclusive, exclusiveLiverIds, tags, selfOperated, purchasePrice, shippingFee, platformFee, totalCost, deliveryTime, suggestedPrice, mechanism, historicalLowestPrice, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [input.productName, input.productNameCn || null, input.productId || null, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, input.talentExclusive || 0, input.exclusiveLiverIds ? JSON.stringify(input.exclusiveLiverIds) : null, input.tags ? JSON.stringify(input.tags) : null, input.selfOperated || 0, input.purchasePrice || null, input.shippingFee || null, input.platformFee || null, totalCost > 0 ? String(totalCost) : null, input.deliveryTime || null, input.suggestedPrice || null, input.mechanism || null, input.historicalLowestPrice || null, (ctx.user as any)?.id || 0]
+        `INSERT INTO selection_products (productName, productNameCn, productId, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, talentExclusive, exclusiveLiverIds, tags, selfOperated, purchasePrice, shippingFee, platformFee, totalCost, deliveryTime, suggestedPrice, mechanism, historicalLowestPrice, discountRate, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
+        [input.productName, input.productNameCn || null, input.productId || null, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, input.talentExclusive || 0, input.exclusiveLiverIds ? JSON.stringify(input.exclusiveLiverIds) : null, input.tags ? JSON.stringify(input.tags) : null, input.selfOperated || 0, input.purchasePrice || null, input.shippingFee || null, input.platformFee || null, totalCost > 0 ? String(totalCost) : null, input.deliveryTime || null, input.suggestedPrice || null, input.mechanism || null, input.historicalLowestPrice || null, input.discountRate || null, (ctx.user as any)?.id || 0]
       ) as any;
       return { id: result.insertId };
     } catch (e: any) {
-      // Fallback: if historicalLowestPrice column doesn't exist, add it and retry
-      if (e.message?.includes('Unknown column') && e.message?.includes('historicalLowestPrice')) {
-        console.warn('[createProduct] Adding historicalLowestPrice column and retrying');
-        await pool.query(`ALTER TABLE selection_products ADD COLUMN historicalLowestPrice DECIMAL(10,2) DEFAULT NULL`);
+      // Fallback: if discountRate or historicalLowestPrice column doesn't exist, add it and retry
+      if (e.message?.includes('Unknown column') && (e.message?.includes('discountRate') || e.message?.includes('historicalLowestPrice'))) {
+        console.warn('[createProduct] Adding missing columns and retrying');
+        try { await pool.query(`ALTER TABLE selection_products ADD COLUMN historicalLowestPrice DECIMAL(10,2) DEFAULT NULL`); } catch (_) {}
+        try { await pool.query(`ALTER TABLE selection_products ADD COLUMN discountRate DECIMAL(5,2) DEFAULT NULL`); } catch (_) {}
         const [result] = await pool.query(
-          `INSERT INTO selection_products (productName, productNameCn, productId, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, talentExclusive, exclusiveLiverIds, tags, selfOperated, purchasePrice, shippingFee, platformFee, totalCost, deliveryTime, suggestedPrice, mechanism, historicalLowestPrice, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [input.productName, input.productNameCn || null, input.productId || null, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, input.talentExclusive || 0, input.exclusiveLiverIds ? JSON.stringify(input.exclusiveLiverIds) : null, input.tags ? JSON.stringify(input.tags) : null, input.selfOperated || 0, input.purchasePrice || null, input.shippingFee || null, input.platformFee || null, totalCost > 0 ? String(totalCost) : null, input.deliveryTime || null, input.suggestedPrice || null, input.mechanism || null, input.historicalLowestPrice || null, (ctx.user as any)?.id || 0]
+          `INSERT INTO selection_products (productName, productNameCn, productId, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, talentExclusive, exclusiveLiverIds, tags, selfOperated, purchasePrice, shippingFee, platformFee, totalCost, deliveryTime, suggestedPrice, mechanism, historicalLowestPrice, discountRate, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [input.productName, input.productNameCn || null, input.productId || null, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, input.talentExclusive || 0, input.exclusiveLiverIds ? JSON.stringify(input.exclusiveLiverIds) : null, input.tags ? JSON.stringify(input.tags) : null, input.selfOperated || 0, input.purchasePrice || null, input.shippingFee || null, input.platformFee || null, totalCost > 0 ? String(totalCost) : null, input.deliveryTime || null, input.suggestedPrice || null, input.mechanism || null, input.historicalLowestPrice || null, input.discountRate || null, (ctx.user as any)?.id || 0]
         ) as any;
         return { id: result.insertId };
       }
@@ -388,6 +397,7 @@ export const selectionCenterRouter = router({
     suggestedPrice: z.string().nullable().optional(),
     mechanism: z.string().nullable().optional(),
     historicalLowestPrice: z.string().nullable().optional(),
+    discountRate: z.string().nullable().optional(),
   })).mutation(async ({ input }) => {
     const pool = getPool();
     const { id, ...data } = input;
@@ -410,9 +420,10 @@ export const selectionCenterRouter = router({
     try {
       await pool.query(`UPDATE selection_products SET ${setClauses.join(', ')} WHERE id = ?`, params);
     } catch (e: any) {
-      if (e.message?.includes('Unknown column') && e.message?.includes('historicalLowestPrice')) {
-        // Auto-add column and retry
-        await pool.query(`ALTER TABLE selection_products ADD COLUMN historicalLowestPrice DECIMAL(10,2) DEFAULT NULL`);
+      if (e.message?.includes('Unknown column') && (e.message?.includes('historicalLowestPrice') || e.message?.includes('discountRate'))) {
+        // Auto-add columns and retry
+        try { await pool.query(`ALTER TABLE selection_products ADD COLUMN historicalLowestPrice DECIMAL(10,2) DEFAULT NULL`); } catch (_) {}
+        try { await pool.query(`ALTER TABLE selection_products ADD COLUMN discountRate DECIMAL(5,2) DEFAULT NULL`); } catch (_) {}
         await pool.query(`UPDATE selection_products SET ${setClauses.join(', ')} WHERE id = ?`, params);
       } else {
         throw e;
