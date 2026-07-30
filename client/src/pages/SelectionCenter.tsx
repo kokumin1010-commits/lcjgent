@@ -3428,7 +3428,7 @@ function ProcurementTab() {
                   <th className="text-left p-3 font-medium">商品名</th>
                   <th className="text-center p-3 font-medium">待支付</th>
                   <th className="text-center p-3 font-medium">待发货</th>
-                  <th className="text-center p-3 font-medium">每单数量</th>
+                  <th className="text-center p-3 font-medium">订单数</th>
                   <th className="text-right p-3 font-medium">採購数</th>
                   <th className="text-center p-3 font-medium">ステータス</th>
                   <th className="text-center p-3 font-medium">操作</th>
@@ -3950,7 +3950,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
                         />
                       </div>
                       <div className="flex items-center gap-1">
-                        <Label className="text-xs text-green-600 whitespace-nowrap">每单数量:</Label>
+                        <Label className="text-xs text-green-600 whitespace-nowrap">订单数:</Label>
                         <Input
                           type="number"
                           min={1}
