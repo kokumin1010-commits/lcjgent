@@ -21,7 +21,7 @@ import {
 const LINE_URL = 'https://lin.ee/Rb1fvvy';
 
 // ★ メンテナンスモード: trueの場合「準備中」ページを表示
-const MAINTENANCE_MODE = true;
+const MAINTENANCE_MODE = false;
 
 const IMAGES = {
   heroBg: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/msZWaikKboqlefJH.png",
