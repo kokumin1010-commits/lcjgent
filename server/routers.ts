@@ -763,6 +763,7 @@ import { kgStrategyRouter } from "./kgStrategyRouter";
 import { adDashboardRouter } from "./adDashboardRouter";
 import { svmRouter } from "./svmRouter";
 import { lcjCoinRouter } from "./lcjCoinRouter";
+import { userManagementRouter } from "./userManagementRouter";
 import { checkAndSendReminders } from "./reminderScheduler";
 // Blog/AutoPost関連のimportはserver/blogRouter.tsに移動済み
 import { completionRouter } from "./completion";
@@ -28643,6 +28644,7 @@ JSON配列のみを出力してください。`;
   account: accountRouter,
   poll: pollRouter,
   issueTracker: issueTrackerRouter,
+  userManagement: userManagementRouter,
 
   // 配信中リアルタイム記録
   csvSnapshot: csvSnapshotRouter,

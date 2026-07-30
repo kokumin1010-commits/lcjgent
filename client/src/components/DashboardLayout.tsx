@@ -311,6 +311,22 @@ function DashboardLayoutContent({
                 <span className="group-data-[collapsible=icon]:hidden">{language === "zh" ? "账号管理" : "アカウント管理"}</span>
               </button>
             </div>
+            {/* システムユーザー管理 (admin only) */}
+            {user?.role === "admin" && (
+              <div className="px-3 pb-2">
+                <button
+                  onClick={() => setLocation("/master/system-users")}
+                  className={`w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                    location === "/master/system-users"
+                      ? "bg-primary/10 text-primary border border-primary/20"
+                      : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                  }`}
+                >
+                  <Users className="h-4 w-4" />
+                  <span className="group-data-[collapsible=icon]:hidden">{language === "zh" ? "系统用户管理" : "システムユーザー管理"}</span>
+                </button>
+              </div>
+            )}
 
             <SidebarMenu className="px-2 py-1">
               {menuItems

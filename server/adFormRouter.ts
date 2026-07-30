@@ -5,9 +5,9 @@ import { adFormSubmissions } from "../drizzle/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2024-12-18.acacia" as any,
-});
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2024-12-18.acacia" as any })
+  : null;
 
 const PRICE_IDS: Record<string, string> = {
   basic: "price_1TGisjAJUpUA2CHe7bykIk9x",
@@ -259,6 +259,7 @@ export const adFormRouter = router({
       const priceId = PRICE_IDS[input.plan];
       if (!priceId) throw new Error("Invalid plan");
 
+      if (!stripe) throw new Error("Stripe is not configured. Set STRIPE_SECRET_KEY.");
       const session = await stripe.checkout.sessions.create({
         mode: "subscription",
         payment_method_types: ["card"],

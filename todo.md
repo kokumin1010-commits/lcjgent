@@ -120,3 +120,10 @@
 - [ ] GitHubプッシュ
 - [ ] Railwayデプロイ確認
 - [ ] 動作確認
+
+## システムユーザー管理ページ（/master/system-users）
+- [x] バックエンドRouter: userManagementRouter作成（list/updateRole/disable/enable/delete）
+- [x] フロントエンド: SystemUserManagement.tsx作成（テーブル、検索、フィルター、アクション）
+- [x] ルート追加: App.tsxに/master/system-usersルート追加
+- [x] ナビゲーション: DashboardLayoutにシステムユーザー管理メニュー追加
+- [ ] テスト・デプロイ

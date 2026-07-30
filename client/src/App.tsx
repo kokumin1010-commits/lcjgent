@@ -169,6 +169,7 @@ const ProductLab = lazy(() => import("./pages/ProductLab"));
 const SelectionCenter = lazy(() => import("./pages/SelectionCenter"));
 const StaffSchedule = lazy(() => import("./pages/StaffSchedule"));
 const IssueTracker = lazy(() => import("./pages/IssueTracker"));
+const SystemUserManagement = lazy(() => import("./pages/SystemUserManagement"));
 const AccountManagement = lazy(() => import("./pages/AccountManagement"));
 const BarcodeScanner = lazy(() => import("./pages/BarcodeScanner"));
 const ProductGranenzyme = lazy(() => import("./pages/ProductGranenzyme"));
@@ -656,6 +657,11 @@ function Router() {
         <Route path="/master/account-management">
           <DashboardLayout>
             <AccountManagement />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/system-users">
+          <DashboardLayout>
+            <SystemUserManagement />
           </DashboardLayout>
         </Route>
         <Route path="/barcode-scanner" component={BarcodeScanner} />

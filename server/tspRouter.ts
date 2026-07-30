@@ -15,9 +15,14 @@ import { eq, desc, and, sql } from "drizzle-orm";
 import Stripe from "stripe";
 import { ENV } from "./_core/env";
 
-const stripe = new Stripe(ENV.stripeSecretKey, {
-  apiVersion: "2025-01-27.acacia" as any,
-});
+const stripe = ENV.stripeSecretKey
+  ? new Stripe(ENV.stripeSecretKey, { apiVersion: "2025-01-27.acacia" as any })
+  : null;
+
+function getStripe() {
+  if (!stripe) throw new Error("Stripe is not configured. Set STRIPE_SECRET_KEY.");
+  return stripe;
+}
 
 // LCJ会社情報（請求書に記載）
 const LCJ_COMPANY_INFO = {
@@ -111,7 +116,7 @@ export const tspRouter = router({
       let stripePriceId: string | undefined;
 
       try {
-        const customer = await stripe.customers.create({
+        const customer = await getStripe().customers.create({
           name: input.companyName || input.shopName,
           email: input.contactEmail,
           phone: input.contactPhone || undefined,
@@ -137,7 +142,7 @@ export const tspRouter = router({
         console.log(`[TSP] Stripe Customer created: ${customer.id} for ${input.shopName}`);
 
         // 2. Stripe Product 作成
-        const product = await stripe.products.create({
+        const product = await getStripe().products.create({
           name: `TSP月額契約 - ${input.shopName}`,
           description: input.description || `TikTok Shop Partner 月額契約（${input.shopName}）`,
           metadata: {
@@ -148,7 +153,7 @@ export const tspRouter = router({
         stripeProductId = product.id;
 
         // 3. Stripe Price 作成（月額）
-        const price = await stripe.prices.create({
+        const price = await getStripe().prices.create({
           product: product.id,
           unit_amount: input.monthlyAmount, // 税抜金額（円）
           currency: "jpy",
@@ -253,7 +258,7 @@ export const tspRouter = router({
         const contract = await db.select().from(tspContracts).where(eq(tspContracts.id, id)).limit(1);
         if (contract.length > 0 && contract[0].stripeProductId) {
           try {
-            const newPrice = await stripe.prices.create({
+            const newPrice = await getStripe().prices.create({
               product: contract[0].stripeProductId,
               unit_amount: input.monthlyAmount,
               currency: "jpy",
@@ -335,7 +340,7 @@ export const tspRouter = router({
       if (!contract.stripeCustomerId) {
         console.log(`[TSP] Stripe Customer未設定のため自動作成: contract=${contract.id}`);
         try {
-          const customer = await stripe.customers.create({
+          const customer = await getStripe().customers.create({
             name: contract.companyName || contract.shopName,
             email: input.recipientEmail || contract.contactEmail,
             phone: contract.contactPhone || undefined,
@@ -356,12 +361,12 @@ export const tspRouter = router({
               ],
             },
           });
-          const product = await stripe.products.create({
+          const product = await getStripe().products.create({
             name: `TSP月額契約 - ${contract.shopName}`,
             description: contract.description || `TikTok Shop Partner 月額契約（${contract.shopName}）`,
             metadata: { shopName: contract.shopName, type: "tsp_monthly" },
           });
-          const price = await stripe.prices.create({
+          const price = await getStripe().prices.create({
             product: product.id,
             unit_amount: contract.monthlyAmount,
             currency: "jpy",
@@ -386,7 +391,7 @@ export const tspRouter = router({
       const recipientEmail = input.recipientEmail || contract.contactEmail;
       if (input.recipientEmail && input.recipientEmail !== contract.contactEmail && contract.stripeCustomerId) {
         try {
-          await stripe.customers.update(contract.stripeCustomerId, { email: input.recipientEmail });
+          await getStripe().customers.update(contract.stripeCustomerId, { email: input.recipientEmail });
           console.log(`[TSP] Stripe Customer email updated to: ${input.recipientEmail}`);
         } catch (emailErr: any) {
           console.warn(`[TSP] Stripe Customer email update failed: ${emailErr.message}`);
@@ -416,7 +421,7 @@ export const tspRouter = router({
 
         // ★ 修正: Stripe Invoice を先に作成し、InvoiceItem を invoice パラメータで明示的に紐付ける
         // （pending items の自動紐付けに依存しない確実な方法）
-        const stripeInvoice = await stripe.invoices.create({
+        const stripeInvoice = await getStripe().invoices.create({
           customer: contract.stripeCustomerId,
           collection_method: contract.paymentMethod === "auto_charge" ? "charge_automatically" : "send_invoice",
           days_until_due: contract.paymentMethod === "bank_transfer" ? contract.paymentDueDays : undefined,
@@ -446,7 +451,7 @@ export const tspRouter = router({
         });
 
         // Invoice Item を明示的に invoice ID 指定で追加（税抜金額）
-        await stripe.invoiceItems.create({
+        await getStripe().invoiceItems.create({
           customer: contract.stripeCustomerId,
           invoice: stripeInvoice.id,
           amount: amount,
@@ -455,7 +460,7 @@ export const tspRouter = router({
         });
 
         // 消費税を別行として追加
-        await stripe.invoiceItems.create({
+        await getStripe().invoiceItems.create({
           customer: contract.stripeCustomerId,
           invoice: stripeInvoice.id,
           amount: taxAmount,
@@ -529,14 +534,14 @@ export const tspRouter = router({
             updateParams.statement_descriptor = input.emailSubject.substring(0, 22); // Stripe制限: 22文字
             updateParams.metadata = { ...updateParams.metadata, emailSubject: input.emailSubject };
           }
-          await stripe.invoices.update(invoice.stripeInvoiceId, updateParams);
+          await getStripe().invoices.update(invoice.stripeInvoiceId, updateParams);
         }
 
         // Stripe Invoice を確定 (finalize)
-        const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoice.stripeInvoiceId);
+        const finalizedInvoice = await getStripe().invoices.finalizeInvoice(invoice.stripeInvoiceId);
 
         // 請求書を送信
-        const sentInvoice = await stripe.invoices.sendInvoice(invoice.stripeInvoiceId);
+        const sentInvoice = await getStripe().invoices.sendInvoice(invoice.stripeInvoiceId);
 
         // DB更新
         await db.update(tspInvoices).set({
@@ -573,7 +578,7 @@ export const tspRouter = router({
 
       if (invoice.stripeInvoiceId) {
         try {
-          await stripe.invoices.voidInvoice(invoice.stripeInvoiceId);
+          await getStripe().invoices.voidInvoice(invoice.stripeInvoiceId);
         } catch (err: any) {
           console.error(`[TSP] Stripe void error: ${err.message}`);
         }
@@ -641,7 +646,7 @@ export const tspRouter = router({
           // Stripe Invoice 作成（先にInvoiceを作成し、InvoiceItemをinvoice指定で紐付け）
           const descriptionText = contract.description || `TikTok Shop Partner 月額契約（${contract.shopName}）${input.billingMonth}分`;
 
-          const stripeInvoice = await stripe.invoices.create({
+          const stripeInvoice = await getStripe().invoices.create({
             customer: contract.stripeCustomerId,
             collection_method: contract.paymentMethod === "auto_charge" ? "charge_automatically" : "send_invoice",
             days_until_due: contract.paymentMethod === "bank_transfer" ? contract.paymentDueDays : undefined,
@@ -670,7 +675,7 @@ export const tspRouter = router({
             footer: `${LCJ_COMPANY_INFO.name}\n${LCJ_COMPANY_INFO.address}\nTEL: ${LCJ_COMPANY_INFO.tel}\n\n${LCJ_COMPANY_INFO.bankInfoFormatted}`,
           });
 
-          await stripe.invoiceItems.create({
+          await getStripe().invoiceItems.create({
             customer: contract.stripeCustomerId,
             invoice: stripeInvoice.id,
             amount: amount,
@@ -678,7 +683,7 @@ export const tspRouter = router({
             description: descriptionText,
           });
 
-          await stripe.invoiceItems.create({
+          await getStripe().invoiceItems.create({
             customer: contract.stripeCustomerId,
             invoice: stripeInvoice.id,
             amount: taxAmount,
@@ -751,8 +756,8 @@ export const tspRouter = router({
         }
 
         try {
-          await stripe.invoices.finalizeInvoice(invoice.stripeInvoiceId);
-          const sent = await stripe.invoices.sendInvoice(invoice.stripeInvoiceId);
+          await getStripe().invoices.finalizeInvoice(invoice.stripeInvoiceId);
+          const sent = await getStripe().invoices.sendInvoice(invoice.stripeInvoiceId);
 
           await db.update(tspInvoices).set({
             status: "sent",
@@ -792,7 +797,7 @@ export const tspRouter = router({
 
       try {
         // Stripe Customer 作成
-        const customer = await stripe.customers.create({
+        const customer = await getStripe().customers.create({
           name: contract.companyName || contract.shopName,
           email: contract.contactEmail,
           phone: contract.contactPhone || undefined,
@@ -815,14 +820,14 @@ export const tspRouter = router({
         });
 
         // Stripe Product 作成
-        const product = await stripe.products.create({
+        const product = await getStripe().products.create({
           name: `TSP月額契約 - ${contract.shopName}`,
           description: contract.description || `TikTok Shop Partner 月額契約（${contract.shopName}）`,
           metadata: { shopName: contract.shopName, type: "tsp_monthly" },
         });
 
         // Stripe Price 作成
-        const price = await stripe.prices.create({
+        const price = await getStripe().prices.create({
           product: product.id,
           unit_amount: contract.monthlyAmount,
           currency: "jpy",
