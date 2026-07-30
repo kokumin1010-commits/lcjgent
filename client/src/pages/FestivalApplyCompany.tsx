@@ -37,7 +37,7 @@ const STEPS: Step[] = [
   { id: 'agree', question: '最後に確認です！ ✅', type: 'checkbox', required: true },
 ];
 
-const MAINTENANCE_MODE = true;
+const MAINTENANCE_MODE = false;
 
 export default function FestivalApplyCompany() {
   if (MAINTENANCE_MODE) {
