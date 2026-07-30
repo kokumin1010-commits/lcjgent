@@ -141,6 +141,7 @@ function ProductsTab() {
               <th className="text-left p-3 font-medium">{t("sc.brand")}</th>
               <th className="text-left p-3 font-medium">{t("sc.category")}</th>
               <th className="text-right p-3 font-medium">{t("sc.price")}</th>
+              <th className="text-right p-3 font-medium text-red-600">历史最低价</th>
               <th className="text-right p-3 font-medium">{t("sc.commission")}</th>
               <th className="text-center p-3 font-medium">{t("sc.stock")}</th>
               <th className="text-center p-3 font-medium">{t("sc.status")}</th>
@@ -195,6 +196,13 @@ function ProductsTab() {
                   </td>
                   <td className="p-3">{category ? (() => { const parent = categoriesQuery.data?.find((p: any) => p.id === category.parentId); const parentStr = parent ? (parent.nameCn ? `${parent.name}(${parent.nameCn})` : parent.name) + " / " : ""; const catStr = category.nameCn ? `${category.name}(${category.nameCn})` : category.name; return parentStr + catStr; })() : "-"}</td>
                   <td className="p-3 text-right">¥{Number(product.price || 0).toLocaleString()}</td>
+                  <td className="p-3 text-right">
+                    {product.historicalLowestPrice && Number(product.historicalLowestPrice) > 0 ? (
+                      <span className="text-red-600 font-bold">¥{Number(product.historicalLowestPrice).toLocaleString()}</span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </td>
                   <td className="p-3 text-right">
                     {product.commissionValue ? (product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`) : "-"}
                   </td>
@@ -408,6 +416,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
       deliveryTime: form.selfOperated && form.deliveryTime ? String(form.deliveryTime) : undefined,
       suggestedPrice: form.selfOperated && form.suggestedPrice ? String(form.suggestedPrice) : undefined,
       mechanism: form.mechanism || undefined,
+      historicalLowestPrice: form.historicalLowestPrice ? String(form.historicalLowestPrice) : undefined,
     };
     // Remove undefined values for cleaner payload
     Object.keys(submitData).forEach(k => { if (submitData[k] === undefined) delete submitData[k]; });
@@ -553,6 +562,12 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
                 <Input type="number" value={form.marketPrice || ""} onChange={e => setForm({ ...form, marketPrice: e.target.value })} />
               </div>
             </div>
+          {/* 历史最低价 */}
+            <div>
+              <Label className="text-red-600 font-bold">历史最低价</Label>
+              <Input type="number" value={form.historicalLowestPrice || ""} onChange={e => setForm({ ...form, historicalLowestPrice: e.target.value })} placeholder="例: 1980" className="border-red-200 focus:border-red-400" />
+            </div>
+
           {/* 佣金タイプ + 佣金値 - 2 columns */}
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -1013,6 +1028,11 @@ function LiverSelectionTab() {
                               </span>
                             )}
                           </Badge>
+                          {product.historicalLowestPrice && Number(product.historicalLowestPrice) > 0 && (
+                            <Badge className="bg-red-100 text-red-700 border-red-300 text-xs font-bold">
+                              历史最低价: ¥{Number(product.historicalLowestPrice).toLocaleString()}
+                            </Badge>
+                          )}
                         </div>
                       </>
                     )}
