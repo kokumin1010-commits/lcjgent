@@ -115,6 +115,7 @@ function DashboardLayoutContent({
 
   const menuItems = [
     { icon: LayoutDashboard, label: t("nav.dashboard"), path: "/master" },
+    { icon: Mic, label: "朝会録音", path: "/master/morning-meeting" },
     { icon: ClipboardList, label: t("nav.tasks"), path: "/master/tasks" },
     { icon: FileText, label: t("nav.reports"), path: "/master/reports" },
     { icon: Brain, label: t("nav.reportAnalysis"), path: "/master/report-analysis" },
@@ -130,7 +131,6 @@ function DashboardLayoutContent({
     { icon: MessageCircle, label: "チャット", path: "/master/chat", hasBadge: true, badgeType: "chat" as const },
     { icon: Calendar, label: t("nav.calendar"), path: "/s" },
     { icon: Calendar, label: "スタッフスケジュール", path: "/staff-schedule" },
-    { icon: Mic, label: "朝会録音", path: "/master/morning-meeting" },
     { icon: Video, label: t("nav.livers"), path: "/master/livers" },
     { icon: Zap, label: t("nav.liverCommand") || "ライバー司令塔", path: "/master/livers-dashboard" },
     { icon: Bot, label: "ライバー成長ダッシュボード", path: "/master/ai-coach" },
