@@ -25,7 +25,7 @@ const MAINTENANCE_MODE = false;
 
 const IMAGES = {
   heroBg: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/msZWaikKboqlefJH.png",
-  logo: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/TyOBrGJWbTcGSTuj.jpg",
+  logo: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/SvRAQbkcpavmYbaH.png",
   gift: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/vLYpJIHgEThRqpsE.png",
   liveStreaming1: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/UZmkVlBOQoJOYEUu.jpg",
   liveStreaming2: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/BCKHeXwJpBkvpABz.jpg",
