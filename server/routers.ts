@@ -3083,8 +3083,17 @@ export const appRouter = router({
         resignReason: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
         // Update staff record if linked
+        let staffEmail: string | null = null;
         if (input.staffId) {
+          // Get staff email before deactivating
+          const staffRecord = await getStaffById(input.staffId);
+          if (staffRecord) {
+            staffEmail = staffRecord.email;
+          }
           await updateStaff(input.staffId, {
             isActive: "inactive",
             resignDate: new Date(input.resignDate),
@@ -3095,6 +3104,12 @@ export const appRouter = router({
         await updateReportStaff(input.reportStaffId, {
           isActive: "inactive",
         });
+
+        // Revoke system permissions: deactivate user account by email
+        if (staffEmail) {
+          await db.execute(sqlTag`UPDATE users SET email = CONCAT('resigned_', id, '_', email), role = 'user' WHERE email = ${staffEmail}`);
+        }
+
         return { success: true };
       }),
 
@@ -3105,12 +3120,21 @@ export const appRouter = router({
         reportStaffId: z.number(),
       }))
       .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
         if (input.staffId) {
+          // Get staff email to restore user account
+          const staffRecord = await getStaffById(input.staffId);
           await updateStaff(input.staffId, {
             isActive: "active",
             resignDate: null,
             resignReason: null,
           });
+          // Restore user account if it was deactivated
+          if (staffRecord?.email) {
+            await db.execute(sqlTag`UPDATE users SET email = ${staffRecord.email} WHERE email = CONCAT('resigned_', id, '_', ${staffRecord.email})`);
+          }
         }
         await updateReportStaff(input.reportStaffId, {
           isActive: "active",
