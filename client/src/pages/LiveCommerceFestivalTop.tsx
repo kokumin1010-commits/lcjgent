@@ -13,7 +13,7 @@ import { useState, useEffect, useRef } from 'react';
 const MAINTENANCE_MODE = false;
 
 // Asset URLs (CDN)
-const LOGO_URL = 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ZjvFdcWckPHcZxCi.png';
+const LOGO_URL = 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/TyOBrGJWbTcGSTuj.jpg';
 const HERO_BG_URL = 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/msZWaikKboqlefJH.png';
 const GIFT_URL = 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/vLYpJIHgEThRqpsE.png';
 const VENUE_URL = 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/PHeOrSmyNPVfKGRb.png';

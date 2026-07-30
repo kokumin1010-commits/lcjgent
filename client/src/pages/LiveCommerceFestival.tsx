@@ -25,7 +25,7 @@ const MAINTENANCE_MODE = false;
 
 const IMAGES = {
   heroBg: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/msZWaikKboqlefJH.png",
-  logo: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ZjvFdcWckPHcZxCi.png",
+  logo: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/TyOBrGJWbTcGSTuj.jpg",
   gift: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/vLYpJIHgEThRqpsE.png",
   liveStreaming1: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/UZmkVlBOQoJOYEUu.jpg",
   liveStreaming2: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/BCKHeXwJpBkvpABz.jpg",
@@ -195,6 +195,7 @@ export default function LiveCommerceFestival() {
         </div>
         <HeroSection />
         <SpeakersSection />
+        <GuestIntroSection />
         <CampaignBanner />
         <StatsSection />
         <LiveHighlightSection />
@@ -449,8 +450,8 @@ function SpeakersSection() {
       stat: "SNS総フォロワー", 
       statValue: "100", 
       statUnit: "万人超",
-      image: null,
-      hasPhoto: false,
+      image: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/vjAqkYolejYZqfed.jpg",
+      hasPhoto: true,
     },
     { 
       name: "ゆん", 
@@ -458,7 +459,7 @@ function SpeakersSection() {
       stat: "SNS総フォロワー", 
       statValue: "290", 
       statUnit: "万人超",
-      image: IMAGES.yun,
+      image: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/JrdLtSWrsMiHmheu.webp",
       hasPhoto: true,
     },
   ];
@@ -525,6 +526,89 @@ function SpeakersSection() {
               + 300名以上
             </span>
           </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================
+// Guest Intro Section — JOY & ゆん 出演者紹介
+// ============================================================
+function GuestIntroSection() {
+  const reveal = useScrollReveal();
+  const guests = [
+    {
+      name: 'JOY',
+      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/vjAqkYolejYZqfed.jpg',
+      title: 'タレント・モデル',
+      bio: '2003年、雑誌「men\'s egg」でモデルデビュー。タレントとしてバラエティ番組を中心に幅広く活躍。群馬県高崎市の観光特使、「イクメン オブ ザ イヤー（芸能部門）」受賞。妻・maiとともに個人事務所「JAM\'s flower」にて活動中。',
+      sns: [
+        { label: 'X', url: 'https://x.com/JOY19850415' },
+        { label: 'Instagram', url: 'https://www.instagram.com/joy_19850415/' },
+      ],
+    },
+    {
+      name: 'ゆん',
+      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/JrdLtSWrsMiHmheu.webp',
+      title: 'YouTuber・インフルエンサー',
+      bio: '愛知県出身。SNS総フォロワー数290万人超。美容・コスメ・ファッション・育児ライフスタイルを発信。2024年「第17回ペアレンティングアワード」インフルエンサー部門受賞。Fisher\'sリーダー・シルクロードの妻として二児の母。',
+      sns: [
+        { label: 'Instagram', url: 'https://www.instagram.com/yuntaaam_s2/' },
+        { label: 'YouTube', url: 'https://www.youtube.com/@yunnn.s2' },
+      ],
+    },
+  ];
+
+  return (
+    <section className="bg-[#0a0a0a] py-16 md:py-20 px-4">
+      <div ref={reveal.ref} className={`max-w-5xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        <div className="text-center mb-10">
+          <p className="text-[#FFD700] text-sm font-bold tracking-widest mb-2">SPECIAL GUEST</p>
+          <h2 className="text-3xl md:text-4xl font-black text-white">ゲスト出演者</h2>
+          <p className="text-gray-400 mt-2 text-sm">各界で活躍するスペシャルゲストが登場</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+          {guests.map((g, i) => (
+            <div
+              key={i}
+              className="bg-[#1a1a1a] rounded-2xl overflow-hidden border border-gray-800 hover:border-[#FFD700]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,215,0,0.1)] group"
+            >
+              {/* Photo */}
+              <div className="aspect-[4/5] relative overflow-hidden">
+                <img
+                  src={g.photo}
+                  alt={g.name}
+                  className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent" />
+                {/* Name overlay at bottom */}
+                <div className="absolute bottom-4 left-4">
+                  <h3 className="text-2xl md:text-3xl font-black text-white drop-shadow-lg">{g.name}</h3>
+                  <p className="text-[#FFD700] text-sm font-medium">{g.title}</p>
+                </div>
+              </div>
+
+              {/* Bio & SNS */}
+              <div className="p-5 md:p-6">
+                <p className="text-gray-300 text-sm leading-relaxed mb-4">{g.bio}</p>
+                <div className="flex gap-3">
+                  {g.sns.map((s, j) => (
+                    <a
+                      key={j}
+                      href={s.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-1.5 rounded-full bg-white/10 text-white text-xs font-medium hover:bg-[#FFD700] hover:text-black transition-colors duration-200"
+                    >
+                      {s.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </section>
