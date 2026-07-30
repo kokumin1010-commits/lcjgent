@@ -78,8 +78,8 @@ export default function StaffSchedule() {
       const start = new Date(d.getFullYear(), d.getMonth(), 1);
       const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
       return {
-        startDate: start.toISOString().split('T')[0],
-        endDate: end.toISOString().split('T')[0] + " 23:59:59",
+        startDate: getJSTDateKey(start),
+        endDate: getJSTDateKey(end) + " 23:59:59",
       };
     } else if (viewMode === "weekly") {
       // Fetch current week (Mon-Sun)
@@ -97,8 +97,8 @@ export default function StaffSchedule() {
       const start = new Date(d.getFullYear(), d.getMonth(), 1);
       const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
       return {
-        startDate: start.toISOString().split('T')[0],
-        endDate: end.toISOString().split('T')[0] + " 23:59:59",
+        startDate: getJSTDateKey(start),
+        endDate: getJSTDateKey(end) + " 23:59:59",
       };
     }
   }, [selectedDate, viewMode]);
@@ -483,11 +483,11 @@ export default function StaffSchedule() {
         <div className="text-right shrink-0">
           <div className="text-xs font-bold text-gray-600 mb-0.5">
             {(() => {
-              const wd = ['日', '月', '火', '水', '木', '金', '土'];
+              const wd = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
               const wdColors = ['text-red-500', 'text-gray-600', 'text-gray-600', 'text-gray-600', 'text-gray-600', 'text-gray-600', 'text-blue-500'];
               const dt = new Date(s.date);
               const dayIdx = dt.getDay();
-              return <span className={wdColors[dayIdx]}>{dt.getMonth() + 1}/{dt.getDate()}({wd[dayIdx]})</span>;
+              return <span className={wdColors[dayIdx]}>{dt.getMonth() + 1}/{dt.getDate()} {wd[dayIdx]}</span>;
             })()}
           </div>
           <div className="text-xs font-medium text-gray-700 flex items-center gap-1">
