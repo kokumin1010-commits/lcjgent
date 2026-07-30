@@ -1,20 +1,21 @@
 /**
- * System User Management Page - システムユーザー管理 / 系统用户管理
+ * System User Management Page - 后台员工账号管理
  * 
- * Admin-only page for managing system login accounts:
- * - View all accounts with search/filter
+ * Admin-only page for managing staff/employee login accounts:
+ * - Only shows users whose email matches staff table (employees)
+ * - View with department/position info
  * - Change user roles (admin/user)
  * - Disable/enable accounts
  * - Delete accounts
  */
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -49,22 +50,21 @@ import {
   Users,
   Shield,
   ShieldOff,
+  UserCheck,
+  UserX,
   UserCog,
   Trash2,
   MoreHorizontal,
-  UserCheck,
-  UserX,
   RefreshCw,
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 
-// i18n
 const i18n = {
   ja: {
-    title: "システムユーザー管理",
-    subtitle: "システムログインアカウントの管理",
-    search: "メール・名前で検索...",
+    title: "スタッフアカウント管理",
+    subtitle: "バックエンドを使用するスタッフのログインアカウントを管理",
+    search: "メール・名前・部署で検索...",
     roleFilter: "ロールフィルター",
     statusFilter: "ステータスフィルター",
     all: "すべて",
@@ -74,12 +74,12 @@ const i18n = {
     disabled: "無効",
     email: "メールアドレス",
     name: "名前",
+    department: "部署",
+    position: "役職",
     role: "ロール",
     status: "ステータス",
-    createdAt: "登録日",
     lastSignedIn: "最終ログイン",
     actions: "操作",
-    changeRole: "ロール変更",
     promoteToAdmin: "管理者に昇格",
     demoteToUser: "一般ユーザーに降格",
     disableAccount: "アカウント無効化",
@@ -93,19 +93,20 @@ const i18n = {
     confirm: "確認",
     success: "操作が完了しました",
     error: "エラーが発生しました",
-    totalUsers: "総ユーザー数",
+    totalStaff: "スタッフ数",
     adminCount: "管理者数",
     activeCount: "アクティブ",
     disabledCount: "無効アカウント",
-    noUsers: "ユーザーが見つかりません",
+    noUsers: "スタッフアカウントが見つかりません",
     refresh: "更新",
-    resignedNote: "（退会済みスタッフ）",
+    resignedNote: "（退職済み）",
     disabledNote: "（手動無効化）",
+    changeRole: "ロール変更",
   },
   zh: {
-    title: "系统用户管理",
-    subtitle: "管理系统登录账号",
-    search: "按邮箱或姓名搜索...",
+    title: "员工账号管理",
+    subtitle: "管理使用后台的员工登录账号",
+    search: "按邮箱、姓名或部门搜索...",
     roleFilter: "角色筛选",
     statusFilter: "状态筛选",
     all: "全部",
@@ -115,12 +116,12 @@ const i18n = {
     disabled: "已禁用",
     email: "邮箱地址",
     name: "姓名",
+    department: "部门",
+    position: "职位",
     role: "角色",
     status: "状态",
-    createdAt: "注册日期",
     lastSignedIn: "最后登录",
     actions: "操作",
-    changeRole: "更改角色",
     promoteToAdmin: "升级为管理员",
     demoteToUser: "降级为普通用户",
     disableAccount: "禁用账号",
@@ -134,14 +135,15 @@ const i18n = {
     confirm: "确认",
     success: "操作成功",
     error: "操作失败",
-    totalUsers: "总用户数",
+    totalStaff: "员工数",
     adminCount: "管理员数",
-    activeCount: "活跃用户",
+    activeCount: "活跃账号",
     disabledCount: "已禁用",
-    noUsers: "未找到用户",
+    noUsers: "未找到员工账号",
     refresh: "刷新",
-    resignedNote: "（已退会员工）",
+    resignedNote: "（已离职）",
     disabledNote: "（手动禁用）",
+    changeRole: "更改角色",
   },
 };
 
@@ -246,12 +248,6 @@ export default function SystemUserManagement() {
 
   const isActionLoading = updateRoleMutation.isPending || disableMutation.isPending || enableMutation.isPending || deleteMutation.isPending;
 
-  const formatDate = (date: Date | string | null) => {
-    if (!date) return "-";
-    const d = new Date(date);
-    return d.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" });
-  };
-
   const formatDateTime = (date: Date | string | null) => {
     if (!date) return "-";
     const d = new Date(date);
@@ -284,8 +280,8 @@ export default function SystemUserManagement() {
                 <Users className="h-5 w-5 text-blue-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{data.stats.totalUsers}</p>
-                <p className="text-xs text-muted-foreground">{t.totalUsers}</p>
+                <p className="text-2xl font-bold">{data.stats.totalStaff}</p>
+                <p className="text-xs text-muted-foreground">{t.totalStaff}</p>
               </div>
             </CardContent>
           </Card>
@@ -375,12 +371,12 @@ export default function SystemUserManagement() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[50px]">ID</TableHead>
                     <TableHead>{t.email}</TableHead>
                     <TableHead>{t.name}</TableHead>
+                    <TableHead>{t.department}</TableHead>
+                    <TableHead>{t.position}</TableHead>
                     <TableHead className="w-[100px]">{t.role}</TableHead>
                     <TableHead className="w-[100px]">{t.status}</TableHead>
-                    <TableHead className="w-[120px]">{t.createdAt}</TableHead>
                     <TableHead className="w-[150px]">{t.lastSignedIn}</TableHead>
                     <TableHead className="w-[80px] text-right">{t.actions}</TableHead>
                   </TableRow>
@@ -388,7 +384,6 @@ export default function SystemUserManagement() {
                 <TableBody>
                   {data.users.map((u) => (
                     <TableRow key={u.id} className={u.status === "disabled" ? "opacity-60" : ""}>
-                      <TableCell className="font-mono text-xs">{u.id}</TableCell>
                       <TableCell>
                         <div className="flex flex-col">
                           <span className="font-medium text-sm">{u.displayEmail}</span>
@@ -400,7 +395,9 @@ export default function SystemUserManagement() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{u.name || "-"}</TableCell>
+                      <TableCell className="font-medium">{u.name || "-"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{u.department || "-"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{u.position || "-"}</TableCell>
                       <TableCell>
                         <Badge variant={u.role === "admin" ? "default" : "secondary"} className="text-xs">
                           {u.role === "admin" ? (
@@ -417,9 +414,6 @@ export default function SystemUserManagement() {
                         >
                           {u.status === "active" ? t.active : t.disabled}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {formatDate(u.createdAt)}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {formatDateTime(u.lastSignedIn)}

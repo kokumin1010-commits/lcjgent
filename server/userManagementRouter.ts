@@ -1,8 +1,8 @@
 /**
- * User Management Router - システムユーザー管理
+ * User Management Router - 后台员工账号管理
  * 
- * Admin-only procedures for managing system login accounts:
- * - List all users with search/filter
+ * Admin-only procedures for managing staff login accounts (employees only):
+ * - Only shows users whose email matches an active staff member in the staff table
  * - Update user roles (admin/user)
  * - Disable/enable accounts
  * - Delete accounts
@@ -11,11 +11,12 @@ import { z } from "zod";
 import { router, adminProcedure } from "./_core/trpc";
 import { getDb } from "./db";
 import { users } from "../drizzle/schema";
-import { eq, like, or, desc, sql, and, not } from "drizzle-orm";
+import { staff } from "../drizzle/schema";
+import { eq, like, or, desc, sql, and, not, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
 export const userManagementRouter = router({
-  // List all system users with search and filter
+  // List staff users only (employees who use the backend)
   list: adminProcedure
     .input(z.object({
       search: z.string().optional(),
@@ -26,29 +27,58 @@ export const userManagementRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
-      const allUsers = await db.select().from(users).orderBy(desc(users.createdAt));
+      // Get all staff emails (active + inactive) to identify employee accounts
+      const allStaff = await db.select({
+        email: staff.email,
+        name: staff.name,
+        department: staff.department,
+        position: staff.position,
+        isActive: staff.isActive,
+      }).from(staff);
 
-      // Process users to determine status
-      let result = allUsers.map(u => {
+      const staffEmails = new Set(allStaff.map(s => s.email.toLowerCase()));
+
+      // Get all users
+      const allUsers = await db.select().from(users).orderBy(desc(users.lastSignedIn));
+
+      // Filter to only staff members (match by email)
+      const staffUsers = allUsers.filter(u => {
+        // Check direct email match
+        if (staffEmails.has(u.email.toLowerCase())) return true;
+        // Check disabled/resigned prefix pattern
+        if (u.email.startsWith("resigned_") || u.email.startsWith("disabled_")) {
+          const match = u.email.match(/^(?:resigned|disabled)_\d+_(.+)$/);
+          if (match && staffEmails.has(match[1].toLowerCase())) return true;
+        }
+        return false;
+      });
+
+      // Process users to determine status and enrich with staff info
+      let result = staffUsers.map(u => {
         const isDisabled = u.email.startsWith("resigned_") || u.email.startsWith("disabled_");
         // Extract original email for display
         let displayEmail = u.email;
         if (u.email.startsWith("resigned_")) {
-          // Pattern: resigned_{id}_{originalEmail}
           const match = u.email.match(/^resigned_\d+_(.+)$/);
           if (match) displayEmail = match[1];
         } else if (u.email.startsWith("disabled_")) {
-          // Pattern: disabled_{id}_{originalEmail}
           const match = u.email.match(/^disabled_\d+_(.+)$/);
           if (match) displayEmail = match[1];
         }
+
+        // Find matching staff record for department/position info
+        const staffRecord = allStaff.find(s => s.email.toLowerCase() === displayEmail.toLowerCase());
+
         return {
           id: u.id,
           email: u.email,
           displayEmail,
-          name: u.name,
+          name: u.name || staffRecord?.name || null,
           role: u.role,
           status: isDisabled ? "disabled" as const : "active" as const,
+          department: staffRecord?.department || null,
+          position: staffRecord?.position || null,
+          staffActive: staffRecord?.isActive === "active",
           createdAt: u.createdAt,
           updatedAt: u.updatedAt,
           lastSignedIn: u.lastSignedIn,
@@ -60,7 +90,8 @@ export const userManagementRouter = router({
         const searchLower = input.search.toLowerCase();
         result = result.filter(u =>
           u.displayEmail.toLowerCase().includes(searchLower) ||
-          (u.name && u.name.toLowerCase().includes(searchLower))
+          (u.name && u.name.toLowerCase().includes(searchLower)) ||
+          (u.department && u.department.toLowerCase().includes(searchLower))
         );
       }
 
@@ -78,10 +109,10 @@ export const userManagementRouter = router({
         users: result,
         total: result.length,
         stats: {
-          totalUsers: allUsers.length,
-          adminCount: allUsers.filter(u => u.role === "admin").length,
-          activeCount: allUsers.filter(u => !u.email.startsWith("resigned_") && !u.email.startsWith("disabled_")).length,
-          disabledCount: allUsers.filter(u => u.email.startsWith("resigned_") || u.email.startsWith("disabled_")).length,
+          totalStaff: staffUsers.length,
+          adminCount: staffUsers.filter(u => u.role === "admin").length,
+          activeCount: staffUsers.filter(u => !u.email.startsWith("resigned_") && !u.email.startsWith("disabled_")).length,
+          disabledCount: staffUsers.filter(u => u.email.startsWith("resigned_") || u.email.startsWith("disabled_")).length,
         },
       };
     }),

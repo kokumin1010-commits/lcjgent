@@ -311,7 +311,7 @@ function DashboardLayoutContent({
                 <span className="group-data-[collapsible=icon]:hidden">{language === "zh" ? "账号管理" : "アカウント管理"}</span>
               </button>
             </div>
-            {/* システムユーザー管理 (admin only) */}
+            {/* スタッフアカウント管理 (admin only) */}
             {user?.role === "admin" && (
               <div className="px-3 pb-2">
                 <button
@@ -323,7 +323,7 @@ function DashboardLayoutContent({
                   }`}
                 >
                   <Users className="h-4 w-4" />
-                  <span className="group-data-[collapsible=icon]:hidden">{language === "zh" ? "系统用户管理" : "システムユーザー管理"}</span>
+                  <span className="group-data-[collapsible=icon]:hidden">{language === "zh" ? "员工账号管理" : "スタッフアカウント"}</span>
                 </button>
               </div>
             )}
