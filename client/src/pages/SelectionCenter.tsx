@@ -4128,7 +4128,7 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
   const [memo, setMemo] = useState("");
   const [liveRoom, setLiveRoom] = useState("kg");
   const [shopName, setShopName] = useState("LCJ店铺");
-  const [parsedItems, setParsedItems] = useState<Array<{ inputName: string; matched: boolean; product?: any }>>([]);
+  const [parsedItems, setParsedItems] = useState<Array<{ inputName: string; matched: boolean; product?: any; quantity?: number }>>([]);
   const [isParsing, setIsParsing] = useState(false);
 
   const parseMutation = trpc.selectionCenter.parseFukubukuroText.useMutation({
@@ -4155,7 +4155,7 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
       items: parsedItems.map(item => ({
         productId: item.product?.id,
         productName: item.product?.productName || item.inputName,
-        quantity: 1,
+        quantity: item.quantity || 1,
       })),
       orderDate,
       status,
@@ -4229,6 +4229,20 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
                       {!item.matched && (
                         <p className="text-xs text-red-600">※ 未登録商品（発注時に自動登録されます）</p>
                       )}
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <span className="text-xs text-muted-foreground">数量:</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={item.quantity || 1}
+                        onChange={e => {
+                          const newItems = [...parsedItems];
+                          newItems[idx] = { ...newItems[idx], quantity: Math.max(1, parseInt(e.target.value) || 1) };
+                          setParsedItems(newItems);
+                        }}
+                        className="w-16 h-7 text-center text-sm"
+                      />
                     </div>
                   </div>
                 ))}
@@ -4493,6 +4507,19 @@ function FukubukuroEditDialog({ order, onClose, onSubmit, isLoading }: {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm truncate">{item.productName}</p>
                       {!item.productId && <span className="text-xs text-orange-500">未マッチング</span>}
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <Input
+                        type="number"
+                        min={1}
+                        value={item.quantity}
+                        onChange={e => {
+                          const newItems = [...items];
+                          newItems[idx] = { ...newItems[idx], quantity: Math.max(1, parseInt(e.target.value) || 1) };
+                          setItems(newItems);
+                        }}
+                        className="w-16 h-7 text-center text-sm"
+                      />
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => removeItem(idx)} className="text-red-500 h-6 w-6 p-0">
                       <X className="h-3 w-3" />
