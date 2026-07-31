@@ -542,11 +542,14 @@ function CreateIssueDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const handleSubmit = async () => {
     if (!form.title.trim()) { toast.error('请输入标题'); return; }
     try {
+      // Find assigneeId from staffList by name
+      const assignee = staffList.find((s: any) => s.name === form.assigneeName);
       await createMutation.mutateAsync({
         title: form.title,
         description: form.description || undefined,
         category: form.category as any,
         priority: form.priority as any,
+        assigneeId: assignee?.id || undefined,
         assigneeName: form.assigneeName || undefined,
         deadline: form.deadline || undefined,
         tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : undefined,

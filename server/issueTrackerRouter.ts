@@ -220,12 +220,22 @@ export const issueTrackerRouter = router({
       );
 
       // Send email notification to assignee
-      if (input.assigneeId) {
+      if (input.assigneeId || input.assigneeName) {
         try {
-          const [staffRows] = await pool.query(
-            'SELECT email, name FROM staff WHERE id = ? AND isActive = "active"',
-            [input.assigneeId]
-          ) as any;
+          let staffRows: any[];
+          if (input.assigneeId) {
+            const [rows] = await pool.query(
+              'SELECT email, name FROM staff WHERE id = ? AND isActive = "active"',
+              [input.assigneeId]
+            ) as any;
+            staffRows = rows;
+          } else {
+            const [rows] = await pool.query(
+              'SELECT email, name FROM staff WHERE name = ? AND isActive = "active" LIMIT 1',
+              [input.assigneeName]
+            ) as any;
+            staffRows = rows;
+          }
           if (staffRows.length > 0 && staffRows[0].email) {
             const assigneeEmail = staffRows[0].email;
             const creatorName = (ctx as any).user?.displayName || (ctx as any).user?.name || 'Unknown';
