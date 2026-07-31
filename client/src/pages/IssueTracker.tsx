@@ -233,6 +233,19 @@ function IssueCard({ issue, onClick }: { issue: any; onClick: () => void }) {
 
 // ============ List View ============
 function ListView({ filters, onSelectIssue }: { filters: any; onSelectIssue: (id: number) => void }) {
+  const deleteMutation = trpc.issueTracker.delete.useMutation();
+  const utils = trpc.useUtils();
+  const handleDelete = async (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
+    if (!confirm('この問題を削除しますか？')) return;
+    try {
+      await deleteMutation.mutateAsync({ id });
+      toast.success('削除しました');
+      utils.issueTracker.list.invalidate();
+    } catch {
+      toast.error('削除に失敗しました');
+    }
+  };
   const { data, isLoading } = trpc.issueTracker.list.useQuery({
     status: filters.status !== 'all' ? filters.status : undefined,
     category: filters.category,
@@ -255,6 +268,7 @@ function ListView({ filters, onSelectIssue }: { filters: any; onSelectIssue: (id
             <th className="text-left p-3 font-medium w-[100px]">负责人</th>
             <th className="text-left p-3 font-medium w-[100px]">创建时间</th>
             <th className="text-left p-3 font-medium w-[100px]">截止日期</th>
+            <th className="text-left p-3 font-medium w-[60px]">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -291,11 +305,20 @@ function ListView({ filters, onSelectIssue }: { filters: any; onSelectIssue: (id
                 <td className={`p-3 text-xs ${isOverdue ? 'text-red-500 font-medium' : 'text-muted-foreground'}`}>
                   {issue.deadline ? new Date(issue.deadline).toLocaleDateString('ja-JP') : '-'}
                 </td>
+                <td className="p-3">
+                  <button
+                    onClick={(e) => handleDelete(e, issue.id)}
+                    className="p-1 rounded hover:bg-red-100 text-muted-foreground hover:text-red-500 transition-colors"
+                    title="削除"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </td>
               </tr>
             );
           })}
           {issues.length === 0 && (
-            <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">暂无问题</td></tr>
+            <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">暂无问题</td></tr>
           )}
         </tbody>
       </table>
