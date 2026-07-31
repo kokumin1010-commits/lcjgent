@@ -164,8 +164,8 @@ function ProductsTab() {
         <AiRecognitionButton onResult={(data) => { setEditProduct(null); setShowCreateDialog(true); setTimeout(() => { window.__aiProductData = data; window.dispatchEvent(new Event('ai-product-data')); }, 100); }} />
       </div>
 
-      <div className="border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="border rounded-lg overflow-x-auto">
+        <table className="w-full text-sm min-w-[1100px]">
           <thead className="bg-muted/50">
             <tr>
               <th className="text-left p-3 font-medium w-12">{t("sc.image")}</th>
