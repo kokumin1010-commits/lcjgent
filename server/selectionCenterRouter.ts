@@ -1468,7 +1468,7 @@ export const selectionCenterRouter = router({
   getProcurementOrders: protectedProcedure
     .input(z.object({
       brandId: z.number().optional(),
-      status: z.enum(['pending', 'ordered', 'received', 'cancelled']).optional(),
+      status: z.enum(['pending', 'ordered', 'received', 'completed', 'cancelled']).optional(),
       year: z.number().optional(),
       month: z.number().optional(),
       limit: z.number().default(100),
@@ -1516,7 +1516,7 @@ export const selectionCenterRouter = router({
       quantity: z.number().min(1),
       unitCost: z.number().min(0),
       orderDate: z.string(), // YYYY-MM-DD
-      status: z.enum(['pending', 'ordered', 'received', 'cancelled']).default('pending'),
+      status: z.enum(['pending', 'ordered', 'received', 'completed', 'cancelled']).default('pending'),
       memo: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -1547,7 +1547,7 @@ export const selectionCenterRouter = router({
       id: z.number(),
       quantity: z.number().min(1).optional(),
       unitCost: z.number().min(0).optional(),
-      status: z.enum(['pending', 'ordered', 'received', 'cancelled']).optional(),
+      status: z.enum(['pending', 'ordered', 'received', 'completed', 'cancelled']).optional(),
       memo: z.string().optional(),
       orderDate: z.string().optional(),
       qtyPerOrder: z.number().min(1).optional(),
@@ -1851,7 +1851,7 @@ export const selectionCenterRouter = router({
       brandId: z.number(),
       brandName: z.string(),
       orderDate: z.string(),
-      status: z.enum(['pending', 'ordered', 'received', 'cancelled']).default('pending'),
+      status: z.enum(['pending', 'ordered', 'received', 'completed', 'cancelled']).default('pending'),
       memo: z.string().optional(),
       liveRoom: z.string().optional(),
       shopName: z.string().optional(),
@@ -1877,6 +1877,7 @@ export const selectionCenterRouter = router({
         await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS pendingPaymentQty INT DEFAULT 0`);
         await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS pendingShipQty INT DEFAULT 0`);
         await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS qtyPerOrder INT DEFAULT 1`);
+        await pool.query(`ALTER TABLE procurement_orders MODIFY COLUMN status ENUM('pending','ordered','received','completed','cancelled') NOT NULL DEFAULT 'pending'`);
       } catch (e) { /* columns may already exist */ }
       const results: number[] = [];
       for (const item of input.items) {
@@ -2307,7 +2308,7 @@ export const selectionCenterRouter = router({
         quantity: z.number().default(1),
       })),
       orderDate: z.string(),
-      status: z.enum(['pending', 'ordered', 'received', 'cancelled']).default('pending'),
+      status: z.enum(['pending', 'ordered', 'received', 'completed', 'cancelled']).default('pending'),
       memo: z.string().optional(),
       liveRoom: z.string().optional(),
       shopName: z.string().optional(),
@@ -2400,7 +2401,7 @@ export const selectionCenterRouter = router({
         quantity: z.number().default(1),
       })),
       orderDate: z.string().optional(),
-      status: z.enum(['pending', 'ordered', 'received', 'cancelled']).optional(),
+      status: z.enum(['pending', 'ordered', 'received', 'completed', 'cancelled']).optional(),
       memo: z.string().optional(),
       liveRoom: z.string().optional(),
       shopName: z.string().optional(),

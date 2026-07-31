@@ -311,7 +311,7 @@ async function ensureNewFestivalTables(db: any): Promise<void> {
         unitCost DECIMAL(12,2) NOT NULL DEFAULT 0,
         totalCost DECIMAL(14,2) NOT NULL DEFAULT 0,
         orderDate DATE NOT NULL,
-        status ENUM('pending','ordered','received','cancelled') NOT NULL DEFAULT 'pending',
+        status ENUM('pending','ordered','received','completed','cancelled') NOT NULL DEFAULT 'pending',
         memo TEXT,
         createdBy INT NOT NULL DEFAULT 0,
         createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -3389,6 +3389,7 @@ function ProcurementTab() {
     pending: "発注待ち",
     ordered: "発注済み",
     received: "入荷済み",
+    completed: "処理完成",
     cancelled: "キャンセル",
   };
 
@@ -3396,6 +3397,7 @@ function ProcurementTab() {
     pending: "bg-yellow-100 text-yellow-800",
     ordered: "bg-blue-100 text-blue-800",
     received: "bg-green-100 text-green-800",
+    completed: "bg-purple-100 text-purple-800",
     cancelled: "bg-red-100 text-red-800",
   };
 
@@ -3505,6 +3507,7 @@ function ProcurementTab() {
             <SelectItem value="pending">発注待ち</SelectItem>
             <SelectItem value="ordered">発注済み</SelectItem>
             <SelectItem value="received">入荷済み</SelectItem>
+            <SelectItem value="completed">処理完成</SelectItem>
             <SelectItem value="cancelled">キャンセル</SelectItem>
           </SelectContent>
         </Select>
@@ -4137,6 +4140,8 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
                   <SelectItem value="pending">発注待ち</SelectItem>
                   <SelectItem value="ordered">発注済み</SelectItem>
                   <SelectItem value="received">入荷済み</SelectItem>
+                  <SelectItem value="completed">処理完成</SelectItem>
+                  <SelectItem value="cancelled">キャンセル</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -4223,6 +4228,7 @@ function ProcurementEditDialog({ order, onClose, onSubmit, isLoading }: {
                   <SelectItem value="pending">発注待ち</SelectItem>
                   <SelectItem value="ordered">発注済み</SelectItem>
                   <SelectItem value="received">入荷済み</SelectItem>
+                  <SelectItem value="completed">処理完成</SelectItem>
                   <SelectItem value="cancelled">キャンセル</SelectItem>
                 </SelectContent>
               </Select>
@@ -4424,6 +4430,8 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
                       <SelectItem value="pending">発注待ち</SelectItem>
                       <SelectItem value="ordered">発注済み</SelectItem>
                       <SelectItem value="received">入荷済み</SelectItem>
+                      <SelectItem value="completed">処理完成</SelectItem>
+                      <SelectItem value="cancelled">キャンセル</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -4730,6 +4738,7 @@ function FukubukuroEditDialog({ order, onClose, onSubmit, isLoading }: {
                     <SelectItem value="pending">発注待ち</SelectItem>
                     <SelectItem value="ordered">発注済み</SelectItem>
                     <SelectItem value="received">入荷済み</SelectItem>
+                    <SelectItem value="completed">処理完成</SelectItem>
                     <SelectItem value="cancelled">キャンセル</SelectItem>
                   </SelectContent>
                 </Select>
