@@ -1554,6 +1554,10 @@ export const selectionCenterRouter = router({
     }))
     .mutation(async ({ input }) => {
       const pool = getPool();
+      // Ensure ENUM includes 'completed'
+      try {
+        await pool.query(`ALTER TABLE procurement_orders MODIFY COLUMN status ENUM('pending','ordered','received','completed','cancelled') NOT NULL DEFAULT 'pending'`);
+      } catch (e) { /* ignore if already updated */ }
       const updates: string[] = [];
       const params: any[] = [];
       if (input.status !== undefined) {
@@ -2409,6 +2413,10 @@ export const selectionCenterRouter = router({
     }))
     .mutation(async ({ input }) => {
       const pool = getPool();
+      // Ensure ENUM includes 'completed'
+      try {
+        await pool.query(`ALTER TABLE procurement_orders MODIFY COLUMN status ENUM('pending','ordered','received','completed','cancelled') NOT NULL DEFAULT 'pending'`);
+      } catch (e) { /* ignore */ }
       // 1. bundle_items を全削除して再挿入
       await pool.query(`DELETE FROM bundle_items WHERE bundleId = ?`, [input.bundleId]);
       try {

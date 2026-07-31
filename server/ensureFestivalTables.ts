@@ -324,6 +324,11 @@ async function ensureNewFestivalTables(db: any): Promise<void> {
     `));
     console.log("[FestivalTables] \u2705 procurement_orders table ensured");
 
+    // Ensure status ENUM includes 'completed'
+    try {
+      await db.execute(sql.raw(`ALTER TABLE procurement_orders MODIFY COLUMN status ENUM('pending','ordered','received','completed','cancelled') NOT NULL DEFAULT 'pending'`));
+    } catch (e) { /* ignore */ }
+
     // Product cost history table (原価登録・履歴管理)
     await db.execute(sql.raw(`
       CREATE TABLE IF NOT EXISTS product_cost_history (
