@@ -4968,16 +4968,7 @@ function CostManagementContent() {
         </CardContent>
       </Card>
 
-      {/* 未设定成本的订单 */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">未设定成本的订单</CardTitle>
-          <p className="text-xs text-muted-foreground">可以为未设定成本的订单输入成本。</p>
-        </CardHeader>
-        <CardContent className="p-0">
-          <PendingCostOrders filterBrandId={filterBrandId} onUpdate={() => ordersQuery.refetch()} />
-        </CardContent>
-      </Card>
+
 
       {/* 成本变更历史 */}
       <Card>
