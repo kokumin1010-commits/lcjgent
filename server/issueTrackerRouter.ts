@@ -108,10 +108,18 @@ export const issueTrackerRouter = router({
       page: z.number().optional().default(1),
       pageSize: z.number().optional().default(50),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const pool = getPool();
       let where = 'WHERE 1=1';
       const params: any[] = [];
+
+      // Privacy: non-admin users can only see issues they created, are assigned to, or are helper of
+      const userId = (ctx as any).user?.id;
+      const userRole = (ctx as any).user?.role;
+      if (userRole !== 'admin' && userId) {
+        where += ' AND (creatorId = ? OR assigneeId = ? OR helperId = ?)';
+        params.push(userId, userId, userId);
+      }
 
       if (input.status !== 'all') {
         where += ' AND status = ?';
@@ -160,11 +168,20 @@ export const issueTrackerRouter = router({
   // Get single issue with comments
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const pool = getPool();
       const [issues] = await pool.query('SELECT * FROM issues WHERE id = ?', [input.id]);
       const issue = (issues as any[])[0];
       if (!issue) return null;
+
+      // Privacy check: only creator, assignee, helper, or admin can view
+      const userId = (ctx as any).user?.id;
+      const userRole = (ctx as any).user?.role;
+      if (userRole !== 'admin' && userId) {
+        if (issue.creatorId !== userId && issue.assigneeId !== userId && issue.helperId !== userId) {
+          return null;
+        }
+      }
 
       const [comments] = await pool.query(
         'SELECT * FROM issue_comments WHERE issueId = ? ORDER BY createdAt ASC',
@@ -517,7 +534,7 @@ export const issueTrackerRouter = router({
     .input(z.object({
       period: z.enum(['week', 'month', 'quarter', 'year']).optional().default('month'),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const pool = getPool();
       
       let dateFilter = '';
@@ -528,25 +545,33 @@ export const issueTrackerRouter = router({
         case 'year': dateFilter = 'AND createdAt >= DATE_SUB(NOW(), INTERVAL 365 DAY)'; break;
       }
 
+      // Privacy filter for non-admin users
+      const userId = (ctx as any).user?.id;
+      const userRole = (ctx as any).user?.role;
+      let privacyFilter = '';
+      if (userRole !== 'admin' && userId) {
+        privacyFilter = `AND (creatorId = ${Number(userId)} OR assigneeId = ${Number(userId)} OR helperId = ${Number(userId)})`;
+      }
+
       // Status distribution
       const [statusDist] = await pool.query(
-        `SELECT status, COUNT(*) as count FROM issues WHERE 1=1 ${dateFilter} GROUP BY status`
+        `SELECT status, COUNT(*) as count FROM issues WHERE 1=1 ${dateFilter} ${privacyFilter} GROUP BY status`
       );
 
       // Category distribution
       const [categoryDist] = await pool.query(
-        `SELECT category, COUNT(*) as count FROM issues WHERE 1=1 ${dateFilter} GROUP BY category ORDER BY count DESC`
+        `SELECT category, COUNT(*) as count FROM issues WHERE 1=1 ${dateFilter} ${privacyFilter} GROUP BY category ORDER BY count DESC`
       );
 
       // Priority distribution
       const [priorityDist] = await pool.query(
-        `SELECT priority, COUNT(*) as count FROM issues WHERE 1=1 ${dateFilter} GROUP BY priority`
+        `SELECT priority, COUNT(*) as count FROM issues WHERE 1=1 ${dateFilter} ${privacyFilter} GROUP BY priority`
       );
 
       // Average resolution time (hours)
       const [avgResolution] = await pool.query(
         `SELECT AVG(TIMESTAMPDIFF(HOUR, createdAt, completedAt)) as avgHours 
-         FROM issues WHERE completedAt IS NOT NULL ${dateFilter}`
+         FROM issues WHERE completedAt IS NOT NULL ${dateFilter} ${privacyFilter}`
       );
 
       // Top assignees by workload
@@ -555,7 +580,7 @@ export const issueTrackerRouter = router({
                 COUNT(*) as total,
                 SUM(CASE WHEN status = 'completed' OR status = 'closed' THEN 1 ELSE 0 END) as completed,
                 SUM(CASE WHEN status IN ('pending', 'in_progress', 'waiting_confirm') THEN 1 ELSE 0 END) as active
-         FROM issues WHERE assigneeName IS NOT NULL ${dateFilter}
+         FROM issues WHERE assigneeName IS NOT NULL ${dateFilter} ${privacyFilter}
          GROUP BY assigneeId, assigneeName ORDER BY total DESC LIMIT 10`
       );
 
@@ -563,14 +588,14 @@ export const issueTrackerRouter = router({
       const [dailyTrend] = await pool.query(
         `SELECT DATE(createdAt) as date, COUNT(*) as created,
                 SUM(CASE WHEN completedAt IS NOT NULL AND DATE(completedAt) = DATE(createdAt) THEN 1 ELSE 0 END) as resolved
-         FROM issues WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+         FROM issues WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 30 DAY) ${privacyFilter}
          GROUP BY DATE(createdAt) ORDER BY date`
       );
 
       // Overdue issues
       const [overdue] = await pool.query(
         `SELECT COUNT(*) as count FROM issues 
-         WHERE deadline < NOW() AND status NOT IN ('completed', 'closed')`
+         WHERE deadline < NOW() AND status NOT IN ('completed', 'closed') ${privacyFilter}`
       );
 
       return {
