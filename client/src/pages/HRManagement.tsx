@@ -141,6 +141,57 @@ function formatShortDate(date: Date | string | null | undefined): string {
   return d.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" });
 }
 
+/**
+ * Get display name based on nationality:
+ * - Chinese staff: Show Chinese name first, English name in parentheses
+ * - Japanese/Foreign staff: Show English/foreign name first, Chinese name in parentheses
+ */
+function getDisplayName(item: UnifiedStaffItem): string {
+  const chineseName = item.staffName || item.reportStaffName;
+  const englishName = item.staffNameEn;
+  const country = item.staffCountry || item.reportStaffCountry || "";
+
+  if (country === "中国") {
+    // Chinese staff: Chinese name first, English in ()
+    if (englishName) return `${chineseName}（${englishName}）`;
+    return chineseName;
+  } else {
+    // Japanese/Foreign staff: English/foreign name first, Chinese in ()
+    if (englishName) {
+      // If English name exists, use it as primary
+      return `${englishName}（${chineseName}）`;
+    }
+    // If no English name, just show the name as-is
+    return chineseName;
+  }
+}
+
+/** Get the primary name only (no parentheses) for compact displays */
+function getPrimaryName(item: UnifiedStaffItem): string {
+  const chineseName = item.staffName || item.reportStaffName;
+  const englishName = item.staffNameEn;
+  const country = item.staffCountry || item.reportStaffCountry || "";
+
+  if (country === "中国") {
+    return chineseName;
+  } else {
+    return englishName || chineseName;
+  }
+}
+
+/** Get the secondary name (the one in parentheses) */
+function getSecondaryName(item: UnifiedStaffItem): string | null {
+  const chineseName = item.staffName || item.reportStaffName;
+  const englishName = item.staffNameEn;
+  const country = item.staffCountry || item.reportStaffCountry || "";
+
+  if (country === "中国") {
+    return englishName || null;
+  } else {
+    return englishName ? chineseName : null;
+  }
+}
+
 // ============================================
 // Unified Staff Item type (merging reportStaff + staff)
 // ============================================
@@ -562,7 +613,7 @@ function OrganizationOverview({ staffList }: { staffList: UnifiedStaffItem[] }) 
                                 {deptStaff.map(s => (
                                   <div key={s.reportStaffId} className="text-xs text-muted-foreground flex items-center gap-1.5">
                                     <span className="w-1.5 h-1.5 rounded-full bg-primary/40 flex-shrink-0" />
-                                    <span className="font-medium text-foreground">{s.reportStaffName}</span>
+                                    <span className="font-medium text-foreground">{getDisplayName(s)}</span>
                                     {s.staffPosition && <span className="text-muted-foreground">({s.staffPosition})</span>}
                                   </div>
                                 ))}
@@ -891,7 +942,7 @@ function TierSystemTab({ staffList }: { staffList: UnifiedStaffItem[] }) {
               <tbody>
                 {linkedStaff.map((item) => (
                   <tr key={item.staffId} className="border-b last:border-0 hover:bg-accent/50">
-                    <td className="py-2.5 px-3 font-medium">{item.staffName || item.reportStaffName}</td>
+                    <td className="py-2.5 px-3 font-medium">{getDisplayName(item)}</td>
                     <td className="py-2.5 px-3">
                       <Badge variant="outline" className="text-[10px]">{item.reportStaffCountry}</Badge>
                     </td>
@@ -1401,9 +1452,10 @@ export default function HRManagement() {
   // Staff Card for unified view
   // ============================================
   const UnifiedStaffCard = ({ item, compact = false }: { item: UnifiedStaffItem; compact?: boolean }) => {
-    const name = item.staffName || item.reportStaffName;
-    const avatarColor = getAvatarColor(name);
-    const initials = getInitials(name);
+    const primaryName = getPrimaryName(item);
+    const secondaryName = getSecondaryName(item);
+    const avatarColor = getAvatarColor(primaryName);
+    const initials = getInitials(primaryName);
     const isActive = item.reportStaffIsActive === "active";
 
     if (compact) {
@@ -1415,14 +1467,14 @@ export default function HRManagement() {
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10 shrink-0">
-                <AvatarImage src={item.staffAvatarUrl || undefined} alt={name} />
+                <AvatarImage src={item.staffAvatarUrl || undefined} alt={primaryName} />
                 <AvatarFallback className={`${avatarColor} text-white text-sm font-medium`}>
                   {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <p className="font-medium text-sm truncate">{name}</p>
+                  <p className="font-medium text-sm truncate">{primaryName}{secondaryName && <span className="text-muted-foreground font-normal">（{secondaryName}）</span>}</p>
                   {item.isLinked ? (
                     <Link2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                   ) : (
@@ -1452,14 +1504,14 @@ export default function HRManagement() {
           {/* Header */}
           <div className="flex items-start gap-4 mb-4">
             <Avatar className="h-14 w-14 shrink-0 ring-2 ring-background shadow-sm">
-              <AvatarImage src={item.staffAvatarUrl || undefined} alt={name} />
+              <AvatarImage src={item.staffAvatarUrl || undefined} alt={primaryName} />
               <AvatarFallback className={`${avatarColor} text-white text-lg font-semibold`}>
                 {initials}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-semibold text-base truncate">{name}</h3>
+                <h3 className="font-semibold text-base truncate">{primaryName}</h3>
                 {isActive ? (
                   <span className="inline-flex items-center h-5 px-1.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200">
                     在籍
@@ -1470,8 +1522,8 @@ export default function HRManagement() {
                   </span>
                 )}
               </div>
-              {item.staffNameEn && (
-                <p className="text-xs text-muted-foreground mt-0.5">{item.staffNameEn}</p>
+              {secondaryName && (
+                <p className="text-xs text-muted-foreground mt-0.5">{secondaryName}</p>
               )}
               {item.staffPosition && (
                 <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
@@ -1826,7 +1878,7 @@ export default function HRManagement() {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-xl font-bold">{selectedItem.staffName || selectedItem.reportStaffName}</h2>
+                    <h2 className="text-xl font-bold">{getPrimaryName(selectedItem)}</h2>
                     {selectedItem.reportStaffIsActive === "active" ? (
                       <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">在籍</Badge>
                     ) : (
@@ -1842,7 +1894,7 @@ export default function HRManagement() {
                       </Badge>
                     )}
                   </div>
-                  {selectedItem.staffNameEn && <p className="text-sm text-muted-foreground">{selectedItem.staffNameEn}</p>}
+                  {getSecondaryName(selectedItem) && <p className="text-sm text-muted-foreground">{getSecondaryName(selectedItem)}</p>}
                   <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
                     {selectedItem.staffPosition && (
                       <span className="flex items-center gap-1"><Briefcase className="h-3.5 w-3.5" /> {selectedItem.staffPosition}</span>
@@ -2123,7 +2175,7 @@ export default function HRManagement() {
                   <Edit className="h-5 w-5" />
                   スタッフ情報編集
                 </DialogTitle>
-                <DialogDescription>{selectedItem.staffName || selectedItem.reportStaffName}さんの情報を編集します</DialogDescription>
+                <DialogDescription>{getPrimaryName(selectedItem)}さんの情報を編集します</DialogDescription>
               </DialogHeader>
               {staffFormFieldsJsx}
               <DialogFooter>
@@ -2146,7 +2198,7 @@ export default function HRManagement() {
               退職処理の確認
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {selectedItem?.staffName || selectedItem?.reportStaffName}さんの退職処理を行います。ステータスが「退職」に変更されますが、日報履歴やタスク履歴はそのまま保持されます。
+              {selectedItem ? getPrimaryName(selectedItem) : ''}さんの退職処理を行います。ステータスが「退職」に変更されますが、日報履歴やタスク履歴はそのまま保持されます。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4 py-2">
@@ -2206,7 +2258,7 @@ export default function HRManagement() {
               Tier設定
             </DialogTitle>
             <DialogDescription>
-              {unifiedStaffList.find(s => s.staffId === tierEditStaffId)?.staffName || unifiedStaffList.find(s => s.staffId === tierEditStaffId)?.reportStaffName}さんのTierを設定
+              {(() => { const found = unifiedStaffList.find(s => s.staffId === tierEditStaffId); return found ? getPrimaryName(found) : ''; })()}さんのTierを設定
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
