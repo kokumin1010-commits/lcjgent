@@ -194,9 +194,8 @@ export default function LiveCommerceFestival() {
           <TopAnnouncementBar />
         </div>
         <HeroSection />
-        <SpeakersSection />
-        <TopLiveCommercerSection />
         <GuestIntroSection />
+        <TopLiveCommercerSection />
         <SpecialLiversSection />
         <CampaignBanner />
         <StatsSection />
@@ -547,6 +546,7 @@ function TopLiveCommercerSection() {
       statValue: '1.2',
       statUnit: '億円',
       image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ALTJWcRgCsmFBOlK.webp',
+      bio: '日本最大級のTikTokライブコマース事務所「Live Commerce Japan」代表。累計10億円超の売上実績を持ち、294名以上のライバーを擁する。TikTok公式パートナーとして、ライブコマース業界の発展を牽引。',
     },
     {
       name: 'プリンスこうや',
@@ -555,6 +555,7 @@ function TopLiveCommercerSection() {
       statValue: '8000',
       statUnit: '万円',
       image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/jjiDqZxFyGExxlBE.webp',
+      bio: 'TikTokライブコマースのトッププレイヤー。圧倒的なカリスマ性とトーク力で視聴者を魅了し、8000万円の売上を達成。株式会社MOB取締役として、ライブコマース事業の拡大に貫献。',
     },
     {
       name: '熊田 佳奈',
@@ -563,6 +564,7 @@ function TopLiveCommercerSection() {
       statValue: '5000',
       statUnit: '万円',
       image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/mQoydCcUKpcfxILK.webp',
+      bio: '人気TikTokチャンネル「ぞうねこちゃんねる」の創始者。親しみやすいキャラクターと商品紹介力でファンを獲得し、TikTok Shopで5000万円の売上を記録。ライブコマース界の注目株。',
     },
   ];
 
@@ -595,7 +597,8 @@ function TopLiveCommercerSection() {
               {/* Info */}
               <div className="p-5 text-white">
                 <h3 className="font-bold text-xl">{c.name}</h3>
-                <p className="text-xs text-gray-400 mt-1 mb-3">{c.title}</p>
+                <p className="text-xs text-gray-400 mt-1 mb-2">{c.title}</p>
+                <p className="text-xs text-gray-300 leading-relaxed mb-3">{c.bio}</p>
                 <div>
                   <p className="text-[11px] text-gray-500">{c.stat}</p>
                   <p className="text-2xl md:text-3xl font-black text-[#FFD700]">
