@@ -459,10 +459,11 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" onPaste={handlePasteUpload}>
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col overflow-hidden" onPaste={handlePasteUpload}>
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>{isEdit ? t("sc.form.editTitle") : t("sc.form.addTitle")}</DialogTitle>
         </DialogHeader>
+        <div className="flex-1 overflow-y-auto pr-2">
         <div className="space-y-4">
           {/* Image Upload Section - 支持粘贴上传 */}
           <div>
@@ -772,7 +773,8 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
             )}
           </div>
         </div>
-        <DialogFooter>
+        </div>
+        <DialogFooter className="flex-shrink-0 border-t pt-4 mt-2">
           <Button variant="outline" onClick={onClose}>{t("sc.form.cancel")}</Button>
           <Button onClick={handleSubmit} disabled={loading || uploading || !form.productName || !form.brandId}>
             {loading ? t("sc.form.saving") : isEdit ? t("sc.form.update") : t("sc.form.addImage")}
