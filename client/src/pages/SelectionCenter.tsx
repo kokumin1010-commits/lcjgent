@@ -1016,17 +1016,18 @@ function LiverSelectionTab() {
             return tags.includes(tagFilter);
           }).map((product: any) => (
             <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer" onClick={() => setDetailProduct(product)}>
-              {/* Product Image */}
+              {/* Product Image - full display, click to enlarge */}
               {(() => {
                 try {
                   const imgs = typeof product.images === 'string' ? JSON.parse(product.images) : product.images;
                   if (Array.isArray(imgs) && imgs.length > 0) {
                     return (
-                      <div className="w-full aspect-[16/9] overflow-hidden bg-muted">
+                      <div className="w-full bg-white border-b">
                         <img
                           src={imgs[0]}
                           alt={product.productName}
-                          className="w-full h-full object-cover"
+                          className="w-full h-auto object-contain cursor-zoom-in hover:opacity-90 transition-opacity"
+                          onClick={(e) => { e.stopPropagation(); window.open(imgs[0], '_blank'); }}
                         />
                       </div>
                     );
@@ -1156,8 +1157,8 @@ function LiverSelectionTab() {
                     return (
                       <div className="grid grid-cols-2 gap-2">
                         {imgs.map((img: string, idx: number) => (
-                          <div key={idx} className="aspect-square overflow-hidden rounded-lg bg-muted">
-                            <img src={img} alt={`${detailProduct.productName} ${idx + 1}`} className="w-full h-full object-cover" />
+                          <div key={idx} className="overflow-hidden rounded-lg bg-white border">
+                            <img src={img} alt={`${detailProduct.productName} ${idx + 1}`} className="w-full h-auto object-contain cursor-zoom-in hover:opacity-90 transition-opacity" onClick={() => window.open(img, '_blank')} />
                           </div>
                         ))}
                       </div>
