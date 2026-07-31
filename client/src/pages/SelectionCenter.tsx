@@ -499,25 +499,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
                   disabled={uploading}
                 />
               </label>
-              <AiRecognitionInlineButton
-                onResult={(data) => {
-                  setForm((prev: any) => ({
-                    ...prev,
-                    productName: data.productName || prev.productName || '',
-                    productNameCn: data.productNameCn || prev.productNameCn || '',
-                    brandName: data.brandName || prev.brandName || '',
-                    price: data.price ? String(data.price) : prev.price || '',
-                    marketPrice: data.marketPrice ? String(data.marketPrice) : prev.marketPrice || '',
-                    costPrice: data.costPrice ? String(data.costPrice) : prev.costPrice || '',
-                    stock: data.stock || prev.stock || '',
-                    sellingPoints: data.sellingPoints || prev.sellingPoints || '',
-                    description: data.description || prev.description || '',
-                    barcode: data.barcode || prev.barcode || '',
-                    productLink: data.productLink || prev.productLink || '',
-                  }));
-                  toast.success(t('sc.form.aiRecognitionSuccess') || 'AI识别完成，已自动填充');
-                }}
-              />
+
             </div>
           </div>
 
