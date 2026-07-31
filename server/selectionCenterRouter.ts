@@ -2448,4 +2448,16 @@ export const selectionCenterRouter = router({
 
       return { success: true, itemCount: input.items.length };
     }),
+  // ブランド一括上下架
+  bulkUpdateBrandStatus: protectedProcedure.input(z.object({
+    brandName: z.string(),
+    status: z.enum(["online", "offline"]),
+  })).mutation(async ({ input }) => {
+    const pool = getPool();
+    const [result] = await pool.query(
+      "UPDATE selection_products SET status = ? WHERE brandName = ? AND deletedAt IS NULL",
+      [input.status, input.brandName]
+    ) as any;
+    return { success: true, affectedCount: result.affectedRows || 0 };
+  }),
 });

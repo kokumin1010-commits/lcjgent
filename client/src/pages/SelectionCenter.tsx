@@ -64,6 +64,10 @@ function ProductsTab() {
   const deleteProductMutation = trpc.selectionCenter.deleteProduct.useMutation({
     onSuccess: () => { productsQuery.refetch(); toast.success(t("sc.productDeleted")); },
   });
+  const bulkBrandStatusMutation = trpc.selectionCenter.bulkUpdateBrandStatus.useMutation({
+    onSuccess: (data) => { productsQuery.refetch(); toast.success(`${data.affectedCount}件の商品を更新しました`); },
+    onError: (err) => { toast.error(err.message || '一括更新失敗'); },
+  });
 
   const createPollMutation = trpc.poll.create.useMutation({
     onSuccess: (data) => {
@@ -110,6 +114,35 @@ function ProductsTab() {
             })()}
           </SelectContent>
         </Select>
+        {brandFilter !== 'all' && (
+          <>
+            <Button
+              variant="default"
+              size="sm"
+              className="bg-green-600 hover:bg-green-700 text-white"
+              disabled={bulkBrandStatusMutation.isPending}
+              onClick={() => {
+                if (confirm(`「${brandFilter}」の全商品を一括上架しますか？`)) {
+                  bulkBrandStatusMutation.mutate({ brandName: brandFilter, status: 'online' });
+                }
+              }}
+            >
+              <CheckCircle className="h-4 w-4 mr-1" />一括上架
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={bulkBrandStatusMutation.isPending}
+              onClick={() => {
+                if (confirm(`「${brandFilter}」の全商品を一括下架しますか？`)) {
+                  bulkBrandStatusMutation.mutate({ brandName: brandFilter, status: 'offline' });
+                }
+              }}
+            >
+              <X className="h-4 w-4 mr-1" />一括下架
+            </Button>
+          </>
+        )}
         <Button variant="outline" onClick={() => {
           const products = (productsQuery.data?.items || []).filter((p: any) => {
             if (brandFilter !== 'all' && p.brandName !== brandFilter) return false;
