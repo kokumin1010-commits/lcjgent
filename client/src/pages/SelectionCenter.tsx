@@ -1022,11 +1022,13 @@ function LiverSelectionTab() {
                   const imgs = typeof product.images === 'string' ? JSON.parse(product.images) : product.images;
                   if (Array.isArray(imgs) && imgs.length > 0) {
                     return (
-                      <div className="w-full bg-white border-b">
+                      <div className="w-full bg-white border-b flex items-center justify-center p-2">
                         <img
                           src={imgs[0]}
                           alt={product.productName}
-                          className="w-full h-auto object-contain cursor-zoom-in hover:opacity-90 transition-opacity"
+                          className="max-w-full max-h-[400px] object-contain cursor-zoom-in hover:opacity-90 transition-opacity"
+                          style={{ imageRendering: 'auto' }}
+                          loading="lazy"
                           onClick={(e) => { e.stopPropagation(); window.open(imgs[0], '_blank'); }}
                         />
                       </div>
