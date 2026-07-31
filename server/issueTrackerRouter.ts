@@ -13,6 +13,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "./_core/trpc";
 import mysql from "mysql2/promise";
 import { invokeLLM } from "./_core/llm";
+import { sendEmail } from "./emailService";
 
 // Reuse the pool from selectionCenterRouter
 let _pool: mysql.Pool | null = null;
@@ -217,6 +218,48 @@ export const issueTrackerRouter = router({
         `INSERT INTO issue_comments (issueId, authorName, content, type) VALUES (?, ?, ?, 'system')`,
         [issueId, (ctx as any).user?.displayName || 'System', '問題を作成しました']
       );
+
+      // Send email notification to assignee
+      if (input.assigneeId) {
+        try {
+          const [staffRows] = await pool.query(
+            'SELECT email, name FROM staff WHERE id = ? AND isActive = "active"',
+            [input.assigneeId]
+          ) as any;
+          if (staffRows.length > 0 && staffRows[0].email) {
+            const assigneeEmail = staffRows[0].email;
+            const creatorName = (ctx as any).user?.displayName || (ctx as any).user?.name || 'Unknown';
+            const priorityMap: Record<string, string> = { urgent: '\ud83d\udd34 緊急', high: '\ud83d\udfe0 高', medium: '\ud83d\udfe1 中', low: '\ud83d\udfe2 低' };
+            const categoryMap: Record<string, string> = { operation: '運営', technical: '技術', logistics: '物流', customer_service: 'カスタマー', finance: '財務', hr: '人事', other: 'その他' };
+            const subject = `【問題割当】${input.title}`;
+            const html = `
+              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #1a56db;">📋 新しい問題が割り当てられました</h2>
+                <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold; width: 100px;">タイトル</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${input.title}</td></tr>
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">優先度</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${priorityMap[input.priority] || input.priority}</td></tr>
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">分類</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${categoryMap[input.category] || input.category}</td></tr>
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">作成者</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${creatorName}</td></tr>
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">期限</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${input.deadline || '未設定'}</td></tr>
+                </table>
+                ${input.description ? `<div style="background: #f9fafb; padding: 12px; border-radius: 8px; margin: 16px 0;"><strong>詳細:</strong><br/>${input.description}</div>` : ''}
+                <p style="margin-top: 20px;"><a href="https://lcjmall.com/master/issues" style="background: #1a56db; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">問題を確認する →</a></p>
+                <p style="color: #6b7280; font-size: 12px; margin-top: 24px;">このメールはLCJ問題処理系統から自動送信されています。</p>
+              </div>
+            `;
+            await sendEmail({
+              to: [assigneeEmail],
+              subject,
+              content: `新しい問題「${input.title}」が割り当てられました。優先度: ${priorityMap[input.priority] || input.priority}。https://lcjmall.com/master/issues で確認してください。`,
+              html,
+            });
+            console.log(`[IssueTracker] Email notification sent to ${assigneeEmail} for issue #${issueId}`);
+          }
+        } catch (emailErr) {
+          console.error('[IssueTracker] Failed to send email notification:', emailErr);
+          // Don't fail the issue creation if email fails
+        }
+      }
 
       return { id: issueId, success: true };
     }),
