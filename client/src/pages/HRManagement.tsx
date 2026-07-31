@@ -416,11 +416,13 @@ function OrganizationOverview({ staffList }: { staffList: UnifiedStaffItem[] }) 
       const country = s.staffCountry || s.reportStaffCountry || "不明";
       if (!map[country]) map[country] = { total: 0, active: 0, departments: {}, employmentTypes: {} };
       map[country].total++;
-      if (s.reportStaffIsActive === "active") map[country].active++;
-      const dept = s.staffDepartment || "未設定";
-      map[country].departments[dept] = (map[country].departments[dept] || 0) + 1;
-      const empType = s.staffEmploymentType || "unknown";
-      map[country].employmentTypes[empType] = (map[country].employmentTypes[empType] || 0) + 1;
+      if (s.reportStaffIsActive === "active") {
+        map[country].active++;
+        const dept = s.staffDepartment || "未設定";
+        map[country].departments[dept] = (map[country].departments[dept] || 0) + 1;
+        const empType = s.staffEmploymentType || "unknown";
+        map[country].employmentTypes[empType] = (map[country].employmentTypes[empType] || 0) + 1;
+      }
     });
     return Object.entries(map)
       .sort((a, b) => b[1].total - a[1].total)
@@ -430,7 +432,7 @@ function OrganizationOverview({ staffList }: { staffList: UnifiedStaffItem[] }) 
   // 部門別集計
   const departmentStats = useMemo(() => {
     const map: Record<string, { total: number; countries: Record<string, number> }> = {};
-    staffList.forEach(s => {
+    staffList.filter(s => s.reportStaffIsActive === "active").forEach(s => {
       const dept = s.staffDepartment || "未設定";
       const country = s.staffCountry || s.reportStaffCountry || "不明";
       if (!map[dept]) map[dept] = { total: 0, countries: {} };
@@ -445,7 +447,7 @@ function OrganizationOverview({ staffList }: { staffList: UnifiedStaffItem[] }) 
   // 雇用形態別集計
   const employmentStats = useMemo(() => {
     const map: Record<string, number> = {};
-    staffList.forEach(s => {
+    staffList.filter(s => s.reportStaffIsActive === "active").forEach(s => {
       const type = s.staffEmploymentType || "unknown";
       map[type] = (map[type] || 0) + 1;
     });
@@ -539,6 +541,7 @@ function OrganizationOverview({ staffList }: { staffList: UnifiedStaffItem[] }) 
                         const deptKey = `${cs.country}:${dept}`;
                         const isExpanded = expandedDepts.has(deptKey);
                         const deptStaff = staffList.filter(s => 
+                          s.reportStaffIsActive === "active" &&
                           (s.staffCountry || s.reportStaffCountry || "不明") === cs.country &&
                           (s.staffDepartment || "未設定") === dept
                         );
