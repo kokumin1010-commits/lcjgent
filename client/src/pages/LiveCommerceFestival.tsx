@@ -195,6 +195,7 @@ export default function LiveCommerceFestival() {
         </div>
         <HeroSection />
         <SpeakersSection />
+        <TopLiveCommercerSection />
         <GuestIntroSection />
         <SpecialLiversSection />
         <CampaignBanner />
@@ -527,6 +528,83 @@ function SpeakersSection() {
               + 300名以上
             </span>
           </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================
+// Top Live Commercer Section — トップライブコマーサー
+// ============================================================
+function TopLiveCommercerSection() {
+  const reveal = useScrollReveal();
+  const topCommercers = [
+    {
+      name: '京極 琉',
+      title: 'Live Commerce Japan CEO',
+      stat: 'TikTok売上',
+      statValue: '1.2',
+      statUnit: '億円',
+      image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ALTJWcRgCsmFBOlK.webp',
+    },
+    {
+      name: 'プリンスこうや',
+      title: '株式会社MOB 取締役',
+      stat: 'TikTok売上',
+      statValue: '8000',
+      statUnit: '万円',
+      image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/jjiDqZxFyGExxlBE.webp',
+    },
+    {
+      name: '熊田 佳奈',
+      title: 'ぞうねこちゃんねる創始者 KANA',
+      stat: 'TikTok売上',
+      statValue: '5000',
+      statUnit: '万円',
+      image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/mQoydCcUKpcfxILK.webp',
+    },
+  ];
+
+  return (
+    <section className="bg-[#0a0a0a] py-16 md:py-20 px-4">
+      <div ref={reveal.ref} className={`max-w-5xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        <div className="text-center mb-10">
+          <p className="text-[#FFD700] text-sm font-bold tracking-widest mb-2">TOP LIVE COMMERCER</p>
+          <h2 className="text-3xl md:text-4xl font-black text-white">トップライブコマーサー</h2>
+          <p className="text-gray-400 mt-2 text-sm">日本のライブコマース界を牽引するトッププレイヤー</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
+          {topCommercers.map((c, i) => (
+            <div
+              key={i}
+              className="bg-[#1a1a1a] rounded-2xl overflow-hidden border border-gray-800 hover:border-[#FFD700]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,215,0,0.15)] group"
+            >
+              {/* Photo */}
+              <div className="aspect-[3/4] relative overflow-hidden">
+                <img
+                  src={c.image}
+                  alt={c.name}
+                  className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#FFD700]" />
+              </div>
+
+              {/* Info */}
+              <div className="p-5 text-white">
+                <h3 className="font-bold text-xl">{c.name}</h3>
+                <p className="text-xs text-gray-400 mt-1 mb-3">{c.title}</p>
+                <div>
+                  <p className="text-[11px] text-gray-500">{c.stat}</p>
+                  <p className="text-2xl md:text-3xl font-black text-[#FFD700]">
+                    {c.statValue}<span className="text-sm font-normal text-gray-400">{c.statUnit}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </section>
