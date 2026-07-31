@@ -67,7 +67,7 @@ export default function StaffSchedule() {
   const [formEndTime, setFormEndTime] = useState("18:00");
   const [formNotes, setFormNotes] = useState("");
   const [formShift, setFormShift] = useState<string>("morning"); // morning | evening
-  const [formIsFollowBroadcast, setFormIsFollowBroadcast] = useState(true);
+  const [formIsFollowBroadcast, setFormIsFollowBroadcast] = useState(false);
   const [formAnchor, setFormAnchor] = useState<string>("Ryu kyogoku "); // 主播名 (required when 跟播)
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -196,7 +196,7 @@ export default function StaffSchedule() {
     setFormStartTime("09:00");
     setFormEndTime("18:00");
     setFormNotes("");
-    setFormIsFollowBroadcast(true);
+    setFormIsFollowBroadcast(false);
     setFormAnchor("Ryu kyogoku ");
     setIsSubmitting(false);
   };
