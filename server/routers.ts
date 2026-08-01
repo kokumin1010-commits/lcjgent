@@ -768,6 +768,7 @@ import { userManagementRouter } from "./userManagementRouter";
 import { checkAndSendReminders } from "./reminderScheduler";
 // Blog/AutoPost関連のimportはserver/blogRouter.tsに移動済み
 import { completionRouter } from "./completion";
+import { buybackRouter } from "./buybackRouter";
 import { sendReminderEmail } from "./emailService";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { bwExchangeTokens, bwLookupCustomer } from "./bw-api";
@@ -29916,6 +29917,7 @@ JSON形式で推薦順序を返してください。`;
   }),
   // 朝会録音・文字起こし・AI要約
   morningMeeting: morningMeetingRouter,
+  buyback: buybackRouter,
 });
 export type AppRouter = typeof appRouter;
 

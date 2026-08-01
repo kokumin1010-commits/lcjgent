@@ -174,6 +174,8 @@ const AccountManagement = lazy(() => import("./pages/AccountManagement"));
 const BarcodeScanner = lazy(() => import("./pages/BarcodeScanner"));
 const ProductGranenzyme = lazy(() => import("./pages/ProductGranenzyme"));
 const MorningMeeting = lazy(() => import("./pages/MorningMeeting"));
+const BuybackPage = lazy(() => import("./pages/BuybackPage"));
+const BuybackAdmin = lazy(() => import("./pages/BuybackAdmin"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -206,6 +208,8 @@ function Router() {
         <Route path="/mall/checkout/cancel" component={CheckoutCancel} />
         <Route path="/point-request" component={PointRequest} />
         <Route path="/receipt-upload" component={ReceiptUpload} />
+        <Route path="/buyback" component={BuybackPage} />
+        <Route path="/buyback/:id" component={BuybackPage} />
         <Route path="/kakuhen-test" component={KakuhenTest} />
         <Route path="/ranking" component={ProductRanking} />
         <Route path="/reviews" component={ReviewDatabase} />
@@ -668,6 +672,11 @@ function Router() {
         <Route path="/master/morning-meeting">
           <DashboardLayout>
             <MorningMeeting />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/buyback">
+          <DashboardLayout>
+            <BuybackAdmin />
           </DashboardLayout>
         </Route>
         <Route path="/barcode-scanner" component={BarcodeScanner} />

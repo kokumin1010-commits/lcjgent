@@ -159,6 +159,7 @@ function DashboardLayoutContent({
     { icon: Users, label: t("nav.staff"), path: "/master/staff" },
     { icon: Wallet, label: t("nav.finance") || "ファイナンス管理", path: "/master/finance" },
     { icon: Coins, label: "LCJコイン", path: "/master/lcj-coin" },
+    { icon: ShoppingBag, label: "買取管理", path: "/master/buyback" },
     { icon: PartyPopper, label: "LCF イベント申込管理", path: "/master/festival" },
     { icon: AlertCircle, label: "問題処理", path: "/master/issues" },
     { icon: Settings, label: t("nav.masterControl"), path: "/master/control" },

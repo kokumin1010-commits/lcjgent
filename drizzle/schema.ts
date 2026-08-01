@@ -6551,3 +6551,103 @@ export const morningMeetings = mysqlTable("morning_meetings", {
 });
 export type MorningMeeting = typeof morningMeetings.$inferSelect;
 export type InsertMorningMeeting = typeof morningMeetings.$inferInsert;
+
+// ===== 中古ブランド買取・オークション連携システム =====
+
+export const buybackPartners = mysqlTable("buyback_partners", {
+  id: int("id").primaryKey().autoincrement(),
+  companyName: varchar("company_name", { length: 255 }).notNull(),
+  contactName: varchar("contact_name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 50 }),
+  licenseNumber: varchar("license_number", { length: 100 }).notNull(),
+  lineUserId: varchar("line_user_id", { length: 100 }),
+  status: mysqlEnum("status", ["active", "inactive", "suspended"]).default("active").notNull(),
+  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).default("10.00"),
+  totalAssessments: int("total_assessments").default(0),
+  acceptRate: decimal("accept_rate", { precision: 5, scale: 4 }),
+  avgResponseTime: decimal("avg_response_time", { precision: 10, scale: 2 }),
+  specialties: json("specialties"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type BuybackPartner = typeof buybackPartners.$inferSelect;
+export type InsertBuybackPartner = typeof buybackPartners.$inferInsert;
+
+export const buybackRequests = mysqlTable("buyback_requests", {
+  id: int("id").primaryKey().autoincrement(),
+  lineUserId: varchar("line_user_id", { length: 100 }).notNull(),
+  displayName: varchar("display_name", { length: 255 }),
+  category: mysqlEnum("category", ["bag", "watch", "jewelry", "apparel", "shoes", "accessory", "other"]).notNull(),
+  brandName: varchar("brand_name", { length: 255 }),
+  productName: varchar("product_name", { length: 500 }),
+  description: text("description"),
+  condition: mysqlEnum("condition", ["new", "like_new", "good", "fair", "poor"]),
+  imageUrls: json("image_urls"),
+  status: mysqlEnum("status", [
+    "pending", "ai_assessed", "partner_assessed", "accepted",
+    "shipped", "received", "completed", "cancelled", "rejected"
+  ]).default("pending").notNull(),
+  aiEstimatedMin: int("ai_estimated_min"),
+  aiEstimatedMax: int("ai_estimated_max"),
+  aiBrand: varchar("ai_brand", { length: 255 }),
+  aiModel: varchar("ai_model", { length: 500 }),
+  aiCondition: varchar("ai_condition", { length: 100 }),
+  aiConfidence: decimal("ai_confidence", { precision: 3, scale: 2 }),
+  aiRawResponse: json("ai_raw_response"),
+  selectedPartnerId: int("selected_partner_id"),
+  assessmentAmount: int("assessment_amount"),
+  finalAmount: int("final_amount"),
+  commissionAmount: int("commission_amount"),
+  pointsAwarded: int("points_awarded"),
+  shippingTrackingNumber: varchar("shipping_tracking_number", { length: 100 }),
+  shippingCarrier: varchar("shipping_carrier", { length: 100 }),
+  shippedAt: timestamp("shipped_at"),
+  receivedAt: timestamp("received_at"),
+  completedAt: timestamp("completed_at"),
+  cancelledAt: timestamp("cancelled_at"),
+  cancelReason: text("cancel_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type BuybackRequest = typeof buybackRequests.$inferSelect;
+export type InsertBuybackRequest = typeof buybackRequests.$inferInsert;
+
+export const buybackAssessments = mysqlTable("buyback_assessments", {
+  id: int("id").primaryKey().autoincrement(),
+  requestId: int("request_id").notNull(),
+  partnerId: int("partner_id").notNull(),
+  amount: int("amount").notNull(),
+  note: text("note"),
+  status: mysqlEnum("status", ["pending", "accepted", "rejected", "expired"]).default("pending").notNull(),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type BuybackAssessment = typeof buybackAssessments.$inferSelect;
+export type InsertBuybackAssessment = typeof buybackAssessments.$inferInsert;
+
+export const buybackMessages = mysqlTable("buyback_messages", {
+  id: int("id").primaryKey().autoincrement(),
+  requestId: int("request_id").notNull(),
+  senderType: mysqlEnum("sender_type", ["user", "partner", "system"]).notNull(),
+  senderId: varchar("sender_id", { length: 100 }).notNull(),
+  senderName: varchar("sender_name", { length: 255 }),
+  message: text("message").notNull(),
+  imageUrl: varchar("image_url", { length: 1000 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type BuybackMessage = typeof buybackMessages.$inferSelect;
+export type InsertBuybackMessage = typeof buybackMessages.$inferInsert;
+
+export const buybackTransactionLogs = mysqlTable("buyback_transaction_logs", {
+  id: int("id").primaryKey().autoincrement(),
+  requestId: int("request_id").notNull(),
+  action: varchar("action", { length: 100 }).notNull(),
+  actorType: mysqlEnum("actor_type", ["user", "partner", "admin", "system"]).notNull(),
+  actorId: varchar("actor_id", { length: 100 }).notNull(),
+  details: json("details"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type BuybackTransactionLog = typeof buybackTransactionLogs.$inferSelect;
+export type InsertBuybackTransactionLog = typeof buybackTransactionLogs.$inferInsert;

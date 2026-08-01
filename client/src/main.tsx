@@ -53,7 +53,7 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   // セキュリティ: LINEユーザー向けページからは管理者ログインページにリダイレクトしない
   // 確変チャンス、レシートアップロード、マイページ等の一般ユーザー向けページ
   const lineUserPages = [
-    '/receipt-upload', '/line-login', '/line-callback', '/mypage',
+    '/receipt-upload', '/buyback', '/line-login', '/line-callback', '/mypage',
     '/products', '/mall', '/point-request', '/friend-challenge',
     '/beauty-wallet', '/reviews', '/my/', '/chat/invite'
   ];
@@ -112,6 +112,7 @@ const customFetch: typeof globalThis.fetch = (input, init) => {
                         currentPath.startsWith('/products') ||
                         currentPath.startsWith('/mall') ||
                         currentPath === '/receipt-upload' ||
+                        currentPath.startsWith('/buyback') ||
                         currentPath === '/point-request' ||
                         currentPath === '/friend-challenge' ||
                         currentPath === '/beauty-wallet' ||
