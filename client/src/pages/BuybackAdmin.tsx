@@ -86,7 +86,7 @@ function RequestsTab({
   selectedRequest: number | null;
   setSelectedRequest: (id: number | null) => void;
 }) {
-  const requests = trpc.buyback.adminGetRequests.useQuery({ 
+  const requests = trpc.buyback.getAllRequests.useQuery({ 
     status: statusFilter === "all" ? undefined : statusFilter as any,
     limit: 50 
   });
@@ -119,14 +119,14 @@ function RequestsTab({
       {/* Request List */}
       {requests.isLoading ? (
         <div className="text-center py-12 text-gray-400">読み込み中...</div>
-      ) : requests.data?.length === 0 ? (
+      ) : requests.data?.requests?.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
           <p>該当する依頼がありません</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {requests.data?.map((req: any) => (
+          {requests.data?.requests?.map((req: any) => (
             <div key={req.id}>
               <div
                 onClick={() => setSelectedRequest(selectedRequest === req.id ? null : req.id)}
@@ -180,11 +180,11 @@ function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose
   const [assessNote, setAssessNote] = useState("");
   const [message, setMessage] = useState("");
 
-  const detail = trpc.buyback.adminGetRequestDetail.useQuery({ requestId });
+  const detail = trpc.buyback.getRequestDetailAdmin.useQuery({ requestId });
   const assessMutation = trpc.buyback.submitAssessment.useMutation();
-  const confirmReceiveMutation = trpc.buyback.confirmReceive.useMutation();
+  const confirmReceiveMutation = trpc.buyback.confirmReceived.useMutation();
   const completeMutation = trpc.buyback.completeTransaction.useMutation();
-  const sendMessageMutation = trpc.buyback.adminSendMessage.useMutation();
+  const sendMessageMutation = trpc.buyback.sendAdminMessage.useMutation();
 
   if (detail.isLoading) return <div className="p-4 text-center text-gray-400">読み込み中...</div>;
   if (!detail.data) return null;
@@ -396,14 +396,14 @@ function PartnersTab() {
   const [phone, setPhone] = useState("");
   const [licenseNumber, setLicenseNumber] = useState("");
 
-  const addPartnerMutation = trpc.buyback.addPartner.useMutation();
+  const addPartnerMutation = trpc.buyback.createPartner.useMutation();
 
   const handleAddPartner = async () => {
     if (!companyName || !licenseNumber) return;
     await addPartnerMutation.mutateAsync({
       companyName,
-      contactName: contactName || undefined,
-      email: email || undefined,
+      contactName: contactName || companyName,
+      email: email || `${companyName.replace(/\s/g, '')}@partner.lcj`,
       phone: phone || undefined,
       licenseNumber,
     });
@@ -513,39 +513,39 @@ function PartnersTab() {
 }
 
 function StatsTab() {
-  const stats = trpc.buyback.getStats.useQuery();
+  const stats = trpc.buyback.getDashboardStats.useQuery();
 
   if (stats.isLoading) {
     return <div className="text-center py-12 text-gray-400">読み込み中...</div>;
   }
 
-  const data = stats.data || { total: 0, pending: 0, completed: 0, totalAmount: 0, avgAmount: 0 };
+  const data = stats.data || { totalRequests: 0, pendingRequests: 0, completedRequests: 0, activePartners: 0, totalRevenue: 0, avgTransactionAmount: 0 };
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl p-4 border">
           <p className="text-xs text-gray-500">総依頼数</p>
-          <p className="text-2xl font-bold text-gray-900">{data.total}</p>
+          <p className="text-2xl font-bold text-gray-900">{data.totalRequests}</p>
         </div>
         <div className="bg-white rounded-xl p-4 border">
           <p className="text-xs text-gray-500">査定待ち</p>
-          <p className="text-2xl font-bold text-yellow-600">{data.pending}</p>
+          <p className="text-2xl font-bold text-yellow-600">{data.pendingRequests}</p>
         </div>
         <div className="bg-white rounded-xl p-4 border">
           <p className="text-xs text-gray-500">完了</p>
-          <p className="text-2xl font-bold text-green-600">{data.completed}</p>
+          <p className="text-2xl font-bold text-green-600">{data.completedRequests}</p>
         </div>
         <div className="bg-white rounded-xl p-4 border">
           <p className="text-xs text-gray-500">総取引額</p>
-          <p className="text-2xl font-bold text-amber-600">¥{Number(data.totalAmount || 0).toLocaleString()}</p>
+          <p className="text-2xl font-bold text-amber-600">¥{Number(data.totalRevenue || 0).toLocaleString()}</p>
         </div>
       </div>
 
-      {Number(data.avgAmount) > 0 && (
+      {Number(data.avgTransactionAmount) > 0 && (
         <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl p-4 border border-amber-100">
           <p className="text-sm text-amber-700">平均取引額</p>
-          <p className="text-xl font-bold text-amber-800">¥{Number(data.avgAmount).toLocaleString()}</p>
+          <p className="text-xl font-bold text-amber-800">¥{Number(data.avgTransactionAmount).toLocaleString()}</p>
         </div>
       )}
     </div>
