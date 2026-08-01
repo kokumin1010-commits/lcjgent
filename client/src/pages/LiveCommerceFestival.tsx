@@ -597,8 +597,7 @@ function TopLiveCommercerSection() {
               {/* Info */}
               <div className="p-5 text-white">
                 <h3 className="font-bold text-xl">{c.name}</h3>
-                <p className="text-xs text-gray-400 mt-1 mb-2">{c.title}</p>
-                <p className="text-xs text-gray-300 leading-relaxed mb-3">{c.bio}</p>
+                <p className="text-xs text-gray-400 mt-1 mb-3">{c.title}</p>
                 <div>
                   <p className="text-[11px] text-gray-500">{c.stat}</p>
                   <p className="text-2xl md:text-3xl font-black text-[#FFD700]">
@@ -640,6 +639,17 @@ function GuestIntroSection() {
         { label: 'YouTube', url: 'https://www.youtube.com/@yunnn.s2' },
       ],
     },
+    {
+      name: '景井ひな',
+      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/rJqNwvfTVHQAdICo.webp',
+      title: 'TikTokクリエイター・タレント',
+      bio: '熊本県出身。TikTokフォロワー数国内女性No.1の1,000万人超。カンヌ国際映画祭2023で世界のクリエイター7人に選出。NHK大河ドラマ「べらぼう」、Netflix「ダウンタイム」などに出演。雑誌「JELLY」レギュラーモデル。',
+      sns: [
+        { label: 'Instagram', url: 'https://www.instagram.com/kagei_hina/' },
+        { label: 'TikTok', url: 'https://www.tiktok.com/@kageihina' },
+        { label: 'X', url: 'https://x.com/hinatter0219' },
+      ],
+    },
   ];
 
   return (
@@ -651,7 +661,7 @@ function GuestIntroSection() {
           <p className="text-gray-400 mt-2 text-sm">各界で活躍するスペシャルゲストが登場</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
           {guests.map((g, i) => (
             <div
               key={i}
