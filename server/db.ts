@@ -15152,6 +15152,46 @@ export async function getProductRanking(limit: number = 30) {
     .orderBy(sql`COALESCE(SUM(${tiktokCommissionOrders.price}), 0) DESC`)
     .limit(limit);
 
+  // 商品画像を取得（product_masterまたはreceipt_reviewsから）
+  const productNames = products.map(p => p.productName);
+  const imageMap = new Map<string, string>();
+  if (productNames.length > 0) {
+    try {
+      const masterImages = await db.select({
+        canonicalName: productMaster.canonicalName,
+        imageUrl: productMaster.imageUrl,
+      }).from(productMaster)
+        .where(and(
+          inArray(productMaster.canonicalName, productNames),
+          isNotNull(productMaster.imageUrl)
+        ));
+      masterImages.forEach(m => {
+        if (m.imageUrl) imageMap.set(m.canonicalName, m.imageUrl);
+      });
+      // receipt_reviewsからも画像取得（product_masterにない場合）
+      const missingNames = productNames.filter(n => !imageMap.has(n));
+      if (missingNames.length > 0) {
+        const reviewImages = await db.select({
+          productName: receiptReviews.productName,
+          productImageUrl: receiptReviews.productImageUrl,
+        }).from(receiptReviews)
+          .where(and(
+            inArray(receiptReviews.productName, missingNames),
+            isNotNull(receiptReviews.productImageUrl),
+            sql`${receiptReviews.productImageUrl} != ''`
+          ))
+          .groupBy(receiptReviews.productName, receiptReviews.productImageUrl)
+          .limit(missingNames.length);
+        reviewImages.forEach(r => {
+          if (r.productImageUrl && !imageMap.has(r.productName)) {
+            imageMap.set(r.productName, r.productImageUrl);
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('[getProductRanking] Failed to fetch images:', e);
+    }
+  }
   return products.map(p => ({
     productName: p.productName,
     orderCount: Number(p.orderCount),
@@ -15159,6 +15199,7 @@ export async function getProductRanking(limit: number = 30) {
     totalAmount: Number(p.totalAmount),
     avgPrice: Number(p.avgPrice),
     shopName: p.shopName,
+    productImageUrl: imageMap.get(p.productName) || null,
   }));
 }
 
@@ -15497,12 +15538,37 @@ export async function getBrandProductRanking(shopName: string, limit = 50) {
     .orderBy(sql`SUM(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity}) DESC`)
     .limit(limit);
 
+  // 商品画像を取得
+  const pNames = results.map(r => r.productName);
+  const imgMap = new Map<string, string>();
+  if (pNames.length > 0) {
+    try {
+      const masterImgs = await db.select({
+        canonicalName: productMaster.canonicalName,
+        imageUrl: productMaster.imageUrl,
+      }).from(productMaster)
+        .where(and(inArray(productMaster.canonicalName, pNames), isNotNull(productMaster.imageUrl)));
+      masterImgs.forEach(m => { if (m.imageUrl) imgMap.set(m.canonicalName, m.imageUrl); });
+      const missing = pNames.filter(n => !imgMap.has(n));
+      if (missing.length > 0) {
+        const revImgs = await db.select({
+          productName: receiptReviews.productName,
+          productImageUrl: receiptReviews.productImageUrl,
+        }).from(receiptReviews)
+          .where(and(inArray(receiptReviews.productName, missing), isNotNull(receiptReviews.productImageUrl), sql`${receiptReviews.productImageUrl} != ''`))
+          .groupBy(receiptReviews.productName, receiptReviews.productImageUrl)
+          .limit(missing.length);
+        revImgs.forEach(r => { if (r.productImageUrl && !imgMap.has(r.productName)) imgMap.set(r.productName, r.productImageUrl); });
+      }
+    } catch (e) { console.warn('[getBrandProductRanking] image fetch error:', e); }
+  }
   return results.map(r => ({
     productName: r.productName,
     productId: r.productId,
     totalSales: Number(r.totalSales),
     totalQuantity: Number(r.totalQuantity),
     orderCount: Number(r.orderCount),
+    productImageUrl: imgMap.get(r.productName) || null,
   }));
 }
 
@@ -16000,7 +16066,34 @@ export async function getReceiptPurchaseRanking(limit = 50) {
     .orderBy(sql`COUNT(*) DESC`)
     .limit(limit);
 
-  return results;
+  // 商品画像を取得
+  const pNames = results.map(r => r.productName);
+  const imgMap = new Map<string, string>();
+  if (pNames.length > 0) {
+    try {
+      const masterImgs = await db.select({
+        canonicalName: productMaster.canonicalName,
+        imageUrl: productMaster.imageUrl,
+      }).from(productMaster)
+        .where(and(inArray(productMaster.canonicalName, pNames), isNotNull(productMaster.imageUrl)));
+      masterImgs.forEach(m => { if (m.imageUrl) imgMap.set(m.canonicalName, m.imageUrl); });
+      const missing = pNames.filter(n => !imgMap.has(n));
+      if (missing.length > 0) {
+        const revImgs = await db.select({
+          productName: receiptReviews.productName,
+          productImageUrl: receiptReviews.productImageUrl,
+        }).from(receiptReviews)
+          .where(and(inArray(receiptReviews.productName, missing), isNotNull(receiptReviews.productImageUrl), sql`${receiptReviews.productImageUrl} != ''`))
+          .groupBy(receiptReviews.productName, receiptReviews.productImageUrl)
+          .limit(missing.length);
+        revImgs.forEach(r => { if (r.productImageUrl && !imgMap.has(r.productName)) imgMap.set(r.productName, r.productImageUrl); });
+      }
+    } catch (e) { console.warn('[getReceiptPurchaseRanking] image fetch error:', e); }
+  }
+  return results.map(r => ({
+    ...r,
+    productImageUrl: imgMap.get(r.productName) || null,
+  }));
 }
 
 /**
@@ -16047,7 +16140,34 @@ export async function getReceiptProductsByShop(shopName: string, limit = 30) {
     .orderBy(sql`COUNT(*) DESC`)
     .limit(limit);
 
-  return results;
+  // 商品画像を取得
+  const pNames = results.map(r => r.productName);
+  const imgMap = new Map<string, string>();
+  if (pNames.length > 0) {
+    try {
+      const masterImgs = await db.select({
+        canonicalName: productMaster.canonicalName,
+        imageUrl: productMaster.imageUrl,
+      }).from(productMaster)
+        .where(and(inArray(productMaster.canonicalName, pNames), isNotNull(productMaster.imageUrl)));
+      masterImgs.forEach(m => { if (m.imageUrl) imgMap.set(m.canonicalName, m.imageUrl); });
+      const missing = pNames.filter(n => !imgMap.has(n));
+      if (missing.length > 0) {
+        const revImgs = await db.select({
+          productName: receiptReviews.productName,
+          productImageUrl: receiptReviews.productImageUrl,
+        }).from(receiptReviews)
+          .where(and(inArray(receiptReviews.productName, missing), isNotNull(receiptReviews.productImageUrl), sql`${receiptReviews.productImageUrl} != ''`))
+          .groupBy(receiptReviews.productName, receiptReviews.productImageUrl)
+          .limit(missing.length);
+        revImgs.forEach(r => { if (r.productImageUrl && !imgMap.has(r.productName)) imgMap.set(r.productName, r.productImageUrl); });
+      }
+    } catch (e) { console.warn('[getReceiptProductsByShop] image fetch error:', e); }
+  }
+  return results.map(r => ({
+    ...r,
+    productImageUrl: imgMap.get(r.productName) || null,
+  }));
 }
 
 

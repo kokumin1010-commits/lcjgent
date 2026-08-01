@@ -279,6 +279,7 @@ export default function ProductRanking() {
                       onRequest={() => handleRequest(product.productName, selectedBrand)}
                       onCancel={() => handleCancel(product.productName)}
                       isLoading={requestMutation.isPending || cancelMutation.isPending}
+                      productImageUrl={(product as any).productImageUrl || null}
                     />
                   ))}
                   {brandProducts?.length === 0 && (
@@ -330,6 +331,7 @@ export default function ProductRanking() {
                       purchaseCount={product.purchaseCount}
                       totalAmount={product.totalAmount}
                       uniqueBuyers={product.uniqueBuyers}
+                      productImageUrl={(product as any).productImageUrl || null}
                     />
                   ))}
                   {receiptShopProducts?.length === 0 && (
@@ -406,6 +408,7 @@ export default function ProductRanking() {
                             onCancel={() => handleCancel(product.productName)}
                             isLoading={requestMutation.isPending || cancelMutation.isPending}
                             onBrandClick={() => product.shopName && setSelectedBrand(product.shopName)}
+                            productImageUrl={(product as any).productImageUrl || null}
                           />
                         ))}
                         {filteredProducts.length === 0 && (
@@ -514,6 +517,7 @@ export default function ProductRanking() {
                             onRequest={() => handleRequest(product.productName, product.shopName)}
                             onCancel={() => handleCancel(product.productName)}
                             isLoading={requestMutation.isPending || cancelMutation.isPending}
+                            productImageUrl={(product as any).productImageUrl || null}
                           />
                         ))}
                         {filteredReceiptProducts.length === 0 && (
@@ -612,6 +616,7 @@ function LiveCommerceProductCard({
   onCancel,
   isLoading,
   onBrandClick,
+  productImageUrl,
 }: {
   rank: number;
   productName: string;
@@ -626,13 +631,23 @@ function LiveCommerceProductCard({
   onCancel: () => void;
   isLoading: boolean;
   onBrandClick?: () => void;
+  productImageUrl?: string | null;
 }) {
   return (
     <div className={`rounded-xl border p-4 transition-all ${getRankBg(rank)}`}>
       <div className="flex items-start gap-3">
         {/* Rank */}
         <div className="flex-shrink-0 pt-0.5">{getRankIcon(rank)}</div>
-
+        {/* Product Image */}
+        <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg overflow-hidden bg-gray-100 shrink-0">
+          {productImageUrl ? (
+            <img src={productImageUrl} alt={productName} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-50 to-pink-50">
+              <ShoppingBag className="h-5 w-5 text-rose-300" />
+            </div>
+          )}
+        </div>
         {/* Product Info */}
         <div className="flex-1 min-w-0">
           <h3 className="font-bold text-gray-900 text-sm md:text-base leading-tight mb-1 line-clamp-2">
@@ -714,6 +729,7 @@ function ReceiptProductCard({
   onRequest,
   onCancel,
   isLoading,
+  productImageUrl,
 }: {
   rank: number;
   productName: string;
@@ -728,13 +744,23 @@ function ReceiptProductCard({
   onRequest?: () => void;
   onCancel?: () => void;
   isLoading?: boolean;
+  productImageUrl?: string | null;
 }) {
   return (
     <div className={`rounded-xl border p-4 transition-all ${getReceiptRankBg(rank)}`}>
       <div className="flex items-start gap-3">
         {/* Rank */}
         <div className="flex-shrink-0 pt-0.5">{getRankIcon(rank)}</div>
-
+        {/* Product Image */}
+        <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg overflow-hidden bg-gray-100 shrink-0">
+          {productImageUrl ? (
+            <img src={productImageUrl} alt={productName} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-50 to-teal-50">
+              <ShoppingBag className="h-5 w-5 text-emerald-300" />
+            </div>
+          )}
+        </div>
         {/* Product Info */}
         <div className="flex-1 min-w-0">
           <h3 className="font-bold text-gray-900 text-sm md:text-base leading-tight mb-1 line-clamp-2">

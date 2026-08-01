@@ -199,8 +199,11 @@ function VideoFeedCard({ review }: { review: any }) {
       className="relative flex-shrink-0 w-[200px] md:w-[240px] h-[320px] md:h-[380px] rounded-2xl overflow-hidden cursor-pointer group shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1"
       onClick={handleClick}
     >
-      <div className="absolute inset-0 bg-gradient-to-b from-gray-800 via-gray-700 to-gray-900" />
-      {/* プライバシー保護: レシート画像は非表示 */}
+      {review.productImageUrl ? (
+        <img src={review.productImageUrl} alt={review.productName || ''} className="absolute inset-0 w-full h-full object-cover" />
+      ) : (
+        <div className="absolute inset-0 bg-gradient-to-b from-gray-800 via-gray-700 to-gray-900" />
+      )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
 
       <div className="absolute top-3 left-3 z-10">
@@ -344,11 +347,15 @@ function TopRankingCard({ product, rank }: { product: any; rank: number }) {
             {config.icon}
           </div>
 
-          {/* 商品画像（プライバシー保護: レシート画像は非表示） */}
+          {/* 商品画像 */}
           <div className={`shrink-0 ${isFirst ? 'w-24 h-24 md:w-28 md:h-28' : 'w-16 h-16 md:w-20 md:h-20'} rounded-xl overflow-hidden bg-white shadow-md`}>
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-50 to-pink-50">
-              <ShoppingBag className={`${isFirst ? 'h-10 w-10' : 'h-8 w-8'} text-rose-300`} />
-            </div>
+            {product.latestImageUrl ? (
+              <img src={product.latestImageUrl} alt={product.productName || ''} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-50 to-pink-50">
+                <ShoppingBag className={`${isFirst ? 'h-10 w-10' : 'h-8 w-8'} text-rose-300`} />
+              </div>
+            )}
           </div>
 
           {/* 商品情報 */}
@@ -399,11 +406,15 @@ function RankingListItem({ product, rank }: { product: any; rank: number }) {
         {rank}
       </div>
 
-      {/* 商品画像（プライバシー保護: レシート画像は非表示） */}
+      {/* 商品画像 */}
       <div className="w-14 h-14 rounded-xl overflow-hidden bg-white shadow-sm shrink-0 border border-gray-100">
-        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-50 to-pink-50">
-          <ShoppingBag className="h-5 w-5 text-rose-300" />
-        </div>
+        {product.latestImageUrl ? (
+          <img src={product.latestImageUrl} alt={product.productName || ''} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-50 to-pink-50">
+            <ShoppingBag className="h-5 w-5 text-rose-300" />
+          </div>
+        )}
       </div>
 
       {/* 商品情報 */}
@@ -480,10 +491,14 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
         {/* 上部：商品情報 */}
         <div className="p-4 pb-3">
           <div className="flex gap-3">
-            {/* 商品画像（プライバシー保護: レシート画像は非表示） */}
-            <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl bg-gradient-to-br from-rose-50 to-pink-50 flex items-center justify-center shrink-0">
-              <ShoppingBag className="h-8 w-8 text-rose-200" />
-            </div>
+            {/* 商品画像 */}
+            {review.productImageUrl ? (
+              <img src={review.productImageUrl} alt={review.productName || ''} className="w-20 h-20 md:w-24 md:h-24 rounded-xl object-cover shrink-0 shadow-sm" />
+            ) : (
+              <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl bg-gradient-to-br from-rose-50 to-pink-50 flex items-center justify-center shrink-0">
+                <ShoppingBag className="h-8 w-8 text-rose-200" />
+              </div>
+            )}
 
             {/* 商品情報 */}
             <div className="flex-1 min-w-0">
@@ -496,6 +511,9 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
 
               {review.brandName && (
                 <p className="text-xs text-gray-500 mt-0.5">{review.brandName}</p>
+              )}
+              {review.purchaseAmount && (
+                <p className="text-xs font-semibold text-rose-600 mt-0.5">¥{Number(review.purchaseAmount).toLocaleString()}</p>
               )}
 
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
