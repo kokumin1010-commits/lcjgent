@@ -1,5 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import { batchResolveProductImages } from "./productImageCache";
 import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallProductVariants, InsertMallProductVariant, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion, livestreamPromotions, InsertLivestreamPromotion, masterSetSuggestions, InsertMasterSetSuggestion, masterSetSuggestionItems, InsertMasterSetSuggestionItem, masterSetAdoptions, InsertMasterSetAdoption, masterSetFeedback, InsertMasterSetFeedback, masterSetReviews, InsertMasterSetReview, megaChannelSettings, InsertMegaChannelSetting, megaChannelQualifications, InsertMegaChannelQualification, megaChannelHistory, InsertMegaChannelHistoryRecord, featuredProducts, InsertFeaturedProduct, featuredProductTargets, InsertFeaturedProductTarget, featuredProductAcknowledgements, InsertFeaturedProductAcknowledgement, featuredProductProgress, InsertFeaturedProductProgress, featuredProductPenalties, InsertFeaturedProductPenalty, brandShortVideos, InsertBrandShortVideo, brandAdReports, InsertBrandAdReport, brandAdEmailRecipients, InsertBrandAdEmailRecipient, callLogs, InsertCallLog, salesActivities, InsertSalesActivity, brandAnalysisCache, InsertBrandAnalysisCache, leadCollectionHistory, InsertLeadCollectionHistory, salesEmailLogs, InsertSalesEmailLog, salesEmailReplies, InsertSalesEmailReply, festivalCompanyApplications, InsertFestivalCompanyApplication, festivalLiverApplications, InsertFestivalLiverApplication, festivalGeneralApplications, InsertFestivalGeneralApplication, referralBonusOffers, InsertReferralBonusOffer } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -15152,46 +15153,9 @@ export async function getProductRanking(limit: number = 30) {
     .orderBy(sql`COALESCE(SUM(${tiktokCommissionOrders.price}), 0) DESC`)
     .limit(limit);
 
-  // 商品画像を取得（product_masterまたはreceipt_reviewsから）
+  // 商品画像をキャッシュ経由で取得
   const productNames = products.map(p => p.productName);
-  const imageMap = new Map<string, string>();
-  if (productNames.length > 0) {
-    try {
-      const masterImages = await db.select({
-        canonicalName: productMaster.canonicalName,
-        imageUrl: productMaster.imageUrl,
-      }).from(productMaster)
-        .where(and(
-          inArray(productMaster.canonicalName, productNames),
-          isNotNull(productMaster.imageUrl)
-        ));
-      masterImages.forEach(m => {
-        if (m.imageUrl) imageMap.set(m.canonicalName, m.imageUrl);
-      });
-      // receipt_reviewsからも画像取得（product_masterにない場合）
-      const missingNames = productNames.filter(n => !imageMap.has(n));
-      if (missingNames.length > 0) {
-        const reviewImages = await db.select({
-          productName: receiptReviews.productName,
-          productImageUrl: receiptReviews.productImageUrl,
-        }).from(receiptReviews)
-          .where(and(
-            inArray(receiptReviews.productName, missingNames),
-            isNotNull(receiptReviews.productImageUrl),
-            sql`${receiptReviews.productImageUrl} != ''`
-          ))
-          .groupBy(receiptReviews.productName, receiptReviews.productImageUrl)
-          .limit(missingNames.length);
-        reviewImages.forEach(r => {
-          if (r.productImageUrl && !imageMap.has(r.productName)) {
-            imageMap.set(r.productName, r.productImageUrl);
-          }
-        });
-      }
-    } catch (e) {
-      console.warn('[getProductRanking] Failed to fetch images:', e);
-    }
-  }
+  const imageMap = await batchResolveProductImages(db, productNames);
   return products.map(p => ({
     productName: p.productName,
     orderCount: Number(p.orderCount),
@@ -15538,30 +15502,9 @@ export async function getBrandProductRanking(shopName: string, limit = 50) {
     .orderBy(sql`SUM(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity}) DESC`)
     .limit(limit);
 
-  // 商品画像を取得
+  // 商品画像をキャッシュ経由で取得
   const pNames = results.map(r => r.productName);
-  const imgMap = new Map<string, string>();
-  if (pNames.length > 0) {
-    try {
-      const masterImgs = await db.select({
-        canonicalName: productMaster.canonicalName,
-        imageUrl: productMaster.imageUrl,
-      }).from(productMaster)
-        .where(and(inArray(productMaster.canonicalName, pNames), isNotNull(productMaster.imageUrl)));
-      masterImgs.forEach(m => { if (m.imageUrl) imgMap.set(m.canonicalName, m.imageUrl); });
-      const missing = pNames.filter(n => !imgMap.has(n));
-      if (missing.length > 0) {
-        const revImgs = await db.select({
-          productName: receiptReviews.productName,
-          productImageUrl: receiptReviews.productImageUrl,
-        }).from(receiptReviews)
-          .where(and(inArray(receiptReviews.productName, missing), isNotNull(receiptReviews.productImageUrl), sql`${receiptReviews.productImageUrl} != ''`))
-          .groupBy(receiptReviews.productName, receiptReviews.productImageUrl)
-          .limit(missing.length);
-        revImgs.forEach(r => { if (r.productImageUrl && !imgMap.has(r.productName)) imgMap.set(r.productName, r.productImageUrl); });
-      }
-    } catch (e) { console.warn('[getBrandProductRanking] image fetch error:', e); }
-  }
+  const imgMap = await batchResolveProductImages(db, pNames);
   return results.map(r => ({
     productName: r.productName,
     productId: r.productId,
@@ -16066,30 +16009,9 @@ export async function getReceiptPurchaseRanking(limit = 50) {
     .orderBy(sql`COUNT(*) DESC`)
     .limit(limit);
 
-  // 商品画像を取得
+  // 商品画像をキャッシュ経由で取得
   const pNames = results.map(r => r.productName);
-  const imgMap = new Map<string, string>();
-  if (pNames.length > 0) {
-    try {
-      const masterImgs = await db.select({
-        canonicalName: productMaster.canonicalName,
-        imageUrl: productMaster.imageUrl,
-      }).from(productMaster)
-        .where(and(inArray(productMaster.canonicalName, pNames), isNotNull(productMaster.imageUrl)));
-      masterImgs.forEach(m => { if (m.imageUrl) imgMap.set(m.canonicalName, m.imageUrl); });
-      const missing = pNames.filter(n => !imgMap.has(n));
-      if (missing.length > 0) {
-        const revImgs = await db.select({
-          productName: receiptReviews.productName,
-          productImageUrl: receiptReviews.productImageUrl,
-        }).from(receiptReviews)
-          .where(and(inArray(receiptReviews.productName, missing), isNotNull(receiptReviews.productImageUrl), sql`${receiptReviews.productImageUrl} != ''`))
-          .groupBy(receiptReviews.productName, receiptReviews.productImageUrl)
-          .limit(missing.length);
-        revImgs.forEach(r => { if (r.productImageUrl && !imgMap.has(r.productName)) imgMap.set(r.productName, r.productImageUrl); });
-      }
-    } catch (e) { console.warn('[getReceiptPurchaseRanking] image fetch error:', e); }
-  }
+  const imgMap = await batchResolveProductImages(db, pNames);
   return results.map(r => ({
     ...r,
     productImageUrl: imgMap.get(r.productName) || null,
@@ -16140,30 +16062,9 @@ export async function getReceiptProductsByShop(shopName: string, limit = 30) {
     .orderBy(sql`COUNT(*) DESC`)
     .limit(limit);
 
-  // 商品画像を取得
+  // 商品画像をキャッシュ経由で取得
   const pNames = results.map(r => r.productName);
-  const imgMap = new Map<string, string>();
-  if (pNames.length > 0) {
-    try {
-      const masterImgs = await db.select({
-        canonicalName: productMaster.canonicalName,
-        imageUrl: productMaster.imageUrl,
-      }).from(productMaster)
-        .where(and(inArray(productMaster.canonicalName, pNames), isNotNull(productMaster.imageUrl)));
-      masterImgs.forEach(m => { if (m.imageUrl) imgMap.set(m.canonicalName, m.imageUrl); });
-      const missing = pNames.filter(n => !imgMap.has(n));
-      if (missing.length > 0) {
-        const revImgs = await db.select({
-          productName: receiptReviews.productName,
-          productImageUrl: receiptReviews.productImageUrl,
-        }).from(receiptReviews)
-          .where(and(inArray(receiptReviews.productName, missing), isNotNull(receiptReviews.productImageUrl), sql`${receiptReviews.productImageUrl} != ''`))
-          .groupBy(receiptReviews.productName, receiptReviews.productImageUrl)
-          .limit(missing.length);
-        revImgs.forEach(r => { if (r.productImageUrl && !imgMap.has(r.productName)) imgMap.set(r.productName, r.productImageUrl); });
-      }
-    } catch (e) { console.warn('[getReceiptProductsByShop] image fetch error:', e); }
-  }
+  const imgMap = await batchResolveProductImages(db, pNames);
   return results.map(r => ({
     ...r,
     productImageUrl: imgMap.get(r.productName) || null,

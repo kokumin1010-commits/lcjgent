@@ -200,11 +200,16 @@ function VideoFeedCard({ review }: { review: any }) {
       onClick={handleClick}
     >
       {review.productImageUrl ? (
-        <img src={review.productImageUrl} alt={review.productName || ''} className="absolute inset-0 w-full h-full object-cover" />
+        <>
+          <img src={review.productImageUrl} alt={review.productName || ''} className="absolute inset-0 w-full h-full object-cover scale-110 group-hover:scale-125 transition-transform duration-500" />
+          <div className="absolute inset-0 bg-black/20" />
+        </>
       ) : (
-        <div className="absolute inset-0 bg-gradient-to-b from-gray-800 via-gray-700 to-gray-900" />
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-900 via-indigo-800 to-pink-900">
+          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, rgba(255,255,255,0.1) 0%, transparent 50%)' }} />
+        </div>
       )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
 
       <div className="absolute top-3 left-3 z-10">
         {isLive ? (
