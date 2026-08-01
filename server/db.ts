@@ -18166,7 +18166,7 @@ export async function searchReceiptReviewsByProduct(productName: string, limit: 
 export async function getLatestReceiptReviews(limit: number = 20, offset: number = 0) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return await db.select({
+  const reviews = await db.select({
     id: receiptReviews.id,
     receiptId: receiptReviews.receiptId,
     userId: receiptReviews.userId,
@@ -18194,6 +18194,19 @@ export async function getLatestReceiptReviews(limit: number = 20, offset: number
     .orderBy(desc(receiptReviews.createdAt))
     .limit(limit)
     .offset(offset);
+
+  // 商品画像がないレビューに対してキャッシュから補完
+  const missingImageNames = reviews
+    .filter(r => !r.productImageUrl && r.productName)
+    .map(r => r.productName);
+  if (missingImageNames.length > 0) {
+    const imageMap = await batchResolveProductImages(db, missingImageNames);
+    return reviews.map(r => ({
+      ...r,
+      productImageUrl: r.productImageUrl || imageMap.get(r.productName) || null,
+    }));
+  }
+  return reviews;
 }
 
 /**
@@ -18370,7 +18383,7 @@ export async function getKakuhenAdminStats() {
 export async function getVideoReviews(limit: number = 10) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return await db.select({
+  const reviews = await db.select({
     id: receiptReviews.id,
     productName: receiptReviews.productName,
     brandName: receiptReviews.brandName,
@@ -18393,6 +18406,19 @@ export async function getVideoReviews(limit: number = 10) {
     ))
     .orderBy(desc(receiptReviews.createdAt))
     .limit(limit);
+
+  // 商品画像がないレビューに対してキャッシュから補完
+  const missingImageNames = reviews
+    .filter(r => !r.productImageUrl && r.productName)
+    .map(r => r.productName);
+  if (missingImageNames.length > 0) {
+    const imageMap = await batchResolveProductImages(db, missingImageNames);
+    return reviews.map(r => ({
+      ...r,
+      productImageUrl: r.productImageUrl || imageMap.get(r.productName) || null,
+    }));
+  }
+  return reviews;
 }
 
 // ===== リアクション関連 =====
