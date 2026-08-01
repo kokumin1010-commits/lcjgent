@@ -1,14 +1,24 @@
 /**
  * BuybackAdmin - 管理者/パートナー向け買取管理ページ
  * DashboardLayout内で表示される管理画面
+ * 
+ * 改善点:
+ * - パートナー選択ドロップダウン（査定時）
+ * - 画像ギャラリー（クリックで拡大表示）
+ * - CSVエクスポート機能
+ * - AI査定の詳細表示（真贋チェック・市場トレンド）
+ * - 統計タブの改善
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { 
-  Package, Search, Filter, Eye, DollarSign, Truck, Check, X,
-  ChevronDown, Clock, ArrowRight, Send, Image as ImageIcon,
-  Users, TrendingUp, AlertCircle, Sparkles
+  Package, DollarSign, Truck, Check, X,
+  ChevronDown, Send, Image as ImageIcon,
+  Users, TrendingUp, Sparkles, Download, ZoomIn
 } from "lucide-react";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 
 const STATUS_LABELS: Record<string, { label: string; color: string; bgColor: string }> = {
   pending: { label: "査定待ち", color: "text-yellow-700", bgColor: "bg-yellow-50 border-yellow-200" },
@@ -21,6 +31,33 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bgColor: str
   cancelled: { label: "キャンセル", color: "text-gray-700", bgColor: "bg-gray-50 border-gray-200" },
   rejected: { label: "拒否", color: "text-red-700", bgColor: "bg-red-50 border-red-200" },
 };
+
+// CSV Export utility
+function exportToCSV(data: any[], filename: string) {
+  if (!data || data.length === 0) return;
+  const headers = ["ID", "ステータス", "ブランド", "モデル", "カテゴリ", "AI最低", "AI最高", "最終金額", "ユーザー", "作成日"];
+  const rows = data.map(r => [
+    r.id,
+    STATUS_LABELS[r.status]?.label || r.status,
+    r.aiBrand || r.brandName || "",
+    r.aiModel || r.productName || "",
+    r.category,
+    r.aiEstimatedMin || "",
+    r.aiEstimatedMax || "",
+    r.finalAmount || "",
+    r.displayName || "",
+    new Date(r.createdAt).toLocaleDateString("ja-JP"),
+  ]);
+  const csvContent = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(",")).join("\n");
+  const bom = "\uFEFF";
+  const blob = new Blob([bom + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${filename}_${new Date().toISOString().split("T")[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function BuybackAdmin() {
   const [activeTab, setActiveTab] = useState<"requests" | "partners" | "stats">("requests");
@@ -91,30 +128,50 @@ function RequestsTab({
     limit: 50 
   });
 
+  const handleExportCSV = () => {
+    if (requests.data?.requests) {
+      exportToCSV(requests.data.requests, "buyback_requests");
+    }
+  };
+
   return (
     <div>
-      {/* Status Filter */}
-      <div className="flex gap-2 overflow-x-auto pb-3 mb-4">
-        <button
-          onClick={() => setStatusFilter("all")}
-          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-all ${
-            statusFilter === "all" ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-200"
-          }`}
-        >
-          すべて
-        </button>
-        {Object.entries(STATUS_LABELS).map(([key, val]) => (
+      {/* Status Filter + Export */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex gap-2 overflow-x-auto pb-1 flex-1">
           <button
-            key={key}
-            onClick={() => setStatusFilter(key)}
+            onClick={() => setStatusFilter("all")}
             className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-all ${
-              statusFilter === key ? `${val.bgColor} ${val.color} border-current` : "bg-white text-gray-600 border-gray-200"
+              statusFilter === "all" ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-200"
             }`}
           >
-            {val.label}
+            すべて
           </button>
-        ))}
+          {Object.entries(STATUS_LABELS).map(([key, val]) => (
+            <button
+              key={key}
+              onClick={() => setStatusFilter(key)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-all ${
+                statusFilter === key ? `${val.bgColor} ${val.color} border-current` : "bg-white text-gray-600 border-gray-200"
+              }`}
+            >
+              {val.label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={handleExportCSV}
+          disabled={!requests.data?.requests?.length}
+          className="ml-3 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1 whitespace-nowrap"
+        >
+          <Download className="w-3 h-3" /> CSV
+        </button>
       </div>
+
+      {/* Total count */}
+      {requests.data && (
+        <p className="text-xs text-gray-500 mb-3">{requests.data.total}件の依頼</p>
+      )}
 
       {/* Request List */}
       {requests.isLoading ? (
@@ -175,12 +232,58 @@ function RequestsTab({
   );
 }
 
+// Image gallery with lightbox
+function ImageGallery({ imageUrls }: { imageUrls: string[] }) {
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  return (
+    <>
+      <div className="flex gap-2 overflow-x-auto pb-2">
+        {imageUrls?.map((url: string, i: number) => (
+          <div 
+            key={i} 
+            className="relative group cursor-pointer"
+            onClick={() => setLightboxUrl(url)}
+          >
+            <img src={url} alt="" className="w-24 h-24 rounded-lg object-cover flex-shrink-0" />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-all flex items-center justify-center">
+              <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+          </div>
+        ))}
+      </div>
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button 
+            className="absolute top-4 right-4 text-white p-2"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img 
+            src={lightboxUrl} 
+            alt="" 
+            className="max-w-full max-h-[85vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
 function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose: () => void }) {
   const [assessAmount, setAssessAmount] = useState("");
   const [assessNote, setAssessNote] = useState("");
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string>("");
   const [message, setMessage] = useState("");
 
   const detail = trpc.buyback.getRequestDetailAdmin.useQuery({ requestId });
+  const partners = trpc.buyback.getPartners.useQuery();
   const assessMutation = trpc.buyback.submitAssessment.useMutation();
   const confirmReceiveMutation = trpc.buyback.confirmReceived.useMutation();
   const completeMutation = trpc.buyback.completeTransaction.useMutation();
@@ -190,16 +293,19 @@ function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose
   if (!detail.data) return null;
 
   const req = detail.data;
+  const activePartners = partners.data?.filter((p: any) => p.status === "active") || [];
 
   const handleAssess = async () => {
     if (!assessAmount) return;
     await assessMutation.mutateAsync({
       requestId,
+      partnerId: selectedPartnerId ? Number(selectedPartnerId) : undefined,
       amount: Number(assessAmount),
       note: assessNote || undefined,
     });
     setAssessAmount("");
     setAssessNote("");
+    setSelectedPartnerId("");
     detail.refetch();
   };
 
@@ -225,12 +331,8 @@ function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose
 
   return (
     <div className="bg-gray-50 rounded-b-xl p-4 border border-t-0 border-gray-100 space-y-4">
-      {/* Images */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {req.imageUrls?.map((url: string, i: number) => (
-          <img key={i} src={url} alt="" className="w-24 h-24 rounded-lg object-cover flex-shrink-0" />
-        ))}
-      </div>
+      {/* Images with lightbox */}
+      <ImageGallery imageUrls={req.imageUrls || []} />
 
       {/* Details */}
       <div className="grid grid-cols-2 gap-3 text-sm">
@@ -259,7 +361,7 @@ function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose
         </div>
       )}
 
-      {/* AI Assessment */}
+      {/* AI Assessment with enhanced details */}
       {req.aiEstimatedMin && (
         <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
           <p className="text-xs text-blue-600 font-medium flex items-center gap-1">
@@ -268,16 +370,51 @@ function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose
           <p className="text-lg font-bold text-blue-700">
             ¥{Number(req.aiEstimatedMin).toLocaleString()} 〜 ¥{Number(req.aiEstimatedMax).toLocaleString()}
           </p>
-          <p className="text-xs text-blue-500">信頼度: {Math.round((req.aiConfidence || 0) * 100)}%</p>
+          <p className="text-xs text-blue-500">信頼度: {Math.round((Number(req.aiConfidence) || 0) * 100)}%</p>
+          {/* Enhanced AI details */}
+          {req.aiRawResponse && (
+            <div className="mt-2 pt-2 border-t border-blue-100 space-y-1">
+              {req.aiRawResponse.authenticityNotes && (
+                <p className="text-xs text-blue-700">
+                  <span className="font-medium">真贋:</span> {req.aiRawResponse.authenticityNotes}
+                </p>
+              )}
+              {req.aiRawResponse.marketTrend && (
+                <p className="text-xs text-blue-700">
+                  <span className="font-medium">市場:</span> {req.aiRawResponse.marketTrend}
+                </p>
+              )}
+              {req.aiRawResponse.reasoning && (
+                <p className="text-xs text-blue-600 mt-1">{req.aiRawResponse.reasoning}</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Partner Assessment Form */}
+      {/* Partner Assessment Form with partner selection */}
       {(req.status === "pending" || req.status === "ai_assessed") && (
         <div className="bg-white rounded-lg p-4 border">
           <h4 className="font-bold text-sm mb-3 flex items-center gap-1">
             <DollarSign className="w-4 h-4 text-green-600" /> 査定金額を入力
           </h4>
+          {/* Partner Selection */}
+          {activePartners.length > 0 && (
+            <div className="mb-3">
+              <Select value={selectedPartnerId} onValueChange={setSelectedPartnerId}>
+                <SelectTrigger className="w-full text-sm">
+                  <SelectValue placeholder="パートナーを選択（任意）" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activePartners.map((p: any) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.companyName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="flex gap-2 mb-2">
             <input
               type="number"
@@ -288,10 +425,10 @@ function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose
             />
             <button
               onClick={handleAssess}
-              disabled={!assessAmount}
+              disabled={!assessAmount || assessMutation.isPending}
               className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-medium disabled:opacity-50"
             >
-              送信
+              {assessMutation.isPending ? "..." : "送信"}
             </button>
           </div>
           <input
@@ -312,7 +449,8 @@ function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose
             <div key={a.id} className="flex items-center justify-between py-2 border-b last:border-0">
               <div>
                 <p className="text-sm font-medium">¥{Number(a.amount).toLocaleString()}</p>
-                {a.note && <p className="text-xs text-gray-500">{a.note}</p>}
+                <p className="text-xs text-gray-500">{a.companyName || `パートナー#${a.partnerId}`}</p>
+                {a.note && <p className="text-xs text-gray-400">{a.note}</p>}
               </div>
               <span className={`text-xs px-2 py-0.5 rounded-full ${
                 a.status === "accepted" ? "bg-green-100 text-green-700" : 
@@ -326,12 +464,12 @@ function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose
       )}
 
       {/* Shipping Info */}
-      {req.trackingNumber && (
+      {req.shippingTrackingNumber && (
         <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-100">
           <p className="text-xs text-indigo-600 font-medium flex items-center gap-1">
             <Truck className="w-3 h-3" /> 配送情報
           </p>
-          <p className="text-sm font-medium">{req.carrier}: {req.trackingNumber}</p>
+          <p className="text-sm font-medium">{req.shippingCarrier}: {req.shippingTrackingNumber}</p>
         </div>
       )}
 
@@ -340,7 +478,8 @@ function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose
         {req.status === "shipped" && (
           <button
             onClick={handleConfirmReceive}
-            className="flex-1 py-2 bg-teal-500 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-1"
+            disabled={confirmReceiveMutation.isPending}
+            className="flex-1 py-2 bg-teal-500 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-1 disabled:opacity-50"
           >
             <Check className="w-4 h-4" /> 受取確認
           </button>
@@ -348,12 +487,31 @@ function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose
         {req.status === "received" && (
           <button
             onClick={handleComplete}
-            className="flex-1 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-1"
+            disabled={completeMutation.isPending}
+            className="flex-1 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-1 disabled:opacity-50"
           >
             <Check className="w-4 h-4" /> 取引完了
           </button>
         )}
       </div>
+
+      {/* Transaction Logs */}
+      {req.logs && req.logs.length > 0 && (
+        <details className="bg-white rounded-lg p-4 border">
+          <summary className="font-bold text-sm cursor-pointer text-gray-700">取引ログ ({req.logs.length})</summary>
+          <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+            {req.logs.map((log: any) => (
+              <div key={log.id} className="text-xs text-gray-600 py-1 border-b border-gray-50 last:border-0">
+                <span className="text-gray-400">{new Date(log.createdAt).toLocaleString("ja-JP")}</span>
+                {" • "}
+                <span className="font-medium">{log.action}</span>
+                {" • "}
+                <span>{log.actorType}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
 
       {/* Messages */}
       <div className="bg-white rounded-lg p-4 border">
@@ -378,7 +536,11 @@ function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose
             className="flex-1 px-3 py-2 border rounded-lg text-sm"
             onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
           />
-          <button onClick={handleSendMessage} className="p-2 bg-amber-500 text-white rounded-lg">
+          <button 
+            onClick={handleSendMessage} 
+            disabled={!message.trim() || sendMessageMutation.isPending}
+            className="p-2 bg-amber-500 text-white rounded-lg disabled:opacity-50"
+          >
             <Send className="w-4 h-4" />
           </button>
         </div>
@@ -395,6 +557,8 @@ function PartnersTab() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [licenseNumber, setLicenseNumber] = useState("");
+  const [lineUserId, setLineUserId] = useState("");
+  const [specialties, setSpecialties] = useState("");
 
   const addPartnerMutation = trpc.buyback.createPartner.useMutation();
 
@@ -406,6 +570,8 @@ function PartnersTab() {
       email: email || `${companyName.replace(/\s/g, '')}@partner.lcj`,
       phone: phone || undefined,
       licenseNumber,
+      lineUserId: lineUserId || undefined,
+      specialties: specialties ? specialties.split(",").map(s => s.trim()).filter(Boolean) : undefined,
     });
     setShowAddForm(false);
     setCompanyName("");
@@ -413,6 +579,8 @@ function PartnersTab() {
     setEmail("");
     setPhone("");
     setLicenseNumber("");
+    setLineUserId("");
+    setSpecialties("");
     partners.refetch();
   };
 
@@ -466,16 +634,30 @@ function PartnersTab() {
             placeholder="電話番号"
             className="w-full px-3 py-2 border rounded-lg text-sm"
           />
+          <input
+            type="text"
+            value={lineUserId}
+            onChange={(e) => setLineUserId(e.target.value)}
+            placeholder="LINE User ID（通知用）"
+            className="w-full px-3 py-2 border rounded-lg text-sm"
+          />
+          <input
+            type="text"
+            value={specialties}
+            onChange={(e) => setSpecialties(e.target.value)}
+            placeholder="専門分野（カンマ区切り: bag,watch,jewelry）"
+            className="w-full px-3 py-2 border rounded-lg text-sm"
+          />
           <div className="flex gap-2">
             <button onClick={() => setShowAddForm(false)} className="px-4 py-2 border rounded-lg text-sm">
               キャンセル
             </button>
             <button
               onClick={handleAddPartner}
-              disabled={!companyName || !licenseNumber}
+              disabled={!companyName || !licenseNumber || addPartnerMutation.isPending}
               className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-medium disabled:opacity-50"
             >
-              登録
+              {addPartnerMutation.isPending ? "登録中..." : "登録"}
             </button>
           </div>
         </div>
@@ -497,6 +679,18 @@ function PartnersTab() {
                   <p className="font-medium">{p.companyName}</p>
                   <p className="text-xs text-gray-500">許可番号: {p.licenseNumber}</p>
                   {p.contactName && <p className="text-xs text-gray-500">担当: {p.contactName}</p>}
+                  {p.totalAssessments > 0 && (
+                    <p className="text-xs text-gray-400 mt-1">査定数: {p.totalAssessments}件</p>
+                  )}
+                  {p.specialties && (
+                    <div className="flex gap-1 mt-1 flex-wrap">
+                      {(typeof p.specialties === 'string' ? JSON.parse(p.specialties) : p.specialties)?.map((s: string, i: number) => (
+                        <span key={i} className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <span className={`text-xs px-2 py-1 rounded-full ${
                   p.status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
@@ -520,6 +714,11 @@ function StatsTab() {
   }
 
   const data = stats.data || { totalRequests: 0, pendingRequests: 0, completedRequests: 0, activePartners: 0, totalRevenue: 0, avgTransactionAmount: 0 };
+  
+  // Compute completion rate
+  const completionRate = data.totalRequests > 0 
+    ? Math.round((data.completedRequests / data.totalRequests) * 100) 
+    : 0;
 
   return (
     <div className="space-y-4">
@@ -537,17 +736,27 @@ function StatsTab() {
           <p className="text-2xl font-bold text-green-600">{data.completedRequests}</p>
         </div>
         <div className="bg-white rounded-xl p-4 border">
-          <p className="text-xs text-gray-500">総取引額</p>
-          <p className="text-2xl font-bold text-amber-600">¥{Number(data.totalRevenue || 0).toLocaleString()}</p>
+          <p className="text-xs text-gray-500">アクティブパートナー</p>
+          <p className="text-2xl font-bold text-blue-600">{data.activePartners}</p>
         </div>
       </div>
 
-      {Number(data.avgTransactionAmount) > 0 && (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl p-4 border border-amber-100">
-          <p className="text-sm text-amber-700">平均取引額</p>
-          <p className="text-xl font-bold text-amber-800">¥{Number(data.avgTransactionAmount).toLocaleString()}</p>
+          <p className="text-sm text-amber-700">総取引額</p>
+          <p className="text-xl font-bold text-amber-800">¥{Number(data.totalRevenue || 0).toLocaleString()}</p>
         </div>
-      )}
+        {Number(data.avgTransactionAmount) > 0 && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+            <p className="text-sm text-blue-700">平均取引額</p>
+            <p className="text-xl font-bold text-blue-800">¥{Number(data.avgTransactionAmount).toLocaleString()}</p>
+          </div>
+        )}
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+          <p className="text-sm text-green-700">完了率</p>
+          <p className="text-xl font-bold text-green-800">{completionRate}%</p>
+        </div>
+      </div>
     </div>
   );
 }

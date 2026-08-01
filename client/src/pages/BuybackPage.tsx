@@ -1,14 +1,23 @@
 /**
  * BuybackPage - ユーザー向け中古ブランド買取ページ
  * モバイルファースト設計、LINE認証ユーザー向け
+ * 
+ * 改善点:
+ * - 画像アップロード前にクライアントサイド圧縮
+ * - キャンセル機能追加
+ * - 査定拒否機能追加
+ * - チャット自動スクロール
+ * - スケルトンローディング
+ * - AI査定結果に真贋チェック・市場トレンド表示
  */
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useRoute } from "wouter";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Camera, ArrowLeft, Check, Package, Truck, 
   Clock, Send, ChevronRight, X, Image as ImageIcon,
-  Sparkles, Shield, Coins
+  Sparkles, Shield, Coins, AlertTriangle, Ban, TrendingUp
 } from "lucide-react";
 
 const CATEGORIES = [
@@ -41,6 +50,35 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   rejected: { label: "拒否", color: "bg-red-100 text-red-800" },
 };
 
+// Image compression utility
+async function compressImage(file: File, maxWidth = 1200, quality = 0.8): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let { width, height } = img;
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("Canvas context failed")); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve(dataUrl.split(",")[1]);
+      };
+      img.onerror = reject;
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function BuybackPage() {
   const [, params] = useRoute("/buyback/:id");
   const requestId = params?.id ? Number(params.id) : null;
@@ -72,6 +110,26 @@ function LoginPrompt() {
           LINEでログイン
         </a>
       </div>
+    </div>
+  );
+}
+
+// Skeleton for request list
+function RequestListSkeleton() {
+  return (
+    <div className="space-y-3">
+      {[1, 2, 3].map(i => (
+        <div key={i} className="bg-white rounded-xl p-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <Skeleton className="w-14 h-14 rounded-lg" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -130,7 +188,7 @@ function BuybackHome({ lineUserId, displayName }: { lineUserId: string; displayN
         <div className="mt-8">
           <h2 className="text-lg font-bold text-gray-900 mb-4">買取履歴</h2>
           {myRequests.isLoading ? (
-            <div className="text-center py-8 text-gray-400">読み込み中...</div>
+            <RequestListSkeleton />
           ) : myRequests.data?.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
               <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
@@ -184,6 +242,7 @@ function NewRequest({ lineUserId, displayName, onBack }: { lineUserId: string; d
   const [step, setStep] = useState(1);
   const [images, setImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [category, setCategory] = useState("");
   const [brandName, setBrandName] = useState("");
   const [productName, setProductName] = useState("");
@@ -200,30 +259,32 @@ function NewRequest({ lineUserId, displayName, onBack }: { lineUserId: string; d
     const files = e.target.files;
     if (!files) return;
     setUploading(true);
+    setUploadProgress(0);
 
-    for (const file of Array.from(files)) {
-      if (images.length >= 10) break;
+    const fileArray = Array.from(files);
+    let completed = 0;
+
+    for (const file of fileArray) {
+      if (images.length + completed >= 10) break;
       try {
-        const reader = new FileReader();
-        const base64 = await new Promise<string>((resolve) => {
-          reader.onload = () => {
-            const result = reader.result as string;
-            resolve(result.split(",")[1]);
-          };
-          reader.readAsDataURL(file);
-        });
-
+        // Compress image before upload
+        const base64 = await compressImage(file, 1200, 0.8);
         const { url } = await uploadMutation.mutateAsync({
           base64,
-          filename: file.name,
-          contentType: file.type,
+          filename: file.name.replace(/\.[^.]+$/, ".jpg"),
+          contentType: "image/jpeg",
         });
         setImages(prev => [...prev, url]);
+        completed++;
+        setUploadProgress(Math.round((completed / fileArray.length) * 100));
       } catch (err) {
         console.error("Upload error:", err);
       }
     }
     setUploading(false);
+    setUploadProgress(0);
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }, [images, uploadMutation]);
 
   const handleSubmit = async () => {
@@ -295,7 +356,12 @@ function NewRequest({ lineUserId, displayName, onBack }: { lineUserId: string; d
                 disabled={uploading}
               >
                 {uploading ? (
-                  <div className="animate-spin w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full" />
+                  <div className="flex flex-col items-center">
+                    <div className="animate-spin w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full" />
+                    {uploadProgress > 0 && (
+                      <span className="text-xs text-amber-600 mt-1">{uploadProgress}%</span>
+                    )}
+                  </div>
                 ) : (
                   <>
                     <Camera className="w-6 h-6 text-gray-400" />
@@ -305,6 +371,10 @@ function NewRequest({ lineUserId, displayName, onBack }: { lineUserId: string; d
               </button>
             )}
           </div>
+
+          <p className="text-xs text-gray-400 mb-3">
+            画像は自動的に圧縮されます。高画質な写真を撮影してください。
+          </p>
 
           <input
             ref={fileInputRef}
@@ -492,6 +562,23 @@ function NewRequest({ lineUserId, displayName, onBack }: { lineUserId: string; d
                 <p>コンディション: {CONDITION_OPTIONS.find(c => c.value === result.aiAssessment.condition)?.label || result.aiAssessment.condition}</p>
                 <p className="text-xs text-gray-400 mt-2">信頼度: {Math.round((result.aiAssessment.confidence || 0) * 100)}%</p>
               </div>
+              {/* Authenticity & Market Trend */}
+              {result.aiAssessment.authenticityNotes && (
+                <div className="mt-3 pt-3 border-t border-blue-100">
+                  <p className="text-xs text-gray-600 flex items-start gap-1">
+                    <Shield className="w-3 h-3 mt-0.5 text-green-500 flex-shrink-0" />
+                    <span>{result.aiAssessment.authenticityNotes}</span>
+                  </p>
+                </div>
+              )}
+              {result.aiAssessment.marketTrend && (
+                <div className="mt-2">
+                  <p className="text-xs text-gray-600 flex items-start gap-1">
+                    <TrendingUp className="w-3 h-3 mt-0.5 text-amber-500 flex-shrink-0" />
+                    <span>{result.aiAssessment.marketTrend}</span>
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -512,23 +599,60 @@ function NewRequest({ lineUserId, displayName, onBack }: { lineUserId: string; d
   );
 }
 
+// Skeleton for request detail
+function RequestDetailSkeleton() {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="sticky top-0 z-10 bg-white border-b px-4 py-3 flex items-center gap-3">
+        <Skeleton className="w-5 h-5" />
+        <Skeleton className="h-5 w-24" />
+        <Skeleton className="ml-auto h-5 w-16 rounded-full" />
+      </div>
+      <div className="p-4 space-y-4">
+        <div className="flex gap-2">
+          {[1, 2, 3].map(i => <Skeleton key={i} className="w-20 h-20 rounded-lg" />)}
+        </div>
+        <div className="bg-white rounded-xl p-4 shadow-sm space-y-3">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-3 w-32" />
+        </div>
+        <div className="bg-white rounded-xl p-4 shadow-sm space-y-3">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RequestDetail({ requestId, lineUserId }: { requestId: number; lineUserId: string }) {
   const [showChat, setShowChat] = useState(false);
   const [message, setMessage] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [carrier, setCarrier] = useState("");
+  const [cancelReason, setCancelReason] = useState("");
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectingId, setRejectingId] = useState<number | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const detail = trpc.buyback.getRequestDetail.useQuery({ requestId, lineUserId });
   const acceptMutation = trpc.buyback.acceptAssessment.useMutation();
+  const rejectMutation = trpc.buyback.rejectAssessment.useMutation();
+  const cancelMutation = trpc.buyback.cancelRequest.useMutation();
   const shippingMutation = trpc.buyback.registerShipping.useMutation();
   const sendMessageMutation = trpc.buyback.sendMessage.useMutation();
 
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    if (showChat && chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [showChat, detail.data?.messages?.length]);
+
   if (detail.isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full" />
-      </div>
-    );
+    return <RequestDetailSkeleton />;
   }
 
   if (!detail.data) {
@@ -542,8 +666,31 @@ function RequestDetail({ requestId, lineUserId }: { requestId: number; lineUserI
   const req = detail.data;
 
   const handleAccept = async (assessmentId: number) => {
-    if (!confirm("この査定額を承認しますか？")) return;
+    if (!confirm("この査定額を承認しますか？承認後は発送手続きに進みます。")) return;
     await acceptMutation.mutateAsync({ requestId, assessmentId, lineUserId });
+    detail.refetch();
+  };
+
+  const handleReject = async (assessmentId: number) => {
+    await rejectMutation.mutateAsync({ 
+      requestId, 
+      assessmentId, 
+      lineUserId, 
+      reason: rejectReason || undefined 
+    });
+    setRejectingId(null);
+    setRejectReason("");
+    detail.refetch();
+  };
+
+  const handleCancel = async () => {
+    await cancelMutation.mutateAsync({ 
+      requestId, 
+      lineUserId, 
+      reason: cancelReason || undefined 
+    });
+    setShowCancelDialog(false);
+    setCancelReason("");
     detail.refetch();
   };
 
@@ -559,6 +706,8 @@ function RequestDetail({ requestId, lineUserId }: { requestId: number; lineUserI
     setMessage("");
     detail.refetch();
   };
+
+  const canCancel = ['pending', 'ai_assessed', 'partner_assessed'].includes(req.status);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -591,6 +740,23 @@ function RequestDetail({ requestId, lineUserId }: { requestId: number; lineUserI
               ¥{Number(req.aiEstimatedMin).toLocaleString()} 〜 ¥{Number(req.aiEstimatedMax).toLocaleString()}
             </p>
             <p className="text-xs text-gray-500 mt-1">{req.aiBrand} / {req.aiModel}</p>
+            {/* Show AI raw response details if available */}
+            {req.aiRawResponse && (
+              <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
+                {req.aiRawResponse.authenticityNotes && (
+                  <p className="text-xs text-gray-600 flex items-start gap-1">
+                    <Shield className="w-3 h-3 mt-0.5 text-green-500 flex-shrink-0" />
+                    <span>{req.aiRawResponse.authenticityNotes}</span>
+                  </p>
+                )}
+                {req.aiRawResponse.marketTrend && (
+                  <p className="text-xs text-gray-600 flex items-start gap-1">
+                    <TrendingUp className="w-3 h-3 mt-0.5 text-amber-500 flex-shrink-0" />
+                    <span>{req.aiRawResponse.marketTrend}</span>
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -600,22 +766,63 @@ function RequestDetail({ requestId, lineUserId }: { requestId: number; lineUserI
             <h3 className="font-bold text-sm text-gray-700 mb-3">パートナー査定</h3>
             <div className="space-y-3">
               {req.assessments.map((a: any) => (
-                <div key={a.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-sm">{a.companyName}</p>
-                    <p className="text-lg font-bold text-green-700">¥{Number(a.amount).toLocaleString()}</p>
-                    {a.note && <p className="text-xs text-gray-500">{a.note}</p>}
+                <div key={a.id} className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm">{a.companyName}</p>
+                      <p className="text-lg font-bold text-green-700">¥{Number(a.amount).toLocaleString()}</p>
+                      {a.note && <p className="text-xs text-gray-500">{a.note}</p>}
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      {a.status === "pending" && req.status === "partner_assessed" && (
+                        <>
+                          <button
+                            onClick={() => handleAccept(a.id)}
+                            className="px-3 py-1.5 bg-green-500 text-white text-xs rounded-lg font-medium"
+                          >
+                            承認
+                          </button>
+                          <button
+                            onClick={() => setRejectingId(a.id)}
+                            className="px-3 py-1.5 bg-red-50 text-red-600 text-xs rounded-lg font-medium border border-red-200"
+                          >
+                            拒否
+                          </button>
+                        </>
+                      )}
+                      {a.status === "accepted" && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">承認済み</span>
+                      )}
+                      {a.status === "rejected" && (
+                        <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">拒否済み</span>
+                      )}
+                    </div>
                   </div>
-                  {a.status === "pending" && req.status === "partner_assessed" && (
-                    <button
-                      onClick={() => handleAccept(a.id)}
-                      className="px-4 py-2 bg-green-500 text-white text-sm rounded-lg font-medium"
-                    >
-                      承認
-                    </button>
-                  )}
-                  {a.status === "accepted" && (
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">承認済み</span>
+                  {/* Reject reason input */}
+                  {rejectingId === a.id && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <input
+                        type="text"
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder="拒否理由（任意）"
+                        className="w-full px-3 py-2 border rounded-lg text-sm mb-2"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => { setRejectingId(null); setRejectReason(""); }}
+                          className="flex-1 py-2 border rounded-lg text-sm"
+                        >
+                          キャンセル
+                        </button>
+                        <button
+                          onClick={() => handleReject(a.id)}
+                          className="flex-1 py-2 bg-red-500 text-white rounded-lg text-sm font-medium"
+                        >
+                          拒否する
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
               ))}
@@ -668,6 +875,18 @@ function RequestDetail({ requestId, lineUserId }: { requestId: number; lineUserI
           </div>
         )}
 
+        {/* Cancelled */}
+        {req.status === "cancelled" && (
+          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+            <h3 className="font-bold text-gray-700 mb-1 flex items-center gap-1">
+              <Ban className="w-4 h-4" /> キャンセル済み
+            </h3>
+            {req.cancelReason && (
+              <p className="text-sm text-gray-500">理由: {req.cancelReason}</p>
+            )}
+          </div>
+        )}
+
         {/* Chat */}
         <div className="bg-white rounded-xl p-4 shadow-sm">
           <button
@@ -679,16 +898,22 @@ function RequestDetail({ requestId, lineUserId }: { requestId: number; lineUserI
           </button>
 
           {showChat && (
-            <div className="mt-3 space-y-2 max-h-60 overflow-y-auto">
-              {req.messages?.map((msg: any) => (
-                <div key={msg.id} className={`text-sm p-2 rounded-lg ${
-                  msg.senderType === "user" ? "bg-blue-50 ml-8" : "bg-gray-50 mr-8"
-                }`}>
-                  <p className="text-xs text-gray-500 mb-0.5">{msg.senderName}</p>
-                  <p>{msg.message}</p>
-                </div>
-              ))}
-              <div className="flex gap-2 mt-2">
+            <div className="mt-3">
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {req.messages?.length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-4">メッセージはまだありません</p>
+                )}
+                {req.messages?.map((msg: any) => (
+                  <div key={msg.id} className={`text-sm p-2 rounded-lg ${
+                    msg.senderType === "user" ? "bg-blue-50 ml-8" : "bg-gray-50 mr-8"
+                  }`}>
+                    <p className="text-xs text-gray-500 mb-0.5">{msg.senderName}</p>
+                    <p>{msg.message}</p>
+                  </div>
+                ))}
+                <div ref={chatEndRef} />
+              </div>
+              <div className="flex gap-2 mt-3 pt-3 border-t">
                 <input
                   type="text"
                   value={message}
@@ -697,13 +922,63 @@ function RequestDetail({ requestId, lineUserId }: { requestId: number; lineUserI
                   className="flex-1 px-3 py-2 border rounded-lg text-sm"
                   onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
                 />
-                <button onClick={handleSendMessage} className="p-2 bg-amber-500 text-white rounded-lg">
+                <button 
+                  onClick={handleSendMessage} 
+                  disabled={!message.trim()}
+                  className="p-2 bg-amber-500 text-white rounded-lg disabled:opacity-50"
+                >
                   <Send className="w-4 h-4" />
                 </button>
               </div>
             </div>
           )}
         </div>
+
+        {/* Cancel Button */}
+        {canCancel && (
+          <div className="pt-2">
+            <button
+              onClick={() => setShowCancelDialog(true)}
+              className="w-full py-3 border border-red-200 text-red-600 rounded-xl font-medium text-sm hover:bg-red-50 transition-colors"
+            >
+              <AlertTriangle className="inline w-4 h-4 mr-1 -mt-0.5" />
+              この依頼をキャンセル
+            </button>
+          </div>
+        )}
+
+        {/* Cancel Dialog */}
+        {showCancelDialog && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+              <h3 className="font-bold text-lg mb-2">依頼をキャンセル</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                この操作は取り消せません。本当にキャンセルしますか？
+              </p>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="キャンセル理由（任意）"
+                className="w-full px-3 py-2 border rounded-lg text-sm h-20 resize-none mb-4"
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowCancelDialog(false); setCancelReason(""); }}
+                  className="flex-1 py-2 border rounded-lg font-medium text-sm"
+                >
+                  戻る
+                </button>
+                <button
+                  onClick={handleCancel}
+                  disabled={cancelMutation.isPending}
+                  className="flex-1 py-2 bg-red-500 text-white rounded-lg font-medium text-sm disabled:opacity-50"
+                >
+                  {cancelMutation.isPending ? "処理中..." : "キャンセルする"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

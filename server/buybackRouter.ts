@@ -145,13 +145,30 @@ async function performAIAssessment(imageUrls: string[], category: string, descri
       messages: [
         {
           role: "system",
-          content: `あなたは中古ブランド品の査定エキスパートです。画像から以下を判断してください：
-1. ブランド名（正式名称）
-2. 商品モデル名/型番
-3. コンディション（new/like_new/good/fair/poor）
-4. 推定買取価格の範囲（最低〜最高、日本円）
-5. 信頼度（0.0〜1.0）
-6. 判断根拠
+          content: `あなたは中古ブランド品の査定エキスパートです。10年以上の鑑定経験を持つプロフェッショナルとして、画像から以下を正確に判断してください。
+
+【査定基準】
+1. ブランド名（正式名称）- ロゴ、刻印、タグ、金具の特徴から特定
+2. 商品モデル名/型番 - シリアルナンバー、型番プレート、デザイン特徴から特定
+3. コンディション判定:
+   - new: 未使用品、タグ付き、保護シール残存
+   - like_new: 1-2回使用程度、目立つ傷なし
+   - good: 通常使用の軽微な使用感、角スレ軽度
+   - fair: 明確な使用感あり、色褪せ・スレ・小傷あり
+   - poor: 大きなダメージ、破損、著しい劣化
+4. 推定買取価格（日本の中古市場相場に基づく）:
+   - 参考: 大手買取店（コメ兵、ブランディア等）の買取相場
+   - 季節性考慮（バッグは春夏に需要増、時計は年末需要増）
+   - 人気モデル・限定品はプレミアム加算
+5. 信頼度（0.0〜1.0）:
+   - 0.9以上: ブランド・モデル明確、状態判定容易
+   - 0.7-0.89: 概ね特定可能だが一部不確実
+   - 0.5-0.69: 画像不鮮明または判定困難な要素あり
+   - 0.5未満: 特定困難、追加画像推奨
+6. 真贋チェック指標:
+   - ステッチの均一性、金具の品質、素材の質感
+   - ロゴの配置・フォント、シリアルナンバーの形式
+   - 疑わしい点があれば必ず言及
 
 必ず以下のJSON形式で回答してください：
 {
@@ -161,7 +178,9 @@ async function performAIAssessment(imageUrls: string[], category: string, descri
   "estimatedMin": 50000,
   "estimatedMax": 80000,
   "confidence": 0.85,
-  "reasoning": "判断根拠の説明"
+  "reasoning": "判断根拠の説明（真贋チェック結果含む）",
+  "authenticityNotes": "真贋に関する所見",
+  "marketTrend": "現在の市場トレンド（需要の高低）"
 }`
         },
         {
@@ -186,9 +205,11 @@ async function performAIAssessment(imageUrls: string[], category: string, descri
               estimatedMin: { type: "integer" },
               estimatedMax: { type: "integer" },
               confidence: { type: "number" },
-              reasoning: { type: "string" }
+              reasoning: { type: "string" },
+              authenticityNotes: { type: "string" },
+              marketTrend: { type: "string" }
             },
-            required: ["brand", "model", "condition", "estimatedMin", "estimatedMax", "confidence", "reasoning"],
+            required: ["brand", "model", "condition", "estimatedMin", "estimatedMax", "confidence", "reasoning", "authenticityNotes", "marketTrend"],
             additionalProperties: false
           }
         }
@@ -229,18 +250,32 @@ async function notifyUser(lineUserId: string, message: string) {
   }
 }
 
-// Notify all active partners about new request
+// Notify all active partners about new request (with specialty matching)
 async function notifyPartnersNewRequest(requestId: number, brandName: string, category: string) {
   try {
     const db = await getDb();
     const partners = await db.select().from(buybackPartners).where(eq(buybackPartners.status, "active"));
+    
     for (const partner of partners) {
-      if (partner.lineUserId) {
-        await pushMessage(partner.lineUserId, [{
-          type: "text",
-          text: `【新規買取依頼】\n${brandName || '不明ブランド'} (${category})\n依頼ID: #${requestId}\n\n管理画面から査定額を入力してください。`
-        }]);
+      if (!partner.lineUserId) continue;
+      
+      // Check specialty matching - prioritize partners with matching specialties
+      let isSpecialtyMatch = false;
+      if (partner.specialties) {
+        const specialties: string[] = typeof partner.specialties === 'string' 
+          ? JSON.parse(partner.specialties) 
+          : partner.specialties as string[];
+        isSpecialtyMatch = specialties.some(s => 
+          s.toLowerCase() === category.toLowerCase() ||
+          (brandName && s.toLowerCase().includes(brandName.toLowerCase()))
+        );
       }
+      
+      const priorityTag = isSpecialtyMatch ? '【専門分野】' : '';
+      await pushMessage(partner.lineUserId, [{
+        type: "text",
+        text: `【新規買取依頼】${priorityTag}\n${brandName || '不明ブランド'} (${category})\n依頼ID: #${requestId}\n\n管理画面から査定額を入力してください。`
+      }]);
     }
   } catch (err: any) {
     console.error('[BuybackRouter] Partner notify error:', err.message);
@@ -562,7 +597,7 @@ export const buybackRouter = router({
   submitAssessment: protectedProcedure
     .input(z.object({
       requestId: z.number(),
-      partnerId: z.number(),
+      partnerId: z.number().optional(),
       amount: z.number().min(1),
       note: z.string().optional(),
     }))
@@ -570,11 +605,20 @@ export const buybackRouter = router({
       await ensureBuybackTables();
       const db = await getDb();
 
+      // Resolve partnerId: use provided value or default to first active partner
+      let partnerId = input.partnerId;
+      if (!partnerId) {
+        const [firstPartner] = await db.select().from(buybackPartners)
+          .where(eq(buybackPartners.status, "active"))
+          .limit(1);
+        partnerId = firstPartner?.id || 1;
+      }
+
       // Check if partner already assessed this request
       const existing = await db.select().from(buybackAssessments)
         .where(and(
           eq(buybackAssessments.requestId, input.requestId),
-          eq(buybackAssessments.partnerId, input.partnerId)
+          eq(buybackAssessments.partnerId, partnerId)
         ));
       if (existing.length > 0) throw new Error("Already assessed");
 
@@ -582,7 +626,7 @@ export const buybackRouter = router({
       const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
       await db.insert(buybackAssessments).values({
         requestId: input.requestId,
-        partnerId: input.partnerId,
+        partnerId,
         amount: input.amount,
         note: input.note || null,
         status: "pending",
@@ -597,10 +641,10 @@ export const buybackRouter = router({
       // Update partner stats
       await db.update(buybackPartners).set({
         totalAssessments: sql`${buybackPartners.totalAssessments} + 1`,
-      }).where(eq(buybackPartners.id, input.partnerId));
+      }).where(eq(buybackPartners.id, partnerId));
 
       // Log
-      await logTransaction(input.requestId, "assessment_submitted", "partner", String(input.partnerId), {
+      await logTransaction(input.requestId, "assessment_submitted", "partner", String(partnerId), {
         amount: input.amount,
       });
 
@@ -609,7 +653,7 @@ export const buybackRouter = router({
         .where(eq(buybackRequests.id, input.requestId));
       if (request?.lineUserId) {
         const [partner] = await db.select().from(buybackPartners)
-          .where(eq(buybackPartners.id, input.partnerId));
+          .where(eq(buybackPartners.id, partnerId));
         await notifyUser(request.lineUserId,
           `【査定結果】\n${partner?.companyName || 'パートナー'}から査定が届きました！\n金額: ¥${input.amount.toLocaleString()}\n\nアプリで確認して承認/拒否してください。`
         );
@@ -895,6 +939,108 @@ export const buybackRouter = router({
       avgTransactionAmount: Math.round(avgAmount?.avg || 0),
     };
   }),
+
+  // Cancel a buyback request (user)
+  cancelRequest: publicProcedure
+    .input(z.object({
+      requestId: z.number(),
+      lineUserId: z.string(),
+      reason: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      await ensureBuybackTables();
+      const db = await getDb();
+
+      const [request] = await db.select().from(buybackRequests)
+        .where(and(
+          eq(buybackRequests.id, input.requestId),
+          eq(buybackRequests.lineUserId, input.lineUserId)
+        ));
+      if (!request) throw new Error("Request not found");
+      if (!['pending', 'ai_assessed', 'partner_assessed'].includes(request.status)) {
+        throw new Error("このステータスではキャンセルできません");
+      }
+
+      await db.update(buybackRequests).set({
+        status: "cancelled",
+        cancelledAt: new Date(),
+        cancelReason: input.reason || null,
+      }).where(eq(buybackRequests.id, input.requestId));
+
+      // Reject any pending assessments
+      await db.update(buybackAssessments).set({ status: "rejected" })
+        .where(and(
+          eq(buybackAssessments.requestId, input.requestId),
+          eq(buybackAssessments.status, "pending")
+        ));
+
+      await logTransaction(input.requestId, "cancelled", "user", input.lineUserId, {
+        reason: input.reason,
+      });
+
+      return { success: true };
+    }),
+
+  // Reject a partner's assessment (user)
+  rejectAssessment: publicProcedure
+    .input(z.object({
+      requestId: z.number(),
+      assessmentId: z.number(),
+      lineUserId: z.string(),
+      reason: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      await ensureBuybackTables();
+      const db = await getDb();
+
+      // Verify ownership
+      const [request] = await db.select().from(buybackRequests)
+        .where(and(
+          eq(buybackRequests.id, input.requestId),
+          eq(buybackRequests.lineUserId, input.lineUserId)
+        ));
+      if (!request) throw new Error("Request not found");
+
+      // Get assessment
+      const [assessment] = await db.select().from(buybackAssessments)
+        .where(eq(buybackAssessments.id, input.assessmentId));
+      if (!assessment) throw new Error("Assessment not found");
+      if (assessment.status !== "pending") throw new Error("この査定は既に処理済みです");
+
+      // Reject the assessment
+      await db.update(buybackAssessments).set({ status: "rejected" })
+        .where(eq(buybackAssessments.id, input.assessmentId));
+
+      // Check if there are other pending assessments
+      const remainingPending = await db.select().from(buybackAssessments)
+        .where(and(
+          eq(buybackAssessments.requestId, input.requestId),
+          eq(buybackAssessments.status, "pending")
+        ));
+
+      // If no more pending assessments, revert request status to ai_assessed
+      if (remainingPending.length === 0) {
+        await db.update(buybackRequests).set({
+          status: "ai_assessed",
+        }).where(eq(buybackRequests.id, input.requestId));
+      }
+
+      await logTransaction(input.requestId, "assessment_rejected", "user", input.lineUserId, {
+        assessmentId: input.assessmentId,
+        reason: input.reason,
+      });
+
+      // Notify partner
+      const [partner] = await db.select().from(buybackPartners)
+        .where(eq(buybackPartners.id, assessment.partnerId));
+      if (partner?.lineUserId) {
+        await notifyUser(partner.lineUserId,
+          `【査定拒否】\n依頼 #${input.requestId} の査定が拒否されました。${input.reason ? `\n理由: ${input.reason}` : ''}`
+        );
+      }
+
+      return { success: true };
+    }),
 
   // Send message as partner/admin
   sendAdminMessage: protectedProcedure
