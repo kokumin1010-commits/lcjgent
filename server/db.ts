@@ -2472,6 +2472,13 @@ export async function getAllLineUsers() {
   return await db
     .select()
     .from(lineUsers)
+    // Exclude orphaned ghost records (no lineUserId AND no email = "不明" duplicates)
+    .where(
+      or(
+        isNotNull(lineUsers.lineUserId),
+        isNotNull(lineUsers.email)
+      )
+    )
     .orderBy(desc(lineUsers.createdAt));
 }
 
@@ -8244,13 +8251,22 @@ export async function linkLineAccountToEmailUser(emailUserId: number, lineUserId
   if (existingLineUser.length > 0 && existingLineUser[0].id !== emailUserId) {
     // Check if the existing account is a LINE BOT account (no email) - if so, we can merge
     if (existingLineUser[0].email === null || existingLineUser[0].email === '') {
-      // This is a LINE BOT account without email - we can safely merge
-      // First, clear the lineUserId from the old account to avoid conflicts
-      await db.update(lineUsers)
-        .set({ lineUserId: null })
-        .where(eq(lineUsers.id, existingLineUser[0].id));
+      // This is a LINE BOT account without email - DELETE the orphan record entirely
+      // (Previously we only set lineUserId=null, leaving a ghost "不明" record)
+      const orphanId = existingLineUser[0].id;
       
-      console.log(`[LINE Link] Merged LINE BOT account (ID: ${existingLineUser[0].id}) into email account (ID: ${emailUserId})`);
+      // Delete any related records that reference this orphan ID
+      try {
+        await db.delete(mallFavorites).where(eq(mallFavorites.lineUserId, orphanId));
+        await db.delete(mallViewHistory).where(eq(mallViewHistory.lineUserId, orphanId));
+      } catch (cleanupErr) {
+        console.warn(`[LINE Link] Cleanup of related records for orphan ID ${orphanId} failed (non-critical):`, cleanupErr);
+      }
+      
+      // Delete the orphan record
+      await db.delete(lineUsers).where(eq(lineUsers.id, orphanId));
+      
+      console.log(`[LINE Link] Deleted orphan LINE BOT account (ID: ${orphanId}) and merged into email account (ID: ${emailUserId})`);
     } else {
       // LINE ID is already linked to a different MALL account with email
       throw new Error("LINE_ALREADY_LINKED_TO_MALL");
