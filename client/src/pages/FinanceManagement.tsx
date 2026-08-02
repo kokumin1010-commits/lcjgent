@@ -2,6 +2,8 @@ import React, { useState, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
 import TspContractTab from "./TspContractTab";
 import BrandContractTab from "./BrandContractTab";
+import InvoiceTab from "./InvoiceTab";
+import CashflowTab from "./CashflowTab";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,7 +56,7 @@ function getPrevMonth(month: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments' | 'tap' | 'tap-creators' | 'tap-shops' | 'tap-products' | 'tap-live' | 'tap-videos' | 'tap-profitability' | 'tap-bestmatch' | 'tap-shop-analysis' | 'tap-live-efficiency' | 'tap-growth' | 'tap-creator-profit' | 'tsp' | 'brand-contract';
+type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments' | 'tap' | 'tap-creators' | 'tap-shops' | 'tap-products' | 'tap-live' | 'tap-videos' | 'tap-profitability' | 'tap-bestmatch' | 'tap-shop-analysis' | 'tap-live-efficiency' | 'tap-growth' | 'tap-creator-profit' | 'tsp' | 'brand-contract' | 'invoices' | 'cashflow';
 
 // CAP契約比率設定行コンポーネント
 function CapRateRow({ liver, onSave }: { liver: any; onSave: (data: any) => void }) {
@@ -769,6 +771,8 @@ export default function FinanceManagement() {
     { key: 'payments', label: '入金月別', icon: Wallet },
     { key: 'tsp', label: 'TSP契約', icon: Building2 },
     { key: 'brand-contract', label: 'ブランド契約', icon: FileText },
+    { key: 'invoices', label: '請求書管理', icon: FileText },
+    { key: 'cashflow', label: '入出金管理', icon: Wallet },
   ];
 
   return (
@@ -1839,6 +1843,8 @@ export default function FinanceManagement() {
       {/* TSP Contract Tab */}
       {activeTab === 'tsp' && <TspContractTab />}
       {activeTab === 'brand-contract' && <BrandContractTab />}
+      {activeTab === 'invoices' && <InvoiceTab />}
+      {activeTab === 'cashflow' && <CashflowTab />}
 
       {/* TAP Analysis Tab */}
       {activeTab === 'tap' && (

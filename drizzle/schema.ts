@@ -6651,3 +6651,83 @@ export const buybackTransactionLogs = mysqlTable("buyback_transaction_logs", {
 });
 export type BuybackTransactionLog = typeof buybackTransactionLogs.$inferSelect;
 export type InsertBuybackTransactionLog = typeof buybackTransactionLogs.$inferInsert;
+
+// ==================== 入出金管理 (Cashflow Management) ====================
+/**
+ * company_cashflows - 日本法人・中国法人の入出金を一元管理
+ * 経営判断を早めるためのキャッシュフロー可視化
+ */
+export const companyCashflows = mysqlTable("company_cashflows", {
+  id: int("id").primaryKey().autoincrement(),
+  // 法人区分: japan = 日本法人, china = 中国法人
+  entity: mysqlEnum("entity", ["japan", "china"]).notNull(),
+  // 入出金区分: income = 入金, expense = 出金
+  type: mysqlEnum("type", ["income", "expense"]).notNull(),
+  // カテゴリ
+  category: varchar("category", { length: 100 }).notNull(),
+  // 金額（日本円 or 人民元、entityで判別）
+  amount: bigint("amount", { mode: "number" }).notNull(),
+  // 通貨
+  currency: mysqlEnum("currency", ["JPY", "CNY"]).default("JPY").notNull(),
+  // 取引日
+  transactionDate: varchar("transactionDate", { length: 10 }).notNull(), // YYYY-MM-DD
+  // 摘要・メモ
+  description: text("description"),
+  // 取引先名
+  counterparty: varchar("counterparty", { length: 255 }),
+  // 証憑（レシート・請求書URL）
+  receiptUrl: text("receiptUrl"),
+  // 登録者
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  deletedAt: timestamp("deletedAt"),
+});
+export type CompanyCashflow = typeof companyCashflows.$inferSelect;
+export type InsertCompanyCashflow = typeof companyCashflows.$inferInsert;
+
+// ==================== 請求書管理 (Invoice Management) ====================
+/**
+ * company_invoices - 売上請求書・支払請求書の一元管理
+ * 日本法人・中国法人の請求書ステータスを可視化
+ */
+export const companyInvoices = mysqlTable("company_invoices", {
+  id: int("id").primaryKey().autoincrement(),
+  // 法人区分
+  entity: mysqlEnum("entity", ["japan", "china"]).notNull(),
+  // 請求書種別: receivable = 売上請求書(売掛), payable = 支払請求書(買掛)
+  invoiceType: mysqlEnum("invoice_type", ["receivable", "payable"]).notNull(),
+  // 請求書名
+  name: varchar("name", { length: 500 }).notNull(),
+  // 取引先
+  counterparty: varchar("counterparty", { length: 255 }),
+  // 金額
+  amount: bigint("amount", { mode: "number" }).notNull().default(0),
+  // 通貨
+  currency: mysqlEnum("currency", ["JPY", "CNY"]).default("JPY").notNull(),
+  // 期間開始日
+  startDate: varchar("start_date", { length: 10 }),
+  // 支払期日
+  endDate: varchar("end_date", { length: 10 }),
+  // ステータス: 0 = 支払待ち, 1 = 支払済
+  status: int("status").default(0).notNull(),
+  // 入金日
+  depositDate: varchar("deposit_date", { length: 10 }),
+  // 計上ステータス: 0 = 未計上, 1 = 計上済
+  accountingStatus: int("accounting_status").default(0).notNull(),
+  // 担当者名
+  managerName: varchar("manager_name", { length: 100 }),
+  // 担当者ID
+  managerId: int("manager_id"),
+  // メモ
+  memo: text("memo"),
+  // PDF/画像URL
+  pdfUrl: text("pdf_url"),
+  // 登録者
+  createdBy: int("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+});
+export type CompanyInvoice = typeof companyInvoices.$inferSelect;
+export type InsertCompanyInvoice = typeof companyInvoices.$inferInsert;
