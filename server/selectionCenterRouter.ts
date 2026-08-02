@@ -2008,8 +2008,21 @@ export const selectionCenterRouter = router({
       params.push(input.brandId);
     }
     if (input.search) {
-      where += ' AND (sp.productName LIKE ? OR sp.brandName LIKE ?)';
-      params.push(`%${input.search}%`, `%${input.search}%`);
+      // Split search query by spaces and match each word (AND logic)
+      const searchWords = input.search.trim().split(/\s+/).filter(w => w.length > 0);
+      if (searchWords.length === 1) {
+        where += ' AND (sp.productName LIKE ? OR sp.brandName LIKE ? OR sp.sellingPoints LIKE ?)';
+        params.push(`%${searchWords[0]}%`, `%${searchWords[0]}%`, `%${searchWords[0]}%`);
+      } else if (searchWords.length > 1) {
+        // Each word must match in productName OR brandName OR sellingPoints
+        const wordConditions = searchWords.map(() => 
+          '(sp.productName LIKE ? OR sp.brandName LIKE ? OR sp.sellingPoints LIKE ?)'
+        ).join(' AND ');
+        where += ` AND (${wordConditions})`;
+        for (const word of searchWords) {
+          params.push(`%${word}%`, `%${word}%`, `%${word}%`);
+        }
+      }
     }
     // 合計件数
     const [countResult] = await pool.query(

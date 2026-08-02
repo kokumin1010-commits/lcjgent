@@ -149,8 +149,15 @@ export default function Catalog() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
               <Input
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={viewMode === "brands" ? "ブランド名で検索..." : "商品名で検索..."}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  // Auto-switch to products view when searching
+                  if (e.target.value.trim() && viewMode === "brands") {
+                    setViewMode("products");
+                    setSelectedBrand(null);
+                  }
+                }}
+                placeholder="商品名・ブランド名で検索..."
                 className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-gray-500 h-10 focus:border-indigo-500/50"
               />
             </div>
