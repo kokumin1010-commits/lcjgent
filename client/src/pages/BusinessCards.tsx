@@ -436,6 +436,7 @@ export default function BusinessCards() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sourceFilter, setSourceFilter] = useState<string>("card_only"); // card_only = 名刺のみ, all = 全て
   const [selectedCardIds, setSelectedCardIds] = useState<Set<number>>(new Set());
   const [cardPage, setCardPage] = useState(0);
   const CARDS_PER_PAGE = 50;
@@ -1294,9 +1295,13 @@ export default function BusinessCards() {
     return card.tags?.find((t: string) => t.startsWith("status:"))?.replace("status:", "") || "new";
   }, []);
 
-  // Filtered cards by company and status
+  // Filtered cards by source, company and status
     const filteredCards = useMemo(() => {
     let result = cards;
+    // Source filter: only show actual business cards (with image) or all
+    if (sourceFilter === "card_only") {
+      result = result.filter((c) => c.imageUrl);
+    }
     if (companyFilter !== "all") {
       result = result.filter((c) => c.company === companyFilter);
     }
@@ -1307,10 +1312,10 @@ export default function BusinessCards() {
       });
     }
     return result;
-  }, [cards, companyFilter, statusFilter, getCardStatus]);
+  }, [cards, companyFilter, statusFilter, sourceFilter, getCardStatus]);
 
   // Reset page when filters change
-  useEffect(() => { setCardPage(0); }, [companyFilter, statusFilter, debouncedSearch]);
+  useEffect(() => { setCardPage(0); }, [companyFilter, statusFilter, sourceFilter, debouncedSearch]);
 
   // Paginated cards for rendering
   const totalCardPages = Math.ceil(filteredCards.length / CARDS_PER_PAGE);
@@ -1370,7 +1375,8 @@ export default function BusinessCards() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-blue-600 font-medium">名刺数</p>
-                <p className="text-2xl font-bold text-blue-700">{cards.length}</p>
+                <p className="text-2xl font-bold text-blue-700">{cards.filter(c => c.imageUrl).length}</p>
+                <p className="text-[10px] text-blue-500">全{cards.length}件中</p>
               </div>
               <Users className="h-8 w-8 text-blue-400" />
             </div>
@@ -1467,6 +1473,17 @@ export default function BusinessCards() {
                 className="pl-9"
               />
             </div>
+            {/* Source Filter - 名刺のみ / 全て */}
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="w-[150px] h-9 text-xs">
+                <CreditCard className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+                <SelectValue placeholder="データ種別" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="card_only">名刺のみ ({cards.filter(c => c.imageUrl).length})</SelectItem>
+                <SelectItem value="all">全て表示 ({cards.length})</SelectItem>
+              </SelectContent>
+            </Select>
             {/* Company Filter */}
             <Select value={companyFilter} onValueChange={setCompanyFilter}>
               <SelectTrigger className="w-[180px] h-9 text-xs">
@@ -1522,9 +1539,15 @@ export default function BusinessCards() {
             )}
           </div>
           {/* Active Filters Display */}
-          {(companyFilter !== "all" || statusFilter !== "all") && (
+          {(companyFilter !== "all" || statusFilter !== "all" || sourceFilter !== "card_only") && (
             <div className="flex items-center gap-2 text-xs">
               <span className="text-muted-foreground">フィルター:</span>
+              {sourceFilter !== "card_only" && (
+                <Badge variant="secondary" className="text-xs cursor-pointer" onClick={() => setSourceFilter("card_only")}>
+                  <CreditCard className="h-3 w-3 mr-1" />
+                  全て表示 ×
+                </Badge>
+              )}
               {companyFilter !== "all" && (
                 <Badge variant="secondary" className="text-xs cursor-pointer" onClick={() => setCompanyFilter("all")}>
                   <Building2 className="h-3 w-3 mr-1" />
@@ -1536,7 +1559,7 @@ export default function BusinessCards() {
                   {statusOptions.find(s => s.value === statusFilter)?.label} ×
                 </Badge>
               )}
-              <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { setCompanyFilter("all"); setStatusFilter("all"); }}>
+              <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { setCompanyFilter("all"); setStatusFilter("all"); setSourceFilter("card_only"); }}>
                 クリア
               </Button>
               <span className="text-muted-foreground ml-auto">{filteredCards.length}件表示中</span>
