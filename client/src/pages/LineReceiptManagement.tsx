@@ -88,6 +88,98 @@ const getConfidenceLabelStatic = (score: number) => {
   return { key: "lr.lowConfidence", color: "text-red-600 bg-red-50 border-red-200" };
 };
 
+/**
+ * マスキングボタンコンポーネント
+ * レシート画像の個人情報をAIで検出してぼかし処理
+ */
+function MaskingButton({ receiptId, imageUrls }: { receiptId?: number; imageUrls: string[] }) {
+  const [isMasking, setIsMasking] = useState(false);
+  const batchMask = trpc.receiptReview.batchMaskLineReceipt.useMutation();
+  const utils = trpc.useUtils();
+
+  if (!receiptId || imageUrls.length === 0) return null;
+
+  const handleMask = async () => {
+    setIsMasking(true);
+    try {
+      const result = await batchMask.mutateAsync({
+        receiptId,
+        imageUrls,
+      });
+      if (result.success) {
+        toast.success(`マスキング完了: ${result.maskedCount}/${result.totalImages}枚処理`);
+        utils.lineReceipt.invalidate();
+      } else {
+        toast.error("マスキングに失敗しました");
+      }
+    } catch (error: any) {
+      toast.error(`マスキングエラー: ${error.message}`);
+    } finally {
+      setIsMasking(false);
+    }
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="h-7 text-xs border-orange-300 text-orange-600 hover:bg-orange-50"
+      onClick={handleMask}
+      disabled={isMasking}
+    >
+      {isMasking ? (
+        <><Loader2 className="w-3 h-3 mr-1 animate-spin" />処理中...</>
+      ) : (
+        <><Shield className="w-3 h-3 mr-1" />個人情報マスキング</>
+      )}
+    </Button>
+  );
+}
+
+/**
+ * バッチマスキングボタン（未処理レシート一括）
+ */
+function BatchMaskAllButton() {
+  const [isMasking, setIsMasking] = useState(false);
+  const [progress, setProgress] = useState("");
+  const batchMaskAll = trpc.receiptReview.batchMaskAllUnprocessed.useMutation();
+  const utils = trpc.useUtils();
+
+  const handleBatchMask = async () => {
+    setIsMasking(true);
+    setProgress("処理開始...");
+    try {
+      const result = await batchMaskAll.mutateAsync({ limit: 20 });
+      if (result.success) {
+        setProgress(`完了: ${result.totalProcessed}件処理`);
+        toast.success(`バッチマスキング完了: ${result.totalProcessed}件処理`);
+        utils.lineReceipt.invalidate();
+      }
+    } catch (error: any) {
+      toast.error(`バッチマスキングエラー: ${error.message}`);
+      setProgress("");
+    } finally {
+      setIsMasking(false);
+    }
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="border-orange-300 text-orange-600 hover:bg-orange-50"
+      onClick={handleBatchMask}
+      disabled={isMasking}
+    >
+      {isMasking ? (
+        <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{progress}</>
+      ) : (
+        <><Shield className="w-4 h-4 mr-2" />未処理レシート一括マスキング</>
+      )}
+    </Button>
+  );
+}
+
 export default function LineReceiptManagement({ embedded = false }: { embedded?: boolean } = {}) {
   const { t, language, setLanguage } = useLanguage();
   
@@ -1140,6 +1232,8 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           </div>
           
           <div className="flex items-center gap-2">
+            {/* Batch Masking Button */}
+            <BatchMaskAllButton />
             {/* Language Toggle */}
             <Button
               variant="outline"
@@ -2173,16 +2267,25 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               <Images className="w-4 h-4 text-blue-600" />
                               {t("lr.receiptImages")}
                               <Badge variant="secondary" className="text-xs">{currentImageIndex + 1} / {images.length}</Badge>
+                              {selectedReceipt?.maskedAt && (
+                                <Badge variant="outline" className="text-xs text-green-600 border-green-300">
+                                  <ShieldCheck className="w-3 h-3 mr-1" />
+                                  マスキング済
+                                </Badge>
+                              )}
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => openImageViewer(images, currentImageIndex)}
-                            >
-                              <ZoomIn className="w-3.5 h-3.5 mr-1" />
-                              {t("lr.enlarge")}
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <MaskingButton receiptId={selectedReceipt?.id} imageUrls={images} />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => openImageViewer(images, currentImageIndex)}
+                              >
+                                <ZoomIn className="w-3.5 h-3.5 mr-1" />
+                                {t("lr.enlarge")}
+                              </Button>
+                            </div>
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="px-4 pb-3">

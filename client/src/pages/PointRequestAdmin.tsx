@@ -33,6 +33,9 @@ type PointRequest = {
   deliveryDate: Date | null;
   receiptImageUrl: string;
   deliveryImageUrl: string | null;
+  maskedReceiptImageUrl?: string | null;
+  maskedDeliveryImageUrl?: string | null;
+  maskedAt?: Date | null;
   pointsRequested: number;
   pointsApproved: number | null;
   status: "pending" | "approved" | "rejected";

@@ -1576,6 +1576,11 @@ export const lineReceipts = mysqlTable("line_receipts", {
   fraudFlags: json("fraudFlags").$type<string[]>(), // Array of fraud flag codes
   fraudScore: decimal("fraudScore", { precision: 5, scale: 2 }).default("0"), // Risk score (0-100)
   
+  // Masked images (personal info hidden for public display)
+  maskedImageUrl: text("maskedImageUrl"), // Primary masked image URL (personal info blurred)
+  maskedImageUrls: json("maskedImageUrls").$type<string[]>(), // Array of masked image URLs
+  maskedAt: timestamp("maskedAt"), // When masking was applied
+  
   // Timestamps
   submittedAt: timestamp("submittedAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -2035,6 +2040,11 @@ export const pointRequests = mysqlTable("point_requests", {
   // 審査情報
   reviewedBy: int("reviewedBy"), // 審査した管理者のUser ID
   reviewedAt: timestamp("reviewedAt"), // 審査日時
+  
+  // Masked images (personal info hidden for public display)
+  maskedReceiptImageUrl: text("maskedReceiptImageUrl"), // マスキング済みレシート画像URL
+  maskedDeliveryImageUrl: text("maskedDeliveryImageUrl"), // マスキング済み配達画面URL
+  maskedAt: timestamp("maskedAt"), // マスキング処理日時
   
   // タイムスタンプ
   createdAt: timestamp("createdAt").defaultNow().notNull(),

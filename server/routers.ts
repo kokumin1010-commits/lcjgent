@@ -18,6 +18,7 @@ import { accountRouter } from "./accountRouter";
 import { isValidEmailForSending, getInvalidEmailReason } from "./emailValidator";
 import { csvSnapshotRouter } from "./csvSnapshotProcedures";
 import { morningMeetingRouter } from "./morningMeetingRouter";
+import { maskReceiptImage, maskMultipleImages } from "./receiptMaskingService";
 import {
   createStaff,
   getAllStaff,
@@ -23801,6 +23802,144 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({ limit: z.number().optional() }).nullish())
       .query(async ({ input }) => {
         return await getWantRanking(input?.limit || 10);
+      }),
+    /**
+     * レシート画像の個人情報マスキング（単体）
+     */
+    maskPersonalInfo: protectedProcedure
+      .input(z.object({
+        receiptId: z.number(),
+        receiptType: z.enum(["line_receipt", "point_request"]),
+        imageUrl: z.string().url(),
+      }))
+      .mutation(async ({ input }) => {
+        const result = await maskReceiptImage(
+          input.imageUrl,
+          input.receiptId,
+          `masked-${input.receiptType}s`
+        );
+        if (result.success && result.maskedImageUrl) {
+          // Update DB with masked URL
+          const db = await (await import("./db")).getDb();
+          if (db) {
+            if (input.receiptType === "line_receipt") {
+              const { lineReceipts } = await import("../drizzle/schema");
+              const { eq } = await import("drizzle-orm");
+              await db.update(lineReceipts)
+                .set({
+                  maskedImageUrl: result.maskedImageUrl,
+                  maskedAt: new Date(),
+                })
+                .where(eq(lineReceipts.id, input.receiptId));
+            } else {
+              const { pointRequests } = await import("../drizzle/schema");
+              const { eq } = await import("drizzle-orm");
+              await db.update(pointRequests)
+                .set({
+                  maskedReceiptImageUrl: result.maskedImageUrl,
+                  maskedAt: new Date(),
+                })
+                .where(eq(pointRequests.id, input.receiptId));
+            }
+          }
+        }
+        return result;
+      }),
+    /**
+     * レシート画像の個人情報マスキング（バッチ処理）
+     * LINEレシートの複数画像を一括マスキング
+     */
+    batchMaskLineReceipt: protectedProcedure
+      .input(z.object({
+        receiptId: z.number(),
+        imageUrls: z.array(z.string().url()),
+      }))
+      .mutation(async ({ input }) => {
+        const results = await maskMultipleImages(
+          input.imageUrls,
+          input.receiptId,
+          "masked-line-receipts"
+        );
+        // Collect successful masked URLs
+        const maskedUrls = results
+          .filter(r => r.success && r.maskedImageUrl)
+          .map(r => r.maskedImageUrl!);
+        // Update DB
+        if (maskedUrls.length > 0) {
+          const db = await (await import("./db")).getDb();
+          if (db) {
+            const { lineReceipts } = await import("../drizzle/schema");
+            const { eq } = await import("drizzle-orm");
+            await db.update(lineReceipts)
+              .set({
+                maskedImageUrl: maskedUrls[0],
+                maskedImageUrls: maskedUrls,
+                maskedAt: new Date(),
+              })
+              .where(eq(lineReceipts.id, input.receiptId));
+          }
+        }
+        return {
+          success: true,
+          totalImages: input.imageUrls.length,
+          maskedCount: maskedUrls.length,
+          results,
+        };
+      }),
+    /**
+     * バッチマスキング（未処理のレシートを一括処理）
+     */
+    batchMaskAllUnprocessed: protectedProcedure
+      .input(z.object({
+        limit: z.number().min(1).max(50).optional(),
+      }).nullish())
+      .mutation(async ({ input }) => {
+        const limit = input?.limit || 10;
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new Error("Database not available");
+        const { lineReceipts } = await import("../drizzle/schema");
+        const { isNull, desc } = await import("drizzle-orm");
+        // Find unmasked receipts
+        const unmaskedReceipts = await db.select({
+          id: lineReceipts.id,
+          imageUrls: lineReceipts.imageUrls,
+        })
+          .from(lineReceipts)
+          .where(isNull(lineReceipts.maskedAt))
+          .orderBy(desc(lineReceipts.createdAt))
+          .limit(limit);
+        const processedResults: any[] = [];
+        for (const receipt of unmaskedReceipts) {
+          const urls = (receipt.imageUrls as string[]) || [];
+          if (urls.length === 0) continue;
+          const results = await maskMultipleImages(urls, receipt.id, "masked-line-receipts");
+          const maskedUrls = results
+            .filter(r => r.success && r.maskedImageUrl)
+            .map(r => r.maskedImageUrl!);
+          if (maskedUrls.length > 0) {
+            const { eq } = await import("drizzle-orm");
+            await db.update(lineReceipts)
+              .set({
+                maskedImageUrl: maskedUrls[0],
+                maskedImageUrls: maskedUrls,
+                maskedAt: new Date(),
+              })
+              .where(eq(lineReceipts.id, receipt.id));
+          }
+          processedResults.push({
+            receiptId: receipt.id,
+            totalImages: urls.length,
+            maskedCount: maskedUrls.length,
+          });
+          // Rate limit between receipts
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        return {
+          success: true,
+          totalProcessed: processedResults.length,
+          totalUnmasked: unmaskedReceipts.length,
+          results: processedResults,
+        };
       }),
   }),
 
