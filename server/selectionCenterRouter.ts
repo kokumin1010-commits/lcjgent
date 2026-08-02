@@ -667,12 +667,22 @@ export const selectionCenterRouter = router({
   liverSelectProduct: publicProcedure.input(z.object({
     productId: z.number(),
     liverId: z.number(),
+    quantity: z.number().min(1).default(1),
   })).mutation(async ({ input }) => {
     const pool = getPool();
-    const [existing] = await pool.query('SELECT id FROM anchor_selections WHERE productId = ? AND liverId = ?', [input.productId, input.liverId]) as any;
-    if (existing.length > 0) throw new Error("既に選品済みです");
-    const [result] = await pool.query('INSERT INTO anchor_selections (productId, liverId) VALUES (?, ?)', [input.productId, input.liverId]) as any;
-    return { id: result.insertId };
+    // Add quantity column if not exists
+    try {
+      await pool.query('ALTER TABLE anchor_selections ADD COLUMN quantity INT DEFAULT 1');
+    } catch { /* column already exists */ }
+    const [existing] = await pool.query('SELECT id, quantity FROM anchor_selections WHERE productId = ? AND liverId = ?', [input.productId, input.liverId]) as any;
+    if (existing.length > 0) {
+      // 既に存在する場合は数量を加算
+      const newQty = (existing[0].quantity || 1) + input.quantity;
+      await pool.query('UPDATE anchor_selections SET quantity = ? WHERE id = ?', [newQty, existing[0].id]);
+      return { id: existing[0].id, quantity: newQty, updated: true };
+    }
+    const [result] = await pool.query('INSERT INTO anchor_selections (productId, liverId, quantity) VALUES (?, ?, ?)', [input.productId, input.liverId, input.quantity]) as any;
+    return { id: result.insertId, quantity: input.quantity, updated: false };
   }),
 
   getLiverMySelections: publicProcedure.input(z.object({
@@ -2034,6 +2044,7 @@ export const selectionCenterRouter = router({
     // ライバー認証チェック（トークンがあれば卸値・報酬率も返す）
     let isAuthenticated = false;
     let liverId: number | null = null;
+    let liverName: string | null = null;
     try {
       const authHeader = (ctx as any).req?.headers?.authorization;
       if (authHeader?.startsWith('Bearer ')) {
@@ -2042,7 +2053,14 @@ export const selectionCenterRouter = router({
         const { payload } = await jwtVerify(token, secret);
         if (payload && (payload.type === 'liver' || payload.role === 'admin')) {
           isAuthenticated = true;
-          if (payload.liverId) liverId = Number(payload.liverId);
+          if (payload.liverId) {
+            liverId = Number(payload.liverId);
+            // ライバー名を取得
+            try {
+              const [liverRows] = await pool.query('SELECT name FROM livers WHERE id = ?', [liverId]) as any;
+              if (liverRows.length > 0) liverName = liverRows[0].name;
+            } catch { /* ignore */ }
+          }
         }
       }
       // 管理者セッションもチェック
@@ -2074,7 +2092,7 @@ export const selectionCenterRouter = router({
       LIMIT ? OFFSET ?`,
       [...params, input.limit, input.offset]
     ) as any;
-    return { products, total, isAuthenticated, liverId };
+    return { products, total, isAuthenticated, liverId, liverName };
   }),
 
   // カタログ統計情報（公開）- ログイン不要

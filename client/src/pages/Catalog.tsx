@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Package, Search, ShoppingBag, ShoppingCart, ArrowRight, Star, X, Lock, Check } from "lucide-react";
+import { Package, Search, ShoppingBag, ShoppingCart, ArrowRight, Star, X, Lock, Check, Minus, Plus, User } from "lucide-react";
 import { toast } from "sonner";
 
 /**
@@ -69,7 +69,13 @@ export default function Catalog() {
 
   // 仕入れ機能（ライバーが商品を選品）
   const selectProductMutation = trpc.selectionCenter.liverSelectProduct.useMutation({
-    onSuccess: () => { toast.success("仕入れリストに追加しました"); },
+    onSuccess: (data) => {
+      if (data.updated) {
+        toast.success(`仕入れ数量を${data.quantity}個に更新しました`);
+      } else {
+        toast.success(`${data.quantity}個仕入れリストに追加しました`);
+      }
+    },
     onError: (err) => { toast.error(err.message || "仕入れに失敗しました"); },
   });
 
@@ -338,6 +344,13 @@ export default function Catalog() {
                           {/* 卸値・報酬率 - 認証済みなら表示、未認証ならロック表示 */}
                           {isAuthenticated ? (
                             <div className="space-y-1.5">
+                              {/* アカウント表示 */}
+                              {productsData?.liverName && (
+                                <div className="flex items-center gap-1 text-[10px] text-sky-300">
+                                  <User className="h-2.5 w-2.5" />
+                                  <span>{productsData.liverName}</span>
+                                </div>
+                              )}
                               <div className="flex flex-wrap gap-1">
                                 {product.purchasePrice && Number(product.purchasePrice) > 0 && (
                                   <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
@@ -350,19 +363,51 @@ export default function Catalog() {
                                   </span>
                                 )}
                               </div>
-                              {/* 仕入れボタン */}
-                              <button
-                                onClick={() => {
-                                  const liverId = productsData?.liverId;
-                                  if (!liverId) { toast.error("ライバー情報が取得できません"); return; }
-                                  selectProductMutation.mutate({ productId: product.id, liverId });
-                                }}
-                                disabled={selectProductMutation.isPending}
-                                className="w-full flex items-center justify-center gap-1 text-[11px] font-medium bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-1.5 px-2 rounded-lg transition-all duration-200 hover:scale-[1.02] disabled:opacity-50"
-                              >
-                                <ShoppingCart className="h-3 w-3" />
-                                仕入れる
-                              </button>
+                              {/* 数量選択 + 仕入れボタン */}
+                              <div className="flex items-center gap-1">
+                                <div className="flex items-center border border-gray-600 rounded-lg overflow-hidden">
+                                  <button
+                                    onClick={() => {
+                                      const el = document.getElementById(`qty-${product.id}`) as HTMLInputElement;
+                                      if (el && Number(el.value) > 1) el.value = String(Number(el.value) - 1);
+                                    }}
+                                    className="px-1.5 py-1 text-gray-300 hover:bg-gray-700 transition-colors"
+                                  >
+                                    <Minus className="h-3 w-3" />
+                                  </button>
+                                  <input
+                                    id={`qty-${product.id}`}
+                                    type="number"
+                                    defaultValue={1}
+                                    min={1}
+                                    max={99}
+                                    className="w-8 text-center text-[11px] bg-transparent text-white border-x border-gray-600 py-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      const el = document.getElementById(`qty-${product.id}`) as HTMLInputElement;
+                                      if (el && Number(el.value) < 99) el.value = String(Number(el.value) + 1);
+                                    }}
+                                    className="px-1.5 py-1 text-gray-300 hover:bg-gray-700 transition-colors"
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                  </button>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    const liverId = productsData?.liverId;
+                                    if (!liverId) { toast.error("ライバー情報が取得できません"); return; }
+                                    const el = document.getElementById(`qty-${product.id}`) as HTMLInputElement;
+                                    const quantity = el ? Number(el.value) || 1 : 1;
+                                    selectProductMutation.mutate({ productId: product.id, liverId, quantity });
+                                  }}
+                                  disabled={selectProductMutation.isPending}
+                                  className="flex-1 flex items-center justify-center gap-1 text-[11px] font-medium bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-1.5 px-2 rounded-lg transition-all duration-200 hover:scale-[1.02] disabled:opacity-50"
+                                >
+                                  <ShoppingCart className="h-3 w-3" />
+                                  仕入れる
+                                </button>
+                              </div>
                             </div>
                           ) : (
                             <a
