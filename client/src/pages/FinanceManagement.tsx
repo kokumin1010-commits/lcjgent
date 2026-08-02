@@ -138,7 +138,12 @@ function CapRateRow({ liver, onSave }: { liver: any; onSave: (data: any) => void
 
 export default function FinanceManagement() {
   const [, navigate] = useLocation();
-  const [activeTab, setActiveTab] = useState<TabType>('tap');
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    const validTabs: TabType[] = ['dashboard', 'creators', 'shops', 'products', 'daily', 'monthly', 'orders', 'imports', 'payments', 'tap', 'tap-creators', 'tap-shops', 'tap-products', 'tap-live', 'tap-videos', 'tap-profitability', 'tap-bestmatch', 'tap-shop-analysis', 'tap-live-efficiency', 'tap-growth', 'tap-creator-profit', 'tsp', 'brand-contract', 'invoices', 'cashflow'];
+    return (tab && validTabs.includes(tab as TabType)) ? (tab as TabType) : 'tap';
+  });
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [csvUploading, setCsvUploading] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -820,7 +825,7 @@ export default function FinanceManagement() {
         {tabs.map(tab => (
           <button
             key={tab.key}
-            onClick={() => { setActiveTab(tab.key); setOrderPage(0); }}
+            onClick={() => { setActiveTab(tab.key); setOrderPage(0); const params = new URLSearchParams(window.location.search); params.set('tab', tab.key); window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`); }}
             className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-t-md whitespace-nowrap transition-colors ${
               activeTab === tab.key
                 ? 'bg-primary text-primary-foreground'
