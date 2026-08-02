@@ -3,7 +3,8 @@ import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Package, Search, ShoppingBag, ArrowRight, Star, X, Lock } from "lucide-react";
+import { Package, Search, ShoppingBag, ShoppingCart, ArrowRight, Star, X, Lock, Check } from "lucide-react";
+import { toast } from "sonner";
 
 /**
  * 公開カタログページ - ライブコマーサー勧誘用
@@ -65,6 +66,12 @@ export default function Catalog() {
   const products = productsData?.products || [];
   const totalProducts = productsData?.total || 0;
   const isAuthenticated = productsData?.isAuthenticated || false;
+
+  // 仕入れ機能（ライバーが商品を選品）
+  const selectProductMutation = trpc.selectionCenter.liverSelectProduct.useMutation({
+    onSuccess: () => { toast.success("仕入れリストに追加しました"); },
+    onError: (err) => { toast.error(err.message || "仕入れに失敗しました"); },
+  });
 
   // ブランド検索フィルター
   const filteredBrands = useMemo(() => {
@@ -330,17 +337,32 @@ export default function Catalog() {
                           
                           {/* 卸値・報酬率 - 認証済みなら表示、未認証ならロック表示 */}
                           {isAuthenticated ? (
-                            <div className="flex flex-wrap gap-1">
-                              {product.purchasePrice && Number(product.purchasePrice) > 0 && (
-                                <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                                  卸値 ¥{Number(product.purchasePrice).toLocaleString()}
-                                </span>
-                              )}
-                              {product.commissionValue && Number(product.commissionValue) > 0 && (
-                                <span className="text-[10px] text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded">
-                                  報酬 {product.commissionType === 'percentage' ? `${product.commissionValue}%` : `¥${Number(product.commissionValue).toLocaleString()}`}
-                                </span>
-                              )}
+                            <div className="space-y-1.5">
+                              <div className="flex flex-wrap gap-1">
+                                {product.purchasePrice && Number(product.purchasePrice) > 0 && (
+                                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                                    卸値 ¥{Number(product.purchasePrice).toLocaleString()}
+                                  </span>
+                                )}
+                                {product.commissionValue && Number(product.commissionValue) > 0 && (
+                                  <span className="text-[10px] text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded">
+                                    報酬 {product.commissionType === 'percentage' ? `${product.commissionValue}%` : `¥${Number(product.commissionValue).toLocaleString()}`}
+                                  </span>
+                                )}
+                              </div>
+                              {/* 仕入れボタン */}
+                              <button
+                                onClick={() => {
+                                  const liverId = productsData?.liverId;
+                                  if (!liverId) { toast.error("ライバー情報が取得できません"); return; }
+                                  selectProductMutation.mutate({ productId: product.id, liverId });
+                                }}
+                                disabled={selectProductMutation.isPending}
+                                className="w-full flex items-center justify-center gap-1 text-[11px] font-medium bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-1.5 px-2 rounded-lg transition-all duration-200 hover:scale-[1.02] disabled:opacity-50"
+                              >
+                                <ShoppingCart className="h-3 w-3" />
+                                仕入れる
+                              </button>
                             </div>
                           ) : (
                             <a

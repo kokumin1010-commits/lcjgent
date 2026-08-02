@@ -451,7 +451,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
       exclusiveLiverIds: form.talentExclusive ? (form.exclusiveLiverIds || []) : [],
       tags: form.tags && form.tags.length > 0 ? form.tags : [],
       selfOperated: form.selfOperated ? 1 : 0,
-      purchasePrice: form.selfOperated && form.purchasePrice ? String(form.purchasePrice) : undefined,
+      purchasePrice: form.purchasePrice ? String(form.purchasePrice) : undefined,
       shippingFee: form.selfOperated && form.shippingFee ? String(form.shippingFee) : undefined,
       platformFee: form.selfOperated && form.platformFee ? String(form.platformFee) : undefined,
       deliveryTime: form.selfOperated && form.deliveryTime ? String(form.deliveryTime) : undefined,
@@ -467,7 +467,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col overflow-hidden" onPaste={handlePasteUpload}>
+      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col overflow-hidden" onPaste={handlePasteUpload}>
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>{isEdit ? t("sc.form.editTitle") : t("sc.form.addTitle")}</DialogTitle>
         </DialogHeader>
@@ -576,8 +576,8 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
             </div>
           </div>
 
-                    {/* 販売価格 + 市場価格 - 2 columns */}
-            <div className="grid grid-cols-2 gap-4">
+                    {/* 販売価格 + 市場価格 + 卸値 - 3 columns */}
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <Label>{t("sc.form.sellingPrice")}</Label>
                 <Input type="number" value={form.price || ""} onChange={e => setForm({ ...form, price: e.target.value })} />
@@ -585,6 +585,10 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
               <div>
                 <Label>{t("sc.form.marketPrice")}</Label>
                 <Input type="number" value={form.marketPrice || ""} onChange={e => setForm({ ...form, marketPrice: e.target.value })} />
+              </div>
+              <div>
+                <Label className="text-amber-600 font-bold">卸値（ライバー仕入れ価格）</Label>
+                <Input type="number" value={form.purchasePrice || ""} onChange={e => setForm({ ...form, purchasePrice: e.target.value })} placeholder="例: 3000" className="border-amber-200 focus:border-amber-400" />
               </div>
             </div>
           {/* 历史最低价 */}

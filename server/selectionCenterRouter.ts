@@ -2033,6 +2033,7 @@ export const selectionCenterRouter = router({
 
     // ライバー認証チェック（トークンがあれば卸値・報酬率も返す）
     let isAuthenticated = false;
+    let liverId: number | null = null;
     try {
       const authHeader = (ctx as any).req?.headers?.authorization;
       if (authHeader?.startsWith('Bearer ')) {
@@ -2041,6 +2042,7 @@ export const selectionCenterRouter = router({
         const { payload } = await jwtVerify(token, secret);
         if (payload && (payload.type === 'liver' || payload.role === 'admin')) {
           isAuthenticated = true;
+          if (payload.liverId) liverId = Number(payload.liverId);
         }
       }
       // 管理者セッションもチェック
@@ -2072,7 +2074,7 @@ export const selectionCenterRouter = router({
       LIMIT ? OFFSET ?`,
       [...params, input.limit, input.offset]
     ) as any;
-    return { products, total, isAuthenticated };
+    return { products, total, isAuthenticated, liverId };
   }),
 
   // カタログ統計情報（公開）- ログイン不要
