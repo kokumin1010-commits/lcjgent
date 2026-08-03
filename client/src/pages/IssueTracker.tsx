@@ -167,6 +167,12 @@ function KanbanView({ filters, onSelectIssue }: { filters: any; onSelectIssue: (
   );
 }
 
+const NEXT_STATUS_MAP: Record<string, { next: string; label: string }> = {
+  pending: { next: 'in_progress', label: '处理中へ' },
+  in_progress: { next: 'waiting_confirm', label: '待确认へ' },
+  waiting_confirm: { next: 'completed', label: '已完成へ' },
+};
+
 function KanbanColumn({ status, label, icon: Icon, color, filters, onSelectIssue }: any) {
   const { data } = trpc.issueTracker.list.useQuery({
     status,
@@ -180,6 +186,19 @@ function KanbanColumn({ status, label, icon: Icon, color, filters, onSelectIssue
 
   const issues = data?.issues || [];
 
+  const handleAdvanceStatus = async (e: React.MouseEvent, issueId: number) => {
+    e.stopPropagation();
+    const nextInfo = NEXT_STATUS_MAP[status];
+    if (!nextInfo) return;
+    try {
+      await updateStatus.mutateAsync({ id: issueId, status: nextInfo.next as any });
+      utils.issueTracker.list.invalidate();
+      toast.success(`ステータスを「${nextInfo.label.replace('へ', '')}」に変更しました`);
+    } catch {
+      toast.error('ステータス変更に失敗しました');
+    }
+  };
+
   return (
     <div className="bg-muted/30 rounded-lg p-3 min-h-[400px]">
       <div className="flex items-center gap-2 mb-3 pb-2 border-b">
@@ -189,7 +208,14 @@ function KanbanColumn({ status, label, icon: Icon, color, filters, onSelectIssue
       </div>
       <div className="space-y-2">
         {issues.map((issue: any) => (
-          <IssueCard key={issue.id} issue={issue} onClick={() => onSelectIssue(issue.id)} />
+          <IssueCard
+            key={issue.id}
+            issue={issue}
+            onClick={() => onSelectIssue(issue.id)}
+            nextStatus={NEXT_STATUS_MAP[status]}
+            onAdvance={(e: React.MouseEvent) => handleAdvanceStatus(e, issue.id)}
+            isAdvancing={updateStatus.isPending}
+          />
         ))}
         {issues.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-8">暂无问题</p>
@@ -199,7 +225,7 @@ function KanbanColumn({ status, label, icon: Icon, color, filters, onSelectIssue
   );
 }
 
-function IssueCard({ issue, onClick }: { issue: any; onClick: () => void }) {
+function IssueCard({ issue, onClick, nextStatus, onAdvance, isAdvancing }: { issue: any; onClick: () => void; nextStatus?: { next: string; label: string }; onAdvance?: (e: React.MouseEvent) => void; isAdvancing?: boolean }) {
   const PriorityIcon = PRIORITY_ICONS[issue.priority] || Minus;
   const isOverdue = issue.deadline && new Date(issue.deadline) < new Date() && !['completed', 'closed'].includes(issue.status);
 
@@ -227,6 +253,16 @@ function IssueCard({ issue, onClick }: { issue: any; onClick: () => void }) {
           <span className="text-[10px] text-red-500 font-medium">超时!</span>
         )}
       </div>
+      {nextStatus && onAdvance && (
+        <button
+          onClick={onAdvance}
+          disabled={isAdvancing}
+          className="mt-2 w-full py-1.5 text-[11px] font-medium rounded bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+        >
+          <ChevronRight className="h-3 w-3" />
+          {nextStatus.label}
+        </button>
+      )}
     </div>
   );
 }
