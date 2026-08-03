@@ -3708,9 +3708,10 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
   const [status, setStatus] = useState("pending");
   const [memo, setMemo] = useState("");
-  const [liveRoom, setLiveRoom] = useState("kg");
+  const [liveRoom, setLiveRoom] = useState("");
   const [shopName, setShopName] = useState("LCJ店铺");
   const [productLink, setProductLink] = useState("");
+  const liversQuery = trpc.selectionCenter.getLivers.useQuery();
 
   // ブランド合併ロジック（カタログと同じ）
   const mergedBrands = useMemo(() => {
@@ -3846,7 +3847,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
       setOrderDate(new Date().toISOString().split('T')[0]);
       setStatus("pending");
       setMemo("");
-      setLiveRoom("kg");
+      setLiveRoom("");
       setShopName("LCJ店铺");
       setProductLink("");
     }
@@ -4099,13 +4100,12 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
               <Label>直播间</Label>
               <Select value={liveRoom} onValueChange={v => setLiveRoom(v)}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="選択してください" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="kg">kg</SelectItem>
-                  <SelectItem value="shiho">shiho</SelectItem>
-                  <SelectItem value="nana">nana</SelectItem>
-                  <SelectItem value="hazuki">hazuki</SelectItem>
+                  {(liversQuery.data || []).map((liver: any) => (
+                    <SelectItem key={liver.id} value={liver.name}>{liver.name}</SelectItem>
+                  ))}
                   <SelectItem value="商品カード">商品カード</SelectItem>
                 </SelectContent>
               </Select>
@@ -4253,10 +4253,11 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
   const [status, setStatus] = useState("pending");
   const [memo, setMemo] = useState("");
-  const [liveRoom, setLiveRoom] = useState("kg");
+  const [liveRoom, setLiveRoom] = useState("");
   const [shopName, setShopName] = useState("LCJ店铺");
   const [parsedItems, setParsedItems] = useState<Array<{ inputName: string; matched: boolean; product?: any; quantity?: number }>>([]);
   const [isParsing, setIsParsing] = useState(false);
+  const liversQuery = trpc.selectionCenter.getLivers.useQuery();
 
   const parseMutation = trpc.selectionCenter.parseFukubukuroText.useMutation({
     onSuccess: (data) => {
@@ -4298,7 +4299,7 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
     if (open) {
       setText(""); setBundleName(""); setParsedItems([]);
       setOrderDate(new Date().toISOString().split('T')[0]);
-      setStatus("pending"); setMemo(""); setLiveRoom("kg"); setShopName("LCJ店铺");
+      setStatus("pending"); setMemo(""); setLiveRoom(""); setShopName("LCJ店铺");
     }
   }, [open]);
 
@@ -4392,12 +4393,11 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
                 <div>
                   <Label>直播间</Label>
                   <Select value={liveRoom} onValueChange={v => setLiveRoom(v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="選択してください" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="kg">kg</SelectItem>
-                      <SelectItem value="shiho">shiho</SelectItem>
-                      <SelectItem value="nana">nana</SelectItem>
-                      <SelectItem value="hazuki">hazuki</SelectItem>
+                      {(liversQuery.data || []).map((liver: any) => (
+                        <SelectItem key={liver.id} value={liver.name}>{liver.name}</SelectItem>
+                      ))}
                       <SelectItem value="商品カード">商品カード</SelectItem>
                     </SelectContent>
                   </Select>
@@ -4536,6 +4536,7 @@ function FukubukuroEditDialog({ order, onClose, onSubmit, isLoading }: {
   const [newItemText, setNewItemText] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const liversQuery = trpc.selectionCenter.getLivers.useQuery();
 
   // Initialize from bundle data
   useEffect(() => {
@@ -4700,12 +4701,11 @@ function FukubukuroEditDialog({ order, onClose, onSubmit, isLoading }: {
               <div>
                 <Label>直播间</Label>
                 <Select value={liveRoom} onValueChange={v => setLiveRoom(v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="選択してください" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="kg">kg</SelectItem>
-                    <SelectItem value="shiho">shiho</SelectItem>
-                    <SelectItem value="nana">nana</SelectItem>
-                    <SelectItem value="hazuki">hazuki</SelectItem>
+                    {(liversQuery.data || []).map((liver: any) => (
+                      <SelectItem key={liver.id} value={liver.name}>{liver.name}</SelectItem>
+                    ))}
                     <SelectItem value="商品カード">商品カード</SelectItem>
                   </SelectContent>
                 </Select>
