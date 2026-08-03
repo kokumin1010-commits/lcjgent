@@ -735,6 +735,7 @@ import {
   getSentEmailAddresses,
   markReplyHandled,
   unmarkReplyHandled,
+  deleteLiver,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -14302,6 +14303,14 @@ ${conversationText}
 
   // Liver Management Router (ライバー管理画面用)
   liverManagement: router({
+    // Delete a liver by ID (admin only)
+    deleteLiver: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteLiver(input.id);
+        return { success: true };
+      }),
+
     // Get all livers (simple list without stats)
     list: protectedProcedure
       .query(async () => {
