@@ -2208,6 +2208,8 @@ export const selectionCenterRouter = router({
       effectiveDate: z.string().optional(),
       memo: z.string().optional(),
       supplier: z.string().optional(),
+      brandId: z.number().optional(),
+      brandName: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       const pool = getPool();
@@ -2217,6 +2219,8 @@ export const selectionCenterRouter = router({
       if (input.effectiveDate !== undefined) { updates.push('effectiveDate = ?'); params.push(input.effectiveDate); }
       if (input.memo !== undefined) { updates.push('memo = ?'); params.push(input.memo); }
       if (input.supplier !== undefined) { updates.push('supplier = ?'); params.push(input.supplier); }
+      if (input.brandId !== undefined) { updates.push('brandId = ?'); params.push(input.brandId); }
+      if (input.brandName !== undefined) { updates.push('brandName = ?'); params.push(input.brandName); }
       if (updates.length === 0) return { success: false };
       params.push(input.id);
       await pool.query(

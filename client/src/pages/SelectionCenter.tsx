@@ -4855,6 +4855,7 @@ function CostManagementContent() {
   const [editCostValue, setEditCostValue] = useState("");
   const [editEffectiveDate, setEditEffectiveDate] = useState("");
   const [editMemo, setEditMemo] = useState("");
+  const [editBrandId, setEditBrandId] = useState<number | undefined>(undefined);
 
   const updateCostHistoryMutation = trpc.selectionCenter.updateProductCostHistory.useMutation({
     onSuccess: () => {
@@ -5034,6 +5035,7 @@ function CostManagementContent() {
                               setEditCostValue(String(Number(c.unitCost)));
                               setEditEffectiveDate(c.effectiveDate ? new Date(c.effectiveDate).toISOString().split('T')[0] : '');
                               setEditMemo(c.memo || '');
+                              setEditBrandId(c.brandId || undefined);
                             }}
                             title="编辑"
                           >
@@ -5083,6 +5085,19 @@ function CostManagementContent() {
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div>
+                <label className="text-sm font-medium">ブランド</label>
+                <select
+                  className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                  value={editBrandId || ''}
+                  onChange={(e) => setEditBrandId(e.target.value ? Number(e.target.value) : undefined)}
+                >
+                  <option value="">選択してください</option>
+                  {brands.map((b: any) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="text-sm font-medium">成本（税前）</label>
                 <input
                   type="number"
@@ -5116,11 +5131,14 @@ function CostManagementContent() {
               <Button variant="outline" onClick={() => setEditingCostRecord(null)}>取消</Button>
               <Button
                 onClick={() => {
+                  const selectedBrand = brands.find((b: any) => b.id === editBrandId);
                   updateCostHistoryMutation.mutate({
                     id: editingCostRecord.id,
                     unitCost: editCostValue ? Number(editCostValue) : undefined,
                     effectiveDate: editEffectiveDate || undefined,
                     memo: editMemo,
+                    brandId: editBrandId,
+                    brandName: selectedBrand?.name,
                   });
                 }}
                 disabled={updateCostHistoryMutation.isPending}
