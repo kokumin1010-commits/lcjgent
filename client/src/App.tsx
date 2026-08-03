@@ -679,6 +679,11 @@ function Router() {
             <BuybackAdmin />
           </DashboardLayout>
         </Route>
+        <Route path="/admin/buyback">
+          <DashboardLayout>
+            <BuybackAdmin />
+          </DashboardLayout>
+        </Route>
         <Route path="/barcode-scanner" component={BarcodeScanner} />
         <Route path="/master/lcj-brain">
           <DashboardLayout>

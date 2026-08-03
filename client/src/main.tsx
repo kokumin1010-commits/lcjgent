@@ -103,7 +103,7 @@ const customFetch: typeof globalThis.fetch = (input, init) => {
   const isAgencyPage = currentPath.startsWith('/agency/');
   
   // Admin/master pages should use adminToken as fallback
-  const isAdminPage = currentPath.startsWith('/master');
+  const isAdminPage = currentPath.startsWith('/master') || currentPath.startsWith('/admin');
   
   // Determine which token to use based on the page context
   const isLcjMallPage = currentPath === '/mypage' || 
