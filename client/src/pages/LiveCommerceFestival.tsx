@@ -18,7 +18,7 @@ import {
 // ============================================================
 // Constants
 // ============================================================
-const LINE_URL = 'https://lin.ee/Rb1fvvy';
+const LINE_URL = 'https://line.me/ti/g2/KsS3Ma1HW3okfwI2OowM6Ubk0UHKOHmb3nZFhA?utm_source=invitation&utm_medium=link_copy&utm_campaign=default';
 
 // ★ メンテナンスモード: trueの場合「準備中」ページを表示
 const MAINTENANCE_MODE = false;
@@ -263,7 +263,7 @@ function StickyHeader() {
             className="px-4 py-2 text-sm font-bold rounded-lg bg-[#06C755] text-white hover:bg-[#05b04c] transition-all flex items-center gap-1.5"
           >
             <LineIcon className="w-4 h-4" />
-            LINE登録
+            今すぐ事前登録
           </a>
         </nav>
 
@@ -297,7 +297,7 @@ function StickyHeader() {
 
             <a href={LINE_URL} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 px-4 py-3 bg-[#06C755] text-white font-bold rounded-lg">
               <LineIcon className="w-5 h-5" />
-              LINE登録
+              今すぐ事前登録
             </a>
           </div>
         </div>
@@ -1027,7 +1027,7 @@ function ProgramSection() {
             className="inline-flex items-center gap-3 bg-[#06C755] hover:bg-[#05b04c] text-white text-lg md:text-xl font-bold px-10 md:px-14 py-4 md:py-5 rounded-xl shadow-[0_8px_30px_rgba(6,199,85,0.4)] transform hover:scale-105 transition-all duration-200 active:scale-95"
           >
             <LineIcon className="w-6 h-6" />
-            LINE登録して参加する
+            今すぐ無料で事前登録する →
           </a>
           <p className="text-xs text-gray-500 mt-3">
             参加費無料（事前LINE登録制）
@@ -1444,7 +1444,7 @@ function MobileFloatingCTA() {
           className="flex-1 px-2 py-2 bg-[#06C755] text-white text-xs font-bold rounded-lg text-center flex items-center justify-center gap-1"
         >
           <LineIcon className="w-3.5 h-3.5" />
-          LINE登録
+          今すぐ事前登録
         </a>
       </div>
     </div>

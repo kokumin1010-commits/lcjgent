@@ -18,7 +18,7 @@ const HERO_BG_URL = 'https://files.manuscdn.com/user_upload_by_module/session_fi
 const GIFT_URL = 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/vLYpJIHgEThRqpsE.png';
 const VENUE_URL = 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/PHeOrSmyNPVfKGRb.png';
 
-const LINE_URL = 'https://lin.ee/Rb1fvvy';
+const LINE_URL = 'https://line.me/ti/g2/KsS3Ma1HW3okfwI2OowM6Ubk0UHKOHmb3nZFhA?utm_source=invitation&utm_medium=link_copy&utm_campaign=default';
 const CONTACT_EMAIL = 'info@livecommercefestival.com';
 
 /* ─── Intersection Observer hook ─── */

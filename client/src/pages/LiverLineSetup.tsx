@@ -6,7 +6,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
-const LINE_ADD_FRIEND_URL = "https://lin.ee/VunOOhW";
+const LINE_ADD_FRIEND_URL = "https://line.me/ti/g2/KsS3Ma1HW3okfwI2OowM6Ubk0UHKOHmb3nZFhA?utm_source=invitation&utm_medium=link_copy&utm_campaign=default";
 
 // 多言語テキスト
 const texts = {

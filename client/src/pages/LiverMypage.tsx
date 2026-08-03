@@ -3540,7 +3540,7 @@ export default function LiverMypage() {
                 {language === 'ja' ? 'Step 1' : 'Step 1'}
               </p>
               <a
-                href="https://lin.ee/VunOOhW"
+                href="https://line.me/ti/g2/KsS3Ma1HW3okfwI2OowM6Ubk0UHKOHmb3nZFhA?utm_source=invitation&utm_medium=link_copy&utm_campaign=default"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-[#06C755] hover:bg-[#05b04c] text-white rounded-lg text-sm font-bold transition-colors"
