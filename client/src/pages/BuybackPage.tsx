@@ -30,6 +30,57 @@ const CATEGORIES = [
   { value: "other", label: "その他", emoji: "🎁" },
 ] as const;
 
+// カテゴリ別の必要写真ガイド
+const PHOTO_GUIDES: Record<string, { label: string; description: string; icon: string }[]> = {
+  bag: [
+    { label: "正面", description: "バッグの正面全体が見えるように撮影", icon: "📸" },
+    { label: "背面", description: "バッグの背面全体を撮影", icon: "🔄" },
+    { label: "内部", description: "バッグの内側を開いて撮影", icon: "👀" },
+    { label: "ブランドタグ", description: "ブランドロゴ・シリアル番号を撮影", icon: "🏷️" },
+    { label: "金具・パーツ", description: "ファスナー・金具の状態を撮影", icon: "🔩" },
+  ],
+  watch: [
+    { label: "文字盤（正面）", description: "時計の文字盤が正面から見えるように撮影", icon: "⏰" },
+    { label: "裏蓋", description: "裏蓋のシリアル番号・刻印を撮影", icon: "🔄" },
+    { label: "ベルト・ブレス", description: "ベルトやブレスレットの状態を撮影", icon: "⌚" },
+    { label: "リューズ・ボタン", description: "リューズやボタンの状態を撮影", icon: "🔘" },
+    { label: "付属品", description: "箱・保証書・コマなどの付属品を撮影", icon: "📦" },
+  ],
+  jewelry: [
+    { label: "全体", description: "ジュエリー全体が見えるように撮影", icon: "💍" },
+    { label: "刻印・ホールマーク", description: "素材刻印（K18, Pt950等）を撮影", icon: "🔍" },
+    { label: "留め具・クラスプ", description: "留め具の状態を撮影", icon: "🔗" },
+    { label: "宝石部分", description: "宝石のアップ（輝き・傷の確認）", icon: "💎" },
+    { label: "付属品", description: "鑑定書・箱・ケースなどを撮影", icon: "📦" },
+  ],
+  apparel: [
+    { label: "正面全体", description: "衣類の正面全体を撮影", icon: "👔" },
+    { label: "背面全体", description: "衣類の背面全体を撮影", icon: "🔄" },
+    { label: "ブランドタグ", description: "ブランドタグ・ロゴを撮影", icon: "🏷️" },
+    { label: "洗濯表示タグ", description: "洗濯表示・サイズタグを撮影", icon: "📋" },
+    { label: "傷・汚れ", description: "傷や汚れがあれば撮影（なければスキップ可）", icon: "⚠️" },
+  ],
+  shoes: [
+    { label: "正面・全体", description: "靴の正面全体を撮影", icon: "👟" },
+    { label: "ソール（靴底）", description: "靴底の状態を撮影", icon: "👣" },
+    { label: "内部・インソール", description: "内部のブランドロゴ・サイズ表記を撮影", icon: "👀" },
+    { label: "ヒール・かかと", description: "ヒールやかかとの摩耗状態を撮影", icon: "📐" },
+    { label: "付属品", description: "箱・保存袋・替え紐などを撮影", icon: "📦" },
+  ],
+  accessory: [
+    { label: "全体", description: "アクセサリー全体を撮影", icon: "📿" },
+    { label: "ブランド刻印", description: "ブランドロゴ・刻印を撮影", icon: "🏷️" },
+    { label: "留め具・接続部", description: "留め具やチェーンの接続部を撮影", icon: "🔗" },
+    { label: "傷・変色", description: "傷や変色があれば撮影（なければスキップ可）", icon: "⚠️" },
+  ],
+  other: [
+    { label: "正面", description: "商品の正面全体を撮影", icon: "📸" },
+    { label: "背面", description: "商品の背面を撮影", icon: "🔄" },
+    { label: "ブランド表記", description: "ブランドロゴ・タグ・刻印を撮影", icon: "🏷️" },
+    { label: "傷・汚れ", description: "傷や汚れがあれば撮影（なければスキップ可）", icon: "⚠️" },
+  ],
+};
+
 const CONDITION_OPTIONS = [
   { value: "new", label: "新品・未使用", color: "text-green-600" },
   { value: "like_new", label: "ほぼ新品", color: "text-emerald-600" },
@@ -240,9 +291,8 @@ function BuybackHome({ lineUserId, displayName }: { lineUserId: string; displayN
 
 function NewRequest({ lineUserId, displayName, onBack }: { lineUserId: string; displayName: string; onBack: () => void }) {
   const [step, setStep] = useState(1);
-  const [images, setImages] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [images, setImages] = useState<Record<string, string>>({}); // key: guide label, value: url
+  const [uploading, setUploading] = useState<string | null>(null); // which slot is uploading
   const [category, setCategory] = useState("");
   const [brandName, setBrandName] = useState("");
   const [productName, setProductName] = useState("");
@@ -251,44 +301,39 @@ function NewRequest({ lineUserId, displayName, onBack }: { lineUserId: string; d
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeSlot, setActiveSlot] = useState<string>("");
 
   const uploadMutation = trpc.buyback.uploadImage.useMutation();
   const createMutation = trpc.buyback.createRequest.useMutation();
 
-  const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    setUploading(true);
-    setUploadProgress(0);
+  const handleSlotUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeSlot) return;
+    setUploading(activeSlot);
 
-    const fileArray = Array.from(files);
-    let completed = 0;
-
-    for (const file of fileArray) {
-      if (images.length + completed >= 10) break;
-      try {
-        // Compress image before upload
-        const base64 = await compressImage(file, 1200, 0.8);
-        const { url } = await uploadMutation.mutateAsync({
-          base64,
-          filename: file.name.replace(/\.[^.]+$/, ".jpg"),
-          contentType: "image/jpeg",
-        });
-        setImages(prev => [...prev, url]);
-        completed++;
-        setUploadProgress(Math.round((completed / fileArray.length) * 100));
-      } catch (err) {
-        console.error("Upload error:", err);
-      }
+    try {
+      const base64 = await compressImage(file, 1200, 0.8);
+      const { url } = await uploadMutation.mutateAsync({
+        base64,
+        filename: file.name.replace(/\.[^.]+$/, ".jpg"),
+        contentType: "image/jpeg",
+      });
+      setImages(prev => ({ ...prev, [activeSlot]: url }));
+    } catch (err) {
+      console.error("Upload error:", err);
     }
-    setUploading(false);
-    setUploadProgress(0);
-    // Reset file input
+    setUploading(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
-  }, [images, uploadMutation]);
+  }, [activeSlot, uploadMutation]);
+
+  const triggerSlotUpload = (slotLabel: string) => {
+    setActiveSlot(slotLabel);
+    setTimeout(() => fileInputRef.current?.click(), 50);
+  };
 
   const handleSubmit = async () => {
-    if (images.length === 0 || !category) return;
+    const imageUrls = Object.values(images).filter(Boolean);
+    if (imageUrls.length === 0 || !category) return;
     setSubmitting(true);
     try {
       const res = await createMutation.mutateAsync({
@@ -299,95 +344,154 @@ function NewRequest({ lineUserId, displayName, onBack }: { lineUserId: string; d
         productName: productName || undefined,
         description: description || undefined,
         condition: condition as any || undefined,
-        imageUrls: images,
+        imageUrls,
       });
       setResult(res);
-      setStep(4);
+      setStep(5);
     } catch (err: any) {
       alert("エラーが発生しました: " + (err.message || "不明なエラー"));
     }
     setSubmitting(false);
   };
 
-  const removeImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
+  const removeImage = (slotLabel: string) => {
+    setImages(prev => {
+      const next = { ...prev };
+      delete next[slotLabel];
+      return next;
+    });
   };
+
+  const currentGuides = PHOTO_GUIDES[category] || [];
+  const uploadedCount = Object.values(images).filter(Boolean).length;
+  const totalSteps = 4;
 
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white border-b px-4 py-3 flex items-center gap-3">
-        <button onClick={onBack} className="p-1">
+        <button onClick={step === 1 ? onBack : () => setStep(step - 1)} className="p-1">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <h1 className="font-bold text-lg">買取査定依頼</h1>
-        <div className="ml-auto text-sm text-gray-400">ステップ {step}/3</div>
+        <div className="ml-auto text-sm text-gray-400">ステップ {step}/{totalSteps}</div>
       </div>
 
       {/* Progress bar */}
       <div className="h-1 bg-gray-100">
-        <div className="h-full bg-amber-500 transition-all" style={{ width: `${(step / 3) * 100}%` }} />
+        <div className="h-full bg-amber-500 transition-all" style={{ width: `${(step / totalSteps) * 100}%` }} />
       </div>
 
-      {/* Step 1: Photos */}
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleSlotUpload}
+      />
+
+      {/* Step 1: Category Selection */}
       {step === 1 && (
         <div className="p-4">
-          <h2 className="text-lg font-bold mb-2">商品の写真を撮影</h2>
+          <h2 className="text-lg font-bold mb-2">カテゴリを選択</h2>
           <p className="text-sm text-gray-500 mb-4">
-            正面・背面・ロゴ・傷がある箇所など、複数枚アップロードしてください（最大10枚）
+            査定したい商品のカテゴリを選んでください
           </p>
 
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            {images.map((url, i) => (
-              <div key={i} className="relative aspect-square rounded-lg overflow-hidden">
-                <img src={url} alt="" className="w-full h-full object-cover" />
-                <button
-                  onClick={() => removeImage(i)}
-                  className="absolute top-1 right-1 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center"
-                >
-                  <X className="w-3 h-3 text-white" />
-                </button>
-              </div>
-            ))}
-            {images.length < 10 && (
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            {CATEGORIES.map(cat => (
               <button
-                onClick={() => fileInputRef.current?.click()}
-                className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 hover:border-amber-400 transition-colors"
-                disabled={uploading}
+                key={cat.value}
+                onClick={() => { setCategory(cat.value); setStep(2); }}
+                className={`p-4 rounded-xl border-2 text-center transition-all hover:shadow-md active:scale-95 ${
+                  category === cat.value
+                    ? "border-amber-500 bg-amber-50 text-amber-700 shadow-md"
+                    : "border-gray-200 hover:border-amber-300"
+                }`}
               >
-                {uploading ? (
-                  <div className="flex flex-col items-center">
-                    <div className="animate-spin w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full" />
-                    {uploadProgress > 0 && (
-                      <span className="text-xs text-amber-600 mt-1">{uploadProgress}%</span>
+                <div className="text-3xl mb-2">{cat.emoji}</div>
+                <div className="font-medium text-sm">{cat.label}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Step 2: Category-specific Photo Upload Guide */}
+      {step === 2 && (
+        <div className="p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-2xl">{CATEGORIES.find(c => c.value === category)?.emoji}</span>
+            <h2 className="text-lg font-bold">{CATEGORIES.find(c => c.value === category)?.label}の写真を撮影</h2>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            下のガイドに従って、各アングルの写真を撮影してください。正確な査定のために重要です。
+          </p>
+
+          <div className="space-y-3 mb-4">
+            {currentGuides.map((guide, i) => {
+              const hasImage = !!images[guide.label];
+              const isUploading = uploading === guide.label;
+              return (
+                <div
+                  key={i}
+                  className={`rounded-xl border-2 p-3 transition-all ${
+                    hasImage ? "border-green-400 bg-green-50" : "border-gray-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-xl">
+                      {guide.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm flex items-center gap-1">
+                        {guide.label}
+                        {hasImage && <Check className="w-4 h-4 text-green-600" />}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate">{guide.description}</div>
+                    </div>
+                    {hasImage ? (
+                      <div className="flex items-center gap-1">
+                        <img src={images[guide.label]} alt="" className="w-12 h-12 rounded-lg object-cover" />
+                        <button
+                          onClick={() => removeImage(guide.label)}
+                          className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center"
+                        >
+                          <X className="w-3 h-3 text-red-600" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => triggerSlotUpload(guide.label)}
+                        disabled={isUploading}
+                        className="px-3 py-2 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 active:scale-95 transition-all disabled:opacity-50"
+                      >
+                        {isUploading ? (
+                          <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                        ) : (
+                          <span className="flex items-center gap-1"><Camera className="w-3 h-3" />撮影</span>
+                        )}
+                      </button>
                     )}
                   </div>
-                ) : (
-                  <>
-                    <Camera className="w-6 h-6 text-gray-400" />
-                    <span className="text-xs text-gray-400">追加</span>
-                  </>
-                )}
-              </button>
-            )}
+                </div>
+              );
+            })}
           </div>
 
-          <p className="text-xs text-gray-400 mb-3">
-            画像は自動的に圧縮されます。高画質な写真を撮影してください。
-          </p>
+          <div className="bg-blue-50 rounded-xl p-3 mb-4 text-xs text-blue-700">
+            💡 ヒント：明るい場所で、商品がはっきり見えるように撮影してください。画像は自動圧縮されます。
+          </div>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={handleImageUpload}
-          />
+          <div className="text-center text-sm text-gray-500 mb-3">
+            {uploadedCount} / {currentGuides.length} 枚アップロード済み
+          </div>
 
           <button
-            onClick={() => setStep(2)}
-            disabled={images.length === 0}
+            onClick={() => setStep(3)}
+            disabled={uploadedCount === 0}
             className="w-full py-3 bg-amber-500 text-white rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             次へ（商品情報入力）
@@ -395,28 +499,10 @@ function NewRequest({ lineUserId, displayName, onBack }: { lineUserId: string; d
         </div>
       )}
 
-      {/* Step 2: Product Info */}
-      {step === 2 && (
+      {/* Step 3: Product Info */}
+      {step === 3 && (
         <div className="p-4">
           <h2 className="text-lg font-bold mb-4">商品情報</h2>
-
-          <label className="block text-sm font-medium text-gray-700 mb-2">カテゴリ *</label>
-          <div className="grid grid-cols-4 gap-2 mb-4">
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat.value}
-                onClick={() => setCategory(cat.value)}
-                className={`p-2 rounded-lg border text-center text-xs transition-all ${
-                  category === cat.value
-                    ? "border-amber-500 bg-amber-50 text-amber-700"
-                    : "border-gray-200 hover:border-gray-300"
-                }`}
-              >
-                <div className="text-lg mb-0.5">{cat.emoji}</div>
-                {cat.label}
-              </button>
-            ))}
-          </div>
 
           <label className="block text-sm font-medium text-gray-700 mb-1">ブランド名</label>
           <input
@@ -462,13 +548,12 @@ function NewRequest({ lineUserId, displayName, onBack }: { lineUserId: string; d
           />
 
           <div className="flex gap-3">
-            <button onClick={() => setStep(1)} className="px-6 py-3 border rounded-xl font-medium">
+            <button onClick={() => setStep(2)} className="px-6 py-3 border rounded-xl font-medium">
               戻る
             </button>
             <button
-              onClick={() => setStep(3)}
-              disabled={!category}
-              className="flex-1 py-3 bg-amber-500 text-white rounded-xl font-bold disabled:opacity-50"
+              onClick={() => setStep(4)}
+              className="flex-1 py-3 bg-amber-500 text-white rounded-xl font-bold"
             >
               確認画面へ
             </button>
@@ -476,15 +561,18 @@ function NewRequest({ lineUserId, displayName, onBack }: { lineUserId: string; d
         </div>
       )}
 
-      {/* Step 3: Confirm */}
-      {step === 3 && (
+      {/* Step 4: Confirm */}
+      {step === 4 && (
         <div className="p-4">
           <h2 className="text-lg font-bold mb-4">内容確認</h2>
 
           <div className="bg-gray-50 rounded-xl p-4 mb-4">
             <div className="flex gap-2 overflow-x-auto mb-3 pb-2">
-              {images.map((url, i) => (
-                <img key={i} src={url} alt="" className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+              {Object.entries(images).map(([label, url]) => (
+                <div key={label} className="flex-shrink-0 text-center">
+                  <img src={url} alt={label} className="w-16 h-16 rounded-lg object-cover" />
+                  <div className="text-[10px] text-gray-500 mt-0.5 truncate w-16">{label}</div>
+                </div>
               ))}
             </div>
             <div className="space-y-2 text-sm">
@@ -519,7 +607,7 @@ function NewRequest({ lineUserId, displayName, onBack }: { lineUserId: string; d
           </div>
 
           <div className="flex gap-3">
-            <button onClick={() => setStep(2)} className="px-6 py-3 border rounded-xl font-medium">
+            <button onClick={() => setStep(3)} className="px-6 py-3 border rounded-xl font-medium">
               戻る
             </button>
             <button
@@ -540,8 +628,8 @@ function NewRequest({ lineUserId, displayName, onBack }: { lineUserId: string; d
         </div>
       )}
 
-      {/* Step 4: Result */}
-      {step === 4 && result && (
+      {/* Step 5: Result */}
+      {step === 5 && result && (
         <div className="p-4 text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 mt-8">
             <Check className="w-8 h-8 text-green-600" />
