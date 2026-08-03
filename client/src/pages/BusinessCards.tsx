@@ -814,6 +814,34 @@ export default function BusinessCards() {
   }, []);
 
   // Handlers
+  // Compress image to reduce upload size and speed up OCR
+  const compressImage = (file: File, maxWidth = 1280, quality = 0.75): Promise<{ base64: string; mimeType: string }> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        // Scale down if larger than maxWidth
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("Canvas not supported")); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        const base64 = dataUrl.split(",")[1];
+        resolve({ base64, mimeType: "image/jpeg" });
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
+      img.src = url;
+    });
+  };
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -828,23 +856,17 @@ export default function BusinessCards() {
     }
     setIsAnalyzing(true);
     setIsUploadDialogOpen(true);
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const base64 = (reader.result as string).split(",")[1];
-        uploadMutation.mutate({ imageBase64: base64, mimeType: file.type });
-      } catch {
-        setIsAnalyzing(false);
-        setIsUploadDialogOpen(false);
-        toast.error("ファイルの読み込みに失敗しました");
-      }
-    };
-    reader.onerror = () => {
+    try {
+      // Compress image before upload (1280px max, JPEG 75% quality)
+      const { base64, mimeType } = await compressImage(file, 1280, 0.75);
+      uploadMutation.mutate({ imageBase64: base64, mimeType });
+    } catch {
       setIsAnalyzing(false);
       setIsUploadDialogOpen(false);
-      toast.error("ファイルの読み込みに失敗しました");
-    };
-    reader.readAsDataURL(file);
+      toast.error("画像の処理に失敗しました");
+    }
+    // Reset input value so same file can be selected again
+    e.target.value = "";
   };
 
   const handleCsvSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

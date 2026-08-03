@@ -9017,96 +9017,84 @@ Respond with a JSON object.`,
       )
       .mutation(async ({ input, ctx }) => {
         try {
-          // Upload image to S3
+          const startTime = Date.now();
           const imageBuffer = Buffer.from(input.imageBase64, "base64");
           const fileKey = `business-cards/${ctx.user.id}/${nanoid()}.${input.mimeType.split("/")[1] || "jpg"}`;
-          const { url: imageUrl, key: imageKey } = await storagePut(fileKey, imageBuffer, input.mimeType);
 
-          // Use LLM to extract business card information (vision model for OCR)
-          const ocrResult = await invokeLLM({
-          model: "gemini-3-flash-preview",
-          messages: [
-            {
-              role: "system",
-              content: `You are a business card OCR assistant specialized in Japanese business cards. Extract all information from the business card image and return it in JSON format.
-Extract the following fields (use empty string "" if not found):
-- name: Full name (氏名)
-- nameReading: Name reading/pronunciation (読み仮名) if visible
-- company: Company name (会社名)
-- department: Department (部署)
-- position: Job title/position (役職)
-- email: Email address
-- phone: Phone number (電話番号)
-- mobile: Mobile phone (携帯電話)
-- fax: Fax number
-- address: Full address (住所)
-- website: Website URL
-
-Return ONLY valid JSON, no markdown or explanation. Use empty string for fields not found on the card.`,
-            },
-            {
-              role: "user",
-              content: [
+          // Run S3 upload and OCR in PARALLEL for speed
+          const [storageResult, ocrResult] = await Promise.all([
+            storagePut(fileKey, imageBuffer, input.mimeType),
+            invokeLLM({
+              model: "gemini-2.0-flash",
+              messages: [
                 {
-                  type: "image_url",
-                  image_url: {
-                    url: `data:${input.mimeType};base64,${input.imageBase64}`,
-                  },
-                },
-                {
-                  type: "text",
-                  text: "この名刺から全ての情報を抽出してください。日本語の名刺です。",
+                  role: "user",
+                  content: [
+                    {
+                      type: "image_url",
+                      image_url: {
+                        url: `data:${input.mimeType};base64,${input.imageBase64}`,
+                      },
+                    },
+                    {
+                      type: "text",
+                      text: "Extract all info from this Japanese business card. Return JSON with fields: name, nameReading, company, department, position, email, phone, mobile, fax, address, website. Use empty string if not found.",
+                    },
+                  ],
                 },
               ],
-            },
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "business_card_info",
-              strict: true,
-              schema: {
-                type: "object",
-                properties: {
-                  name: { type: "string", description: "Full name" },
-                  nameReading: { type: "string", description: "Name reading" },
-                  company: { type: "string", description: "Company name" },
-                  department: { type: "string", description: "Department" },
-                  position: { type: "string", description: "Job title" },
-                  email: { type: "string", description: "Email address" },
-                  phone: { type: "string", description: "Phone number" },
-                  mobile: { type: "string", description: "Mobile phone" },
-                  fax: { type: "string", description: "Fax number" },
-                  address: { type: "string", description: "Address" },
-                  website: { type: "string", description: "Website URL" },
+              response_format: {
+                type: "json_schema",
+                json_schema: {
+                  name: "business_card_info",
+                  strict: true,
+                  schema: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string", description: "Full name" },
+                      nameReading: { type: "string", description: "Name reading" },
+                      company: { type: "string", description: "Company name" },
+                      department: { type: "string", description: "Department" },
+                      position: { type: "string", description: "Job title" },
+                      email: { type: "string", description: "Email address" },
+                      phone: { type: "string", description: "Phone number" },
+                      mobile: { type: "string", description: "Mobile phone" },
+                      fax: { type: "string", description: "Fax number" },
+                      address: { type: "string", description: "Address" },
+                      website: { type: "string", description: "Website URL" },
+                    },
+                    required: ["name", "nameReading", "company", "department", "position", "email", "phone", "mobile", "fax", "address", "website"],
+                    additionalProperties: false,
+                  },
                 },
-                required: ["name", "nameReading", "company", "department", "position", "email", "phone", "mobile", "fax", "address", "website"],
-                additionalProperties: false,
               },
-            },
-          },
-        });
+            }),
+          ]);
 
-        let extractedInfo: any = {};
-        try {
-          const content = ocrResult.choices[0]?.message?.content;
-          if (content && typeof content === 'string') {
-            extractedInfo = JSON.parse(content);
+          const { url: imageUrl, key: imageKey } = storageResult;
+          let extractedInfo: any = {};
+          try {
+            const content = ocrResult.choices[0]?.message?.content;
+            if (content && typeof content === 'string') {
+              extractedInfo = JSON.parse(content);
+            }
+          } catch (e) {
+            console.error("Failed to parse OCR result:", e);
           }
-        } catch (e) {
-          console.error("Failed to parse OCR result:", e);
-        }
 
-        return {
-          imageUrl,
-          imageKey,
-          extractedInfo,
-        };
-      } catch (error: any) {
-        console.error("Business card upload/OCR error:", error?.message || error);
-        throw new Error(`名刺の解析に失敗しました: ${error?.message || '不明なエラー'}。画像を確認して再試行してください。`);
-      }
-    }),
+          const elapsed = Date.now() - startTime;
+          console.log(`[BusinessCard OCR] Completed in ${elapsed}ms (image: ${(imageBuffer.length / 1024).toFixed(0)}KB)`);
+
+          return {
+            imageUrl,
+            imageKey,
+            extractedInfo,
+          };
+        } catch (error: any) {
+          console.error("Business card upload/OCR error:", error?.message || error);
+          throw new Error(`名刺の解析に失敗しました: ${error?.message || '不明なエラー'}。画像を確認して再試行してください。`);
+        }
+      }),
 
     // Create a new business card
     create: protectedProcedure
