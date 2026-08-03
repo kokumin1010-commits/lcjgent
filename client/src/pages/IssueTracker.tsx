@@ -22,7 +22,7 @@ import {
   Plus, Search, AlertCircle, Clock, CheckCircle2, XCircle, 
   MessageSquare, BookOpen, BarChart3, Kanban, List, Filter,
   ArrowUp, ArrowDown, Minus, Sparkles, Archive, Trash2, Edit,
-  User, Calendar, Tag, ChevronDown, ChevronRight, Send
+  User, Calendar, Tag, ChevronDown, ChevronRight, Send, Paperclip, X, FileIcon, ImageIcon, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -564,6 +564,33 @@ function CreateIssueDialog({ open, onClose }: { open: boolean; onClose: () => vo
     assigneeName: '', helperName: '', deadline: '', tags: '' as string,
   });
   const [aiLoading, setAiLoading] = useState(false);
+  const [attachments, setAttachments] = useState<Array<{url: string; fileName: string; mimeType: string; fileSize: number}>>([]);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      for (let i = 0; i < files.length; i++) {
+        formData.append('files', files[i]);
+      }
+      const res = await fetch('/api/issue-file-upload', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Upload failed');
+      const data = await res.json();
+      setAttachments(prev => [...prev, ...data.files]);
+      toast.success(`${data.files.length}个文件上传成功`);
+    } catch (err) {
+      toast.error('文件上传失败');
+    }
+    setUploading(false);
+    e.target.value = '';
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
 
   const createMutation = trpc.issueTracker.create.useMutation();
   const aiSuggest = trpc.issueTracker.aiSuggest.useMutation();
@@ -615,6 +642,7 @@ function CreateIssueDialog({ open, onClose }: { open: boolean; onClose: () => vo
         helperName: (form.helperName && form.helperName !== '__none__') ? form.helperName : undefined,
         deadline: form.deadline || undefined,
         tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : undefined,
+        attachments: attachments.length > 0 ? attachments.map(a => a.url) : undefined,
       });
       toast.success('问题已创建');
       utils.issueTracker.list.invalidate();
@@ -733,6 +761,45 @@ function CreateIssueDialog({ open, onClose }: { open: boolean; onClose: () => vo
               placeholder="例: 直播, TikTok, 紧急修复"
               className="mt-1"
             />
+          </div>
+
+          {/* File Attachments */}
+          <div>
+            <label className="text-sm font-medium">附件 (图片/文档)</label>
+            <div className="mt-1 flex items-center gap-2">
+              <label className="cursor-pointer inline-flex items-center gap-1 px-3 py-2 border rounded-md text-sm hover:bg-muted transition-colors">
+                <Paperclip className="h-4 w-4" />
+                {uploading ? '上传中...' : '选择文件'}
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                />
+              </label>
+              {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
+              <span className="text-xs text-muted-foreground">支持图片、PDF、文档等</span>
+            </div>
+            {attachments.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {attachments.map((file, idx) => (
+                  <div key={idx} className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm">
+                    {file.mimeType.startsWith('image/') ? (
+                      <img src={file.url} alt={file.fileName} className="h-8 w-8 object-cover rounded" />
+                    ) : (
+                      <FileIcon className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <span className="flex-1 truncate">{file.fileName}</span>
+                    <span className="text-xs text-muted-foreground">{(file.fileSize / 1024).toFixed(0)}KB</span>
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => removeAttachment(idx)}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Similar Issues Recommendation */}
@@ -938,14 +1005,34 @@ function IssueDetailDialog({ issueId, onClose }: { issueId: number; onClose: () 
             </div>
           )}
 
-          {/* Description */}
+                    {/* Description */}
           {issue.description && (
             <div>
               <h4 className="text-sm font-medium mb-1">问题描述</h4>
               <p className="text-sm bg-muted/30 p-3 rounded-md whitespace-pre-wrap">{issue.description}</p>
             </div>
           )}
-
+          {/* Attachments */}
+          {issue.attachments && (issue.attachments as string[]).length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium mb-1">附件</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {(issue.attachments as string[]).map((url: string, idx: number) => {
+                  const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(url);
+                  return isImage ? (
+                    <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                      <img src={url} alt={`附件${idx + 1}`} className="w-full h-24 object-cover rounded border hover:opacity-80 transition-opacity" />
+                    </a>
+                  ) : (
+                    <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-2 border rounded hover:bg-muted transition-colors">
+                      <FileIcon className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs truncate">附件{idx + 1}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {/* Solution */}
           <div>
             <h4 className="text-sm font-medium mb-1 flex items-center gap-2">

@@ -685,6 +685,35 @@ async function startServer() {
     }
   });
 
+  // Issue file upload endpoint (for attachments in issue tracker)
+  app.post("/api/issue-file-upload", upload.array("files", 10), async (req: any, res) => {
+    try {
+      const { storagePut } = await import("../storage");
+      const { nanoid } = await import("nanoid");
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ error: "No files uploaded" });
+      }
+      const results = [];
+      for (const file of req.files as Express.Multer.File[]) {
+        const fileExtension = file.originalname.split(".").pop() || "bin";
+        const fileKey = `issue-attachments/${nanoid()}.${fileExtension}`;
+        const result = await storagePut(fileKey, file.buffer, file.mimetype);
+        const decodedFileName = Buffer.from(file.originalname, 'latin1').toString('utf-8');
+        results.push({
+          url: result.url,
+          key: fileKey,
+          fileName: decodedFileName,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+        });
+      }
+      res.json({ files: results });
+    } catch (error) {
+      console.error("[Issue File Upload] Error:", error);
+      res.status(500).json({ error: "Failed to upload files" });
+    }
+  });
+
   // CSV Upload REST API endpoint (avoids tRPC Base64 size issues)
   // Wrap multer in error handler to prevent raw error responses
   app.post("/api/csv-upload", (req: any, res: any, next: any) => {

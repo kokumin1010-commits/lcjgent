@@ -188,7 +188,10 @@ export const issueTrackerRouter = router({
         [input.id]
       );
 
-      return { ...issue, comments: comments as any[] };
+      // Parse JSON fields
+      let parsedAttachments: string[] = [];
+      try { parsedAttachments = issue.attachments ? (typeof issue.attachments === 'string' ? JSON.parse(issue.attachments) : issue.attachments) : []; } catch(e) { parsedAttachments = []; }
+      return { ...issue, attachments: parsedAttachments, comments: comments as any[] };
     }),
 
   // Create issue

@@ -613,7 +613,11 @@ function Router() {
             <BrandPortalAdmin />
           </DashboardLayout>
         </Route>
-        <Route path="/master/ab-test" component={AbTestDashboard} />
+        <Route path="/master/ab-test">
+          <DashboardLayout>
+            <AbTestDashboard />
+          </DashboardLayout>
+        </Route>
         <Route path="/master/ad-dashboard">
           <DashboardLayout>
             <AdDashboard />
@@ -635,10 +639,20 @@ function Router() {
           </DashboardLayout>
         </Route>
         <Route path="/master/lcj-coin">
-          <LcjCoinDashboard />
+          <DashboardLayout>
+            <LcjCoinDashboard />
+          </DashboardLayout>
         </Route>
-        <Route path="/master/mega-channel" component={MegaChannelAdmin} />
-        <Route path="/master/featured-products" component={FeaturedProductsAdmin} />
+        <Route path="/master/mega-channel">
+          <DashboardLayout>
+            <MegaChannelAdmin />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/featured-products">
+          <DashboardLayout>
+            <FeaturedProductsAdmin />
+          </DashboardLayout>
+        </Route>
         <Route path="/master/ai-coach">
           <DashboardLayout>
             <AiCoachMaster />
