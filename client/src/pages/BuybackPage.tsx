@@ -96,6 +96,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   accepted: { label: "承認済み", color: "bg-green-100 text-green-800" },
   shipped: { label: "発送済み", color: "bg-indigo-100 text-indigo-800" },
   received: { label: "受取確認", color: "bg-teal-100 text-teal-800" },
+  inspecting: { label: "鑑定中", color: "bg-orange-100 text-orange-800" },
   completed: { label: "完了", color: "bg-emerald-100 text-emerald-800" },
   cancelled: { label: "キャンセル", color: "bg-gray-100 text-gray-800" },
   rejected: { label: "拒否", color: "bg-red-100 text-red-800" },

@@ -27,6 +27,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bgColor: str
   accepted: { label: "承認済", color: "text-green-700", bgColor: "bg-green-50 border-green-200" },
   shipped: { label: "発送済", color: "text-indigo-700", bgColor: "bg-indigo-50 border-indigo-200" },
   received: { label: "受取確認", color: "text-teal-700", bgColor: "bg-teal-50 border-teal-200" },
+  inspecting: { label: "鑑定中", color: "text-orange-700", bgColor: "bg-orange-50 border-orange-200" },
   completed: { label: "完了", color: "text-emerald-700", bgColor: "bg-emerald-50 border-emerald-200" },
   cancelled: { label: "キャンセル", color: "text-gray-700", bgColor: "bg-gray-50 border-gray-200" },
   rejected: { label: "拒否", color: "text-red-700", bgColor: "bg-red-50 border-red-200" },
@@ -287,6 +288,7 @@ function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose
   const assessMutation = trpc.buyback.submitAssessment.useMutation();
   const confirmReceiveMutation = trpc.buyback.confirmReceived.useMutation();
   const completeMutation = trpc.buyback.completeTransaction.useMutation();
+  const rejectFakeMutation = trpc.buyback.rejectFake.useMutation();
   const sendMessageMutation = trpc.buyback.sendAdminMessage.useMutation();
 
   if (detail.isLoading) return <div className="p-4 text-center text-gray-400">読み込み中...</div>;
@@ -310,15 +312,23 @@ function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose
   };
 
   const handleConfirmReceive = async () => {
-    if (!confirm("商品の受取を確認しますか？")) return;
-    await confirmReceiveMutation.mutateAsync({ requestId });
+    if (!confirm("商品の受取を確認し、鑑定を開始しますか？")) return;
+    await confirmReceiveMutation.mutateAsync({ requestId, partnerId: 1 });
     detail.refetch();
   };
 
   const handleComplete = async () => {
     const amount = prompt("最終確定金額を入力してください（円）:");
     if (!amount) return;
-    await completeMutation.mutateAsync({ requestId, finalAmount: Number(amount) });
+    await completeMutation.mutateAsync({ requestId, partnerId: 1, finalAmount: Number(amount) });
+    detail.refetch();
+  };
+
+  const handleRejectFake = async () => {
+    const reason = prompt("鑑定不合格の理由を入力してください:");
+    if (!reason) return;
+    if (!confirm(`この商品を偽物として退回しますか？\n理由: ${reason}`)) return;
+    await rejectFakeMutation.mutateAsync({ requestId, partnerId: 1, reason });
     detail.refetch();
   };
 
@@ -474,24 +484,33 @@ function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose
       )}
 
       {/* Action Buttons */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {req.status === "shipped" && (
           <button
             onClick={handleConfirmReceive}
             disabled={confirmReceiveMutation.isPending}
             className="flex-1 py-2 bg-teal-500 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-1 disabled:opacity-50"
           >
-            <Check className="w-4 h-4" /> 受取確認
+            <Check className="w-4 h-4" /> 受取確認・鑑定開始
           </button>
         )}
-        {req.status === "received" && (
-          <button
-            onClick={handleComplete}
-            disabled={completeMutation.isPending}
-            className="flex-1 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-1 disabled:opacity-50"
-          >
-            <Check className="w-4 h-4" /> 取引完了
-          </button>
+        {req.status === "inspecting" && (
+          <>
+            <button
+              onClick={handleComplete}
+              disabled={completeMutation.isPending}
+              className="flex-1 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-1 disabled:opacity-50"
+            >
+              <Check className="w-4 h-4" /> 鑑定通過・打款
+            </button>
+            <button
+              onClick={handleRejectFake}
+              disabled={rejectFakeMutation.isPending}
+              className="flex-1 py-2 bg-red-500 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-1 disabled:opacity-50"
+            >
+              <X className="w-4 h-4" /> 偽物・退回
+            </button>
+          </>
         )}
       </div>
 

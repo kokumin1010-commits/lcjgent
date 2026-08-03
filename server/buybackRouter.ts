@@ -57,7 +57,7 @@ async function ensureBuybackTables() {
       \`description\` text DEFAULT NULL,
       \`condition\` enum('new','like_new','good','fair','poor') DEFAULT NULL,
       \`image_urls\` json DEFAULT NULL,
-      \`status\` enum('pending','ai_assessed','partner_assessed','accepted','shipped','received','completed','cancelled','rejected') NOT NULL DEFAULT 'pending',
+      \`status\` enum('pending','ai_assessed','partner_assessed','accepted','shipped','received','inspecting','completed','cancelled','rejected') NOT NULL DEFAULT 'pending',
       \`ai_estimated_min\` int DEFAULT NULL,
       \`ai_estimated_max\` int DEFAULT NULL,
       \`ai_brand\` varchar(255) DEFAULT NULL,
@@ -125,6 +125,15 @@ async function ensureBuybackTables() {
       KEY \`idx_buyback_logs_request\` (\`request_id\`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
     
+
+    // ALTER TABLE to add 'inspecting' status for existing tables
+    try {
+      await db.execute(sql`ALTER TABLE \`buyback_requests\` MODIFY COLUMN \`status\` enum('pending','ai_assessed','partner_assessed','accepted','shipped','received','inspecting','completed','cancelled','rejected') NOT NULL DEFAULT 'pending'`);
+    } catch (alterErr: any) {
+      // Ignore if already modified
+      console.log('[BuybackRouter] ALTER TABLE status (may already be up to date):', alterErr.message);
+    }
+
     tablesInitialized = true;
     console.log('[BuybackRouter] Tables ensured.');
   } catch (err: any) {
@@ -678,16 +687,16 @@ export const buybackRouter = router({
       if (request.status !== "shipped") throw new Error("Invalid status");
 
       await db.update(buybackRequests).set({
-        status: "received",
+        status: "inspecting",
         receivedAt: new Date(),
       }).where(eq(buybackRequests.id, input.requestId));
 
-      await logTransaction(input.requestId, "item_received", "partner", String(input.partnerId));
+      await logTransaction(input.requestId, "item_received_inspecting", "partner", String(input.partnerId));
 
       // Notify user
       if (request.lineUserId) {
         await notifyUser(request.lineUserId,
-          `【受取確認】\n依頼 #${input.requestId} の商品が到着しました。\n最終確認後、お支払いが完了します。`
+          `【受取確認・鑑定開始】\n依頼 #${input.requestId} の商品が到着しました。\n現在、真贋鑑定を行っております。結果が出次第ご連絡いたします。`
         );
       }
 
@@ -708,7 +717,7 @@ export const buybackRouter = router({
       const [request] = await db.select().from(buybackRequests)
         .where(eq(buybackRequests.id, input.requestId));
       if (!request) throw new Error("Request not found");
-      if (request.status !== "received") throw new Error("Invalid status");
+      if (request.status !== "inspecting") throw new Error("Invalid status - must be inspecting");
 
       const finalAmount = input.finalAmount || request.assessmentAmount || 0;
       
@@ -761,6 +770,43 @@ export const buybackRouter = router({
 
       return { success: true, finalAmount, commissionAmount, pointsAwarded };
     }),
+
+  // Reject fake item - return to user
+  rejectFake: protectedProcedure
+    .input(z.object({
+      requestId: z.number(),
+      partnerId: z.number(),
+      reason: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      await ensureBuybackTables();
+      const db = await getDb();
+
+      const [request] = await db.select().from(buybackRequests)
+        .where(eq(buybackRequests.id, input.requestId));
+      if (!request) throw new Error("Request not found");
+      if (request.status !== "inspecting") throw new Error("Invalid status - must be inspecting");
+
+      await db.update(buybackRequests).set({
+        status: "rejected",
+        cancelReason: `【鑑定不合格】${input.reason}`,
+        cancelledAt: new Date(),
+      }).where(eq(buybackRequests.id, input.requestId));
+
+      await logTransaction(input.requestId, "rejected_fake", "partner", String(input.partnerId), {
+        reason: input.reason,
+      });
+
+      // Notify user via LINE
+      if (request.lineUserId) {
+        await notifyUser(request.lineUserId,
+          `【鑑定結果のお知らせ】\n依頼 #${input.requestId} について、鑑定の結果、真贋確認が通過できませんでした。\n\n理由: ${input.reason}\n\n商品は着払いにて返送いたします。ご不明な点がございましたらお問い合わせください。`
+        );
+      }
+
+      return { success: true };
+    }),
+
 
   // Get partner's transaction history
   getPartnerTransactions: protectedProcedure

@@ -6596,7 +6596,7 @@ export const buybackRequests = mysqlTable("buyback_requests", {
   imageUrls: json("image_urls"),
   status: mysqlEnum("status", [
     "pending", "ai_assessed", "partner_assessed", "accepted",
-    "shipped", "received", "completed", "cancelled", "rejected"
+    "shipped", "received", "inspecting", "completed", "cancelled", "rejected"
   ]).default("pending").notNull(),
   aiEstimatedMin: int("ai_estimated_min"),
   aiEstimatedMax: int("ai_estimated_max"),
