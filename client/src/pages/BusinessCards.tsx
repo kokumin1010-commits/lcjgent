@@ -436,7 +436,7 @@ export default function BusinessCards() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [sourceFilter, setSourceFilter] = useState<string>("card_only"); // card_only = 名刺のみ, all = 全て
+  const [sourceFilter, setSourceFilter] = useState<string>("all"); // card_only = 名刺のみ(画像あり), all = 全て
   const [selectedCardIds, setSelectedCardIds] = useState<Set<number>>(new Set());
   const [cardPage, setCardPage] = useState(0);
   const CARDS_PER_PAGE = 50;
@@ -1375,8 +1375,8 @@ export default function BusinessCards() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-blue-600 font-medium">名刺数</p>
-                <p className="text-2xl font-bold text-blue-700">{cards.filter(c => c.imageUrl).length}</p>
-                <p className="text-[10px] text-blue-500">全{cards.length}件中</p>
+                <p className="text-2xl font-bold text-blue-700">{cards.length}</p>
+                <p className="text-[10px] text-blue-500">全件</p>
               </div>
               <Users className="h-8 w-8 text-blue-400" />
             </div>
