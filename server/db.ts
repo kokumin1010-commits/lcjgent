@@ -3497,14 +3497,14 @@ export async function getAllActiveLivers() {
     .orderBy(asc(livers.name));
 }
 
-// Get all livers (including inactive)
+// Get all livers (active only)
 export async function getAllLivers() {
   const db = await getDb();
   if (!db) return [];
-  
   return await db
     .select()
     .from(livers)
+    .where(eq(livers.isActive, true))
     .orderBy(desc(livers.createdAt));
 }
 
