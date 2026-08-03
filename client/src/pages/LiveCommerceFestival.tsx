@@ -255,14 +255,7 @@ function StickyHeader() {
           >
             ライバー申し込み
           </a>
-          <a
-            href="/livecommercefestival/2026/apply/general"
-            className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${
-              scrolled ? 'bg-amber-500 text-black hover:bg-amber-400' : 'bg-amber-500 text-black hover:bg-amber-400'
-            }`}
-          >
-            一般参加
-          </a>
+
           <a
             href={LINE_URL}
             target="_blank"
@@ -301,9 +294,7 @@ function StickyHeader() {
             <a href="/livecommercefestival/2026/apply/liver" className="block px-4 py-3 bg-purple-600 text-white font-bold rounded-lg text-center">
               ライバー申し込み
             </a>
-            <a href="/livecommercefestival/2026/apply/general" className="block px-4 py-3 bg-amber-500 text-black font-bold rounded-lg text-center">
-              一般参加
-            </a>
+
             <a href={LINE_URL} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 px-4 py-3 bg-[#06C755] text-white font-bold rounded-lg">
               <LineIcon className="w-5 h-5" />
               LINE登録
@@ -406,13 +397,7 @@ function HeroSection() {
             <Mic2 className="w-4 h-4" />
             ライバー申し込み
           </a>
-          <a
-            href="/livecommercefestival/2026/apply/general"
-            className="px-6 py-2.5 bg-red-600 text-white font-bold rounded-lg hover:bg-red-500 transition-all shadow-lg flex items-center gap-2 text-sm"
-          >
-            <Users className="w-4 h-4" />
-            一般参加申し込み
-          </a>
+
         </div>
       </div>
     </section>
@@ -429,9 +414,9 @@ function SpeakersSection() {
     { 
       name: "京極 琉", 
       title: "Live Commerce Japan CEO", 
-      stat: "TikTok売上", 
-      statValue: "1.2", 
-      statUnit: "億円",
+      stat: "", 
+      statValue: "", 
+      statUnit: "",
       image: IMAGES.kyogokuRyu,
       hasPhoto: true,
     },
@@ -439,9 +424,9 @@ function SpeakersSection() {
     { 
       name: "プリンスこうや", 
       title: "株式会社MOB 取締役", 
-      stat: "TikTok売上", 
-      statValue: "8000", 
-      statUnit: "万円",
+      stat: "", 
+      statValue: "", 
+      statUnit: "",
       image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/iTHXCXcDGnQWMzkr.webp',
       hasPhoto: true,
     },
@@ -503,12 +488,14 @@ function SpeakersSection() {
               <div className="p-4 text-white">
                 <h3 className="font-bold text-lg">{s.name}</h3>
                 <p className="text-xs text-gray-400 mt-0.5 mb-3">{s.title}</p>
+                {s.stat && (
                 <div>
                   <p className="text-[10px] text-gray-500">{s.stat}</p>
                   <p className="text-xl md:text-2xl font-black text-red-500">
                     {s.statValue}<span className="text-sm font-normal text-gray-400">{s.statUnit}</span>
                   </p>
                 </div>
+                )}
               </div>
             </div>
           ))}
@@ -542,29 +529,29 @@ function TopLiveCommercerSection() {
     {
       name: '京極 琉',
       title: 'Live Commerce Japan CEO',
-      stat: 'TikTok売上',
-      statValue: '1.2',
-      statUnit: '億円',
+      stat: '',
+      statValue: '',
+      statUnit: '',
       image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ALTJWcRgCsmFBOlK.webp',
-      bio: '日本最大級のTikTokライブコマース事務所「Live Commerce Japan」代表。累計10億円超の売上実績を持ち、294名以上のライバーを擁する。TikTok公式パートナーとして、ライブコマース業界の発展を牽引。',
+      bio: '日本最大級のTikTokライブコマース事務所「Live Commerce Japan」代表。294名以上のライバーを擁し、TikTok公式パートナーとしてライブコマース業界の発展を牽引。',
     },
     {
       name: 'プリンスこうや',
       title: '株式会社MOB 取締役',
-      stat: 'TikTok売上',
-      statValue: '8000',
-      statUnit: '万円',
+      stat: '',
+      statValue: '',
+      statUnit: '',
       image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/jjiDqZxFyGExxlBE.webp',
-      bio: 'TikTokライブコマースのトッププレイヤー。圧倒的なカリスマ性とトーク力で視聴者を魅了し、8000万円の売上を達成。株式会社MOB取締役として、ライブコマース事業の拡大に貫献。',
+      bio: 'TikTokライブコマースのトッププレイヤー。圧倒的なカリスマ性とトーク力で視聴者を魅了。株式会社MOB取締役として、ライブコマース事業の拡大に貢献。',
     },
     {
       name: '熊田 佳奈',
       title: 'ぞうねこちゃんねる創始者 KANA',
-      stat: 'TikTok売上',
-      statValue: '5000',
-      statUnit: '万円',
+      stat: '',
+      statValue: '',
+      statUnit: '',
       image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/mQoydCcUKpcfxILK.webp',
-      bio: '人気TikTokチャンネル「ぞうねこちゃんねる」の創始者。親しみやすいキャラクターと商品紹介力でファンを獲得し、TikTok Shopで5000万円の売上を記録。ライブコマース界の注目株。',
+      bio: '人気TikTokチャンネル「ぞうねこちゃんねる」の創始者。親しみやすいキャラクターと商品紹介力でファンを獲得。ライブコマース界の注目株。',
     },
   ];
 
@@ -598,12 +585,14 @@ function TopLiveCommercerSection() {
               <div className="p-5 text-white">
                 <h3 className="font-bold text-xl">{c.name}</h3>
                 <p className="text-xs text-gray-400 mt-1 mb-3">{c.title}</p>
+                {c.stat && (
                 <div>
                   <p className="text-[11px] text-gray-500">{c.stat}</p>
                   <p className="text-2xl md:text-3xl font-black text-[#FFD700]">
                     {c.statValue}<span className="text-sm font-normal text-gray-400">{c.statUnit}</span>
                   </p>
                 </div>
+                )}
               </div>
             </div>
           ))}
@@ -1053,10 +1042,7 @@ function ProgramSection() {
               <Mic2 className="w-4 h-4" />
               ライバー
             </a>
-            <a href="/livecommercefestival/2026/apply/general" className="px-5 py-2 bg-white/10 border border-white/20 text-white text-sm font-bold rounded-lg hover:bg-white/20 transition-all flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              一般参加
-            </a>
+
           </div>
         </div>
       </div>
@@ -1386,13 +1372,7 @@ function LineCTASection() {
             <Mic2 className="w-5 h-5" />
             ライバー申し込み
           </a>
-          <a
-            href="/livecommercefestival/2026/apply/general"
-            className="px-8 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-500 transition-all shadow-lg flex items-center gap-2"
-          >
-            <Users className="w-5 h-5" />
-            一般参加
-          </a>
+
         </div>
       </div>
     </section>
