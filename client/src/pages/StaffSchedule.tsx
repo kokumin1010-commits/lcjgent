@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronDown, Plus, X, Clock, User, Users, Search, Filter, BarChart3, Download } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronDown, Plus, X, Clock, User, Users, Search, Filter, BarChart3, Download, ArrowLeft } from "lucide-react";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
@@ -512,6 +512,9 @@ export default function StaffSchedule() {
         <div className="px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
+              <Button variant="ghost" size="sm" onClick={() => window.history.back()} className="p-1">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
               <Users className="h-6 w-6 text-blue-600" />
               <div>
                 <h1 className="text-lg font-bold">スタッフスケジュール</h1>
