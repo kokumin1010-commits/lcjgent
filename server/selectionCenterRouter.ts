@@ -1787,15 +1787,6 @@ export const selectionCenterRouter = router({
           (ctx.user as any)?.id || 0,
         ]
       );
-      // Also update selection_products.purchasePrice
-      try {
-        await pool.query(
-          `UPDATE selection_products SET purchasePrice = ? WHERE id = ?`,
-          [input.unitCost, input.productId]
-        );
-      } catch (e) {
-        // Ignore if column doesn't exist
-      }
       return { success: true };
     }),
 
@@ -1904,10 +1895,7 @@ export const selectionCenterRouter = router({
            VALUES (?, ?, ?, ?, ?, 'JPY', ?, '商品管理から同期', ?)`,
           [p.productId, p.productName, p.brandId, p.brandName, p.unitCost, today, (ctx.user as any)?.id || 0]
         );
-        // Also update purchasePrice
-        try {
-          await pool.query(`UPDATE selection_products SET purchasePrice = ? WHERE id = ?`, [p.unitCost, p.productId]);
-        } catch {}
+
         synced++;
       }
       return { success: true, synced };
