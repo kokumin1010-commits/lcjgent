@@ -4999,7 +4999,7 @@ function CostManagementContent() {
                   <th className="text-left p-3 font-medium">生效日</th>
                   <th className="text-left p-3 font-medium">品牌</th>
                   <th className="text-left p-3 font-medium">商品名</th>
-                  <th className="text-right p-3 font-medium">成本（税后）</th>
+                  <th className="text-right p-3 font-medium">成本（税前）</th>
                   <th className="text-left p-3 font-medium">备注</th>
                   <th className="text-center p-3 font-medium">操作</th>
                 </tr>
@@ -5091,7 +5091,7 @@ function CostManagementContent() {
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div>
-                <label className="text-sm font-medium">成本（税后）</label>
+                <label className="text-sm font-medium">成本（税前）</label>
                 <input
                   type="number"
                   className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
