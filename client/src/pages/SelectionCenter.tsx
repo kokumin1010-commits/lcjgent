@@ -148,10 +148,10 @@ function ProductsTab() {
             if (brandFilter !== 'all' && p.brandName !== brandFilter) return false;
             return true;
           });
-          const headers = ['商品名', 'バーコード', 'ブランド', 'カテゴリ', '価格', '卸値', '佣金', '在庫', 'ステータス'];
+          const headers = ['商品名', 'バーコード', 'ブランド', 'カテゴリ', '価格', '佣金', '在庫', 'ステータス'];
           const rows = products.map((p: any) => [
             p.productName || '', p.barcode || '', p.brandName || '', p.category || '',
-            p.price || 0, p.purchasePrice || '', p.commission || 0, p.stock || 0, p.status || ''
+            p.price || 0, p.commission || 0, p.stock || 0, p.status || ''
           ]);
           const csv = '\uFEFF' + [headers.join(','), ...rows.map((r: any[]) => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n');
           const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -174,7 +174,6 @@ function ProductsTab() {
               <th className="text-left p-3 font-medium">{t("sc.brand")}</th>
               <th className="text-left p-3 font-medium">{t("sc.category")}</th>
               <th className="text-right p-3 font-medium">{t("sc.price")}</th>
-              <th className="text-right p-3 font-medium text-amber-600">卸値</th>
               <th className="text-right p-3 font-medium text-red-600">历史最低价</th>
               <th className="text-right p-3 font-medium">{t("sc.commission")}</th>
               <th className="text-center p-3 font-medium">{t("sc.stock")}</th>
@@ -230,13 +229,6 @@ function ProductsTab() {
                   </td>
                   <td className="p-3">{category ? (() => { const parent = categoriesQuery.data?.find((p: any) => p.id === category.parentId); const parentStr = parent ? (parent.nameCn ? `${parent.name}(${parent.nameCn})` : parent.name) + " / " : ""; const catStr = category.nameCn ? `${category.name}(${category.nameCn})` : category.name; return parentStr + catStr; })() : "-"}</td>
                   <td className="p-3 text-right">¥{Number(product.price || 0).toLocaleString()}</td>
-                  <td className="p-3 text-right">
-                    {product.purchasePrice && Number(product.purchasePrice) > 0 ? (
-                      <span className="text-amber-600 font-medium">¥{Number(product.purchasePrice).toLocaleString()}</span>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </td>
                   <td className="p-3 text-right">
                     {product.historicalLowestPrice && Number(product.historicalLowestPrice) > 0 ? (
                       <span className="text-red-600 font-bold">¥{Number(product.historicalLowestPrice).toLocaleString()}</span>
