@@ -280,14 +280,51 @@ export const issueTrackerRouter = router({
               content: `新しい問題「${input.title}」が割り当てられました。優先度: ${priorityMap[input.priority] || input.priority}。https://lcjmall.com/master/issues で確認してください。`,
               html,
             });
-            console.log(`[IssueTracker] Email notification sent to ${assigneeEmail} for issue #${issueId}`);
+                        console.log(`[IssueTracker] Email notification sent to ${assigneeEmail} for issue #${issueId}`);
           }
         } catch (emailErr) {
           console.error('[IssueTracker] Failed to send email notification:', emailErr);
           // Don't fail the issue creation if email fails
         }
       }
-
+      // Send CC email to helper (複製人)
+      if (input.helperName) {
+        try {
+          const [helperRows] = await pool.query(
+            'SELECT email, name FROM staff WHERE name = ? AND isActive = "active" LIMIT 1',
+            [input.helperName]
+          ) as any;
+          if (helperRows.length > 0 && helperRows[0].email) {
+            const helperEmail = helperRows[0].email;
+            const creatorName = (ctx as any).user?.displayName || (ctx as any).user?.name || 'Unknown';
+            const priorityMap: Record<string, string> = { urgent: '\ud83d\udd34 緊急', high: '\ud83d\udfe0 高', medium: '\ud83d\udfe1 中', low: '\ud83d\udfe2 低' };
+            const subject = `【問題CC】${input.title}`;
+            const html = `
+              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #6b7280;">📋 問題のCCに追加されました</h2>
+                <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold; width: 100px;">タイトル</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${input.title}</td></tr>
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">優先度</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${priorityMap[input.priority] || input.priority}</td></tr>
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">作成者</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${creatorName}</td></tr>
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">担当者</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${input.assigneeName || '未設定'}</td></tr>
+                </table>
+                ${input.description ? `<div style="background: #f9fafb; padding: 12px; border-radius: 8px; margin: 16px 0;"><strong>詳細:</strong><br/>${input.description}</div>` : ''}
+                <p style="margin-top: 20px;"><a href="https://lcjmall.com/master/issues" style="background: #1a56db; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">問題を確認する →</a></p>
+                <p style="color: #6b7280; font-size: 12px; margin-top: 24px;">このメールはLCJ問題処理系統から自動送信されています。（CC通知）</p>
+              </div>
+            `;
+            await sendEmail({
+              to: [helperEmail],
+              subject,
+              content: `問題「${input.title}」のCCに追加されました。https://lcjmall.com/master/issues で確認してください。`,
+              html,
+            });
+            console.log(`[IssueTracker] CC email sent to helper ${input.helperName} (${helperEmail}) for issue #${issueId}`);
+          }
+        } catch (ccErr) {
+          console.error('[IssueTracker] Failed to send CC email to helper:', ccErr);
+        }
+      }
       return { id: issueId, success: true };
     }),
 
@@ -335,7 +372,7 @@ export const issueTrackerRouter = router({
       if (updates.assigneeName !== undefined) { setClauses.push('assigneeName = ?'); values.push(updates.assigneeName); }
       if (updates.helperId !== undefined) { setClauses.push('helperId = ?'); values.push(updates.helperId); }
       if (updates.helperName !== undefined) { setClauses.push('helperName = ?'); values.push(updates.helperName); }
-      if (updates.deadline !== undefined) { setClauses.push('deadline = ?'); values.push(updates.deadline); }
+      if (updates.deadline !== undefined) { setClauses.push('deadline = ?'); values.push(updates.deadline || null); }
       if (updates.solution !== undefined) { setClauses.push('solution = ?'); values.push(updates.solution); }
       if (updates.tags !== undefined) { setClauses.push('tags = ?'); values.push(JSON.stringify(updates.tags)); }
       if (updates.attachments !== undefined) { setClauses.push('attachments = ?'); values.push(JSON.stringify(updates.attachments)); }
@@ -364,6 +401,72 @@ export const issueTrackerRouter = router({
           `INSERT INTO issue_comments (issueId, authorName, content, type) VALUES (?, ?, ?, 'assignment')`,
           [id, userName, `担当者を「${updates.assigneeName}」に変更しました`]
         );
+      }
+
+      // Send email notification to assignee and helper (CC) on update
+      try {
+        const emailRecipients: string[] = [];
+        const notifyNames: string[] = [];
+
+        // Notify new assignee if changed
+        if (updates.assigneeName && updates.assigneeName !== currentIssue.assigneeName) {
+          const [rows] = await pool.query(
+            'SELECT email, name FROM staff WHERE name = ? AND isActive = "active" LIMIT 1',
+            [updates.assigneeName]
+          ) as any;
+          if (rows.length > 0 && rows[0].email) {
+            emailRecipients.push(rows[0].email);
+            notifyNames.push(rows[0].name);
+          }
+        }
+
+        // Notify helper (CC/複製人) if set
+        const helperName = updates.helperName !== undefined ? updates.helperName : currentIssue.helperName;
+        if (helperName) {
+          const [helperRows] = await pool.query(
+            'SELECT email, name FROM staff WHERE name = ? AND isActive = "active" LIMIT 1',
+            [helperName]
+          ) as any;
+          if (helperRows.length > 0 && helperRows[0].email && !emailRecipients.includes(helperRows[0].email)) {
+            emailRecipients.push(helperRows[0].email);
+            notifyNames.push(helperRows[0].name);
+          }
+        }
+
+        if (emailRecipients.length > 0) {
+          const priorityMap: Record<string, string> = { urgent: '\ud83d\udd34 緊急', high: '\ud83d\udfe0 高', medium: '\ud83d\udfe1 中', low: '\ud83d\udfe2 低' };
+          const currentPriority = updates.priority || currentIssue.priority;
+          const subject = `【問題更新】${currentIssue.title}`;
+          const changes: string[] = [];
+          if (updates.assigneeName && updates.assigneeName !== currentIssue.assigneeName) changes.push(`担当者: ${updates.assigneeName}`);
+          if (updates.priority && updates.priority !== currentIssue.priority) changes.push(`優先度: ${priorityMap[updates.priority]}`);
+          if (updates.status && updates.status !== currentIssue.status) changes.push(`ステータス: ${updates.status}`);
+          if (updates.category && updates.category !== currentIssue.category) changes.push(`分類: ${updates.category}`);
+          if (updates.deadline !== undefined) changes.push(`期限: ${updates.deadline || '未設定'}`);
+
+          const html = `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #1a56db;">📝 問題が更新されました</h2>
+              <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold; width: 100px;">タイトル</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${currentIssue.title}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">優先度</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${priorityMap[currentPriority] || currentPriority}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">更新者</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${userName}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">変更内容</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${changes.join(', ') || '内容更新'}</td></tr>
+              </table>
+              <p style="margin-top: 20px;"><a href="https://lcjmall.com/master/issues" style="background: #1a56db; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">問題を確認する →</a></p>
+              <p style="color: #6b7280; font-size: 12px; margin-top: 24px;">このメールはLCJ問題処理系統から自動送信されています。</p>
+            </div>
+          `;
+          await sendEmail({
+            to: emailRecipients,
+            subject,
+            content: `問題「${currentIssue.title}」が更新されました。変更: ${changes.join(', ') || '内容更新'}。https://lcjmall.com/master/issues で確認してください。`,
+            html,
+          });
+          console.log(`[IssueTracker] Update email sent to: ${notifyNames.join(', ')}`);
+        }
+      } catch (emailErr) {
+        console.error('[IssueTracker] Failed to send update email:', emailErr);
       }
 
       return { success: true };

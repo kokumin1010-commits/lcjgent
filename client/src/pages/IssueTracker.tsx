@@ -525,7 +525,7 @@ function StatsView() {
 function CreateIssueDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [form, setForm] = useState({
     title: '', description: '', category: 'other', priority: 'medium',
-    assigneeName: '', deadline: '', tags: '' as string,
+    assigneeName: '', helperName: '', deadline: '', tags: '' as string,
   });
   const [aiLoading, setAiLoading] = useState(false);
 
@@ -565,8 +565,9 @@ function CreateIssueDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const handleSubmit = async () => {
     if (!form.title.trim()) { toast.error('请输入标题'); return; }
     try {
-      // Find assigneeId from staffList by name
+      // Find assigneeId and helperId from staffList by name
       const assignee = staffList.find((s: any) => s.name === form.assigneeName);
+      const helper = staffList.find((s: any) => s.name === form.helperName);
       await createMutation.mutateAsync({
         title: form.title,
         description: form.description || undefined,
@@ -574,6 +575,8 @@ function CreateIssueDialog({ open, onClose }: { open: boolean; onClose: () => vo
         priority: form.priority as any,
         assigneeId: assignee?.id || undefined,
         assigneeName: form.assigneeName || undefined,
+        helperId: helper?.id || undefined,
+        helperName: (form.helperName && form.helperName !== '__none__') ? form.helperName : undefined,
         deadline: form.deadline || undefined,
         tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : undefined,
       });
@@ -672,6 +675,19 @@ function CreateIssueDialog({ open, onClose }: { open: boolean; onClose: () => vo
             </div>
           </div>
 
+          {/* Helper (CC) */}
+          <div>
+            <label className="text-sm font-medium">复制人 (CC) - 邮件同步</label>
+            <Select value={form.helperName} onValueChange={(v) => setForm(f => ({ ...f, helperName: v }))}>
+              <SelectTrigger className="mt-1"><SelectValue placeholder="选择复制人（可选）" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">无</SelectItem>
+                {staffList.map((s: any) => (
+                  <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           {/* Tags */}
           <div>
             <label className="text-sm font-medium">标签 (逗号分隔)</label>
@@ -762,11 +778,20 @@ function IssueDetailDialog({ issueId, onClose }: { issueId: number; onClose: () 
   };
 
   const handleUpdate = async () => {
-    await updateMutation.mutateAsync({ id: issueId, ...editForm });
-    setEditing(false);
-    utils.issueTracker.getById.invalidate({ id: issueId });
-    utils.issueTracker.list.invalidate();
-    toast.success('已更新');
+    try {
+      const payload = { ...editForm };
+      // Convert empty deadline to null for DB compatibility
+      if (payload.deadline === '') payload.deadline = null;
+      // Convert __none__ helper to null
+      if (payload.helperName === '__none__' || payload.helperName === '') payload.helperName = null;
+      await updateMutation.mutateAsync({ id: issueId, ...payload });
+      setEditing(false);
+      utils.issueTracker.getById.invalidate({ id: issueId });
+      utils.issueTracker.list.invalidate();
+      toast.success('已更新');
+    } catch (e: any) {
+      toast.error('保存失败: ' + (e?.message || '未知错误'));
+    }
   };
 
   return (
@@ -811,7 +836,7 @@ function IssueDetailDialog({ issueId, onClose }: { issueId: number; onClose: () 
 
           {/* Edit Button */}
           {!editing && (
-            <Button variant="outline" size="sm" onClick={() => { setEditing(true); setEditForm({ assigneeName: issue.assigneeName, priority: issue.priority, category: issue.category, deadline: issue.deadline ? issue.deadline.split('T')[0] : '' }); }}>
+            <Button variant="outline" size="sm" onClick={() => { setEditing(true); setEditForm({ assigneeName: issue.assigneeName || '', helperName: issue.helperName || '', priority: issue.priority, category: issue.category, deadline: issue.deadline ? String(issue.deadline).split('T')[0] : '' }); }}>
               <Edit className="h-3 w-3 mr-1" /> 编辑
             </Button>
           )}
@@ -856,6 +881,18 @@ function IssueDetailDialog({ issueId, onClose }: { issueId: number; onClose: () 
                 <div>
                   <label className="text-xs font-medium">截止日期</label>
                   <Input type="date" value={editForm.deadline || ''} onChange={(e) => setEditForm((f: any) => ({ ...f, deadline: e.target.value }))} className="mt-1 h-8" />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs font-medium">复制人 (CC)</label>
+                  <Select value={editForm.helperName || ''} onValueChange={(v) => setEditForm((f: any) => ({ ...f, helperName: v }))}>
+                    <SelectTrigger className="mt-1 h-8"><SelectValue placeholder="选择复制人" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">无</SelectItem>
+                      {staffList.map((s: any) => (
+                        <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="flex gap-2">
