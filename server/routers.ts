@@ -9025,7 +9025,7 @@ Respond with a JSON object.`,
           const [storageResult, ocrResult] = await Promise.all([
             storagePut(fileKey, imageBuffer, input.mimeType),
             invokeLLM({
-              model: "gemini-2.0-flash",
+              model: "gpt-4o-mini",
               messages: [
                 {
                   role: "user",
