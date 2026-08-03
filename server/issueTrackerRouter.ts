@@ -508,6 +508,39 @@ export const issueTrackerRouter = router({
         [input.id, userName, `ステータスを「${statusLabels[input.status]}」に変更しました`]
       );
 
+      // 作成者にメール通知を送る（変更者が作成者本人でない場合のみ）
+      try {
+        const [issueRows] = await pool.query(
+          `SELECT i.title, i.creatorId, i.creatorName, u.email as creatorEmail FROM issues i LEFT JOIN users u ON i.creatorId = u.id WHERE i.id = ?`,
+          [input.id]
+        ) as any;
+        const issue = issueRows?.[0];
+        if (issue?.creatorEmail && issue.creatorId !== ((ctx as any).user?.id || 0)) {
+          const priorityEmoji: Record<string, string> = { pending: '⏳', in_progress: '🔄', waiting_confirm: '⏰', completed: '✅', closed: '🔒' };
+          const subject = `【問題処理】「${issue.title}」→ ${priorityEmoji[input.status] || ''} ${statusLabels[input.status]}`;
+          const html = `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #1a56db;">📋 問題のステータスが変更されました</h2>
+              <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold; width: 100px;">タイトル</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${issue.title}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">変更者</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${userName}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">新ステータス</td><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>${statusLabels[input.status]}</strong></td></tr>
+              </table>
+              <p style="margin-top: 20px;"><a href="https://lcjmall.com/master/issues" style="background: #1a56db; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">問題を確認する →</a></p>
+              <p style="color: #6b7280; font-size: 12px; margin-top: 24px;">このメールはLCJ問題処理系統から自動送信されています。</p>
+            </div>
+          `;
+          await sendEmail({
+            to: [issue.creatorEmail],
+            subject,
+            content: `あなたが作成した問題「${issue.title}」のステータスが「${statusLabels[input.status]}」に変更されました。変更者: ${userName}。https://lcjmall.com/master/issues で確認してください。`,
+            html,
+          }).catch(e => console.error('[IssueNotify] Email failed:', e));
+        }
+      } catch (notifyErr) {
+        console.error('[IssueNotify] Failed to notify creator:', notifyErr);
+      }
+
       return { success: true };
     }),
 
