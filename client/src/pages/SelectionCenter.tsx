@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock, HelpCircle, Layers, Gift, AlertTriangle } from "lucide-react";
+import { Package, Plus, RefreshCw, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock, HelpCircle, Layers, Gift, AlertTriangle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -4817,6 +4817,8 @@ function CostManagementContent() {
   const [editingCost, setEditingCost] = useState<any>(null);
   const [showRegisterDialog, setShowRegisterDialog] = useState(false);
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
+  const [showSyncDialog, setShowSyncDialog] = useState(false);
+  const [costHistorySearch, setCostHistorySearch] = useState('');
 
   const brandsQuery = trpc.brand.list.useQuery();
   const brands = brandsQuery.data || [];
@@ -4824,6 +4826,7 @@ function CostManagementContent() {
   // 原価履歴取得
   const costHistoryQuery = trpc.selectionCenter.getProductCostHistory.useQuery({
     brandId: filterBrandId,
+    search: costHistorySearch || undefined,
     limit: 100,
   });
   const costHistory = costHistoryQuery.data || [];
@@ -4887,10 +4890,16 @@ function CostManagementContent() {
           <DollarSign className="h-5 w-5 text-amber-600" />
           成本管理
         </h2>
-        <Button onClick={() => setShowRegisterDialog(true)} className="gap-1">
-          <Plus className="h-4 w-4" />
-          登记成本
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowSyncDialog(true)} className="gap-1">
+            <RefreshCw className="h-4 w-4" />
+            同步商品
+          </Button>
+          <Button onClick={() => setShowRegisterDialog(true)} className="gap-1">
+            <Plus className="h-4 w-4" />
+            登记成本
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -4967,7 +4976,19 @@ function CostManagementContent() {
       {/* 成本变更历史 */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">成本变更历史</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm">成本变更历史</CardTitle>
+            <div className="relative w-[240px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="搜索商品名/品牌..."
+                value={costHistorySearch}
+                onChange={(e) => setCostHistorySearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -5119,6 +5140,18 @@ function CostManagementContent() {
         </Dialog>
       )}
 
+      {/* 同步商品ダイアログ */}
+      {showSyncDialog && (
+        <ProductSyncDialog
+          open={showSyncDialog}
+          onClose={() => setShowSyncDialog(false)}
+          brands={brands}
+          onSuccess={() => {
+            costHistoryQuery.refetch();
+            ordersQuery.refetch();
+          }}
+        />
+      )}
       {/* 画像拡大モーダル */}
       {enlargedImage && (
         <div
@@ -5598,6 +5631,164 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
             登记
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ==================== Product Sync Dialog ====================
+function ProductSyncDialog({ open, onClose, brands, onSuccess }: {
+  open: boolean;
+  onClose: () => void;
+  brands: any[];
+  onSuccess: () => void;
+}) {
+  const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set());
+  const [syncSearch, setSyncSearch] = useState('');
+  const [syncBrandId, setSyncBrandId] = useState<number | undefined>(undefined);
+  const [costInputs, setCostInputs] = useState<Record<number, string>>({});
+
+  const productsQuery = trpc.selectionCenter.getProductsNotInCostHistory.useQuery({
+    search: syncSearch || undefined,
+    brandId: syncBrandId,
+    limit: 100,
+  });
+  const products = productsQuery.data || [];
+
+  const syncMutation = trpc.selectionCenter.syncProductsToCost.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.synced}件の商品を成本管理に同期しました`);
+      onSuccess();
+      onClose();
+      setSelectedProducts(new Set());
+      setCostInputs({});
+    },
+    onError: (e) => toast.error('同期失敗: ' + e.message),
+  });
+
+  const toggleSelect = (id: number) => {
+    setSelectedProducts(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selectedProducts.size === products.length) {
+      setSelectedProducts(new Set());
+    } else {
+      setSelectedProducts(new Set(products.map((p: any) => p.id)));
+    }
+  };
+
+  const handleSync = () => {
+    const toSync = products
+      .filter((p: any) => selectedProducts.has(p.id))
+      .map((p: any) => ({
+        productId: p.id,
+        productName: p.productName,
+        brandId: p.brandId || 0,
+        brandName: p.brandName || '',
+        unitCost: Number(costInputs[p.id]) || Number(p.purchasePrice) || 0,
+      }));
+    if (toSync.length === 0) {
+      toast.error('请选择至少一个商品');
+      return;
+    }
+    if (toSync.some(p => p.unitCost <= 0)) {
+      toast.error('请为所有选中商品填写成本');
+      return;
+    }
+    syncMutation.mutate({ products: toSync });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle>同步商品到成本管理</DialogTitle>
+          <p className="text-sm text-muted-foreground">选择商品管理中尚未登记成本的商品，同步到成本管理模块。</p>
+        </DialogHeader>
+        <div className="flex items-center gap-2 py-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="搜索商品名/品牌..."
+              value={syncSearch}
+              onChange={(e) => setSyncSearch(e.target.value)}
+              className="w-full pl-8 pr-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-between py-1 border-b">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={products.length > 0 && selectedProducts.size === products.length}
+              onChange={selectAll}
+              className="rounded"
+            />
+            全选 ({selectedProducts.size}/{products.length})
+          </label>
+          <span className="text-xs text-muted-foreground">
+            {products.length}件の未登記商品
+          </span>
+        </div>
+        <div className="flex-1 overflow-y-auto space-y-1 py-2 min-h-0">
+          {productsQuery.isLoading ? (
+            <p className="text-center py-8 text-muted-foreground text-sm">加载中...</p>
+          ) : products.length === 0 ? (
+            <p className="text-center py-8 text-muted-foreground text-sm">所有商品已同步到成本管理</p>
+          ) : (
+            products.map((p: any) => (
+              <div
+                key={p.id}
+                className={`flex items-center gap-3 p-2 rounded-md border transition-colors ${selectedProducts.has(p.id) ? 'bg-blue-50 border-blue-200' : 'hover:bg-muted/50 border-transparent'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedProducts.has(p.id)}
+                  onChange={() => toggleSelect(p.id)}
+                  className="rounded shrink-0"
+                />
+                {p.imageUrl ? (
+                  <img src={p.imageUrl} alt="" className="w-10 h-10 object-cover rounded shrink-0" />
+                ) : (
+                  <div className="w-10 h-10 bg-muted rounded flex items-center justify-center shrink-0">
+                    <Package className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{p.productName}</p>
+                  <p className="text-xs text-muted-foreground">{p.brandName}</p>
+                </div>
+                <div className="shrink-0 w-[120px]">
+                  <input
+                    type="number"
+                    placeholder={p.purchasePrice ? `¥${p.purchasePrice}` : "成本"}
+                    value={costInputs[p.id] || ''}
+                    onChange={(e) => setCostInputs(prev => ({ ...prev, [p.id]: e.target.value }))}
+                    className="w-full px-2 py-1 text-sm border rounded text-right"
+                  />
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        <div className="flex justify-end gap-2 pt-3 border-t">
+          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button
+            onClick={handleSync}
+            disabled={selectedProducts.size === 0 || syncMutation.isPending}
+            className="gap-1"
+          >
+            <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+            {syncMutation.isPending ? '同步中...' : `同步 (${selectedProducts.size})`}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

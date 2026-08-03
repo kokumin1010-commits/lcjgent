@@ -1804,6 +1804,7 @@ export const selectionCenterRouter = router({
     .input(z.object({
       productId: z.number().optional(),
       brandId: z.number().optional(),
+      search: z.string().optional(),
       limit: z.number().default(50),
     }).optional())
     .query(async ({ input }) => {
@@ -1818,6 +1819,10 @@ export const selectionCenterRouter = router({
       if (filters.brandId) {
         where += ' AND brandId = ?';
         params.push(filters.brandId);
+      }
+      if (filters.search) {
+        where += ' AND (pch.productName LIKE ? OR pch.brandName LIKE ?)';
+        params.push(`%${filters.search}%`, `%${filters.search}%`);
       }
       params.push(filters.limit || 50);
       const [rows] = await pool.query(
@@ -1836,7 +1841,78 @@ export const selectionCenterRouter = router({
       });
     }),
 
-  // 最新原価取得（商品IDで）
+  // 商品管理から成本管理へ同期（まだ成本登録されていない商品を取得）
+  getProductsNotInCostHistory: protectedProcedure
+    .input(z.object({
+      search: z.string().optional(),
+      brandId: z.number().optional(),
+      limit: z.number().default(100),
+    }).optional())
+    .query(async ({ input }) => {
+      const pool = getPool();
+      const filters = input || {};
+      let where = 'WHERE sp.deletedAt IS NULL';
+      const params: any[] = [];
+      if (filters.brandId) {
+        where += ' AND sp.brandId = ?';
+        params.push(filters.brandId);
+      }
+      if (filters.search) {
+        where += ' AND (sp.productName LIKE ? OR sp.brandName LIKE ?)';
+        params.push(`%${filters.search}%`, `%${filters.search}%`);
+      }
+      const [rows] = await pool.query(
+        `SELECT sp.id, sp.productName, sp.brandName, sp.brandId, sp.price, sp.purchasePrice, sp.images
+         FROM selection_products sp
+         WHERE sp.id NOT IN (SELECT DISTINCT productId FROM product_cost_history)
+         AND sp.deletedAt IS NULL
+         ${filters.brandId ? 'AND sp.brandId = ?' : ''}
+         ${filters.search ? 'AND (sp.productName LIKE ? OR sp.brandName LIKE ?)' : ''}
+         ORDER BY sp.createdAt DESC
+         LIMIT ?`,
+        [...(filters.brandId ? [filters.brandId] : []), ...(filters.search ? [`%${filters.search}%`, `%${filters.search}%`] : []), filters.limit || 100]
+      ) as any;
+      return (rows || []).map((r: any) => {
+        let imageUrl = null;
+        if (r.images) {
+          try {
+            const imgs = typeof r.images === 'string' ? JSON.parse(r.images) : r.images;
+            if (Array.isArray(imgs) && imgs.length > 0) imageUrl = imgs[0];
+          } catch {}
+        }
+        return { ...r, imageUrl, images: undefined };
+      });
+    }),
+  // 商品を成本管理に一括同期
+  syncProductsToCost: protectedProcedure
+    .input(z.object({
+      products: z.array(z.object({
+        productId: z.number(),
+        productName: z.string(),
+        brandId: z.number(),
+        brandName: z.string(),
+        unitCost: z.number().min(0),
+      })),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = getPool();
+      const today = new Date().toISOString().split('T')[0];
+      let synced = 0;
+      for (const p of input.products) {
+        await pool.query(
+          `INSERT INTO product_cost_history (productId, productName, brandId, brandName, unitCost, currency, effectiveDate, memo, createdBy)
+           VALUES (?, ?, ?, ?, ?, 'JPY', ?, '商品管理から同期', ?)`,
+          [p.productId, p.productName, p.brandId, p.brandName, p.unitCost, today, (ctx.user as any)?.id || 0]
+        );
+        // Also update purchasePrice
+        try {
+          await pool.query(`UPDATE selection_products SET purchasePrice = ? WHERE id = ?`, [p.unitCost, p.productId]);
+        } catch {}
+        synced++;
+      }
+      return { success: true, synced };
+    }),
+    // 最新原価取得（商品IDで）
   getLatestProductCost: protectedProcedure
     .input(z.object({
       productId: z.number(),
