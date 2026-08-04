@@ -55,9 +55,13 @@ function getPool() {
         INDEX idx_category (category),
         INDEX idx_priority (priority),
         INDEX idx_assignee (assigneeId),
+        isPrivate TINYINT(1) DEFAULT 0,
         INDEX idx_creator (creatorId),
         INDEX idx_created (createdAt)
       )`);
+
+      // Add isPrivate column if not exists
+      await pool.query(`ALTER TABLE issues ADD COLUMN IF NOT EXISTS isPrivate TINYINT(1) DEFAULT 0`).catch(() => {});
 
       await pool.query(`CREATE TABLE IF NOT EXISTS issue_comments (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -114,10 +118,15 @@ export const issueTrackerRouter = router({
       const params: any[] = [];
 
       // Privacy: non-admin users can only see issues they created, are assigned to, or are helper of
+      // isPrivate issues are only visible to creator, assignee, and helper (even for admins)
       const userId = (ctx as any).user?.id;
       const userRole = (ctx as any).user?.role;
       if (userRole !== 'admin' && userId) {
-        where += ' AND (creatorId = ? OR assigneeId = ? OR helperId = ?)';
+        where += ' AND ((isPrivate = 0 OR isPrivate IS NULL) OR (creatorId = ? OR assigneeId = ? OR helperId = ?))';
+        params.push(userId, userId, userId);
+      } else if (userRole === 'admin' && userId) {
+        // Even admins cannot see private issues unless they are creator/assignee/helper
+        where += ' AND ((isPrivate = 0 OR isPrivate IS NULL) OR (creatorId = ? OR assigneeId = ? OR helperId = ?))';
         params.push(userId, userId, userId);
       }
 
@@ -174,10 +183,14 @@ export const issueTrackerRouter = router({
       const issue = (issues as any[])[0];
       if (!issue) return null;
 
-      // Privacy check: only creator, assignee, helper, or admin can view
+      // Privacy check: for private issues, only creator, assignee, helper can view (even admins cannot)
       const userId = (ctx as any).user?.id;
       const userRole = (ctx as any).user?.role;
-      if (userRole !== 'admin' && userId) {
+      if (issue.isPrivate) {
+        if (issue.creatorId !== userId && issue.assigneeId !== userId && issue.helperId !== userId) {
+          return null;
+        }
+      } else if (userRole !== 'admin' && userId) {
         if (issue.creatorId !== userId && issue.assigneeId !== userId && issue.helperId !== userId) {
           return null;
         }
@@ -208,12 +221,13 @@ export const issueTrackerRouter = router({
       deadline: z.string().optional(),
       tags: z.array(z.string()).optional(),
       attachments: z.array(z.string()).optional(),
+      isPrivate: z.boolean().optional().default(false),
     }))
     .mutation(async ({ input, ctx }) => {
       const pool = getPool();
       const [result] = await pool.query(
-        `INSERT INTO issues (title, description, category, priority, assigneeId, assigneeName, helperId, helperName, deadline, tags, attachments, creatorId, creatorName)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO issues (title, description, category, priority, assigneeId, assigneeName, helperId, helperName, deadline, tags, attachments, creatorId, creatorName, isPrivate)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           input.title,
           input.description || null,
@@ -228,6 +242,7 @@ export const issueTrackerRouter = router({
           JSON.stringify(input.attachments || []),
           (ctx as any).user?.id || null,
           (ctx as any).user?.displayName || (ctx as any).user?.name || 'Unknown',
+          input.isPrivate ? 1 : 0,
         ]
       );
 

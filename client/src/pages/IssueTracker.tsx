@@ -236,9 +236,12 @@ function IssueCard({ issue, onClick, nextStatus, onAdvance, isAdvancing }: { iss
     >
       <div className="flex items-start justify-between gap-1">
         <h4 className="text-sm font-medium line-clamp-2 flex-1">{issue.title}</h4>
-        <Badge className={`text-[10px] px-1.5 py-0 shrink-0 ${PRIORITY_COLORS[issue.priority]}`}>
-          {PRIORITY_LABELS[issue.priority]}
-        </Badge>
+        <div className="flex items-center gap-1 shrink-0">
+          {issue.isPrivate ? <span className="text-[10px]">🔒</span> : null}
+          <Badge className={`text-[10px] px-1.5 py-0 ${PRIORITY_COLORS[issue.priority]}`}>
+            {PRIORITY_LABELS[issue.priority]}
+          </Badge>
+        </div>
       </div>
       <div className="flex items-center gap-2 mt-2 flex-wrap">
         <Badge variant="outline" className={`text-[10px] ${CATEGORY_COLORS[issue.category]}`}>
@@ -317,7 +320,7 @@ function ListView({ filters, onSelectIssue }: { filters: any; onSelectIssue: (id
                 className={`border-t hover:bg-muted/30 cursor-pointer transition-colors ${isOverdue ? 'bg-red-50' : ''}`}
               >
                 <td className="p-3">
-                  <span className="font-medium">{issue.title}</span>
+                  <span className="font-medium">{issue.isPrivate ? '🔒 ' : ''}{issue.title}</span>
                 </td>
                 <td className="p-3">
                   <Badge variant="outline" className={`text-[10px] ${CATEGORY_COLORS[issue.category]}`}>
@@ -562,6 +565,7 @@ function CreateIssueDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const [form, setForm] = useState({
     title: '', description: '', category: 'other', priority: 'medium',
     assigneeName: '', helperName: '', deadline: '', tags: '' as string,
+    isPrivate: false,
   });
   const [aiLoading, setAiLoading] = useState(false);
   const [attachments, setAttachments] = useState<Array<{url: string; fileName: string; mimeType: string; fileSize: number}>>([]);
@@ -643,6 +647,7 @@ function CreateIssueDialog({ open, onClose }: { open: boolean; onClose: () => vo
         deadline: form.deadline || undefined,
         tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : undefined,
         attachments: attachments.length > 0 ? attachments.map(a => a.url) : undefined,
+        isPrivate: form.isPrivate,
       });
       toast.success('问题已创建');
       utils.issueTracker.list.invalidate();
@@ -800,6 +805,21 @@ function CreateIssueDialog({ open, onClose }: { open: boolean; onClose: () => vo
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Privacy Option */}
+          <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
+            <input
+              type="checkbox"
+              id="isPrivate"
+              checked={form.isPrivate}
+              onChange={(e) => setForm(f => ({ ...f, isPrivate: e.target.checked }))}
+              className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+            />
+            <label htmlFor="isPrivate" className="text-sm font-medium text-amber-800 cursor-pointer">
+              🔒 仅创建人和负责人可见
+            </label>
+            <span className="text-xs text-amber-600 ml-auto">勾选后其他人无法查看此问题</span>
           </div>
 
           {/* Similar Issues Recommendation */}
