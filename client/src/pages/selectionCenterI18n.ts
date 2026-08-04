@@ -18,7 +18,7 @@ export const selectionCenterJa: Record<string, string> = {
   "sc.tab.selections": "選品一覧",
 
   // Products Tab
-  "sc.searchPlaceholder": "商品名・ブランド名・バーコードで検索...",
+  "sc.searchPlaceholder": "商品名・中文名・ID・ブランド名・バーコードで検索...",
   "sc.all": "全て",
   "sc.draft": "下書き",
   "sc.offline": "非公開",
@@ -93,7 +93,7 @@ export const selectionCenterJa: Record<string, string> = {
   "sc.liver.label": "主播:",
   "sc.liver.selectPlaceholder": "主播を選択...",
   "sc.liver.noLivers": "主播がいません",
-  "sc.liver.searchPlaceholder": "商品名・ブランド名で検索...",
+  "sc.liver.searchPlaceholder": "商品名・中文名・ID・ブランド名で検索...",
   "sc.liver.onlineProducts": "公開中の商品（{count}件）",
   "sc.liver.selectLiver": "主播を選択",
   "sc.liver.selected": "選品済",
@@ -316,7 +316,7 @@ export const selectionCenterZh: Record<string, string> = {
   "sc.tab.polls": "投票管理",
 
   // Products Tab
-  "sc.searchPlaceholder": "搜索商品名、品牌名、条码...",
+  "sc.searchPlaceholder": "搜索商品名、中文名、ID、品牌名、条码...",
   "sc.all": "全部",
   "sc.draft": "草稿",
   "sc.offline": "已下架",
@@ -391,7 +391,7 @@ export const selectionCenterZh: Record<string, string> = {
   "sc.liver.label": "主播:",
   "sc.liver.selectPlaceholder": "选择主播...",
   "sc.liver.noLivers": "没有主播",
-  "sc.liver.searchPlaceholder": "搜索商品名、品牌名...",
+  "sc.liver.searchPlaceholder": "搜索商品名、中文名、ID、品牌名...",
   "sc.liver.onlineProducts": "已上架商品（{count}件）",
   "sc.liver.selectLiver": "选择主播",
   "sc.liver.selected": "已选品",

@@ -283,8 +283,8 @@ export const selectionCenterRouter = router({
     const params: any[] = [];
     if (input.status) { where += ' AND sp.status = ?'; params.push(input.status); }
     if (input.categoryId) { where += ' AND sp.categoryId = ?'; params.push(input.categoryId); }
-    if (input.search) { const s = input.search.toLowerCase(); where += ' AND (LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(sp.barcode) LIKE ?)';
- params.push(`%${s}%`, `%${s}%`, `%${s}%`); }
+    if (input.search) { const s = input.search.toLowerCase(); where += ' AND (LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(sp.barcode) LIKE ? OR LOWER(COALESCE(sp.productNameCn, \'\')) LIKE ? OR LOWER(COALESCE(sp.productId, \'\')) LIKE ?)';
+ params.push(`%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`); }
     const offset = (input.page - 1) * input.pageSize;
     let items: any[];
     try {
@@ -651,7 +651,7 @@ export const selectionCenterRouter = router({
     const pool = getPool();
     let where = "WHERE sp.status = 'online' AND sp.deletedAt IS NULL";
     const params: any[] = [];
-    if (input.search) { const s = input.search.toLowerCase(); where += ' AND (LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(sp.barcode) LIKE ?)'; params.push(`%${s}%`, `%${s}%`, `%${s}%`); }
+    if (input.search) { const s = input.search.toLowerCase(); where += ' AND (LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(sp.barcode) LIKE ? OR LOWER(COALESCE(sp.productNameCn, \'\')) LIKE ? OR LOWER(COALESCE(sp.productId, \'\')) LIKE ?)'; params.push(`%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`); }
     let rows: any[];
     try {
       const [result] = await pool.query(`SELECT sp.*, b.hasTikTokBackend FROM selection_products sp LEFT JOIN brands b ON sp.brandId = b.id ${where} ORDER BY sp.createdAt DESC`, params) as any;
