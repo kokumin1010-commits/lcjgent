@@ -432,7 +432,7 @@ function SpeakersSection() {
     },
     { 
       name: "JOY", 
-      title: "タレント / ゲスト出演", 
+      title: "タレント / ゲスト出演（9/8 生配信のみ出演）", 
       stat: "SNS総フォロワー", 
       statValue: "100", 
       statUnit: "万人超",
@@ -441,7 +441,7 @@ function SpeakersSection() {
     },
     { 
       name: "ゆん", 
-      title: "YouTuber / タレント", 
+      title: "YouTuber / タレント（9/8 生配信のみ出演）", 
       stat: "SNS総フォロワー", 
       statValue: "290", 
       statUnit: "万人超",
@@ -668,6 +668,7 @@ function GuestIntroSection() {
                 <div className="absolute bottom-4 left-4">
                   <h3 className="text-2xl md:text-3xl font-black text-white drop-shadow-lg">{g.name}</h3>
                   <p className="text-[#FFD700] text-sm font-medium">{g.title}</p>
+                  <p className="text-gray-300 text-xs mt-1 opacity-80">9/8 生配信のみ出演</p>
                 </div>
               </div>
 
