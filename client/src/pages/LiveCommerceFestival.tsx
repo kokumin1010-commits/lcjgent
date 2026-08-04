@@ -203,8 +203,7 @@ export default function LiveCommerceFestival() {
         <ProgramSection />
         <VenueSection />
         <SponsorSection />
-        <EventScheduleSection />
-        <MatchingSection />
+
         <LineCTASection />
         <OverviewSection />
         <FooterSection />
@@ -796,7 +795,7 @@ function SpecialLiversSection() {
 
               {/* Bio */}
               <div className="p-3">
-                <p className="text-gray-400 text-[11px] leading-relaxed line-clamp-4">{l.bio}</p>
+                <p className="text-gray-400 text-[11px] leading-relaxed">{l.bio}</p>
               </div>
             </div>
           ))}
@@ -859,7 +858,7 @@ function CampaignBanner() {
 // Stats Section — Bold numbers on dark background
 // ============================================================
 function StatsSection() {
-  const stat1 = useCountUp(80);
+  const stat1 = useCountUp(40);
   const stat2 = useCountUp(300);
   const stat3 = useCountUp(22000);
   const stat4 = useCountUp(1600);
@@ -986,14 +985,14 @@ function ProgramSection() {
           <div>
             <h3 className="text-[#FFD700] font-bold text-lg md:text-xl mb-3">現場ライブコマース（ライバーマッチング＆販売）:</h3>
             <p className="text-gray-300 leading-relaxed">
-              出展企業が製品を展示するだけではなく、事前ライバーさんと組み、会場から直接配信を実施することが可能。
+              出展企業が製品を展示するだけではなく、事前にライバーと組み、会場から直接配信を実施することが可能。
             </p>
           </div>
 
           <div>
             <h3 className="text-[#FFD700] font-bold text-lg md:text-xl mb-3">公開セミナー・トークショー:</h3>
             <div className="text-gray-300 space-y-1">
-              <p>トップライブコマーサー・プレヤーによる講演</p>
+              <p>トップライブコマーサー・プレイヤーによる講演</p>
               <p>TikTok公式担当者によるトークショーや勉強会</p>
               <p>メーカーによる商品説明イベント</p>
             </div>
@@ -1006,8 +1005,7 @@ function ProgramSection() {
                 { icon: '🎪', text: '展示スペース' },
                 { icon: '📡', text: '配信スペース（5-8箇所）※イベント出展企業配信予定' },
                 { icon: '🎤', text: 'セミナー（商品説明）スペース' },
-                { icon: '🎵', text: 'DJブース' },
-                { icon: '🍹', text: 'ドリンクバー' },
+
                 { icon: '🎉', text: 'アフターパーティー ※出展企業＆ライバーマッチングイベント' },
               ].map((item) => (
                 <div key={item.text} className="flex items-start gap-3 bg-white/5 rounded-lg p-3 border border-white/10">
@@ -1166,7 +1164,7 @@ function SponsorSection() {
           <div className="p-6 rounded-xl border border-white/20 bg-white/[0.03]">
             <div className="text-xs text-gray-500 mb-1">4社限定</div>
             <h3 className="text-lg font-bold mb-1">プレミアムスポンサー</h3>
-            <p className="text-3xl font-black mb-4">300<span className="text-lg">万円</span></p>
+            <p className="text-3xl font-black mb-4">500<span className="text-lg">万円</span></p>
             <ul className="text-sm text-gray-300 space-y-2">
               <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" /> ローテーション露出</li>
               <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" /> ブース区画（3m×3.6m）</li>
@@ -1177,7 +1175,7 @@ function SponsorSection() {
           
           {/* Booth */}
           <div className="p-6 rounded-xl border border-white/10 bg-white/[0.02]">
-            <div className="text-xs text-gray-500 mb-1">66社（先着審査制）</div>
+            <div className="text-xs text-gray-500 mb-1">35社（先着審査制）</div>
             <h3 className="text-lg font-bold mb-1">会場ブース出展</h3>
             <p className="text-3xl font-black mb-4">100<span className="text-lg">万円</span></p>
             <ul className="text-sm text-gray-300 space-y-2">
@@ -1215,119 +1213,7 @@ function SponsorSection() {
   );
 }
 
-// ============================================================
-// Event Schedule Section (DAY 1 & DAY 2)
-// ============================================================
-function EventScheduleSection() {
-  const reveal = useScrollReveal();
 
-  const day1Program = [
-    { time: '13:00 - 13:30', title: '【オープニングキーノート】', subtitle: '日本のライブコマース市場の未来と本イベントの意義' },
-    { time: '13:45 - 14:30', title: '【TikTok公式セミナー】', subtitle: 'TikTok Shopの最新トレンドと今後の展望' },
-    { time: '14:45 - 15:30', title: '【トップライブコマーサー対談】', subtitle: '億を売る「勝者のメンタリティ」と配信の裏側' },
-    { time: '15:45 - 16:30', title: '【ライバー向け講演】', subtitle: '「ライバー」から「ライブコマーサー」への進化' },
-    { time: '16:45 - 17:30', title: '【出展企業・TSP向け講演】', subtitle: 'ジャンル別成功事例と売れる座組の作り方' },
-    { time: '18:30 - 20:30', title: 'アフターパーティー＆受賞式', subtitle: 'VIP/BARエリア及びDJブースでのネットワーキング' },
-  ];
-
-  const day2Program = [
-    { time: '10:00 - 10:45', title: '【新機能活用事例】', subtitle: '抽選機能などで熱狂を生む方法' },
-    { time: '11:00 - 11:45', title: '【TikTok公式セミナー・応用編】', subtitle: 'ポリシー遵守とアカウントBAN防止' },
-    { time: '12:00 - 12:45', title: '【出展企業向け講演】', subtitle: 'ライバーとのマッチングを成功させる方法' },
-    { time: '13:00 - 14:00', title: 'お昼休憩＆ブース回遊', subtitle: 'ライバーによるゲリラ配信タイム' },
-    { time: '14:00 - 16:30', title: '【スポンサーPRセミナー枠】', subtitle: '各社主力商品プレゼン（1枠20〜30分）' },
-    { time: '16:45 - 17:30', title: '【クロージングパネル】', subtitle: '著名タレント出演連動番組企画' },
-    { time: '17:30 - 18:00', title: 'グランドフィナーレ', subtitle: 'イベントの締めくくり、記念撮影' },
-  ];
-
-  return (
-    <section className="bg-[#111] py-16 md:py-24 px-4 text-white">
-      <div ref={reveal.ref} className={`max-w-6xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        <div className="text-center mb-12">
-          <div className="flex items-center gap-3 justify-center mb-4">
-            <div className="w-6 h-[2px] bg-[#FFD700]" />
-            <span className="text-[#FFD700] text-sm font-medium tracking-wider">Event Schedule</span>
-            <div className="w-6 h-[2px] bg-[#FFD700]" />
-          </div>
-          <h2 className="text-3xl md:text-4xl font-black">イベントスケジュール</h2>
-          <p className="text-xs text-gray-500 mt-2">※イベント内容は変更になる場合がございます。</p>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* DAY 1 */}
-          <div>
-            <div className="bg-red-600 text-white text-center py-3 rounded-t-xl font-bold text-lg">
-              DAY 1 — 9月8日（火）
-            </div>
-            <div className="border border-white/10 border-t-0 rounded-b-xl overflow-hidden">
-              {day1Program.map((item, i) => (
-                <div key={i} className={`p-4 ${i % 2 === 0 ? 'bg-white/[0.02]' : 'bg-white/[0.05]'} border-b border-white/5 last:border-b-0`}>
-                  <div className="text-xs text-[#FFD700] font-semibold mb-1">{item.time}</div>
-                  <div className="font-bold text-sm">{item.title}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">{item.subtitle}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* DAY 2 */}
-          <div>
-            <div className="bg-[#FFD700] text-black text-center py-3 rounded-t-xl font-bold text-lg">
-              DAY 2 — 9月9日（水）
-            </div>
-            <div className="border border-white/10 border-t-0 rounded-b-xl overflow-hidden">
-              {day2Program.map((item, i) => (
-                <div key={i} className={`p-4 ${i % 2 === 0 ? 'bg-white/[0.02]' : 'bg-white/[0.05]'} border-b border-white/5 last:border-b-0`}>
-                  <div className="text-xs text-[#FFD700] font-semibold mb-1">{item.time}</div>
-                  <div className="font-bold text-sm">{item.title}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">{item.subtitle}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ============================================================
-// Matching Section
-// ============================================================
-function MatchingSection() {
-  const reveal = useScrollReveal();
-
-  const steps = [
-    { step: 'STEP1', title: '商材登録', timing: '出展申込時', desc: '最大3SKUの商材情報を委員会へ申請。' },
-    { step: 'STEP2', title: 'カタログ公開', timing: '開催1ヶ月前', desc: '審査通過商材をWEBカタログに掲載。' },
-    { step: 'STEP3', title: 'エントリー', timing: '開催3週間前', desc: 'ライバーが希望商材を選択しエントリー。' },
-    { step: 'STEP4', title: 'マッチング確定', timing: '開催2週間前', desc: '配信タイムテーブルを確定し双方に通知。' },
-    { step: 'STEP5', title: '事前準備', timing: '開催1〜2週間前', desc: 'TikTok Shop上でTAP連携・サンプル発送。' },
-    { step: 'STEP6', title: '当日配信', timing: 'イベント当日', desc: 'ブースでライブ配信・販売をスタート。' },
-  ];
-
-  return (
-    <section className="bg-[#FFD700] py-16 md:py-20 px-4">
-      <div ref={reveal.ref} className={`max-w-6xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        <div className="text-center mb-10">
-          <h2 className="text-3xl md:text-4xl font-black text-gray-900">ライバー事前マッチング</h2>
-          <p className="text-gray-700 mt-2">すべての出店者が、事前にご来場ライバーとのマッチングが可能です</p>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {steps.map((s, i) => (
-            <div key={i} className="rounded-xl bg-white shadow-lg p-4 text-center hover:scale-[1.03] transition-transform">
-              <div className="text-red-600 font-black text-sm mb-1">{s.step}</div>
-              <div className="font-bold text-gray-900 text-sm mb-0.5">{s.title}</div>
-              <div className="text-[10px] text-gray-500 mb-2">{s.timing}</div>
-              <p className="text-[11px] text-gray-600 leading-relaxed">{s.desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
 
 // ============================================================
 // LINE CTA Section — Yellow background with big CTA
