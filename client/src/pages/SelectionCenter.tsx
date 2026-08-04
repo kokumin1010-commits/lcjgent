@@ -1040,16 +1040,34 @@ function LiverSelectionTab() {
                           {product.marketPrice && Number(product.marketPrice) > 0 && Number(product.marketPrice) !== Number(product.price || 0) && (
                             <span className="text-muted-foreground line-through text-xs">¥{Number(product.marketPrice).toLocaleString()}</span>
                           )}
-                          {product.discountRate && Number(product.discountRate) > 0 && (
-                            <>
-                              <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 shrink-0">
-                                {`${Number(product.discountRate)}%OFF`}
-                              </Badge>
-                              <span className="font-bold text-red-600 text-base">
-                                → ¥{Math.round(Number(product.price || 0) * (1 - Number(product.discountRate) / 100)).toLocaleString()}
-                              </span>
-                            </>
-                          )}
+                          {(() => {
+                            const price = Number(product.price || 0);
+                            const market = Number(product.marketPrice || 0);
+                            let discountPct = 0;
+                            let discountedPrice = 0;
+                            if (price > 0 && market > 0) {
+                              // 両方入力されている場合は自動計算
+                              discountPct = Math.round((1 - price / market) * 100);
+                              discountedPrice = price;
+                            } else if (product.discountRate && Number(product.discountRate) > 0) {
+                              // 手動入力の折扣率を使用
+                              discountPct = Number(product.discountRate);
+                              discountedPrice = Math.round(price * (1 - discountPct / 100));
+                            }
+                            if (discountPct > 0) {
+                              return (
+                                <>
+                                  <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 shrink-0">
+                                    {`${discountPct}%OFF`}
+                                  </Badge>
+                                  <span className="font-bold text-red-600 text-base">
+                                    → ¥{discountedPrice.toLocaleString()}
+                                  </span>
+                                </>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                         <div className="flex items-center gap-2 mt-1 text-sm">
                           <Badge variant="outline" className="text-xs">
@@ -1183,9 +1201,19 @@ function LiverSelectionTab() {
                   <div>
                     <Label className="text-muted-foreground text-xs">{t("sc.liver.discount")}</Label>
                     <p className="font-bold text-red-600">
-                      {detailProduct.discountRate && Number(detailProduct.discountRate) > 0
-                        ? `${Number(detailProduct.discountRate)}%OFF → ¥${Math.round(Number(detailProduct.price || 0) * (1 - Number(detailProduct.discountRate) / 100)).toLocaleString()}`
-                        : '-'}
+                      {(() => {
+                        const price = Number(detailProduct.price || 0);
+                        const market = Number(detailProduct.marketPrice || 0);
+                        if (price > 0 && market > 0) {
+                          const pct = Math.round((1 - price / market) * 100);
+                          return `${pct}%OFF → ¥${price.toLocaleString()}`;
+                        } else if (detailProduct.discountRate && Number(detailProduct.discountRate) > 0) {
+                          const pct = Number(detailProduct.discountRate);
+                          const discounted = Math.round(price * (1 - pct / 100));
+                          return `${pct}%OFF → ¥${discounted.toLocaleString()}`;
+                        }
+                        return '-';
+                      })()}
                     </p>
                   </div>
                 </div>

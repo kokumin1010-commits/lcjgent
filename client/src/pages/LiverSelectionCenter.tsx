@@ -63,16 +63,32 @@ export default function LiverSelectionCenter() {
                       <p className="text-sm text-muted-foreground">{product.brandName}</p>
                       <div className="flex items-center gap-3 mt-2 text-sm flex-wrap">
                         <span className="font-medium text-orange-600">¥{Number(product.price || 0).toLocaleString()}</span>
-                        {product.discountRate && Number(product.discountRate) > 0 && (
-                          <>
-                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5">
-                              {Number(product.discountRate)}%OFF
-                            </Badge>
-                            <span className="font-bold text-red-600">
-                              → ¥{Math.round(Number(product.price || 0) * (1 - Number(product.discountRate) / 100)).toLocaleString()}
-                            </span>
-                          </>
-                        )}
+                        {(() => {
+                          const price = Number(product.price || 0);
+                          const market = Number(product.marketPrice || 0);
+                          let discountPct = 0;
+                          let discountedPrice = 0;
+                          if (price > 0 && market > 0) {
+                            discountPct = Math.round((1 - price / market) * 100);
+                            discountedPrice = price;
+                          } else if (product.discountRate && Number(product.discountRate) > 0) {
+                            discountPct = Number(product.discountRate);
+                            discountedPrice = Math.round(price * (1 - discountPct / 100));
+                          }
+                          if (discountPct > 0) {
+                            return (
+                              <>
+                                <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5">
+                                  {discountPct}%OFF
+                                </Badge>
+                                <span className="font-bold text-red-600">
+                                  → ¥{discountedPrice.toLocaleString()}
+                                </span>
+                              </>
+                            );
+                          }
+                          return null;
+                        })()}
                         <Badge variant="outline">
                           佣金: {product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`}
                         </Badge>
