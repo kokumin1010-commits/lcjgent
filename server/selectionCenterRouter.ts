@@ -283,7 +283,8 @@ export const selectionCenterRouter = router({
     const params: any[] = [];
     if (input.status) { where += ' AND sp.status = ?'; params.push(input.status); }
     if (input.categoryId) { where += ' AND sp.categoryId = ?'; params.push(input.categoryId); }
-    if (input.search) { where += ' AND (sp.productName LIKE ? OR sp.brandName LIKE ? OR sp.barcode LIKE ?)'; params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`); }
+    if (input.search) { const s = input.search.toLowerCase(); where += ' AND (LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(sp.barcode) LIKE ?)';
+ params.push(`%${s}%`, `%${s}%`, `%${s}%`); }
     const offset = (input.page - 1) * input.pageSize;
     let items: any[];
     try {
@@ -650,7 +651,7 @@ export const selectionCenterRouter = router({
     const pool = getPool();
     let where = "WHERE sp.status = 'online' AND sp.deletedAt IS NULL";
     const params: any[] = [];
-    if (input.search) { where += ' AND (sp.productName LIKE ? OR sp.brandName LIKE ? OR sp.barcode LIKE ?)'; params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`); }
+    if (input.search) { const s = input.search.toLowerCase(); where += ' AND (LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(sp.barcode) LIKE ?)'; params.push(`%${s}%`, `%${s}%`, `%${s}%`); }
     let rows: any[];
     try {
       const [result] = await pool.query(`SELECT sp.*, b.hasTikTokBackend FROM selection_products sp LEFT JOIN brands b ON sp.brandId = b.id ${where} ORDER BY sp.createdAt DESC`, params) as any;
@@ -1742,8 +1743,9 @@ export const selectionCenterRouter = router({
         params.push(input.brandId);
       }
       if (input.search) {
-        where += ' AND (sp.productName LIKE ? OR sp.productNameCn LIKE ? OR sp.brandName LIKE ? OR sp.barcode LIKE ? OR sp.productId LIKE ? OR CAST(sp.id AS CHAR) LIKE ?)';
-        params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`, `%${input.search}%`, `%${input.search}%`, `%${input.search}%`);
+        const s = input.search.toLowerCase();
+        where += ' AND (LOWER(sp.productName) LIKE ? OR LOWER(sp.productNameCn) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(sp.barcode) LIKE ? OR LOWER(sp.productId) LIKE ? OR CAST(sp.id AS CHAR) LIKE ?)';
+        params.push(`%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`);
       }
       params.push(input.limit);
       const [rows] = await pool.query(
@@ -1812,8 +1814,9 @@ export const selectionCenterRouter = router({
         params.push(filters.brandId);
       }
       if (filters.search) {
-        where += ' AND (pch.productName LIKE ? OR pch.brandName LIKE ?)';
-        params.push(`%${filters.search}%`, `%${filters.search}%`);
+        const s = filters.search.toLowerCase();
+        where += ' AND (LOWER(pch.productName) LIKE ? OR LOWER(pch.brandName) LIKE ?)';
+        params.push(`%${s}%`, `%${s}%`);
       }
       params.push(filters.limit || 50);
       const [rows] = await pool.query(
@@ -1849,8 +1852,8 @@ export const selectionCenterRouter = router({
         params.push(filters.brandId);
       }
       if (filters.search) {
-        where += ' AND (sp.productName LIKE ? OR sp.brandName LIKE ?)';
-        params.push(`%${filters.search}%`, `%${filters.search}%`);
+        where += ' AND (LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ?)';
+        params.push(`%${filters.search.toLowerCase()}%`, `%${filters.search.toLowerCase()}%`);
       }
       const [rows] = await pool.query(
         `SELECT sp.id, sp.productName, sp.brandName, sp.brandId, sp.price, sp.purchasePrice, sp.images
@@ -1858,10 +1861,10 @@ export const selectionCenterRouter = router({
          WHERE sp.id NOT IN (SELECT DISTINCT productId FROM product_cost_history)
          AND sp.deletedAt IS NULL
          ${filters.brandId ? 'AND sp.brandId = ?' : ''}
-         ${filters.search ? 'AND (sp.productName LIKE ? OR sp.brandName LIKE ?)' : ''}
+         ${filters.search ? 'AND (LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ?)' : ''}
          ORDER BY sp.createdAt DESC
          LIMIT ?`,
-        [...(filters.brandId ? [filters.brandId] : []), ...(filters.search ? [`%${filters.search}%`, `%${filters.search}%`] : []), filters.limit || 100]
+        [...(filters.brandId ? [filters.brandId] : []), ...(filters.search ? [`%${filters.search.toLowerCase()}%`, `%${filters.search.toLowerCase()}%`] : []), filters.limit || 100]
       ) as any;
       return (rows || []).map((r: any) => {
         let imageUrl = null;
@@ -2085,16 +2088,18 @@ export const selectionCenterRouter = router({
       // Split search query by spaces and match each word (AND logic)
       const searchWords = input.search.trim().split(/\s+/).filter(w => w.length > 0);
       if (searchWords.length === 1) {
-        where += ' AND (sp.productName LIKE ? OR sp.brandName LIKE ? OR sp.sellingPoints LIKE ?)';
-        params.push(`%${searchWords[0]}%`, `%${searchWords[0]}%`, `%${searchWords[0]}%`);
+        const s = searchWords[0].toLowerCase();
+        where += ' AND (LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(sp.sellingPoints) LIKE ?)';
+        params.push(`%${s}%`, `%${s}%`, `%${s}%`);
       } else if (searchWords.length > 1) {
         // Each word must match in productName OR brandName OR sellingPoints
         const wordConditions = searchWords.map(() => 
-          '(sp.productName LIKE ? OR sp.brandName LIKE ? OR sp.sellingPoints LIKE ?)'
+          '(LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(sp.sellingPoints) LIKE ?)'
         ).join(' AND ');
         where += ` AND (${wordConditions})`;
         for (const word of searchWords) {
-          params.push(`%${word}%`, `%${word}%`, `%${word}%`);
+          const s = word.toLowerCase();
+          params.push(`%${s}%`, `%${s}%`, `%${s}%`);
         }
       }
     }
