@@ -568,8 +568,8 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
             </div>
           </div>
 
-                    {/* 販売価格 + 市場価格 + 卸値 - 3 columns */}
-            <div className="grid grid-cols-3 gap-4">
+                    {/* 販売価格 + 市場価格 */}
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>{t("sc.form.sellingPrice")}</Label>
                 <Input type="number" value={form.price || ""} onChange={e => setForm({ ...form, price: e.target.value })} />
@@ -577,10 +577,6 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
               <div>
                 <Label>{t("sc.form.marketPrice")}</Label>
                 <Input type="number" value={form.marketPrice || ""} onChange={e => setForm({ ...form, marketPrice: e.target.value })} />
-              </div>
-              <div>
-                <Label className="text-amber-600 font-bold">卸値（ライバー仕入れ価格）</Label>
-                <Input type="number" value={form.purchasePrice || ""} onChange={e => setForm({ ...form, purchasePrice: e.target.value })} placeholder="例: 3000" className="border-amber-200 focus:border-amber-400" />
               </div>
             </div>
           {/* 历史最低价 */}
