@@ -36,7 +36,8 @@ function isInternalPage(path: string): boolean {
     path.startsWith("/register") ||
     path.startsWith("/chat-register") ||
     path.startsWith("/registration-bonus") ||
-    path.startsWith("/mobmart")
+    path.startsWith("/mobmart") ||
+    path.startsWith("/livecommercefestival")
   );
 }
 

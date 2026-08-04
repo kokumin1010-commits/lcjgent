@@ -286,7 +286,16 @@ export default function FestivalApplyCompany() {
                 className="w-full px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.01] disabled:opacity-50 disabled:scale-100 transition-all flex items-center justify-center gap-2">
                 {mutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> 送信中...</> : <><PartyPopper className="w-4 h-4" /> 申し込みを完了する</>}
               </button>
-              {mutation.error && <p className="text-red-500 text-sm text-center">{mutation.error.message}</p>}
+              {mutation.error && <p className="text-red-500 text-sm text-center">{(() => {
+                const msg = mutation.error.message;
+                try {
+                  const parsed = JSON.parse(msg);
+                  if (Array.isArray(parsed)) {
+                    return parsed.map((e: any) => e.message || '').filter(Boolean).join('、') || '入力内容にエラーがあります。確認してください。';
+                  }
+                } catch {}
+                return msg || '送信に失敗しました。もう一度お試しください。';
+              })()}</p>}
             </div>
           ) : (currentStepData?.type === 'textarea') && !isTyping ? (
             <div className="flex gap-2">

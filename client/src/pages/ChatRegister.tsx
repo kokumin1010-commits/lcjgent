@@ -293,9 +293,7 @@ export default function ChatRegister() {
   };
 
   const handleGoToMypage = () => {
-    // Set flag for registration bonus roulette
-    sessionStorage.setItem("lcj_from_registration", "true");
-    setLocation("/registration-bonus");
+    setLocation("/mypage");
   };
 
   return (
@@ -361,7 +359,7 @@ export default function ChatRegister() {
                 background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%)",
                 animation: "shimmerBtn 2.5s ease-in-out infinite",
               }} />
-              <span className="relative z-10">🎊 登録特典ルーレットを回す！</span>
+              <span className="relative z-10">🎊 マイページへ進む</span>
               <style>{`
                 @keyframes btnBounce { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
                 @keyframes shimmerBtn { 0% { transform: translateX(-100%); } 50%, 100% { transform: translateX(100%); } }
