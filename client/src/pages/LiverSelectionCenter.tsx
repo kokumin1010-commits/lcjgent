@@ -61,8 +61,18 @@ export default function LiverSelectionCenter() {
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold truncate">{product.productName}</h3>
                       <p className="text-sm text-muted-foreground">{product.brandName}</p>
-                      <div className="flex items-center gap-3 mt-2 text-sm">
+                      <div className="flex items-center gap-3 mt-2 text-sm flex-wrap">
                         <span className="font-medium text-orange-600">¥{Number(product.price || 0).toLocaleString()}</span>
+                        {product.discountRate && Number(product.discountRate) > 0 && (
+                          <>
+                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5">
+                              {Number(product.discountRate)}%OFF
+                            </Badge>
+                            <span className="font-bold text-red-600">
+                              → ¥{Math.round(Number(product.price || 0) * (1 - Number(product.discountRate) / 100)).toLocaleString()}
+                            </span>
+                          </>
+                        )}
                         <Badge variant="outline">
                           佣金: {product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`}
                         </Badge>

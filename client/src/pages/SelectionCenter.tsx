@@ -1040,10 +1040,15 @@ function LiverSelectionTab() {
                           {product.marketPrice && Number(product.marketPrice) > 0 && Number(product.marketPrice) !== Number(product.price || 0) && (
                             <span className="text-muted-foreground line-through text-xs">¥{Number(product.marketPrice).toLocaleString()}</span>
                           )}
-                          {product.discountRate && (
-                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 shrink-0">
-                              {`${Number(product.discountRate)}%OFF`}
-                            </Badge>
+                          {product.discountRate && Number(product.discountRate) > 0 && (
+                            <>
+                              <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 shrink-0">
+                                {`${Number(product.discountRate)}%OFF`}
+                              </Badge>
+                              <span className="font-bold text-red-600 text-base">
+                                → ¥{Math.round(Number(product.price || 0) * (1 - Number(product.discountRate) / 100)).toLocaleString()}
+                              </span>
+                            </>
                           )}
                         </div>
                         <div className="flex items-center gap-2 mt-1 text-sm">
@@ -1178,8 +1183,8 @@ function LiverSelectionTab() {
                   <div>
                     <Label className="text-muted-foreground text-xs">{t("sc.liver.discount")}</Label>
                     <p className="font-bold text-red-600">
-                      {detailProduct.discountRate
-                        ? `${Number(detailProduct.discountRate)}%OFF`
+                      {detailProduct.discountRate && Number(detailProduct.discountRate) > 0
+                        ? `${Number(detailProduct.discountRate)}%OFF → ¥${Math.round(Number(detailProduct.price || 0) * (1 - Number(detailProduct.discountRate) / 100)).toLocaleString()}`
                         : '-'}
                     </p>
                   </div>
