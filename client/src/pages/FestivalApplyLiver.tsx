@@ -4,7 +4,7 @@
  * Backend API: festival.submitLiver
  */
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Mic2, CheckCircle2, Loader2, Send, PartyPopper, Sparkles } from 'lucide-react';
+import { ArrowLeft, Mic2, CheckCircle2, Loader2, Send, PartyPopper, Sparkles, Undo2 } from 'lucide-react';
 import { Link } from 'wouter';
 import { trpc } from '@/lib/trpc';
 
@@ -85,6 +85,25 @@ export default function FestivalApplyLiver() {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [currentStep, isTyping]);
+
+  const handleBack = () => {
+    if (currentStep <= 0) return;
+    const prevStep = currentStep - 1;
+    // Remove last bot message and last user message from chat
+    setChatHistory(prev => {
+      const newHistory = [...prev];
+      // Remove last 2 entries (user answer + bot question)
+      if (newHistory.length >= 2) {
+        newHistory.pop(); // bot question for current step
+        newHistory.pop(); // user answer for previous step
+      }
+      return newHistory;
+    });
+    // Restore previous answer to input
+    const prevStepData = STEPS[prevStep];
+    setInputValue(answers[prevStepData.id] || '');
+    setCurrentStep(prevStep);
+  };
 
   const handleNext = () => {
     const step = STEPS[currentStep];
@@ -253,6 +272,14 @@ export default function FestivalApplyLiver() {
           {/* Hint */}
           {currentStepData?.hint && !isTyping && (
             <p className="text-xs text-gray-400 mb-2 ml-1">{currentStepData.hint}</p>
+          )}
+
+          {/* 戻るボタン */}
+          {currentStep > 0 && !isTyping && !submitted && (
+            <button onClick={handleBack}
+              className="mb-2 flex items-center gap-1.5 text-xs text-gray-400 hover:text-purple-500 transition-colors">
+              <Undo2 className="w-3.5 h-3.5" /> 前のステップに戻る
+            </button>
           )}
 
           {currentStepData?.type === 'select' && !isTyping ? (
