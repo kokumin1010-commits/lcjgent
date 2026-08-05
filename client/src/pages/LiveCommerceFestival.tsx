@@ -965,7 +965,7 @@ function LiveHighlightSection() {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
             <div className="absolute bottom-4 left-4">
-              <p className="text-white font-bold text-lg">ネットワーキング & アフターパーティー</p>
+              <p className="text-white font-bold text-lg">ライバーと企業のマッチング</p>
               <p className="text-gray-300 text-sm mt-1">ライバーと企業の出会いが、新しいビジネスを生む</p>
             </div>
           </div>
