@@ -175,8 +175,7 @@ function ProductsTab() {
               <th className="text-left p-3 font-medium">{t("sc.brand")}</th>
               <th className="text-left p-3 font-medium">{t("sc.category")}</th>
               <th className="text-right p-3 font-medium">{t("sc.price")}</th>
-              <th className="text-right p-3 font-medium text-red-600">历史最低价</th>
-              <th className="text-right p-3 font-medium text-orange-600">历史最低折扣率</th>
+              <th className="text-right p-3 font-medium text-red-600">历史最低</th>
               <th className="text-right p-3 font-medium">{t("sc.commission")}</th>
               <th className="text-center p-3 font-medium">{t("sc.stock")}</th>
               <th className="text-center p-3 font-medium">{t("sc.status")}</th>
@@ -232,32 +231,63 @@ function ProductsTab() {
                   <td className="p-3">{category ? (() => { const parent = categoriesQuery.data?.find((p: any) => p.id === category.parentId); const parentStr = parent ? (parent.nameCn ? `${parent.name}(${parent.nameCn})` : parent.name) + " / " : ""; const catStr = category.nameCn ? `${category.name}(${category.nameCn})` : category.name; return parentStr + catStr; })() : "-"}</td>
                   <td className="p-3 text-right">¥{Number(product.price || 0).toLocaleString()}</td>
                   <td className="p-3 text-right">
-                    {product.historicalLowestPrice && Number(product.historicalLowestPrice) > 0 ? (
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button className="text-red-600 font-bold hover:underline cursor-pointer">¥{Number(product.historicalLowestPrice).toLocaleString()}</button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-72 p-0" align="end">
-                          <PriceHistoryPopover productId={product.id} />
-                        </PopoverContent>
-                      </Popover>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </td>
-                  <td className="p-3 text-right">
-                    {product.discountRate && Number(product.discountRate) > 0 ? (
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button className="text-orange-600 font-bold hover:underline cursor-pointer">{Number(product.discountRate)}%OFF</button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-72 p-0" align="end">
-                          <DiscountHistoryPopover productId={product.id} />
-                        </PopoverContent>
-                      </Popover>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
+                    {(() => {
+                      const lowestPrice = product.historicalLowestPrice ? Number(product.historicalLowestPrice) : 0;
+                      const discountRate = product.discountRate ? Number(product.discountRate) : 0;
+                      const currentPrice = Number(product.price || 0);
+                      // 折扣后价格 = 当前价格 × (1 - 折扣率/100)
+                      const discountedPrice = (discountRate > 0 && currentPrice > 0) ? Math.round(currentPrice * (1 - discountRate / 100)) : 0;
+                      
+                      // 两个都有值，对比展示更低的
+                      if (lowestPrice > 0 && discountedPrice > 0) {
+                        if (lowestPrice <= discountedPrice) {
+                          return (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button className="text-red-600 font-bold hover:underline cursor-pointer">¥{lowestPrice.toLocaleString()}</button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-72 p-0" align="end">
+                                <PriceHistoryPopover productId={product.id} />
+                              </PopoverContent>
+                            </Popover>
+                          );
+                        } else {
+                          return (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button className="text-orange-600 font-bold hover:underline cursor-pointer">{discountRate}%OFF (¥{discountedPrice.toLocaleString()})</button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-72 p-0" align="end">
+                                <DiscountHistoryPopover productId={product.id} />
+                              </PopoverContent>
+                            </Popover>
+                          );
+                        }
+                      } else if (lowestPrice > 0) {
+                        return (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button className="text-red-600 font-bold hover:underline cursor-pointer">¥{lowestPrice.toLocaleString()}</button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-72 p-0" align="end">
+                              <PriceHistoryPopover productId={product.id} />
+                            </PopoverContent>
+                          </Popover>
+                        );
+                      } else if (discountRate > 0) {
+                        return (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button className="text-orange-600 font-bold hover:underline cursor-pointer">{discountRate}%OFF</button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-72 p-0" align="end">
+                              <DiscountHistoryPopover productId={product.id} />
+                            </PopoverContent>
+                          </Popover>
+                        );
+                      }
+                      return <span className="text-muted-foreground">-</span>;
+                    })()}
                   </td>
                   <td className="p-3 text-right">
                     {product.commissionValue ? (product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`) : "-"}
