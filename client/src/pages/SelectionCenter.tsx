@@ -5021,7 +5021,7 @@ function CostManagementContent() {
     limit: 500,
     offset: 0,
   });
-  const orders = (ordersQuery.data?.orders || []).filter((o: any) => Number(o.unitCost) > 0);
+  const orders = ordersQuery.data?.orders || [];
 
   // 原価登録ミューテーション
   const registerCostMutation = trpc.selectionCenter.registerProductCost.useMutation({
