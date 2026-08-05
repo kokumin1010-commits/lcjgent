@@ -1120,7 +1120,7 @@ function VenueSection() {
             <h4 className="font-bold text-[#FFD700] mb-2">5F — STUDIO KOKU</h4>
             <ul className="text-sm text-gray-400 space-y-1">
               <li>• 出展ブースエリア</li>
-              <li>• メインステージ（大型LED背景）</li>
+              <li>• メインステージ</li>
               <li>• タイトルスポンサー大型区画</li>
               <li>• プレミアムスポンサー区画</li>
             </ul>
