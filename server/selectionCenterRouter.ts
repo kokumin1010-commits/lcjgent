@@ -57,7 +57,18 @@ export function getPool() {
         INDEX idx_product (productId),
         INDEX idx_price (price)
       )`);
-      console.log('[SelectionCenter] product_bundles & bundle_items & selection_price_history tables ensured');
+      await pool.query(`CREATE TABLE IF NOT EXISTS selection_discount_history (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        productId INT NOT NULL,
+        discountRate DECIMAL(5,2) NOT NULL,
+        source VARCHAR(50) DEFAULT 'manual',
+        note VARCHAR(255) DEFAULT NULL,
+        createdBy INT DEFAULT 0,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_product (productId),
+        INDEX idx_discount (discountRate)
+      )`);
+      console.log('[SelectionCenter] product_bundles & bundle_items & selection_price_history & selection_discount_history tables ensured');
       await pool.end();
     }
   } catch (e: any) {
@@ -186,6 +197,17 @@ export const selectionCenterRouter = router({
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_product (productId),
         INDEX idx_price (price)
+      )`,
+      `CREATE TABLE IF NOT EXISTS selection_discount_history (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        productId INT NOT NULL,
+        discountRate DECIMAL(5,2) NOT NULL,
+        source VARCHAR(50) DEFAULT 'manual',
+        note VARCHAR(255) DEFAULT NULL,
+        createdBy INT DEFAULT 0,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_product (productId),
+        INDEX idx_discount (discountRate)
       )`,
     ];
     const results: string[] = [];
@@ -371,6 +393,15 @@ export const selectionCenterRouter = router({
           );
         } catch (_) {}
       }
+      // Insert discount history record if discountRate is provided
+      if (input.discountRate && Number(input.discountRate) > 0) {
+        try {
+          await pool.query(
+            `INSERT INTO selection_discount_history (productId, discountRate, source, note, createdBy) VALUES (?, ?, 'manual', '商品作成時に設定', ?)`,
+            [result.insertId, Number(input.discountRate), (ctx.user as any)?.id || 0]
+          );
+        } catch (_) {}
+      }
       return { id: result.insertId };
     } catch (e: any) {
       // Fallback: if discountRate or historicalLowestPrice column doesn't exist, add it and retry
@@ -477,6 +508,26 @@ export const selectionCenterRouter = router({
           await pool.query(
             `UPDATE selection_products SET historicalLowestPrice = ? WHERE id = ?`,
             [minRows[0].minPrice, id]
+          );
+        }
+      } catch (_) {}
+    }
+    // Record discount history when discountRate is updated
+    if (data.discountRate !== undefined && data.discountRate !== null && Number(data.discountRate) > 0) {
+      try {
+        await pool.query(
+          `INSERT INTO selection_discount_history (productId, discountRate, source, note, createdBy) VALUES (?, ?, 'manual', '手動更新', ?)`,
+          [id, Number(data.discountRate), (ctx.user as any)?.id || 0]
+        );
+        // Update discountRate to the actual minimum from all history records
+        const [minRows] = await pool.query(
+          `SELECT MIN(discountRate) as minDiscount FROM selection_discount_history WHERE productId = ?`,
+          [id]
+        ) as any;
+        if (minRows[0]?.minDiscount !== null) {
+          await pool.query(
+            `UPDATE selection_products SET discountRate = ? WHERE id = ?`,
+            [minRows[0].minDiscount, id]
           );
         }
       } catch (_) {}
@@ -2634,12 +2685,28 @@ export const selectionCenterRouter = router({
     try {
       const pool = getPool();
       const [rows] = await pool.query(
-        `SELECT id, productId, price, source, note, createdBy, createdAt FROM selection_price_history WHERE productId = ? ORDER BY createdAt DESC LIMIT 50`,
+        `SELECT id, productId, price, source, note, createdBy, createdAt FROM selection_price_history WHERE productId = ? ORDER BY price ASC, createdAt DESC LIMIT 50`,
         [input.productId]
       ) as any;
       return rows;
     } catch (e: any) {
       console.error('[getPriceHistory] Error:', e.message);
+      return [];
+    }
+  }),
+
+  getDiscountHistory: protectedProcedure.input(z.object({
+    productId: z.number(),
+  })).query(async ({ input }) => {
+    try {
+      const pool = getPool();
+      const [rows] = await pool.query(
+        `SELECT id, productId, discountRate, source, note, createdBy, createdAt FROM selection_discount_history WHERE productId = ? ORDER BY discountRate ASC, createdAt DESC LIMIT 50`,
+        [input.productId]
+      ) as any;
+      return rows;
+    } catch (e: any) {
+      console.error('[getDiscountHistory] Error:', e.message);
       return [];
     }
   }),

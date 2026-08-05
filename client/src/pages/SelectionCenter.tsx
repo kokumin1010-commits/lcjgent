@@ -175,7 +175,7 @@ function ProductsTab() {
               <th className="text-left p-3 font-medium">{t("sc.category")}</th>
               <th className="text-right p-3 font-medium">{t("sc.price")}</th>
               <th className="text-right p-3 font-medium text-red-600">历史最低价</th>
-              <th className="text-right p-3 font-medium text-orange-600">折扣率</th>
+              <th className="text-right p-3 font-medium text-orange-600">历史最低折扣率</th>
               <th className="text-right p-3 font-medium">{t("sc.commission")}</th>
               <th className="text-center p-3 font-medium">{t("sc.stock")}</th>
               <th className="text-center p-3 font-medium">{t("sc.status")}</th>
@@ -238,18 +238,11 @@ function ProductsTab() {
                     )}
                   </td>
                   <td className="p-3 text-right">
-                    {(() => {
-                      const price = Number(product.price || 0);
-                      const market = Number(product.marketPrice || 0);
-                      const manualDiscount = product.discountRate ? Number(product.discountRate) : 0;
-                      if (price > 0 && market > 0) {
-                        const pct = Math.round((1 - price / market) * 100);
-                        return <span className="text-orange-600 font-bold">{pct}%OFF</span>;
-                      } else if (manualDiscount > 0) {
-                        return <span className="text-orange-600 font-bold">{manualDiscount}%OFF</span>;
-                      }
-                      return <span className="text-muted-foreground">-</span>;
-                    })()}
+                    {product.discountRate && Number(product.discountRate) > 0 ? (
+                      <span className="text-orange-600 font-bold">{Number(product.discountRate)}%OFF</span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
                   </td>
                   <td className="p-3 text-right">
                     {product.commissionValue ? (product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`) : "-"}
@@ -598,12 +591,14 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
             <div>
               <Label className="text-red-600 font-bold">历史最低价</Label>
               <Input type="number" value={form.historicalLowestPrice || ""} onChange={e => setForm({ ...form, historicalLowestPrice: e.target.value })} placeholder="例: 1980" className="border-red-200 focus:border-red-400" />
+              <p className="text-xs text-muted-foreground mt-1">每次保存会记录历史，展示所有记录中最低的值</p>
             </div>
 
           {/* 折扣率 */}
             <div>
-              <Label className="text-orange-600 font-bold">折扣率 (%)</Label>
-              <Input type="number" step="0.1" min="0" max="100" value={form.discountRate || ""} onChange={e => setForm({ ...form, discountRate: e.target.value })} placeholder="手动输入折扣率（%OFF）" className="border-orange-200 focus:border-orange-400" />
+              <Label className="text-orange-600 font-bold">历史最低折扣率 (%OFF)</Label>
+              <Input type="number" step="0.1" min="0" max="100" value={form.discountRate || ""} onChange={e => setForm({ ...form, discountRate: e.target.value })} placeholder="例: 50 (表示50%OFF)" className="border-orange-200 focus:border-orange-400" />
+              <p className="text-xs text-muted-foreground mt-1">每次保存会记录历史，展示所有记录中最低的值</p>
             </div>
 
           {/* 佣金タイプ + 佣金値 - 2 columns */}
@@ -1056,29 +1051,12 @@ function LiverSelectionTab() {
                             <span className="text-muted-foreground line-through text-xs">¥{Number(product.marketPrice).toLocaleString()}</span>
                           )}
                           {(() => {
-                            const price = Number(product.price || 0);
-                            const market = Number(product.marketPrice || 0);
-                            let discountPct = 0;
-                            let discountedPrice = 0;
-                            if (price > 0 && market > 0) {
-                              // 両方入力されている場合は自動計算
-                              discountPct = Math.round((1 - price / market) * 100);
-                              discountedPrice = price;
-                            } else if (product.discountRate && Number(product.discountRate) > 0) {
-                              // 手動入力の折扣率を使用
-                              discountPct = Number(product.discountRate);
-                              discountedPrice = Math.round(price * (1 - discountPct / 100));
-                            }
+                            const discountPct = product.discountRate ? Number(product.discountRate) : 0;
                             if (discountPct > 0) {
                               return (
-                                <>
-                                  <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 shrink-0">
-                                    {`${discountPct}%OFF`}
-                                  </Badge>
-                                  <span className="font-bold text-red-600 text-base">
-                                    → ¥{discountedPrice.toLocaleString()}
-                                  </span>
-                                </>
+                                <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 shrink-0">
+                                  {`${discountPct}%OFF`}
+                                </Badge>
                               );
                             }
                             return null;
@@ -1095,33 +1073,7 @@ function LiverSelectionTab() {
                           </Badge>
                           {(() => {
                             const lowestPrice = product.historicalLowestPrice ? Number(product.historicalLowestPrice) : 0;
-                            const price = Number(product.price || 0);
-                            const market = Number(product.marketPrice || 0);
-                            const manualDiscount = product.discountRate ? Number(product.discountRate) : 0;
-                            // Calculate discount price
-                            let discountedPrice = 0;
-                            if (price > 0 && market > 0) {
-                              discountedPrice = price; // sale price IS the discounted price
-                            } else if (manualDiscount > 0 && price > 0) {
-                              discountedPrice = Math.round(price * (1 - manualDiscount / 100));
-                            }
-                            // Determine which is better deal: lowest price or discount price
-                            if (lowestPrice > 0 && discountedPrice > 0) {
-                              // Both exist: show the better one first (lower price = better)
-                              if (lowestPrice <= discountedPrice) {
-                                return (
-                                  <Badge className="bg-red-100 text-red-700 border-red-300 text-xs font-bold animate-pulse">
-                                    🔥 历史最低价: ¥{lowestPrice.toLocaleString()}
-                                  </Badge>
-                                );
-                              }
-                              // discount is better, already shown above
-                              return (
-                                <Badge className="bg-red-100 text-red-700 border-red-300 text-xs">
-                                  历史最低价: ¥{lowestPrice.toLocaleString()}
-                                </Badge>
-                              );
-                            } else if (lowestPrice > 0) {
+                            if (lowestPrice > 0) {
                               return (
                                 <Badge className="bg-red-100 text-red-700 border-red-300 text-xs font-bold">
                                   🔥 历史最低价: ¥{lowestPrice.toLocaleString()}
@@ -1246,21 +1198,11 @@ function LiverSelectionTab() {
                     <p className="font-medium text-muted-foreground line-through">¥{Number(detailProduct.marketPrice || 0).toLocaleString()}</p>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground text-xs">{t("sc.liver.discount")}</Label>
-                    <p className="font-bold text-red-600">
-                      {(() => {
-                        const price = Number(detailProduct.price || 0);
-                        const market = Number(detailProduct.marketPrice || 0);
-                        if (price > 0 && market > 0) {
-                          const pct = Math.round((1 - price / market) * 100);
-                          return `${pct}%OFF → ¥${price.toLocaleString()}`;
-                        } else if (detailProduct.discountRate && Number(detailProduct.discountRate) > 0) {
-                          const pct = Number(detailProduct.discountRate);
-                          const discounted = Math.round(price * (1 - pct / 100));
-                          return `${pct}%OFF → ¥${discounted.toLocaleString()}`;
-                        }
-                        return '-';
-                      })()}
+                    <Label className="text-muted-foreground text-xs">历史最低折扣率</Label>
+                    <p className="font-bold text-orange-600">
+                      {detailProduct.discountRate && Number(detailProduct.discountRate) > 0
+                        ? `${Number(detailProduct.discountRate)}%OFF`
+                        : '-'}
                     </p>
                   </div>
                   <div>
@@ -1277,6 +1219,11 @@ function LiverSelectionTab() {
               {/* Price History */}
               {detailProduct.id && (
                 <PriceHistoryPanel productId={detailProduct.id} />
+              )}
+
+              {/* Discount History */}
+              {detailProduct.id && (
+                <DiscountHistoryPanel productId={detailProduct.id} />
               )}
 
               {/* Commission */}
@@ -2709,6 +2656,34 @@ function PriceHistoryPanel({ productId }: { productId: number }) {
         {rows.map((row: any) => (
           <div key={row.id} className="flex items-center justify-between text-xs">
             <span className="font-medium text-red-600">¥{Number(row.price).toLocaleString()}</span>
+            <span className="text-muted-foreground">
+              {row.source === 'manual' ? '手動' : 'システム'}
+              {row.note && ` - ${row.note}`}
+            </span>
+            <span className="text-muted-foreground">
+              {new Date(row.createdAt).toLocaleDateString('ja-JP')}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DiscountHistoryPanel({ productId }: { productId: number }) {
+  const historyQuery = trpc.selectionCenter.getDiscountHistory.useQuery(
+    { productId },
+    { enabled: productId > 0 }
+  );
+  const rows = historyQuery.data || [];
+  if (rows.length === 0) return null;
+  return (
+    <div className="border rounded-lg p-3 bg-orange-50/50">
+      <p className="text-xs font-bold text-orange-700 mb-2">📊 历史最低折扣率记录</p>
+      <div className="space-y-1 max-h-32 overflow-y-auto">
+        {rows.map((row: any) => (
+          <div key={row.id} className="flex items-center justify-between text-xs">
+            <span className="font-medium text-orange-600">{Number(row.discountRate)}%OFF</span>
             <span className="text-muted-foreground">
               {row.source === 'manual' ? '手動' : 'システム'}
               {row.note && ` - ${row.note}`}
