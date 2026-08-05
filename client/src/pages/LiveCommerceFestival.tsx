@@ -842,7 +842,7 @@ function CampaignBanner() {
                 <p className="text-xs font-bold text-gray-700 mt-2">食品</p>
               </div>
               <div className="bg-white rounded-lg p-3 shadow-sm text-center">
-                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-appliance6-iFpb28kTEp7dR8stpzJZk8.png" alt="電化製品" className="w-full h-24 md:h-32 object-contain mx-auto" />
+                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-appliance7-3VK8dsJgoESBweM7w7vPAt.webp" alt="電化製品" className="w-full h-24 md:h-32 object-contain mx-auto" />
                 <p className="text-xs font-bold text-gray-700 mt-2">電化製品</p>
               </div>
               <div className="bg-white rounded-lg p-3 shadow-sm text-center">
