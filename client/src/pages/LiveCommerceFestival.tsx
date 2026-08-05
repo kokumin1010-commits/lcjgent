@@ -944,7 +944,7 @@ function LiveHighlightSection() {
               className="w-full h-full object-cover aspect-square group-hover:scale-105 transition-transform duration-700"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-            <p className="absolute bottom-3 left-3 text-white text-sm font-semibold">会場の熱気</p>
+            <p className="absolute bottom-3 left-3 text-white text-sm font-semibold">講演会イメージ</p>
           </div>
           
           <div className="relative rounded-2xl overflow-hidden group">
