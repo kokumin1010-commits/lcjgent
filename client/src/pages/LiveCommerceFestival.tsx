@@ -674,19 +674,7 @@ function GuestIntroSection() {
               {/* Bio & SNS */}
               <div className="p-5 md:p-6">
                 <p className="text-gray-300 text-sm leading-relaxed mb-4">{g.bio}</p>
-                <div className="flex gap-3">
-                  {g.sns.map((s, j) => (
-                    <a
-                      key={j}
-                      href={s.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-1.5 rounded-full bg-white/10 text-white text-xs font-medium hover:bg-[#FFD700] hover:text-black transition-colors duration-200"
-                    >
-                      {s.label}
-                    </a>
-                  ))}
-                </div>
+
               </div>
             </div>
           ))}
