@@ -266,11 +266,14 @@ export default function CashflowTab() {
             )}
           </CardContent>
         </Card>
-        <Card className="bg-green-50 border-green-200">
+        <Card
+          className={`border-green-200 cursor-pointer transition-all ${type === "income" ? "bg-green-100 ring-2 ring-green-400 shadow-md" : "bg-green-50 hover:bg-green-100/70"}`}
+          onClick={() => setType(type === "income" ? "all" : "income")}
+        >
           <CardContent className="p-4">
             <div className="text-xs text-green-700 flex items-center gap-1.5">
               <ArrowUpRight className="h-3.5 w-3.5" />
-              入金合計
+              入金合計 {type === "income" && <Badge className="bg-green-500 text-white text-[9px] px-1 py-0">選択中</Badge>}
             </div>
             <div className="text-xl font-bold text-green-800 mt-1">
               {entity === "china" ? formatCurrency(summary?.totalIncome, "CNY") : formatCurrency(summary?.totalIncome)}
@@ -281,11 +284,14 @@ export default function CashflowTab() {
             )}
           </CardContent>
         </Card>
-        <Card className="bg-red-50 border-red-200">
+        <Card
+          className={`border-red-200 cursor-pointer transition-all ${type === "expense" ? "bg-red-100 ring-2 ring-red-400 shadow-md" : "bg-red-50 hover:bg-red-100/70"}`}
+          onClick={() => setType(type === "expense" ? "all" : "expense")}
+        >
           <CardContent className="p-4">
             <div className="text-xs text-red-700 flex items-center gap-1.5">
               <ArrowDownRight className="h-3.5 w-3.5" />
-              出金合計
+              出金合計 {type === "expense" && <Badge className="bg-red-500 text-white text-[9px] px-1 py-0">選択中</Badge>}
             </div>
             <div className="text-xl font-bold text-red-800 mt-1">
               {entity === "china" ? formatCurrency(summary?.totalExpense, "CNY") : formatCurrency(summary?.totalExpense)}
@@ -419,7 +425,7 @@ export default function CashflowTab() {
                     )}
                   </td>
                   <td className="p-3 text-xs">{item.counterparty || "-"}</td>
-                  <td className="p-3 text-xs text-muted-foreground truncate max-w-[200px]">{item.description || "-"}</td>
+                  <td className="p-3 text-xs text-muted-foreground">{item.description || "-"}</td>
                   <td className="p-3 text-center">
                     <div className="flex items-center gap-1 justify-center">
                       <button onClick={() => handleEdit(item)} className="p-1.5 hover:bg-muted rounded">
