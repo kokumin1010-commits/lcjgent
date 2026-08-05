@@ -28,7 +28,7 @@ const IMAGES = {
   logo: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/SvRAQbkcpavmYbaH.png",
   gift: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/vLYpJIHgEThRqpsE.png",
   liveStreaming1: "https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/festival-live1-3GHNETvWsmJQdCMwzbaGq8.webp",
-  liveStreaming2: "https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/festival-stage1-A9CcKh4NemKpehHob6BCQk.webp",
+  liveStreaming2: "https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/festival-award-ceremony-BjfbNbdpD2oapovGcUkdbh.webp",
   audience: "https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/festival-audience1-jhHAWDCEGuB7yAee8xVygL.webp",
   networking: "https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/festival-networking1-cNnd5cLwRtHw335G3ZW8DU.webp",
   happoVenue: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/DwVkbpUhTwHmEAWU.jpeg",
@@ -950,11 +950,11 @@ function LiveHighlightSection() {
           <div className="relative rounded-2xl overflow-hidden group">
             <img 
               src={IMAGES.liveStreaming2} 
-              alt="メインステージでのライブ配信" 
+              alt="アワードセレモニー" 
               className="w-full h-full object-cover aspect-square group-hover:scale-105 transition-transform duration-700"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-            <p className="absolute bottom-3 left-3 text-white text-sm font-semibold">メインステージ</p>
+            <p className="absolute bottom-3 left-3 text-white text-sm font-semibold">アフターパーティー & アワード</p>
           </div>
           
           <div className="col-span-2 md:col-span-3 relative rounded-2xl overflow-hidden group">
