@@ -830,6 +830,30 @@ function CampaignBanner() {
             </p>
             <p className="text-sm text-gray-500 mt-2">※抽選ではなく、来場特典としてわかりやすく届きます</p>
           </div>
+
+          {/* 商品カテゴリ画像 */}
+          <div className="mt-8 bg-gray-50 rounded-xl p-4 md:p-6">
+            <p className="text-center text-sm font-bold text-gray-600 mb-4">プレゼント商品例（食品・小家電・化粧品・デジタル製品など）</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+              <div className="bg-white rounded-lg p-3 shadow-sm text-center">
+                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-food-gbNf6zUYomN2HdpWs2u8kn.webp" alt="食品" className="w-full h-24 md:h-32 object-contain mx-auto" />
+                <p className="text-xs font-bold text-gray-700 mt-2">食品</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 shadow-sm text-center">
+                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-appliance-bPAo64SnbDdAmyM6PPQ83Q.webp" alt="小家電" className="w-full h-24 md:h-32 object-contain mx-auto" />
+                <p className="text-xs font-bold text-gray-700 mt-2">小家電</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 shadow-sm text-center">
+                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-cosmetics-R4TahJmjyGCf65neb28uAZ.webp" alt="化粧品" className="w-full h-24 md:h-32 object-contain mx-auto" />
+                <p className="text-xs font-bold text-gray-700 mt-2">化粧品</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 shadow-sm text-center">
+                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-digital-jnvaTprqg4auKew4ydnQ2R.webp" alt="デジタル製品" className="w-full h-24 md:h-32 object-contain mx-auto" />
+                <p className="text-xs font-bold text-gray-700 mt-2">デジタル製品</p>
+              </div>
+            </div>
+            <p className="text-center text-xs text-gray-400 mt-3">※ 内容は変更となる場合があります。数量限定／なくなり次第終了</p>
+          </div>
         </div>
 
         {/* CTA below banner */}
