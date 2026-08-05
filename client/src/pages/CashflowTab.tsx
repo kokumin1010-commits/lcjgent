@@ -88,8 +88,7 @@ export default function CashflowTab() {
 
   const listQuery = trpc.cashflow.getAll.useQuery({
     entity,
-    type: type === "all" ? undefined : type,
-    category: undefined,
+    type,
     search: search || undefined,
     startDate: dateRange.start || undefined,
     endDate: dateRange.end || undefined,
@@ -101,7 +100,26 @@ export default function CashflowTab() {
 
   const balanceQuery = trpc.cashflow.getBalanceHistory.useQuery({ entity });
 
+  const categoryBreakdownQuery = trpc.cashflow.getCategoryBreakdown.useQuery({
+    entity,
+    type: "expense",
+    startDate: dateRange.start || undefined,
+    endDate: dateRange.end || undefined,
+  });
+
+  const categoryBreakdown = categoryBreakdownQuery.data || [];
+
   // Mutations
+  const autoClassifyMutation = trpc.cashflow.autoClassify.useMutation({
+    onSuccess: (data) => {
+      toast.success(`AI分類完了: ${data.updated}件更新`);
+      listQuery.refetch();
+      categoryBreakdownQuery.refetch();
+      summaryQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const createMutation = trpc.cashflow.create.useMutation({
     onSuccess: () => {
       toast.success("入出金を登録しました");
@@ -365,6 +383,74 @@ export default function CashflowTab() {
         </Card>
       )}
 
+      {/* Category Breakdown - マスク式ダッシュボード */}
+      {categoryBreakdown && categoryBreakdown.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold flex items-center gap-2">📊 カテゴリ別支出分析</h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => autoClassifyMutation.mutate({ entity: entity === "all" ? "china" : entity })}
+                disabled={autoClassifyMutation.isPending}
+              >
+                {autoClassifyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+                AI自動分類
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* バーチャート */}
+              <div className="space-y-2">
+                {categoryBreakdown.slice(0, 8).map((cat: any, i: number) => {
+                  const colors = ["bg-red-500", "bg-orange-500", "bg-amber-500", "bg-yellow-500", "bg-lime-500", "bg-green-500", "bg-teal-500", "bg-blue-500"];
+                  const maxAmount = categoryBreakdown[0]?.totalAmount || 1;
+                  const width = Math.max((Number(cat.totalAmount) / Number(maxAmount)) * 100, 5);
+                  return (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="text-xs w-[140px] truncate font-medium">{cat.category}</span>
+                      <div className="flex-1 h-5 bg-muted/50 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${colors[i % colors.length]} transition-all`}
+                          style={{ width: `${width}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-bold w-[80px] text-right">
+                        {entity === "china" ? formatCurrency(cat.totalAmount, "CNY") : formatCurrency(cat.totalAmount)}
+                      </span>
+                      <span className="text-xs text-muted-foreground w-[45px] text-right">{cat.percentage}%</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* サマリーテーブル */}
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left p-2 font-medium">カテゴリ</th>
+                      <th className="text-right p-2 font-medium">金額</th>
+                      <th className="text-right p-2 font-medium">件数</th>
+                      <th className="text-right p-2 font-medium">占比</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {categoryBreakdown.map((cat: any, i: number) => (
+                      <tr key={i} className="border-t hover:bg-muted/30">
+                        <td className="p-2 font-medium">{cat.category}</td>
+                        <td className="p-2 text-right">{entity === "china" ? formatCurrency(cat.totalAmount, "CNY") : formatCurrency(cat.totalAmount)}</td>
+                        <td className="p-2 text-right">{cat.count}件</td>
+                        <td className="p-2 text-right font-bold">{cat.percentage}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Filters & Table */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
@@ -487,6 +573,18 @@ export default function CashflowTab() {
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
+      )}
+
+      {/* Import History */}
+      {autoClassifyMutation.data && (
+        <Card className="bg-slate-50 border-slate-200">
+          <CardContent className="p-3">
+            <div className="text-xs text-slate-600">
+              <span className="font-medium">🤖 AI分類履歴:</span> {new Date().toLocaleString("ja-JP")} - 
+              全{autoClassifyMutation.data.total}件中 {autoClassifyMutation.data.updated}件のカテゴリを更新しました
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Create/Edit Dialog */}

@@ -286,6 +286,108 @@ export const cashflowRouter = router({
       return { success: true };
     }),
 
+  // AI自動カテゴリ分類（説明文から判定）
+  autoClassify: protectedProcedure
+    .input(z.object({
+      entity: z.enum(["japan", "china", "all"]).default("china"),
+    }))
+    .mutation(async ({ input }) => {
+      const pool = getPool();
+      // 分類ルール（説明文のキーワードで判定）
+      const rules: { keywords: string[]; category: string }[] = [
+        { keywords: ["工资", "薪水", "给与", "工资", "社保", "公积金", "人件"], category: "給与・業務委託" },
+        { keywords: ["业务委托", "委托费"], category: "給与・業務委託" },
+        { keywords: ["打车", "交通", "机票", "高铁", "出租车", "滴滴", "车费", "地铁"], category: "交通費" },
+        { keywords: ["广告", "推广", "投放", "kalodata", "充值"], category: "広告・マーケティング" },
+        { keywords: ["租金", "物业", "房租", "办公室"], category: "家賃・オフィス" },
+        { keywords: ["网络", "电费", "通讯费", "宽带"], category: "通信・光熱費" },
+        { keywords: ["快递", "物流", "运费", "中转", "闪送"], category: "物流・配送" },
+        { keywords: ["餐费", "饮食", "点餐", "外卖"], category: "飲食・接待" },
+        { keywords: ["住宿", "酒店", "招待"], category: "飲食・接待" },
+        { keywords: ["软件", "会员", "平台", "AI", "充值", "服务器", "录屏"], category: "ソフトウェア・ツール" },
+        { keywords: ["拨付", "往来款", "转账"], category: "本社送金" },
+        { keywords: ["坐位费", "直播场地", "场地"], category: "ライブ・配信" },
+        { keywords: ["橡窗号", "带货", "TK", "提现"], category: "TikTok・越境EC" },
+        { keywords: ["利息", "收入"], category: "利息・その他収入" },
+        { keywords: ["招聘", "人才"], category: "採用費" },
+        { keywords: ["模特", "服装租赁"], category: "モデル・タレント" },
+      ];
+
+      let entityFilter = "";
+      const params: any[] = [];
+      if (input.entity !== "all") {
+        entityFilter = "AND entity = ?";
+        params.push(input.entity);
+      }
+
+      const [rows] = await pool.query(
+        `SELECT id, description, category FROM company_cashflows WHERE deletedAt IS NULL ${entityFilter}`,
+        params
+      ) as any;
+
+      let updated = 0;
+      for (const row of rows as any[]) {
+        const desc = (row.description || "").toLowerCase();
+        let newCategory = "";
+        for (const rule of rules) {
+          if (rule.keywords.some(kw => desc.includes(kw.toLowerCase()))) {
+            newCategory = rule.category;
+            break;
+          }
+        }
+        if (newCategory && newCategory !== row.category) {
+          await pool.query(
+            `UPDATE company_cashflows SET category = ? WHERE id = ?`,
+            [newCategory, row.id]
+          );
+          updated++;
+        }
+      }
+      return { total: (rows as any[]).length, updated, success: true };
+    }),
+
+  // カテゴリ別統計（円グラフ用）
+  getCategoryBreakdown: protectedProcedure
+    .input(z.object({
+      entity: z.enum(["japan", "china", "all"]).default("all"),
+      type: z.enum(["income", "expense", "all"]).default("expense"),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      const pool = getPool();
+      let where = "WHERE deletedAt IS NULL";
+      const params: any[] = [];
+      if (input.entity !== "all") {
+        where += " AND entity = ?";
+        params.push(input.entity);
+      }
+      if (input.type !== "all") {
+        where += " AND type = ?";
+        params.push(input.type);
+      }
+      if (input.startDate) {
+        where += " AND transactionDate >= ?";
+        params.push(input.startDate);
+      }
+      if (input.endDate) {
+        where += " AND transactionDate <= ?";
+        params.push(input.endDate);
+      }
+      const [rows] = await pool.query(`
+        SELECT 
+          category,
+          SUM(amount) as totalAmount,
+          COUNT(*) as count,
+          ROUND(SUM(amount) * 100.0 / (SELECT SUM(amount) FROM company_cashflows ${where}), 1) as percentage
+        FROM company_cashflows
+        ${where}
+        GROUP BY category
+        ORDER BY totalAmount DESC
+      `, [...params, ...params]) as any;
+      return rows as { category: string; totalAmount: number; count: number; percentage: number }[];
+    }),
+
   // カテゴリ一覧取得（入力補完用）
   getCategories: protectedProcedure
     .query(async () => {
