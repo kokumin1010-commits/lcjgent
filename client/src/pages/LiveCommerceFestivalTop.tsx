@@ -234,7 +234,7 @@ function ProgramSection() {
         <div className="mb-12">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-6 h-[2px] bg-[#FFD700]" />
-            <span className="text-[#FFD700] text-sm font-medium tracking-wider">Contents</span>
+            <span className="text-[#FFD700] text-sm font-medium tracking-wider">About / Contents</span>
           </div>
           <h2 className="text-4xl md:text-5xl font-black">
             プログラム <span className="text-2xl md:text-3xl font-normal text-gray-400">/ PROGRAM</span>
