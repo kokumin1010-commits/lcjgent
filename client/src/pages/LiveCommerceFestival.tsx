@@ -1093,7 +1093,7 @@ function VenueSection() {
           <div className="p-5 rounded-xl border border-[#FFD700]/30 bg-[#FFD700]/5">
             <h4 className="font-bold text-[#FFD700] mb-2">5F — STUDIO KOKU</h4>
             <ul className="text-sm text-gray-400 space-y-1">
-              <li>• 出展ブースエリア（5F、6F合計で40社）</li>
+              <li>• 出展ブースエリア</li>
               <li>• メインステージ（大型LED背景）</li>
               <li>• タイトルスポンサー大型区画</li>
               <li>• プレミアムスポンサー区画</li>
@@ -1102,7 +1102,7 @@ function VenueSection() {
           <div className="p-5 rounded-xl border border-red-500/30 bg-red-500/5">
             <h4 className="font-bold text-red-400 mb-2">6F — HALL HAKU</h4>
             <ul className="text-sm text-gray-400 space-y-1">
-              <li>• 出展ブースエリア（5F、6F合計で40社）</li>
+              <li>• 出展ブースエリア</li>
               <li>• セミナー・パネルディスカッション</li>
               <li>• 現場配信スペース</li>
               <li>• VIP/BAR・アフターパーティー会場</li>
