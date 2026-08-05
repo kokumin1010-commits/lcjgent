@@ -828,7 +828,6 @@ function CampaignBanner() {
             <p className="text-2xl md:text-3xl font-black text-red-600 mt-4">
               来場者限定プレゼント
             </p>
-            <p className="text-sm text-gray-500 mt-2">※抽選ではなく、来場特典としてわかりやすく届きます</p>
           </div>
 
           {/* 商品カテゴリ画像 */}
