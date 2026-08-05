@@ -175,6 +175,7 @@ function ProductsTab() {
               <th className="text-left p-3 font-medium">{t("sc.category")}</th>
               <th className="text-right p-3 font-medium">{t("sc.price")}</th>
               <th className="text-right p-3 font-medium text-red-600">历史最低价</th>
+              <th className="text-right p-3 font-medium text-orange-600">折扣率</th>
               <th className="text-right p-3 font-medium">{t("sc.commission")}</th>
               <th className="text-center p-3 font-medium">{t("sc.stock")}</th>
               <th className="text-center p-3 font-medium">{t("sc.status")}</th>
@@ -235,6 +236,20 @@ function ProductsTab() {
                     ) : (
                       <span className="text-muted-foreground">-</span>
                     )}
+                  </td>
+                  <td className="p-3 text-right">
+                    {(() => {
+                      const price = Number(product.price || 0);
+                      const market = Number(product.marketPrice || 0);
+                      const manualDiscount = product.discountRate ? Number(product.discountRate) : 0;
+                      if (price > 0 && market > 0) {
+                        const pct = Math.round((1 - price / market) * 100);
+                        return <span className="text-orange-600 font-bold">{pct}%OFF</span>;
+                      } else if (manualDiscount > 0) {
+                        return <span className="text-orange-600 font-bold">{manualDiscount}%OFF</span>;
+                      }
+                      return <span className="text-muted-foreground">-</span>;
+                    })()}
                   </td>
                   <td className="p-3 text-right">
                     {product.commissionValue ? (product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`) : "-"}
