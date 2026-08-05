@@ -117,7 +117,7 @@ function SessionList({ onSelect }: { onSelect: (id: number) => void }) {
                       <Badge className={statusColors[s.status] || ""}>{statusLabels[s.status] || s.status}</Badge>
                     </div>
                     <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                      <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{s.liveDate?.split("T")[0]}</span>
+                      <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{s.liveDate ? new Date(s.liveDate).toISOString().split("T")[0] : ""}</span>
                       {s.startTime && <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{s.startTime}〜{s.endTime}</span>}
                       {s.liverName && <span className="flex items-center gap-1"><Video className="h-3.5 w-3.5" />{s.liverName}</span>}
                       {s.platform && <Badge variant="outline" className="text-xs">{s.platform}</Badge>}
@@ -242,7 +242,7 @@ function SessionDetail({ sessionId, onBack }: { sessionId: number; onBack: () =>
           <div>
             <h1 className="text-xl font-bold">{session.title}</h1>
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <span>{session.liveDate?.split("T")[0]}</span>
+              <span>{session.liveDate ? new Date(session.liveDate).toISOString().split("T")[0] : ""}</span>
               {session.startTime && <span>{session.startTime}〜{session.endTime}</span>}
               {session.liverName && <span>🎤 {session.liverName}</span>}
               {session.theme && <span>テーマ: {session.theme}</span>}
