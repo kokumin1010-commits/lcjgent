@@ -10,17 +10,33 @@ import { toast } from "sonner";
 import {
   Plus, Download, Search, Trash2, Edit2, Loader2,
   TrendingUp, TrendingDown, Wallet, Building2, ArrowUpRight, ArrowDownRight,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, RefreshCw
 } from "lucide-react";
 
 function formatCurrency(val: number | string | null | undefined, currency: string = "JPY"): string {
   const num = typeof val === "string" ? parseFloat(val) : (val || 0);
-  const symbol = currency === "CNY" ? "¥" : "¥";
-  return `${symbol}${Math.round(num).toLocaleString()}`;
+  if (currency === "CNY") {
+    return `¥${Math.round(num).toLocaleString()} RMB`;
+  }
+  return `¥${Math.round(num).toLocaleString()}`;
 }
 
-const CATEGORIES_INCOME = ["売上", "入金", "投資回収", "助成金", "その他入金"];
-const CATEGORIES_EXPENSE = ["仕入", "人件費", "広告費", "家賃", "通信費", "交通費", "外注費", "消耗品", "税金", "手数料", "その他支出"];
+// 为替レート表示用
+const EXCHANGE_RATE_CNY_JPY = 20.5; // 1 CNY ≈ 20.5 JPY (参考レート)
+function formatWithExchangeRate(val: number | string | null | undefined, currency: string = "JPY"): { main: string; sub: string | null } {
+  const num = typeof val === "string" ? parseFloat(val) : (val || 0);
+  if (currency === "CNY") {
+    const jpyEquiv = Math.round(num * EXCHANGE_RATE_CNY_JPY);
+    return {
+      main: `¥${Math.round(num).toLocaleString()} RMB`,
+      sub: `≈ ¥${jpyEquiv.toLocaleString()} JPY`,
+    };
+  }
+  return { main: `¥${Math.round(num).toLocaleString()}`, sub: null };
+}
+
+const CATEGORIES_INCOME = ["売上", "入金", "投資回収", "助成金", "その他入金", "世曜元宇資金", "花秘代収代付", "品汇盟代収代付"];
+const CATEGORIES_EXPENSE = ["仕入", "人件費", "広告費", "家賃", "通信費", "交通費", "外注費", "消耗品", "税金", "手数料", "その他支出", "世曜元宇資金", "花秘代収代付", "品汇盟代収代付"];
 
 export default function CashflowTab() {
   const [entity, setEntity] = useState<"all" | "japan" | "china">("all");
@@ -224,6 +240,16 @@ export default function CashflowTab() {
         </Button>
       </div>
 
+      {/* Exchange Rate Info - shown when China entity selected */}
+      {entity === "china" && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+          <RefreshCw className="h-4 w-4 text-amber-600" />
+          <span className="text-amber-800 font-medium">為替レート参考:</span>
+          <span className="text-amber-700">1 CNY ≈ {EXCHANGE_RATE_CNY_JPY} JPY</span>
+          <span className="text-amber-500 text-xs ml-2">※金額は全て人民元(RMB)で表示</span>
+        </div>
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-blue-50 border-blue-200">
@@ -233,8 +259,11 @@ export default function CashflowTab() {
               残高（累計）
             </div>
             <div className={`text-xl font-bold mt-1 ${currentBalance >= 0 ? "text-blue-800" : "text-red-800"}`}>
-              {formatCurrency(currentBalance)}
+              {entity === "china" ? formatCurrency(currentBalance, "CNY") : formatCurrency(currentBalance)}
             </div>
+            {entity === "china" && (
+              <div className="text-xs text-blue-500 mt-0.5">≈ ¥{Math.round(currentBalance * EXCHANGE_RATE_CNY_JPY).toLocaleString()} JPY</div>
+            )}
           </CardContent>
         </Card>
         <Card className="bg-green-50 border-green-200">
@@ -244,9 +273,12 @@ export default function CashflowTab() {
               入金合計
             </div>
             <div className="text-xl font-bold text-green-800 mt-1">
-              {formatCurrency(summary?.totalIncome)}
+              {entity === "china" ? formatCurrency(summary?.totalIncome, "CNY") : formatCurrency(summary?.totalIncome)}
             </div>
             <div className="text-xs text-green-600">{Number(summary?.incomeCount || 0)}件</div>
+            {entity === "china" && (
+              <div className="text-xs text-green-500">≈ ¥{Math.round(Number(summary?.totalIncome || 0) * EXCHANGE_RATE_CNY_JPY).toLocaleString()} JPY</div>
+            )}
           </CardContent>
         </Card>
         <Card className="bg-red-50 border-red-200">
@@ -256,9 +288,12 @@ export default function CashflowTab() {
               出金合計
             </div>
             <div className="text-xl font-bold text-red-800 mt-1">
-              {formatCurrency(summary?.totalExpense)}
+              {entity === "china" ? formatCurrency(summary?.totalExpense, "CNY") : formatCurrency(summary?.totalExpense)}
             </div>
             <div className="text-xs text-red-600">{Number(summary?.expenseCount || 0)}件</div>
+            {entity === "china" && (
+              <div className="text-xs text-red-500">≈ ¥{Math.round(Number(summary?.totalExpense || 0) * EXCHANGE_RATE_CNY_JPY).toLocaleString()} JPY</div>
+            )}
           </CardContent>
         </Card>
         <Card className="bg-purple-50 border-purple-200">
@@ -268,8 +303,11 @@ export default function CashflowTab() {
               純キャッシュフロー
             </div>
             <div className={`text-xl font-bold mt-1 ${Number(summary?.netCashflow || 0) >= 0 ? "text-purple-800" : "text-red-800"}`}>
-              {formatCurrency(summary?.netCashflow)}
+              {entity === "china" ? formatCurrency(summary?.netCashflow, "CNY") : formatCurrency(summary?.netCashflow)}
             </div>
+            {entity === "china" && (
+              <div className="text-xs text-purple-500">≈ ¥{Math.round(Number(summary?.netCashflow || 0) * EXCHANGE_RATE_CNY_JPY).toLocaleString()} JPY</div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -286,7 +324,7 @@ export default function CashflowTab() {
                 return (
                   <div key={i} className="flex-1 flex flex-col items-center gap-1">
                     <span className="text-[9px] text-muted-foreground whitespace-nowrap">
-                      {formatCurrency(item.balance)}
+                      {entity === "china" ? formatCurrency(item.balance, "CNY") : formatCurrency(item.balance)}
                     </span>
                     <div
                       className={`w-full rounded-t transition-all ${item.balance >= 0 ? "bg-gradient-to-t from-blue-500 to-blue-300" : "bg-gradient-to-t from-red-500 to-red-300"}`}
@@ -375,7 +413,10 @@ export default function CashflowTab() {
                   </td>
                   <td className="p-3">{item.category}</td>
                   <td className={`p-3 text-right font-medium ${item.type === "income" ? "text-green-700" : "text-red-700"}`}>
-                    {item.type === "income" ? "+" : "-"}{formatCurrency(item.amount, item.currency)}
+                    <div>{item.type === "income" ? "+" : "-"}{formatCurrency(item.amount, item.currency)}</div>
+                    {item.currency === "CNY" && (
+                      <div className="text-[10px] text-muted-foreground font-normal">≈ ¥{Math.round(item.amount * EXCHANGE_RATE_CNY_JPY).toLocaleString()} JPY</div>
+                    )}
                   </td>
                   <td className="p-3 text-xs">{item.counterparty || "-"}</td>
                   <td className="p-3 text-xs text-muted-foreground truncate max-w-[200px]">{item.description || "-"}</td>
@@ -461,8 +502,8 @@ export default function CashflowTab() {
                 <Select value={formData.currency} onValueChange={(v) => setFormData({ ...formData, currency: v as any })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="JPY">JPY (¥)</SelectItem>
-                    <SelectItem value="CNY">CNY (¥)</SelectItem>
+                    <SelectItem value="JPY">JPY (円)</SelectItem>
+                    <SelectItem value="CNY">CNY (人民元)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
