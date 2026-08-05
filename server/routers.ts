@@ -777,6 +777,7 @@ import { sendReminderEmail } from "./emailService";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { bwExchangeTokens, bwLookupCustomer } from "./bw-api";
 import { sendEmailViaSES, isSESConfigured } from "./ses";
+import { rundownRouter } from "./rundownRouter";
 
 // ============================================
 // LINE Login API for MALL (General User Authentication)
@@ -30058,6 +30059,7 @@ JSON形式で推薦順序を返してください。`;
   buyback: buybackRouter,
   cashflow: cashflowRouter,
   invoice: invoiceRouter,
+  rundown: rundownRouter,
 });
 export type AppRouter = typeof appRouter;
 

@@ -176,6 +176,7 @@ const ProductGranenzyme = lazy(() => import("./pages/ProductGranenzyme"));
 const MorningMeeting = lazy(() => import("./pages/MorningMeeting"));
 const BuybackPage = lazy(() => import("./pages/BuybackPage"));
 const BuybackAdmin = lazy(() => import("./pages/BuybackAdmin"));
+const RundownManager = lazy(() => import("./pages/RundownManager"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -473,6 +474,7 @@ function Router() {
         {/* Schedule Group Management */}
         <Route path={"/master/schedule-groups"} component={ScheduleGroupManagement} />
         <Route path={"/master/live-suggestions"} component={LiveSuggestions} />
+        <Route path={"/master/rundown"} component={RundownManager} />
         
         {/* Protected Liver Pages - ライバーまたは管理者のみアクセス可能 */}
         <Route path={"/livers"}>

@@ -33,7 +33,7 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp, ClipboardCheck, Inbox, Coins, Sparkles, Crown, Star, UserX, PartyPopper, FlaskConical, ShoppingBag, KeyRound, Mic } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp, ClipboardCheck, Inbox, Coins, Sparkles, Crown, Star, UserX, PartyPopper, FlaskConical, ShoppingBag, KeyRound, Mic, FileSpreadsheet } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -144,6 +144,7 @@ function DashboardLayoutContent({
     { icon: ClipboardCheck, label: "売上チェック", path: "/master/sales-check" },
     { icon: Calculator, label: "配信シミュレーター", path: "/master/simulator" },
     { icon: Sparkles, label: "AI配信提案", path: "/master/live-suggestions" },
+    { icon: FileSpreadsheet, label: "配信Rundown", path: "/master/rundown" },
     { icon: Package, label: "セット申請管理", path: "/master/set-applications" },
     { icon: Sparkles, label: "セット提案管理", path: "/master/set-suggestions" },
     { icon: Gift, label: "サンプル管理", path: "/master/sample-requests" },
