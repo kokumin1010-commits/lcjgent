@@ -55,6 +55,9 @@ export const cashflowRouter = router({
       endDate: z.string().optional(),
       page: z.number().default(1),
       pageSize: z.number().default(50),
+      sortBy: z.enum(["transactionDate", "amount", "category", "counterparty"]).default("transactionDate"),
+      sortOrder: z.enum(["asc", "desc"]).default("desc"),
+      search: z.string().optional(),
     }))
     .query(async ({ input }) => {
       const pool = getPool();
@@ -73,6 +76,10 @@ export const cashflowRouter = router({
         where += " AND category = ?";
         params.push(input.category);
       }
+      if (input.search) {
+        where += " AND (counterparty LIKE ? OR description LIKE ?)";
+        params.push(`%${input.search}%`, `%${input.search}%`);
+      }
       if (input.startDate) {
         where += " AND transactionDate >= ?";
         params.push(input.startDate);
@@ -82,9 +89,14 @@ export const cashflowRouter = router({
         params.push(input.endDate);
       }
 
+      const allowedSortCols = ["transactionDate", "amount", "category", "counterparty"];
+      const sortCol = allowedSortCols.includes(input.sortBy) ? input.sortBy : "transactionDate";
+      const sortDir = input.sortOrder === "asc" ? "ASC" : "DESC";
+      const orderBy = `ORDER BY ${sortCol} ${sortDir}, id DESC`;
+
       const offset = (input.page - 1) * input.pageSize;
       const [rows] = await pool.query(
-        `SELECT * FROM company_cashflows ${where} ORDER BY transactionDate DESC, id DESC LIMIT ? OFFSET ?`,
+        `SELECT * FROM company_cashflows ${where} ${orderBy} LIMIT ? OFFSET ?`,
         [...params, input.pageSize, offset]
       ) as any;
       const [countResult] = await pool.query(

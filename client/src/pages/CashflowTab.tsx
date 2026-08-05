@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import {
   Plus, Download, Search, Trash2, Edit2, Loader2,
   TrendingUp, TrendingDown, Wallet, Building2, ArrowUpRight, ArrowDownRight,
-  ChevronLeft, ChevronRight, RefreshCw
+  ChevronLeft, ChevronRight, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown
 } from "lucide-react";
 
 function formatCurrency(val: number | string | null | undefined, currency: string = "JPY"): string {
@@ -44,7 +44,24 @@ export default function CashflowTab() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
+  const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("transactionDate");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const limit = 20;
+
+  function toggleSort(col: "transactionDate" | "amount" | "category" | "counterparty") {
+    if (sortBy === col) {
+      setSortOrder(sortOrder === "desc" ? "asc" : "desc");
+    } else {
+      setSortBy(col);
+      setSortOrder(col === "amount" ? "desc" : "desc");
+    }
+    setPage(0);
+  }
+
+  function SortIcon({ col }: { col: string }) {
+    if (sortBy !== col) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    return sortOrder === "desc" ? <ArrowDown className="h-3 w-3 ml-1 text-blue-600" /> : <ArrowUp className="h-3 w-3 ml-1 text-blue-600" />;
+  }
 
   // Dialogs
   const [createOpen, setCreateOpen] = useState(false);
@@ -72,11 +89,14 @@ export default function CashflowTab() {
   const listQuery = trpc.cashflow.getAll.useQuery({
     entity,
     type: type === "all" ? undefined : type,
+    category: undefined,
     search: search || undefined,
     startDate: dateRange.start || undefined,
     endDate: dateRange.end || undefined,
-    limit,
-    offset: page * limit,
+    page: page + 1,
+    pageSize: limit,
+    sortBy,
+    sortOrder,
   });
 
   const balanceQuery = trpc.cashflow.getBalanceHistory.useQuery({ entity });
@@ -378,12 +398,20 @@ export default function CashflowTab() {
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
-              <th className="text-left p-3 font-medium">日付</th>
+              <th className="text-left p-3 font-medium cursor-pointer hover:bg-muted/80 select-none" onClick={() => toggleSort("transactionDate")}>
+                <div className="flex items-center">日付<SortIcon col="transactionDate" /></div>
+              </th>
               <th className="text-center p-3 font-medium">法人</th>
               <th className="text-center p-3 font-medium">種別</th>
-              <th className="text-left p-3 font-medium">カテゴリ</th>
-              <th className="text-right p-3 font-medium">金額</th>
-              <th className="text-left p-3 font-medium">取引先</th>
+              <th className="text-left p-3 font-medium cursor-pointer hover:bg-muted/80 select-none" onClick={() => toggleSort("category")}>
+                <div className="flex items-center">カテゴリ<SortIcon col="category" /></div>
+              </th>
+              <th className="text-right p-3 font-medium cursor-pointer hover:bg-muted/80 select-none" onClick={() => toggleSort("amount")}>
+                <div className="flex items-center justify-end">金額<SortIcon col="amount" /></div>
+              </th>
+              <th className="text-left p-3 font-medium cursor-pointer hover:bg-muted/80 select-none" onClick={() => toggleSort("counterparty")}>
+                <div className="flex items-center">取引先<SortIcon col="counterparty" /></div>
+              </th>
               <th className="text-left p-3 font-medium">説明</th>
               <th className="text-center p-3 font-medium">操作</th>
             </tr>
