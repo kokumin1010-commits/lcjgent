@@ -813,24 +813,22 @@ function CampaignBanner() {
     <section className="bg-[#FFD700] py-10 md:py-14 px-4">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-10 relative overflow-hidden border-4 border-red-500">
-          <div className="flex flex-col md:flex-row items-center gap-6">
-            {/* Gift box image */}
-            <div className="w-28 md:w-36 flex-shrink-0">
-              <img src={IMAGES.gift} alt="豪華特典" className="w-full" />
+          {/* 事前申込者限定バッジ */}
+          <div className="inline-block bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full mb-4">
+            事前申込者限定
+          </div>
+          
+          <div className="text-center">
+            <p className="text-lg md:text-xl font-bold text-gray-700 mb-2">事前申込みのうえ、当日ご来場いただいた方全員に</p>
+            <div className="flex items-baseline justify-center gap-1 flex-wrap">
+              <span className="text-5xl md:text-7xl font-black text-red-600">10</span>
+              <span className="text-xl md:text-2xl font-bold text-gray-800">万円相当</span>
+              <span className="text-lg md:text-xl text-gray-700">の商品が特典として付いてくる！</span>
             </div>
-
-            {/* Text */}
-            <div className="text-center md:text-left">
-              <div className="flex items-baseline justify-center md:justify-start gap-1 flex-wrap">
-                <span className="text-xl md:text-2xl font-bold text-gray-800">総額</span>
-                <span className="text-5xl md:text-7xl font-black text-red-600">1000</span>
-                <span className="text-xl md:text-2xl font-bold text-gray-800">万円分</span>
-                <span className="text-lg md:text-xl text-gray-700">の豪華特典が当たる</span>
-              </div>
-              <p className="text-2xl md:text-3xl font-black text-red-600 mt-3">
-                事前登録キャンペーン開催中！
-              </p>
-            </div>
+            <p className="text-2xl md:text-3xl font-black text-red-600 mt-4">
+              来場者限定プレゼント
+            </p>
+            <p className="text-sm text-gray-500 mt-2">※抽選ではなく、来場特典としてわかりやすく届きます</p>
           </div>
         </div>
 
