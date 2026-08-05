@@ -1010,23 +1010,7 @@ function ProgramSection() {
             </div>
           </div>
 
-          <div>
-            <h3 className="text-[#FFD700] font-bold text-lg md:text-xl mb-3">興行要素:</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {[
-                { icon: '🎪', text: '展示スペース' },
-                { icon: '📡', text: '配信スペース（5-8箇所）※イベント出展企業配信予定' },
-                { icon: '🎤', text: 'セミナー（商品説明）スペース' },
 
-                { icon: '🎉', text: 'アフターパーティー ※出展企業＆ライバーマッチングイベント' },
-              ].map((item) => (
-                <div key={item.text} className="flex items-start gap-3 bg-white/5 rounded-lg p-3 border border-white/10">
-                  <span className="text-2xl flex-shrink-0">{item.icon}</span>
-                  <span className="text-gray-300 text-sm md:text-base">{item.text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
         
         {/* LINE Registration CTA */}
