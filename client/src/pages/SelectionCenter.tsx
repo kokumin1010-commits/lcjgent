@@ -1078,11 +1078,43 @@ function LiverSelectionTab() {
                               </span>
                             )}
                           </Badge>
-                          {product.historicalLowestPrice && Number(product.historicalLowestPrice) > 0 && (
-                            <Badge className="bg-red-100 text-red-700 border-red-300 text-xs font-bold">
-                              历史最低价: ¥{Number(product.historicalLowestPrice).toLocaleString()}
-                            </Badge>
-                          )}
+                          {(() => {
+                            const lowestPrice = product.historicalLowestPrice ? Number(product.historicalLowestPrice) : 0;
+                            const price = Number(product.price || 0);
+                            const market = Number(product.marketPrice || 0);
+                            const manualDiscount = product.discountRate ? Number(product.discountRate) : 0;
+                            // Calculate discount price
+                            let discountedPrice = 0;
+                            if (price > 0 && market > 0) {
+                              discountedPrice = price; // sale price IS the discounted price
+                            } else if (manualDiscount > 0 && price > 0) {
+                              discountedPrice = Math.round(price * (1 - manualDiscount / 100));
+                            }
+                            // Determine which is better deal: lowest price or discount price
+                            if (lowestPrice > 0 && discountedPrice > 0) {
+                              // Both exist: show the better one first (lower price = better)
+                              if (lowestPrice <= discountedPrice) {
+                                return (
+                                  <Badge className="bg-red-100 text-red-700 border-red-300 text-xs font-bold animate-pulse">
+                                    🔥 历史最低价: ¥{lowestPrice.toLocaleString()}
+                                  </Badge>
+                                );
+                              }
+                              // discount is better, already shown above
+                              return (
+                                <Badge className="bg-red-100 text-red-700 border-red-300 text-xs">
+                                  历史最低价: ¥{lowestPrice.toLocaleString()}
+                                </Badge>
+                              );
+                            } else if (lowestPrice > 0) {
+                              return (
+                                <Badge className="bg-red-100 text-red-700 border-red-300 text-xs font-bold">
+                                  🔥 历史最低价: ¥{lowestPrice.toLocaleString()}
+                                </Badge>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </>
                     )}
@@ -1216,8 +1248,21 @@ function LiverSelectionTab() {
                       })()}
                     </p>
                   </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">历史最低价</Label>
+                    <p className="font-bold text-red-600">
+                      {detailProduct.historicalLowestPrice && Number(detailProduct.historicalLowestPrice) > 0
+                        ? `🔥 ¥${Number(detailProduct.historicalLowestPrice).toLocaleString()}`
+                        : '-'}
+                    </p>
+                  </div>
                 </div>
               </div>
+
+              {/* Price History */}
+              {detailProduct.id && (
+                <PriceHistoryPanel productId={detailProduct.id} />
+              )}
 
               {/* Commission */}
               <div className="grid grid-cols-2 gap-4">
@@ -2630,6 +2675,35 @@ function SettlementsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ==================== Price History Panel ====================
+function PriceHistoryPanel({ productId }: { productId: number }) {
+  const historyQuery = trpc.selectionCenter.getPriceHistory.useQuery(
+    { productId },
+    { enabled: productId > 0 }
+  );
+  const rows = historyQuery.data || [];
+  if (rows.length === 0) return null;
+  return (
+    <div className="border rounded-lg p-3 bg-red-50/50">
+      <p className="text-xs font-bold text-red-700 mb-2">📊 历史最低价记录</p>
+      <div className="space-y-1 max-h-32 overflow-y-auto">
+        {rows.map((row: any) => (
+          <div key={row.id} className="flex items-center justify-between text-xs">
+            <span className="font-medium text-red-600">¥{Number(row.price).toLocaleString()}</span>
+            <span className="text-muted-foreground">
+              {row.source === 'manual' ? '手動' : 'システム'}
+              {row.note && ` - ${row.note}`}
+            </span>
+            <span className="text-muted-foreground">
+              {new Date(row.createdAt).toLocaleDateString('ja-JP')}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

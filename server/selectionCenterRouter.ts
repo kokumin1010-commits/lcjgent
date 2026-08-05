@@ -46,7 +46,18 @@ export function getPool() {
         INDEX idx_bundle (bundleId),
         INDEX idx_product (productId)
       )`);
-      console.log('[SelectionCenter] product_bundles & bundle_items tables ensured');
+      await pool.query(`CREATE TABLE IF NOT EXISTS selection_price_history (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        productId INT NOT NULL,
+        price DECIMAL(12,2) NOT NULL,
+        source VARCHAR(50) DEFAULT 'manual',
+        note VARCHAR(255) DEFAULT NULL,
+        createdBy INT DEFAULT 0,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_product (productId),
+        INDEX idx_price (price)
+      )`);
+      console.log('[SelectionCenter] product_bundles & bundle_items & selection_price_history tables ensured');
       await pool.end();
     }
   } catch (e: any) {
@@ -164,6 +175,17 @@ export const selectionCenterRouter = router({
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_bundle (bundleId),
         INDEX idx_product (productId)
+      )`,
+      `CREATE TABLE IF NOT EXISTS selection_price_history (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        productId INT NOT NULL,
+        price DECIMAL(12,2) NOT NULL,
+        source VARCHAR(50) DEFAULT 'manual',
+        note VARCHAR(255) DEFAULT NULL,
+        createdBy INT DEFAULT 0,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_product (productId),
+        INDEX idx_price (price)
       )`,
     ];
     const results: string[] = [];
@@ -340,6 +362,15 @@ export const selectionCenterRouter = router({
         `INSERT INTO selection_products (productName, productNameCn, productId, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, talentExclusive, exclusiveLiverIds, tags, selfOperated, purchasePrice, shippingFee, platformFee, totalCost, deliveryTime, suggestedPrice, mechanism, historicalLowestPrice, discountRate, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
         [input.productName, input.productNameCn || null, input.productId || null, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, input.talentExclusive || 0, input.exclusiveLiverIds ? JSON.stringify(input.exclusiveLiverIds) : null, input.tags ? JSON.stringify(input.tags) : null, input.selfOperated || 0, input.purchasePrice || null, input.shippingFee || null, input.platformFee || null, totalCost > 0 ? String(totalCost) : null, input.deliveryTime || null, input.suggestedPrice || null, input.mechanism || null, input.historicalLowestPrice || null, input.discountRate || null, (ctx.user as any)?.id || 0]
       ) as any;
+      // Insert price history record if historicalLowestPrice is provided
+      if (input.historicalLowestPrice && Number(input.historicalLowestPrice) > 0) {
+        try {
+          await pool.query(
+            `INSERT INTO selection_price_history (productId, price, source, note, createdBy) VALUES (?, ?, 'manual', '商品作成時に設定', ?)`,
+            [result.insertId, Number(input.historicalLowestPrice), (ctx.user as any)?.id || 0]
+          );
+        } catch (_) {}
+      }
       return { id: result.insertId };
     } catch (e: any) {
       // Fallback: if discountRate or historicalLowestPrice column doesn't exist, add it and retry
@@ -399,7 +430,7 @@ export const selectionCenterRouter = router({
     mechanism: z.string().nullable().optional(),
     historicalLowestPrice: z.string().nullable().optional(),
     discountRate: z.string().nullable().optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const pool = getPool();
     const { id, ...data } = input;
     const setClauses: string[] = [];
@@ -429,6 +460,26 @@ export const selectionCenterRouter = router({
       } else {
         throw e;
       }
+    }
+    // Record price history when historicalLowestPrice is updated
+    if (data.historicalLowestPrice !== undefined && data.historicalLowestPrice !== null && Number(data.historicalLowestPrice) > 0) {
+      try {
+        await pool.query(
+          `INSERT INTO selection_price_history (productId, price, source, note, createdBy) VALUES (?, ?, 'manual', '手動更新', ?)`,
+          [id, Number(data.historicalLowestPrice), (ctx.user as any)?.id || 0]
+        );
+        // Update historicalLowestPrice to the actual minimum from all history records
+        const [minRows] = await pool.query(
+          `SELECT MIN(price) as minPrice FROM selection_price_history WHERE productId = ?`,
+          [id]
+        ) as any;
+        if (minRows[0]?.minPrice !== null) {
+          await pool.query(
+            `UPDATE selection_products SET historicalLowestPrice = ? WHERE id = ?`,
+            [minRows[0].minPrice, id]
+          );
+        }
+      } catch (_) {}
     }
     return { success: true };
   }),
@@ -2574,5 +2625,22 @@ export const selectionCenterRouter = router({
       [input.status, input.brandName]
     ) as any;
     return { success: true, affectedCount: result.affectedRows || 0 };
+  }),
+
+  // ========== Price History ==========
+  getPriceHistory: protectedProcedure.input(z.object({
+    productId: z.number(),
+  })).query(async ({ input }) => {
+    try {
+      const pool = getPool();
+      const [rows] = await pool.query(
+        `SELECT id, productId, price, source, note, createdBy, createdAt FROM selection_price_history WHERE productId = ? ORDER BY createdAt DESC LIMIT 50`,
+        [input.productId]
+      ) as any;
+      return rows;
+    } catch (e: any) {
+      console.error('[getPriceHistory] Error:', e.message);
+      return [];
+    }
   }),
 });
