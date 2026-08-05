@@ -1856,7 +1856,36 @@ export const selectionCenterRouter = router({
          ORDER BY sp.productName ASC LIMIT ?`,
         params
       ) as any;
-      return rows || [];
+      const products = rows || [];
+
+      // Also search bundles (套組) by name if search term is provided
+      let bundles: any[] = [];
+      if (input.search && input.search.trim().length >= 1) {
+        const s = input.search.toLowerCase();
+        const [bundleRows] = await pool.query(
+          `SELECT pb.id, pb.bundleName, pb.bundleNameCn, pb.description, pb.price, pb.marketPrice, pb.stock, pb.images, pb.status
+           FROM product_bundles pb
+           WHERE pb.deletedAt IS NULL AND (LOWER(pb.bundleName) LIKE ? OR LOWER(pb.bundleNameCn) LIKE ? OR LOWER(pb.description) LIKE ?)
+           ORDER BY pb.bundleName ASC LIMIT 10`,
+          [`%${s}%`, `%${s}%`, `%${s}%`]
+        ) as any;
+        // For each bundle, fetch its items
+        for (const bundle of (bundleRows || [])) {
+          const [items] = await pool.query(
+            `SELECT bi.productId, bi.quantity, COALESCE(sp.productName, bi.productName) as productName, sp.images, sp.brandName
+             FROM bundle_items bi LEFT JOIN selection_products sp ON bi.productId = sp.id
+             WHERE bi.bundleId = ?`,
+            [bundle.id]
+          ) as any;
+          bundles.push({
+            ...bundle,
+            isBundle: true,
+            items: items || [],
+          });
+        }
+      }
+
+      return { products, bundles };
     }),
 
   // 原価登録

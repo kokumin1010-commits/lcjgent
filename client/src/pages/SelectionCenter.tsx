@@ -3945,14 +3945,15 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
     { brandIds: brandIds.length > 0 ? brandIds : undefined, limit: 50 },
     { enabled: brandIds.length > 0 }
   );
-  const brandProducts = brandProductsQuery.data || [];
+  const brandProducts = (brandProductsQuery.data as any)?.products || (Array.isArray(brandProductsQuery.data) ? brandProductsQuery.data : []);
 
   // 全商品横断あいまい検索
   const globalSearchQuery = trpc.selectionCenter.searchProductsForProcurement.useQuery(
     { search: productSearchDebounced, limit: 30 },
     { enabled: productSearchDebounced.length >= 1 }
   );
-  const globalSearchResults = globalSearchQuery.data || [];
+  const globalSearchResults = (globalSearchQuery.data as any)?.products || (Array.isArray(globalSearchQuery.data) ? globalSearchQuery.data : []);
+  const globalSearchBundles: any[] = (globalSearchQuery.data as any)?.bundles || [];
 
   // 商品をトグル選択
   const toggleProduct = (product: any) => {
@@ -4073,39 +4074,108 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     <span className="ml-2 text-xs text-muted-foreground">検索中...</span>
                   </div>
-                ) : globalSearchResults.length === 0 ? (
+                ) : globalSearchResults.length === 0 && globalSearchBundles.length === 0 ? (
                   <div className="py-4 text-center text-sm text-muted-foreground">該当商品が見つかりません</div>
                 ) : (
-                  globalSearchResults.map((p: any) => {
-                    let imgUrl = '';
-                    try { const imgs = JSON.parse(p.images || '[]'); imgUrl = imgs[0] || ''; } catch {}
-                    const isSelected = selectedItems.some(i => i.productId === p.id);
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        className={`w-full text-left px-3 py-2 flex items-center gap-3 border-b last:border-b-0 hover:bg-accent/50 transition-colors ${isSelected ? 'bg-blue-50 border-blue-200' : ''}`}
-                        onClick={() => toggleProduct(p)}
-                      >
-                        <Checkbox checked={isSelected} className="flex-shrink-0" />
-                        {imgUrl ? (
-                          <img src={imgUrl} className="w-10 h-10 rounded object-cover flex-shrink-0 border" />
-                        ) : (
-                          <div className="w-10 h-10 rounded bg-muted flex items-center justify-center flex-shrink-0 border">
-                            <Package className="w-4 h-4 text-muted-foreground" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm break-words ${isSelected ? 'font-bold text-blue-700' : 'font-medium'}`}>{p.productName}</p>
-                          <p className="text-xs text-muted-foreground">
-                            ID: {p.id} | {p.brandName || ''}
-                            {p.price ? ` | ¥${Number(p.price).toLocaleString()}` : ''}
-                            {p.barcode ? ` | ${p.barcode}` : ''}
-                          </p>
+                  <>
+                    {/* 套組結果 */}
+                    {globalSearchBundles.length > 0 && (
+                      <div className="border-b-2 border-purple-200">
+                        <div className="px-3 py-1.5 bg-purple-50 text-xs font-medium text-purple-700 flex items-center gap-1">
+                          <Layers className="h-3 w-3" />套組 ({globalSearchBundles.length}件)
                         </div>
-                      </button>
-                    );
-                  })
+                        {globalSearchBundles.map((bundle: any) => {
+                          const isSelected = selectedItems.some(i => (i as any).bundleId === bundle.id);
+                          return (
+                            <button
+                              key={`bundle-${bundle.id}`}
+                              type="button"
+                              className={`w-full text-left px-3 py-2 flex items-center gap-3 border-b last:border-b-0 hover:bg-purple-50/50 transition-colors ${isSelected ? 'bg-purple-50 border-purple-200' : ''}`}
+                              onClick={() => {
+                                // Add all items from the bundle to selectedItems
+                                const bundleItems = (bundle.items || []).map((item: any) => ({
+                                  productId: item.productId || undefined,
+                                  productName: item.productName || `套組商品`,
+                                  pendingPaymentQty: item.quantity || 1,
+                                  pendingShipQty: 0,
+                                  qtyPerOrder: 1,
+                                  brandId: item.brandId || undefined,
+                                  brandName: item.brandName || bundle.bundleName,
+                                  bundleId: bundle.id,
+                                  bundleName: bundle.bundleName,
+                                }));
+                                if (isSelected) {
+                                  // Remove all bundle items
+                                  setSelectedItems(prev => prev.filter(i => (i as any).bundleId !== bundle.id));
+                                } else {
+                                  setSelectedItems(prev => [...prev, ...bundleItems]);
+                                }
+                              }}
+                            >
+                              <Checkbox checked={isSelected} className="flex-shrink-0" />
+                              <div className="w-10 h-10 rounded bg-purple-100 flex items-center justify-center flex-shrink-0 border border-purple-200">
+                                <Layers className="w-5 h-5 text-purple-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm break-words ${isSelected ? 'font-bold text-purple-700' : 'font-medium'}`}>
+                                  <span className="inline-flex items-center gap-1">
+                                    <Badge variant="outline" className="text-[10px] px-1 py-0 border-purple-300 text-purple-600">套組</Badge>
+                                    {bundle.bundleName}
+                                  </span>
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {bundle.items?.length || 0}品含む
+                                  {bundle.price ? ` | 套組価格: ¥${Number(bundle.price).toLocaleString()}` : ''}
+                                  {bundle.status === 'online' ? ' | 已上架' : ''}
+                                </p>
+                                {bundle.items && bundle.items.length > 0 && (
+                                  <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                                    内容: {bundle.items.map((i: any) => i.productName).filter(Boolean).join(', ')}
+                                  </p>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {/* 商品結果 */}
+                    {globalSearchResults.length > 0 && globalSearchBundles.length > 0 && (
+                      <div className="px-3 py-1.5 bg-muted/50 text-xs font-medium text-muted-foreground flex items-center gap-1">
+                        <Package className="h-3 w-3" />商品 ({globalSearchResults.length}件)
+                      </div>
+                    )}
+                    {globalSearchResults.map((p: any) => {
+                      let imgUrl = '';
+                      try { const imgs = JSON.parse(p.images || '[]'); imgUrl = imgs[0] || ''; } catch {}
+                      const isSelected = selectedItems.some(i => i.productId === p.id);
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className={`w-full text-left px-3 py-2 flex items-center gap-3 border-b last:border-b-0 hover:bg-accent/50 transition-colors ${isSelected ? 'bg-blue-50 border-blue-200' : ''}`}
+                          onClick={() => toggleProduct(p)}
+                        >
+                          <Checkbox checked={isSelected} className="flex-shrink-0" />
+                          {imgUrl ? (
+                            <img src={imgUrl} className="w-10 h-10 rounded object-cover flex-shrink-0 border" />
+                          ) : (
+                            <div className="w-10 h-10 rounded bg-muted flex items-center justify-center flex-shrink-0 border">
+                              <Package className="w-4 h-4 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm break-words ${isSelected ? 'font-bold text-blue-700' : 'font-medium'}`}>{p.productName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              ID: {p.id} | {p.brandName || ''}
+                              {p.price ? ` | ¥${Number(p.price).toLocaleString()}` : ''}
+                              {p.barcode ? ` | ${p.barcode}` : ''}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </>
                 )}
               </div>
             )}
@@ -4748,7 +4818,7 @@ function FukubukuroEditDialog({ order, onClose, onSubmit, isLoading }: {
   }, [bundle, order]);
 
   const searchMutation = trpc.selectionCenter.searchProductsForProcurement.useMutation({
-    onSuccess: (data) => { setSearchResults(data); setIsSearching(false); },
+    onSuccess: (data: any) => { setSearchResults(data?.products || (Array.isArray(data) ? data : [])); setIsSearching(false); },
     onError: () => { setSearchResults([]); setIsSearching(false); },
   });
 
@@ -5588,7 +5658,7 @@ function CostRegisterDialog({ open, onClose, brands, onSuccess }: {
     },
     { enabled: !!selectedBrandId || debouncedSearch.length >= 2 }
   );
-  const products = productsQuery.data || [];
+  const products = (productsQuery.data as any)?.products || (Array.isArray(productsQuery.data) ? productsQuery.data : []);
 
   // 原価登録ミューテーション
   const registerCostMutation = trpc.selectionCenter.registerProductCost.useMutation({
