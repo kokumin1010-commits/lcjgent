@@ -813,12 +813,34 @@ function CampaignBanner() {
     <section className="bg-[#FFD700] py-10 md:py-14 px-4">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-10 relative overflow-hidden border-4 border-red-500">
-          {/* 事前申込者限定バッジ */}
-          <div className="inline-block bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full mb-4">
-            事前申込者限定
-          </div>
-          
-          <div className="text-center">
+          <div className="flex flex-col md:flex-row items-center gap-6">
+            {/* 左側: ギフトアイコン + バッジ */}
+            <div className="flex-shrink-0 flex flex-col items-center">
+              {/* ピンクリボンバッジ */}
+              <div className="relative mb-2">
+                <div className="bg-gradient-to-r from-pink-400 to-pink-500 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-md">
+                  事前申込者限定
+                </div>
+                {/* リボンの尾 */}
+                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-pink-500" />
+              </div>
+              {/* ギフトボックス */}
+              <div className="w-24 h-24 md:w-28 md:h-28 rounded-full border-4 border-yellow-400 flex items-center justify-center bg-white shadow-lg">
+                <div className="relative">
+                  <div className="w-14 h-14 md:w-16 md:h-16 bg-gray-900 rounded-md relative">
+                    {/* リボン縦 */}
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3 h-full bg-yellow-400" />
+                    {/* リボン横 */}
+                    <div className="absolute top-1/2 left-0 -translate-y-1/2 w-full h-3 bg-yellow-400" />
+                    {/* リボン結び目 */}
+                    <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-6 h-4 border-2 border-yellow-400 rounded-full bg-transparent" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 右側: テキスト */}
+            <div className="text-center md:text-left flex-1">
             <p className="text-lg md:text-xl font-bold text-gray-700 mb-2">事前申込みのうえ、当日ご来場いただいた方全員に</p>
             <div className="flex items-baseline justify-center gap-1 flex-wrap">
               <span className="text-5xl md:text-7xl font-black text-red-600">10</span>
@@ -828,6 +850,7 @@ function CampaignBanner() {
             <p className="text-2xl md:text-3xl font-black text-red-600 mt-4">
               来場者限定プレゼント
             </p>
+            </div>
           </div>
 
           {/* 商品カテゴリ画像 */}
