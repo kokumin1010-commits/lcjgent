@@ -823,22 +823,22 @@ function CampaignBanner() {
 
           {/* 商品カテゴリ画像 */}
           <div className="mt-8 bg-gray-50 rounded-xl p-4 md:p-6">
-            <p className="text-center text-sm font-bold text-gray-600 mb-4">プレゼント商品例（食品・電化製品・化粧品・デジタル製品など）</p>
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
               <div className="bg-white rounded-lg p-3 shadow-sm text-center">
-                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-food-gbNf6zUYomN2HdpWs2u8kn.webp" alt="食品" className="w-full h-24 md:h-32 object-contain mx-auto" />
+                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-food-fancy-jjaK5WHA3RDWajEdT8CrBx.webp" alt="食品" className="w-full h-24 md:h-32 object-contain mx-auto" />
                 <p className="text-xs font-bold text-gray-700 mt-2">食品</p>
               </div>
               <div className="bg-white rounded-lg p-3 shadow-sm text-center">
-                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-appliance8-TwoBVNtCnmPaPhsaRTHtqv.webp" alt="電化製品" className="w-full h-24 md:h-32 object-contain mx-auto" />
+                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-appliance-fancy-Gjaze5VHcWjGScXBpDpbtN.webp" alt="電化製品" className="w-full h-24 md:h-32 object-contain mx-auto" />
                 <p className="text-xs font-bold text-gray-700 mt-2">電化製品</p>
               </div>
               <div className="bg-white rounded-lg p-3 shadow-sm text-center">
-                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-cosmetics2-eyE8ZPRHN5uJRKJ2wH2P6z.webp" alt="化粧品" className="w-full h-24 md:h-32 object-contain mx-auto" />
+                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-cosmetics-fancy-2eGnQ83moqnjQFQyMXEAW2.webp" alt="化粧品" className="w-full h-24 md:h-32 object-contain mx-auto" />
                 <p className="text-xs font-bold text-gray-700 mt-2">化粧品</p>
               </div>
               <div className="bg-white rounded-lg p-3 shadow-sm text-center">
-                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-digital3-ffg3WoNM2W2MbdftFrEmnY.webp" alt="デジタル製品" className="w-full h-24 md:h-32 object-contain mx-auto" />
+                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-digital-fancy-ANDiBrbpHbsGhMgnRtLktM.webp" alt="デジタル製品" className="w-full h-24 md:h-32 object-contain mx-auto" />
                 <p className="text-xs font-bold text-gray-700 mt-2">デジタル製品</p>
               </div>
             </div>
