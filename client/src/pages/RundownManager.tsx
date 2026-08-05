@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -866,9 +867,15 @@ function ReviewPanel({ sessionId, review, reviewItems, items, onRefresh }: { ses
 export default function RundownManager() {
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
 
-  if (selectedSessionId) {
-    return <SessionDetail sessionId={selectedSessionId} onBack={() => setSelectedSessionId(null)} />;
-  }
-
-  return <SessionList onSelect={setSelectedSessionId} />;
+  return (
+    <DashboardLayout>
+      <div className="p-4 md:p-6">
+        {selectedSessionId ? (
+          <SessionDetail sessionId={selectedSessionId} onBack={() => setSelectedSessionId(null)} />
+        ) : (
+          <SessionList onSelect={setSelectedSessionId} />
+        )}
+      </div>
+    </DashboardLayout>
+  );
 }
