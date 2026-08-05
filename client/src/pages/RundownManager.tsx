@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import {
   Plus, Trash2, Edit, Copy, Search, Upload, ArrowUp, ArrowDown,
   Calendar, Clock, Video, CheckCircle2, FileSpreadsheet, BarChart3,
@@ -19,7 +19,7 @@ import {
 
 // ============ SESSION LIST ============
 function SessionList({ onSelect }: { onSelect: (id: number) => void }) {
-  const { toast } = useToast();
+  
   const [showCreate, setShowCreate] = useState(false);
   const [filterLiver, setFilterLiver] = useState<string>("");
   const [filterStatus, setFilterStatus] = useState<string>("");
@@ -31,17 +31,17 @@ function SessionList({ onSelect }: { onSelect: (id: number) => void }) {
   const liversQuery = trpc.rundown.getLivers.useQuery();
   const createMutation = trpc.rundown.createSession.useMutation({
     onSuccess: (data) => {
-      toast({ title: "作成完了", description: "新しいRundownを作成しました" });
+      toast.success("作成完了: 新しいRundownを作成しました");
       sessionsQuery.refetch();
       setShowCreate(false);
       onSelect(data.id);
     },
   });
   const deleteMutation = trpc.rundown.deleteSession.useMutation({
-    onSuccess: () => { toast({ title: "削除完了" }); sessionsQuery.refetch(); },
+    onSuccess: () => { toast.success("削除完了"); sessionsQuery.refetch(); },
   });
   const duplicateMutation = trpc.rundown.duplicateSession.useMutation({
-    onSuccess: (data) => { toast({ title: "複製完了" }); sessionsQuery.refetch(); onSelect(data.id); },
+    onSuccess: (data) => { toast.success("複製完了"); sessionsQuery.refetch(); onSelect(data.id); },
   });
 
   const [form, setForm] = useState({
@@ -50,7 +50,7 @@ function SessionList({ onSelect }: { onSelect: (id: number) => void }) {
   });
 
   const handleCreate = () => {
-    if (!form.title || !form.liveDate) { toast({ title: "エラー", description: "タイトルと日付は必須です", variant: "destructive" }); return; }
+    if (!form.title || !form.liveDate) { toast.error("エラー: タイトルと日付は必須です"); return; }
     createMutation.mutate({
       ...form,
       liverId: form.liverId ? Number(form.liverId) : undefined,
@@ -224,7 +224,7 @@ function SessionList({ onSelect }: { onSelect: (id: number) => void }) {
 
 // ============ SESSION DETAIL (Tabs: Rundown / Checklist / Review) ============
 function SessionDetail({ sessionId, onBack }: { sessionId: number; onBack: () => void }) {
-  const { toast } = useToast();
+  
   const detailQuery = trpc.rundown.getSessionById.useQuery({ id: sessionId });
   const updateSessionMutation = trpc.rundown.updateSession.useMutation({ onSuccess: () => detailQuery.refetch() });
 
@@ -287,15 +287,15 @@ function SessionDetail({ sessionId, onBack }: { sessionId: number; onBack: () =>
 
 // ============ RUNDOWN TABLE ============
 function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; items: any[]; onRefresh: () => void }) {
-  const { toast } = useToast();
+  
   const [showAdd, setShowAdd] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
 
-  const addMutation = trpc.rundown.addItem.useMutation({ onSuccess: () => { onRefresh(); setShowAdd(false); toast({ title: "追加完了" }); } });
-  const updateMutation = trpc.rundown.updateItem.useMutation({ onSuccess: () => { onRefresh(); setEditingItem(null); toast({ title: "更新完了" }); } });
-  const deleteMutation = trpc.rundown.deleteItem.useMutation({ onSuccess: () => { onRefresh(); toast({ title: "削除完了" }); } });
+  const addMutation = trpc.rundown.addItem.useMutation({ onSuccess: () => { onRefresh(); setShowAdd(false); toast.success("追加完了"); } });
+  const updateMutation = trpc.rundown.updateItem.useMutation({ onSuccess: () => { onRefresh(); setEditingItem(null); toast.success("更新完了"); } });
+  const deleteMutation = trpc.rundown.deleteItem.useMutation({ onSuccess: () => { onRefresh(); toast.success("削除完了"); } });
   const reorderMutation = trpc.rundown.reorderItems.useMutation({ onSuccess: onRefresh });
   const searchProductsQuery = trpc.rundown.searchProducts.useQuery(
     { query: searchQuery, limit: 10 },
@@ -578,12 +578,12 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
 
 // ============ CHECKLIST PANEL ============
 function ChecklistPanel({ sessionId, checklist, onRefresh }: { sessionId: number; checklist: any[]; onRefresh: () => void }) {
-  const { toast } = useToast();
+  
   const [newItem, setNewItem] = useState("");
   const [newCategory, setNewCategory] = useState("other");
 
   const updateMutation = trpc.rundown.updateChecklist.useMutation({ onSuccess: onRefresh });
-  const addMutation = trpc.rundown.addChecklistItem.useMutation({ onSuccess: () => { onRefresh(); setNewItem(""); toast({ title: "追加完了" }); } });
+  const addMutation = trpc.rundown.addChecklistItem.useMutation({ onSuccess: () => { onRefresh(); setNewItem(""); toast.success("追加完了"); } });
   const deleteMutation = trpc.rundown.deleteChecklistItem.useMutation({ onSuccess: onRefresh });
 
   const categories = { product: "商品準備", equipment: "機材", account: "アカウント", other: "その他" };
@@ -654,7 +654,7 @@ function ChecklistPanel({ sessionId, checklist, onRefresh }: { sessionId: number
 
 // ============ REVIEW PANEL ============
 function ReviewPanel({ sessionId, review, reviewItems, items, onRefresh }: { sessionId: number; review: any; reviewItems: any[]; items: any[]; onRefresh: () => void }) {
-  const { toast } = useToast();
+  
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [reviewForm, setReviewForm] = useState({
     actualStartTime: review?.actualStartTime || "",
@@ -670,17 +670,17 @@ function ReviewPanel({ sessionId, review, reviewItems, items, onRefresh }: { ses
   });
 
   const saveReviewMutation = trpc.rundown.createOrUpdateReview.useMutation({
-    onSuccess: () => { onRefresh(); toast({ title: "保存完了" }); },
+    onSuccess: () => { onRefresh(); toast.success("保存完了"); },
   });
   const importCsvMutation = trpc.rundown.importTikTokCsv.useMutation({
-    onSuccess: (data) => { onRefresh(); toast({ title: "インポート完了", description: `${data.itemsImported}件の商品データを取り込みました` }); },
+    onSuccess: (data) => { onRefresh(); toast.success(`インポート完了: ${data.itemsImported}件の商品データを取り込みました`); },
   });
 
   const handleCsvUpload = async () => {
     if (!csvFile) return;
     const text = await csvFile.text();
     const lines = text.split("\n").filter(l => l.trim());
-    if (lines.length < 2) { toast({ title: "エラー", description: "CSVデータが不正です", variant: "destructive" }); return; }
+    if (lines.length < 2) { toast.error("エラー: CSVデータが不正です"); return; }
 
     const headers = lines[0].split(",").map(h => h.trim().replace(/"/g, ""));
     const data: any[] = [];
