@@ -842,11 +842,11 @@ function CampaignBanner() {
                 <p className="text-xs font-bold text-gray-700 mt-2">食品</p>
               </div>
               <div className="bg-white rounded-lg p-3 shadow-sm text-center">
-                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-appliance4-cXBZA5wBFC4XKsWkNkDJxa.webp" alt="電化製品" className="w-full h-24 md:h-32 object-contain mx-auto" />
+                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-appliance5-Cj7UxNFXVXi3Yo7Rb6WXQy.webp" alt="電化製品" className="w-full h-24 md:h-32 object-contain mx-auto" />
                 <p className="text-xs font-bold text-gray-700 mt-2">電化製品</p>
               </div>
               <div className="bg-white rounded-lg p-3 shadow-sm text-center">
-                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-cosmetics-R4TahJmjyGCf65neb28uAZ.webp" alt="化粧品" className="w-full h-24 md:h-32 object-contain mx-auto" />
+                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-cosmetics2-eyE8ZPRHN5uJRKJ2wH2P6z.webp" alt="化粧品" className="w-full h-24 md:h-32 object-contain mx-auto" />
                 <p className="text-xs font-bold text-gray-700 mt-2">化粧品</p>
               </div>
               <div className="bg-white rounded-lg p-3 shadow-sm text-center">
