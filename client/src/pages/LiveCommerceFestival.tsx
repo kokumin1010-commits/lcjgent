@@ -798,51 +798,114 @@ function SpecialLiversSection() {
 // ============================================================
 function CampaignBanner() {
   return (
-    <section className="bg-[#FFD700] py-10 md:py-14 px-4">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-10 relative overflow-hidden border-4 border-red-500">
-          <div className="flex flex-col md:flex-row items-center gap-6">
-            {/* 左側: ギフトアイコン + バッジ */}
-            <div className="flex-shrink-0 flex flex-col items-center">
-              <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-badge-ZbXxfkSbf2WWceF92zESjV.png" alt="事前申込者限定" className="w-32 h-32 md:w-40 md:h-40 object-contain" />
-            </div>
+    <section className="relative py-12 md:py-16 px-4 overflow-hidden" style={{ background: 'linear-gradient(180deg, #FFD700 0%, #FFC107 50%, #FFB300 100%)' }}>
+      {/* Decorative confetti / sparkles */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {/* Gold confetti strips */}
+        <div className="absolute top-4 left-[5%] w-3 h-12 bg-gradient-to-b from-yellow-300 to-yellow-500 rotate-[25deg] opacity-60 rounded-full" />
+        <div className="absolute top-8 left-[15%] w-2 h-8 bg-gradient-to-b from-yellow-200 to-amber-400 rotate-[-15deg] opacity-50 rounded-full" />
+        <div className="absolute top-6 right-[10%] w-3 h-10 bg-gradient-to-b from-yellow-300 to-yellow-600 rotate-[35deg] opacity-60 rounded-full" />
+        <div className="absolute top-12 right-[20%] w-2 h-8 bg-gradient-to-b from-amber-200 to-amber-500 rotate-[-20deg] opacity-50 rounded-full" />
+        <div className="absolute bottom-8 left-[8%] w-2 h-6 bg-gradient-to-b from-yellow-200 to-yellow-400 rotate-[40deg] opacity-40 rounded-full" />
+        <div className="absolute bottom-6 right-[12%] w-2 h-8 bg-gradient-to-b from-amber-300 to-amber-500 rotate-[-30deg] opacity-50 rounded-full" />
+        {/* Sparkle dots */}
+        <div className="absolute top-16 left-[25%] w-2 h-2 bg-white rounded-full opacity-80 animate-pulse" />
+        <div className="absolute top-20 right-[30%] w-1.5 h-1.5 bg-white rounded-full opacity-70 animate-pulse" style={{ animationDelay: '0.5s' }} />
+        <div className="absolute bottom-20 left-[35%] w-2 h-2 bg-white rounded-full opacity-60 animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-10 left-[50%] w-1.5 h-1.5 bg-yellow-100 rounded-full opacity-80 animate-pulse" style={{ animationDelay: '0.3s' }} />
+      </div>
 
-            {/* 右側: テキスト */}
-            <div className="text-center md:text-left flex-1">
-            <p className="text-lg md:text-xl font-bold text-gray-700 mb-2">事前申込みのうえ、当日ご来場いただいた方全員に</p>
-            <div className="flex items-baseline justify-center gap-1 flex-wrap">
-              <span className="text-5xl md:text-7xl font-black text-red-600">10</span>
-              <span className="text-xl md:text-2xl font-bold text-gray-800">万円相当</span>
-              <span className="text-lg md:text-xl text-gray-700">の商品が特典として付いてくる！</span>
-            </div>
-            <p className="text-2xl md:text-3xl font-black text-red-600 mt-4">
-              来場者限定プレゼント
-            </p>
+      <div className="max-w-5xl mx-auto relative z-10">
+        {/* Main white card with red border */}
+        <div className="bg-white rounded-3xl shadow-[0_10px_60px_rgba(0,0,0,0.15)] p-6 md:p-10 lg:p-12 relative overflow-hidden border-[5px] border-red-500">
+          {/* 全員対象 badge - top right */}
+          <div className="absolute top-4 right-4 md:top-6 md:right-6 z-20">
+            <div className="bg-red-600 text-white rounded-full w-16 h-16 md:w-20 md:h-20 flex flex-col items-center justify-center shadow-lg border-2 border-dashed border-red-300">
+              <span className="text-[10px] md:text-xs font-bold leading-tight">全員</span>
+              <span className="text-[10px] md:text-xs font-bold leading-tight">対象</span>
             </div>
           </div>
 
-          {/* 商品カテゴリ画像 */}
-          <div className="mt-8 bg-gray-50 rounded-xl p-4 md:p-6">
+          {/* Top section: Gift icon + main text */}
+          <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8">
+            {/* 左側: ギフトアイコン + リボンバッジ */}
+            <div className="flex-shrink-0 flex flex-col items-center relative">
+              <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-badge-ZbXxfkSbf2WWceF92zESjV.png" alt="事前申込者限定" className="w-36 h-36 md:w-44 md:h-44 object-contain drop-shadow-lg" />
+            </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-              <div className="bg-white rounded-lg p-3 shadow-sm text-center">
-                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-food-fancy-jjaK5WHA3RDWajEdT8CrBx.webp" alt="食品" className="w-full h-24 md:h-32 object-contain mx-auto" />
-                <p className="text-xs font-bold text-gray-700 mt-2">食品</p>
+            {/* 右側: テキストコンテンツ */}
+            <div className="text-center md:text-left flex-1">
+              {/* Gold header bar */}
+              <div className="inline-block bg-gradient-to-r from-amber-100 via-yellow-50 to-amber-100 border border-amber-300 rounded-lg px-4 py-1.5 mb-3">
+                <p className="text-base md:text-lg font-bold text-gray-700">事前申込みのうえ、当日ご来場いただいた方全員に</p>
               </div>
-              <div className="bg-white rounded-lg p-3 shadow-sm text-center">
-                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-appliance-fancy-Gjaze5VHcWjGScXBpDpbtN.webp" alt="電化製品" className="w-full h-24 md:h-32 object-contain mx-auto" />
-                <p className="text-xs font-bold text-gray-700 mt-2">電化製品</p>
+
+              {/* 事前申込者限定 sub-header */}
+              <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
+                <span className="text-amber-600 text-lg">🏆</span>
+                <p className="text-xl md:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-700 via-yellow-600 to-amber-700">
+                  事前申込者限定
+                </p>
+                <span className="text-amber-600 text-lg">🏆</span>
               </div>
-              <div className="bg-white rounded-lg p-3 shadow-sm text-center">
-                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-cosmetics-fancy-2eGnQ83moqnjQFQyMXEAW2.webp" alt="化粧品" className="w-full h-24 md:h-32 object-contain mx-auto" />
-                <p className="text-xs font-bold text-gray-700 mt-2">化粧品</p>
+
+              {/* 来場者限定プレゼント - big red text */}
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-black text-red-600 tracking-tight mb-3" style={{ textShadow: '2px 2px 4px rgba(220,38,38,0.15)' }}>
+                来場者限定プレゼント
+              </h2>
+
+              {/* 10万円相当 with laurel decoration */}
+              <div className="flex items-center justify-center md:justify-start gap-2 flex-wrap">
+                <span className="text-amber-500 text-2xl md:text-3xl">🌿</span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-6xl md:text-8xl font-black text-red-600" style={{ textShadow: '3px 3px 6px rgba(220,38,38,0.2)', fontStyle: 'italic' }}>10</span>
+                  <span className="text-2xl md:text-3xl font-black text-gray-800">万円相当</span>
+                </div>
+                <span className="text-amber-500 text-2xl md:text-3xl">🌿</span>
               </div>
-              <div className="bg-white rounded-lg p-3 shadow-sm text-center">
-                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-digital-fancy-ANDiBrbpHbsGhMgnRtLktM.webp" alt="デジタル製品" className="w-full h-24 md:h-32 object-contain mx-auto" />
-                <p className="text-xs font-bold text-gray-700 mt-2">デジタル製品</p>
+
+              <div className="flex items-baseline justify-center md:justify-start gap-1 mt-2">
+                <span className="text-lg md:text-xl text-gray-700">の商品が</span>
+                <span className="text-xl md:text-2xl font-black text-red-500 underline decoration-red-300 decoration-2 underline-offset-4">特典</span>
+                <span className="text-lg md:text-xl text-gray-700">として付いてくる！</span>
               </div>
             </div>
-            <p className="text-center text-xs text-gray-400 mt-3">※ 内容は変更となる場合があります。数量限定／なくなり次第終了</p>
+          </div>
+
+          {/* Left side decorative text */}
+          <div className="mt-6 mb-2 text-center">
+            <p className="text-sm md:text-base text-amber-700 font-bold italic">豪華アイテムを多数ご用意！何が届くかお楽しみに！</p>
+          </div>
+
+          {/* 商品カテゴリ画像 - larger, more prominent */}
+          <div className="mt-4 bg-gradient-to-b from-gray-50 to-white rounded-2xl p-5 md:p-8 border border-gray-100 shadow-inner">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+              <div className="bg-white rounded-xl p-4 shadow-md text-center border border-gray-100 hover:shadow-lg transition-shadow">
+                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-food-fancy-jjaK5WHA3RDWajEdT8CrBx.webp" alt="食品" className="w-full h-28 md:h-36 object-contain mx-auto" />
+                <div className="mt-3 bg-gradient-to-r from-amber-100 to-yellow-100 rounded-full px-3 py-1">
+                  <p className="text-sm font-bold text-amber-800">食品</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-md text-center border border-gray-100 hover:shadow-lg transition-shadow">
+                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-appliance-fancy-Gjaze5VHcWjGScXBpDpbtN.webp" alt="電化製品" className="w-full h-28 md:h-36 object-contain mx-auto" />
+                <div className="mt-3 bg-gradient-to-r from-amber-100 to-yellow-100 rounded-full px-3 py-1">
+                  <p className="text-sm font-bold text-amber-800">電化製品</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-md text-center border border-gray-100 hover:shadow-lg transition-shadow">
+                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-cosmetics-fancy-2eGnQ83moqnjQFQyMXEAW2.webp" alt="化粧品" className="w-full h-28 md:h-36 object-contain mx-auto" />
+                <div className="mt-3 bg-gradient-to-r from-amber-100 to-yellow-100 rounded-full px-3 py-1">
+                  <p className="text-sm font-bold text-amber-800">化粧品</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-md text-center border border-gray-100 hover:shadow-lg transition-shadow">
+                <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/gift-digital-fancy-ANDiBrbpHbsGhMgnRtLktM.webp" alt="デジタル製品" className="w-full h-28 md:h-36 object-contain mx-auto" />
+                <div className="mt-3 bg-gradient-to-r from-amber-100 to-yellow-100 rounded-full px-3 py-1">
+                  <p className="text-sm font-bold text-amber-800">デジタル製品</p>
+                </div>
+              </div>
+            </div>
+            <p className="text-center text-xs text-gray-400 mt-4">※ 内容は変更となる場合があります。数量限定／なくなり次第終了</p>
           </div>
         </div>
 
