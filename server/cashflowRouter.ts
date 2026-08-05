@@ -293,24 +293,47 @@ export const cashflowRouter = router({
     }))
     .mutation(async ({ input }) => {
       const pool = getPool();
-      // 分類ルール（説明文のキーワードで判定）
+      // 曖昧なカテゴリ（これらは再分類対象）
+      const vagueCategories = ["振込", "世曜元宇資金", "花秘代収代付", "品汇盟代収代付", "その他支出", "その他入金", "仕入"];
+
+      // 分類ルール（説明文のキーワードで判定）- 優先度順
       const rules: { keywords: string[]; category: string }[] = [
-        { keywords: ["工资", "薪水", "给与", "工资", "社保", "公积金", "人件"], category: "給与・業務委託" },
-        { keywords: ["业务委托", "委托费"], category: "給与・業務委託" },
-        { keywords: ["打车", "交通", "机票", "高铁", "出租车", "滴滴", "车费", "地铁"], category: "交通費" },
-        { keywords: ["广告", "推广", "投放", "kalodata", "充值"], category: "広告・マーケティング" },
-        { keywords: ["租金", "物业", "房租", "办公室"], category: "家賃・オフィス" },
-        { keywords: ["网络", "电费", "通讯费", "宽带"], category: "通信・光熱費" },
-        { keywords: ["快递", "物流", "运费", "中转", "闪送"], category: "物流・配送" },
-        { keywords: ["餐费", "饮食", "点餐", "外卖"], category: "飲食・接待" },
+        // 人件費・給与
+        { keywords: ["工资", "薪水", "工資", "社保", "公积金", "人件", "月工资", "月薪"], category: "給与・人件費" },
+        { keywords: ["业务委托", "委托费", "外包", "兼职"], category: "給与・人件費" },
+        // 交通費
+        { keywords: ["打车", "交通", "机票", "高铁", "出租车", "滴滴", "车费", "地铁", "上下班车", "通勤"], category: "交通費" },
+        // 広告・マーケティング
+        { keywords: ["广告", "推广", "投放", "kalodata", "营销", "宣传"], category: "広告・マーケティング" },
+        // 家賃・オフィス
+        { keywords: ["租金", "物业", "房租", "办公室", "办公"], category: "家賃・オフィス" },
+        // 通信・光熱費
+        { keywords: ["网络", "电费", "通讯费", "宽带", "电话费"], category: "通信・光熱費" },
+        // 物流・配送
+        { keywords: ["快递", "物流", "运费", "中转", "闪送", "邮寄", "配送", "运输"], category: "物流・配送" },
+        // 飲食・接待
+        { keywords: ["餐费", "饮食", "点餐", "外卖", "餐", "饭", "加班点餐"], category: "飲食・接待" },
         { keywords: ["住宿", "酒店", "招待"], category: "飲食・接待" },
-        { keywords: ["软件", "会员", "平台", "AI", "充值", "服务器", "录屏"], category: "ソフトウェア・ツール" },
-        { keywords: ["拨付", "往来款", "转账"], category: "本社送金" },
-        { keywords: ["坐位费", "直播场地", "场地"], category: "ライブ・配信" },
-        { keywords: ["橡窗号", "带货", "TK", "提现"], category: "TikTok・越境EC" },
-        { keywords: ["利息", "收入"], category: "利息・その他収入" },
-        { keywords: ["招聘", "人才"], category: "採用費" },
-        { keywords: ["模特", "服装租赁"], category: "モデル・タレント" },
+        // ソフトウェア・ツール
+        { keywords: ["软件", "会员", "平台", "充值", "服务器", "录屏", "订阅", "积分", "云雀"], category: "ソフトウェア・ツール" },
+        // 本社送金
+        { keywords: ["拨付", "往来款", "转账", "日本总部"], category: "本社送金" },
+        // ライブ・配信
+        { keywords: ["坑位费", "直播", "场地", "坐位费", "直播间", "配信", "跟播"], category: "ライブ・配信" },
+        // TikTok・越境EC
+        { keywords: ["橱窗", "带货", "TK", "提现", "跨境", "tiktok"], category: "TikTok・越境EC" },
+        // 利息・その他収入
+        { keywords: ["利息收入", "利息"], category: "利息・その他収入" },
+        // 採用費
+        { keywords: ["招聘", "人才", "面试"], category: "採用費" },
+        // モデル・タレント
+        { keywords: ["模特", "服装租赁", "造型"], category: "モデル・タレント" },
+        // 設備・備品
+        { keywords: ["采购", "物品", "设备", "用品", "花", "装饰"], category: "設備・備品" },
+        // 手数料
+        { keywords: ["手续费", "服务费", "佣金", "手数料"], category: "手数料" },
+        // 商品仕入
+        { keywords: ["珠宝", "首饰", "定制", "样品", "商品"], category: "商品仕入" },
       ];
 
       let entityFilter = "";
@@ -321,24 +344,37 @@ export const cashflowRouter = router({
       }
 
       const [rows] = await pool.query(
-        `SELECT id, description, category FROM company_cashflows WHERE deletedAt IS NULL ${entityFilter}`,
+        `SELECT id, description, category, counterparty FROM company_cashflows WHERE deletedAt IS NULL ${entityFilter}`,
         params
       ) as any;
 
       let updated = 0;
       for (const row of rows as any[]) {
         const desc = (row.description || "").toLowerCase();
+        const counterparty = (row.counterparty || "").toLowerCase();
+        const searchText = desc + " " + counterparty;
+        const isVague = vagueCategories.some(vc => row.category === vc || row.category?.includes(vc));
+
         let newCategory = "";
         for (const rule of rules) {
-          if (rule.keywords.some(kw => desc.includes(kw.toLowerCase()))) {
+          if (rule.keywords.some(kw => searchText.includes(kw.toLowerCase()))) {
             newCategory = rule.category;
             break;
           }
         }
-        if (newCategory && newCategory !== row.category) {
+
+        // 曖昧カテゴリの場合は強制再分類、それ以外は新カテゴリがある場合のみ更新
+        if (newCategory && (isVague || newCategory !== row.category)) {
           await pool.query(
             `UPDATE company_cashflows SET category = ? WHERE id = ?`,
             [newCategory, row.id]
+          );
+          updated++;
+        } else if (isVague && !newCategory) {
+          // キーワードでマッチしなかった曖昧カテゴリは「その他経費」に
+          await pool.query(
+            `UPDATE company_cashflows SET category = ? WHERE id = ?`,
+            ["その他経費", row.id]
           );
           updated++;
         }
