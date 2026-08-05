@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Plus, RefreshCw, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock, HelpCircle, Layers, Gift, AlertTriangle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -232,14 +233,28 @@ function ProductsTab() {
                   <td className="p-3 text-right">¥{Number(product.price || 0).toLocaleString()}</td>
                   <td className="p-3 text-right">
                     {product.historicalLowestPrice && Number(product.historicalLowestPrice) > 0 ? (
-                      <span className="text-red-600 font-bold">¥{Number(product.historicalLowestPrice).toLocaleString()}</span>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="text-red-600 font-bold hover:underline cursor-pointer">¥{Number(product.historicalLowestPrice).toLocaleString()}</button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-0" align="end">
+                          <PriceHistoryPopover productId={product.id} />
+                        </PopoverContent>
+                      </Popover>
                     ) : (
                       <span className="text-muted-foreground">-</span>
                     )}
                   </td>
                   <td className="p-3 text-right">
                     {product.discountRate && Number(product.discountRate) > 0 ? (
-                      <span className="text-orange-600 font-bold">{Number(product.discountRate)}%OFF</span>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="text-orange-600 font-bold hover:underline cursor-pointer">{Number(product.discountRate)}%OFF</button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-0" align="end">
+                          <DiscountHistoryPopover productId={product.id} />
+                        </PopoverContent>
+                      </Popover>
                     ) : (
                       <span className="text-muted-foreground">-</span>
                     )}
@@ -2694,6 +2709,65 @@ function DiscountHistoryPanel({ productId }: { productId: number }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ==================== Popover versions for list page ====================
+function PriceHistoryPopover({ productId }: { productId: number }) {
+  const historyQuery = trpc.selectionCenter.getPriceHistory.useQuery(
+    { productId },
+    { enabled: productId > 0 }
+  );
+  const rows = historyQuery.data || [];
+  return (
+    <div className="p-3">
+      <p className="text-xs font-bold text-red-700 mb-2">📊 历史最低价记录</p>
+      {historyQuery.isLoading ? (
+        <p className="text-xs text-muted-foreground">读取中...</p>
+      ) : rows.length === 0 ? (
+        <p className="text-xs text-muted-foreground">暂无记录</p>
+      ) : (
+        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+          {rows.map((row: any, idx: number) => (
+            <div key={row.id} className={`flex items-center justify-between text-xs ${idx === 0 ? 'bg-red-50 rounded px-1.5 py-1 font-bold' : ''}`}>
+              <span className="text-red-600">{idx === 0 ? '🏆 ' : ''}¥{Number(row.price).toLocaleString()}</span>
+              <span className="text-muted-foreground text-[10px]">
+                {new Date(row.createdAt).toLocaleDateString('ja-JP')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DiscountHistoryPopover({ productId }: { productId: number }) {
+  const historyQuery = trpc.selectionCenter.getDiscountHistory.useQuery(
+    { productId },
+    { enabled: productId > 0 }
+  );
+  const rows = historyQuery.data || [];
+  return (
+    <div className="p-3">
+      <p className="text-xs font-bold text-orange-700 mb-2">📊 历史最低折扣率记录</p>
+      {historyQuery.isLoading ? (
+        <p className="text-xs text-muted-foreground">读取中...</p>
+      ) : rows.length === 0 ? (
+        <p className="text-xs text-muted-foreground">暂无记录</p>
+      ) : (
+        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+          {rows.map((row: any, idx: number) => (
+            <div key={row.id} className={`flex items-center justify-between text-xs ${idx === 0 ? 'bg-orange-50 rounded px-1.5 py-1 font-bold' : ''}`}>
+              <span className="text-orange-600">{idx === 0 ? '🏆 ' : ''}{Number(row.discountRate)}%OFF</span>
+              <span className="text-muted-foreground text-[10px]">
+                {new Date(row.createdAt).toLocaleDateString('ja-JP')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
