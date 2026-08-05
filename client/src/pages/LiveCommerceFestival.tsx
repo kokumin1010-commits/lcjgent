@@ -545,7 +545,7 @@ function TopLiveCommercerSection() {
     },
     {
       name: '熊田 佳奈',
-      title: 'ぞうねこちゃんねる創始者 KANA',
+      title: 'トップライブコマーサー',
       stat: '',
       statValue: '',
       statUnit: '',
