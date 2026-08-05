@@ -993,24 +993,74 @@ function ProgramSection() {
           <h2 className="text-3xl md:text-4xl font-black text-white">プログラム</h2>
         </div>
         
-        <div className="space-y-10 text-white">
-          <div>
-            <h3 className="text-[#FFD700] font-bold text-lg md:text-xl mb-3">現場ライブコマース（ライバーマッチング＆販売）:</h3>
-            <p className="text-gray-300 leading-relaxed">
-              出展企業が製品を展示するだけではなく、事前にライバーと組み、会場から直接配信を実施することが可能。
-            </p>
-          </div>
-
-          <div>
-            <h3 className="text-[#FFD700] font-bold text-lg md:text-xl mb-3">公開セミナー・トークショー:</h3>
-            <div className="text-gray-300 space-y-1">
-              <p>トップライブコマーサー・プレイヤーによる講演</p>
-              <p>TikTok公式担当者によるトークショーや勉強会</p>
-              <p>メーカーによる商品説明イベント</p>
+        <div className="space-y-8 text-white">
+          {/* 1. メーカー × ライバー マッチング */}
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 bg-[#FFD700] rounded-lg flex items-center justify-center">
+              <span className="text-black font-black text-xl">1</span>
+            </div>
+            <div>
+              <h3 className="font-bold text-xl md:text-2xl mb-2">メーカー × ライバー マッチング</h3>
+              <p className="text-gray-300 leading-relaxed">
+                メーカーが実際に出展し、ライバーと直接商談。商品の魅力や販売方法を学び、理解から当日の販売までサポートするマッチングイベントを開催。
+              </p>
             </div>
           </div>
 
+          {/* 2. LIVE COMMERCE AWARD */}
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 bg-[#E91E63] rounded-lg flex items-center justify-center">
+              <span className="text-white font-black text-xl">2</span>
+            </div>
+            <div>
+              <h3 className="font-bold text-xl md:text-2xl mb-1">LIVE COMMERCE AWARD <span className="text-[#FF6B35] text-base font-medium">（1日目展示会終了後）</span></h3>
+              <p className="text-gray-300 leading-relaxed">
+                出展企業・ライバー限定交流会。トップライバー・メーカーと交流しながら、カテゴリー別表彰式を実施。イベント当日は、各出展メーカー・ライブコマーサー・クリエイターがライブコマースで販売を行い、当日のGMV（流通総額）を競うコンテストを開催。TikTok Shopでの活動実績や市場への貢献度、コンテンツ力、販売実績、成長性などを総合的に評価し、優秀な企業・クリエイター・ライブコマーサーを表彰するライブコマース Award（授賞式）も実施。
+              </p>
+            </div>
+          </div>
 
+          {/* 3. DAY1 特別オンライン番組 */}
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 bg-[#4CAF50] rounded-lg flex items-center justify-center">
+              <span className="text-white font-black text-xl">3</span>
+            </div>
+            <div>
+              <h3 className="font-bold text-xl md:text-2xl mb-2">DAY1 特別オンライン番組</h3>
+              <p className="text-gray-300 leading-relaxed">
+                会場からTikTok LIVEで全国へ配信。ライブコマースの極意・成功事例・実践販売をリアルタイムでお届け。
+              </p>
+              <p className="text-[#FF6B35] text-sm mt-2">
+                出演予定：JOY／後藤真希／ゆん／プリンスこうや／京極琉／超無課金
+              </p>
+            </div>
+          </div>
+
+          {/* 4. DAY2 スペシャルセミナー */}
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 bg-[#2196F3] rounded-lg flex items-center justify-center">
+              <span className="text-white font-black text-xl">4</span>
+            </div>
+            <div>
+              <h3 className="font-bold text-xl md:text-2xl mb-2">DAY2 スペシャルセミナー</h3>
+              <p className="text-gray-300 leading-relaxed">
+                ・トップライブコマーサー対談 ・TikTok Shop成功企業（TSP）講演会 ・動画コマースセミナー ・メーカーナレッジ共有
+              </p>
+            </div>
+          </div>
+
+          {/* 5. 来場者限定プレゼント */}
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 bg-[#9C27B0] rounded-lg flex items-center justify-center">
+              <span className="text-white font-black text-xl">5</span>
+            </div>
+            <div>
+              <h3 className="font-bold text-xl md:text-2xl mb-2">来場者限定プレゼント</h3>
+              <p className="text-gray-300 leading-relaxed">
+                事前申込者限定。<span className="text-[#FF6B35] font-bold">10万円</span>相当の商品をプレゼント。
+              </p>
+            </div>
+          </div>
         </div>
         
         {/* LINE Registration CTA */}
