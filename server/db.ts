@@ -630,9 +630,11 @@ export async function getAllReports(limit = 50) {
     .select({
       report: reports,
       staff: reportStaff,
+      staffCnName: staff.name,
     })
     .from(reports)
     .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))
+    .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
     .orderBy(desc(reports.reportDate))
     .limit(limit);
 }
@@ -645,9 +647,11 @@ export async function getReportsByReportStaffId(reportStaffId: number) {
     .select({
       report: reports,
       staff: reportStaff,
+      staffCnName: staff.name,
     })
     .from(reports)
     .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))
+    .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
     .where(eq(reports.reportStaffId, reportStaffId))
     .orderBy(desc(reports.reportDate));
 }
@@ -793,9 +797,11 @@ export async function searchReports(filters: {
     .select({
       report: reports,
       staff: reportStaff,
+      staffCnName: staff.name,
     })
     .from(reports)
-    .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id));
+    .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))
+    .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id));
 
     if (conditions.length > 0) {
     return await query.where(and(...conditions)).orderBy(desc(reports.reportDate)).limit(100);

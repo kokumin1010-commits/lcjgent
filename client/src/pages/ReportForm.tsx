@@ -345,7 +345,7 @@ export default function ReportForm() {
                     </SelectItem>
                     {activeReportStaff?.map((staff: any) => (
                       <SelectItem key={staff.id} value={staff.id.toString()}>
-                        {staff.linkedStaffName ? `${staff.linkedStaffName} ${staff.name}` : staff.name}
+                        {staff.nameCn ? `${staff.name}（${staff.nameCn}）` : staff.name}
                         {staff.country && (
                           <span className="text-muted-foreground ml-2">
                             ({staff.country})

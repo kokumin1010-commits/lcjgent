@@ -1120,7 +1120,7 @@ export default function Reports() {
                 {t("reports.noReports")}
               </div>
             ) : (
-              filteredReports.map(({ report, staff }) => (
+              filteredReports.map(({ report, staff, staffCnName }: any) => (
                 <div 
                   key={report.id} 
                   className="border rounded-lg p-4 bg-card hover:bg-muted/30 transition-colors"
@@ -1132,7 +1132,12 @@ export default function Reports() {
                         {staff?.name?.charAt(0) || "?"}
                       </div>
                       <div>
-                        <p className="font-medium">{staff?.name || "-"}</p>
+                        <p className="font-medium">
+                          {staff?.name || "-"}
+                          {staffCnName && (
+                            <span className="text-muted-foreground font-normal ml-1">（{staffCnName}）</span>
+                          )}
+                        </p>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           {staff?.country && (
                             <Badge variant="outline" className="text-xs">
