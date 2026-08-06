@@ -480,6 +480,20 @@ export default function CashflowTab() {
   const balanceHistory = balanceQuery.data || [];
   // 月選択時はその月の累積残高を表示、未選択時は最新月
   const currentBalance = (() => {
+    // 全法人時: 銀行口座余額の合計を使用（RMB→JPY換算込み）
+    if (entity === "all" && accountBalancesQuery.data) {
+      let total = 0;
+      for (const acc of accountBalancesQuery.data) {
+        if (acc.accountName === "日本総部") continue; // 日本総部は合計なのでスキップ
+        const bal = Number(acc.currentBalance || 0);
+        if (acc.currency === "CNY") {
+          total += Math.round(bal * EXCHANGE_RATE_CNY_JPY);
+        } else {
+          total += bal;
+        }
+      }
+      return total;
+    }
     if (balanceHistory.length === 0) return 0;
     if (selectedYearMonth && dateRange.end) {
       // 選択月に対応するbalanceHistoryのエントリを探す
