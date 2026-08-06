@@ -679,27 +679,51 @@ export default function CashflowTab() {
                       }}
                       className="bg-transparent border-0 border-b border-dashed border-muted-foreground/30 hover:border-primary cursor-pointer text-xs p-0 focus:ring-0 focus:border-primary max-w-[120px]"
                     >
-                      <option value="給与・人件費">給与・人件費</option>
-                      <option value="交通費">交通費</option>
-                      <option value="広告・マーケティング">広告・マーケティング</option>
-                      <option value="家賃・オフィス">家賃・オフィス</option>
-                      <option value="通信・光熱費">通信・光熱費</option>
-                      <option value="物流・配送">物流・配送</option>
-                      <option value="飲食・接待">飲食・接待</option>
-                      <option value="ソフトウェア・ツール">ソフトウェア・ツール</option>
-                      <option value="本社送金">本社送金</option>
-                      <option value="ライブ・配信">ライブ・配信</option>
-                      <option value="TikTok・越境EC">TikTok・越境EC</option>
-                      <option value="設備・備品">設備・備品</option>
-                      <option value="手数料">手数料</option>
-                      <option value="商品仕入">商品仕入</option>
-                      <option value="モデル・タレント">モデル・タレント</option>
-                      <option value="採用費">採用費</option>
-                      <option value="その他経費">その他経費</option>
-                      <option value="振込">振込</option>
-                      <option value="世曜元宇資金">世曜元宇資金</option>
-                      <option value="花秘代付">花秘代付</option>
-                      <option value="品汇盟代付">品汇盟代付</option>
+                      {entity === 'china' ? (
+                        <>
+                          <option value="給与・人件費">工资・人工费</option>
+                          <option value="交通費">交通费</option>
+                          <option value="広告・マーケティング">广告・营销</option>
+                          <option value="家賃・オフィス">租金・办公室</option>
+                          <option value="通信・光熱費">网络・水电</option>
+                          <option value="物流・配送">物流・快递</option>
+                          <option value="飲食・接待">餐饮・招待</option>
+                          <option value="ソフトウェア・ツール">软件・工具</option>
+                          <option value="本社送金">总部汇款</option>
+                          <option value="ライブ・配信">直播・配信</option>
+                          <option value="TikTok・越境EC">TikTok・跨境电商</option>
+                          <option value="設備・備品">设备・物品</option>
+                          <option value="手数料">手续费</option>
+                          <option value="商品仕入">商品采购</option>
+                          <option value="モデル・タレント">模特・艺人</option>
+                          <option value="採用費">招聘费</option>
+                          <option value="その他経費">其他费用</option>
+                          <option value="世曜元宇資金">世曜元宇资金</option>
+                          <option value="花秘代付">花秘代付</option>
+                          <option value="品汇盟代付">品汇盟代付</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="給与・人件費">給与・人件費</option>
+                          <option value="交通費">交通費</option>
+                          <option value="広告・マーケティング">広告・マーケティング</option>
+                          <option value="家賃・オフィス">家賃・オフィス</option>
+                          <option value="通信・光熱費">通信・光熱費</option>
+                          <option value="物流・配送">物流・配送</option>
+                          <option value="飲食・接待">飲食・接待</option>
+                          <option value="ソフトウェア・ツール">ソフトウェア・ツール</option>
+                          <option value="本社送金">本社送金</option>
+                          <option value="ライブ・配信">ライブ・配信</option>
+                          <option value="TikTok・越境EC">TikTok・越境EC</option>
+                          <option value="設備・備品">設備・備品</option>
+                          <option value="手数料">手数料</option>
+                          <option value="商品仕入">商品仕入</option>
+                          <option value="モデル・タレント">モデル・タレント</option>
+                          <option value="採用費">採用費</option>
+                          <option value="その他経費">その他経費</option>
+                          <option value="振込">振込</option>
+                        </>
+                      )}
                     </select>
                   </td>
                   <td className={`p-3 text-right font-medium ${item.type === "income" ? "text-green-700" : "text-red-700"}`}>
