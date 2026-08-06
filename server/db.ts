@@ -541,14 +541,39 @@ export async function getAllReportStaff() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await db.select().from(reportStaff).orderBy(asc(reportStaff.name));
+  return await db.select({
+    id: reportStaff.id,
+    name: reportStaff.name,
+    country: reportStaff.country,
+    linkedStaffId: reportStaff.linkedStaffId,
+    isActive: reportStaff.isActive,
+    createdAt: reportStaff.createdAt,
+    updatedAt: reportStaff.updatedAt,
+    nameCn: staff.name,
+    nameEn: staff.nameEn,
+  }).from(reportStaff)
+    .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
+    .orderBy(asc(reportStaff.name));
 }
 
 export async function getActiveReportStaff() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await db.select().from(reportStaff).where(eq(reportStaff.isActive, "active")).orderBy(asc(reportStaff.name));
+  return await db.select({
+    id: reportStaff.id,
+    name: reportStaff.name,
+    country: reportStaff.country,
+    linkedStaffId: reportStaff.linkedStaffId,
+    isActive: reportStaff.isActive,
+    createdAt: reportStaff.createdAt,
+    updatedAt: reportStaff.updatedAt,
+    nameCn: staff.name,
+    nameEn: staff.nameEn,
+  }).from(reportStaff)
+    .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
+    .where(eq(reportStaff.isActive, "active"))
+    .orderBy(asc(reportStaff.name));
 }
 
 export async function getReportStaffById(id: number) {

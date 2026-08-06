@@ -473,26 +473,10 @@ export default function Reports() {
                   <SelectLabel className="text-xs text-muted-foreground">在籍中</SelectLabel>
                   {activeReportStaff.map((staff) => (
                     <SelectItem key={staff.id} value={staff.id.toString()}>
-                      {staff.name}
+                      {staff.nameCn ? `${staff.nameCn} ${staff.name}` : staff.name}
                     </SelectItem>
                   ))}
                 </SelectGroup>
-                {inactiveReportStaff.length > 0 && (
-                  <>
-                    <SelectSeparator />
-                    <SelectGroup>
-                      <SelectLabel className="text-xs text-muted-foreground">退職済み</SelectLabel>
-                      {inactiveReportStaff.map((staff) => (
-                        <SelectItem key={staff.id} value={staff.id.toString()}>
-                          <span className="flex items-center gap-1.5">
-                            {staff.name}
-                            <span className="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">退職</span>
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </>
-                )}
               </SelectContent>
             </Select>
           </div>
@@ -1081,7 +1065,7 @@ export default function Reports() {
                     <SelectLabel className="text-xs text-muted-foreground">在籍中</SelectLabel>
                     {activeReportStaff.map((staff) => (
                       <SelectItem key={staff.id} value={staff.id.toString()}>
-                        {staff.name}
+                        {staff.nameCn ? `${staff.nameCn} ${staff.name}` : staff.name}
                         {staff.country && (
                           <span className="text-muted-foreground ml-1">
                             ({staff.country})
@@ -1090,27 +1074,6 @@ export default function Reports() {
                       </SelectItem>
                     ))}
                   </SelectGroup>
-                  {inactiveReportStaff.length > 0 && (
-                    <>
-                      <SelectSeparator />
-                      <SelectGroup>
-                        <SelectLabel className="text-xs text-muted-foreground">退職済み</SelectLabel>
-                        {inactiveReportStaff.map((staff) => (
-                          <SelectItem key={staff.id} value={staff.id.toString()}>
-                            <span className="flex items-center gap-1.5">
-                              {staff.name}
-                              {staff.country && (
-                                <span className="text-muted-foreground ml-1">
-                                  ({staff.country})
-                                </span>
-                              )}
-                              <span className="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">退職</span>
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </>
-                  )}
                 </SelectContent>
               </Select>
             </div>
