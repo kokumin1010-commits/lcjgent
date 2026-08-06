@@ -4519,6 +4519,7 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
   const [shopName, setShopName] = useState("LCJ店铺");
   const [parsedItems, setParsedItems] = useState<Array<{ inputName: string; matched: boolean; product?: any; quantity?: number }>>([]);
   const [isParsing, setIsParsing] = useState(false);
+  const [orderCount, setOrderCount] = useState(1);
   const liversQuery = trpc.selectionCenter.getLivers.useQuery();
 
   const parseMutation = trpc.selectionCenter.parseFukubukuroText.useMutation({
@@ -4540,12 +4541,13 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
   const handleSubmit = () => {
     if (parsedItems.length === 0) { toast.error("先にテキストを解析してください"); return; }
     if (!bundleName.trim()) { toast.error("福袋名を入力してください"); return; }
+    if (orderCount < 1) { toast.error("订单数を1以上に設定してください"); return; }
     onSubmit({
       bundleName: bundleName.trim(),
       items: parsedItems.map(item => ({
         productId: item.product?.id,
         productName: item.product?.productName || item.inputName,
-        quantity: item.quantity || 1,
+        quantity: (item.quantity || 1) * orderCount,
       })),
       orderDate,
       status,
@@ -4554,6 +4556,7 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
       shopName: shopName || undefined,
       brandId: parsedItems.find(i => i.product?.brandId)?.product?.brandId,
       brandName: parsedItems.find(i => i.product?.brandName)?.product?.brandName,
+      orderCount,
     });
   };
 
@@ -4561,7 +4564,7 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
     if (open) {
       setText(""); setBundleName(""); setParsedItems([]);
       setOrderDate(new Date().toISOString().split('T')[0]);
-      setStatus("pending"); setMemo(""); setLiveRoom(""); setShopName("LCJ店铺");
+      setStatus("pending"); setMemo(""); setLiveRoom(""); setShopName("LCJ店铺"); setOrderCount(1);
     }
   }, [open]);
 
@@ -4621,7 +4624,7 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
                       )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <span className="text-xs text-muted-foreground">数量:</span>
+                      <span className="text-xs text-muted-foreground">每份:</span>
                       <Input
                         type="number"
                         min={1}
@@ -4633,6 +4636,11 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
                         }}
                         className="w-16 h-7 text-center text-sm"
                       />
+                      {orderCount > 1 && (
+                        <span className="text-xs font-medium text-purple-600 ml-1">
+                          采购: {(item.quantity || 1) * orderCount}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -4646,6 +4654,22 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
               <div>
                 <Label className="text-sm font-medium">③ 福袋名</Label>
                 <Input value={bundleName} onChange={e => setBundleName(e.target.value)} placeholder="例: 福袋 Aセット" className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">④ 订单数（福袋份数）</Label>
+                <div className="flex items-center gap-2 mt-1">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={orderCount}
+                    onChange={e => setOrderCount(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-24"
+                    placeholder="1"
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    份 → 每个商品采购总量 = 每份数量 × {orderCount}
+                  </span>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
