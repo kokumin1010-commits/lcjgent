@@ -4737,9 +4737,9 @@ function FukubukuroDetailDialog({ order, onClose }: { order: any; onClose: () =>
 
   return (
     <Dialog open={true} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 truncate">
             <Gift className="h-5 w-5 text-purple-500" />
             福袋詳細: {order.productName}
           </DialogTitle>
@@ -4758,7 +4758,7 @@ function FukubukuroDetailDialog({ order, onClose }: { order: any; onClose: () =>
               </div>
               <div className="border rounded-md divide-y">
                 {bundle.items?.map((item: any, idx: number) => (
-                  <div key={idx} className="flex items-center gap-3 px-3 py-2">
+                  <div key={idx} className="flex items-center gap-3 px-3 py-2 overflow-hidden">
                     {(() => {
                       const imgs = item.images ? (typeof item.images === 'string' ? JSON.parse(item.images) : item.images) : [];
                       return imgs.length > 0 ? (
@@ -4769,13 +4769,15 @@ function FukubukuroDetailDialog({ order, onClose }: { order: any; onClose: () =>
                         </div>
                       );
                     })()}
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 overflow-hidden">
                       <p className="text-sm font-medium truncate">{item.productName || '(未登録)'}</p>
                       {item.brandName && <p className="text-xs text-muted-foreground">{item.brandName}</p>}
                       {(!item.productId || item.productId === 0) && <p className="text-xs text-orange-500">未マッチング</p>}
                     </div>
-                    {item.price && <span className="text-sm text-muted-foreground">¥{Number(item.price).toLocaleString()}</span>}
-                    {item.quantity > 1 && <Badge variant="secondary">×{item.quantity}</Badge>}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {item.price && <span className="text-sm text-muted-foreground">¥{Number(item.price).toLocaleString()}</span>}
+                      <Badge variant="secondary">×{item.quantity || 1}</Badge>
+                    </div>
                   </div>
                 ))}
               </div>
