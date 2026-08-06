@@ -482,17 +482,42 @@ export const cashflowRouter = router({
         entityFilter = "AND entity = ?";
         params.push(input.entity);
       }
-
+      // Japan: use month-end balance from bank records
+      if (input.entity === "japan") {
+        const [rows] = await pool.query(`
+          SELECT LEFT(transactionDate, 7) as month,
+            SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END) as netFlow
+          FROM company_cashflows
+          WHERE deletedAt IS NULL ${entityFilter}
+          GROUP BY LEFT(transactionDate, 7)
+          ORDER BY LEFT(transactionDate, 7) ASC
+        `, params) as any;
+        // Get month-end balances
+        const [balRows] = await pool.query(`
+          SELECT LEFT(transactionDate, 7) as month, balance
+          FROM company_cashflows
+          WHERE id IN (
+            SELECT MAX(id) FROM company_cashflows
+            WHERE deletedAt IS NULL AND balance IS NOT NULL AND balance > 0 ${entityFilter}
+            GROUP BY LEFT(transactionDate, 7)
+          )
+          ORDER BY LEFT(transactionDate, 7) ASC
+        `, params) as any;
+        const balMap = new Map((balRows as any[]).map((b: any) => [b.month, Number(b.balance)]));
+        let cumBal = 0;
+        return (rows as any[]).map((r: any) => {
+          cumBal += Number(r.netFlow);
+          return { month: r.month, netFlow: Number(r.netFlow), balance: balMap.get(r.month) || cumBal };
+        });
+      }
       const [rows] = await pool.query(`
-        SELECT 
-          LEFT(transactionDate, 7) as month,
+        SELECT LEFT(transactionDate, 7) as month,
           SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END) as netFlow
         FROM company_cashflows
         WHERE deletedAt IS NULL ${entityFilter}
-        GROUP BY month
-        ORDER BY month ASC
+        GROUP BY LEFT(transactionDate, 7)
+        ORDER BY LEFT(transactionDate, 7) ASC
       `, params) as any;
-
       let balance = 0;
       return (rows as any[]).map((r: any) => {
         balance += Number(r.netFlow);

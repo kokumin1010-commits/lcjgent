@@ -756,7 +756,7 @@ export default function CashflowTab() {
                       const barHeight = Math.max((Math.abs(item.balance) / maxBal) * (chartHeight / 2 - 10), 4);
                       const isPositive = item.balance >= 0;
                       return (
-                        <div key={i} className="flex-1 flex flex-col items-center relative" style={{ height: chartHeight }}>
+                        <div key={i} className="flex-1 flex flex-col items-center relative cursor-pointer hover:opacity-80" style={{ height: chartHeight }} onClick={() => { const m = item.month; const year = parseInt(m.split("-")[0]); const month = parseInt(m.split("-")[1]); const start = `${year}-${String(month).padStart(2,"0")}-01`; const lastDay = new Date(year, month, 0).getDate(); const end = `${year}-${String(month).padStart(2,"0")}-${lastDay}`; setDateRange({ start, end }); setPage(0); }}>
                           {/* Value label */}
                           <span className="text-[10px] font-medium whitespace-nowrap absolute" style={{ top: isPositive ? (chartHeight / 2 - barHeight - 18) : (chartHeight / 2 + barHeight + 4) }}>
                             {entity === "china" ? formatCurrency(item.balance, "CNY") : formatCurrency(item.balance)}
