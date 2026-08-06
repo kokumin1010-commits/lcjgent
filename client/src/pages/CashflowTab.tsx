@@ -94,6 +94,7 @@ export default function CashflowTab() {
   const listQuery = trpc.cashflow.getAll.useQuery({
     entity,
     type,
+    category: expandedCategory || undefined,
     search: search || undefined,
     startDate: dateRange.start || undefined,
     endDate: dateRange.end || undefined,
@@ -512,7 +513,7 @@ export default function CashflowTab() {
                     <div key={i}>
                       <div
                         className="flex items-center gap-2 cursor-pointer hover:bg-muted/30 rounded-md p-1 transition-colors"
-                        onClick={() => setExpandedCategory(isExpanded ? null : cat.category)}
+                        onClick={() => { setExpandedCategory(isExpanded ? null : cat.category); setPage(0); }}
                       >
                         <span className="text-xs w-[140px] truncate font-medium">{cat.category}</span>
                         <div className="flex-1 h-5 bg-muted/50 rounded-full overflow-hidden">
@@ -565,7 +566,7 @@ export default function CashflowTab() {
                       <tr
                         key={i}
                         className="border-t hover:bg-muted/30 cursor-pointer"
-                        onClick={() => setExpandedCategory(expandedCategory === cat.category ? null : cat.category)}
+                        onClick={() => { setExpandedCategory(expandedCategory === cat.category ? null : cat.category); setPage(0); }}
                       >
                         <td className="p-2 font-medium flex items-center gap-1">
                           <ChevronRight className={`h-3 w-3 transition-transform ${expandedCategory === cat.category ? 'rotate-90' : ''}`} />
@@ -611,6 +612,12 @@ export default function CashflowTab() {
         </Button>
         <span className="text-sm text-muted-foreground">{total}件</span>
       </div>
+      {expandedCategory && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-md">
+          <span className="text-sm font-medium text-purple-800">📊 カテゴリフィルター: {expandedCategory}</span>
+          <button onClick={() => setExpandedCategory(null)} className="text-purple-500 hover:text-purple-700 text-xs font-bold ml-2">✕ クリア</button>
+        </div>
+      )}
 
       {/* Cashflow Table */}
       <div className="border rounded-lg overflow-x-auto">
