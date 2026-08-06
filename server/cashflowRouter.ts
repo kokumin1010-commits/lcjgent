@@ -663,4 +663,86 @@ export const cashflowRouter = router({
 
       return { items: rows, total: rows.length };
     }),
+
+  // 銀行口座残高管理
+  getAccountBalances: protectedProcedure
+    .input(z.object({
+      entity: z.enum(["japan", "china", "all"]).default("all"),
+    }))
+    .query(async ({ input }) => {
+      const pool = getPool();
+      
+      // 1. Get initial balances from bank_account_balances table
+      try {
+        await pool.query(`CREATE TABLE IF NOT EXISTS bank_account_balances (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          accountName VARCHAR(100) NOT NULL UNIQUE,
+          initialBalance BIGINT NOT NULL DEFAULT 0,
+          currency ENUM('JPY', 'CNY') NOT NULL DEFAULT 'JPY',
+          entity ENUM('japan', 'china') NOT NULL DEFAULT 'japan',
+          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )`);
+      } catch (e) { /* table exists */ }
+
+      // 2. Get all account initial balances
+      const [balances] = await pool.query(`SELECT * FROM bank_account_balances`) as any;
+      
+      // 3. Calculate net flow per account from cashflows
+      let entityFilter = "";
+      const params: any[] = [];
+      if (input.entity !== "all") {
+        entityFilter = "AND entity = ?";
+        params.push(input.entity);
+      }
+      
+      const [flows] = await pool.query(
+        `SELECT counterparty, 
+          SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as totalIncome,
+          SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as totalExpense
+        FROM company_cashflows 
+        WHERE deletedAt IS NULL AND counterparty IS NOT NULL AND counterparty != '' ${entityFilter}
+        GROUP BY counterparty`,
+        params
+      ) as any;
+
+      // 4. Combine: initial balance + income - expense
+      const accounts = ["世曜元宇", "花秘", "品汇盟", "LCJ MITSUI", "LCJ RESONA", "日本総部"];
+      const result = accounts.map(name => {
+        const balanceRow = balances.find((b: any) => b.accountName === name);
+        const flowRow = flows.find((f: any) => f.counterparty === name);
+        const initial = Number(balanceRow?.initialBalance || 0);
+        const income = Number(flowRow?.totalIncome || 0);
+        const expense = Number(flowRow?.totalExpense || 0);
+        return {
+          accountName: name,
+          initialBalance: initial,
+          currentBalance: initial + income - expense,
+          totalIncome: income,
+          totalExpense: expense,
+          currency: balanceRow?.currency || (["LCJ MITSUI", "LCJ RESONA", "日本総部"].includes(name) ? "JPY" : "CNY"),
+          entity: balanceRow?.entity || (["LCJ MITSUI", "LCJ RESONA", "日本総部"].includes(name) ? "japan" : "china"),
+        };
+      });
+
+      return result;
+    }),
+
+  // 初期残高を設定・更新
+  setAccountBalance: protectedProcedure
+    .input(z.object({
+      accountName: z.string(),
+      initialBalance: z.number(),
+      currency: z.enum(["JPY", "CNY"]).default("JPY"),
+      entity: z.enum(["japan", "china"]).default("japan"),
+    }))
+    .mutation(async ({ input }) => {
+      const pool = getPool();
+      await pool.query(
+        `INSERT INTO bank_account_balances (accountName, initialBalance, currency, entity) 
+         VALUES (?, ?, ?, ?) 
+         ON DUPLICATE KEY UPDATE initialBalance = ?, currency = ?, entity = ?`,
+        [input.accountName, input.initialBalance, input.currency, input.entity, input.initialBalance, input.currency, input.entity]
+      );
+      return { success: true };
+    }),
 });

@@ -86,6 +86,8 @@ export default function CashflowTab() {
   const [csvEndDate, setCsvEndDate] = useState("");
   const [csvCounterparty, setCsvCounterparty] = useState("");
   const [pageInput, setPageInput] = useState("");
+  const [editBalanceAccount, setEditBalanceAccount] = useState<string | null>(null);
+  const [editBalanceValue, setEditBalanceValue] = useState("");
 
   function toggleSort(col: "transactionDate" | "amount" | "category" | "counterparty") {
     if (sortBy === col) {
@@ -120,6 +122,14 @@ export default function CashflowTab() {
 
   // Queries
   const summaryQuery = trpc.cashflow.getTotalSummary.useQuery({
+  const accountBalancesQuery = trpc.cashflow.getAccountBalances.useQuery({ entity });
+  const setBalanceMutation = trpc.cashflow.setAccountBalance.useMutation({
+    onSuccess: () => {
+      accountBalancesQuery.refetch();
+      setEditBalanceAccount(null);
+      toast.success("初期残高を更新しました");
+    },
+  });
     entity,
     startDate: dateRange.start || undefined,
     endDate: dateRange.end || undefined,
@@ -598,6 +608,65 @@ export default function CashflowTab() {
           </CardContent>
         </Card>
       </div>
+      {balanceHistory.length > 0 && (
+      {/* Bank Account Balances */}
+      {accountBalancesQuery.data && accountBalancesQuery.data.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">🏦 银行账户余额</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {accountBalancesQuery.data
+                .filter((acc: any) => entity === "all" || acc.entity === entity)
+                .map((acc: any) => (
+                <div key={acc.accountName} className="border rounded-lg p-3 hover:bg-muted/30 transition-colors">
+                  <div className="text-xs text-muted-foreground font-medium mb-1">{acc.accountName}</div>
+                  <div className={`text-lg font-bold ${acc.currentBalance >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
+                    {acc.currency === "CNY" ? `¥${Math.round(acc.currentBalance).toLocaleString()}` : `¥${Math.round(acc.currentBalance).toLocaleString()}`}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-1">
+                    <span className="text-green-600">+{Math.round(acc.totalIncome).toLocaleString()}</span>
+                    {" / "}
+                    <span className="text-red-500">-{Math.round(acc.totalExpense).toLocaleString()}</span>
+                  </div>
+                  <button
+                    onClick={() => { setEditBalanceAccount(acc.accountName); setEditBalanceValue(String(acc.initialBalance)); }}
+                    className="text-[10px] text-blue-500 hover:underline mt-1"
+                  >
+                    初期残高設定
+                  </button>
+                </div>
+              ))}
+            </div>
+            {/* Edit initial balance dialog */}
+            {editBalanceAccount && (
+              <div className="mt-3 p-3 border rounded-lg bg-muted/30 flex items-center gap-3 flex-wrap">
+                <span className="text-sm font-medium">{editBalanceAccount} の初期残高:</span>
+                <Input
+                  type="number"
+                  value={editBalanceValue}
+                  onChange={(e) => setEditBalanceValue(e.target.value)}
+                  className="w-40"
+                  placeholder="初期残高を入力"
+                />
+                <Button size="sm" onClick={() => {
+                  const acc = accountBalancesQuery.data?.find((a: any) => a.accountName === editBalanceAccount);
+                  setBalanceMutation.mutate({
+                    accountName: editBalanceAccount,
+                    initialBalance: parseInt(editBalanceValue) || 0,
+                    currency: acc?.currency || "JPY",
+                    entity: acc?.entity || "japan",
+                  });
+                }}>
+                  保存
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setEditBalanceAccount(null)}>
+                  取消
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Balance History Chart */}
       {balanceHistory.length > 0 && (
