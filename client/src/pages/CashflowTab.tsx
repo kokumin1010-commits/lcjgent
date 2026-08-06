@@ -671,14 +671,55 @@ export default function CashflowTab() {
                       <Badge className="bg-red-100 text-red-700">出金</Badge>
                     )}
                   </td>
-                  <td className="p-3">{item.category}</td>
+                  <td className="p-3">
+                    <select
+                      value={item.category || ''}
+                      onChange={(e) => {
+                        updateMutation.mutate({ id: item.id, category: e.target.value, entity: item.entity, type: item.type, amount: item.amount, currency: item.currency, transactionDate: item.transactionDate, description: item.description, counterparty: item.counterparty });
+                      }}
+                      className="bg-transparent border-0 border-b border-dashed border-muted-foreground/30 hover:border-primary cursor-pointer text-xs p-0 focus:ring-0 focus:border-primary max-w-[120px]"
+                    >
+                      <option value="給与・人件費">給与・人件費</option>
+                      <option value="交通費">交通費</option>
+                      <option value="広告・マーケティング">広告・マーケティング</option>
+                      <option value="家賃・オフィス">家賃・オフィス</option>
+                      <option value="通信・光熱費">通信・光熱費</option>
+                      <option value="物流・配送">物流・配送</option>
+                      <option value="飲食・接待">飲食・接待</option>
+                      <option value="ソフトウェア・ツール">ソフトウェア・ツール</option>
+                      <option value="本社送金">本社送金</option>
+                      <option value="ライブ・配信">ライブ・配信</option>
+                      <option value="TikTok・越境EC">TikTok・越境EC</option>
+                      <option value="設備・備品">設備・備品</option>
+                      <option value="手数料">手数料</option>
+                      <option value="商品仕入">商品仕入</option>
+                      <option value="モデル・タレント">モデル・タレント</option>
+                      <option value="採用費">採用費</option>
+                      <option value="その他経費">その他経費</option>
+                      <option value="振込">振込</option>
+                      <option value="世曜元宇資金">世曜元宇資金</option>
+                      <option value="花秘代付">花秘代付</option>
+                      <option value="品汇盟代付">品汇盟代付</option>
+                    </select>
+                  </td>
                   <td className={`p-3 text-right font-medium ${item.type === "income" ? "text-green-700" : "text-red-700"}`}>
                     <div>{item.type === "income" ? "+" : "-"}{formatCurrency(item.amount, item.currency)}</div>
                     {item.currency === "CNY" && (
                       <div className="text-[10px] text-muted-foreground font-normal">≈ ¥{Math.round(item.amount * EXCHANGE_RATE_CNY_JPY).toLocaleString()} JPY</div>
                     )}
                   </td>
-                  <td className="p-3 text-xs">{item.counterparty || "-"}</td>
+                  <td className="p-3 text-xs">
+                    <input
+                      type="text"
+                      defaultValue={item.counterparty || ''}
+                      onBlur={(e) => {
+                        if (e.target.value !== (item.counterparty || '')) {
+                          updateMutation.mutate({ id: item.id, counterparty: e.target.value, entity: item.entity, type: item.type, amount: item.amount, currency: item.currency, transactionDate: item.transactionDate, description: item.description, category: item.category });
+                        }
+                      }}
+                      className="bg-transparent border-0 border-b border-dashed border-muted-foreground/30 hover:border-primary focus:border-primary w-full text-xs p-0 focus:ring-0 focus:outline-none"
+                    />
+                  </td>
                   <td className="p-3 text-xs text-muted-foreground">{item.description || "-"}</td>
                   <td className="p-3 text-center">
                     <div className="flex items-center gap-1 justify-center">
