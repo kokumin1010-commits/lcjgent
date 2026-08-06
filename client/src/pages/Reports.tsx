@@ -29,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FileText, Plus, Search, X, Pencil, Trash2, Globe, Clock, AlertTriangle, CheckCircle, Link, Sparkles, Check, XCircle, RefreshCw, ThumbsUp, ThumbsDown, Bot, Loader2, MessageSquare } from "lucide-react";
+import { FileText, Plus, Search, X, Pencil, Trash2, Globe, Clock, AlertTriangle, CheckCircle, Link, Sparkles, Check, XCircle, RefreshCw, ThumbsUp, ThumbsDown, Bot, Loader2, MessageSquare, ImageIcon } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -82,6 +82,10 @@ export default function Reports() {
     }
   }, [myStaffData, followupStaffFilter]);
   
+  // Image lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; label: string } | null>(null);
+
   // AI Advice state
   const [generatingAdviceForReport, setGeneratingAdviceForReport] = useState<number | null>(null);
   const [adviceCache, setAdviceCache] = useState<Record<number, { id: number; adviceText: string; userFeedback?: "good" | "bad" }>>({})
@@ -1182,6 +1186,15 @@ export default function Reports() {
                         <p className="text-sm whitespace-pre-wrap text-muted-foreground">{report.remarks}</p>
                       </div>
                     )}
+
+                    {/* Attachments (LINE/Lark screenshots) */}
+                    <ReportAttachmentsDisplay
+                      reportId={report.id}
+                      onImageClick={(url, label) => {
+                        setLightboxImage({ url, label });
+                        setLightboxOpen(true);
+                      }}
+                    />
                     
                     {/* AI Advice Section */}
                     <div className="mt-4 pt-4 border-t border-dashed">
@@ -1479,6 +1492,16 @@ export default function Reports() {
                 </div>
               )}
 
+              {/* Attachments in detail dialog */}
+              <ReportAttachmentsDisplay
+                reportId={reportDetail.report.id}
+                onImageClick={(url, label) => {
+                  setLightboxImage({ url, label });
+                  setLightboxOpen(true);
+                }}
+                large
+              />
+
               {/* Updated at */}
               <p className="text-xs text-muted-foreground text-right">
                 {t("reports.updatedAt")}: {formatDateTime(reportDetail.report.updatedAt)}
@@ -1489,6 +1512,64 @@ export default function Reports() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Image Lightbox Dialog */}
+      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-2">
+          <DialogHeader className="pb-1">
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <ImageIcon className="h-4 w-4" />
+              {lightboxImage?.label}
+            </DialogTitle>
+          </DialogHeader>
+          {lightboxImage && (
+            <div className="flex items-center justify-center overflow-auto max-h-[75vh]">
+              <img
+                src={lightboxImage.url}
+                alt={lightboxImage.label}
+                className="max-w-full max-h-[75vh] object-contain rounded"
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// Report Attachments Display Component
+function ReportAttachmentsDisplay({ reportId, onImageClick, large }: { reportId: number; onImageClick: (url: string, label: string) => void; large?: boolean }) {
+  const { data: attachments, isLoading } = trpc.report.getAttachments.useQuery(
+    { reportId },
+    { staleTime: 60000 }
+  );
+
+  if (isLoading || !attachments || attachments.length === 0) return null;
+
+  return (
+    <div className="mt-3">
+      <Label className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+        <ImageIcon className="h-3 w-3" />
+        截图 ({attachments.length})
+      </Label>
+      <div className={`grid gap-2 mt-1 ${large ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-3 md:grid-cols-4'}`}>
+        {attachments.map((att: any) => (
+          <div
+            key={att.id}
+            className="relative group cursor-pointer border rounded-lg overflow-hidden hover:ring-2 hover:ring-primary/50 transition-all"
+            onClick={() => onImageClick(att.imageUrl, att.label)}
+          >
+            <img
+              src={att.imageUrl}
+              alt={att.label}
+              className={`w-full object-cover ${large ? 'h-32' : 'h-20'}`}
+            />
+            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1.5 py-0.5 truncate">
+              {att.label}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
