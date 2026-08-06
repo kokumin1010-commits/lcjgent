@@ -245,7 +245,17 @@ export default function CashflowTab() {
   const total = listQuery.data?.total || 0;
   const totalPages = Math.ceil(total / limit);
   const balanceHistory = balanceQuery.data || [];
-  const currentBalance = balanceHistory.length > 0 ? balanceHistory[balanceHistory.length - 1].balance : 0;
+  // 月選択時はその月の累積残高を表示、未選択時は最新月
+  const currentBalance = (() => {
+    if (balanceHistory.length === 0) return 0;
+    if (selectedYearMonth && dateRange.end) {
+      // 選択月に対応するbalanceHistoryのエントリを探す
+      const targetMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+      const entry = balanceHistory.find((b: any) => b.month === targetMonth);
+      if (entry) return entry.balance;
+    }
+    return balanceHistory[balanceHistory.length - 1].balance;
+  })();
 
   return (
     <div className="space-y-6">
@@ -357,7 +367,7 @@ export default function CashflowTab() {
           <CardContent className="p-4">
             <div className="text-xs text-blue-700 flex items-center gap-1.5">
               <Wallet className="h-3.5 w-3.5" />
-              残高（累計）
+              残高（累計{selectedYearMonth ? ` 〜${selectedMonth}月末` : ''}）
             </div>
             <div className={`text-xl font-bold mt-1 ${currentBalance >= 0 ? "text-blue-800" : "text-red-800"}`}>
               {entity === "china" ? formatCurrency(currentBalance, "CNY") : formatCurrency(currentBalance)}
