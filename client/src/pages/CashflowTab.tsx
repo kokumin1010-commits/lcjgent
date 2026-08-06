@@ -709,16 +709,20 @@ export default function CashflowTab() {
                     )}
                   </td>
                   <td className="p-3 text-xs">
-                    <input
-                      type="text"
-                      defaultValue={item.counterparty || ''}
-                      onBlur={(e) => {
-                        if (e.target.value !== (item.counterparty || '')) {
-                          updateMutation.mutate({ id: item.id, counterparty: e.target.value, entity: item.entity, type: item.type, amount: item.amount, currency: item.currency, transactionDate: item.transactionDate, description: item.description, category: item.category });
-                        }
+                    <select
+                      value={item.counterparty || ''}
+                      onChange={(e) => {
+                        updateMutation.mutate({ id: item.id, counterparty: e.target.value, entity: item.entity, type: item.type, amount: item.amount, currency: item.currency, transactionDate: item.transactionDate, description: item.description, category: item.category });
                       }}
-                      className="bg-transparent border-0 border-b border-dashed border-muted-foreground/30 hover:border-primary focus:border-primary w-full text-xs p-0 focus:ring-0 focus:outline-none"
-                    />
+                      className="bg-transparent border-0 border-b border-dashed border-muted-foreground/30 hover:border-primary cursor-pointer text-xs p-0 focus:ring-0 focus:border-primary"
+                    >
+                      <option value="世曜元宇">世曜元宇</option>
+                      <option value="花秘">花秘</option>
+                      <option value="品汇盟">品汇盟</option>
+                      <option value="LCJ">LCJ</option>
+                      <option value="日本総部">日本総部</option>
+                      <option value="その他">その他</option>
+                    </select>
                   </td>
                   <td className="p-3 text-xs text-muted-foreground">{item.description || "-"}</td>
                   <td className="p-3 text-center">
