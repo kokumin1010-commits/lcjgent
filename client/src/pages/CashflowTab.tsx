@@ -39,7 +39,7 @@ const CATEGORIES_INCOME = ["売上", "入金", "投資回収", "助成金", "そ
 const CATEGORIES_EXPENSE = ["仕入", "人件費", "広告費", "家賃", "通信費", "交通費", "外注費", "消耗品", "税金", "手数料", "その他支出", "世曜元宇資金", "花秘代収代付", "品汇盟代収代付"];
 
 export default function CashflowTab() {
-  const [entity, setEntity] = useState<"all" | "japan" | "china">("all");
+  const [entity, setEntity] = useState<"all" | "japan" | "china">("china");
   const [type, setType] = useState<"all" | "income" | "expense">("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
