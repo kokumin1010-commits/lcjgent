@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -81,6 +81,11 @@ export default function CashflowTab() {
   const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("transactionDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const limit = 20;
+  const [csvDialogOpen, setCsvDialogOpen] = useState(false);
+  const [csvStartDate, setCsvStartDate] = useState("");
+  const [csvEndDate, setCsvEndDate] = useState("");
+  const [csvCounterparty, setCsvCounterparty] = useState("");
+  const [pageInput, setPageInput] = useState("");
 
   function toggleSort(col: "transactionDate" | "amount" | "category" | "counterparty") {
     if (sortBy === col) {
@@ -345,8 +350,25 @@ export default function CashflowTab() {
   }
 
   // CSV Export
-  function exportCsv() {
-    const items = listQuery.data?.items || [];
+  function openCsvDialog() {
+    setCsvStartDate(dateRange.start || "");
+    setCsvEndDate(dateRange.end || "");
+    setCsvCounterparty("");
+    setCsvDialogOpen(true);
+  }
+
+  const exportQuery = trpc.cashflow.exportAll.useQuery(
+    { entity, type, startDate: csvStartDate || undefined, endDate: csvEndDate || undefined, counterparty: csvCounterparty || undefined },
+    { enabled: false }
+  );
+
+  async function exportCsvWithFilters() {
+    const result = await exportQuery.refetch();
+    const items = result.data?.items || [];
+    if (items.length === 0) {
+      toast.error("条件に一致するデータがありません");
+      return;
+    }
     const headers = ["ID", "法人", "種別", "カテゴリ", "金額", "通貨", "日付", "取引先", "説明"];
     const rows = items.map((item: any) => [
       item.id,
@@ -365,9 +387,11 @@ export default function CashflowTab() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `cashflow_${entity}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `cashflow_${entity}_${csvStartDate || "all"}_${csvEndDate || "all"}_${csvCounterparty || "all"}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    setCsvDialogOpen(false);
+    toast.success(`${items.length}件のデータをエクスポートしました`);
   }
 
   const summary = summaryQuery.data;
@@ -795,7 +819,7 @@ export default function CashflowTab() {
             <SelectItem value="expense">出金</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" size="sm" onClick={exportCsv}>
+        <Button variant="outline" size="sm" onClick={openCsvDialog}>
           <Download className="h-4 w-4 mr-1.5" />
           CSV
         </Button>
@@ -932,9 +956,13 @@ export default function CashflowTab() {
                       <option value="世曜元宇">世曜元宇</option>
                       <option value="花秘">花秘</option>
                       <option value="品汇盟">品汇盟</option>
-                      <option value="LCJ">LCJ</option>
+                      <option value="LCJ MITSUI">LCJ MITSUI</option>
+                      <option value="LCJ RESONA">LCJ RESONA</option>
                       <option value="日本総部">日本総部</option>
                       <option value="その他">その他</option>
+                      {item.counterparty && !["世曜元宇","花秘","品汇盟","LCJ MITSUI","LCJ RESONA","日本総部","その他"].includes(item.counterparty) && (
+                        <option value={item.counterparty}>{item.counterparty}</option>
+                      )}
                     </select>
                   </td>
                   <td className="p-3 text-xs">
@@ -976,14 +1004,83 @@ export default function CashflowTab() {
           <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm text-muted-foreground">
-            {page + 1} / {totalPages}
-          </span>
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <input
+              type="number"
+              min={1}
+              max={totalPages}
+              value={pageInput || (page + 1)}
+              onChange={(e) => setPageInput(e.target.value)}
+              onBlur={(e) => {
+                const val = parseInt(e.target.value);
+                if (val >= 1 && val <= totalPages) {
+                  setPage(val - 1);
+                }
+                setPageInput("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const val = parseInt((e.target as HTMLInputElement).value);
+                  if (val >= 1 && val <= totalPages) {
+                    setPage(val - 1);
+                  }
+                  setPageInput("");
+                }
+              }}
+              className="w-12 text-center border rounded px-1 py-0.5 text-sm"
+            />
+            <span>/ {totalPages}</span>
+          </div>
           <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       )}
+
+      {/* CSV Export Dialog */}
+      <Dialog open={csvDialogOpen} onOpenChange={setCsvDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>CSV导出条件</DialogTitle>
+            <DialogDescription>选择导出条件，不设置则导出全部数据</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">日期范围</label>
+              <div className="flex items-center gap-2 mt-1">
+                <Input type="date" value={csvStartDate} onChange={(e) => setCsvStartDate(e.target.value)} placeholder="开始日期" />
+                <span className="text-muted-foreground">~</span>
+                <Input type="date" value={csvEndDate} onChange={(e) => setCsvEndDate(e.target.value)} placeholder="结束日期" />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">取引先</label>
+              <select
+                value={csvCounterparty}
+                onChange={(e) => setCsvCounterparty(e.target.value)}
+                className="w-full mt-1 border rounded-md px-3 py-2 text-sm"
+              >
+                <option value="">全部</option>
+                <option value="世曜元宇">世曜元宇</option>
+                <option value="花秘">花秘</option>
+                <option value="品汇盟">品汇盟</option>
+                <option value="LCJ MITSUI">LCJ MITSUI</option>
+                <option value="LCJ RESONA">LCJ RESONA</option>
+                <option value="日本総部">日本総部</option>
+                <option value="その他">その他</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCsvDialogOpen(false)}>取消</Button>
+            <Button onClick={exportCsvWithFilters} disabled={exportQuery.isFetching}>
+              {exportQuery.isFetching && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+              <Download className="h-4 w-4 mr-1.5" />
+              导出CSV
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Import History */}
       {autoClassifyMutation.data && (

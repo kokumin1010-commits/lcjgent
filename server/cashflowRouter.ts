@@ -620,4 +620,47 @@ export const cashflowRouter = router({
         return [];
       }
     }),
+
+  // CSV Export - no pagination, filter by date range and/or counterparty
+  exportAll: protectedProcedure
+    .input(z.object({
+      entity: z.enum(["japan", "china", "all"]).default("all"),
+      type: z.enum(["income", "expense", "all"]).default("all"),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      counterparty: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      const pool = getPool();
+      let where = "WHERE deletedAt IS NULL";
+      const params: any[] = [];
+
+      if (input.entity !== "all") {
+        where += " AND entity = ?";
+        params.push(input.entity);
+      }
+      if (input.type !== "all") {
+        where += " AND type = ?";
+        params.push(input.type);
+      }
+      if (input.startDate) {
+        where += " AND transactionDate >= ?";
+        params.push(input.startDate);
+      }
+      if (input.endDate) {
+        where += " AND transactionDate <= ?";
+        params.push(input.endDate);
+      }
+      if (input.counterparty) {
+        where += " AND counterparty = ?";
+        params.push(input.counterparty);
+      }
+
+      const [rows] = await pool.query(
+        `SELECT * FROM company_cashflows ${where} ORDER BY transactionDate DESC, id DESC`,
+        params
+      ) as any;
+
+      return { items: rows, total: rows.length };
+    }),
 });
