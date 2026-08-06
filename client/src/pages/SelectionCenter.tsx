@@ -5079,11 +5079,6 @@ function CostManagementContent() {
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [costHistorySearch, setCostHistorySearch] = useState('');
-  // 分页 & 时间筛选 state
-  const [ordersPage, setOrdersPage] = useState(0);
-  const [ordersStartDate, setOrdersStartDate] = useState('');
-  const [ordersEndDate, setOrdersEndDate] = useState('');
-  const ORDERS_PAGE_SIZE = 10;
 
   const brandsQuery = trpc.brand.list.useQuery();
   const brands = brandsQuery.data || [];
@@ -5095,24 +5090,6 @@ function CostManagementContent() {
     limit: 100,
   });
   const costHistory = costHistoryQuery.data || [];
-
-  // 仕入れ発注データ（原価付き）
-  const ordersQuery = trpc.selectionCenter.getProcurementOrders.useQuery({
-    brandId: filterBrandId,
-    limit: ORDERS_PAGE_SIZE,
-    offset: ordersPage * ORDERS_PAGE_SIZE,
-  });
-  const allOrders = ordersQuery.data?.orders || [];
-  const ordersTotal = ordersQuery.data?.total || 0;
-  const totalPages = Math.ceil(ordersTotal / ORDERS_PAGE_SIZE);
-  // 前端时间筛选
-  const orders = allOrders.filter((order: any) => {
-    if (!ordersStartDate && !ordersEndDate) return true;
-    const d = order.orderDate ? new Date(order.orderDate).toISOString().split('T')[0] : '';
-    if (ordersStartDate && d < ordersStartDate) return false;
-    if (ordersEndDate && d > ordersEndDate) return false;
-    return true;
-  });
 
   // 原価登録ミューテーション
   const registerCostMutation = trpc.selectionCenter.registerProductCost.useMutation({
@@ -5150,13 +5127,6 @@ function CostManagementContent() {
   });
 
   // 発注の原価を更新
-  const updateOrderMutation = trpc.selectionCenter.updateProcurementOrder.useMutation({
-    onSuccess: () => {
-      toast.success("原価を更新しました");
-      ordersQuery.refetch();
-    },
-    onError: (e) => toast.error("エラー: " + e.message),
-  });
 
   return (
     <div className="space-y-6">
@@ -5189,132 +5159,6 @@ function CostManagementContent() {
           />
         </div>
       </div>
-
-      {/* 进货订单成本一览 */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">进货订单 成本一览</CardTitle>
-          <p className="text-xs text-muted-foreground mb-2">管理各订单的成本。点击可编辑。</p>
-          <div className="flex items-center gap-2 flex-wrap">
-            <label className="text-xs text-muted-foreground">时间筛选:</label>
-            <input
-              type="date"
-              value={ordersStartDate}
-              onChange={(e) => { setOrdersStartDate(e.target.value); setOrdersPage(0); }}
-              className="text-xs border rounded px-2 py-1"
-            />
-            <span className="text-xs text-muted-foreground">~</span>
-            <input
-              type="date"
-              value={ordersEndDate}
-              onChange={(e) => { setOrdersEndDate(e.target.value); setOrdersPage(0); }}
-              className="text-xs border rounded px-2 py-1"
-            />
-            {(ordersStartDate || ordersEndDate) && (
-              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => { setOrdersStartDate(''); setOrdersEndDate(''); }}>
-                <X className="h-3 w-3 mr-1" />清除
-              </Button>
-            )}
-            <span className="text-xs text-muted-foreground ml-auto">共 {ordersTotal} 条</span>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="text-left p-3 font-medium">下单日</th>
-                  <th className="text-left p-3 font-medium">品牌</th>
-                  <th className="text-left p-3 font-medium">商品名</th>
-                  <th className="text-right p-3 font-medium">数量</th>
-                  <th className="text-right p-3 font-medium">成本/单价</th>
-                  <th className="text-right p-3 font-medium">合计成本</th>
-                  <th className="text-center p-3 font-medium">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ordersQuery.isLoading ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-8 text-muted-foreground">加载中...</td>
-                  </tr>
-                ) : orders.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-8 text-muted-foreground">暂无已登记成本的订单</td>
-                  </tr>
-                ) : (
-                  orders.map((order: any) => (
-                    <tr key={order.id} className="border-b hover:bg-muted/30">
-                      <td className="p-3">{order.orderDate ? new Date(order.orderDate).toLocaleDateString('ja-JP') : '-'}</td>
-                      <td className="p-3">{order.brandName}</td>
-                      <td className="p-3">{order.productName}</td>
-                      <td className="p-3 text-right">{Number(order.quantity).toLocaleString()}</td>
-                      <td className="p-3 text-right font-medium">¥{Number(order.unitCost).toLocaleString()}</td>
-                      <td className="p-3 text-right font-bold text-amber-600">¥{Number(order.totalCost).toLocaleString()}</td>
-                      <td className="p-3 text-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditingCost(order)}
-                          title="编辑成本"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          {/* 分页控件 */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t">
-              <p className="text-xs text-muted-foreground">
-                第 {ordersPage + 1} / {totalPages} 页
-              </p>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  disabled={ordersPage === 0}
-                  onClick={() => setOrdersPage(0)}
-                >
-                  首页
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  disabled={ordersPage === 0}
-                  onClick={() => setOrdersPage(p => Math.max(0, p - 1))}
-                >
-                  上一页
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  disabled={ordersPage >= totalPages - 1}
-                  onClick={() => setOrdersPage(p => Math.min(totalPages - 1, p + 1))}
-                >
-                  下一页
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  disabled={ordersPage >= totalPages - 1}
-                  onClick={() => setOrdersPage(totalPages - 1)}
-                >
-                  末页
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
 
 
       {/* 成本变更历史 */}
@@ -5423,7 +5267,6 @@ function CostManagementContent() {
         brands={brands}
         onSuccess={() => {
           costHistoryQuery.refetch();
-          ordersQuery.refetch();
         }}
       />
 
@@ -5509,7 +5352,6 @@ function CostManagementContent() {
           brands={brands}
           onSuccess={() => {
             costHistoryQuery.refetch();
-            ordersQuery.refetch();
           }}
         />
       )}
@@ -5535,36 +5377,6 @@ function CostManagementContent() {
         </div>
       )}
 
-      {editingCost && (
-        <Dialog open={!!editingCost} onOpenChange={(v) => !v && setEditingCost(null)}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>编辑成本</DialogTitle>
-            </DialogHeader>
-            <CostEditForm
-              order={editingCost}
-              onSubmit={(unitCost) => {
-                updateOrderMutation.mutate({ id: editingCost.id, unitCost });
-                // Also register to cost history
-                if (editingCost.productId) {
-                  registerCostMutation.mutate({
-                    productId: editingCost.productId,
-                    productName: editingCost.productName,
-                    brandId: editingCost.brandId,
-                    brandName: editingCost.brandName,
-                    unitCost,
-                    effectiveDate: editingCost.orderDate || new Date().toISOString().split('T')[0],
-                    memo: "从成本管理页更新",
-                  });
-                }
-                setEditingCost(null);
-              }}
-              onClose={() => setEditingCost(null)}
-              isLoading={updateOrderMutation.isPending}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }
