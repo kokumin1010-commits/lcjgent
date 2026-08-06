@@ -620,8 +620,8 @@ function GuestIntroSection() {
     {
       name: 'ゆん',
       photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/JrdLtSWrsMiHmheu.webp',
-      title: 'YouTuber・インフルエンサー',
-      bio: '愛知県出身。SNS総フォロワー数290万人超。美容・コスメ・ファッション・育児ライフスタイルを発信。2024年「第17回ペアレンティングアワード」インフルエンサー部門受賞。Fisher\'sリーダー・シルクロードの妻として二児の母。',
+      title: 'YouTuber・タレント',
+      bio: '愛知県出身。SNS総フォロワー数290万人超。美容・コスメ・ファッション・育児ライフスタイルを発信。2024年「第17回ペアレンティングアワード」インフルエンサー部門受賞。2023年Fischer\'sリーダー・シルクロードと結婚。現在、タレントとしても幅広く活動中。',
       sns: [
         { label: 'Instagram', url: 'https://www.instagram.com/yuntaaam_s2/' },
         { label: 'YouTube', url: 'https://www.youtube.com/@yunnn.s2' },
@@ -992,7 +992,7 @@ function ProgramSection() {
                 会場からTikTok LIVEで全国へ配信。ライブコマースの極意・成功事例・実践販売をリアルタイムでお届け。
               </p>
               <p className="text-[#FF6B35] text-sm mt-2">
-                出演予定：JOY／後藤真希／ゆん／プリンスこうや／京極琉／超無課金
+                出演予定：JOY / ゆん / 景井ひな / プリンスこうや / 京極琉 / 超無課金 and more...
               </p>
             </div>
           </div>
