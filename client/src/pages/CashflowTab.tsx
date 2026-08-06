@@ -22,7 +22,36 @@ function formatCurrency(val: number | string | null | undefined, currency: strin
 }
 
 // 为替レート表示用
-const EXCHANGE_RATE_CNY_JPY = 20.5; // 1 CNY ≈ 20.5 JPY (参考レート)
+const EXCHANGE_RATE_CNY_JPY = 20.5;
+
+// カテゴリ名の中国語マッピング
+const CATEGORY_CN_MAP: Record<string, string> = {
+  "給与・人件費": "工资・人工费",
+  "交通費": "交通费",
+  "広告・マーケティング": "广告・营销",
+  "家賃・オフィス": "租金・办公室",
+  "通信・光熱費": "网络・水电",
+  "物流・配送": "物流・快递",
+  "飲食・接待": "餐饮・招待",
+  "ソフトウェア・ツール": "软件・工具",
+  "本社送金": "总部汇款",
+  "ライブ・配信": "直播・配信",
+  "TikTok・越境EC": "TikTok・跨境电商",
+  "設備・備品": "设备・物品",
+  "手数料": "手续费",
+  "商品仕入": "商品采购",
+  "モデル・タレント": "模特・艺人",
+  "採用費": "招聘费",
+  "その他経費": "其他费用",
+  "振込": "转账",
+  "世曜元宇資金": "世曜元宇资金",
+  "花秘代付": "花秘代付",
+  "品汇盟代付": "品汇盟代付",
+};
+const getCategoryLabel = (category: string, isChinaEntity: boolean) => {
+  if (!isChinaEntity) return category;
+  return CATEGORY_CN_MAP[category] || category;
+}; // 1 CNY ≈ 20.5 JPY (参考レート)
 function formatWithExchangeRate(val: number | string | null | undefined, currency: string = "JPY"): { main: string; sub: string | null } {
   const num = typeof val === "string" ? parseFloat(val) : (val || 0);
   if (currency === "CNY") {
@@ -159,6 +188,106 @@ export default function CashflowTab() {
     },
     onError: (e) => toast.error(e.message),
   });
+
+  const importBankMutation = trpc.cashflow.importBankStatement.useMutation({
+    onSuccess: (data) => {
+      toast.success(`导入完成: ${data.imported}件新規, ${data.skipped}件スキップ(重複)`);
+      listQuery.refetch();
+      summaryQuery.refetch();
+      balanceQuery.refetch();
+      categoryBreakdownQuery.refetch();
+      importHistoryQuery.refetch();
+    },
+    onError: (e) => toast.error(`导入失败: ${e.message}`),
+  });
+
+  const importHistoryQuery = trpc.cashflow.getImportHistory.useQuery({ entity: entity === 'all' ? 'all' : entity });
+
+  async function handleBankStatementUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = ''; // reset input
+
+    try {
+      const XLSX = await import('xlsx');
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+
+      // ヘッダー行を見つける
+      let headerIdx = 0;
+      for (let i = 0; i < Math.min(5, rows.length); i++) {
+        const row = rows[i];
+        if (row && row.some((c: any) => String(c || '').includes('交易日期'))) {
+          headerIdx = i;
+          break;
+        }
+      }
+      const headers = (rows[headerIdx] || []).map((h: any) => String(h || '').trim());
+
+      // 列インデックスを特定
+      const dateCol = headers.findIndex(h => h.includes('交易日期'));
+      const counterpartyCol = headers.findIndex(h => h.includes('对方账户名称'));
+      const debitCol = headers.findIndex(h => h.includes('借方发生额'));
+      const creditCol = headers.findIndex(h => h.includes('贷方发生额'));
+      const descCol = headers.findIndex(h => h.includes('摘要'));
+      const balanceCol = headers.findIndex(h => h.includes('账户余额'));
+
+      if (dateCol < 0) {
+        toast.error('无法识别文件格式: 找不到"交易日期"列');
+        return;
+      }
+
+      const records: { transactionDate: string; counterparty: string; debitAmount?: number; creditAmount?: number; description: string; balance?: number }[] = [];
+
+      for (let i = headerIdx + 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || !row[dateCol]) continue;
+
+        // 日付解析
+        let dateStr = '';
+        const rawDate = row[dateCol];
+        if (rawDate instanceof Date) {
+          dateStr = rawDate.toISOString().slice(0, 10);
+        } else if (typeof rawDate === 'number') {
+          // Excel serial date
+          const d = new Date((rawDate - 25569) * 86400 * 1000);
+          dateStr = d.toISOString().slice(0, 10);
+        } else {
+          dateStr = String(rawDate).replace(/\//g, '-').slice(0, 10);
+        }
+        if (!dateStr || dateStr.length < 8) continue;
+
+        const counterparty = String(row[counterpartyCol] || '').trim();
+        const debit = parseFloat(String(row[debitCol] || '0').replace(/,/g, '')) || undefined;
+        const credit = parseFloat(String(row[creditCol] || '0').replace(/,/g, '')) || undefined;
+        const desc = String(row[descCol >= 0 ? descCol : 0] || '').trim();
+        const balance = balanceCol >= 0 ? (parseFloat(String(row[balanceCol] || '0').replace(/,/g, '')) || undefined) : undefined;
+
+        if (!debit && !credit) continue;
+
+        records.push({
+          transactionDate: dateStr,
+          counterparty,
+          debitAmount: debit,
+          creditAmount: credit,
+          description: desc,
+          balance,
+        });
+      }
+
+      if (records.length === 0) {
+        toast.error('有效数据为0条，请检查文件格式');
+        return;
+      }
+
+      toast.info(`解析完成: ${records.length}条记录，正在导入...`);
+      importBankMutation.mutate({ records, entity: entity === 'all' ? 'china' : entity as 'japan' | 'china' });
+    } catch (err: any) {
+      toast.error(`文件解析失败: ${err.message}`);
+    }
+  }
 
   function resetForm() {
     setFormData({
@@ -346,10 +475,26 @@ export default function CashflowTab() {
           )}
         </div>
 
-        <Button onClick={() => { resetForm(); setCreateOpen(true); }} className="ml-auto">
-          <Plus className="h-4 w-4 mr-1.5" />
-          入出金登録
-        </Button>
+        <div className="ml-auto flex gap-2">
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={handleBankStatementUpload}
+            />
+            <Button variant="outline" asChild>
+              <span>
+                <Download className="h-4 w-4 mr-1.5" />
+                {entity === 'china' ? '银行流水导入' : '銀行明細インポート'}
+              </span>
+            </Button>
+          </label>
+          <Button onClick={() => { resetForm(); setCreateOpen(true); }}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            入出金登録
+          </Button>
+        </div>
       </div>
 
       {/* Exchange Rate Info - shown when China entity selected */}
@@ -515,7 +660,7 @@ export default function CashflowTab() {
                         className="flex items-center gap-2 cursor-pointer hover:bg-muted/30 rounded-md p-1 transition-colors"
                         onClick={() => { setExpandedCategory(isExpanded ? null : cat.category); setPage(0); }}
                       >
-                        <span className="text-xs w-[140px] truncate font-medium">{cat.category}</span>
+                        <span className="text-xs w-[140px] truncate font-medium">{getCategoryLabel(cat.category, entity === 'china')}</span>
                         <div className="flex-1 h-5 bg-muted/50 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full ${colors[i % colors.length]} transition-all`}
@@ -570,7 +715,7 @@ export default function CashflowTab() {
                       >
                         <td className="p-2 font-medium flex items-center gap-1">
                           <ChevronRight className={`h-3 w-3 transition-transform ${expandedCategory === cat.category ? 'rotate-90' : ''}`} />
-                          {cat.category}
+                          {getCategoryLabel(cat.category, entity === 'china')}
                         </td>
                         <td className="p-2 text-right">{entity === "china" ? formatCurrency(cat.totalAmount, "CNY") : formatCurrency(cat.totalAmount)}</td>
                         <td className="p-2 text-right">{cat.count}件</td>
@@ -791,6 +936,25 @@ export default function CashflowTab() {
             <div className="text-xs text-slate-600">
               <span className="font-medium">🤖 AI分類履歴:</span> {new Date().toLocaleString("ja-JP")} - 
               全{autoClassifyMutation.data.total}件中 {autoClassifyMutation.data.updated}件のカテゴリを更新しました
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 银行流水导入履歴 */}
+      {importHistoryQuery.data && importHistoryQuery.data.length > 0 && (
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="p-3">
+            <h4 className="text-xs font-medium text-blue-800 mb-2">📝 {entity === 'china' ? '导入履历' : 'インポート履歴'}</h4>
+            <div className="space-y-1">
+              {importHistoryQuery.data.slice(0, 5).map((h: any, i: number) => (
+                <div key={i} className="flex items-center justify-between text-xs text-blue-700">
+                  <span>{new Date(h.importedAt).toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                  <span>{h.importType}</span>
+                  <span>导入{h.importedCount}件 / 跳过{h.skippedCount}件</span>
+                  <Badge variant="outline" className="text-[10px]">{h.entity === 'china' ? '🇨🇳' : '🇯🇵'}</Badge>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

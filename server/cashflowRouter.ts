@@ -516,4 +516,108 @@ export const cashflowRouter = router({
 
       return rows[0] || { totalIncome: 0, totalExpense: 0, netCashflow: 0, totalCount: 0, incomeCount: 0, expenseCount: 0 };
     }),
+
+  // 銀行流水インポート
+  importBankStatement: protectedProcedure
+    .input(z.object({
+      records: z.array(z.object({
+        transactionDate: z.string(),
+        counterparty: z.string(),
+        debitAmount: z.number().optional(),
+        creditAmount: z.number().optional(),
+        description: z.string(),
+        balance: z.number().optional(),
+      })),
+      entity: z.enum(["japan", "china"]).default("china"),
+    }))
+    .mutation(async ({ input }) => {
+      const pool = getPool();
+      let imported = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+
+      for (const rec of input.records) {
+        const amount = rec.creditAmount || rec.debitAmount || 0;
+        if (amount === 0) { skipped++; continue; }
+        const type = rec.creditAmount ? "income" : "expense";
+
+        // 重複チェック
+        const [existing] = await pool.query(
+          `SELECT id FROM company_cashflows WHERE transactionDate = ? AND amount = ? AND counterparty = ? AND entity = ? AND deletedAt IS NULL LIMIT 1`,
+          [rec.transactionDate, amount, rec.counterparty || '', input.entity]
+        ) as any;
+        if (existing && existing.length > 0) { skipped++; continue; }
+
+        // AI分類
+        const rules = [
+          { keywords: ["\u5de5\u8d44", "\u85aa\u6c34", "\u793e\u4fdd", "\u516c\u79ef\u91d1"], category: "\u7d66\u4e0e\u30fb\u4eba\u4ef6\u8cbb" },
+          { keywords: ["\u6253\u8f66", "\u4ea4\u901a", "\u673a\u7968", "\u6ef4\u6ef4"], category: "\u4ea4\u901a\u8cbb" },
+          { keywords: ["\u5e7f\u544a", "\u63a8\u5e7f", "\u6295\u653e"], category: "\u5e83\u544a\u30fb\u30de\u30fc\u30b1\u30c6\u30a3\u30f3\u30b0" },
+          { keywords: ["\u79df\u91d1", "\u7269\u4e1a", "\u623f\u79df", "\u529e\u516c"], category: "\u5bb6\u8cc3\u30fb\u30aa\u30d5\u30a3\u30b9" },
+          { keywords: ["\u7535\u4fe1", "\u7f51\u7edc", "\u5bbd\u5e26"], category: "\u901a\u4fe1\u30fb\u5149\u71b1\u8cbb" },
+          { keywords: ["\u5feb\u9012", "\u7269\u6d41", "\u51ef\u6b4c"], category: "\u7269\u6d41\u30fb\u914d\u9001" },
+          { keywords: ["\u9910", "\u5916\u5356", "\u4f4f\u5bbf", "\u62db\u5f85"], category: "\u98f2\u98df\u30fb\u63a5\u5f85" },
+          { keywords: ["\u8f6f\u4ef6", "\u5145\u503c", "\u817e\u8baf", "\u4e91\u96c0", "\u62b9\u97f3"], category: "\u30bd\u30d5\u30c8\u30a6\u30a7\u30a2\u30fb\u30c4\u30fc\u30eb" },
+          { keywords: ["\u62e8\u4ed8", "\u5f80\u6765\u6b3e"], category: "\u672c\u793e\u9001\u91d1" },
+          { keywords: ["\u76f4\u64ad", "\u573a\u5730"], category: "\u30e9\u30a4\u30d6\u30fb\u914d\u4fe1" },
+          { keywords: ["\u6296\u97f3", "tiktok", "\u63d0\u73b0", "\u8de8\u5883", "Ping Pong", "\u822a\u5929\u7535\u5b50"], category: "TikTok\u30fb\u8d8a\u5883EC" },
+          { keywords: ["\u6a21\u7279", "\u670d\u88c5\u79df\u8d41"], category: "\u30e2\u30c7\u30eb\u30fb\u30bf\u30ec\u30f3\u30c8" },
+          { keywords: ["\u624b\u7eed\u8d39", "\u670d\u52a1\u8d39", "\u94f6\u884c\u6536\u8d39"], category: "\u624b\u6570\u6599" },
+          { keywords: ["\u82b1\u79d8"], category: "\u82b1\u79d8\u4ee3\u4ed8" },
+          { keywords: ["\u54c1\u6c47\u76df"], category: "\u54c1\u6c47\u76df\u4ee3\u4ed8" },
+        ];
+        const searchText = `${rec.counterparty || ''} ${rec.description || ''}`.toLowerCase();
+        let category = "\u305d\u306e\u4ed6\u7d4c\u8cbb";
+        for (const rule of rules) {
+          if (rule.keywords.some(kw => searchText.includes(kw.toLowerCase()))) {
+            category = rule.category;
+            break;
+          }
+        }
+
+        try {
+          await pool.query(
+            `INSERT INTO company_cashflows (entity, type, category, amount, currency, transactionDate, description, counterparty, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            [input.entity, type, category, amount, "CNY", rec.transactionDate, rec.description || '', rec.counterparty || '']
+          );
+          imported++;
+        } catch (e: any) {
+          errors.push(`${rec.transactionDate} ${rec.counterparty}: ${e.message}`);
+        }
+      }
+
+      // 履歴保存
+      try {
+        await pool.query(
+          `INSERT INTO cashflow_import_history (entity, importType, recordCount, importedCount, skippedCount, importedAt) VALUES (?, ?, ?, ?, ?, NOW())`,
+          [input.entity, "\u94f6\u884c\u6d41\u6c34", input.records.length, imported, skipped]
+        );
+      } catch (e) { /* table may not exist yet */ }
+
+      return { success: true, imported, skipped, errors: errors.slice(0, 5), total: input.records.length };
+    }),
+
+  // インポート履歴取得
+  getImportHistory: protectedProcedure
+    .input(z.object({
+      entity: z.enum(["japan", "china", "all"]).default("all"),
+    }))
+    .query(async ({ input }) => {
+      const pool = getPool();
+      try {
+        let where = "WHERE 1=1";
+        const params: any[] = [];
+        if (input.entity !== "all") {
+          where += " AND entity = ?";
+          params.push(input.entity);
+        }
+        const [rows] = await pool.query(
+          `SELECT * FROM cashflow_import_history ${where} ORDER BY importedAt DESC LIMIT 20`,
+          params
+        ) as any;
+        return rows as { id: number; entity: string; importType: string; recordCount: number; importedCount: number; skippedCount: number; importedAt: string }[];
+      } catch (e) {
+        return [];
+      }
+    }),
 });
