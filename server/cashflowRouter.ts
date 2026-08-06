@@ -696,10 +696,24 @@ export const cashflowRouter = router({
         )`);
       } catch (e) { /* table exists */ }
 
-      // 2. Get all account initial balances
+     // 2. Get all account initial balances
       const [balances] = await pool.query(`SELECT * FROM bank_account_balances`) as any;
       
-      // 3. Calculate net flow per account from cashflows
+      // 3. For Japan accounts: get latest balance directly from records
+      const [latestBalances] = await pool.query(`
+        SELECT t1.sourceAccount, t1.balance, t1.transactionDate
+        FROM company_cashflows t1
+        INNER JOIN (
+          SELECT sourceAccount, MAX(transactionDate) as maxDate
+          FROM company_cashflows
+          WHERE deletedAt IS NULL AND sourceAccount IS NOT NULL AND sourceAccount != '' AND balance IS NOT NULL AND balance > 0
+          GROUP BY sourceAccount
+        ) t2 ON t1.sourceAccount = t2.sourceAccount AND t1.transactionDate = t2.maxDate
+        WHERE t1.deletedAt IS NULL
+        GROUP BY t1.sourceAccount
+      `) as any;
+
+      // 4. Calculate net flow per account from cashflows (for China accounts)
       let entityFilter = "";
       const params: any[] = [];
       if (input.entity !== "all") {
@@ -717,22 +731,31 @@ export const cashflowRouter = router({
         params
       ) as any;
 
-      // 4. Combine: initial balance + income - expense
+      // 5. Combine results
       const accounts = ["世曜元宇", "花秘", "品汇盟", "LCJ MITSUI", "LCJ RESONA", "日本総部"];
+      const japanAccounts = ["LCJ MITSUI", "LCJ RESONA", "日本総部"];
       const result = accounts.map(name => {
         const balanceRow = balances.find((b: any) => b.accountName === name);
         const flowRow = flows.find((f: any) => f.sourceAccount === name);
-        const initial = Number(balanceRow?.initialBalance || 0);
         const income = Number(flowRow?.totalIncome || 0);
         const expense = Number(flowRow?.totalExpense || 0);
+        const isJapan = japanAccounts.includes(name);
+        
+        // Japan: use latest record balance; China: use initial + income - expense
+        const latestRow = latestBalances.find((l: any) => l.sourceAccount === name);
+        const initial = Number(balanceRow?.initialBalance || 0);
+        const currentBalance = isJapan && latestRow ? Number(latestRow.balance) : initial + income - expense;
+        const lastDate = isJapan && latestRow ? latestRow.transactionDate : null;
+        
         return {
           accountName: name,
           initialBalance: initial,
-          currentBalance: initial + income - expense,
+          currentBalance,
           totalIncome: income,
           totalExpense: expense,
-          currency: balanceRow?.currency || (["LCJ MITSUI", "LCJ RESONA", "日本総部"].includes(name) ? "JPY" : "CNY"),
-          entity: balanceRow?.entity || (["LCJ MITSUI", "LCJ RESONA", "日本総部"].includes(name) ? "japan" : "china"),
+          currency: balanceRow?.currency || (isJapan ? "JPY" : "CNY"),
+          entity: balanceRow?.entity || (isJapan ? "japan" : "china"),
+          lastDate,
         };
       });
 
