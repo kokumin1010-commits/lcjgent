@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import {
   Plus, Download, Search, Trash2, Edit2, Loader2,
   TrendingUp, TrendingDown, Wallet, Building2, ArrowUpRight, ArrowDownRight,
-  ChevronLeft, ChevronRight, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown
+  ChevronLeft, ChevronRight, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Calendar
 } from "lucide-react";
 
 function formatCurrency(val: number | string | null | undefined, currency: string = "JPY"): string {
@@ -44,6 +44,10 @@ export default function CashflowTab() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
+  const [showYearMonthPicker, setShowYearMonthPicker] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(2026);
+  const [selectedMonth, setSelectedMonth] = useState(0);
+  const selectedYearMonth = selectedMonth > 0;
   const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("transactionDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const limit = 20;
@@ -258,19 +262,77 @@ export default function CashflowTab() {
           </SelectContent>
         </Select>
 
-        <Input
-          type="date"
-          value={dateRange.start}
-          onChange={(e) => { setDateRange({ ...dateRange, start: e.target.value }); setPage(0); }}
-          className="w-[150px]"
-        />
-        <span className="text-muted-foreground">〜</span>
-        <Input
-          type="date"
-          value={dateRange.end}
-          onChange={(e) => { setDateRange({ ...dateRange, end: e.target.value }); setPage(0); }}
-          className="w-[150px]"
-        />
+        {/* Year-Month Quick Selector */}
+        <div className="relative">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowYearMonthPicker(!showYearMonthPicker)}
+            className="min-w-[140px] justify-start"
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            {selectedYearMonth ? `${selectedYear}年${selectedMonth}月` : '全期間'}
+          </Button>
+          {showYearMonthPicker && (
+            <div className="absolute top-full left-0 mt-1 z-50 bg-white border rounded-lg shadow-lg p-4 w-[380px]">
+              {/* Year selector */}
+              <div className="flex justify-center gap-2 mb-3">
+                {[2026, 2025].map(y => (
+                  <button
+                    key={y}
+                    onClick={() => setSelectedYear(y)}
+                    className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                      selectedYear === y ? 'bg-purple-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                    }`}
+                  >
+                    {y}年
+                  </button>
+                ))}
+              </div>
+              {/* Month grid */}
+              <div className="grid grid-cols-6 gap-1.5">
+                {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
+                  <button
+                    key={m}
+                    onClick={() => {
+                      setSelectedMonth(m);
+                      const start = `${selectedYear}-${String(m).padStart(2, '0')}-01`;
+                      const lastDay = new Date(selectedYear, m, 0).getDate();
+                      const end = `${selectedYear}-${String(m).padStart(2, '0')}-${lastDay}`;
+                      setDateRange({ start, end });
+                      setPage(0);
+                      setShowYearMonthPicker(false);
+                    }}
+                    className={`px-2 py-2 rounded-lg text-sm font-medium transition-all ${
+                      selectedMonth === m && selectedYearMonth
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'bg-gradient-to-b from-gray-50 to-gray-100 hover:from-purple-50 hover:to-purple-100 text-gray-700 border'
+                    }`}
+                  >
+                    {m}月
+                  </button>
+                ))}
+              </div>
+              {/* Footer */}
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  選択中: <strong>{selectedYearMonth ? `${selectedYear}年${selectedMonth}月` : '全期間'}</strong>
+                </span>
+                <button
+                  onClick={() => {
+                    setSelectedMonth(0);
+                    setDateRange({ start: '', end: '' });
+                    setPage(0);
+                    setShowYearMonthPicker(false);
+                  }}
+                  className="text-xs text-purple-600 hover:underline"
+                >
+                  クリア（全期間）
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         <Button onClick={() => { resetForm(); setCreateOpen(true); }} className="ml-auto">
           <Plus className="h-4 w-4 mr-1.5" />
