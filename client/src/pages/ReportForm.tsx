@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Save, ArrowLeft, UserPlus, Globe } from "lucide-react";
+import { FileText, Save, ArrowLeft, UserPlus, Globe, ImagePlus, X, Upload } from "lucide-react";
 import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
 
@@ -21,6 +21,16 @@ const COUNTRIES = [
   { value: "日本", label: "日本" },
   { value: "中国", label: "中国" },
 ];
+
+// Image label options
+const IMAGE_LABELS = ["LINE截图", "Lark截图"] as const;
+type ImageLabel = typeof IMAGE_LABELS[number];
+
+interface PendingImage {
+  file: File;
+  preview: string;
+  label: ImageLabel;
+}
 
 export default function ReportForm() {
   const [, setLocation] = useLocation();
@@ -37,6 +47,12 @@ export default function ReportForm() {
   const [workContent, setWorkContent] = useState<string>("");
   const [issues, setIssues] = useState<string>("");
   const [remarks, setRemarks] = useState<string>("");
+  
+  // Image upload state
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [currentLabel, setCurrentLabel] = useState<ImageLabel>("LINE截图");
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch active report staff for dropdown
   const { data: activeReportStaff, refetch: refetchReportStaff } = trpc.reportStaff.listActive.useQuery();
@@ -44,6 +60,12 @@ export default function ReportForm() {
   // Fetch existing report for edit mode
   const { data: existingReport, isLoading: reportLoading } = trpc.report.getById.useQuery(
     { id: parseInt(params.id || "0") },
+    { enabled: isEditMode }
+  );
+
+  // Fetch existing attachments in edit mode
+  const { data: existingAttachments, refetch: refetchAttachments } = trpc.report.getAttachments.useQuery(
+    { reportId: parseInt(params.id || "0") },
     { enabled: isEditMode }
   );
 
@@ -68,7 +90,11 @@ export default function ReportForm() {
   });
 
   const createReport = trpc.report.create.useMutation({
-    onSuccess: () => {
+    onSuccess: async (report) => {
+      // Upload pending images after report creation
+      if (pendingImages.length > 0 && report?.id) {
+        await uploadPendingImages(report.id);
+      }
       toast.success("レポートを作成しました");
       setLocation("/master/reports");
     },
@@ -78,7 +104,11 @@ export default function ReportForm() {
   });
 
   const updateReport = trpc.report.update.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Upload pending images after report update
+      if (pendingImages.length > 0 && params.id) {
+        await uploadPendingImages(parseInt(params.id));
+      }
       toast.success("レポートを更新しました");
       setLocation("/master/reports");
     },
@@ -86,6 +116,90 @@ export default function ReportForm() {
       toast.error(`更新に失敗しました: ${error.message}`);
     },
   });
+
+  const uploadAttachment = trpc.report.uploadAttachment.useMutation();
+  const deleteAttachment = trpc.report.deleteAttachment.useMutation({
+    onSuccess: () => {
+      refetchAttachments();
+    },
+  });
+
+  const uploadPendingImages = async (reportId: number) => {
+    setIsUploading(true);
+    try {
+      for (const img of pendingImages) {
+        const base64 = await fileToBase64(img.file);
+        await uploadAttachment.mutateAsync({
+          reportId,
+          base64,
+          filename: img.file.name,
+          label: img.label,
+        });
+      }
+      setPendingImages([]);
+    } catch (error: any) {
+      toast.error(`画像アップロードに失敗: ${error.message}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove data:image/xxx;base64, prefix
+        const base64 = result.split(",")[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const newImages: PendingImage[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith("image/")) {
+        toast.error(`${file.name} は画像ファイルではありません`);
+        continue;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`${file.name} は10MBを超えています`);
+        continue;
+      }
+      newImages.push({
+        file,
+        preview: URL.createObjectURL(file),
+        label: currentLabel,
+      });
+    }
+    setPendingImages((prev) => [...prev, ...newImages]);
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const removePendingImage = (index: number) => {
+    setPendingImages((prev) => {
+      const updated = [...prev];
+      URL.revokeObjectURL(updated[index].preview);
+      updated.splice(index, 1);
+      return updated;
+    });
+  };
+
+  const handleDeleteExistingAttachment = (id: number) => {
+    if (confirm("この画像を削除しますか？")) {
+      deleteAttachment.mutate({ id });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,7 +266,7 @@ export default function ReportForm() {
     }
   };
 
-  const isPending = createReport.isPending || updateReport.isPending || createReportStaff.isPending;
+  const isPending = createReport.isPending || updateReport.isPending || createReportStaff.isPending || isUploading;
 
   if (isEditMode && reportLoading) {
     return (
@@ -317,6 +431,108 @@ export default function ReportForm() {
               />
             </div>
 
+            {/* Image Upload Section */}
+            <div className="space-y-3">
+              <Label className="flex items-center gap-2">
+                <ImagePlus className="h-4 w-4" />
+                截图上传（LINE / Lark）
+              </Label>
+              
+              <div className="flex items-center gap-3">
+                {/* Label selector */}
+                <Select value={currentLabel} onValueChange={(v) => setCurrentLabel(v as ImageLabel)}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {IMAGE_LABELS.map((label) => (
+                      <SelectItem key={label} value={label}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Upload button */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="gap-2"
+                >
+                  <Upload className="h-4 w-4" />
+                  选择图片
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+                <p className="text-xs text-muted-foreground">
+                  支持 JPG/PNG，最大10MB
+                </p>
+              </div>
+
+              {/* Existing attachments (edit mode) */}
+              {isEditMode && existingAttachments && existingAttachments.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">已上传的图片：</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {existingAttachments.map((att: any) => (
+                      <div key={att.id} className="relative group border rounded-lg overflow-hidden">
+                        <img
+                          src={att.imageUrl}
+                          alt={att.label}
+                          className="w-full h-24 object-cover"
+                        />
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-2 py-0.5 flex items-center justify-between">
+                          <span>{att.label}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteExistingAttachment(att.id)}
+                            className="text-red-300 hover:text-red-100"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Pending images preview */}
+              {pendingImages.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">待上传 ({pendingImages.length}张)：</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {pendingImages.map((img, idx) => (
+                      <div key={idx} className="relative group border rounded-lg overflow-hidden border-blue-200 bg-blue-50">
+                        <img
+                          src={img.preview}
+                          alt={img.label}
+                          className="w-full h-24 object-cover"
+                        />
+                        <div className="absolute bottom-0 left-0 right-0 bg-blue-900/70 text-white text-[10px] px-2 py-0.5 flex items-center justify-between">
+                          <span>{img.label}</span>
+                          <button
+                            type="button"
+                            onClick={() => removePendingImage(idx)}
+                            className="text-red-300 hover:text-red-100"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Submit Button */}
             <div className="flex justify-end gap-4">
               <Button
@@ -329,7 +545,9 @@ export default function ReportForm() {
               <Button type="submit" disabled={isPending}>
                 <Save className="h-4 w-4 mr-2" />
                 {isPending
-                  ? isEditMode
+                  ? isUploading
+                    ? "画像アップロード中..."
+                    : isEditMode
                     ? "更新中..."
                     : "作成中..."
                   : isEditMode

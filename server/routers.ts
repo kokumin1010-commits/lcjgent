@@ -736,6 +736,9 @@ import {
   markReplyHandled,
   unmarkReplyHandled,
   deleteLiver,
+  createReportAttachment,
+  getReportAttachments,
+  deleteReportAttachment,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -4016,6 +4019,63 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         await deleteReport(input.id);
+        return { success: true };
+      }),
+
+    // Upload image attachment for a report
+    uploadAttachment: protectedProcedure
+      .input(z.object({
+        reportId: z.number(),
+        base64: z.string(),
+        filename: z.string(),
+        label: z.enum(["LINE截图", "Lark截图"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Auto-create table if not exists
+        try {
+          const { getDb } = await import("./db");
+          const db = await getDb();
+          if (db) {
+            await db.execute(sqlTag`
+              CREATE TABLE IF NOT EXISTS report_attachments (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                reportId INT NOT NULL,
+                imageUrl TEXT NOT NULL,
+                label VARCHAR(50) NOT NULL,
+                filename VARCHAR(255),
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_report_id (reportId)
+              )
+            `);
+          }
+        } catch (e) { /* table may already exist */ }
+
+        const buffer = Buffer.from(input.base64, "base64");
+        const ext = input.filename.split(".").pop() || "png";
+        const key = `reports/${input.reportId}/${nanoid()}.${ext}`;
+        const contentType = `image/${ext === "jpg" ? "jpeg" : ext}`;
+        const { url } = await storagePut(key, buffer, contentType);
+        const attachment = await createReportAttachment({
+          reportId: input.reportId,
+          imageUrl: url,
+          label: input.label,
+          filename: input.filename,
+        });
+        return { id: attachment?.id, url, label: input.label };
+      }),
+
+    // Get attachments for a report
+    getAttachments: protectedProcedure
+      .input(z.object({ reportId: z.number() }))
+      .query(async ({ input }) => {
+        return await getReportAttachments(input.reportId);
+      }),
+
+    // Delete an attachment
+    deleteAttachment: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteReportAttachment(input.id);
         return { success: true };
       }),
 

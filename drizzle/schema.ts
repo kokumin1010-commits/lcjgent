@@ -6741,3 +6741,18 @@ export const companyInvoices = mysqlTable("company_invoices", {
 });
 export type CompanyInvoice = typeof companyInvoices.$inferSelect;
 export type InsertCompanyInvoice = typeof companyInvoices.$inferInsert;
+
+
+/**
+ * Report attachments table for storing images (LINE/Lark screenshots) attached to daily reports
+ */
+export const reportAttachments = mysqlTable("report_attachments", {
+  id: int("id").autoincrement().primaryKey(),
+  reportId: int("reportId").notNull(), // References reports.id
+  imageUrl: text("imageUrl").notNull(), // S3 storage URL
+  label: varchar("label", { length: 50 }).notNull(), // "LINE截图" or "Lark截图"
+  filename: varchar("filename", { length: 255 }), // Original filename
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ReportAttachment = typeof reportAttachments.$inferSelect;
+export type InsertReportAttachment = typeof reportAttachments.$inferInsert;
