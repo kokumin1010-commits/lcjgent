@@ -228,80 +228,139 @@ export default function CashflowTab() {
       const XLSX = await import('xlsx');
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data);
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+      const records: { transactionDate: string; counterparty: string; debitAmount?: number; creditAmount?: number; description: string; balance?: number; sourceAccount?: string }[] = [];
 
-      // ヘッダー行を見つける
-      let headerIdx = 0;
-      for (let i = 0; i < Math.min(5, rows.length); i++) {
-        const row = rows[i];
-        if (row && row.some((c: any) => String(c || '').includes('交易日期'))) {
-          headerIdx = i;
-          break;
+      // Detect format by sheet names or headers
+      const sheetNames = wb.SheetNames;
+      const hasResona = sheetNames.some(s => s.includes('理索') || s.includes('リソナ'));
+      const hasMitsui = sheetNames.some(s => s.includes('三井') || s.includes('ミツイ'));
+
+      if (hasResona || hasMitsui) {
+        // === 日本銀行流水フォーマット ===
+        for (const sheetName of sheetNames) {
+          const ws = wb.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+          if (!rows || rows.length < 2) continue;
+
+          const isResona = sheetName.includes('理索') || sheetName.includes('リソナ');
+          const isMitsui = sheetName.includes('三井') || sheetName.includes('ミツイ');
+          if (!isResona && !isMitsui) continue;
+
+          const sourceAccount = isResona ? 'LCJ RESONA' : 'LCJ MITSUI';
+
+          if (isResona) {
+            // 理索纳: Col2=勘定日, Col4=出金, Col5=入金, Col7=残高, Col12=摘要
+            for (let i = 1; i < rows.length; i++) {
+              const row = rows[i];
+              if (!row || !row[2]) continue;
+              let dateStr = '';
+              const rawDate = row[2];
+              if (rawDate instanceof Date) {
+                dateStr = rawDate.toISOString().slice(0, 10);
+              } else if (typeof rawDate === 'number') {
+                const d = new Date((rawDate - 25569) * 86400 * 1000);
+                dateStr = d.toISOString().slice(0, 10);
+              } else {
+                dateStr = String(rawDate).replace(/\//g, '-').slice(0, 10);
+              }
+              if (!dateStr || dateStr.length < 8) continue;
+              const expense = parseFloat(String(row[4] || '0').replace(/,/g, '')) || undefined;
+              const income = parseFloat(String(row[5] || '0').replace(/,/g, '')) || undefined;
+              if (!expense && !income) continue;
+              const desc = String(row[12] || '').trim();
+              const balance = parseFloat(String(row[7] || '0').replace(/,/g, '')) || undefined;
+              records.push({ transactionDate: dateStr, counterparty: desc, debitAmount: expense, creditAmount: income, description: desc, balance, sourceAccount });
+            }
+          } else if (isMitsui) {
+            // 三井: Col7=年, Col13=月, Col14=日, Col15=入金, Col16=出金, Col18=摘要, Col19=残高
+            // 摘要行(month=null)是取引先名，需要合并到上一条
+            let lastRecord: any = null;
+            for (let i = 1; i < rows.length; i++) {
+              const row = rows[i];
+              if (!row) continue;
+              const year = row[7];
+              const month = row[13];
+              const day = row[14];
+              const income = parseFloat(String(row[15] || '0').replace(/,/g, '')) || undefined;
+              const expense = parseFloat(String(row[16] || '0').replace(/,/g, '')) || undefined;
+              const desc = String(row[18] || '').trim();
+              const balance = parseFloat(String(row[19] || '0').replace(/,/g, '')) || undefined;
+
+              if (month && day && year) {
+                // Main transaction row
+                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                if (income || expense) {
+                  lastRecord = { transactionDate: dateStr, counterparty: '', debitAmount: expense, creditAmount: income, description: desc, balance, sourceAccount };
+                  records.push(lastRecord);
+                }
+              } else if (!month && !day && desc && lastRecord) {
+                // Counterparty detail row - append to last record
+                lastRecord.counterparty = desc;
+              }
+            }
+          }
         }
-      }
-      const headers = (rows[headerIdx] || []).map((h: any) => String(h || '').trim());
+      } else {
+        // === 中国銀行流水フォーマット（既存ロジック） ===
+        const ws = wb.Sheets[sheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
 
-      // 列インデックスを特定
-      const dateCol = headers.findIndex(h => h.includes('交易日期'));
-      const counterpartyCol = headers.findIndex(h => h.includes('对方账户名称'));
-      const debitCol = headers.findIndex(h => h.includes('借方发生额'));
-      const creditCol = headers.findIndex(h => h.includes('贷方发生额'));
-      const descCol = headers.findIndex(h => h.includes('摘要'));
-      const balanceCol = headers.findIndex(h => h.includes('账户余额'));
-
-      if (dateCol < 0) {
-        toast.error('无法识别文件格式: 找不到"交易日期"列');
-        return;
-      }
-
-      const records: { transactionDate: string; counterparty: string; debitAmount?: number; creditAmount?: number; description: string; balance?: number }[] = [];
-
-      for (let i = headerIdx + 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || !row[dateCol]) continue;
-
-        // 日付解析
-        let dateStr = '';
-        const rawDate = row[dateCol];
-        if (rawDate instanceof Date) {
-          dateStr = rawDate.toISOString().slice(0, 10);
-        } else if (typeof rawDate === 'number') {
-          // Excel serial date
-          const d = new Date((rawDate - 25569) * 86400 * 1000);
-          dateStr = d.toISOString().slice(0, 10);
-        } else {
-          dateStr = String(rawDate).replace(/\//g, '-').slice(0, 10);
+        let headerIdx = 0;
+        for (let i = 0; i < Math.min(5, rows.length); i++) {
+          const row = rows[i];
+          if (row && row.some((c: any) => String(c || '').includes('交易日期'))) {
+            headerIdx = i;
+            break;
+          }
         }
-        if (!dateStr || dateStr.length < 8) continue;
+        const headers = (rows[headerIdx] || []).map((h: any) => String(h || '').trim());
 
-        const counterparty = String(row[counterpartyCol] || '').trim();
-        const debit = parseFloat(String(row[debitCol] || '0').replace(/,/g, '')) || undefined;
-        const credit = parseFloat(String(row[creditCol] || '0').replace(/,/g, '')) || undefined;
-        const desc = String(row[descCol >= 0 ? descCol : 0] || '').trim();
-        const balance = balanceCol >= 0 ? (parseFloat(String(row[balanceCol] || '0').replace(/,/g, '')) || undefined) : undefined;
+        const dateCol = headers.findIndex(h => h.includes('交易日期'));
+        const counterpartyCol = headers.findIndex(h => h.includes('对方账户名称'));
+        const debitCol = headers.findIndex(h => h.includes('借方发生额'));
+        const creditCol = headers.findIndex(h => h.includes('贷方发生额'));
+        const descCol = headers.findIndex(h => h.includes('摘要'));
+        const balanceCol = headers.findIndex(h => h.includes('账户余额'));
 
-        if (!debit && !credit) continue;
+        if (dateCol < 0) {
+          toast.error('无法识别文件格式: 找不到"交易日期"列');
+          return;
+        }
 
-        records.push({
-          transactionDate: dateStr,
-          counterparty,
-          debitAmount: debit,
-          creditAmount: credit,
-          description: desc,
-          balance,
-        });
+        for (let i = headerIdx + 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || !row[dateCol]) continue;
+          let dateStr = '';
+          const rawDate = row[dateCol];
+          if (rawDate instanceof Date) {
+            dateStr = rawDate.toISOString().slice(0, 10);
+          } else if (typeof rawDate === 'number') {
+            const d = new Date((rawDate - 25569) * 86400 * 1000);
+            dateStr = d.toISOString().slice(0, 10);
+          } else {
+            dateStr = String(rawDate).replace(/\//g, '-').slice(0, 10);
+          }
+          if (!dateStr || dateStr.length < 8) continue;
+          const counterparty = String(row[counterpartyCol] || '').trim();
+          const debit = parseFloat(String(row[debitCol] || '0').replace(/,/g, '')) || undefined;
+          const credit = parseFloat(String(row[creditCol] || '0').replace(/,/g, '')) || undefined;
+          const desc = String(row[descCol >= 0 ? descCol : 0] || '').trim();
+          const balance = balanceCol >= 0 ? (parseFloat(String(row[balanceCol] || '0').replace(/,/g, '')) || undefined) : undefined;
+          if (!debit && !credit) continue;
+          records.push({ transactionDate: dateStr, counterparty, debitAmount: debit, creditAmount: credit, description: desc, balance });
+        }
       }
 
       if (records.length === 0) {
-        toast.error('有效数据为0条，请检查文件格式');
+        toast.error('有効データが0件です。ファイル形式を確認してください');
         return;
       }
 
-      toast.info(`解析完成: ${records.length}条记录，正在导入...`);
-      importBankMutation.mutate({ records, entity: entity === 'all' ? 'china' : entity as 'japan' | 'china' });
+      const detectedEntity = (hasResona || hasMitsui) ? 'japan' : (entity === 'all' ? 'china' : entity as 'japan' | 'china');
+      toast.info(`解析完了: ${records.length}件、インポート中...`);
+      importBankMutation.mutate({ records, entity: detectedEntity });
     } catch (err: any) {
-      toast.error(`文件解析失败: ${err.message}`);
+      toast.error(`ファイル解析エラー: ${err.message}`);
     }
   }
 

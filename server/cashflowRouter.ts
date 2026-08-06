@@ -336,7 +336,8 @@ export const cashflowRouter = router({
         // 設備・備品
         { keywords: ["采购", "物品", "设备", "用品", "花", "装饰"], category: "設備・備品" },
         // 手数料
-        { keywords: ["手续费", "服务费", "佣金", "手数料"], category: "手数料" },
+        { keywords: ["手续费", "服务费", "佣金", "手数料", "振込手数料", "ﾃｽｳﾘﾖｳ"], category: "手数料" },
+        { keywords: ["振込サービス", "振込", "振込み"], category: "振込" },
         // 商品仕入
         { keywords: ["珠宝", "首饰", "定制", "样品"], category: "商品仕入" },
         // 収入系
@@ -532,6 +533,7 @@ export const cashflowRouter = router({
         creditAmount: z.number().optional(),
         description: z.string(),
         balance: z.number().optional(),
+        sourceAccount: z.string().optional(),
       })),
       entity: z.enum(["japan", "china"]).default("china"),
     }))
@@ -582,8 +584,8 @@ export const cashflowRouter = router({
 
         try {
           await pool.query(
-            `INSERT INTO company_cashflows (entity, type, category, amount, currency, transactionDate, description, counterparty, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-            [input.entity, type, category, amount, "CNY", rec.transactionDate, rec.description || '', rec.counterparty || '']
+            `INSERT INTO company_cashflows (entity, type, category, amount, currency, transactionDate, description, counterparty, sourceAccount, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            [input.entity, type, category, amount, input.entity === "japan" ? "JPY" : "CNY", rec.transactionDate, rec.description || '', rec.counterparty || '', rec.sourceAccount || null]
           );
           imported++;
         } catch (e: any) {
