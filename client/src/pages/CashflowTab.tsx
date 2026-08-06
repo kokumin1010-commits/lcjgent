@@ -1151,7 +1151,7 @@ export default function CashflowTab() {
                       <option value="">-</option>
                       <option value="LCJ MITSUI">LCJ MITSUI</option>
                       <option value="LCJ RESONA">LCJ RESONA</option>
-                      <option value="世曜元宇">世曜元宇</option>
+                      <option value="世曜元宇(中信銀行)">世曜元宇(中信銀行)</option>
                       <option value="花秘">花秘</option>
                       <option value="品汇盟">品汇盟</option>
                       <option value="日本総部">日本総部</option>
@@ -1240,7 +1240,7 @@ export default function CashflowTab() {
                 className="w-full mt-1 border rounded-md px-3 py-2 text-sm"
               >
                 <option value="">全部</option>
-                <option value="世曜元宇">世曜元宇</option>
+                <option value="世曜元宇(中信銀行)">世曜元宇(中信銀行)</option>
                 <option value="花秘">花秘</option>
                 <option value="品汇盟">品汇盟</option>
                 <option value="LCJ MITSUI">LCJ MITSUI</option>
@@ -1367,7 +1367,7 @@ export default function CashflowTab() {
                 <option value="">未選択</option>
                 <option value="LCJ MITSUI">LCJ MITSUI</option>
                 <option value="LCJ RESONA">LCJ RESONA</option>
-                <option value="世曜元宇">世曜元宇</option>
+                <option value="世曜元宇(中信銀行)">世曜元宇(中信銀行)</option>
                 <option value="花秘">花秘</option>
                 <option value="品汇盟">品汇盟</option>
                 <option value="日本総部">日本総部</option>

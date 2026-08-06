@@ -351,6 +351,11 @@ export const cashflowRouter = router({
         { keywords: ["ＫＤＤＩリヨウキン", "KDDI", "NTT", "ソフトバンク"], category: "通信・光熱費" },
         // 家賃
         { keywords: ["ヤチン", "家賃", "賃料"], category: "家賃・オフィス" },
+        { keywords: ["フオ－シ－ズ", "ＪＣ"], category: "家賃・オフィス" },
+        { keywords: ["ガス料", "電気料", "水道料", "デンキリヨウキン"], category: "通信・光熱費" },
+        { keywords: ["支払機"], category: "その他経費" },
+        { keywords: ["ﾍﾝｻｲ"], category: "本社送金" },
+        { keywords: ["EB8"], category: "本社送金" },
         // 税金
         { keywords: ["ゼイリシ", "税理士", "税金", "源泉", "ＺＨゼイリシ"], category: "税金・公租公課" },
         // 振込（一般）
@@ -773,7 +778,7 @@ export const cashflowRouter = router({
       ) as any;
 
       // 5. Combine results
-      const accounts = ["世曜元宇", "花秘", "品汇盟", "LCJ MITSUI", "LCJ RESONA", "日本総部"];
+      const accounts = ["世曜元宇(中信銀行)", "花秘", "品汇盟", "LCJ MITSUI", "LCJ RESONA", "日本総部"];
      const japanAccounts = ["LCJ MITSUI", "LCJ RESONA", "日本総部"];
      const result = accounts.map(name => {
        const balanceRow = balances.find((b: any) => b.accountName === name);
