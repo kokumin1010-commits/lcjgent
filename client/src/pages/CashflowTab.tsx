@@ -1412,7 +1412,8 @@ function PendingDescriptionsPanel({ entity }: { entity: string }) {
     onError: () => toast.error("保存に失敗しました"),
   });
 
-  const pendingItems = pendingQuery.data || [];
+  const pendingData = pendingQuery.data || { items: [], autoFilled: 0, anomalies: [] };
+  const pendingItems = pendingData.items || (Array.isArray(pendingQuery.data) ? pendingQuery.data : []);
   const editedCount = Object.keys(edits).filter(id => edits[Number(id)]?.trim()).length;
 
   // Generate month options from data
@@ -1441,7 +1442,10 @@ function PendingDescriptionsPanel({ entity }: { entity: string }) {
     { entity: entity as any },
     { enabled: true }
   );
-  const totalCount = totalQuery.data?.length || 0;
+  const totalData = totalQuery.data || { items: [], autoFilled: 0, anomalies: [] };
+  const totalCount = totalData.items?.length || (Array.isArray(totalQuery.data) ? totalQuery.data.length : 0);
+  const totalAutoFilled = totalData.autoFilled || 0;
+  const totalAnomalies = totalData.anomalies || [];
 
   if (totalCount === 0 && !expanded) return null;
 
@@ -1452,7 +1456,7 @@ function PendingDescriptionsPanel({ entity }: { entity: string }) {
         className="w-full p-3 flex items-center justify-between hover:bg-yellow-100 transition-colors"
       >
         <span className="text-sm font-medium text-yellow-800">
-          ⚠️ 待补充说明：{totalCount}件
+          ⚠️ 待补充说明：{totalCount}件（大额）{totalAutoFilled > 0 && ` | ✅ ${totalAutoFilled}件の小額は自動処理済み`}{totalAnomalies.length > 0 && ` | 🔴 異常${totalAnomalies.length}件`}
         </span>
         <div className="flex items-center gap-2">
           <span className="text-xs text-yellow-600">点击展开，直接输入说明</span>
@@ -1497,6 +1501,25 @@ function PendingDescriptionsPanel({ entity }: { entity: string }) {
             )}
           </div>
 
+          {/* Anomaly warnings */}
+          {pendingData.anomalies && pendingData.anomalies.length > 0 && (
+            <div className="mb-4 border border-red-300 bg-red-50 rounded-lg p-3">
+              <div className="text-sm font-medium text-red-800 mb-2">🔴 小額異常検出（月累計が高い人物）</div>
+              {pendingData.anomalies.map((a: any, i: number) => (
+                <div key={i} className="text-sm text-red-700 flex items-center gap-2 py-1">
+                  <span className="font-medium">{a.counterparty}</span>
+                  <span>月累計 ¥{Number(a.totalAmount).toLocaleString()}</span>
+                  <span className="text-red-500">({a.txCount}件)</span>
+                  <span className="text-red-400 text-xs">← 要確認</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {pendingData.autoFilled > 0 && (
+            <div className="mb-4 border border-green-300 bg-green-50 rounded-lg p-2 text-sm text-green-700">
+              ✅ {pendingData.autoFilled}件の小額取引（¥500未満）を「日常零星支出」として自動処理しました
+            </div>
+          )}
           {/* Table */}
           {pendingQuery.isLoading ? (
             <div className="flex items-center justify-center py-8">

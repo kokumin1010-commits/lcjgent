@@ -904,19 +904,58 @@ export const cashflowRouter = router({
         '振込', '振込サービス', '口座振替', '振込手数料',
       ];
       const placeholders = vagueTerms.map(() => '?').join(',');
+      
+      // 1. Get large pending items (>= 500 CNY or >= 10000 JPY)
+      const threshold = input.entity === 'china' ? 500 : 10000;
       let sql = `SELECT id, transactionDate, type, amount, counterparty, description, category, sourceAccount
         FROM company_cashflows
         WHERE entity = ? AND deletedAt IS NULL
         AND (description IS NULL OR TRIM(description) IN (${placeholders}))
+        AND amount >= ?
         `;
-      const params: any[] = [input.entity, ...vagueTerms];
+      const params: any[] = [input.entity, ...vagueTerms, threshold];
       if (input.month) {
         sql += ` AND transactionDate LIKE ?`;
         params.push(`${input.month}%`);
       }
       sql += ` ORDER BY transactionDate DESC, id DESC`;
-      const [rows] = await pool.query(sql, params) as any;
-      return rows;
+      const [largeItems] = await pool.query(sql, params) as any;
+      
+      // 2. Auto-fill small amounts (< threshold) with "日常零星支出 - {counterparty}"
+      let autoSql = `SELECT id, counterparty FROM company_cashflows
+        WHERE entity = ? AND deletedAt IS NULL
+        AND (description IS NULL OR TRIM(description) IN (${placeholders}))
+        AND amount < ?`;
+      const autoParams: any[] = [input.entity, ...vagueTerms, threshold];
+      if (input.month) {
+        autoSql += ` AND transactionDate LIKE ?`;
+        autoParams.push(`${input.month}%`);
+      }
+      const [smallItems] = await pool.query(autoSql, autoParams) as any;
+      
+      // Auto-fill small items
+      let autoFilled = 0;
+      for (const item of smallItems) {
+        const desc = `日常零星支出 - ${item.counterparty || '不明'}`;
+        await pool.query(`UPDATE company_cashflows SET description = ? WHERE id = ?`, [desc, item.id]);
+        autoFilled++;
+      }
+      
+      // 3. Anomaly detection: find people with monthly total > 2000 CNY or > 40000 JPY in small transactions
+      const anomalyThreshold = input.entity === 'china' ? 2000 : 40000;
+      const monthFilter = input.month ? `AND transactionDate LIKE '${input.month}%'` : `AND transactionDate >= DATE_FORMAT(NOW(), '%Y-%m-01')`;
+      const [anomalies] = await pool.query(`
+        SELECT counterparty, COUNT(*) as txCount, SUM(amount) as totalAmount
+        FROM company_cashflows
+        WHERE entity = ? AND deletedAt IS NULL AND type = 'expense'
+        AND amount < ? ${monthFilter}
+        AND counterparty IS NOT NULL AND counterparty != ''
+        GROUP BY counterparty
+        HAVING SUM(amount) > ?
+        ORDER BY totalAmount DESC
+      `, [input.entity, threshold, anomalyThreshold]) as any;
+      
+      return { items: largeItems, autoFilled, anomalies };
     }),
 
   // 一括で説明を更新
