@@ -4737,7 +4737,7 @@ function FukubukuroDetailDialog({ order, onClose }: { order: any; onClose: () =>
 
   return (
     <Dialog open={true} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl w-[90vw]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 truncate">
             <Gift className="h-5 w-5 text-purple-500" />
@@ -4756,9 +4756,9 @@ function FukubukuroDetailDialog({ order, onClose }: { order: any; onClose: () =>
                 バンドル名: <span className="font-medium text-foreground">{bundle.bundleName}</span>
                 {bundle.description && <span className="ml-2">({bundle.description})</span>}
               </div>
-              <div className="border rounded-md divide-y">
+              <div className="border rounded-md divide-y overflow-hidden">
                 {bundle.items?.map((item: any, idx: number) => (
-                  <div key={idx} className="flex items-center gap-3 px-3 py-2 overflow-hidden">
+                  <div key={idx} className="flex items-center gap-2 px-3 py-2">
                     {(() => {
                       const imgs = item.images ? (typeof item.images === 'string' ? JSON.parse(item.images) : item.images) : [];
                       return imgs.length > 0 ? (
@@ -4769,7 +4769,7 @@ function FukubukuroDetailDialog({ order, onClose }: { order: any; onClose: () =>
                         </div>
                       );
                     })()}
-                    <div className="flex-1 min-w-0 overflow-hidden">
+                    <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{item.productName || '(未登録)'}</p>
                       {item.brandName && <p className="text-xs text-muted-foreground">{item.brandName}</p>}
                       {(!item.productId || item.productId === 0) && <p className="text-xs text-orange-500">未マッチング</p>}
