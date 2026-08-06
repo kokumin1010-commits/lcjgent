@@ -752,7 +752,7 @@ function SpecialLiversSection() {
     },
     {
       name: 'きゃべつ',
-      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/DfqAEJiDiYMurmzu.png',
+      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/DNqbnjRrndaWLHvP.png',
       title: 'ライバー',
       bio: 'News配信や視聴者に寄り添ったコミュニケーションを強みとし、多くのファンから支持を集めるTikTok LIVEクリエイター。親しみやすいトークと丁寧な情報発信で高いエンゲージメントを生み出している。また、自身が運営するTikTok Shopチャンネル「逸心」では、食品を中心としたライブコマースを展開し、商品の魅力だけでなく、生産者やブランドの想いまで届ける配信スタイルを実践。LIVE配信とライブコマースの両分野で活躍するクリエイターとして、新たな購買体験を発信し続けている。',
     },
