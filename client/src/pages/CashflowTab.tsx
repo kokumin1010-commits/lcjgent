@@ -118,6 +118,7 @@ export default function CashflowTab() {
     transactionDate: new Date().toISOString().slice(0, 10),
     description: "",
     counterparty: "",
+    sourceAccount: "",
   });
 
   // Queries
@@ -314,6 +315,7 @@ export default function CashflowTab() {
       transactionDate: new Date().toISOString().slice(0, 10),
       description: "",
       counterparty: "",
+    sourceAccount: "",
     });
   }
 
@@ -327,6 +329,7 @@ export default function CashflowTab() {
       transactionDate: formData.transactionDate,
       description: formData.description || undefined,
       counterparty: formData.counterparty || undefined,
+      sourceAccount: formData.sourceAccount || undefined,
     });
   }
 
@@ -340,7 +343,9 @@ export default function CashflowTab() {
       currency: item.currency || "JPY",
       transactionDate: item.transactionDate || "",
       description: item.description || "",
+      item.sourceAccount || "",
       counterparty: item.counterparty || "",
+      sourceAccount: item.sourceAccount || "",
     });
   }
 
@@ -357,6 +362,7 @@ export default function CashflowTab() {
       description: formData.description || undefined,
       counterparty: formData.counterparty || undefined,
     });
+      sourceAccount: formData.sourceAccount || undefined,
   }
 
   // CSV Export
@@ -368,7 +374,7 @@ export default function CashflowTab() {
   }
 
   const exportQuery = trpc.cashflow.exportAll.useQuery(
-    { entity, type, startDate: csvStartDate || undefined, endDate: csvEndDate || undefined, counterparty: csvCounterparty || undefined },
+    { entity, type, startDate: csvStartDate || undefined, endDate: csvEndDate || undefined, counterparty: csvCounterparty || undefined, sourceAccount: csvCounterparty || undefined },
     { enabled: false }
   );
 
@@ -379,7 +385,7 @@ export default function CashflowTab() {
       toast.error("条件に一致するデータがありません");
       return;
     }
-    const headers = ["ID", "法人", "種別", "カテゴリ", "金額", "通貨", "日付", "取引先", "説明"];
+    const headers = ["ID", "法人", "種別", "カテゴリ", "金額", "通貨", "日付", "取引先", "説明", "我方账户"];
     const rows = items.map((item: any) => [
       item.id,
       item.entity === "japan" ? "日本" : "中国",
@@ -390,6 +396,7 @@ export default function CashflowTab() {
       item.transactionDate,
       item.counterparty || "",
       item.description || "",
+      item.sourceAccount || "",
     ]);
     const csv = [headers, ...rows].map((r) => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const bom = "\uFEFF";
@@ -921,19 +928,20 @@ export default function CashflowTab() {
                 <div className="flex items-center">取引先<SortIcon col="counterparty" /></div>
               </th>
               <th className="text-left p-3 font-medium">説明</th>
+              <th className="text-left p-3 font-medium">我方账户</th>
               <th className="text-center p-3 font-medium">操作</th>
             </tr>
           </thead>
           <tbody>
             {listQuery.isLoading ? (
               <tr>
-                <td colSpan={8} className="text-center py-8">
+                <td colSpan={9} className="text-center py-8">
                   <Loader2 className="h-5 w-5 animate-spin mx-auto" />
                 </td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-center py-8 text-muted-foreground">
+                <td colSpan={9} className="text-center py-8 text-muted-foreground">
                   入出金データがありません
                 </td>
               </tr>
@@ -1015,24 +1023,17 @@ export default function CashflowTab() {
                     )}
                   </td>
                   <td className="p-3 text-xs">
-                    <select
-                      value={item.counterparty || ''}
-                      onChange={(e) => {
-                        updateMutation.mutate({ id: item.id, counterparty: e.target.value, entity: item.entity, type: item.type, amount: item.amount, currency: item.currency, transactionDate: item.transactionDate, description: item.description, category: item.category });
+                    <input
+                      type="text"
+                      defaultValue={item.counterparty || ''}
+                      placeholder="取引先名..."
+                      onBlur={(e) => {
+                        if (e.target.value !== (item.counterparty || '')) {
+                          updateMutation.mutate({ id: item.id, counterparty: e.target.value, entity: item.entity, type: item.type, amount: item.amount, currency: item.currency, transactionDate: item.transactionDate, description: item.description, category: item.category, sourceAccount: item.sourceAccount });
+                        }
                       }}
-                      className="bg-transparent border-0 border-b border-dashed border-muted-foreground/30 hover:border-primary cursor-pointer text-xs p-0 focus:ring-0 focus:border-primary"
-                    >
-                      <option value="世曜元宇">世曜元宇</option>
-                      <option value="花秘">花秘</option>
-                      <option value="品汇盟">品汇盟</option>
-                      <option value="LCJ MITSUI">LCJ MITSUI</option>
-                      <option value="LCJ RESONA">LCJ RESONA</option>
-                      <option value="日本総部">日本総部</option>
-                      <option value="その他">その他</option>
-                      {item.counterparty && !["世曜元宇","花秘","品汇盟","LCJ MITSUI","LCJ RESONA","日本総部","その他"].includes(item.counterparty) && (
-                        <option value={item.counterparty}>{item.counterparty}</option>
-                      )}
-                    </select>
+                      className="bg-transparent border-0 border-b border-dashed border-muted-foreground/30 hover:border-primary text-xs p-0 focus:ring-0 focus:border-primary w-full"
+                    />
                   </td>
                   <td className="p-3 text-xs">
                     <input
@@ -1046,6 +1047,23 @@ export default function CashflowTab() {
                       }}
                       className={`bg-transparent border-0 border-b border-dashed hover:border-primary cursor-pointer text-xs p-0 focus:ring-0 focus:border-primary w-full ${(!item.description || item.description === '二代支付' || item.description === '银行收费') ? 'border-yellow-400 text-yellow-600 placeholder:text-yellow-400' : 'border-muted-foreground/30 text-muted-foreground'}`}
                     />
+                  </td>
+                  <td className="p-3 text-xs">
+                    <select
+                      value={item.sourceAccount || ''}
+                      onChange={(e) => {
+                        updateMutation.mutate({ id: item.id, sourceAccount: e.target.value, entity: item.entity, type: item.type, amount: item.amount, currency: item.currency, transactionDate: item.transactionDate, description: item.description, category: item.category, counterparty: item.counterparty });
+                      }}
+                      className="bg-transparent border-0 border-b border-dashed border-muted-foreground/30 hover:border-primary cursor-pointer text-xs p-0 focus:ring-0 focus:border-primary"
+                    >
+                      <option value="">-</option>
+                      <option value="LCJ MITSUI">LCJ MITSUI</option>
+                      <option value="LCJ RESONA">LCJ RESONA</option>
+                      <option value="世曜元宇">世曜元宇</option>
+                      <option value="花秘">花秘</option>
+                      <option value="品汇盟">品汇盟</option>
+                      <option value="日本総部">日本総部</option>
+                    </select>
                   </td>
                   <td className="p-3 text-center">
                     <div className="flex items-center gap-1 justify-center">
@@ -1123,7 +1141,7 @@ export default function CashflowTab() {
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium">取引先</label>
+              <label className="text-sm font-medium">我方账户</label>
               <select
                 value={csvCounterparty}
                 onChange={(e) => setCsvCounterparty(e.target.value)}
@@ -1246,6 +1264,22 @@ export default function CashflowTab() {
             <div>
               <label className="text-xs font-medium">取引先</label>
               <Input value={formData.counterparty} onChange={(e) => setFormData({ ...formData, counterparty: e.target.value })} placeholder="例: 株式会社ABC" />
+            </div>
+            <div>
+              <label className="text-xs font-medium">我方账户</label>
+              <select
+                value={formData.sourceAccount}
+                onChange={(e) => setFormData({ ...formData, sourceAccount: e.target.value })}
+                className="w-full border rounded-md px-3 py-2 text-sm"
+              >
+                <option value="">未選択</option>
+                <option value="LCJ MITSUI">LCJ MITSUI</option>
+                <option value="LCJ RESONA">LCJ RESONA</option>
+                <option value="世曜元宇">世曜元宇</option>
+                <option value="花秘">花秘</option>
+                <option value="品汇盟">品汇盟</option>
+                <option value="日本総部">日本総部</option>
+              </select>
             </div>
             <div>
               <label className="text-xs font-medium">説明</label>

@@ -39,6 +39,8 @@ function getPool() {
       )
     `);
     console.log("[Cashflow] Table initialized");
+    // Add sourceAccount column if not exists
+    await pool.query(`ALTER TABLE company_cashflows ADD COLUMN IF NOT EXISTS sourceAccount VARCHAR(100) DEFAULT NULL`).catch(() => {});
   } catch (e) {
     console.warn("[Cashflow] Table init error:", e);
   }
@@ -199,13 +201,14 @@ export const cashflowRouter = router({
       description: z.string().optional(),
       counterparty: z.string().optional(),
       receiptUrl: z.string().optional(),
+      sourceAccount: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const pool = getPool();
       const [result] = await pool.query(
-        `INSERT INTO company_cashflows (entity, type, category, amount, currency, transactionDate, description, counterparty, receiptUrl, createdBy)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [input.entity, input.type, input.category, input.amount, input.currency, input.transactionDate, input.description || null, input.counterparty || null, input.receiptUrl || null, (ctx as any).user?.id || null]
+        `INSERT INTO company_cashflows (entity, type, category, amount, currency, transactionDate, description, counterparty, receiptUrl, createdBy, sourceAccount)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [input.entity, input.type, input.category, input.amount, input.currency, input.transactionDate, input.description || null, input.counterparty || null, input.receiptUrl || null, (ctx as any).user?.id || null, input.sourceAccount || null]
       ) as any;
       return { id: result.insertId, success: true };
     }),
@@ -222,6 +225,7 @@ export const cashflowRouter = router({
         transactionDate: z.string(),
         description: z.string().optional(),
         counterparty: z.string().optional(),
+        sourceAccount: z.string().optional(),
       })),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -229,9 +233,9 @@ export const cashflowRouter = router({
       let inserted = 0;
       for (const item of input.items) {
         await pool.query(
-          `INSERT INTO company_cashflows (entity, type, category, amount, currency, transactionDate, description, counterparty, createdBy)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [item.entity, item.type, item.category, item.amount, item.currency, item.transactionDate, item.description || null, item.counterparty || null, (ctx as any).user?.id || null]
+          `INSERT INTO company_cashflows (entity, type, category, amount, currency, transactionDate, description, counterparty, createdBy, sourceAccount)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [item.entity, item.type, item.category, item.amount, item.currency, item.transactionDate, item.description || null, item.counterparty || null, (ctx as any).user?.id || null, item.sourceAccount || null]
         );
         inserted++;
       }
@@ -251,6 +255,7 @@ export const cashflowRouter = router({
       description: z.string().optional(),
       counterparty: z.string().optional(),
       receiptUrl: z.string().optional(),
+      sourceAccount: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       const pool = getPool();
@@ -629,6 +634,7 @@ export const cashflowRouter = router({
       startDate: z.string().optional(),
       endDate: z.string().optional(),
       counterparty: z.string().optional(),
+      sourceAccount: z.string().optional(),
     }))
     .query(async ({ input }) => {
       const pool = getPool();
@@ -654,6 +660,10 @@ export const cashflowRouter = router({
       if (input.counterparty) {
         where += " AND counterparty = ?";
         params.push(input.counterparty);
+      }
+      if (input.sourceAccount) {
+        where += " AND sourceAccount = ?";
+        params.push(input.sourceAccount);
       }
 
       const [rows] = await pool.query(
@@ -696,12 +706,12 @@ export const cashflowRouter = router({
       }
       
       const [flows] = await pool.query(
-        `SELECT counterparty, 
+        `SELECT sourceAccount, 
           SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as totalIncome,
           SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as totalExpense
         FROM company_cashflows 
-        WHERE deletedAt IS NULL AND counterparty IS NOT NULL AND counterparty != '' ${entityFilter}
-        GROUP BY counterparty`,
+        WHERE deletedAt IS NULL AND sourceAccount IS NOT NULL AND sourceAccount != '' ${entityFilter}
+        GROUP BY sourceAccount`,
         params
       ) as any;
 
@@ -709,7 +719,7 @@ export const cashflowRouter = router({
       const accounts = ["世曜元宇", "花秘", "品汇盟", "LCJ MITSUI", "LCJ RESONA", "日本総部"];
       const result = accounts.map(name => {
         const balanceRow = balances.find((b: any) => b.accountName === name);
-        const flowRow = flows.find((f: any) => f.counterparty === name);
+        const flowRow = flows.find((f: any) => f.sourceAccount === name);
         const initial = Number(balanceRow?.initialBalance || 0);
         const income = Number(flowRow?.totalIncome || 0);
         const expense = Number(flowRow?.totalExpense || 0);
