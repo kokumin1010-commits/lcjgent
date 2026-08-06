@@ -675,19 +675,63 @@ export default function CashflowTab() {
                       </div>
                       {/* 展開明細 */}
                       {isExpanded && (
-                        <div className="ml-4 mt-1 mb-2 border-l-2 border-gray-200 pl-3 space-y-1 max-h-[200px] overflow-y-auto">
+                        <div className="ml-4 mt-1 mb-2 border-l-2 border-gray-200 pl-3 space-y-1 max-h-[300px] overflow-y-auto">
                           {(listQuery.data?.items || []).filter((item: any) => item.category === cat.category).length > 0 ? (
                             (listQuery.data?.items || []).filter((item: any) => item.category === cat.category).map((item: any, idx: number) => (
-                              <div key={idx} className="flex items-center justify-between text-xs py-0.5">
-                                <span className="text-muted-foreground w-[70px]">{item.transactionDate?.slice(5)}</span>
-                                <span className="flex-1 truncate px-1">{item.description || item.counterparty}</span>
-                                <span className={`font-medium ${item.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                              <div key={idx} className="flex items-center gap-1 text-xs py-1 border-b border-gray-100 last:border-0">
+                                <span className="text-muted-foreground w-[50px] shrink-0">{item.transactionDate?.slice(5)}</span>
+                                <select
+                                  defaultValue={item.category || ''}
+                                  onChange={(e) => {
+                                    updateMutation.mutate({ id: item.id, category: e.target.value, entity: item.entity, type: item.type, amount: item.amount, currency: item.currency, transactionDate: item.transactionDate, description: item.description, counterparty: item.counterparty });
+                                  }}
+                                  className="bg-transparent border border-dashed border-muted-foreground/30 hover:border-primary cursor-pointer text-[10px] p-0.5 rounded focus:ring-0 focus:border-primary w-[80px] shrink-0"
+                                >
+                                  {entity === 'china' ? (
+                                    <>
+                                      <option value="給与・人件費">工资</option>
+                                      <option value="交通費">交通</option>
+                                      <option value="広告・マーケティング">广告</option>
+                                      <option value="家賃・オフィス">租金</option>
+                                      <option value="通信・光熱費">网络</option>
+                                      <option value="物流・配送">物流</option>
+                                      <option value="飲食・接待">餐饮</option>
+                                      <option value="ソフトウェア・ツール">软件</option>
+                                      <option value="本社送金">汇款</option>
+                                      <option value="ライブ・配信">直播</option>
+                                      <option value="TikTok・越境EC">TikTok</option>
+                                      <option value="設備・備品">设备</option>
+                                      <option value="手数料">手续费</option>
+                                      <option value="商品仕入">采购</option>
+                                      <option value="その他経費">其他</option>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <option value="給与・人件費">給与</option>
+                                      <option value="交通費">交通</option>
+                                      <option value="家賃・オフィス">家賃</option>
+                                      <option value="その他経費">その他</option>
+                                    </>
+                                  )}
+                                </select>
+                                <input
+                                  type="text"
+                                  defaultValue={item.description || ''}
+                                  placeholder="说明..."
+                                  onBlur={(e) => {
+                                    if (e.target.value !== (item.description || '')) {
+                                      updateMutation.mutate({ id: item.id, description: e.target.value, entity: item.entity, type: item.type, amount: item.amount, currency: item.currency, transactionDate: item.transactionDate, category: item.category, counterparty: item.counterparty });
+                                    }
+                                  }}
+                                  className={`flex-1 bg-transparent border-0 border-b border-dashed hover:border-primary text-[10px] p-0 focus:ring-0 min-w-0 ${(!item.description || item.description === '二代支付') ? 'border-yellow-400 text-yellow-600 placeholder:text-yellow-400' : 'border-muted-foreground/30'}`}
+                                />
+                                <span className={`font-medium shrink-0 ${item.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
                                   {entity === "china" ? formatCurrency(item.amount, "CNY") : formatCurrency(item.amount)}
                                 </span>
                               </div>
                             ))
                           ) : (
-                            <p className="text-xs text-muted-foreground">※ 下のテーブルで「{cat.category}」で検索してください</p>
+                            <p className="text-xs text-muted-foreground">※ 下のテーブルで「{getCategoryLabel(cat.category)}」をクリックしてください</p>
                           )}
                         </div>
                       )}
@@ -893,7 +937,19 @@ export default function CashflowTab() {
                       <option value="その他">その他</option>
                     </select>
                   </td>
-                  <td className="p-3 text-xs text-muted-foreground">{item.description || "-"}</td>
+                  <td className="p-3 text-xs">
+                    <input
+                      type="text"
+                      defaultValue={item.description || ''}
+                      placeholder="説明を入力..."
+                      onBlur={(e) => {
+                        if (e.target.value !== (item.description || '')) {
+                          updateMutation.mutate({ id: item.id, description: e.target.value, entity: item.entity, type: item.type, amount: item.amount, currency: item.currency, transactionDate: item.transactionDate, category: item.category, counterparty: item.counterparty });
+                        }
+                      }}
+                      className={`bg-transparent border-0 border-b border-dashed hover:border-primary cursor-pointer text-xs p-0 focus:ring-0 focus:border-primary w-full ${(!item.description || item.description === '二代支付' || item.description === '银行收费') ? 'border-yellow-400 text-yellow-600 placeholder:text-yellow-400' : 'border-muted-foreground/30 text-muted-foreground'}`}
+                    />
+                  </td>
                   <td className="p-3 text-center">
                     <div className="flex items-center gap-1 justify-center">
                       <button onClick={() => handleEdit(item)} className="p-1.5 hover:bg-muted rounded">
