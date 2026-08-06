@@ -5079,6 +5079,11 @@ function CostManagementContent() {
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [costHistorySearch, setCostHistorySearch] = useState('');
+  // 分页 & 时间筛选 state
+  const [ordersPage, setOrdersPage] = useState(0);
+  const [ordersStartDate, setOrdersStartDate] = useState('');
+  const [ordersEndDate, setOrdersEndDate] = useState('');
+  const ORDERS_PAGE_SIZE = 10;
 
   const brandsQuery = trpc.brand.list.useQuery();
   const brands = brandsQuery.data || [];
@@ -5094,10 +5099,20 @@ function CostManagementContent() {
   // 仕入れ発注データ（原価付き）
   const ordersQuery = trpc.selectionCenter.getProcurementOrders.useQuery({
     brandId: filterBrandId,
-    limit: 500,
-    offset: 0,
+    limit: ORDERS_PAGE_SIZE,
+    offset: ordersPage * ORDERS_PAGE_SIZE,
   });
-  const orders = ordersQuery.data?.orders || [];
+  const allOrders = ordersQuery.data?.orders || [];
+  const ordersTotal = ordersQuery.data?.total || 0;
+  const totalPages = Math.ceil(ordersTotal / ORDERS_PAGE_SIZE);
+  // 前端时间筛选
+  const orders = allOrders.filter((order: any) => {
+    if (!ordersStartDate && !ordersEndDate) return true;
+    const d = order.orderDate ? new Date(order.orderDate).toISOString().split('T')[0] : '';
+    if (ordersStartDate && d < ordersStartDate) return false;
+    if (ordersEndDate && d > ordersEndDate) return false;
+    return true;
+  });
 
   // 原価登録ミューテーション
   const registerCostMutation = trpc.selectionCenter.registerProductCost.useMutation({
@@ -5179,7 +5194,29 @@ function CostManagementContent() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">进货订单 成本一览</CardTitle>
-          <p className="text-xs text-muted-foreground">管理各订单的成本。点击可编辑。</p>
+          <p className="text-xs text-muted-foreground mb-2">管理各订单的成本。点击可编辑。</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="text-xs text-muted-foreground">时间筛选:</label>
+            <input
+              type="date"
+              value={ordersStartDate}
+              onChange={(e) => { setOrdersStartDate(e.target.value); setOrdersPage(0); }}
+              className="text-xs border rounded px-2 py-1"
+            />
+            <span className="text-xs text-muted-foreground">~</span>
+            <input
+              type="date"
+              value={ordersEndDate}
+              onChange={(e) => { setOrdersEndDate(e.target.value); setOrdersPage(0); }}
+              className="text-xs border rounded px-2 py-1"
+            />
+            {(ordersStartDate || ordersEndDate) && (
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => { setOrdersStartDate(''); setOrdersEndDate(''); }}>
+                <X className="h-3 w-3 mr-1" />清除
+              </Button>
+            )}
+            <span className="text-xs text-muted-foreground ml-auto">共 {ordersTotal} 条</span>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -5229,6 +5266,52 @@ function CostManagementContent() {
               </tbody>
             </table>
           </div>
+          {/* 分页控件 */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <p className="text-xs text-muted-foreground">
+                第 {ordersPage + 1} / {totalPages} 页
+              </p>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={ordersPage === 0}
+                  onClick={() => setOrdersPage(0)}
+                >
+                  首页
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={ordersPage === 0}
+                  onClick={() => setOrdersPage(p => Math.max(0, p - 1))}
+                >
+                  上一页
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={ordersPage >= totalPages - 1}
+                  onClick={() => setOrdersPage(p => Math.min(totalPages - 1, p + 1))}
+                >
+                  下一页
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={ordersPage >= totalPages - 1}
+                  onClick={() => setOrdersPage(totalPages - 1)}
+                >
+                  末页
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
