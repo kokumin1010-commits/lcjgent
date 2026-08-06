@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
+import { invokeLLM } from "./_core/llm";
 import mysql from "mysql2/promise";
 
 let pool: mysql.Pool;
@@ -518,6 +519,58 @@ export const rundownRouter = router({
     return { id: newId, success: true };
   }),
 
+  // ========== ANALYZE LIVE DASHBOARD SCREENSHOT ==========
+  analyzeLiveDashboard: protectedProcedure.input(z.object({
+    imageUrl: z.string(),
+  })).mutation(async ({ input }) => {
+    const result = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content: `You are a data extraction assistant. Extract numerical data from TikTok Live Dashboard screenshots. Return ONLY valid JSON with the following fields (use null if not found):
+{
+  "totalGmv": number (total GMV in the currency shown, e.g. 9155),
+  "totalOrders": number (归因成交件数 / orders),
+  "totalViewers": number (浏览人数 / cumulative viewers, convert K to number e.g. 2.08K = 2080),
+  "peakViewers": number (peak concurrent viewers if shown),
+  "averageViewers": number (平均视聴者 if shown),
+  "newFollowers": number (新规フォロワー / new followers),
+  "startTime": string (HH:MM format, e.g. "18:59"),
+  "endTime": string (HH:MM format, e.g. "22:05"),
+  "impressions": number (曝光次数, convert K e.g. 6.16K = 6160),
+  "views": number (观看次数, convert K),
+  "hourlyGmv": number (每小时GMV, convert K),
+  "hourlyImpressions": number (每小时曝光次数, convert K),
+  "cpmGmv": number (千次曝光成交金额, convert K),
+  "avgWatchDuration": number (平均观看时长 in seconds),
+  "commentRate": string (评论率 as percentage string e.g. "14.53%"),
+  "followRate": string (关注率 as percentage string e.g. "0.16%"),
+  "duration": string (时长 as text e.g. "3小时5分钟45秒")
+}
+Convert K/万 to actual numbers. Only return the JSON object, no explanation.`
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Please extract all data from this TikTok Live Dashboard screenshot:" },
+            { type: "image_url", image_url: { url: input.imageUrl, detail: "high" } }
+          ]
+        }
+      ],
+    });
+    const content = result.choices?.[0]?.message?.content || "{}";
+    // Parse JSON from response (handle markdown code blocks)
+    let jsonStr = content.trim();
+    if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    }
+    try {
+      return JSON.parse(jsonStr);
+    } catch {
+      console.error('[analyzeLiveDashboard] Failed to parse LLM response:', content);
+      return { error: 'Failed to parse response', raw: content };
+    }
+  }),
   // ========== GET LIVERS (for dropdown) ==========
   getLivers: protectedProcedure.query(async () => {
     const p = getPool();

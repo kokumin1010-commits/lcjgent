@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Plus, Trash2, Edit, Copy, Search, Upload, ArrowUp, ArrowDown,
-  Calendar, Clock, Video, CheckCircle2, FileSpreadsheet, BarChart3,
+  Calendar, Clock, Video, CheckCircle2, FileSpreadsheet, BarChart3, Sparkles,
   GripVertical, Package, AlertCircle
 } from "lucide-react";
 
@@ -654,8 +654,52 @@ function ChecklistPanel({ sessionId, checklist, onRefresh }: { sessionId: number
 
 // ============ REVIEW PANEL ============
 function ReviewPanel({ sessionId, review, reviewItems, items, onRefresh }: { sessionId: number; review: any; reviewItems: any[]; items: any[]; onRefresh: () => void }) {
-  
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const analyzeMutation = trpc.rundown.analyzeLiveDashboard.useMutation({
+    onSuccess: (data: any) => {
+      if (data.error) {
+        toast.error(`AI解析失敗: ${data.error}`);
+        return;
+      }
+      // Auto-fill form fields from AI analysis
+      setReviewForm(prev => ({
+        ...prev,
+        ...(data.totalGmv != null && { totalGmv: data.totalGmv }),
+        ...(data.totalOrders != null && { totalOrders: data.totalOrders }),
+        ...(data.totalViewers != null && { totalViewers: data.totalViewers }),
+        ...(data.peakViewers != null && { peakViewers: data.peakViewers }),
+        ...(data.averageViewers != null && { avgViewers: data.averageViewers }),
+        ...(data.newFollowers != null && { newFollowers: data.newFollowers }),
+        ...(data.startTime && { actualStartTime: data.startTime }),
+        ...(data.endTime && { actualEndTime: data.endTime }),
+      }));
+      toast.success(`AI解析完了！GMV: ¥${data.totalGmv?.toLocaleString() || 0}, 注文: ${data.totalOrders || 0}件`);
+      setIsAnalyzing(false);
+    },
+    onError: (error) => {
+      toast.error(`AI解析エラー: ${error.message}`);
+      setIsAnalyzing(false);
+    },
+  });
+  const handleScreenshotUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsAnalyzing(true);
+    try {
+      // Convert file to base64 data URL for vision API
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        analyzeMutation.mutate({ imageUrl: dataUrl });
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      toast.error('ファイル読み込みエラー');
+      setIsAnalyzing(false);
+    }
+    e.target.value = '';
+  };
   const [reviewForm, setReviewForm] = useState({
     actualStartTime: review?.actualStartTime || "",
     actualEndTime: review?.actualEndTime || "",
@@ -875,6 +919,45 @@ function ReviewPanel({ sessionId, review, reviewItems, items, onRefresh }: { ses
           </CardContent>
         </Card>
       )}
+
+      {/* AI Screenshot Analysis */}
+      <Card className="border-blue-200 bg-blue-50/30">
+        <CardHeader className="py-3 px-4">
+          <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-blue-600" />
+            AI直播大屏解析
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          <div className="flex items-center gap-3">
+            <label className="cursor-pointer flex-1">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleScreenshotUpload}
+                className="hidden"
+                disabled={isAnalyzing}
+              />
+              <div className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+                isAnalyzing ? 'border-blue-300 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50/50'
+              }`}>
+                {isAnalyzing ? (
+                  <div className="flex items-center justify-center gap-2 text-blue-600">
+                    <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full" />
+                    <span className="text-sm font-medium">AI解析中...</span>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500">
+                    <Upload className="h-5 w-5 mx-auto mb-1 text-gray-400" />
+                    TikTok直播大屏のスクリーンショットをアップロード→AIが自動でデータを読み取ります
+                  </div>
+                )}
+              </div>
+            </label>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">※ スクリーンショットからGMV・注文数・視聴者数・開始/終了時間等を自動抽出してフォームに入力します</p>
+        </CardContent>
+      </Card>
 
       {/* Manual Review Form */}
       <Card>
