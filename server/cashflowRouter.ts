@@ -539,35 +539,65 @@ export const cashflowRouter = router({
     }))
     .query(async ({ input }) => {
       const pool = getPool();
-      let where = "WHERE deletedAt IS NULL";
-      const params: any[] = [];
-
-      if (input.entity !== "all") {
-        where += " AND entity = ?";
-        params.push(input.entity);
+      const EXCHANGE_RATE = 20.5; // 1 CNY ≈ 20.5 JPY
+      
+      if (input.entity === "all") {
+        // 全法人: 中国と日本を別々に集計してJPYに換算して合算
+        let dateFilter = "";
+        const dateParams: any[] = [];
+        if (input.startDate) { dateFilter += " AND transactionDate >= ?"; dateParams.push(input.startDate); }
+        if (input.endDate) { dateFilter += " AND transactionDate <= ?"; dateParams.push(input.endDate); }
+        
+        const [jpRows] = await pool.query(`
+          SELECT 
+            SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as totalIncome,
+            SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as totalExpense,
+            COUNT(CASE WHEN type = 'income' THEN 1 END) as incomeCount,
+            COUNT(CASE WHEN type = 'expense' THEN 1 END) as expenseCount
+          FROM company_cashflows WHERE deletedAt IS NULL AND entity = 'japan' ${dateFilter}
+        `, dateParams) as any;
+        
+        const [cnRows] = await pool.query(`
+          SELECT 
+            SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as totalIncome,
+            SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as totalExpense,
+            COUNT(CASE WHEN type = 'income' THEN 1 END) as incomeCount,
+            COUNT(CASE WHEN type = 'expense' THEN 1 END) as expenseCount
+          FROM company_cashflows WHERE deletedAt IS NULL AND entity = 'china' ${dateFilter}
+        `, dateParams) as any;
+        
+        const jp = jpRows[0] || {};
+        const cn = cnRows[0] || {};
+        const totalIncome = Number(jp.totalIncome || 0) + Math.round(Number(cn.totalIncome || 0) * EXCHANGE_RATE);
+        const totalExpense = Number(jp.totalExpense || 0) + Math.round(Number(cn.totalExpense || 0) * EXCHANGE_RATE);
+        return {
+          totalIncome,
+          totalExpense,
+          netCashflow: totalIncome - totalExpense,
+          totalCount: Number(jp.incomeCount || 0) + Number(jp.expenseCount || 0) + Number(cn.incomeCount || 0) + Number(cn.expenseCount || 0),
+          incomeCount: Number(jp.incomeCount || 0) + Number(cn.incomeCount || 0),
+          expenseCount: Number(jp.expenseCount || 0) + Number(cn.expenseCount || 0),
+          currency: "JPY",
+        };
+      } else {
+        let where = "WHERE deletedAt IS NULL AND entity = ?";
+        const params: any[] = [input.entity];
+        if (input.startDate) { where += " AND transactionDate >= ?"; params.push(input.startDate); }
+        if (input.endDate) { where += " AND transactionDate <= ?"; params.push(input.endDate); }
+        
+        const [rows] = await pool.query(`
+          SELECT 
+            SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as totalIncome,
+            SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as totalExpense,
+            SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END) as netCashflow,
+            COUNT(*) as totalCount,
+            COUNT(CASE WHEN type = 'income' THEN 1 END) as incomeCount,
+            COUNT(CASE WHEN type = 'expense' THEN 1 END) as expenseCount
+          FROM company_cashflows ${where}
+        `, params) as any;
+        
+        return rows[0] || { totalIncome: 0, totalExpense: 0, netCashflow: 0, totalCount: 0, incomeCount: 0, expenseCount: 0 };
       }
-      if (input.startDate) {
-        where += " AND transactionDate >= ?";
-        params.push(input.startDate);
-      }
-      if (input.endDate) {
-        where += " AND transactionDate <= ?";
-        params.push(input.endDate);
-      }
-
-      const [rows] = await pool.query(`
-        SELECT 
-          SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as totalIncome,
-          SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as totalExpense,
-          SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END) as netCashflow,
-          COUNT(*) as totalCount,
-          COUNT(CASE WHEN type = 'income' THEN 1 END) as incomeCount,
-          COUNT(CASE WHEN type = 'expense' THEN 1 END) as expenseCount
-        FROM company_cashflows
-        ${where}
-      `, params) as any;
-
-      return rows[0] || { totalIncome: 0, totalExpense: 0, netCashflow: 0, totalCount: 0, incomeCount: 0, expenseCount: 0 };
     }),
 
   // 銀行流水インポート
