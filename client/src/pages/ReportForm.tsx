@@ -202,9 +202,9 @@ export default function ReportForm() {
                         新規スタッフを追加
                       </div>
                     </SelectItem>
-                    {activeReportStaff?.map((staff) => (
+                    {activeReportStaff?.map((staff: any) => (
                       <SelectItem key={staff.id} value={staff.id.toString()}>
-                        {staff.name}
+                        {staff.linkedStaffName ? `${staff.linkedStaffName} ${staff.name}` : staff.name}
                         {staff.country && (
                           <span className="text-muted-foreground ml-2">
                             ({staff.country})

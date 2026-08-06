@@ -622,7 +622,7 @@ export async function createReport(reportData: InsertReport) {
   return null;
 }
 
-export async function getAllReports() {
+export async function getAllReports(limit = 50) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
@@ -633,7 +633,8 @@ export async function getAllReports() {
     })
     .from(reports)
     .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))
-    .orderBy(desc(reports.reportDate));
+    .orderBy(desc(reports.reportDate))
+    .limit(limit);
 }
 
 export async function getReportsByReportStaffId(reportStaffId: number) {
@@ -796,13 +797,11 @@ export async function searchReports(filters: {
     .from(reports)
     .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id));
 
-  if (conditions.length > 0) {
-    return await query.where(and(...conditions)).orderBy(desc(reports.reportDate));
+    if (conditions.length > 0) {
+    return await query.where(and(...conditions)).orderBy(desc(reports.reportDate)).limit(100);
   }
-
-  return await query.orderBy(desc(reports.reportDate));
+  return await query.orderBy(desc(reports.reportDate)).limit(100);
 }
-
 // Get reports for AI analysis (by date range and optionally by staff)
 export async function getReportsForAnalysis(options: {
   startDate?: Date;
