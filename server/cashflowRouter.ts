@@ -294,7 +294,7 @@ export const cashflowRouter = router({
     .mutation(async ({ input }) => {
       const pool = getPool();
       // 曖昧なカテゴリ（これらは再分類対象）
-      const vagueCategories = ["振込", "世曜元宇資金", "花秘代収代付", "品汇盟代収代付", "その他支出", "その他入金", "仕入"];
+      const vagueCategories = ["振込", "世曜元宇資金", "花秘代収代付", "品汇盟代収代付", "その他支出", "その他入金", "仕入", "花秘代付", "品汇盟代付", "花秘代収", "品汇盟代収"];
 
       // 分類ルール（説明文のキーワードで判定）- 優先度順
       const rules: { keywords: string[]; category: string }[] = [
@@ -333,7 +333,17 @@ export const cashflowRouter = router({
         // 手数料
         { keywords: ["手续费", "服务费", "佣金", "手数料"], category: "手数料" },
         // 商品仕入
-        { keywords: ["珠宝", "首饰", "定制", "样品", "商品"], category: "商品仕入" },
+        { keywords: ["珠宝", "首饰", "定制", "样品"], category: "商品仕入" },
+        // 収入系
+        { keywords: ["坑位费", "收入", "回款", "提现"], category: "TikTok・越境EC" },
+        // 保险
+        { keywords: ["保险", "社保"], category: "給与・人件費" },
+        // 預充値・企業版
+        { keywords: ["预充值", "企业版", "携程"], category: "ソフトウェア・ツール" },
+        // 源泉費用
+        { keywords: ["溯源", "认证"], category: "その他経費" },
+        // 預支款
+        { keywords: ["预支", "借款", "报销"], category: "その他経費" },
       ];
 
       let entityFilter = "";
