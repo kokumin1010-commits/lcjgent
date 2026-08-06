@@ -4758,7 +4758,7 @@ function FukubukuroDetailDialog({ order, onClose }: { order: any; onClose: () =>
               </div>
               <div className="border rounded-md divide-y overflow-hidden">
                 {bundle.items?.map((item: any, idx: number) => (
-                  <div key={idx} className="flex items-center gap-2 px-3 py-2">
+                  <div key={idx} className="grid grid-cols-[auto_1fr_auto] items-center gap-2 px-3 py-2">
                     {(() => {
                       const imgs = item.images ? (typeof item.images === 'string' ? JSON.parse(item.images) : item.images) : [];
                       return imgs.length > 0 ? (
@@ -4769,15 +4769,12 @@ function FukubukuroDetailDialog({ order, onClose }: { order: any; onClose: () =>
                         </div>
                       );
                     })()}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{item.productName || '(未登録)'}</p>
+                    <div className="min-w-0 overflow-hidden">
+                      <p className="text-sm font-medium truncate max-w-full">{item.productName || '(未登録)'}</p>
                       {item.brandName && <p className="text-xs text-muted-foreground">{item.brandName}</p>}
                       {(!item.productId || item.productId === 0) && <p className="text-xs text-orange-500">未マッチング</p>}
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {item.price && <span className="text-sm text-muted-foreground">¥{Number(item.price).toLocaleString()}</span>}
-                      <Badge variant="secondary">×{item.quantity || 1}</Badge>
-                    </div>
+                    <Badge variant="secondary" className="whitespace-nowrap">×{item.quantity || 1}</Badge>
                   </div>
                 ))}
               </div>
