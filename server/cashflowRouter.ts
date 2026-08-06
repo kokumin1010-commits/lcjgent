@@ -699,18 +699,17 @@ export const cashflowRouter = router({
      // 2. Get all account initial balances
       const [balances] = await pool.query(`SELECT * FROM bank_account_balances`) as any;
       
-      // 3. For Japan accounts: get latest balance directly from records
+     // 3. For Japan accounts: get latest balance directly from records
       const [latestBalances] = await pool.query(`
         SELECT t1.sourceAccount, t1.balance, t1.transactionDate
         FROM company_cashflows t1
         INNER JOIN (
-          SELECT sourceAccount, MAX(transactionDate) as maxDate
+          SELECT sourceAccount, MAX(id) as maxId
           FROM company_cashflows
           WHERE deletedAt IS NULL AND sourceAccount IS NOT NULL AND sourceAccount != '' AND balance IS NOT NULL AND balance > 0
           GROUP BY sourceAccount
-        ) t2 ON t1.sourceAccount = t2.sourceAccount AND t1.transactionDate = t2.maxDate
+        ) t2 ON t1.id = t2.maxId
         WHERE t1.deletedAt IS NULL
-        GROUP BY t1.sourceAccount
       `) as any;
 
       // 4. Calculate net flow per account from cashflows (for China accounts)
