@@ -64,8 +64,8 @@ function formatWithExchangeRate(val: number | string | null | undefined, currenc
   return { main: `¥${Math.round(num).toLocaleString()}`, sub: null };
 }
 
-const CATEGORIES_INCOME = ["売上", "入金", "投資回収", "助成金", "その他入金", "世曜元宇資金", "花秘代収代付", "品汇盟代収代付"];
-const CATEGORIES_EXPENSE = ["仕入", "人件費", "広告費", "家賃", "通信費", "交通費", "外注費", "消耗品", "税金", "手数料", "その他支出", "世曜元宇資金", "花秘代収代付", "品汇盟代収代付"];
+const CATEGORIES_INCOME = ["売上", "入金", "投資回収", "助成金", "本社送金", "TikTok・越境EC", "ライブ・配信", "その他入金", "世曜元宇資金", "花秘代収代付", "品汇盟代収代付"];
+const CATEGORIES_EXPENSE = ["給与・人件費", "交通費", "広告・マーケティング", "家賃・オフィス", "通信・光熱費", "物流・配送", "飲食・接待", "ソフトウェア・ツール", "本社送金", "ライブ・配信", "TikTok・越境EC", "設備・備品", "手数料", "商品仕入", "モデル・タレント", "採用費", "その他経費", "世曜元宇資金", "花秘代付", "品汇盟代付"];
 
 export default function CashflowTab() {
   const [entity, setEntity] = useState<"all" | "japan" | "china">("china");
