@@ -656,6 +656,16 @@ function ChecklistPanel({ sessionId, checklist, onRefresh }: { sessionId: number
 function ReviewPanel({ sessionId, review, reviewItems, items, onRefresh }: { sessionId: number; review: any; reviewItems: any[]; items: any[]; onRefresh: () => void }) {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string>(review?.aiSummary || '');
+  const generateSummaryMutation = trpc.rundown.generateReviewSummary.useMutation({
+    onSuccess: (data: any) => {
+      setAiSummary(data.summary);
+      toast.success('AI分析レポートを生成しました');
+    },
+    onError: (error) => {
+      toast.error(`AI分析エラー: ${error.message}`);
+    },
+  });
   const analyzeMutation = trpc.rundown.analyzeLiveDashboard.useMutation({
     onSuccess: (data: any) => {
       if (data.error) {
@@ -1012,6 +1022,50 @@ function ReviewPanel({ sessionId, review, reviewItems, items, onRefresh }: { ses
           <Button onClick={() => saveReviewMutation.mutate({ sessionId, ...reviewForm })} disabled={saveReviewMutation.isPending} className="w-full">
             {saveReviewMutation.isPending ? "保存中..." : "復盤データを保存"}
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* AI Review Summary */}
+      <Card className="border-purple-200 bg-purple-50/30">
+        <CardHeader className="py-3 px-4">
+          <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-purple-600" />
+            AI復盤分析レポート
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          <Button
+            onClick={() => {
+              setAiSummary('');
+              generateSummaryMutation.mutate({
+                sessionId,
+                ...reviewForm,
+                productData: reviewItems.map((ri: any) => ({
+                  productName: ri.productName || '',
+                  gmv: Number(ri.gmv) || 0,
+                  orders: Number(ri.orders) || 0,
+                  unitsSold: Number(ri.unitsSold) || 0,
+                })),
+                liverName: review?.liverName || '',
+                title: review?.title || '',
+              });
+            }}
+            disabled={generateSummaryMutation.isPending}
+            variant="outline"
+            className="w-full border-purple-300 text-purple-700 hover:bg-purple-100"
+          >
+            {generateSummaryMutation.isPending ? (
+              <span className="flex items-center gap-2"><div className="animate-spin h-4 w-4 border-2 border-purple-600 border-t-transparent rounded-full" />AI分析中...</span>
+            ) : (
+              <span className="flex items-center gap-2"><Sparkles className="h-4 w-4" />CSV + 復盤データからAIレポートを生成</span>
+            )}
+          </Button>
+          {aiSummary && (
+            <div className="mt-3 p-4 bg-white rounded-lg border text-sm whitespace-pre-wrap leading-relaxed">
+              {aiSummary}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground mt-2">※ 商品別実績・配信数値・ライバーの振り返りを総合的に分析し、亮点・課題・改善提案を自動生成します</p>
         </CardContent>
       </Card>
     </div>

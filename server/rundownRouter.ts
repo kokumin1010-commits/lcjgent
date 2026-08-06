@@ -519,6 +519,106 @@ export const rundownRouter = router({
     return { id: newId, success: true };
   }),
 
+  // ========== AI REVIEW SUMMARY ==========
+  generateReviewSummary: protectedProcedure.input(z.object({
+    sessionId: z.number(),
+    totalGmv: z.number().optional(),
+    totalOrders: z.number().optional(),
+    totalViewers: z.number().optional(),
+    peakViewers: z.number().optional(),
+    avgViewers: z.number().optional(),
+    newFollowers: z.number().optional(),
+    actualStartTime: z.string().optional(),
+    actualEndTime: z.string().optional(),
+    lessonsLearned: z.string().optional(),
+    improvements: z.string().optional(),
+    productData: z.array(z.object({
+      productName: z.string(),
+      gmv: z.number(),
+      orders: z.number(),
+      unitsSold: z.number(),
+    })).optional(),
+    liverName: z.string().optional(),
+    title: z.string().optional(),
+  })).mutation(async ({ input }) => {
+    const { sessionId, productData, lessonsLearned, improvements, liverName, title, ...metrics } = input;
+    
+    // Build context for AI
+    let context = `## ライブ配信復盤データ\n`;
+    if (title) context += `タイトル: ${title}\n`;
+    if (liverName) context += `ライバー: ${liverName}\n`;
+    if (metrics.actualStartTime) context += `配信時間: ${metrics.actualStartTime}〜${metrics.actualEndTime || '?'}\n`;
+    context += `\n### 実績数値\n`;
+    if (metrics.totalGmv) context += `- 総GMV: ¥${metrics.totalGmv.toLocaleString()}\n`;
+    if (metrics.totalOrders) context += `- 注文数: ${metrics.totalOrders}件\n`;
+    if (metrics.totalViewers) context += `- 累計視聴者: ${metrics.totalViewers}人\n`;
+    if (metrics.peakViewers) context += `- ピーク視聴者: ${metrics.peakViewers}人\n`;
+    if (metrics.avgViewers) context += `- 平均視聴者: ${metrics.avgViewers}人\n`;
+    if (metrics.newFollowers) context += `- 新規フォロワー: ${metrics.newFollowers}人\n`;
+    if (metrics.totalGmv && metrics.totalOrders) {
+      context += `- 平均単価: ¥${Math.round(metrics.totalGmv / metrics.totalOrders).toLocaleString()}\n`;
+    }
+    if (metrics.totalGmv && metrics.totalViewers) {
+      context += `- 視聴者あたりGMV: ¥${(metrics.totalGmv / metrics.totalViewers).toFixed(1)}\n`;
+    }
+    
+    if (productData && productData.length > 0) {
+      context += `\n### 商品別実績 (${productData.length}品)\n`;
+      const sorted = [...productData].sort((a, b) => b.gmv - a.gmv);
+      sorted.forEach((p, i) => {
+        context += `${i + 1}. ${p.productName} - GMV: ¥${p.gmv.toLocaleString()}, 注文: ${p.orders}件, 販売数: ${p.unitsSold}件\n`;
+      });
+    }
+    
+    if (lessonsLearned) context += `\n### ライバーの振り返り\n${lessonsLearned}\n`;
+    if (improvements) context += `\n### ライバーの改善提案\n${improvements}\n`;
+    
+    const result = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content: `あなたはライブコマースの専門アナリストです。配信復盤データを分析し、主播と運営が直感的に理解できる簡潔なレポートを作成してください。
+
+以下の形式で日本語と中国語の両方で回答してください：
+
+## 🌟 今回のハイライト / 本次亮点
+(良かった点を2-3個、具体的な数字を交えて)
+
+## ⚠️ 課題・改善点 / 问题与不足
+(問題点を2-3個、具体的な数字を交えて)
+
+## 💡 次回への提案 / 下次建议
+(実行可能な改善提案を2-3個)
+
+## 📊 総合評価
+(総合スコア: A/B/C/Dと一行コメント)
+
+注意:
+- 具体的な数字を使って分析する
+- ライブコマースの業界標準と比較する（例: 視聴者あたりGMVの目安は¥5-10）
+- 商品ラインナップの有効性を評価する
+- ライバーの振り返りがあればそれも考慮する
+- 簡潔で読みやすく、箇条書きで`
+        },
+        {
+          role: "user",
+          content: context
+        }
+      ],
+    });
+    const summary = result.choices?.[0]?.message?.content || "分析できませんでした";
+    
+    // Save summary to DB
+    const p = getPool();
+    try {
+      await p.query('UPDATE rundown_reviews SET lessonsLearned = CONCAT(IFNULL(lessonsLearned, \'\'), \'\\n\\n--- AI分析レポート ---\\n\', ?) WHERE sessionId = ?', [summary, sessionId]);
+    } catch (e) {
+      console.error('[generateReviewSummary] DB save error:', e);
+    }
+    
+    return { summary };
+  }),
+
   // ========== ANALYZE LIVE DASHBOARD SCREENSHOT ==========
   analyzeLiveDashboard: protectedProcedure.input(z.object({
     imageUrl: z.string(),
