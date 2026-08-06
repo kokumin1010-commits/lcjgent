@@ -65,13 +65,14 @@ function formatWithExchangeRate(val: number | string | null | undefined, currenc
 }
 
 const CATEGORIES_INCOME = ["売上", "入金", "投資回収", "助成金", "本社送金", "TikTok・越境EC", "ライブ・配信", "その他入金", "世曜元宇資金", "花秘代収代付", "品汇盟代収代付"];
-const CATEGORIES_EXPENSE = ["給与・人件費", "交通費", "広告・マーケティング", "家賃・オフィス", "通信・光熱費", "物流・配送", "飲食・接待", "ソフトウェア・ツール", "本社送金", "ライブ・配信", "TikTok・越境EC", "設備・備品", "手数料", "商品仕入", "モデル・タレント", "採用費", "その他経費", "世曜元宇資金", "花秘代付", "品汇盟代付"];
+const CATEGORIES_EXPENSE = ["給与・人件費", "交通費", "広告・マーケティング", "家賃・オフィス", "通信・光熱費", "物流・配送", "飲食・接待", "ソフトウェア・ツール", "本社送金", "ライブ・配信", "TikTok・越境EC", "設備・備品", "手数料", "商品仕入", "モデル・タレント", "採用費", "外注費", "保険・社会保険", "税金・公租公課", "その他経費", "世曜元宇資金", "花秘代付", "品汇盟代付"];
 
 export default function CashflowTab() {
   const [entity, setEntity] = useState<"all" | "japan" | "china">("china");
   const [type, setType] = useState<"all" | "income" | "expense">("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+  const [sourceAccountFilter, setSourceAccountFilter] = useState<string>("");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [showYearMonthPicker, setShowYearMonthPicker] = useState(false);
   const [selectedYear, setSelectedYear] = useState(2026);
@@ -147,6 +148,7 @@ export default function CashflowTab() {
     pageSize: limit,
     sortBy,
     sortOrder,
+    sourceAccount: sourceAccountFilter || undefined,
   });
 
   const balanceQuery = trpc.cashflow.getBalanceHistory.useQuery({ entity });
@@ -682,7 +684,7 @@ export default function CashflowTab() {
               {accountBalancesQuery.data
                 .filter((acc: any) => entity === "all" || acc.entity === entity)
                 .map((acc: any) => (
-                <div key={acc.accountName} className="border rounded-lg p-3 hover:bg-muted/30 transition-colors">
+                <div key={acc.accountName} onClick={() => { if (acc.accountName !== "日本総部") { setSourceAccountFilter(sourceAccountFilter === acc.accountName ? "" : acc.accountName); setPage(0); } }} className={`border rounded-lg p-3 transition-colors cursor-pointer ${sourceAccountFilter === acc.accountName ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200" : "hover:bg-muted/30"} ${acc.accountName === "日本総部" ? "cursor-default" : ""}`}>
                   <div className="text-xs text-muted-foreground font-medium mb-1">{acc.accountName}</div>
                   <div className={`text-lg font-bold ${acc.currentBalance >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
                     {acc.currency === "CNY" ? `¥${Math.round(acc.currentBalance).toLocaleString()}` : `¥${Math.round(acc.currentBalance).toLocaleString()}`}
@@ -867,11 +869,25 @@ export default function CashflowTab() {
                                     </>
                                   ) : (
                                     <>
-                                      <option value="給与・人件費">給与</option>
-                                      <option value="交通費">交通</option>
-                                      <option value="家賃・オフィス">家賃</option>
+                                     <option value="給与・人件費">給与</option>
+                                     <option value="交通費">交通</option>
+                                     <option value="家賃・オフィス">家賃</option>
+                                      <option value="外注費">外注費</option>
+                                      <option value="通信・光熱費">通信費</option>
+                                      <option value="広告・マーケティング">広告宣伝</option>
+                                      <option value="商品仕入">仕入</option>
+                                      <option value="手数料">手数料</option>
+                                      <option value="飲食・接待">接待</option>
+                                      <option value="ソフトウェア・ツール">ソフト</option>
+                                      <option value="設備・備品">設備</option>
+                                      <option value="保険・社会保険">保険</option>
+                                      <option value="税金・公租公課">税金</option>
+                                      <option value="物流・配送">物流</option>
+                                      <option value="モデル・タレント">タレント</option>
+                                      <option value="採用費">採用</option>
+                                      <option value="本社送金">本社送金</option>
                                       <option value="その他経費">その他</option>
-                                    </>
+                                   </>
                                   )}
                                 </select>
                                 <input

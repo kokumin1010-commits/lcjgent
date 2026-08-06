@@ -49,18 +49,19 @@ function getPool() {
 export const cashflowRouter = router({
   // 入出金一覧取得
   getAll: protectedProcedure
-    .input(z.object({
-      entity: z.enum(["japan", "china", "all"]).default("all"),
-      type: z.enum(["income", "expense", "all"]).default("all"),
-      category: z.string().optional(),
-      startDate: z.string().optional(),
-      endDate: z.string().optional(),
-      page: z.number().default(1),
-      pageSize: z.number().default(50),
-      sortBy: z.enum(["transactionDate", "amount", "category", "counterparty"]).default("transactionDate"),
-      sortOrder: z.enum(["asc", "desc"]).default("desc"),
-      search: z.string().optional(),
-    }))
+   .input(z.object({
+     entity: z.enum(["japan", "china", "all"]).default("all"),
+     type: z.enum(["income", "expense", "all"]).default("all"),
+     category: z.string().optional(),
+     startDate: z.string().optional(),
+     endDate: z.string().optional(),
+     page: z.number().default(1),
+     pageSize: z.number().default(50),
+     sortBy: z.enum(["transactionDate", "amount", "category", "counterparty"]).default("transactionDate"),
+     sortOrder: z.enum(["asc", "desc"]).default("desc"),
+     search: z.string().optional(),
+      sourceAccount: z.string().optional(),
+   }))
     .query(async ({ input }) => {
       const pool = getPool();
       let where = "WHERE deletedAt IS NULL";
@@ -81,6 +82,10 @@ export const cashflowRouter = router({
       if (input.search) {
         where += " AND (counterparty LIKE ? OR description LIKE ?)";
         params.push(`%${input.search}%`, `%${input.search}%`);
+      }
+      if (input.sourceAccount) {
+        where += " AND sourceAccount = ?";
+        params.push(input.sourceAccount);
       }
       if (input.startDate) {
         where += " AND transactionDate >= ?";
@@ -336,8 +341,20 @@ export const cashflowRouter = router({
         // 設備・備品
         { keywords: ["采购", "物品", "设备", "用品", "花", "装饰"], category: "設備・備品" },
         // 手数料
-        { keywords: ["手续费", "服务费", "佣金", "手数料", "振込手数料", "ﾃｽｳﾘﾖｳ"], category: "手数料" },
-        { keywords: ["振込サービス", "振込", "振込み"], category: "振込" },
+       { keywords: ["手续费", "服务费", "佣金", "手数料", "振込手数料", "ﾃｽｳﾘﾖｳ"], category: "手数料" },
+        { keywords: ["振込サービス"], category: "外注費" },
+        // 給与（日本）- IBで始まる個人名への振込は給与
+        { keywords: ["IB "], category: "給与・人件費" },
+        // 口座振替（保険・税金等）
+        { keywords: ["口座振替"], category: "保険・社会保険" },
+        // 通信費
+        { keywords: ["ＫＤＤＩリヨウキン", "KDDI", "NTT", "ソフトバンク"], category: "通信・光熱費" },
+        // 家賃
+        { keywords: ["ヤチン", "家賃", "賃料"], category: "家賃・オフィス" },
+        // 税金
+        { keywords: ["ゼイリシ", "税理士", "税金", "源泉", "ＺＨゼイリシ"], category: "税金・公租公課" },
+        // 振込（一般）
+        { keywords: ["振込", "振込み"], category: "振込" },
         // 商品仕入
         { keywords: ["珠宝", "首饰", "定制", "样品"], category: "商品仕入" },
         // 収入系
@@ -549,10 +566,10 @@ export const cashflowRouter = router({
         const type = rec.creditAmount ? "income" : "expense";
 
         // 重複チェック
-        const [existing] = await pool.query(
-          `SELECT id FROM company_cashflows WHERE transactionDate = ? AND amount = ? AND counterparty = ? AND entity = ? AND deletedAt IS NULL LIMIT 1`,
-          [rec.transactionDate, amount, rec.counterparty || '', input.entity]
-        ) as any;
+       const [existing] = await pool.query(
+          `SELECT id FROM company_cashflows WHERE transactionDate = ? AND amount = ? AND counterparty = ? AND entity = ? AND sourceAccount = ? AND deletedAt IS NULL LIMIT 1`,
+          [rec.transactionDate, amount, rec.counterparty || '', input.entity, rec.sourceAccount || '']
+       ) as any;
         if (existing && existing.length > 0) { skipped++; continue; }
 
         // AI分類
@@ -732,19 +749,32 @@ export const cashflowRouter = router({
 
       // 5. Combine results
       const accounts = ["世曜元宇", "花秘", "品汇盟", "LCJ MITSUI", "LCJ RESONA", "日本総部"];
-      const japanAccounts = ["LCJ MITSUI", "LCJ RESONA", "日本総部"];
-      const result = accounts.map(name => {
-        const balanceRow = balances.find((b: any) => b.accountName === name);
-        const flowRow = flows.find((f: any) => f.sourceAccount === name);
-        const income = Number(flowRow?.totalIncome || 0);
-        const expense = Number(flowRow?.totalExpense || 0);
-        const isJapan = japanAccounts.includes(name);
+     const japanAccounts = ["LCJ MITSUI", "LCJ RESONA", "日本総部"];
+     const result = accounts.map(name => {
+       const balanceRow = balances.find((b: any) => b.accountName === name);
+       const flowRow = flows.find((f: any) => f.sourceAccount === name);
+       const income = Number(flowRow?.totalIncome || 0);
+       const expense = Number(flowRow?.totalExpense || 0);
+       const isJapan = japanAccounts.includes(name);
+       
+       // Japan: use latest record balance; China: use initial + income - expense
+       const latestRow = latestBalances.find((l: any) => l.sourceAccount === name);
+       const initial = Number(balanceRow?.initialBalance || 0);
+        let currentBalance = isJapan && latestRow ? Number(latestRow.balance) : initial + income - expense;
+        let lastDate = isJapan && latestRow ? latestRow.transactionDate : null;
         
-        // Japan: use latest record balance; China: use initial + income - expense
-        const latestRow = latestBalances.find((l: any) => l.sourceAccount === name);
-        const initial = Number(balanceRow?.initialBalance || 0);
-        const currentBalance = isJapan && latestRow ? Number(latestRow.balance) : initial + income - expense;
-        const lastDate = isJapan && latestRow ? latestRow.transactionDate : null;
+        // 日本総部 = LCJ MITSUI + LCJ RESONA の合計
+        if (name === "日本総部") {
+          const mitsuiRow = latestBalances.find((l: any) => l.sourceAccount === "LCJ MITSUI");
+          const resonaRow = latestBalances.find((l: any) => l.sourceAccount === "LCJ RESONA");
+          const mitsuiBal = mitsuiRow ? Number(mitsuiRow.balance) : 0;
+          const resonaBal = resonaRow ? Number(resonaRow.balance) : 0;
+          currentBalance = mitsuiBal + resonaBal;
+          // Use the more recent date of the two
+          const mitsuiDate = mitsuiRow?.transactionDate || "";
+          const resonaDate = resonaRow?.transactionDate || "";
+          lastDate = mitsuiDate > resonaDate ? mitsuiDate : resonaDate;
+        }
         
         return {
           accountName: name,
