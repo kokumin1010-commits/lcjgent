@@ -16,7 +16,7 @@ import {
 function formatCurrency(val: number | string | null | undefined, currency: string = "JPY"): string {
   const num = typeof val === "string" ? parseFloat(val) : (val || 0);
   if (currency === "CNY") {
-    return `¥${Math.round(num).toLocaleString()} RMB`;
+    return `¥${num.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} RMB`;
   }
   return `¥${Math.round(num).toLocaleString()}`;
 }
@@ -57,7 +57,7 @@ function formatWithExchangeRate(val: number | string | null | undefined, currenc
   if (currency === "CNY") {
     const jpyEquiv = Math.round(num * EXCHANGE_RATE_CNY_JPY);
     return {
-      main: `¥${Math.round(num).toLocaleString()} RMB`,
+      main: `¥${num.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} RMB`,
       sub: `≈ ¥${jpyEquiv.toLocaleString()} JPY`,
     };
   }
@@ -687,7 +687,7 @@ export default function CashflowTab() {
                 <div key={acc.accountName} onClick={() => { if (acc.accountName !== "日本総部") { setSourceAccountFilter(sourceAccountFilter === acc.accountName ? "" : acc.accountName); setPage(0); } }} className={`border rounded-lg p-3 transition-colors cursor-pointer ${sourceAccountFilter === acc.accountName ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200" : "hover:bg-muted/30"} ${acc.accountName === "日本総部" ? "cursor-default" : ""}`}>
                   <div className="text-xs text-muted-foreground font-medium mb-1">{acc.accountName}</div>
                   <div className={`text-lg font-bold ${acc.currentBalance >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
-                    {acc.currency === "CNY" ? `¥${Math.round(acc.currentBalance).toLocaleString()}` : `¥${Math.round(acc.currentBalance).toLocaleString()}`}
+                    {acc.currency === "CNY" ? `¥${acc.currentBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : `¥${Math.round(acc.currentBalance).toLocaleString()}`}
                   </div>
                   {acc.lastDate && (
                     <div className="text-[10px] text-orange-600 mt-0.5">最終更新: {acc.lastDate}</div>
