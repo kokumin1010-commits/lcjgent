@@ -790,8 +790,9 @@ export const cashflowRouter = router({
        // Japan: use latest record balance; China: use initial + income - expense
        const latestRow = latestBalances.find((l: any) => l.sourceAccount === name);
        const initial = Number(balanceRow?.initialBalance || 0);
-        let currentBalance = isJapan && latestRow ? Number(latestRow.balance) : initial + income - expense;
-        let lastDate = isJapan && latestRow ? latestRow.transactionDate : null;
+        // Both Japan and China: if latest balance exists in records, use it directly
+        let currentBalance = latestRow ? Number(latestRow.balance) : initial + income - expense;
+        let lastDate = latestRow ? latestRow.transactionDate : null;
         
         // 日本総部 = LCJ MITSUI + LCJ RESONA の合計
         if (name === "日本総部") {
