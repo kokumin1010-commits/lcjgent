@@ -4893,11 +4893,11 @@ function FukubukuroEditDialog({ order, onClose, onSubmit, isLoading }: {
             {/* Items list */}
             <div>
               <Label className="text-sm font-medium">商品リスト ({items.length}品)</Label>
-              <div className="border rounded-md divide-y mt-1 max-h-[200px] overflow-y-auto">
+              <div className="border rounded-md divide-y mt-1 max-h-[400px] overflow-y-auto">
                 {items.map((item, idx) => (
                   <div key={idx} className="flex items-center gap-2 px-3 py-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm truncate">{item.productName}</p>
+                      <p className="text-sm break-words">{item.productName}</p>
                       {!item.productId && <span className="text-xs text-orange-500">未マッチング</span>}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
