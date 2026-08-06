@@ -48,6 +48,7 @@ export default function CashflowTab() {
   const [selectedYear, setSelectedYear] = useState(2026);
   const [selectedMonth, setSelectedMonth] = useState(0);
   const selectedYearMonth = selectedMonth > 0;
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("transactionDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const limit = 20;
@@ -423,24 +424,52 @@ export default function CashflowTab() {
         <Card>
           <CardContent className="p-4">
             <h3 className="font-semibold mb-3 flex items-center gap-2">📊 残高推移</h3>
-            <div className="flex items-end gap-1 h-20">
-              {balanceHistory.slice(-12).map((item, i) => {
-                const maxBal = Math.max(...balanceHistory.slice(-12).map((b) => Math.abs(b.balance)), 1);
-                const height = Math.max((Math.abs(item.balance) / maxBal) * 100, 4);
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-[9px] text-muted-foreground whitespace-nowrap">
-                      {entity === "china" ? formatCurrency(item.balance, "CNY") : formatCurrency(item.balance)}
-                    </span>
-                    <div
-                      className={`w-full rounded-t transition-all ${item.balance >= 0 ? "bg-gradient-to-t from-blue-500 to-blue-300" : "bg-gradient-to-t from-red-500 to-red-300"}`}
-                      style={{ height: `${height}%`, minHeight: "4px" }}
-                    />
-                    <span className="text-[9px] text-muted-foreground">{item.month.slice(5)}</span>
+            {(() => {
+              const data = balanceHistory.slice(-12);
+              const maxBal = Math.max(...data.map((b) => Math.abs(b.balance)), 1);
+              const chartHeight = 160;
+              return (
+                <div className="relative" style={{ height: chartHeight + 60 }}>
+                  {/* Y-axis zero line */}
+                  <div className="absolute left-0 right-0 border-t border-dashed border-gray-300" style={{ top: chartHeight / 2 }} />
+                  {/* Bars */}
+                  <div className="flex items-center gap-1 h-full px-2" style={{ height: chartHeight }}>
+                    {data.map((item, i) => {
+                      const barHeight = Math.max((Math.abs(item.balance) / maxBal) * (chartHeight / 2 - 10), 4);
+                      const isPositive = item.balance >= 0;
+                      return (
+                        <div key={i} className="flex-1 flex flex-col items-center relative" style={{ height: chartHeight }}>
+                          {/* Value label */}
+                          <span className="text-[10px] font-medium whitespace-nowrap absolute" style={{ top: isPositive ? (chartHeight / 2 - barHeight - 18) : (chartHeight / 2 + barHeight + 4) }}>
+                            {entity === "china" ? formatCurrency(item.balance, "CNY") : formatCurrency(item.balance)}
+                          </span>
+                          {/* Bar */}
+                          {isPositive ? (
+                            <div
+                              className="w-[70%] rounded-t-md bg-gradient-to-t from-blue-500 to-blue-400 absolute shadow-sm"
+                              style={{ height: barHeight, bottom: chartHeight / 2 }}
+                            />
+                          ) : (
+                            <div
+                              className="w-[70%] rounded-b-md bg-gradient-to-b from-red-400 to-red-500 absolute shadow-sm"
+                              style={{ height: barHeight, top: chartHeight / 2 }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
+                  {/* Month labels */}
+                  <div className="flex gap-1 px-2 mt-1">
+                    {data.map((item, i) => (
+                      <div key={i} className="flex-1 text-center">
+                        <span className="text-[11px] font-medium text-muted-foreground">{item.month.slice(5).replace(/^0/, '')}月</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       )}
@@ -462,30 +491,55 @@ export default function CashflowTab() {
               </Button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* バーチャート */}
-              <div className="space-y-2">
+              {/* バーチャート - タップで明細展開 */}
+              <div className="space-y-1">
                 {categoryBreakdown.slice(0, 8).map((cat: any, i: number) => {
                   const colors = ["bg-red-500", "bg-orange-500", "bg-amber-500", "bg-yellow-500", "bg-lime-500", "bg-green-500", "bg-teal-500", "bg-blue-500"];
                   const maxAmount = categoryBreakdown[0]?.totalAmount || 1;
                   const width = Math.max((Number(cat.totalAmount) / Number(maxAmount)) * 100, 5);
+                  const isExpanded = expandedCategory === cat.category;
                   return (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className="text-xs w-[140px] truncate font-medium">{cat.category}</span>
-                      <div className="flex-1 h-5 bg-muted/50 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${colors[i % colors.length]} transition-all`}
-                          style={{ width: `${width}%` }}
-                        />
+                    <div key={i}>
+                      <div
+                        className="flex items-center gap-2 cursor-pointer hover:bg-muted/30 rounded-md p-1 transition-colors"
+                        onClick={() => setExpandedCategory(isExpanded ? null : cat.category)}
+                      >
+                        <span className="text-xs w-[140px] truncate font-medium">{cat.category}</span>
+                        <div className="flex-1 h-5 bg-muted/50 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${colors[i % colors.length]} transition-all`}
+                            style={{ width: `${width}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-bold w-[80px] text-right">
+                          {entity === "china" ? formatCurrency(cat.totalAmount, "CNY") : formatCurrency(cat.totalAmount)}
+                        </span>
+                        <span className="text-xs text-muted-foreground w-[45px] text-right">{cat.percentage}%</span>
+                        <ChevronRight className={`h-3 w-3 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                       </div>
-                      <span className="text-xs font-bold w-[80px] text-right">
-                        {entity === "china" ? formatCurrency(cat.totalAmount, "CNY") : formatCurrency(cat.totalAmount)}
-                      </span>
-                      <span className="text-xs text-muted-foreground w-[45px] text-right">{cat.percentage}%</span>
+                      {/* 展開明細 */}
+                      {isExpanded && (
+                        <div className="ml-4 mt-1 mb-2 border-l-2 border-gray-200 pl-3 space-y-1 max-h-[200px] overflow-y-auto">
+                          {(listQuery.data?.items || []).filter((item: any) => item.category === cat.category).length > 0 ? (
+                            (listQuery.data?.items || []).filter((item: any) => item.category === cat.category).map((item: any, idx: number) => (
+                              <div key={idx} className="flex items-center justify-between text-xs py-0.5">
+                                <span className="text-muted-foreground w-[70px]">{item.transactionDate?.slice(5)}</span>
+                                <span className="flex-1 truncate px-1">{item.description || item.counterparty}</span>
+                                <span className={`font-medium ${item.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                                  {entity === "china" ? formatCurrency(item.amount, "CNY") : formatCurrency(item.amount)}
+                                </span>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-xs text-muted-foreground">※ 下のテーブルで「{cat.category}」で検索してください</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
-              {/* サマリーテーブル */}
+              {/* サマリーテーブル - タップで明細展開 */}
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-xs">
                   <thead className="bg-muted/50">
@@ -498,8 +552,15 @@ export default function CashflowTab() {
                   </thead>
                   <tbody>
                     {categoryBreakdown.map((cat: any, i: number) => (
-                      <tr key={i} className="border-t hover:bg-muted/30">
-                        <td className="p-2 font-medium">{cat.category}</td>
+                      <tr
+                        key={i}
+                        className="border-t hover:bg-muted/30 cursor-pointer"
+                        onClick={() => setExpandedCategory(expandedCategory === cat.category ? null : cat.category)}
+                      >
+                        <td className="p-2 font-medium flex items-center gap-1">
+                          <ChevronRight className={`h-3 w-3 transition-transform ${expandedCategory === cat.category ? 'rotate-90' : ''}`} />
+                          {cat.category}
+                        </td>
                         <td className="p-2 text-right">{entity === "china" ? formatCurrency(cat.totalAmount, "CNY") : formatCurrency(cat.totalAmount)}</td>
                         <td className="p-2 text-right">{cat.count}件</td>
                         <td className="p-2 text-right font-bold">{cat.percentage}%</td>
