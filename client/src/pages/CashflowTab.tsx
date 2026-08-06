@@ -12,6 +12,7 @@ import {
   TrendingUp, TrendingDown, Wallet, Building2, ArrowUpRight, ArrowDownRight,
   ChevronLeft, ChevronRight, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Calendar
 } from "lucide-react";
+import { ChevronDown, ChevronUp, Save, Check } from "lucide-react";
 
 function formatCurrency(val: number | string | null | undefined, currency: string = "JPY"): string {
   const num = typeof val === "string" ? parseFloat(val) : (val || 0);
@@ -952,20 +953,7 @@ export default function CashflowTab() {
 
       {/* Filters & Table */}
       {/* TODO: 待补充说明提醒 */}
-      {(() => {
-        const pendingItems = items.filter((item: any) => !item.description || item.description === '二代支付' || item.description === '银行收费');
-        if (pendingItems.length === 0) return null;
-        return (
-          <div className="border border-yellow-300 bg-yellow-50 rounded-lg p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-yellow-800">
-                ⚠️ 待补充说明：{pendingItems.length}件（本页）
-              </span>
-              <span className="text-xs text-yellow-600">请财务补充具体用途说明</span>
-            </div>
-          </div>
-        );
-      })()}
+      <PendingDescriptionsPanel entity={entity} />
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
@@ -1392,6 +1380,211 @@ export default function CashflowTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function PendingDescriptionsPanel({ entity }: { entity: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [filterMonth, setFilterMonth] = useState<string>("");
+  const [edits, setEdits] = useState<Record<number, string>>({});
+  const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
+
+  const pendingQuery = trpc.cashflow.getPendingDescriptions.useQuery(
+    { entity: entity as any, month: filterMonth || undefined },
+    { enabled: expanded }
+  );
+
+  const bulkUpdateMutation = trpc.cashflow.bulkUpdateDescriptions.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.updated}件の説明を保存しました`);
+      const newSaved = new Set(savedIds);
+      Object.keys(edits).forEach(id => newSaved.add(Number(id)));
+      setSavedIds(newSaved);
+      setEdits({});
+      pendingQuery.refetch();
+    },
+    onError: () => toast.error("保存に失敗しました"),
+  });
+
+  const pendingItems = pendingQuery.data || [];
+  const editedCount = Object.keys(edits).filter(id => edits[Number(id)]?.trim()).length;
+
+  // Generate month options from data
+  const months = useMemo(() => {
+    if (!pendingItems.length) return [];
+    const set = new Set<string>();
+    pendingItems.forEach((item: any) => {
+      if (item.transactionDate) set.add(item.transactionDate.substring(0, 7));
+    });
+    return Array.from(set).sort().reverse();
+  }, [pendingItems]);
+
+  const handleSave = () => {
+    const updates = Object.entries(edits)
+      .filter(([_, desc]) => desc.trim())
+      .map(([id, description]) => ({ id: Number(id), description }));
+    if (updates.length === 0) {
+      toast.error("入力された説明がありません");
+      return;
+    }
+    bulkUpdateMutation.mutate({ updates });
+  };
+
+  // Total count (without month filter)
+  const totalQuery = trpc.cashflow.getPendingDescriptions.useQuery(
+    { entity: entity as any },
+    { enabled: true }
+  );
+  const totalCount = totalQuery.data?.length || 0;
+
+  if (totalCount === 0 && !expanded) return null;
+
+  return (
+    <div className="border border-yellow-300 bg-yellow-50 rounded-lg overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full p-3 flex items-center justify-between hover:bg-yellow-100 transition-colors"
+      >
+        <span className="text-sm font-medium text-yellow-800">
+          ⚠️ 待补充说明：{totalCount}件
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-yellow-600">点击展开，直接输入说明</span>
+          {expanded ? <ChevronUp className="h-4 w-4 text-yellow-600" /> : <ChevronDown className="h-4 w-4 text-yellow-600" />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-yellow-300 p-4">
+          {/* Filter bar */}
+          <div className="flex items-center gap-3 mb-4">
+            <select
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="text-sm border rounded px-3 py-1.5 bg-white"
+            >
+              <option value="">全部月份</option>
+              {months.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            <span className="text-sm text-yellow-700">
+              显示: {pendingItems.length}件
+              {editedCount > 0 && (
+                <span className="ml-2 text-green-700 font-medium">（已输入: {editedCount}件）</span>
+              )}
+            </span>
+            {editedCount > 0 && (
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={bulkUpdateMutation.isPending}
+                className="ml-auto bg-green-600 hover:bg-green-700 text-white"
+              >
+                {bulkUpdateMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <Save className="h-4 w-4 mr-1" />
+                )}
+                一括保存（{editedCount}件）
+              </Button>
+            )}
+          </div>
+
+          {/* Table */}
+          {pendingQuery.isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-yellow-600" />
+              <span className="ml-2 text-sm text-yellow-600">読み込み中...</span>
+            </div>
+          ) : (
+            <div className="max-h-[400px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-yellow-100">
+                  <tr>
+                    <th className="text-left p-2 font-medium text-yellow-800 w-24">日付</th>
+                    <th className="text-left p-2 font-medium text-yellow-800 w-20">種別</th>
+                    <th className="text-right p-2 font-medium text-yellow-800 w-32">金額</th>
+                    <th className="text-left p-2 font-medium text-yellow-800 w-40">取引先</th>
+                    <th className="text-left p-2 font-medium text-yellow-800 w-24">現在の説明</th>
+                    <th className="text-left p-2 font-medium text-yellow-800">補充説明</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingItems.map((item: any, idx: number) => {
+                    const isSaved = savedIds.has(item.id);
+                    const hasEdit = edits[item.id]?.trim();
+                    return (
+                      <tr
+                        key={item.id}
+                        className={`border-t border-yellow-200 ${isSaved ? 'bg-green-50' : hasEdit ? 'bg-blue-50' : 'bg-white'} hover:bg-yellow-50`}
+                      >
+                        <td className="p-2 text-gray-600">{item.transactionDate}</td>
+                        <td className="p-2">
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${item.type === 'income' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {item.type === 'income' ? '入金' : '出金'}
+                          </span>
+                        </td>
+                        <td className={`p-2 text-right font-mono ${item.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                          {item.type === 'income' ? '+' : '-'}¥{Math.abs(Number(item.amount)).toLocaleString(undefined, entity === 'china' ? {minimumFractionDigits: 2, maximumFractionDigits: 2} : {})}
+                        </td>
+                        <td className="p-2 text-gray-700 truncate max-w-[160px]" title={item.counterparty}>{item.counterparty || '-'}</td>
+                        <td className="p-2 text-gray-400 text-xs">{item.description || '-'}</td>
+                        <td className="p-2">
+                          {isSaved ? (
+                            <span className="text-green-600 flex items-center gap-1"><Check className="h-4 w-4" /> 保存済み</span>
+                          ) : (
+                            <input
+                              type="text"
+                              value={edits[item.id] || ''}
+                              onChange={(e) => setEdits(prev => ({ ...prev, [item.id]: e.target.value }))}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Tab' || e.key === 'Enter') {
+                                  // Focus next input
+                                  const inputs = document.querySelectorAll('.pending-desc-input');
+                                  const currentIdx = Array.from(inputs).indexOf(e.target as Element);
+                                  if (currentIdx < inputs.length - 1) {
+                                    e.preventDefault();
+                                    (inputs[currentIdx + 1] as HTMLInputElement).focus();
+                                  }
+                                }
+                              }}
+                              placeholder="具体用途を入力..."
+                              className="pending-desc-input w-full border border-gray-300 rounded px-2 py-1 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                            />
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Bottom save bar */}
+          {editedCount > 0 && (
+            <div className="mt-4 flex items-center justify-between border-t border-yellow-300 pt-3">
+              <span className="text-sm text-yellow-700">
+                {editedCount}件の説明を入力済み
+              </span>
+              <Button
+                onClick={handleSave}
+                disabled={bulkUpdateMutation.isPending}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                {bulkUpdateMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <Save className="h-4 w-4 mr-1" />
+                )}
+                確認して一括保存
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

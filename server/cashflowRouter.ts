@@ -839,4 +839,55 @@ export const cashflowRouter = router({
       );
       return { success: true };
     }),
+
+  // 待补充说明の全レコードを取得
+  getPendingDescriptions: protectedProcedure
+    .input(z.object({
+      entity: z.enum(["japan", "china"]).default("china"),
+      month: z.string().optional(), // "2026-07" format
+    }))
+    .query(async ({ input }) => {
+      const pool = getPool();
+      const vagueTerms = [
+        '', '转账', '二代支付', '网银转账', '汇款', '支付', '代付', '代收',
+        '振込', '振込サービス', '口座振替', '振込手数料',
+      ];
+      const placeholders = vagueTerms.map(() => '?').join(',');
+      let sql = `SELECT id, transactionDate, type, amount, counterparty, description, category, sourceAccount
+        FROM company_cashflows
+        WHERE entity = ? AND deletedAt IS NULL
+        AND (description IS NULL OR TRIM(description) IN (${placeholders}))
+        `;
+      const params: any[] = [input.entity, ...vagueTerms];
+      if (input.month) {
+        sql += ` AND transactionDate LIKE ?`;
+        params.push(`${input.month}%`);
+      }
+      sql += ` ORDER BY transactionDate DESC, id DESC`;
+      const [rows] = await pool.query(sql, params) as any;
+      return rows;
+    }),
+
+  // 一括で説明を更新
+  bulkUpdateDescriptions: protectedProcedure
+    .input(z.object({
+      updates: z.array(z.object({
+        id: z.number(),
+        description: z.string(),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      const pool = getPool();
+      let updated = 0;
+      for (const u of input.updates) {
+        if (u.description.trim()) {
+          await pool.query(
+            `UPDATE company_cashflows SET description = ? WHERE id = ? AND deletedAt IS NULL`,
+            [u.description.trim(), u.id]
+          );
+          updated++;
+        }
+      }
+      return { success: true, updated };
+    }),
 });
