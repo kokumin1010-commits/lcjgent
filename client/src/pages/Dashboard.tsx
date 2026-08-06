@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClipboardList, Clock, CheckCircle2, Plus, AlertTriangle, FileText, ShoppingBag, Store, MessageCircle, Brain, Sparkles } from "lucide-react";
+import { ClipboardList, Clock, CheckCircle2, Plus, AlertTriangle, FileText, ShoppingBag, Store, MessageCircle, Brain, Sparkles, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -35,7 +35,15 @@ export default function Dashboard() {
       </div>
 
       {/* Action Buttons */}
-      <div className="grid gap-3 grid-cols-3">
+      <div className="grid gap-3 grid-cols-4">
+        <Button
+          size="lg"
+          className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-md"
+          onClick={() => setLocation("/master/finance?tab=cashflow")}
+        >
+          <Wallet className="h-5 w-5 mr-2" />
+          ファイナンス管理
+        </Button>
         <Button
           size="lg"
           className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md"
