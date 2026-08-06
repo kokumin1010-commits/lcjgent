@@ -875,6 +875,22 @@ export default function CashflowTab() {
       )}
 
       {/* Filters & Table */}
+      {/* TODO: 待补充说明提醒 */}
+      {(() => {
+        const pendingItems = items.filter((item: any) => !item.description || item.description === '二代支付' || item.description === '银行收费');
+        if (pendingItems.length === 0) return null;
+        return (
+          <div className="border border-yellow-300 bg-yellow-50 rounded-lg p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-yellow-800">
+                ⚠️ 待补充说明：{pendingItems.length}件（本页）
+              </span>
+              <span className="text-xs text-yellow-600">请财务补充具体用途说明</span>
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1045,7 +1061,7 @@ export default function CashflowTab() {
                           updateMutation.mutate({ id: item.id, description: e.target.value, entity: item.entity, type: item.type, amount: item.amount, currency: item.currency, transactionDate: item.transactionDate, category: item.category, counterparty: item.counterparty });
                         }
                       }}
-                      className={`bg-transparent border-0 border-b border-dashed hover:border-primary cursor-pointer text-xs p-0 focus:ring-0 focus:border-primary w-full ${(!item.description || item.description === '二代支付' || item.description === '银行收费') ? 'border-yellow-400 text-yellow-600 placeholder:text-yellow-400' : 'border-muted-foreground/30 text-muted-foreground'}`}
+                      className={`bg-transparent border-0 border-b border-dashed hover:border-primary cursor-pointer text-xs p-0 focus:ring-0 focus:border-primary min-w-[180px] ${(!item.description || item.description === '二代支付' || item.description === '银行收费') ? 'border-yellow-400 text-yellow-600 placeholder:text-yellow-400' : 'border-muted-foreground/30 text-muted-foreground'}`}
                     />
                   </td>
                   <td className="p-3 text-xs">
