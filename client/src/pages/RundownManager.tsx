@@ -678,33 +678,105 @@ function ReviewPanel({ sessionId, review, reviewItems, items, onRefresh }: { ses
 
   const handleCsvUpload = async () => {
     if (!csvFile) return;
-    const text = await csvFile.text();
-    const lines = text.split("\n").filter(l => l.trim());
-    if (lines.length < 2) { toast.error("エラー: CSVデータが不正です"); return; }
-
-    const headers = lines[0].split(",").map(h => h.trim().replace(/"/g, ""));
     const data: any[] = [];
     let totalGmv = 0, totalOrders = 0;
 
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(",").map(c => c.trim().replace(/"/g, ""));
-      const row: any = {};
-      headers.forEach((h, idx) => { row[h] = cols[idx] || ""; });
+    try {
+      if (csvFile.name.endsWith('.xlsx') || csvFile.name.endsWith('.xls')) {
+        // Excelファイル処理
+        const XLSX = await import('xlsx');
+        const arrayBuffer = await csvFile.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        if (rows.length < 2) { toast.error("エラー: データが不正です"); return; }
 
-      // Try to map common TikTok CSV columns
-      const productName = row["商品名"] || row["product_name"] || row["商品"] || cols[0] || "";
-      const gmv = Number(row["GMV"] || row["売上"] || row["金額"] || row["revenue"] || 0);
-      const orders = Number(row["注文数"] || row["orders"] || row["件数"] || 0);
-      const unitsSold = Number(row["販売数"] || row["units_sold"] || row["数量"] || 0);
-      const refundAmount = Number(row["返品金額"] || row["refund_amount"] || 0);
-      const refundCount = Number(row["返品数"] || row["refund_count"] || 0);
+        const headerRow = (rows[0] as string[]).map(h => typeof h === 'string' ? h.trim() : String(h || ''));
+        const colIndex: Record<string, number> = {};
+        headerRow.forEach((h, i) => { colIndex[h] = i; });
 
-      if (productName) {
-        data.push({ productName, gmv, orders, unitsSold, refundAmount, refundCount });
-        totalGmv += gmv;
-        totalOrders += orders;
+        // ヘッダー名の正規化マッピング（スペースあり/なし両対応）
+        const findCol = (keys: string[]): number | undefined => {
+          for (const key of keys) {
+            if (colIndex[key] !== undefined) return colIndex[key];
+            const normalized = Object.keys(colIndex).find(k => k.replace(/\s/g, '') === key.replace(/\s/g, ''));
+            if (normalized && colIndex[normalized] !== undefined) return colIndex[normalized];
+          }
+          return undefined;
+        };
+        const parseNum = (val: any): number => {
+          if (val === null || val === undefined || val === '' || val === '-') return 0;
+          const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/[,円\s]/g, ''));
+          return isNaN(num) ? 0 : num;
+        };
+
+        // カラムインデックスを検索（日本語・中国語・英語対応）
+        const nameCol = findCol(['商品名', '商品名称', 'Product', 'product_name']);
+        const idCol = findCol(['商品ID', '商品 ID', 'ProductID']);
+        const gmvCol = findCol(['GMV', '归因 GMV', '归因GMV', 'GMV（税込）', '売上', '金額', 'revenue', 'Gross revenue']);
+        const ordersCol = findCol(['注文数', '注文', '归因订单数', '归因 SKU 订单数', '归因SKU订单数', 'orders', '件数']);
+        const salesCol = findCol(['販売数', '商品の販売数', '归因成交件数', 'units_sold', '数量', 'Items sold']);
+        const custCol = findCol(['客户数', 'カスタマー数', 'Customers']);
+        const impCol = findCol(['商品曝光次数', '商品インプレッション数', 'Product impressions']);
+        const clickCol = findCol(['商品点击次数', '商品クリック数', 'Product clicks']);
+        const ctrCol = findCol(['点击率', 'CTR']);
+        const cartCol = findCol(['加购次数', 'カート追加', 'Cart additions']);
+        const avgOrderCol = findCol(['平均订单金额', '平均注文金額']);
+        const stockCol = findCol(['可用库存', '在庫数']);
+
+        for (let r = 1; r < rows.length; r++) {
+          const row = rows[r] as any[];
+          if (!row || row.length < 2) continue;
+          let productName = '';
+          if (nameCol !== undefined) productName = String(row[nameCol] || '').trim();
+          if (!productName && idCol !== undefined) productName = String(row[idCol] || '').trim();
+          if (!productName) continue;
+          if (productName.length > 490) productName = productName.substring(0, 490) + '...';
+
+          const gmv = gmvCol !== undefined ? parseNum(row[gmvCol]) : 0;
+          const orders = ordersCol !== undefined ? parseNum(row[ordersCol]) : 0;
+          const unitsSold = salesCol !== undefined ? parseNum(row[salesCol]) : 0;
+
+          data.push({ productName, gmv, orders, unitsSold, refundAmount: 0, refundCount: 0 });
+          totalGmv += gmv;
+          totalOrders += orders;
+        }
+      } else {
+        // CSVファイル処理
+        const text = await csvFile.text();
+        const lines = text.split("\n").filter(l => l.trim());
+        if (lines.length < 2) { toast.error("エラー: CSVデータが不正です"); return; }
+
+        const headers = lines[0].split(",").map(h => h.trim().replace(/"/g, ""));
+
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(",").map(c => c.trim().replace(/"/g, ""));
+          const row: any = {};
+          headers.forEach((h, idx) => { row[h] = cols[idx] || ""; });
+
+          // Try to map common TikTok CSV columns (日本語・中国語・英語対応)
+          const productName = row["商品名"] || row["商品名称"] || row["product_name"] || row["商品"] || row["Product"] || cols[0] || "";
+          const gmv = Number(row["GMV"] || row["归因 GMV"] || row["归因GMV"] || row["売上"] || row["金額"] || row["revenue"] || row["Gross revenue"] || 0);
+          const orders = Number(row["注文数"] || row["归因订单数"] || row["归因 SKU 订单数"] || row["orders"] || row["件数"] || 0);
+          const unitsSold = Number(row["販売数"] || row["归因成交件数"] || row["units_sold"] || row["数量"] || row["Items sold"] || 0);
+          const refundAmount = Number(row["返品金額"] || row["refund_amount"] || 0);
+          const refundCount = Number(row["返品数"] || row["refund_count"] || 0);
+
+          if (productName) {
+            data.push({ productName, gmv, orders, unitsSold, refundAmount, refundCount });
+            totalGmv += gmv;
+            totalOrders += orders;
+          }
+        }
       }
+    } catch (error) {
+      console.error('CSV import error:', error);
+      toast.error(`インポートエラー: ${error instanceof Error ? error.message : '不明なエラー'}`);
+      return;
     }
+
+    if (data.length === 0) { toast.error("エラー: 商品データが見つかりませんでした"); return; }
 
     importCsvMutation.mutate({
       sessionId,
@@ -760,12 +832,12 @@ function ReviewPanel({ sessionId, review, reviewItems, items, onRefresh }: { ses
         </CardHeader>
         <CardContent className="px-4 pb-4">
           <div className="flex items-center gap-3">
-            <Input type="file" accept=".csv" onChange={(e) => setCsvFile(e.target.files?.[0] || null)} className="flex-1" />
+            <Input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setCsvFile(e.target.files?.[0] || null)} className="flex-1" />
             <Button onClick={handleCsvUpload} disabled={!csvFile || importCsvMutation.isPending}>
               {importCsvMutation.isPending ? "処理中..." : "インポート"}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">TikTokからダウンロードした商品売上CSVをアップロードしてください</p>
+          <p className="text-xs text-muted-foreground mt-2">TikTokからダウンロードした商品売上CSV/Excelをアップロードしてください</p>
         </CardContent>
       </Card>
 
