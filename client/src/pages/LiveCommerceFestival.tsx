@@ -638,7 +638,7 @@ function GuestIntroSection() {
       name: '景井ひな',
       photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/rJqNwvfTVHQAdICo.webp',
       title: 'TikTokクリエイター・タレント',
-      bio: '熊本県出身。TikTokフォロワー数国内女性No.1の1,000万人超。カンヌ国際映画祭2023で世界のクリエイター7人に選出。NHK大河ドラマ「べらぼう」、Netflix「ダウンタイム」などに出演。雑誌「JELLY」レギュラーモデル。',
+      bio: '熊本県出身。TikTokフォロワー数国内女性No.1の1,000万人超。カンヌ国際映画祭2023で世界のクリエイター7人に選出。女優、モデルとしても活動し、NHK大河ドラマ「べらぼう〜蔦重栄華乃夢噺〜」、9月17日配信のNetflixシリーズ「ダウンタイム」などに出演。雑誌「JELLY」レギュラーモデルを務める。',
       sns: [
         { label: 'Instagram', url: 'https://www.instagram.com/kagei_hina/' },
         { label: 'TikTok', url: 'https://www.tiktok.com/@kageihina' },
