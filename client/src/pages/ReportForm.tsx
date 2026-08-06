@@ -195,6 +195,33 @@ export default function ReportForm() {
     });
   };
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const newImages: PendingImage[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (!file) continue;
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error("粘贴的图片超过10MB");
+          continue;
+        }
+        newImages.push({
+          file,
+          preview: URL.createObjectURL(file),
+          label: currentLabel,
+        });
+      }
+    }
+    if (newImages.length > 0) {
+      e.preventDefault();
+      setPendingImages((prev) => [...prev, ...newImages]);
+      toast.success(`已粘贴 ${newImages.length} 张图片`);
+    }
+  };
+
   const handleDeleteExistingAttachment = (id: number) => {
     if (confirm("この画像を削除しますか？")) {
       deleteAttachment.mutate({ id });
@@ -432,13 +459,13 @@ export default function ReportForm() {
             </div>
 
             {/* Image Upload Section */}
-            <div className="space-y-3">
+            <div className="space-y-3" onPaste={handlePaste} tabIndex={0}>
               <Label className="flex items-center gap-2">
                 <ImagePlus className="h-4 w-4" />
                 截图上传（LINE / Lark）
               </Label>
               
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 {/* Label selector */}
                 <Select value={currentLabel} onValueChange={(v) => setCurrentLabel(v as ImageLabel)}>
                   <SelectTrigger className="w-[140px]">
@@ -472,7 +499,7 @@ export default function ReportForm() {
                   onChange={handleFileSelect}
                 />
                 <p className="text-xs text-muted-foreground">
-                  支持 JPG/PNG，最大10MB
+                  支持 JPG/PNG，最大10MB | 可直接 Ctrl+V 粘贴截图
                 </p>
               </div>
 
