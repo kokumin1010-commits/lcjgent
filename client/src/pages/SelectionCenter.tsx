@@ -4976,7 +4976,13 @@ function FukubukuroEditDialog({ order, onClose, onSubmit, isLoading }: {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>店舗名称</Label>
-                <Input value={shopName} onChange={e => setShopName(e.target.value)} />
+                <Select value={shopName} onValueChange={v => setShopName(v)}>
+                  <SelectTrigger><SelectValue placeholder="店舗を選択" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LCJ店舗">LCJ店舗</SelectItem>
+                    <SelectItem value="KG店舗">KG店舗</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>ステータス</Label>
