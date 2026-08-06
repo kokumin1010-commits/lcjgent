@@ -122,7 +122,6 @@ export default function CashflowTab() {
   });
 
   // Queries
-  const summaryQuery = trpc.cashflow.getTotalSummary.useQuery({
   const accountBalancesQuery = trpc.cashflow.getAccountBalances.useQuery({ entity });
   const setBalanceMutation = trpc.cashflow.setAccountBalance.useMutation({
     onSuccess: () => {
@@ -131,6 +130,7 @@ export default function CashflowTab() {
       toast.success("初期残高を更新しました");
     },
   });
+  const summaryQuery = trpc.cashflow.getTotalSummary.useQuery({
     entity,
     startDate: dateRange.start || undefined,
     endDate: dateRange.end || undefined,
@@ -402,7 +402,6 @@ export default function CashflowTab() {
       currency: item.currency || "JPY",
       transactionDate: item.transactionDate || "",
       description: item.description || "",
-      item.sourceAccount || "",
       counterparty: item.counterparty || "",
       sourceAccount: item.sourceAccount || "",
     });
@@ -420,8 +419,8 @@ export default function CashflowTab() {
       transactionDate: formData.transactionDate,
       description: formData.description || undefined,
       counterparty: formData.counterparty || undefined,
+          sourceAccount: formData.sourceAccount || undefined,
     });
-      sourceAccount: formData.sourceAccount || undefined,
   }
 
   // CSV Export
@@ -674,7 +673,6 @@ export default function CashflowTab() {
           </CardContent>
         </Card>
       </div>
-      {balanceHistory.length > 0 && (
       {/* Bank Account Balances */}
       {accountBalancesQuery.data && accountBalancesQuery.data.length > 0 && (
         <Card>
