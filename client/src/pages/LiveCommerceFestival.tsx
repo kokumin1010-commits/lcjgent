@@ -608,6 +608,13 @@ function GuestIntroSection() {
   const reveal = useScrollReveal();
   const guests = [
     {
+      name: '後藤真希',
+      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/dArufbFqPTTePgKg.webp',
+      title: 'アーティスト・モデル',
+      bio: '1999年より「モーニング娘。」3期メンバーとして活躍し、卒業後はソロアーティストとして本格的に活動を開始。2024年にデビュー25周年を迎え、2025年10月15日に記念アルバム『COLLECTION』をリリース。また、2021年に発売し大ヒットを記録した写真集『ramus』に続き、2024年に発売した『flos』はSNSを中心に大きな話題を呼びロングヒットを記録中。美容誌『美ST』のモデルとしても活躍し、豊富な美容知識がたびたび話題に。',
+      sns: [],
+    },
+    {
       name: 'JOY',
       photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/vjAqkYolejYZqfed.jpg',
       title: 'タレント・モデル',
@@ -642,14 +649,14 @@ function GuestIntroSection() {
 
   return (
     <section className="bg-[#0a0a0a] py-16 md:py-20 px-4">
-      <div ref={reveal.ref} className={`max-w-5xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <div ref={reveal.ref} className={`max-w-7xl mx-auto transition-all duration-700 ${reveal.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         <div className="text-center mb-10">
           <p className="text-[#FFD700] text-sm font-bold tracking-widest mb-2">SPECIAL GUEST</p>
           <h2 className="text-3xl md:text-4xl font-black text-white">ゲスト出演者</h2>
           <p className="text-gray-400 mt-2 text-sm">各界で活躍するスペシャルゲストが登場</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
           {guests.map((g, i) => (
             <div
               key={i}
@@ -998,7 +1005,7 @@ function ProgramSection() {
                 会場からTikTok LIVEで全国へ配信。ライブコマースの極意・成功事例・実践販売をリアルタイムでお届け。
               </p>
               <p className="text-[#FF6B35] text-sm mt-2">
-                出演予定：JOY / ゆん / 景井ひな / プリンスこうや / 京極琉 / 超無課金 and more...
+                出演予定：後藤真希 / JOY / ゆん / 景井ひな / プリンスこうや / 京極琉 / 超無課金 and more...
               </p>
             </div>
           </div>
