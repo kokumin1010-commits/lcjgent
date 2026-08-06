@@ -215,6 +215,23 @@ export const cashflowRouter = router({
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [input.entity, input.type, input.category, input.amount, input.currency, input.transactionDate, input.description || null, input.counterparty || null, input.receiptUrl || null, (ctx as any).user?.id || null, input.sourceAccount || null]
       ) as any;
+      // Audit log: 作成
+      try {
+        await pool.query(\`CREATE TABLE IF NOT EXISTS cashflow_audit_log (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          cashflowId INT NOT NULL,
+          action ENUM('create','update','delete') NOT NULL,
+          userId VARCHAR(100),
+          userName VARCHAR(200),
+          changes JSON,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_cashflow (cashflowId)
+        )\`);
+        await pool.query(
+          \`INSERT INTO cashflow_audit_log (cashflowId, action, userId, userName, changes) VALUES (?, 'create', ?, ?, ?)\`,
+          [result.insertId, (ctx as any).user?.id || null, (ctx as any).user?.name || '不明', JSON.stringify(input)]
+        );
+      } catch(e) { /* ignore */ }
       return { id: result.insertId, success: true };
     }),
 
@@ -262,8 +279,11 @@ export const cashflowRouter = router({
       receiptUrl: z.string().optional(),
       sourceAccount: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const pool = getPool();
+      // Get old values before update
+      const [oldRows] = await pool.query(\`SELECT * FROM company_cashflows WHERE id = ?\`, [input.id]) as any;
+      const oldData = oldRows[0] || {};
       const { id, ...fields } = input;
       const updates: string[] = [];
       const params: any[] = [];
@@ -920,5 +940,23 @@ export const cashflowRouter = router({
         }
       }
       return { success: true, updated };
+    }),
+
+  // 編集履歴を取得
+  getAuditLog: protectedProcedure
+    .input(z.object({
+      cashflowId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      const pool = getPool();
+      try {
+        const [rows] = await pool.query(
+          `SELECT * FROM cashflow_audit_log WHERE cashflowId = ? ORDER BY createdAt DESC`,
+          [input.cashflowId]
+        ) as any;
+        return rows;
+      } catch(e) {
+        return [];
+      }
     }),
 });

@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import {
   Plus, Download, Search, Trash2, Edit2, Loader2,
   TrendingUp, TrendingDown, Wallet, Building2, ArrowUpRight, ArrowDownRight,
-  ChevronLeft, ChevronRight, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Calendar
+  ChevronLeft, ChevronRight, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Clock
 } from "lucide-react";
 import { ChevronDown, ChevronUp, Save, Check } from "lucide-react";
 
@@ -74,6 +74,7 @@ export default function CashflowTab() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [sourceAccountFilter, setSourceAccountFilter] = useState<string>("");
+  const [auditLogId, setAuditLogId] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [showYearMonthPicker, setShowYearMonthPicker] = useState(false);
   const [selectedYear, setSelectedYear] = useState(2026);
@@ -953,6 +954,7 @@ export default function CashflowTab() {
 
       {/* Filters & Table */}
       {/* TODO: 待补充说明提醒 */}
+      {auditLogId && <AuditLogDialog cashflowId={auditLogId} onClose={() => setAuditLogId(null)} />}
       <PendingDescriptionsPanel entity={entity} />
 
       <div className="flex flex-wrap items-center gap-3">
@@ -1147,6 +1149,9 @@ export default function CashflowTab() {
                   </td>
                   <td className="p-3 text-center">
                     <div className="flex items-center gap-1 justify-center">
+                      <button onClick={() => setAuditLogId(item.id)} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="編集履歴">
+                        <Clock className="h-3.5 w-3.5" />
+                      </button>
                       <button onClick={() => handleEdit(item)} className="p-1.5 hover:bg-muted rounded">
                         <Edit2 className="h-3.5 w-3.5" />
                       </button>
@@ -1586,5 +1591,81 @@ function PendingDescriptionsPanel({ entity }: { entity: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+function AuditLogDialog({ cashflowId, onClose }: { cashflowId: number; onClose: () => void }) {
+  const auditQuery = trpc.cashflow.getAuditLog.useQuery({ cashflowId });
+  const logs = auditQuery.data || [];
+
+  const fieldLabels: Record<string, string> = {
+    amount: '金額', category: 'カテゴリ', description: '説明', counterparty: '取引先',
+    type: '種別', transactionDate: '日付', entity: '法人', currency: '通貨',
+    sourceAccount: '我方账户', receiptUrl: '領収書',
+  };
+
+  return (
+    <Dialog open={true} onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" /> 編集履歴 (ID: {cashflowId})
+          </DialogTitle>
+          <DialogDescription>この取引の変更履歴</DialogDescription>
+        </DialogHeader>
+        {auditQuery.isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin" />
+          </div>
+        ) : logs.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            履歴がありません（この機能追加前のデータ）
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {logs.map((log: any) => (
+              <div key={log.id} className={`border rounded-lg p-3 ${
+                log.action === 'create' ? 'border-green-200 bg-green-50' :
+                log.action === 'delete' ? 'border-red-200 bg-red-50' :
+                'border-blue-200 bg-blue-50'
+              }`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                      log.action === 'create' ? 'bg-green-200 text-green-800' :
+                      log.action === 'delete' ? 'bg-red-200 text-red-800' :
+                      'bg-blue-200 text-blue-800'
+                    }`}>
+                      {log.action === 'create' ? '作成' : log.action === 'delete' ? '削除' : '編集'}
+                    </span>
+                    <span className="text-sm font-medium">{log.userName || '不明'}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(log.createdAt).toLocaleString('ja-JP')}
+                  </span>
+                </div>
+                {log.action === 'update' && log.changes && (() => {
+                  try {
+                    const changes = typeof log.changes === 'string' ? JSON.parse(log.changes) : log.changes;
+                    return (
+                      <div className="space-y-1 text-sm">
+                        {Object.entries(changes).map(([key, val]: [string, any]) => (
+                          <div key={key} className="flex items-start gap-1">
+                            <span className="text-muted-foreground min-w-[80px]">{fieldLabels[key] || key}:</span>
+                            <span className="text-red-500 line-through">{String(val.from || '(空)')}</span>
+                            <span className="text-muted-foreground">→</span>
+                            <span className="text-green-700 font-medium">{String(val.to || '(空)')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  } catch { return null; }
+                })()}
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
