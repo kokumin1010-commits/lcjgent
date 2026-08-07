@@ -123,6 +123,7 @@ export default function StaffSchedule() {
   const SHIFT_PRESETS: Record<string, { start: string; end: string; label: string }> = {
     morning: { start: "09:00", end: "18:00", label: "早班" },
     evening: { start: "15:00", end: "23:00", label: "晚班" },
+    leave: { start: "00:00", end: "00:00", label: "请假" },
   };
 
   // Position config
@@ -232,6 +233,8 @@ export default function StaffSchedule() {
       result = result.filter(s => (s.notes || "").includes("[早班]"));
     } else if (filterShift === "evening") {
       result = result.filter(s => (s.notes || "").includes("[晚班]"));
+    } else if (shiftFilter === "leave") {
+      result = result.filter(s => (s.notes || "").includes("[请假]"));
     }
     return result;
   };
@@ -248,6 +251,10 @@ export default function StaffSchedule() {
 
   // Sort helper: 跟播 entries first
   const sortFollowFirst = (a: StaffScheduleEntry, b: StaffScheduleEntry) => {
+    // 请假を優先表示（赤で目立つように上に）
+    const aIsLeave = a.notes?.includes("[请假]") ? 1 : 0;
+    const bIsLeave = b.notes?.includes("[请假]") ? 1 : 0;
+    if (aIsLeave !== bIsLeave) return bIsLeave - aIsLeave;
     const aIsFollow = a.notes?.includes("[跟播]") ? 1 : 0;
     const bIsFollow = b.notes?.includes("[跟播]") ? 1 : 0;
     return bIsFollow - aIsFollow;
@@ -450,10 +457,10 @@ export default function StaffSchedule() {
   // Render a single staff entry row
   const renderStaffRow = (s: StaffScheduleEntry) => {
     const notes = s.notes || "";
-    const hasShift = notes.match(/\[(早班|晚班)\]/);
+    const hasShift = notes.match(/\[(早班|晚班|请假)\]/);
     const hasFollow = notes.includes("[跟播]");
     const anchorMatch = notes.match(/\[主播:(.+?)\]/);
-    const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|跟播)\]/g, "").replace(/\[主播:.+?\]/g, "").trim();
+    const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|请假|跟播)\]/g, "").replace(/\[主播:.+?\]/g, "").trim();
     const dept = s.department || "";
     const posKey = getDeptPositionKey(dept);
     const posConfig = POSITION_CONFIG[posKey];
@@ -474,7 +481,7 @@ export default function StaffSchedule() {
           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
             {hasShift && (
               <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium",
-                hasShift[1] === "早班" ? "bg-blue-100 text-blue-700" : "bg-indigo-100 text-indigo-700"
+                hasShift[1] === "早班" ? "bg-blue-100 text-blue-700" : hasShift[1] === "请假" ? "bg-red-100 text-red-600" : "bg-indigo-100 text-indigo-700"
               )}>{hasShift[1]}</span>
             )}
             {hasFollow && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">📹跟播{anchorMatch ? ` → ${anchorMatch[1]}` : ""}</span>}
@@ -697,6 +704,7 @@ export default function StaffSchedule() {
                 <SelectItem value="all">全班次</SelectItem>
                 <SelectItem value="morning">☀️ 早班</SelectItem>
                 <SelectItem value="evening">🌙 晚班</SelectItem>
+                <SelectItem value="leave">🏖️ 请假</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -992,11 +1000,20 @@ export default function StaffSchedule() {
                   onClick={() => handleShiftChange("evening")}
                   className={cn("flex-1", formShift === "evening" ? "bg-indigo-600 hover:bg-indigo-700" : "")}
                 >
-                  🌙 晚班
+                 🌙 晚班
+               </Button>
+                <Button
+                  type="button"
+                  variant={formShift === "leave" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleShiftChange("leave")}
+                  className={cn("flex-1", formShift === "leave" ? "bg-red-500 hover:bg-red-600" : "")}
+                >
+                  🏖️ 请假
                 </Button>
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                {formShift === "morning" ? "早班 09:00-18:00" : "晚班 15:00-23:00"}
+                {formShift === "morning" ? "早班 09:00-18:00" : formShift === "evening" ? "晚班 15:00-23:00" : "请假（全日）"}
               </p>
             </div>
 
