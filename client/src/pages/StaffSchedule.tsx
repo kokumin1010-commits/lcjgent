@@ -464,8 +464,9 @@ export default function StaffSchedule() {
     const dept = s.department || "";
     const posKey = getDeptPositionKey(dept);
     const posConfig = POSITION_CONFIG[posKey];
+    const isLeave = hasShift && hasShift[1] === "请假";
     return (
-      <div key={s.id} className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors">
+      <div key={s.id} className={cn("flex items-center px-4 py-3 transition-colors", isLeave ? "bg-red-50 hover:bg-red-100 border-l-3 border-red-400" : "hover:bg-gray-50")}>
         <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", posConfig?.dotColor || "bg-gray-300")} />
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ml-2"
@@ -489,10 +490,16 @@ export default function StaffSchedule() {
           </div>
         </div>
         <div className="text-right shrink-0">
-          <div className="text-xs font-medium text-gray-700 flex items-center gap-1">
-            <Clock className="h-3 w-3 text-gray-400" />
-            {s.startTime} - {s.endTime}
-          </div>
+          {hasShift && hasShift[1] === "请假" ? (
+            <div className="text-xs font-bold text-red-500 flex items-center gap-1">
+              🏖️ 请假（终日）
+            </div>
+          ) : (
+            <div className="text-xs font-medium text-gray-700 flex items-center gap-1">
+              <Clock className="h-3 w-3 text-gray-400" />
+              {s.startTime} - {s.endTime}
+            </div>
+          )}
         </div>
         {!isPastDate(s.date) && (
           <Button
@@ -722,6 +729,10 @@ export default function StaffSchedule() {
           <span className="flex items-center gap-1">
             <span className="inline-block w-2 h-2 rounded-full bg-indigo-400"></span>
             🌙 晚班 15:00-23:00
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-2 h-2 rounded-full bg-red-400"></span>
+            🏖️ 请假
           </span>
         </div>
       </div>
