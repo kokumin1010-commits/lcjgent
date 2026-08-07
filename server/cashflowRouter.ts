@@ -217,7 +217,7 @@ export const cashflowRouter = router({
       ) as any;
       // Audit log: 作成
       try {
-        await pool.query(\`CREATE TABLE IF NOT EXISTS cashflow_audit_log (
+        await pool.query(`CREATE TABLE IF NOT EXISTS cashflow_audit_log (
           id INT AUTO_INCREMENT PRIMARY KEY,
           cashflowId INT NOT NULL,
           action ENUM('create','update','delete') NOT NULL,
@@ -226,9 +226,9 @@ export const cashflowRouter = router({
           changes JSON,
           createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           INDEX idx_cashflow (cashflowId)
-        )\`);
+        )`);
         await pool.query(
-          \`INSERT INTO cashflow_audit_log (cashflowId, action, userId, userName, changes) VALUES (?, 'create', ?, ?, ?)\`,
+          `INSERT INTO cashflow_audit_log (cashflowId, action, userId, userName, changes) VALUES (?, 'create', ?, ?, ?)`,
           [result.insertId, (ctx as any).user?.id || null, (ctx as any).user?.name || '不明', JSON.stringify(input)]
         );
       } catch(e) { /* ignore */ }
@@ -282,7 +282,7 @@ export const cashflowRouter = router({
     .mutation(async ({ input, ctx }) => {
       const pool = getPool();
       // Get old values before update
-      const [oldRows] = await pool.query(\`SELECT * FROM company_cashflows WHERE id = ?\`, [input.id]) as any;
+      const [oldRows] = await pool.query(`SELECT * FROM company_cashflows WHERE id = ?`, [input.id]) as any;
       const oldData = oldRows[0] || {};
       const { id, ...fields } = input;
       const updates: string[] = [];
