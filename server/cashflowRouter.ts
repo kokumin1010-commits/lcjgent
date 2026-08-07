@@ -1,6 +1,22 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "./_core/trpc";
 import mysql from "mysql2/promise";
+import { createActivityLog } from "./db";
+
+// Activity log helper for cashflow
+async function logCashflowActivity(ctx: any, action: string, targetId: string | number, description: string, details?: any) {
+  try {
+    await createActivityLog({
+      userId: ctx?.user?.id || 0,
+      actionType: `cashflow_${action}`,
+      actionLabel: description,
+      targetType: 'cashflow',
+      targetId: Number(targetId) || 0,
+      targetName: `取引ID: ${targetId}`,
+      metadata: details ? { module: 'cashflow', action, details } : { module: 'cashflow', action },
+    });
+  } catch(e) { /* ignore logging errors */ }
+}
 
 // Direct mysql2 connection pool
 let _pool: mysql.Pool | null = null;
@@ -232,6 +248,8 @@ export const cashflowRouter = router({
           [result.insertId, (ctx as any).user?.id || null, (ctx as any).user?.name || '不明', JSON.stringify(input)]
         );
       } catch(e) { /* ignore */ }
+      // Activity log
+      await logCashflowActivity(ctx, 'create', String(result.insertId), `入出金作成: ${input.type === 'income' ? '入金' : '出金'} ${input.amount} ${input.currency} - ${input.counterparty || ''}`, input);
       return { id: result.insertId, success: true };
     }),
 
@@ -301,18 +319,25 @@ export const cashflowRouter = router({
         `UPDATE company_cashflows SET ${updates.join(", ")} WHERE id = ?`,
         params
       );
+      // Activity log
+      await logCashflowActivity(ctx, 'update', String(id), `入出金更新: ID=${id}`, { before: oldData, after: fields });
       return { success: true };
     }),
 
   // 入出金削除（ソフトデリート）
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const pool = getPool();
+      // Get data before delete for logging
+      const [oldRows] = await pool.query(`SELECT * FROM company_cashflows WHERE id = ?`, [input.id]) as any;
+      const oldData = oldRows[0] || {};
       await pool.query(
         `UPDATE company_cashflows SET deletedAt = NOW() WHERE id = ?`,
         [input.id]
       );
+      // Activity log
+      await logCashflowActivity(ctx, 'delete', String(input.id), `入出金削除: ${oldData.type === 'income' ? '入金' : '出金'} ${oldData.amount} ${oldData.currency} - ${oldData.counterparty || ''}`, oldData);
       return { success: true };
     }),
 

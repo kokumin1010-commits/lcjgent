@@ -1718,19 +1718,26 @@ export async function createActivityLog(data: InsertActivityLog) {
 }
 
 // Get recent activity logs
-export async function getRecentActivityLogs(limit: number = 50) {
+export async function getRecentActivityLogs(limit: number = 50, module?: string, action?: string) {
   const db = await getDb();
   if (!db) return [];
   
-  return await db
+  const conditions = [];
+  if (module) conditions.push(like(activityLogs.actionType, `${module}%`));
+  if (action) conditions.push(like(activityLogs.actionType, `%_${action}`));
+
+  const query = db
     .select({
       log: activityLogs,
       user: users,
     })
     .from(activityLogs)
-    .leftJoin(users, eq(activityLogs.userId, users.id))
-    .orderBy(desc(activityLogs.createdAt))
-    .limit(limit);
+    .leftJoin(users, eq(activityLogs.userId, users.id as any));
+
+  if (conditions.length > 0) {
+    return await query.where(and(...conditions)).orderBy(desc(activityLogs.createdAt)).limit(limit);
+  }
+  return await query.orderBy(desc(activityLogs.createdAt)).limit(limit);
 }
 
 // Get activity logs by user

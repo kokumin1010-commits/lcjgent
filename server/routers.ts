@@ -10843,9 +10843,9 @@ Respond with a JSON object.`,
   activityLog: router({
     // Get recent activity logs
     getRecent: protectedProcedure
-      .input(z.object({ limit: z.number().optional() }).nullish())
+      .input(z.object({ limit: z.number().optional(), module: z.string().optional(), action: z.string().optional() }).nullish())
       .query(async ({ input }) => {
-        return await getRecentActivityLogs(input?.limit || 50);
+        return await getRecentActivityLogs(input?.limit || 50, input?.module, input?.action);
       }),
 
     // Get activity logs by user
@@ -10853,6 +10853,28 @@ Respond with a JSON object.`,
       .input(z.object({ userId: z.number(), limit: z.number().optional() }))
       .query(async ({ input }) => {
         return await getActivityLogsByUser(input.userId, input.limit || 50);
+      }),
+
+    // Create activity log
+    create: protectedProcedure
+      .input(z.object({
+        action: z.string(),
+        module: z.string(),
+        targetType: z.string().optional(),
+        targetId: z.string().optional(),
+        description: z.string(),
+        details: z.any().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return await createActivityLog({
+          userId: ctx.user.id,
+          actionType: `${input.module}_${input.action}`,
+          actionLabel: input.description,
+          targetType: input.targetType || input.module,
+          targetId: input.targetId ? Number(input.targetId) : undefined,
+          targetName: input.description.substring(0, 255),
+          metadata: { module: input.module, action: input.action, details: input.details },
+        });
       }),
   }),
 

@@ -504,6 +504,23 @@ export default function CashflowTab() {
     return balanceHistory[balanceHistory.length - 1].balance;
   })();
 
+  // 日本・中国別の残高を計算
+  const { japanBalance, chinaBalanceRMB, chinaBalanceJPY } = useMemo(() => {
+    if (!accountBalancesQuery.data) return { japanBalance: 0, chinaBalanceRMB: 0, chinaBalanceJPY: 0 };
+    let jpTotal = 0;
+    let cnTotal = 0;
+    for (const acc of accountBalancesQuery.data) {
+      if (acc.accountName === "日本総部") continue;
+      const bal = Number(acc.currentBalance || 0);
+      if (acc.currency === "CNY") {
+        cnTotal += bal;
+      } else {
+        jpTotal += bal;
+      }
+    }
+    return { japanBalance: jpTotal, chinaBalanceRMB: cnTotal, chinaBalanceJPY: Math.round(cnTotal * EXCHANGE_RATE_CNY_JPY) };
+  }, [accountBalancesQuery.data]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -637,6 +654,19 @@ export default function CashflowTab() {
             </div>
             {entity === "china" && (
               <div className="text-xs text-blue-500 mt-0.5">≈ ¥{Math.round(currentBalance * EXCHANGE_RATE_CNY_JPY).toLocaleString()} JPY</div>
+            )}
+            {entity === "all" && (
+              <div className="mt-2 pt-2 border-t border-blue-200 space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-blue-600">🇯🇵 日本</span>
+                  <span className="font-semibold text-blue-800">¥{japanBalance.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-blue-600">🇨🇳 中国</span>
+                  <span className="font-semibold text-blue-800">¥{chinaBalanceRMB.toLocaleString()} RMB</span>
+                </div>
+                <div className="text-[10px] text-blue-400 text-right">≈ ¥{chinaBalanceJPY.toLocaleString()} JPY</div>
+              </div>
             )}
           </CardContent>
         </Card>
