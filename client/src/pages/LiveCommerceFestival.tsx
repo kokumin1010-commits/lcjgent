@@ -610,7 +610,7 @@ function GuestIntroSection() {
     {
       name: '後藤真希',
       photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/dArufbFqPTTePgKg.webp',
-      title: 'アーティスト・モデル',
+      title: '歌手・タレント',
       bio: '1999年より「モーニング娘。」3期メンバーとして活躍し、卒業後はソロアーティストとして本格的に活動を開始。2024年にデビュー25周年を迎え、2025年10月15日に記念アルバム『COLLECTION』をリリース。また、2021年に発売し大ヒットを記録した写真集『ramus』に続き、2024年に発売した『flos』はSNSを中心に大きな話題を呼びロングヒットを記録中。美容誌『美ST』のモデルとしても活躍し、豊富な美容知識がたびたび話題に。',
       sns: [],
     },
