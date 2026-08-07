@@ -4065,11 +4065,13 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>新規仕入れ発注</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* 左カラム：商品検索・選択 */}
+          <div className="space-y-3">
           {/* 全商品横断検索（ID・商品名あいまい検索） */}
           <div>
             <Label>搜索商品（ID・商品名・バーコード）</Label>
@@ -4318,10 +4320,13 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
           )}
 
           {/* 選択済み商品一覧 */}
+          </div>
+          {/* 右カラム：選択済み商品 + 発注情報 */}
+          <div className="space-y-3">
           {selectedItems.length > 0 && (
             <div>
               <Label>選択済み商品 ({selectedItems.length}件・総採購数: {selectedItems.reduce((sum, i) => sum + getProcurementQty(i), 0)}個)</Label>
-              <div className="border rounded-md divide-y mt-1">
+              <div className="border rounded-md divide-y mt-1 max-h-[40vh] overflow-y-auto">
                 {/* 套組をグループ表示 */}
                 {(() => {
                   const bundleGroups: Record<number, { bundleName: string; items: Array<any & { _idx: number }> }> = {};
@@ -4438,7 +4443,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
             </div>
           )}
 
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>日期</Label>
               <Input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} />
@@ -4457,6 +4462,8 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>店铺名称</Label>
               <Input value={shopName} onChange={e => setShopName(e.target.value)} placeholder="LCJ店铺" />
@@ -4486,6 +4493,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
               <Label>メモ</Label>
               <Input value={memo} onChange={e => setMemo(e.target.value)} placeholder="備考を入力..." />
             </div>
+          </div>
           </div>
         </div>
         <DialogFooter>
