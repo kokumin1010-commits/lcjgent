@@ -4070,7 +4070,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>新規仕入れ発注</DialogTitle>
         </DialogHeader>
