@@ -1305,14 +1305,24 @@ function OverviewSection() {
           {[
             { label: 'イベント名', value: '第1回 Live Commerce Festival 2026' },
             { label: 'コンセプト', value: 'コマースライバーと企業のマッチング・セミナー型祭典' },
-            { label: '開催日', value: '2026年9月8〜9日（2日間開催予定）\n8日：13:00〜18:00 ＆ 表彰パーティー 18:30〜21:00\n9日：11:00〜19:00' },
+            { label: '開催日', value: '__CUSTOM_DATE__' },
             { label: '開催場所', value: '八芳園（東京・白金台）' },
             { label: '企画', value: 'LCF実行委員会' },
             { label: '参加費', value: '無料（事前LINE登録制）' },
           ].map((item) => (
             <div key={item.label} className="flex flex-col sm:flex-row sm:justify-between sm:items-start border-b border-white/10 pb-3 gap-1">
               <span className="text-gray-400 text-sm sm:text-base">{item.label}</span>
-              <span className="font-bold text-sm sm:text-base whitespace-pre-line text-right">{item.value}</span>
+              {item.value === '__CUSTOM_DATE__' ? (
+                <span className="font-bold text-sm sm:text-base text-right">
+                  <span>2026年9月8〜9日（2日間開催予定）</span>
+                  <span className="block text-left text-xs sm:text-sm font-normal text-gray-300 mt-1">
+                    8日：13:00〜18:00 ＆ 表彰パーティー 18:30〜21:00<br />
+                    9日：11:00〜19:00
+                  </span>
+                </span>
+              ) : (
+                <span className="font-bold text-sm sm:text-base whitespace-pre-line text-right">{item.value}</span>
+              )}
             </div>
           ))}
         </div>
