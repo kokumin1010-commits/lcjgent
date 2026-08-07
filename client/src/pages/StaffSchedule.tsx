@@ -233,7 +233,7 @@ export default function StaffSchedule() {
       result = result.filter(s => (s.notes || "").includes("[早班]"));
     } else if (filterShift === "evening") {
       result = result.filter(s => (s.notes || "").includes("[晚班]"));
-    } else if (shiftFilter === "leave") {
+    } else if (filterShift === "leave") {
       result = result.filter(s => (s.notes || "").includes("[请假]"));
     }
     return result;
