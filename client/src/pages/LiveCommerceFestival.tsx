@@ -24,7 +24,7 @@ const LINE_URL = 'https://line.me/ti/g2/KsS3Ma1HW3okfwI2OowM6Ubk0UHKOHmb3nZFhA?u
 const MAINTENANCE_MODE = false;
 
 const IMAGES = {
-  heroBg: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/sJSoeVdEyrEQQWBU.webp",
+  heroBg: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/gRtnkNxJtwxtcJio.webp",
   logo: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/SvRAQbkcpavmYbaH.png",
   gift: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/vLYpJIHgEThRqpsE.png",
   liveStreaming1: "https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/festival-live1-3GHNETvWsmJQdCMwzbaGq8.webp",
