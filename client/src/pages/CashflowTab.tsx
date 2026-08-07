@@ -223,6 +223,43 @@ export default function CashflowTab() {
 
   const importHistoryQuery = trpc.cashflow.getImportHistory.useQuery({ entity: entity === 'all' ? 'all' : entity });
 
+  const uploadReceiptMutation = trpc.cashflow.uploadReceipt.useMutation({
+    onSuccess: () => {
+      toast.success('請求書をアップロードしました');
+      listQuery.refetch();
+    },
+    onError: (e) => toast.error(`アップロード失敗: ${e.message}`),
+  });
+
+  const deleteReceiptMutation = trpc.cashflow.deleteReceipt.useMutation({
+    onSuccess: () => {
+      toast.success('請求書を削除しました');
+      listQuery.refetch();
+    },
+    onError: (e) => toast.error(`削除失敗: ${e.message}`),
+  });
+
+  async function handleReceiptUpload(cashflowId: number, e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('ファイルサイズは5MB以下にしてください');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1];
+      uploadReceiptMutation.mutate({
+        id: cashflowId,
+        fileData: base64,
+        fileName: file.name,
+        mimeType: file.type,
+      });
+    };
+    reader.readAsDataURL(file);
+  }
+
   async function handleBankStatementUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -312,46 +349,91 @@ export default function CashflowTab() {
         let headerIdx = 0;
         for (let i = 0; i < Math.min(5, rows.length); i++) {
           const row = rows[i];
-          if (row && row.some((c: any) => String(c || '').includes('交易日期'))) {
+          if (row && row.some((c: any) => {
+            const s = String(c || '').trim();
+            return s.includes('交易日期') || s === '日付' || s === 'Date' || s === 'transactionDate' || s === 'ID';
+          })) {
             headerIdx = i;
             break;
           }
         }
         const headers = (rows[headerIdx] || []).map((h: any) => String(h || '').trim());
 
-        const dateCol = headers.findIndex(h => h.includes('交易日期'));
-        const counterpartyCol = headers.findIndex(h => h.includes('对方账户名称'));
+        const dateCol = headers.findIndex(h => h.includes('交易日期') || h === '日付' || h === 'Date' || h === 'transactionDate');
+        const counterpartyCol = headers.findIndex(h => h.includes('对方账户名称') || h === '取引先' || h === 'counterparty');
         const debitCol = headers.findIndex(h => h.includes('借方发生额'));
         const creditCol = headers.findIndex(h => h.includes('贷方发生额'));
-        const descCol = headers.findIndex(h => h.includes('摘要'));
+        const descCol = headers.findIndex(h => h.includes('摘要') || h === '説明' || h === 'description');
         const balanceCol = headers.findIndex(h => h.includes('账户余额'));
+        // システム導出CSVフォーマット検出（ID, 法人, 種別, カテゴリ, 金額, 通貨, 日付, 取引先, 説明, 我方账户）
+        const isSystemExport = headers.includes('ID') && headers.includes('金額') && (headers.includes('日付') || headers.includes('種別'));
 
-        if (dateCol < 0) {
-          toast.error('无法识别文件格式: 找不到"交易日期"列');
-          return;
-        }
+        if (isSystemExport) {
+          // システム導出CSVの再インポート
+          const idxDate = headers.findIndex(h => h === '日付');
+          const idxEntity = headers.findIndex(h => h === '法人');
+          const idxType = headers.findIndex(h => h === '種別');
+          const idxCategory = headers.findIndex(h => h === 'カテゴリ');
+          const idxAmount = headers.findIndex(h => h === '金額');
+          const idxCurrency = headers.findIndex(h => h === '通貨');
+          const idxCounterparty = headers.findIndex(h => h === '取引先');
+          const idxDesc = headers.findIndex(h => h === '説明');
+          const idxAccount = headers.findIndex(h => h === '我方账户');
 
-        for (let i = headerIdx + 1; i < rows.length; i++) {
-          const row = rows[i];
-          if (!row || !row[dateCol]) continue;
-          let dateStr = '';
-          const rawDate = row[dateCol];
-          if (rawDate instanceof Date) {
-            dateStr = rawDate.toISOString().slice(0, 10);
-          } else if (typeof rawDate === 'number') {
-            const d = new Date((rawDate - 25569) * 86400 * 1000);
-            dateStr = d.toISOString().slice(0, 10);
-          } else {
-            dateStr = String(rawDate).replace(/\//g, '-').slice(0, 10);
+          for (let i = headerIdx + 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || !row[idxDate >= 0 ? idxDate : 0]) continue;
+            let dateStr = '';
+            const rawDate = row[idxDate >= 0 ? idxDate : 0];
+            if (rawDate instanceof Date) {
+              dateStr = rawDate.toISOString().slice(0, 10);
+            } else if (typeof rawDate === 'number') {
+              const d = new Date((rawDate - 25569) * 86400 * 1000);
+              dateStr = d.toISOString().slice(0, 10);
+            } else {
+              dateStr = String(rawDate).replace(/\//g, '-').slice(0, 10);
+            }
+            if (!dateStr || dateStr.length < 8) continue;
+            const amount = parseFloat(String(row[idxAmount >= 0 ? idxAmount : 0] || '0').replace(/,/g, '')) || 0;
+            if (!amount) continue;
+            const type = String(row[idxType >= 0 ? idxType : 0] || '').trim();
+            const isExpense = type === '出金' || type === 'expense';
+            records.push({
+              transactionDate: dateStr,
+              counterparty: String(row[idxCounterparty >= 0 ? idxCounterparty : 0] || '').trim(),
+              debitAmount: isExpense ? amount : undefined,
+              creditAmount: !isExpense ? amount : undefined,
+              description: String(row[idxDesc >= 0 ? idxDesc : 0] || '').trim(),
+              sourceAccount: String(row[idxAccount >= 0 ? idxAccount : 0] || '').trim() || undefined,
+            });
           }
-          if (!dateStr || dateStr.length < 8) continue;
-          const counterparty = String(row[counterpartyCol] || '').trim();
-          const debit = parseFloat(String(row[debitCol] || '0').replace(/,/g, '')) || undefined;
-          const credit = parseFloat(String(row[creditCol] || '0').replace(/,/g, '')) || undefined;
-          const desc = String(row[descCol >= 0 ? descCol : 0] || '').trim();
-          const balance = balanceCol >= 0 ? (parseFloat(String(row[balanceCol] || '0').replace(/,/g, '')) || undefined) : undefined;
-          if (!debit && !credit) continue;
-          records.push({ transactionDate: dateStr, counterparty, debitAmount: debit, creditAmount: credit, description: desc, balance });
+        } else if (dateCol >= 0) {
+          // 中国銀行流水フォーマット
+          for (let i = headerIdx + 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || !row[dateCol]) continue;
+            let dateStr = '';
+            const rawDate = row[dateCol];
+            if (rawDate instanceof Date) {
+              dateStr = rawDate.toISOString().slice(0, 10);
+            } else if (typeof rawDate === 'number') {
+              const d = new Date((rawDate - 25569) * 86400 * 1000);
+              dateStr = d.toISOString().slice(0, 10);
+            } else {
+              dateStr = String(rawDate).replace(/\//g, '-').slice(0, 10);
+            }
+            if (!dateStr || dateStr.length < 8) continue;
+            const counterparty = String(row[counterpartyCol] || '').trim();
+            const debit = parseFloat(String(row[debitCol] || '0').replace(/,/g, '')) || undefined;
+            const credit = parseFloat(String(row[creditCol] || '0').replace(/,/g, '')) || undefined;
+            const desc = String(row[descCol >= 0 ? descCol : 0] || '').trim();
+            const balance = balanceCol >= 0 ? (parseFloat(String(row[balanceCol] || '0').replace(/,/g, '')) || undefined) : undefined;
+            if (!debit && !credit) continue;
+            records.push({ transactionDate: dateStr, counterparty, debitAmount: debit, creditAmount: credit, description: desc, balance });
+          }
+        } else {
+          toast.error('无法识别文件格式: 找不到日期列（支持: 交易日期/日付/Date）');
+          return;
         }
       }
 
@@ -1055,19 +1137,20 @@ export default function CashflowTab() {
               </th>
               <th className="text-left p-3 font-medium">説明</th>
               <th className="text-left p-3 font-medium">我方账户</th>
+              <th className="text-center p-3 font-medium">請求書</th>
               <th className="text-center p-3 font-medium">操作</th>
             </tr>
           </thead>
           <tbody>
             {listQuery.isLoading ? (
               <tr>
-                <td colSpan={9} className="text-center py-8">
+                <td colSpan={10} className="text-center py-8">
                   <Loader2 className="h-5 w-5 animate-spin mx-auto" />
                 </td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={9} className="text-center py-8 text-muted-foreground">
+                <td colSpan={10} className="text-center py-8 text-muted-foreground">
                   入出金データがありません
                 </td>
               </tr>
@@ -1190,6 +1273,23 @@ export default function CashflowTab() {
                       <option value="品汇盟">品汇盟</option>
                       <option value="日本総部">日本総部</option>
                     </select>
+                  </td>
+                  <td className="p-3 text-center">
+                    {item.receiptUrl ? (
+                      <div className="flex items-center gap-1 justify-center">
+                        <a href={item.receiptUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="請求書を表示">
+                          <FileText className="h-3.5 w-3.5" />
+                        </a>
+                        <button onClick={() => { if (confirm("請求書を削除しますか？")) deleteReceiptMutation.mutate({ id: item.id }); }} className="p-1 hover:bg-red-50 rounded text-red-400" title="削除">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="p-1.5 hover:bg-muted rounded cursor-pointer text-muted-foreground hover:text-primary inline-block" title="請求書をアップロード">
+                        <Paperclip className="h-3.5 w-3.5" />
+                        <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={(e) => handleReceiptUpload(item.id, e)} />
+                      </label>
+                    )}
                   </td>
                   <td className="p-3 text-center">
                     <div className="flex items-center gap-1 justify-center">
@@ -1736,3 +1836,4 @@ function AuditLogDialog({ cashflowId, onClose }: { cashflowId: number; onClose: 
     </Dialog>
   );
 }
+import { Paperclip, FileText, Upload, X } from "lucide-react";

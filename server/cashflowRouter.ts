@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "./_core/trpc";
 import mysql from "mysql2/promise";
 import { createActivityLog } from "./db";
+import { storagePut } from "./storage";
 
 // Activity log helper for cashflow
 async function logCashflowActivity(ctx: any, action: string, targetId: string | number, description: string, details?: any) {
@@ -96,8 +97,8 @@ export const cashflowRouter = router({
         params.push(input.category);
       }
       if (input.search) {
-        where += " AND (counterparty LIKE ? OR description LIKE ?)";
-        params.push(`%${input.search}%`, `%${input.search}%`);
+        where += " AND (counterparty LIKE ? OR description LIKE ? OR CAST(amount AS CHAR) LIKE ? OR category LIKE ? OR sourceAccount LIKE ?)";
+        params.push(`%${input.search}%`, `%${input.search}%`, `%${input.search}%`, `%${input.search}%`, `%${input.search}%`);
       }
       if (input.sourceAccount) {
         where += " AND sourceAccount = ?";
@@ -1022,5 +1023,37 @@ export const cashflowRouter = router({
       } catch(e) {
         return [];
       }
+    }),
+
+  // 請求書アップロード
+  uploadReceipt: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      fileData: z.string(), // base64 encoded file
+      fileName: z.string(),
+      mimeType: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const pool = getPool();
+      const buffer = Buffer.from(input.fileData, 'base64');
+      const fileKey = `cashflow-receipts/${input.id}/${Date.now()}-${input.fileName}`;
+      const { url } = await storagePut(fileKey, buffer, input.mimeType);
+      await pool.query(
+        `UPDATE company_cashflows SET receiptUrl = ? WHERE id = ?`,
+        [url, input.id]
+      );
+      return { success: true, url };
+    }),
+
+  // 請求書削除
+  deleteReceipt: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const pool = getPool();
+      await pool.query(
+        `UPDATE company_cashflows SET receiptUrl = NULL WHERE id = ?`,
+        [input.id]
+      );
+      return { success: true };
     }),
 });
