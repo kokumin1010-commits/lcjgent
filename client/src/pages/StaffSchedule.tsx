@@ -70,6 +70,7 @@ export default function StaffSchedule() {
   const [formIsFollowBroadcast, setFormIsFollowBroadcast] = useState(false);
   const [formAnchor, setFormAnchor] = useState<string>("Ryu kyogoku "); // 主播名 (required when 跟播)
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formLeaveType, setFormLeaveType] = useState<string>("fullday"); // fullday | custom
 
   // Get date range for fetching based on view mode
   const dateRange = useMemo(() => {
@@ -123,7 +124,7 @@ export default function StaffSchedule() {
   const SHIFT_PRESETS: Record<string, { start: string; end: string; label: string }> = {
     morning: { start: "09:00", end: "18:00", label: "早班" },
     evening: { start: "15:00", end: "23:00", label: "晚班" },
-    leave: { start: "00:00", end: "00:00", label: "请假" },
+    leave: { start: "00:00", end: "23:59", label: "请假" },
   };
 
   // Position config
@@ -148,6 +149,9 @@ export default function StaffSchedule() {
     if (preset) {
       setFormStartTime(preset.start);
       setFormEndTime(preset.end);
+    }
+    if (shift === "leave") {
+      setFormLeaveType("fullday");
     }
   };
 
@@ -200,6 +204,7 @@ export default function StaffSchedule() {
     setFormIsFollowBroadcast(false);
     setFormAnchor("Ryu kyogoku ");
     setIsSubmitting(false);
+    setFormLeaveType("fullday");
   };
 
   // Staff color map
@@ -491,8 +496,12 @@ export default function StaffSchedule() {
         </div>
         <div className="text-right shrink-0">
           {hasShift && hasShift[1] === "请假" ? (
-            <div className="text-xs font-bold text-red-500 flex items-center gap-1">
-              🏖️ 请假（终日）
+            <div className="text-xs font-bold text-red-500 flex items-center gap-1 whitespace-nowrap">
+              {s.startTime === "00:00" && (s.endTime === "23:59" || s.endTime === "00:00") ? (
+                <>🏖️ 终日请假</>
+              ) : (
+                <>🏖️ {s.startTime} - {s.endTime} 请假</>
+              )}
             </div>
           ) : (
             <div className="text-xs font-medium text-gray-700 flex items-center gap-1">
@@ -1024,9 +1033,44 @@ export default function StaffSchedule() {
                 </Button>
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                {formShift === "morning" ? "早班 09:00-18:00" : formShift === "evening" ? "晚班 15:00-23:00" : "请假（全日）"}
+                {formShift === "morning" ? "早班 09:00-18:00" : formShift === "evening" ? "晚班 15:00-23:00" : formLeaveType === "fullday" ? "请假（终日）" : "请假（指定時間）"}
               </p>
             </div>
+
+            {/* Leave type selection - only show when leave is selected */}
+            {formShift === "leave" && (
+              <div>
+                <label className="text-sm font-medium text-gray-700">请假类型</label>
+                <div className="flex gap-2 mt-1">
+                  <Button
+                    type="button"
+                    variant={formLeaveType === "fullday" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setFormLeaveType("fullday");
+                      setFormStartTime("00:00");
+                      setFormEndTime("23:59");
+                    }}
+                    className={cn("flex-1", formLeaveType === "fullday" ? "bg-red-500 hover:bg-red-600" : "")}
+                  >
+                    终日请假
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={formLeaveType === "custom" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setFormLeaveType("custom");
+                      setFormStartTime("09:00");
+                      setFormEndTime("12:00");
+                    }}
+                    className={cn("flex-1", formLeaveType === "custom" ? "bg-orange-500 hover:bg-orange-600" : "")}
+                  >
+                    指定時間
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Follow Broadcast toggle */}
             <div className="flex items-center gap-2">
@@ -1142,9 +1186,9 @@ export default function StaffSchedule() {
             </div>
 
             {/* Time range */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className={cn("grid grid-cols-2 gap-3", formShift === "leave" && formLeaveType === "fullday" ? "hidden" : "")}>
               <div>
-                <label className="text-sm font-medium text-gray-700">開始時間</label>
+                <label className="text-sm font-medium text-gray-700">{formShift === "leave" ? "请假开始" : "開始時間"}</label>
                 <Input
                   type="time"
                   value={formStartTime}
@@ -1152,7 +1196,7 @@ export default function StaffSchedule() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700">終了時間</label>
+                <label className="text-sm font-medium text-gray-700">{formShift === "leave" ? "请假结束" : "終了時間"}</label>
                 <Input
                   type="time"
                   value={formEndTime}
