@@ -24,7 +24,7 @@ const LINE_URL = 'https://line.me/ti/g2/KsS3Ma1HW3okfwI2OowM6Ubk0UHKOHmb3nZFhA?u
 const MAINTENANCE_MODE = false;
 
 const IMAGES = {
-  heroBg: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/msZWaikKboqlefJH.png",
+  heroBg: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/sJSoeVdEyrEQQWBU.webp",
   logo: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/SvRAQbkcpavmYbaH.png",
   gift: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/vLYpJIHgEThRqpsE.png",
   liveStreaming1: "https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/festival-live1-3GHNETvWsmJQdCMwzbaGq8.webp",
@@ -330,75 +330,38 @@ function TopAnnouncementBar() {
 function HeroSection() {
   return (
     <section
-      className="relative py-16 md:py-24 overflow-hidden"
-      style={{
-        backgroundImage: `url(${IMAGES.heroBg})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }}
+      className="relative overflow-hidden"
     >
-      {/* Date badge - top left */}
-      <div className="absolute top-4 left-4 md:top-6 md:left-6 z-10">
-        <div className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4" />
-            <span>2026年9月8日（火）- 9日（水）</span>
-          </div>
-          <div className="text-xs mt-1 opacity-90">会場: 八芳園（白金台）・参加無料！</div>
-        </div>
-      </div>
-
-      <div className="container mx-auto px-4 text-center relative z-10">
-        {/* Logo - large and impactful */}
-        <div className="mb-8 md:mb-10">
-          <img
-            src={IMAGES.logo}
-            alt="Live Commerce Festival"
-            className="mx-auto w-[280px] md:w-[440px] lg:w-[520px] drop-shadow-2xl"
-          />
-        </div>
-
-        {/* Subtitle */}
-        <p className="text-lg md:text-2xl font-bold text-gray-800 mb-2">
-          第1回 コマースライバーと企業のマッチング・セミナー型祭典
-        </p>
-        <p className="text-base md:text-lg text-gray-700 mb-10">
-          Supported by LCF実行委員会
-        </p>
-
-        {/* LINE CTA Button - Primary */}
-        <a
-          href={LINE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-3 bg-[#06C755] hover:bg-[#05b04c] text-white text-xl md:text-2xl font-bold px-10 md:px-16 py-5 md:py-6 rounded-xl shadow-[0_8px_30px_rgba(6,199,85,0.4)] transform hover:scale-105 transition-all duration-200 active:scale-95"
-        >
-          <LineIcon className="w-8 h-8" />
-          今すぐ無料で事前登録する →
-        </a>
-        <p className="text-sm text-gray-600 mt-4">
-          LINE登録後、30秒で完了します。
-        </p>
-
-        {/* Sub CTAs - Application Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
-          <a
-            href="/livecommercefestival/2026/apply/company"
-            className="px-6 py-2.5 bg-gray-900 text-white font-bold rounded-lg hover:bg-gray-800 transition-all shadow-lg flex items-center gap-2 text-sm"
-          >
-            <Building2 className="w-4 h-4" />
-            企業様お申し込み
-          </a>
-          <a
-            href="/livecommercefestival/2026/apply/liver"
-            className="px-6 py-2.5 bg-white text-gray-900 font-bold rounded-lg hover:bg-gray-100 transition-all shadow-lg flex items-center gap-2 text-sm"
-          >
-            <Mic2 className="w-4 h-4" />
-            ライバー申し込み
-          </a>
-
-        </div>
-      </div>
+      {/* Background image */}
+      <img
+        src={IMAGES.heroBg}
+        alt="Live Commerce Festival 2026"
+        className="w-full h-auto block"
+      />
+      {/* Clickable areas over the background image buttons */}
+      {/* LINE登録ボタン - 中央上部 */}
+      <a
+        href={LINE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="absolute hover:bg-white/10 transition-colors rounded-xl cursor-pointer"
+        style={{ top: '52%', left: '32%', width: '36%', height: '10%' }}
+        aria-label="今すぐ無料で事前登録する"
+      />
+      {/* 企業様お申し込み - 中央左下 */}
+      <a
+        href="/livecommercefestival/2026/apply/company"
+        className="absolute hover:bg-white/10 transition-colors rounded-lg cursor-pointer"
+        style={{ top: '64%', left: '32%', width: '17%', height: '8%' }}
+        aria-label="企業様お申し込みはこちら"
+      />
+      {/* ライバー申し込み - 中央右下 */}
+      <a
+        href="/livecommercefestival/2026/apply/liver"
+        className="absolute hover:bg-white/10 transition-colors rounded-lg cursor-pointer"
+        style={{ top: '64%', left: '50%', width: '17%', height: '8%' }}
+        aria-label="ライバー申し込みはこちら"
+      />
     </section>
   );
 }
