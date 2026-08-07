@@ -3885,10 +3885,24 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
   const [brandName, setBrandName] = useState("");
   const [brandIds, setBrandIds] = useState<number[]>([]);
   const [selectedItems, setSelectedItems] = useState<Array<{ productId?: number; productName: string; pendingPaymentQty: number; pendingShipQty: number; qtyPerOrder: number; brandId?: number; brandName?: string }>>([])
-  // 订单数 = 待支付 + 待发货
-  const getOrderCount = (item: { pendingPaymentQty: number; pendingShipQty: number }) => item.pendingPaymentQty + item.pendingShipQty;
-  // 採購数 = 订单数 × 每单数量
-  const getProcurementQty = (item: { pendingPaymentQty: number; pendingShipQty: number; qtyPerOrder: number }) => (item.pendingPaymentQty + item.pendingShipQty) * item.qtyPerOrder;
+  // 套組の訂単数管理（bundleId → orderCount）
+  const [bundleOrderCounts, setBundleOrderCounts] = useState<Record<number, number>>({});
+  // 订单数 = 待支付 + 待发货 (単品の場合)
+  const getOrderCount = (item: any) => {
+    if (item.bundleId) {
+      // 套組の場合は套組の訂単数を使用
+      return bundleOrderCounts[item.bundleId] || 1;
+    }
+    return item.pendingPaymentQty + item.pendingShipQty;
+  };
+  // 採購数 = 订单数 × 每单数量 (単品) or 套組訂単数 × 套組内数量 (套組)
+  const getProcurementQty = (item: any) => {
+    if (item.bundleId) {
+      const bundleCount = bundleOrderCounts[item.bundleId] || 1;
+      return bundleCount * (item.bundleItemQty || 1);
+    }
+    return (item.pendingPaymentQty + item.pendingShipQty) * item.qtyPerOrder;
+  };
   // 商品あいまい検索（全商品横断）
   const [productSearch, setProductSearch] = useState("");
   const [productSearchDebounced, setProductSearchDebounced] = useState("");
@@ -4034,6 +4048,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
       setBrandName("");
       setBrandIds([]);
       setSelectedItems([]);
+      setBundleOrderCounts({});
       setManualProductName("");
       setProductSearch("");
       setProductSearchDebounced("");
@@ -4096,19 +4111,22 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
                                 const bundleItems = (bundle.items || []).map((item: any) => ({
                                   productId: item.productId || undefined,
                                   productName: item.productName || `套組商品`,
-                                  pendingPaymentQty: item.quantity || 1,
-                                  pendingShipQty: 0,
-                                  qtyPerOrder: 1,
+                                  pendingPaymentQty: 0,
+                                  pendingShipQty: 1,
+                                  qtyPerOrder: item.quantity || 1,
                                   brandId: item.brandId || undefined,
                                   brandName: item.brandName || bundle.bundleName,
                                   bundleId: bundle.id,
                                   bundleName: bundle.bundleName,
+                                  bundleItemQty: item.quantity || 1,
                                 }));
                                 if (isSelected) {
                                   // Remove all bundle items
                                   setSelectedItems(prev => prev.filter(i => (i as any).bundleId !== bundle.id));
+                                  setBundleOrderCounts(prev => { const n = {...prev}; delete n[bundle.id]; return n; });
                                 } else {
                                   setSelectedItems(prev => [...prev, ...bundleItems]);
+                                  setBundleOrderCounts(prev => ({...prev, [bundle.id]: 1}));
                                 }
                               }}
                             >
@@ -4302,53 +4320,120 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
           {/* 選択済み商品一覧 */}
           {selectedItems.length > 0 && (
             <div>
-              <Label>選択済み商品 ({selectedItems.length}件・総订单数: {selectedItems.reduce((sum, i) => sum + getOrderCount(i), 0)}・総採購数: {selectedItems.reduce((sum, i) => sum + getProcurementQty(i), 0)}個)</Label>
+              <Label>選択済み商品 ({selectedItems.length}件・総採購数: {selectedItems.reduce((sum, i) => sum + getProcurementQty(i), 0)}個)</Label>
               <div className="border rounded-md divide-y mt-1">
-                {selectedItems.map((item, idx) => (
-                  <div key={idx} className="flex flex-col gap-1.5 px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium break-words">{item.productName}</p>
-                      </div>
-                      <span className="text-xs text-muted-foreground flex-shrink-0">订单: {getOrderCount(item)} × {item.qtyPerOrder} = <span className="font-medium text-foreground">{getProcurementQty(item)}件</span></span>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="h-7 w-7 p-0 flex-shrink-0">
-                        <X className="h-3 w-3 text-red-500" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <div className="flex items-center gap-1">
-                        <Label className="text-xs text-orange-600 whitespace-nowrap">待支付:</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={item.pendingPaymentQty}
-                          onChange={e => updatePendingPaymentQty(idx, Number(e.target.value))}
-                          className="w-14 h-7 text-sm text-center"
-                        />
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Label className="text-xs text-blue-600 whitespace-nowrap">待发货:</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={item.pendingShipQty}
-                          onChange={e => updatePendingShipQty(idx, Number(e.target.value))}
-                          className="w-14 h-7 text-sm text-center"
-                        />
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Label className="text-xs text-green-600 whitespace-nowrap">订单数:</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          value={item.qtyPerOrder}
-                          onChange={e => updateQtyPerOrder(idx, Number(e.target.value))}
-                          className="w-14 h-7 text-sm text-center"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                {/* 套組をグループ表示 */}
+                {(() => {
+                  const bundleGroups: Record<number, { bundleName: string; items: Array<any & { _idx: number }> }> = {};
+                  const standaloneItems: Array<any & { _idx: number }> = [];
+                  selectedItems.forEach((item, idx) => {
+                    const it = item as any;
+                    if (it.bundleId) {
+                      if (!bundleGroups[it.bundleId]) {
+                        bundleGroups[it.bundleId] = { bundleName: it.bundleName || '套組', items: [] };
+                      }
+                      bundleGroups[it.bundleId].items.push({ ...it, _idx: idx });
+                    } else {
+                      standaloneItems.push({ ...item, _idx: idx });
+                    }
+                  });
+                  return (
+                    <>
+                      {/* 套組グループ */}
+                      {Object.entries(bundleGroups).map(([bundleIdStr, group]) => {
+                        const bundleId = Number(bundleIdStr);
+                        const bundleCount = bundleOrderCounts[bundleId] || 1;
+                        const totalProcurement = group.items.reduce((sum, it) => sum + bundleCount * (it.bundleItemQty || 1), 0);
+                        return (
+                          <div key={`bundle-group-${bundleId}`} className="bg-purple-50/50">
+                            {/* 套組ヘッダー：ここで訂単数を設定 */}
+                            <div className="flex items-center gap-2 px-3 py-2 border-b border-purple-200">
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 border-purple-300 text-purple-600 bg-purple-100 flex-shrink-0">套組</Badge>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-purple-700 break-words">{group.bundleName}</p>
+                                <p className="text-[10px] text-muted-foreground">{group.items.length}品 → 合計採購: {totalProcurement}個</p>
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <Label className="text-xs text-purple-600 whitespace-nowrap font-bold">套組订单数:</Label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={bundleCount}
+                                  onChange={e => setBundleOrderCounts(prev => ({...prev, [bundleId]: Math.max(1, Number(e.target.value))}))}
+                                  className="w-16 h-7 text-sm text-center border-purple-300 focus:ring-purple-500"
+                                />
+                              </div>
+                              <Button type="button" variant="ghost" size="sm" onClick={() => {
+                                setSelectedItems(prev => prev.filter(i => (i as any).bundleId !== bundleId));
+                                setBundleOrderCounts(prev => { const n = {...prev}; delete n[bundleId]; return n; });
+                              }} className="h-7 w-7 p-0 flex-shrink-0">
+                                <X className="h-3 w-3 text-red-500" />
+                              </Button>
+                            </div>
+                            {/* 套組内の商品（自動計算、編集不可） */}
+                            {group.items.map((it) => (
+                              <div key={it._idx} className="flex items-center gap-2 px-3 py-1.5 pl-8 text-xs">
+                                <span className="text-muted-foreground">└</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm break-words">{it.productName}</p>
+                                </div>
+                                <span className="text-xs text-muted-foreground flex-shrink-0 whitespace-nowrap">
+                                  每套 {it.bundleItemQty || 1}個 × {bundleCount}套 = <span className="font-medium text-foreground">{(it.bundleItemQty || 1) * bundleCount}個</span>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                      {/* 単品 */}
+                      {standaloneItems.map((item) => (
+                        <div key={item._idx} className="flex flex-col gap-1.5 px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium break-words">{item.productName}</p>
+                            </div>
+                            <span className="text-xs text-muted-foreground flex-shrink-0">订单: {getOrderCount(item)} × {item.qtyPerOrder} = <span className="font-medium text-foreground">{getProcurementQty(item)}件</span></span>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(item._idx)} className="h-7 w-7 p-0 flex-shrink-0">
+                              <X className="h-3 w-3 text-red-500" />
+                            </Button>
+                          </div>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <div className="flex items-center gap-1">
+                              <Label className="text-xs text-orange-600 whitespace-nowrap">待支付:</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={item.pendingPaymentQty}
+                                onChange={e => updatePendingPaymentQty(item._idx, Number(e.target.value))}
+                                className="w-14 h-7 text-sm text-center"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Label className="text-xs text-blue-600 whitespace-nowrap">待发货:</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={item.pendingShipQty}
+                                onChange={e => updatePendingShipQty(item._idx, Number(e.target.value))}
+                                className="w-14 h-7 text-sm text-center"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Label className="text-xs text-green-600 whitespace-nowrap">订单数:</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={item.qtyPerOrder}
+                                onChange={e => updateQtyPerOrder(item._idx, Number(e.target.value))}
+                                className="w-14 h-7 text-sm text-center"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}
