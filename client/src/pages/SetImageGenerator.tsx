@@ -443,21 +443,50 @@ export default function SetImageGenerator() {
                   <label className="text-xs text-gray-500">商品名 *</label>
                   <Input value={newAssetName} onChange={e => setNewAssetName(e.target.value)} placeholder="例: エレキローション" />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs text-gray-500">カテゴリ</label>
-                    <Input value={newAssetCategory} onChange={e => setNewAssetCategory(e.target.value)} placeholder="例: 本体/おまけ品" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">ブランド名</label>
-                    <Input value={newAssetBrand} onChange={e => setNewAssetBrand(e.target.value)} placeholder="例: Brighte" />
-                  </div>
+                <div>
+                  <label className="text-xs text-gray-500">値段</label>
+                  <Input value={newAssetCategory} onChange={e => setNewAssetCategory(e.target.value)} placeholder="例: ¥3,980" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500">画像ファイル (PNG推奨) *</label>
-                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="block w-full text-sm mt-1" disabled={!newAssetName || uploading} />
+                  <input ref={fileInputRef} type="file" accept="image/*" className="block w-full text-sm mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
                 </div>
                 {uploading && <div className="text-xs text-blue-600">アップロード中...</div>}
+                <Button
+                  className="w-full"
+                  disabled={!newAssetName || uploading || !fileInputRef.current?.files?.length}
+                  onClick={async () => {
+                    const file = fileInputRef.current?.files?.[0];
+                    if (!file || !newAssetName) { alert("商品名と画像ファイルを入力してください"); return; }
+                    setUploading(true);
+                    try {
+                      const formData = new FormData();
+                      formData.append("file", file);
+                      const res = await fetch("/api/set-image-asset-upload", { method: "POST", body: formData, credentials: "include" });
+                      const data = await res.json();
+                      if (data.url) {
+                        await createAssetMutation.mutateAsync({
+                          name: newAssetName,
+                          imageUrl: data.url,
+                          imageKey: data.key,
+                          category: newAssetCategory || undefined,
+                          brandName: newAssetBrand || undefined,
+                        });
+                        alert("素材を追加しました");
+                        setNewAssetName(""); setNewAssetCategory(""); setNewAssetBrand("");
+                        setUploadDialogOpen(false);
+                      } else {
+                        alert("アップロード失敗: " + (data.error || "不明なエラー"));
+                      }
+                    } catch (err) {
+                      alert("アップロード失敗");
+                    }
+                    setUploading(false);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                >
+                  <Upload className="h-4 w-4 mr-2" />{uploading ? "アップロード中..." : "アップロード"}
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
