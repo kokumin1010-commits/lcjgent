@@ -75,6 +75,7 @@ export default function CashflowTab() {
   const [page, setPage] = useState(0);
   const [sourceAccountFilter, setSourceAccountFilter] = useState<string>("");
   const [auditLogId, setAuditLogId] = useState<number | null>(null);
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [showYearMonthPicker, setShowYearMonthPicker] = useState(false);
   const [selectedYear, setSelectedYear] = useState(2026);
@@ -1875,6 +1876,4 @@ function AuditLogDialog({ cashflowId, onClose }: { cashflowId: number; onClose: 
     </Dialog>
   );
 }
-import { Paperclip, FileText, Upload, X } from "lucide-react";
-  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
-import { Eye } from "lucide-react";
+import { Paperclip, FileText, Eye, X } from "lucide-react";
