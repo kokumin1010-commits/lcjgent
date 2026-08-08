@@ -715,6 +715,31 @@ async function startServer() {
   });
 
   // CSV Upload REST API endpoint (avoids tRPC Base64 size issues)
+  // Set Image Asset upload endpoint
+  app.post("/api/set-image-asset-upload", upload.single("file"), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      const file = req.file as Express.Multer.File;
+      const fileExtension = file.originalname.split(".").pop() || "png";
+      const fileKey = `set-image-assets/${nanoid()}.${fileExtension}`;
+      const { storagePut } = await import("../storage");
+      const result = await storagePut(fileKey, file.buffer, file.mimetype);
+      const decodedFileName = Buffer.from(file.originalname, 'latin1').toString('utf-8');
+      res.json({
+        url: result.url,
+        key: fileKey,
+        fileName: decodedFileName,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+      });
+    } catch (error) {
+      console.error("[Set Image Asset Upload] Error:", error);
+      res.status(500).json({ error: "Failed to upload asset" });
+    }
+  });
+
   // Wrap multer in error handler to prevent raw error responses
   app.post("/api/csv-upload", (req: any, res: any, next: any) => {
     upload.single("file")(req, res, (err: any) => {

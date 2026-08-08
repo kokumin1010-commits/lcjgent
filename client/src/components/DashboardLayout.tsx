@@ -33,7 +33,7 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp, ClipboardCheck, Inbox, Coins, Sparkles, Crown, Star, UserX, PartyPopper, FlaskConical, ShoppingBag, KeyRound, Mic, FileSpreadsheet } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp, ClipboardCheck, Inbox, Coins, Sparkles, Crown, Star, UserX, PartyPopper, FlaskConical, ShoppingBag, KeyRound, Mic, FileSpreadsheet, Palette } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -304,6 +304,20 @@ function DashboardLayoutContent({
             <div className="px-3 pb-2">
               <button
                 onClick={() => setLocation("/master/account-management")}
+            </div>
+            {/* セット画像生成 */}
+            <div className="px-3 pb-2">
+              <button
+                onClick={() => setLocation("/master/set-image-generator")}
+                className={`w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                  location === "/master/set-image-generator"
+                    ? "bg-primary/10 text-primary border border-primary/20"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                }`}
+              >
+                <Palette className="h-4 w-4" />
+                <span className="group-data-[collapsible=icon]:hidden">セット画像生成</span>
+              </button>
                 className={`w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
                   location === "/master/account-management"
                     ? "bg-primary/10 text-primary border border-primary/20"

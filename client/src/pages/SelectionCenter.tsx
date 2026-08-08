@@ -3279,7 +3279,7 @@ export default function SelectionCenter() {
           <TabsTrigger value="lp-links"><Link2 className="h-4 w-4 mr-1" />LPリンク</TabsTrigger>
           <TabsTrigger value="procurement"><ShoppingCart className="h-4 w-4 mr-1" />进货</TabsTrigger>
           <TabsTrigger value="cost-management"><Lock className="h-4 w-4 mr-1" />成本管理</TabsTrigger>
-          <TabsTrigger value="catalog" onClick={() => { window.open('/catalog', '_blank'); }}><ExternalLink className="h-4 w-4 mr-1" />カタログ</TabsTrigger>
+          <TabsTrigger value="catalog" onClick={() => { window.open('/master/set-image-generator', '_blank'); }}><ExternalLink className="h-4 w-4 mr-1" />カタログ</TabsTrigger>
           <TabsTrigger value="brands" onClick={() => { window.location.href = '/master/brands'; }}><Building2 className="h-4 w-4 mr-1" />ブランド管理</TabsTrigger>
         </TabsList>
         <TabsContent value="products"><ProductsTab /></TabsContent>

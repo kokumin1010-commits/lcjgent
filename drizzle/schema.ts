@@ -6756,3 +6756,42 @@ export const reportAttachments = mysqlTable("report_attachments", {
 });
 export type ReportAttachment = typeof reportAttachments.$inferSelect;
 export type InsertReportAttachment = typeof reportAttachments.$inferInsert;
+
+/**
+ * Set Image Assets - セット画像生成用の商品素材（透明背景PNG）
+ */
+export const setImageAssets = mysqlTable("set_image_assets", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(), // 商品名/ラベル
+  imageUrl: text("imageUrl").notNull(), // S3 URL (透明背景PNG)
+  imageKey: varchar("imageKey", { length: 512 }).notNull(), // S3 key
+  category: varchar("category", { length: 100 }), // カテゴリ（本体/おまけ品/入浴剤等）
+  brandName: varchar("brandName", { length: 255 }), // ブランド名
+  sortOrder: int("sortOrder").default(0),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type SetImageAsset = typeof setImageAssets.$inferSelect;
+export type InsertSetImageAsset = typeof setImageAssets.$inferInsert;
+
+/**
+ * Set Image Presets - セット画像のプリセット保存
+ */
+export const setImagePresets = mysqlTable("set_image_presets", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(), // プリセット名
+  config: json("config").$type<{
+    title: string;
+    subtitle: string;
+    bottomText: string;
+    colorPreset: string;
+    items: { assetId: number; label: string; size: number }[];
+  }>().notNull(), // 設定JSON
+  thumbnailUrl: text("thumbnailUrl"), // サムネイル画像URL
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type SetImagePreset = typeof setImagePresets.$inferSelect;
+export type InsertSetImagePreset = typeof setImagePresets.$inferInsert;

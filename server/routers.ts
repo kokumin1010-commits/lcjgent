@@ -775,6 +775,7 @@ import { checkAndSendReminders } from "./reminderScheduler";
 import { completionRouter } from "./completion";
 import { buybackRouter } from "./buybackRouter";
 import { cashflowRouter } from "./cashflowRouter";
+import { setImageRouter } from "./setImageRouter";
 import { invoiceRouter } from "./invoiceRouter";
 import { sendReminderEmail } from "./emailService";
 import { transcribeAudio } from "./_core/voiceTranscription";
@@ -30142,6 +30143,7 @@ JSON形式で推薦順序を返してください。`;
   cashflow: cashflowRouter,
   invoice: invoiceRouter,
   rundown: rundownRouter,
+  setImage: setImageRouter,
 });
 export type AppRouter = typeof appRouter;
 
