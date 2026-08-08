@@ -27,6 +27,8 @@ export const festivalCompanyApplications = mysqlTable("festival_company_applicat
   status: mysqlEnum("status", ["new", "confirmed", "rejected", "cancelled"]).default("confirmed").notNull(),
   notes: text("notes"),
   eventYear: varchar("event_year", { length: 10 }).notNull().default("2026"),
+  checkinToken: varchar("checkin_token", { length: 32 }),
+  checkedInAt: timestamp("checked_in_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
@@ -55,6 +57,8 @@ export const festivalLiverApplications = mysqlTable("festival_liver_applications
   status: mysqlEnum("status", ["new", "confirmed", "rejected", "cancelled"]).default("confirmed").notNull(),
   notes: text("notes"),
   eventYear: varchar("event_year", { length: 10 }).notNull().default("2026"),
+  checkinToken: varchar("checkin_token", { length: 32 }),
+  checkedInAt: timestamp("checked_in_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
@@ -81,6 +85,8 @@ export const festivalGeneralApplications = mysqlTable("festival_general_applicat
   status: mysqlEnum("status", ["new", "confirmed", "rejected", "cancelled"]).default("confirmed").notNull(),
   notes: text("notes"),
   eventYear: varchar("event_year", { length: 10 }).notNull().default("2026"),
+  checkinToken: varchar("checkin_token", { length: 32 }),
+  checkedInAt: timestamp("checked_in_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });

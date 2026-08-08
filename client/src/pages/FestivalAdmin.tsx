@@ -35,10 +35,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Building2, Mic2, Users, Download, Search, ExternalLink, PartyPopper, Settings, Trophy, MessageCircle, LayoutDashboard, Plus, Trash2, Save, Calendar } from "lucide-react";
+import { Loader2, Building2, Mic2, Users, Download, Search, ExternalLink, PartyPopper, Settings, Trophy, MessageCircle, LayoutDashboard, Plus, Trash2, Save, Calendar, QrCode, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 
-type MainTabType = "dashboard" | "applications" | "event" | "sponsors" | "line";
+type MainTabType = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activityLog" | "checkin";
 type AppTabType = "company" | "liver" | "general";
 type StatusType = "new" | "confirmed" | "rejected" | "cancelled";
 
@@ -71,7 +71,7 @@ export default function FestivalAdmin() {
     { key: "applications" as MainTabType, label: "申込管理", icon: Users },
     { key: "event" as MainTabType, label: "イベント設定", icon: Calendar },
     { key: "sponsors" as MainTabType, label: "スポンサー", icon: Trophy },
-    { key: "line" as MainTabType, label: "LINE連携", icon: MessageCircle },
+    { key: "checkin" as MainTabType, label: "チェックイン", icon: QrCode },
   ];
 
   return (
@@ -280,6 +280,7 @@ function ApplicationsPanel() {
           </SelectContent>
         </Select>
         <Button variant="outline" onClick={() => exportCsv(activeTab)}><Download className="h-4 w-4 mr-2" />CSV出力</Button>
+        <Button variant="destructive" size="sm" onClick={async () => { if (!confirm("重複データを削除しますか？")) return; try { const result = await (trpc as any).festival.deduplicateApplications.mutate(); alert("重複削除完了: 企業" + result.removed.company + "件, ライバー" + result.removed.liver + "件, 一般" + result.removed.general + "件"); window.location.reload(); } catch (e: any) { alert("エラー: " + e.message); } }}>重複削除</Button>
       </div>
 
       {/* Table */}

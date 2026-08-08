@@ -101,6 +101,18 @@ export const festivalRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
 
+      // 重複チェック: 同じメールアドレスで既に申込みがある場合はエラー
+      const existing = await db.select({ id: festivalCompanyApplications.id })
+        .from(festivalCompanyApplications)
+        .where(and(
+          eq(festivalCompanyApplications.email, input.email),
+          eq(festivalCompanyApplications.eventYear, "2026")
+        ))
+        .limit(1);
+      if (existing.length > 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "このメールアドレスは既に申込み済みです。重複申込みはできません。" });
+      }
+
       let insertId = 0;
       try {
         const result = await db.insert(festivalCompanyApplications).values({
@@ -179,6 +191,18 @@ export const festivalRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
 
+      // 重複チェック: 同じメールアドレスで既に申込みがある場合はエラー
+      const existing = await db.select({ id: festivalLiverApplications.id })
+        .from(festivalLiverApplications)
+        .where(and(
+          eq(festivalLiverApplications.email, input.email),
+          eq(festivalLiverApplications.eventYear, "2026")
+        ))
+        .limit(1);
+      if (existing.length > 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "このメールアドレスは既に申込み済みです。重複申込みはできません。" });
+      }
+
       let insertId = 0;
       try {
         const result = await db.insert(festivalLiverApplications).values({
@@ -248,6 +272,18 @@ export const festivalRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+
+      // 重複チェック: 同じメールアドレスで既に申込みがある場合はエラー
+      const existing = await db.select({ id: festivalGeneralApplications.id })
+        .from(festivalGeneralApplications)
+        .where(and(
+          eq(festivalGeneralApplications.email, input.email),
+          eq(festivalGeneralApplications.eventYear, "2026")
+        ))
+        .limit(1);
+      if (existing.length > 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "このメールアドレスは既に申込み済みです。重複申込みはできません。" });
+      }
 
       let insertId = 0;
       try {
@@ -645,5 +681,154 @@ export const festivalRouter = router({
         .limit(limit)
         .offset(offset);
       return { logs, total: totalResult?.count || 0 };
+    }),
+
+  // 重複データ削除（同一email+eventYearの古い方を削除）
+  deduplicateApplications: festivalAdminProcedure
+    .mutation(async () => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+
+      let removedCompany = 0, removedLiver = 0, removedGeneral = 0;
+
+      // 企業の重複削除
+      const companies = await db.select().from(festivalCompanyApplications).where(eq(festivalCompanyApplications.eventYear, "2026"));
+      const companyByEmail = new Map<string, typeof companies>();
+      for (const c of companies) {
+        const key = c.email;
+        if (!companyByEmail.has(key)) companyByEmail.set(key, []);
+        companyByEmail.get(key)!.push(c);
+      }
+      for (const [, group] of companyByEmail) {
+        if (group.length > 1) {
+          group.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          for (let i = 1; i < group.length; i++) {
+            await db.delete(festivalCompanyApplications).where(eq(festivalCompanyApplications.id, group[i].id));
+            removedCompany++;
+          }
+        }
+      }
+
+      // ライバーの重複削除
+      const livers = await db.select().from(festivalLiverApplications).where(eq(festivalLiverApplications.eventYear, "2026"));
+      const liverByEmail = new Map<string, typeof livers>();
+      for (const l of livers) {
+        const key = l.email;
+        if (!liverByEmail.has(key)) liverByEmail.set(key, []);
+        liverByEmail.get(key)!.push(l);
+      }
+      for (const [, group] of liverByEmail) {
+        if (group.length > 1) {
+          group.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          for (let i = 1; i < group.length; i++) {
+            await db.delete(festivalLiverApplications).where(eq(festivalLiverApplications.id, group[i].id));
+            removedLiver++;
+          }
+        }
+      }
+
+      // 一般の重複削除
+      const generals = await db.select().from(festivalGeneralApplications).where(eq(festivalGeneralApplications.eventYear, "2026"));
+      const generalByEmail = new Map<string, typeof generals>();
+      for (const g of generals) {
+        const key = g.email;
+        if (!generalByEmail.has(key)) generalByEmail.set(key, []);
+        generalByEmail.get(key)!.push(g);
+      }
+      for (const [, group] of generalByEmail) {
+        if (group.length > 1) {
+          group.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          for (let i = 1; i < group.length; i++) {
+            await db.delete(festivalGeneralApplications).where(eq(festivalGeneralApplications.id, group[i].id));
+            removedGeneral++;
+          }
+        }
+      }
+
+      return { success: true, removed: { company: removedCompany, liver: removedLiver, general: removedGeneral } };
+    }),
+
+  // チェックインQRコード用トークン生成
+  generateCheckinToken: festivalAdminProcedure
+    .input(z.object({
+      type: z.enum(["company", "liver", "general"]),
+      applicationId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const { nanoid } = await import("nanoid");
+      const token = nanoid(16);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      
+      // チェックイントークンをメタデータとして保存（既存テーブルのnotesフィールドを活用）
+      const table = input.type === "company" ? festivalCompanyApplications
+        : input.type === "liver" ? festivalLiverApplications
+        : festivalGeneralApplications;
+      
+      await db.update(table)
+        .set({ checkinToken: token } as any)
+        .where(eq(table.id, input.applicationId));
+      
+      return { token, qrData: `LCF2026:${input.type}:${input.applicationId}:${token}` };
+    }),
+
+  // チェックイン実行（QRスキャン時）
+  performCheckin: publicProcedure
+    .input(z.object({
+      qrData: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      
+      // QRデータ解析: "LCF2026:type:id:token"
+      const parts = input.qrData.split(":");
+      if (parts.length !== 4 || parts[0] !== "LCF2026") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "無効なQRコードです" });
+      }
+      const [, type, idStr, token] = parts;
+      const id = parseInt(idStr);
+      if (!["company", "liver", "general"].includes(type) || isNaN(id)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "無効なQRコードです" });
+      }
+
+      const table = type === "company" ? festivalCompanyApplications
+        : type === "liver" ? festivalLiverApplications
+        : festivalGeneralApplications;
+      
+      const [record] = await db.select().from(table).where(eq(table.id, id)).limit(1);
+      if (!record) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "申込みが見つかりません" });
+      }
+      if ((record as any).checkinToken !== token) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "トークンが一致しません" });
+      }
+      if ((record as any).checkedInAt) {
+        return { success: true, alreadyCheckedIn: true, name: (record as any).companyName || (record as any).name || (record as any).liverName, checkedInAt: (record as any).checkedInAt };
+      }
+
+      // チェックイン実行
+      await db.update(table)
+        .set({ checkedInAt: new Date() } as any)
+        .where(eq(table.id, id));
+
+      return { success: true, alreadyCheckedIn: false, name: (record as any).companyName || (record as any).name || (record as any).liverName, type };
+    }),
+
+  // チェックイン状況一覧
+  getCheckinStatus: festivalAdminProcedure
+    .query(async () => {
+      const db = await getDb();
+      if (!db) return { companies: [], livers: [], generals: [] };
+      
+      const companies = await db.select().from(festivalCompanyApplications).where(eq(festivalCompanyApplications.eventYear, "2026"));
+      const livers = await db.select().from(festivalLiverApplications).where(eq(festivalLiverApplications.eventYear, "2026"));
+      const generals = await db.select().from(festivalGeneralApplications).where(eq(festivalGeneralApplications.eventYear, "2026"));
+      
+      return {
+        companies: companies.map(c => ({ id: c.id, name: c.companyName, email: c.email, checkedIn: !!(c as any).checkedInAt, checkedInAt: (c as any).checkedInAt })),
+        livers: livers.map(l => ({ id: l.id, name: (l as any).liverName || l.name, email: l.email, checkedIn: !!(l as any).checkedInAt, checkedInAt: (l as any).checkedInAt })),
+        generals: generals.map(g => ({ id: g.id, name: g.name, email: g.email, checkedIn: !!(g as any).checkedInAt, checkedInAt: (g as any).checkedInAt })),
+      };
     }),
 });
