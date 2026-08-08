@@ -624,6 +624,14 @@ export const cashflowRouter = router({
           incomeCount: Number(jp.incomeCount || 0) + Number(cn.incomeCount || 0),
           expenseCount: Number(jp.expenseCount || 0) + Number(cn.expenseCount || 0),
           currency: "JPY",
+          jpIncomeCount: Number(jp.incomeCount || 0),
+          jpExpenseCount: Number(jp.expenseCount || 0),
+          jpTotalIncome: Number(jp.totalIncome || 0),
+          jpTotalExpense: Number(jp.totalExpense || 0),
+          cnIncomeCount: Number(cn.incomeCount || 0),
+          cnExpenseCount: Number(cn.expenseCount || 0),
+          cnTotalIncome: Number(cn.totalIncome || 0),
+          cnTotalExpense: Number(cn.totalExpense || 0),
         };
       } else {
         let where = "WHERE deletedAt IS NULL AND entity = ?";

@@ -768,6 +768,11 @@ export default function CashflowTab() {
             {entity === "china" && (
               <div className="text-xs text-green-500">≈ ¥{Math.round(Number(summary?.totalIncome || 0) * EXCHANGE_RATE_CNY_JPY).toLocaleString()} JPY</div>
             )}
+            {entity === "all" && summary?.jpIncomeCount !== undefined && (
+              <div className="text-[10px] text-green-600/70 mt-0.5">
+                🇯🇵 {summary.jpIncomeCount}件 / 🇨🇳 {summary.cnIncomeCount}件
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card
@@ -785,6 +790,11 @@ export default function CashflowTab() {
             <div className="text-xs text-red-600">{Number(summary?.expenseCount || 0)}件</div>
             {entity === "china" && (
               <div className="text-xs text-red-500">≈ ¥{Math.round(Number(summary?.totalExpense || 0) * EXCHANGE_RATE_CNY_JPY).toLocaleString()} JPY</div>
+            )}
+            {entity === "all" && summary?.jpExpenseCount !== undefined && (
+              <div className="text-[10px] text-red-600/70 mt-0.5">
+                🇯🇵 {summary.jpExpenseCount}件 / 🇨🇳 {summary.cnExpenseCount}件
+              </div>
             )}
           </CardContent>
         </Card>
