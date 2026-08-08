@@ -760,6 +760,7 @@ export const festivalRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       
+      await ensureCheckinColumns();
       // チェックイントークンをメタデータとして保存（既存テーブルのnotesフィールドを活用）
       const table = input.type === "company" ? festivalCompanyApplications
         : input.type === "liver" ? festivalLiverApplications
@@ -780,6 +781,7 @@ export const festivalRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await ensureCheckinColumns();
       
       // QRデータ解析: "LCF2026:type:id:token"
       const parts = input.qrData.split(":");
@@ -832,3 +834,18 @@ export const festivalRouter = router({
       };
     }),
 });
+import mysql from "mysql2/promise";
+
+// チェックイン用カラムのマイグレーション（1回だけ実行）
+let _migrationDone = false;
+async function ensureCheckinColumns() {
+  if (_migrationDone) return;
+  try {
+    const pool = mysql.createPool(process.env.DATABASE_URL!);
+    await pool.query("ALTER TABLE festival_company_applications ADD COLUMN IF NOT EXISTS checkin_token VARCHAR(32), ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP NULL").catch(() => {});
+    await pool.query("ALTER TABLE festival_liver_applications ADD COLUMN IF NOT EXISTS checkin_token VARCHAR(32), ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP NULL").catch(() => {});
+    await pool.query("ALTER TABLE festival_general_applications ADD COLUMN IF NOT EXISTS checkin_token VARCHAR(32), ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP NULL").catch(() => {});
+    await pool.end();
+    _migrationDone = true;
+  } catch (e) { _migrationDone = true; }
+}
