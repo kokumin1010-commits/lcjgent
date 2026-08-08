@@ -1083,6 +1083,31 @@ export default function CashflowTab() {
       {auditLogId && <AuditLogDialog cashflowId={auditLogId} onClose={() => setAuditLogId(null)} />}
       <PendingDescriptionsPanel entity={entity} />
 
+      {/* 請求書プレビューダイアログ */}
+      {receiptPreviewUrl && (
+        <Dialog open={!!receiptPreviewUrl} onOpenChange={() => setReceiptPreviewUrl(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh]">
+            <DialogHeader>
+              <DialogTitle>請求書プレビュー</DialogTitle>
+              <DialogDescription>アップロード済みの請求書ファイル</DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-auto flex items-center justify-center min-h-[400px]">
+              {receiptPreviewUrl.endsWith('.pdf') ? (
+                <iframe src={receiptPreviewUrl} className="w-full h-[70vh] border rounded" />
+              ) : (
+                <img src={receiptPreviewUrl} alt="請求書" className="max-w-full max-h-[70vh] object-contain rounded shadow" />
+              )}
+            </div>
+            <div className="flex justify-end gap-2 mt-2">
+              <a href={receiptPreviewUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">
+                新しいタブで開く ↗
+              </a>
+              <Button variant="outline" size="sm" onClick={() => setReceiptPreviewUrl(null)}>閉じる</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1277,9 +1302,13 @@ export default function CashflowTab() {
                   <td className="p-3 text-center">
                     {item.receiptUrl ? (
                       <div className="flex items-center gap-1 justify-center">
-                        <a href={item.receiptUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="請求書を表示">
-                          <FileText className="h-3.5 w-3.5" />
-                        </a>
+                        <button onClick={() => setReceiptPreviewUrl(item.receiptUrl)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="プレビュー">
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                        <label className="p-1 hover:bg-muted rounded cursor-pointer text-muted-foreground" title="差し替え">
+                          <Paperclip className="h-3 w-3" />
+                          <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={(e) => handleReceiptUpload(item.id, e)} />
+                        </label>
                         <button onClick={() => { if (confirm("請求書を削除しますか？")) deleteReceiptMutation.mutate({ id: item.id }); }} className="p-1 hover:bg-red-50 rounded text-red-400" title="削除">
                           <X className="h-3 w-3" />
                         </button>
@@ -1837,3 +1866,5 @@ function AuditLogDialog({ cashflowId, onClose }: { cashflowId: number; onClose: 
   );
 }
 import { Paperclip, FileText, Upload, X } from "lucide-react";
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
+import { Eye } from "lucide-react";
