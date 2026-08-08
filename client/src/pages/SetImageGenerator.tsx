@@ -24,7 +24,8 @@ type SetItem = {
   name: string;
   imageUrl: string;
   label: string;
-  size: number; // 1-3 scale
+  size: number; // 30-200 pixel scale
+  price?: string; // 価格
 };
 
 export default function SetImageGenerator() {
@@ -101,7 +102,7 @@ export default function SetImageGenerator() {
   // Add item to set
   const addItemToSet = (asset: any) => {
     if (items.find(i => i.assetId === asset.id)) return;
-    setItems([...items, { assetId: asset.id, name: asset.name, imageUrl: asset.imageUrl, label: asset.name, size: 2 }]);
+    setItems([...items, { assetId: asset.id, name: asset.name, imageUrl: asset.imageUrl, label: asset.name, size: 80, price: asset.category || "" }]);
   };
 
   // Remove item from set
@@ -274,12 +275,14 @@ export default function SetImageGenerator() {
                       <div key={item.assetId} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
                         <GripVertical className="h-4 w-4 text-gray-300" />
                         <img src={item.imageUrl} alt={item.name} className="w-8 h-8 object-contain" />
-                        <Input value={item.label} onChange={e => updateItemLabel(item.assetId, e.target.value)} className="text-xs flex-1" />
-                        <select value={item.size} onChange={e => updateItemSize(item.assetId, Number(e.target.value))} className="text-xs border rounded px-1 py-0.5">
-                          <option value={1}>小</option>
-                          <option value={2}>中</option>
-                          <option value={3}>大</option>
-                        </select>
+                        <div className="flex-1 space-y-1">
+                          <Input value={item.label} onChange={e => updateItemLabel(item.assetId, e.target.value)} className="text-xs" placeholder="商品名" />
+                          <Input value={item.price || ""} onChange={e => setItems(items.map(i => i.assetId === item.assetId ? { ...i, price: e.target.value } : i))} className="text-xs" placeholder="値段 例: ¥3,980" />
+                        </div>
+                        <div className="flex items-center gap-1 min-w-[100px]">
+                          <input type="range" min="30" max="200" value={item.size} onChange={e => updateItemSize(item.assetId, Number(e.target.value))} className="w-16" />
+                          <span className="text-xs text-gray-500 w-8">{item.size}</span>
+                        </div>
                         <button onClick={() => removeItem(item.assetId)} className="text-red-400 hover:text-red-600"><X className="h-4 w-4" /></button>
                       </div>
                     ))}
@@ -332,22 +335,12 @@ export default function SetImageGenerator() {
                     width: "100%",
                   }}>
                     {items.map(item => {
-                      const imgSize = item.size === 1 ? "55px" : item.size === 2 ? "80px" : "110px";
-                      const labelColors = ["#4fc3f7", "#f48fb1", "#81c784", "#ffb74d", "#ce93d8", "#90a4ae"];
-                      const colorIdx = items.indexOf(item) % labelColors.length;
+                      const imgSize = `${item.size}px`;
                       return (
-                        <div key={item.assetId} style={{ textAlign: "center", maxWidth: item.size === 3 ? "130px" : "90px" }}>
+                        <div key={item.assetId} style={{ textAlign: "center", maxWidth: `${item.size + 20}px` }}>
                           <img src={item.imageUrl} alt={item.label} style={{ width: imgSize, height: imgSize, objectFit: "contain", margin: "0 auto" }} />
-                          <div style={{
-                            fontSize: "8px",
-                            color: "white",
-                            marginTop: "4px",
-                            fontWeight: 700,
-                            background: labelColors[colorIdx],
-                            borderRadius: "10px",
-                            padding: "2px 6px",
-                            display: "inline-block",
-                          }}>{item.label}</div>
+                          <div style={{ fontSize: "9px", fontWeight: 700, marginTop: "4px", color: "#333", lineHeight: 1.2 }}>{item.label}</div>
+                          {item.price && <div style={{ fontSize: "10px", fontWeight: 900, color: "#e53935", marginTop: "2px" }}>{item.price}</div>}
                         </div>
                       );
                     })}
