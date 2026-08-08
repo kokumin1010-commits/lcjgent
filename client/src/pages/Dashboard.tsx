@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClipboardList, Clock, CheckCircle2, Plus, AlertTriangle, FileText, ShoppingBag, Store, MessageCircle, Brain, Sparkles, Wallet } from "lucide-react";
+import { ClipboardList, Clock, CheckCircle2, Plus, AlertTriangle, FileText, ShoppingBag, Store, MessageCircle, Brain, Sparkles, Wallet, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -35,7 +35,7 @@ export default function Dashboard() {
       </div>
 
       {/* Action Buttons */}
-      <div className="grid gap-3 grid-cols-4">
+      <div className="grid gap-3 grid-cols-5">
         <Button
           size="lg"
           className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-md"
@@ -67,6 +67,14 @@ export default function Dashboard() {
         >
           <Store className="h-5 w-5 mr-2" />
           LCJ MALL
+        </Button>
+        <Button
+          size="lg"
+          className="w-full bg-gradient-to-r from-purple-500 to-fuchsia-500 hover:from-purple-600 hover:to-fuchsia-600 text-white shadow-md"
+          onClick={() => setLocation("/master/set-image-generator")}
+        >
+          <Palette className="h-5 w-5 mr-2" />
+          セット画像生成
         </Button>
       </div>
 
