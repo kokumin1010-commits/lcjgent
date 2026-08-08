@@ -297,7 +297,7 @@ export default function SetImageGenerator() {
                   style={{
                     background: selectedBg,
                     aspectRatio,
-                    padding: "24px",
+                    padding: "20px 16px",
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
@@ -307,13 +307,16 @@ export default function SetImageGenerator() {
                   }}
                 >
                   {/* 上部: ブランド名 + タイトル */}
-                  <div style={{ textAlign: "center", width: "100%" }}>
+                  <div style={{ textAlign: "left", width: "100%", position: "relative" }}>
                     {brandName && (
-                      <div style={{ fontSize: "14px", fontWeight: 700, color: "#333", letterSpacing: "2px" }}>{brandName}</div>
+                      <div style={{ fontSize: "16px", fontWeight: 700, color: "#333", letterSpacing: "2px" }}>{brandName}</div>
                     )}
-                    <div style={{ fontSize: "20px", fontWeight: 900, color: "#222", marginTop: "4px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-                      <span>{title}</span>
-                      <img src="https://upload.wikimedia.org/wikipedia/en/a/a9/TikTok_logo.svg" alt="TikTok" style={{ height: "20px" }} />
+                    <div style={{ fontSize: "28px", fontWeight: 900, color: "#111", marginTop: "2px", lineHeight: 1.2 }}>
+                      {title}
+                    </div>
+                    {/* TikTok Logo - 右上 */}
+                    <div style={{ position: "absolute", top: 0, right: 0 }}>
+                      <img src="https://upload.wikimedia.org/wikipedia/en/a/a9/TikTok_logo.svg" alt="TikTok" style={{ height: "48px", opacity: 0.9 }} />
                     </div>
                   </div>
 
@@ -323,16 +326,28 @@ export default function SetImageGenerator() {
                     flexWrap: "wrap",
                     justifyContent: "center",
                     alignItems: "flex-end",
-                    gap: "12px",
+                    gap: "8px",
                     flex: 1,
-                    padding: "16px 0",
+                    padding: "12px 0",
+                    width: "100%",
                   }}>
                     {items.map(item => {
-                      const imgSize = item.size === 1 ? "60px" : item.size === 2 ? "90px" : "120px";
+                      const imgSize = item.size === 1 ? "55px" : item.size === 2 ? "80px" : "110px";
+                      const labelColors = ["#4fc3f7", "#f48fb1", "#81c784", "#ffb74d", "#ce93d8", "#90a4ae"];
+                      const colorIdx = items.indexOf(item) % labelColors.length;
                       return (
-                        <div key={item.assetId} style={{ textAlign: "center", maxWidth: item.size === 3 ? "140px" : "100px" }}>
+                        <div key={item.assetId} style={{ textAlign: "center", maxWidth: item.size === 3 ? "130px" : "90px" }}>
                           <img src={item.imageUrl} alt={item.label} style={{ width: imgSize, height: imgSize, objectFit: "contain", margin: "0 auto" }} />
-                          <div style={{ fontSize: "9px", color: "#555", marginTop: "4px", fontWeight: 500 }}>{item.label}</div>
+                          <div style={{
+                            fontSize: "8px",
+                            color: "white",
+                            marginTop: "4px",
+                            fontWeight: 700,
+                            background: labelColors[colorIdx],
+                            borderRadius: "10px",
+                            padding: "2px 6px",
+                            display: "inline-block",
+                          }}>{item.label}</div>
                         </div>
                       );
                     })}
@@ -344,20 +359,35 @@ export default function SetImageGenerator() {
                   {/* 下部: 訴求帯 */}
                   {(bottomText || couponText) && (
                     <div style={{
-                      background: "linear-gradient(90deg, #ff6b6b, #ee5a24)",
+                      background: "linear-gradient(90deg, #c62828, #d32f2f)",
                       color: "white",
-                      padding: "8px 16px",
-                      borderRadius: "8px",
-                      textAlign: "center",
-                      width: "90%",
+                      padding: "10px 16px",
+                      borderRadius: "4px",
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
                     }}>
-                      {bottomText && <div style={{ fontSize: "12px", fontWeight: 700 }}>{bottomText}</div>}
-                      {couponText && <div style={{ fontSize: "16px", fontWeight: 900, marginTop: "2px" }}>{couponText}</div>}
+                      {bottomText && <div style={{ fontSize: "11px", fontWeight: 700, lineHeight: 1.3 }}>{bottomText}</div>}
+                      {couponText && <div style={{ fontSize: "20px", fontWeight: 900, letterSpacing: "1px" }}>{couponText}</div>}
                     </div>
                   )}
 
-                  {/* 最下部: 公式ショップ */}
-                  <div style={{ fontSize: "10px", color: "#666", marginTop: "8px" }}>公式ショップ</div>
+                  {/* 最下部: 公式ショップ帯 */}
+                  <div style={{
+                    fontSize: "11px",
+                    color: "#333",
+                    marginTop: "6px",
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    borderTop: "1px solid rgba(0,0,0,0.1)",
+                    paddingTop: "6px",
+                  }}>
+                    <span style={{ fontWeight: 600 }}>♪ 公式ショップ</span>
+                    <span style={{ fontSize: "10px", color: "#666" }}>さらに探す &gt;</span>
+                  </div>
                 </div>
               </div>
               <div className="flex gap-2 mt-2">
