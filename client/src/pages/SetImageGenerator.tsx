@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, Download, Save, Image, Palette, Type, Upload, GripVertical, X } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+
 
 // 配色プリセット
 const COLOR_PRESETS = [
@@ -28,7 +28,7 @@ type SetItem = {
 };
 
 export default function SetImageGenerator() {
-  const { toast } = useToast();
+  
   const previewRef = useRef<HTMLDivElement>(null);
 
   // Tab state
@@ -65,7 +65,7 @@ export default function SetImageGenerator() {
     onSuccess: () => assetsQuery.refetch(),
   });
   const savePresetMutation = trpc.setImage.savePreset.useMutation({
-    onSuccess: () => { presetsQuery.refetch(); setSavePresetOpen(false); toast({ title: "プリセット保存完了" }); },
+    onSuccess: () => { presetsQuery.refetch(); setSavePresetOpen(false); alert("プリセット保存完了"); },
   });
   const deletePresetMutation = trpc.setImage.deletePreset.useMutation({
     onSuccess: () => presetsQuery.refetch(),
@@ -89,10 +89,10 @@ export default function SetImageGenerator() {
           category: newAssetCategory || undefined,
           brandName: newAssetBrand || undefined,
         });
-        toast({ title: "素材を追加しました" });
+        alert("素材を追加しました");
       }
     } catch (err) {
-      toast({ title: "アップロード失敗", variant: "destructive" });
+      alert("アップロード失敗");
     }
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -136,7 +136,7 @@ export default function SetImageGenerator() {
     }
     setItems(loadedItems);
     setActiveTab("editor");
-    toast({ title: `プリセット「${preset.name}」を読み込みました` });
+    alert(`プリセット「${preset.name}」を読み込みました`);
   };
 
   // Export as PNG
@@ -153,9 +153,9 @@ export default function SetImageGenerator() {
       link.download = `set-image-${Date.now()}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
-      toast({ title: "PNG書き出し完了" });
+      alert("PNG書き出し完了");
     } catch (err) {
-      toast({ title: "書き出し失敗", variant: "destructive" });
+      alert("書き出し失敗");
     }
   }, []);
 

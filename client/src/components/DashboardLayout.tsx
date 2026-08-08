@@ -303,7 +303,16 @@ function DashboardLayoutContent({
             {/* アカウント管理 */}
             <div className="px-3 pb-2">
               <button
-                onClick={() => setLocation("/master/account-management")}
+               onClick={() => setLocation("/master/account-management")}
+                className={`w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                  location === "/master/account-management"
+                    ? "bg-primary/10 text-primary border border-primary/20"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                }`}
+              >
+                <KeyRound className="h-4 w-4" />
+                <span className="group-data-[collapsible=icon]:hidden">{language === "zh" ? "账号管理" : "アカウント管理"}</span>
+              </button>
             </div>
             {/* セット画像生成 */}
             <div className="px-3 pb-2">
@@ -317,15 +326,6 @@ function DashboardLayoutContent({
               >
                 <Palette className="h-4 w-4" />
                 <span className="group-data-[collapsible=icon]:hidden">セット画像生成</span>
-              </button>
-                className={`w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                  location === "/master/account-management"
-                    ? "bg-primary/10 text-primary border border-primary/20"
-                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
-                }`}
-              >
-                <KeyRound className="h-4 w-4" />
-                <span className="group-data-[collapsible=icon]:hidden">{language === "zh" ? "账号管理" : "アカウント管理"}</span>
               </button>
             </div>
             {/* スタッフアカウント管理 (admin only) */}
