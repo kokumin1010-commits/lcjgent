@@ -27,6 +27,8 @@ type SetItem = {
   size: number; // 30-200 pixel scale
   price?: string; // 価格
   rotation: number; // degrees
+  x: number; // % position from left
+  y: number; // % position from top
 };
 
 export default function SetImageGenerator() {
@@ -103,7 +105,9 @@ export default function SetImageGenerator() {
   // Add item to set
   const addItemToSet = (asset: any) => {
     if (items.find(i => i.assetId === asset.id)) return;
-    setItems([...items, { assetId: asset.id, name: asset.name, imageUrl: asset.imageUrl, label: asset.name, size: 80, price: asset.category || "", rotation: 0 }]);
+    const col = items.length % 3;
+    const row = Math.floor(items.length / 3);
+    setItems([...items, { assetId: asset.id, name: asset.name, imageUrl: asset.imageUrl, label: asset.name, size: 80, price: asset.category || "", rotation: 0, x: 15 + col * 30, y: 25 + row * 30 }]);
   };
 
   // Remove item from set
@@ -159,6 +163,30 @@ export default function SetImageGenerator() {
     } catch (err) {
       alert("書き出し失敗");
     }
+  }, []);
+
+  // Drag state
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [dragStart, setDragStart] = useState<{ mx: number; my: number; ix: number; iy: number } | null>(null);
+  const [resizeId, setResizeId] = useState<number | null>(null);
+  const [resizeStart, setResizeStart] = useState<{ mx: number; my: number; size: number } | null>(null);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (dragId !== null && dragStart && previewRef.current) {
+      const rect = previewRef.current.getBoundingClientRect();
+      const dx = ((e.clientX - dragStart.mx) / rect.width) * 100;
+      const dy = ((e.clientY - dragStart.my) / rect.height) * 100;
+      setItems(prev => prev.map(i => i.assetId === dragId ? { ...i, x: Math.max(0, Math.min(85, dragStart.ix + dx)), y: Math.max(0, Math.min(85, dragStart.iy + dy)) } : i));
+    }
+    if (resizeId !== null && resizeStart) {
+      const dx = e.clientX - resizeStart.mx;
+      const newSize = Math.max(30, Math.min(200, resizeStart.size + dx));
+      setItems(prev => prev.map(i => i.assetId === resizeId ? { ...i, size: newSize } : i));
+    }
+  }, [dragId, dragStart, resizeId, resizeStart]);
+
+  const handleMouseUp = useCallback(() => {
+    setDragId(null); setDragStart(null); setResizeId(null); setResizeStart(null);
   }, []);
 
   const selectedBg = COLOR_PRESETS.find(c => c.id === colorPreset)?.bg || COLOR_PRESETS[0].bg;
@@ -330,28 +358,41 @@ export default function SetImageGenerator() {
                   </div>
 
                   {/* 中央: 商品グリッド */}
-                  <div style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    justifyContent: "center",
-                    alignItems: "flex-end",
-                    gap: "8px",
-                    flex: 1,
-                    padding: "12px 0",
-                    width: "100%",
-                  }}>
+                  <div
+                    style={{ position: "relative", flex: 1, width: "100%", minHeight: "200px" }}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseUp}
+                  >
                     {items.map(item => {
                       const imgSize = `${item.size}px`;
                       return (
-                        <div key={item.assetId} style={{ textAlign: "center", maxWidth: `${item.size + 20}px`, transform: `rotate(${item.rotation || 0}deg)`, transition: "transform 0.1s" }}>
-                          <img src={item.imageUrl} alt={item.label} style={{ width: imgSize, height: imgSize, objectFit: "contain", margin: "0 auto", display: "block" }} />
-                          <div style={{ fontSize: "8px", fontWeight: 700, marginTop: "1px", color: "#333", lineHeight: 1.1 }}>{item.label}</div>
+                        <div
+                          key={item.assetId}
+                          style={{
+                            position: "absolute",
+                            left: `${item.x}%`,
+                            top: `${item.y}%`,
+                            transform: `rotate(${item.rotation || 0}deg)`,
+                            cursor: dragId === item.assetId ? "grabbing" : "grab",
+                            userSelect: "none",
+                            textAlign: "center",
+                          }}
+                          onMouseDown={e => { e.preventDefault(); setDragId(item.assetId); setDragStart({ mx: e.clientX, my: e.clientY, ix: item.x, iy: item.y }); }}
+                        >
+                          <img src={item.imageUrl} alt={item.label} style={{ width: imgSize, height: imgSize, objectFit: "contain", display: "block", pointerEvents: "none" }} draggable={false} />
+                          <div style={{ fontSize: "8px", fontWeight: 700, marginTop: "1px", color: "#333", lineHeight: 1.1, whiteSpace: "nowrap" }}>{item.label}</div>
                           {item.price && <div style={{ fontSize: "9px", fontWeight: 900, color: "#e53935", marginTop: "0px" }}>{item.price}</div>}
+                          {/* リサイズハンドル */}
+                          <div
+                            style={{ position: "absolute", bottom: -4, right: -4, width: 10, height: 10, background: "#7c3aed", borderRadius: "50%", cursor: "nwse-resize", opacity: 0.7 }}
+                            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setResizeId(item.assetId); setResizeStart({ mx: e.clientX, my: e.clientY, size: item.size }); }}
+                          />
                         </div>
                       );
                     })}
                     {items.length === 0 && (
-                      <div style={{ color: "#999", fontSize: "12px" }}>← 左から商品を追加してください</div>
+                      <div style={{ color: "#999", fontSize: "12px", position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)" }}>← 左から商品を追加してください</div>
                     )}
                   </div>
 
