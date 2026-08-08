@@ -26,6 +26,7 @@ type SetItem = {
   label: string;
   size: number; // 30-200 pixel scale
   price?: string; // 価格
+  rotation: number; // degrees
 };
 
 export default function SetImageGenerator() {
@@ -102,7 +103,7 @@ export default function SetImageGenerator() {
   // Add item to set
   const addItemToSet = (asset: any) => {
     if (items.find(i => i.assetId === asset.id)) return;
-    setItems([...items, { assetId: asset.id, name: asset.name, imageUrl: asset.imageUrl, label: asset.name, size: 80, price: asset.category || "" }]);
+    setItems([...items, { assetId: asset.id, name: asset.name, imageUrl: asset.imageUrl, label: asset.name, size: 80, price: asset.category || "", rotation: 0 }]);
   };
 
   // Remove item from set
@@ -283,6 +284,11 @@ export default function SetImageGenerator() {
                           <input type="range" min="30" max="200" value={item.size} onChange={e => updateItemSize(item.assetId, Number(e.target.value))} className="w-16" />
                           <span className="text-xs text-gray-500 w-8">{item.size}</span>
                         </div>
+                        <div className="flex items-center gap-1 min-w-[70px]" title="回転">
+                          <span className="text-xs text-gray-400">↻</span>
+                          <input type="range" min="-45" max="45" value={item.rotation || 0} onChange={e => setItems(items.map(i => i.assetId === item.assetId ? { ...i, rotation: Number(e.target.value) } : i))} className="w-10" />
+                          <span className="text-xs text-gray-500">{item.rotation || 0}°</span>
+                        </div>
                         <button onClick={() => removeItem(item.assetId)} className="text-red-400 hover:text-red-600"><X className="h-4 w-4" /></button>
                       </div>
                     ))}
@@ -337,10 +343,10 @@ export default function SetImageGenerator() {
                     {items.map(item => {
                       const imgSize = `${item.size}px`;
                       return (
-                        <div key={item.assetId} style={{ textAlign: "center", maxWidth: `${item.size + 20}px` }}>
-                          <img src={item.imageUrl} alt={item.label} style={{ width: imgSize, height: imgSize, objectFit: "contain", margin: "0 auto" }} />
-                          <div style={{ fontSize: "9px", fontWeight: 700, marginTop: "4px", color: "#333", lineHeight: 1.2 }}>{item.label}</div>
-                          {item.price && <div style={{ fontSize: "10px", fontWeight: 900, color: "#e53935", marginTop: "2px" }}>{item.price}</div>}
+                        <div key={item.assetId} style={{ textAlign: "center", maxWidth: `${item.size + 20}px`, transform: `rotate(${item.rotation || 0}deg)`, transition: "transform 0.1s" }}>
+                          <img src={item.imageUrl} alt={item.label} style={{ width: imgSize, height: imgSize, objectFit: "contain", margin: "0 auto", display: "block" }} />
+                          <div style={{ fontSize: "8px", fontWeight: 700, marginTop: "1px", color: "#333", lineHeight: 1.1 }}>{item.label}</div>
+                          {item.price && <div style={{ fontSize: "9px", fontWeight: 900, color: "#e53935", marginTop: "0px" }}>{item.price}</div>}
                         </div>
                       );
                     })}
