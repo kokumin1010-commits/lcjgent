@@ -726,6 +726,15 @@ export const cashflowRouter = router({
 
       // 履歴保存
       try {
+        await pool.query(`CREATE TABLE IF NOT EXISTS cashflow_import_history (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          entity VARCHAR(20),
+          importType VARCHAR(50),
+          recordCount INT DEFAULT 0,
+          importedCount INT DEFAULT 0,
+          skippedCount INT DEFAULT 0,
+          importedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
         await pool.query(
           `INSERT INTO cashflow_import_history (entity, importType, recordCount, importedCount, skippedCount, importedAt) VALUES (?, ?, ?, ?, ?, NOW())`,
           [input.entity, "\u94f6\u884c\u6d41\u6c34", input.records.length, imported, skipped]

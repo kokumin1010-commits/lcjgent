@@ -1451,12 +1451,13 @@ export default function CashflowTab() {
       )}
 
       {/* 银行流水导入履歴 */}
-      {importHistoryQuery.data && importHistoryQuery.data.length > 0 && (
+      {(
         <Card className="bg-blue-50 border-blue-200">
           <CardContent className="p-3">
             <h4 className="text-xs font-medium text-blue-800 mb-2">📝 {entity === 'china' ? '导入履历' : 'インポート履歴'}</h4>
-            <div className="space-y-1">
-              {importHistoryQuery.data.slice(0, 5).map((h: any, i: number) => (
+            {importHistoryQuery.data && importHistoryQuery.data.length > 0 ? (
+              <div className="space-y-1">
+              {importHistoryQuery.data.slice(0, 10).map((h: any, i: number) => (
                 <div key={i} className="flex items-center justify-between text-xs text-blue-700">
                   <span>{new Date(h.importedAt).toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                   <span>{h.importType}</span>
@@ -1464,7 +1465,10 @@ export default function CashflowTab() {
                   <Badge variant="outline" className="text-[10px]">{h.entity === 'china' ? '🇨🇳' : '🇯🇵'}</Badge>
                 </div>
               ))}
-            </div>
+              </div>
+            ) : (
+              <div className="text-xs text-blue-600/60">暂无导入记录。使用「银行流水导入」按钮导入后，记录会显示在这里。</div>
+            )}
           </CardContent>
         </Card>
       )}
