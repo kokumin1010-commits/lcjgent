@@ -657,31 +657,35 @@ function LiverTable({ data, loading, onDetail, onStatusChange }: { data: any[]; 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[50px]">ID</TableHead>
             <TableHead>名前</TableHead>
             <TableHead>ライバー名</TableHead>
             <TableHead>事務所</TableHead>
             <TableHead>メール</TableHead>
+            <TableHead>電話</TableHead>
+            <TableHead>アカウント</TableHead>
+            <TableHead>ジャンル</TableHead>
+            <TableHead>LINE/Lark</TableHead>
             <TableHead>参加日程</TableHead>
             <TableHead>マッチング</TableHead>
             <TableHead>ステータス</TableHead>
             <TableHead>申込日</TableHead>
-            <TableHead className="w-[60px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.map((item) => (
-            <TableRow key={item.id} className="cursor-pointer hover:bg-muted/50" onClick={() => onDetail(item)}>
-              <TableCell className="font-mono text-xs">{item.id}</TableCell>
+            <TableRow key={item.id} className="hover:bg-muted/50">
               <TableCell className="font-medium">{item.name}</TableCell>
               <TableCell>{item.liverName}</TableCell>
               <TableCell className="text-xs">{item.agency || "-"}</TableCell>
               <TableCell className="text-xs">{item.email}</TableCell>
+              <TableCell className="text-xs">{item.phone || "-"}</TableCell>
+              <TableCell className="text-xs max-w-[150px] truncate" title={item.accountInfo || ""}>{item.accountInfo || "-"}</TableCell>
+              <TableCell className="text-xs">{item.genre || "-"}</TableCell>
+              <TableCell className="text-xs">{item.lineOrLark || "-"}</TableCell>
               <TableCell><Badge variant="outline" className="text-xs">{ATTENDANCE_LABELS[item.attendanceSchedule]}</Badge></TableCell>
               <TableCell className="text-xs">{item.matchingPreference === "yes" ? "希望する" : "希望しない"}</TableCell>
               <TableCell><StatusBadge status={item.status} onClick={(e) => { e.stopPropagation(); onStatusChange(item.id, item.status); }} /></TableCell>
               <TableCell className="text-xs">{new Date(item.createdAt).toLocaleDateString("ja-JP")}</TableCell>
-              <TableCell><Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onDetail(item); }}><ExternalLink className="h-4 w-4" /></Button></TableCell>
             </TableRow>
           ))}
         </TableBody>
