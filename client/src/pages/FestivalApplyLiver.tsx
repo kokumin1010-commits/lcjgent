@@ -47,13 +47,22 @@ export default function FestivalApplyLiver() {
     window.location.href = '/livecommercefestival';
     return null;
   }
-  const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  // LocalStorageから復元
+  const savedData = (() => {
+    try {
+      const saved = localStorage.getItem('lcf_liver_form_2026');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return null;
+  })();
+
+  const [currentStep, setCurrentStep] = useState(savedData?.currentStep || 0);
+  const [answers, setAnswers] = useState<Record<string, string>>(savedData?.answers || {});
   const [inputValue, setInputValue] = useState('');
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [chatHistory, setChatHistory] = useState<{ type: 'bot' | 'user'; text: string }[]>([]);
-  const [isTyping, setIsTyping] = useState(true);
+  const [chatHistory, setChatHistory] = useState<{ type: 'bot' | 'user'; text: string }[]>(savedData?.chatHistory || []);
+  const [isTyping, setIsTyping] = useState(!savedData);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
@@ -62,8 +71,17 @@ export default function FestivalApplyLiver() {
     onSuccess: (data) => {
       setSubmitted(true);
       if (data.account) setAccountInfo(data.account);
+      // 送信成功したらLocalStorageをクリア
+      localStorage.removeItem('lcf_liver_form_2026');
     },
   });
+
+  // 入力内容をLocalStorageに自動保存
+  useEffect(() => {
+    if (submitted) return;
+    const dataToSave = { currentStep, answers, chatHistory };
+    localStorage.setItem('lcf_liver_form_2026', JSON.stringify(dataToSave));
+  }, [currentStep, answers, chatHistory, submitted]);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -72,6 +90,7 @@ export default function FestivalApplyLiver() {
 
   // Show first question with typing animation
   useEffect(() => {
+    if (savedData && savedData.chatHistory?.length > 0) return; // 復元データがある場合はスキップ
     const timer = setTimeout(() => {
       setIsTyping(false);
       setChatHistory([{ type: 'bot', text: STEPS[0].question }]);
