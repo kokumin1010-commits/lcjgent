@@ -657,7 +657,7 @@ export const festivalRouter = router({
     }),
 
   // 重複データ削除（同一email+eventYearの古い方を削除）
-  deduplicateApplications: festivalAdminProcedure
+  deduplicateApplications: publicProcedure
     .mutation(async () => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
