@@ -665,7 +665,7 @@ export const festivalRouter = router({
       let removedCompany = 0, removedLiver = 0, removedGeneral = 0;
 
       // 企業の重複削除
-      const companies = await db.select().from(festivalCompanyApplications).where(eq(festivalCompanyApplications.eventYear, "2026"));
+      const companies = await db.select().from(festivalCompanyApplications);
       const companyByEmail = new Map<string, typeof companies>();
       for (const c of companies) {
         const key = c.email;
@@ -683,7 +683,7 @@ export const festivalRouter = router({
       }
 
       // ライバーの重複削除
-      const livers = await db.select().from(festivalLiverApplications).where(eq(festivalLiverApplications.eventYear, "2026"));
+      const livers = await db.select().from(festivalLiverApplications);
       const liverByEmail = new Map<string, typeof livers>();
       for (const l of livers) {
         const key = l.email;
@@ -701,7 +701,7 @@ export const festivalRouter = router({
       }
 
       // 一般の重複削除
-      const generals = await db.select().from(festivalGeneralApplications).where(eq(festivalGeneralApplications.eventYear, "2026"));
+      const generals = await db.select().from(festivalGeneralApplications);
       const generalByEmail = new Map<string, typeof generals>();
       for (const g of generals) {
         const key = g.email;
