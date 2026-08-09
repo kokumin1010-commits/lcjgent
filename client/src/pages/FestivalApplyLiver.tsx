@@ -130,12 +130,27 @@ export default function FestivalApplyLiver() {
     // Validate
     if (step.type === 'checkbox') {
       if (!agreeTerms) return;
+      // 送信前にメールアドレスの最終チェック
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!answers.email || !emailRegex.test(answers.email)) {
+        alert("有効なメールアドレスを入力してください");
+        return;
+      }
       setChatHistory(prev => [...prev, { type: 'user', text: '同意します ✓' }]);
       handleSubmit();
       return;
     }
 
     if (step.required && !inputValue.trim()) return;
+
+    // メールアドレスのフォーマットチェック
+    if (step.id === 'email' && inputValue.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(inputValue.trim())) {
+        alert("有効なメールアドレスを入力してください");
+        return;
+      }
+    }
     
     // Skip optional fields
     if (!step.required && !inputValue.trim()) {
