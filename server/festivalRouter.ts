@@ -663,10 +663,13 @@ export const festivalRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
 
       let removedCompany = 0, removedLiver = 0, removedGeneral = 0;
+      let debugInfo: any = {};
 
       // 企業の重複削除
       const companies = await db.select().from(festivalCompanyApplications);
       const companyByEmail = new Map<string, typeof companies>();
+      debugInfo.companyTotal = companies.length;
+      debugInfo.companyEmails = companies.map(c => c.email).slice(0, 5);
       for (const c of companies) {
         const key = c.email;
         if (!companyByEmail.has(key)) companyByEmail.set(key, []);
@@ -684,6 +687,8 @@ export const festivalRouter = router({
 
       // ライバーの重複削除
       const livers = await db.select().from(festivalLiverApplications);
+      debugInfo.liverTotal = livers.length;
+      debugInfo.liverEmails = livers.map(l => l.email).slice(0, 5);
       const liverByEmail = new Map<string, typeof livers>();
       for (const l of livers) {
         const key = l.email;
@@ -718,7 +723,7 @@ export const festivalRouter = router({
         }
       }
 
-      return { success: true, removed: { company: removedCompany, liver: removedLiver, general: removedGeneral } };
+      return { success: true, removed: { company: removedCompany, liver: removedLiver, general: removedGeneral }, debug: debugInfo };
     }),
 
   // チェックインQRコード用トークン生成
@@ -798,6 +803,8 @@ export const festivalRouter = router({
       
       const companies = await db.select().from(festivalCompanyApplications).where(eq(festivalCompanyApplications.eventYear, "2026"));
       const livers = await db.select().from(festivalLiverApplications).where(eq(festivalLiverApplications.eventYear, "2026"));
+      debugInfo.liverTotal = livers.length;
+      debugInfo.liverEmails = livers.map(l => l.email).slice(0, 5);
       const generals = await db.select().from(festivalGeneralApplications).where(eq(festivalGeneralApplications.eventYear, "2026"));
       
       return {
