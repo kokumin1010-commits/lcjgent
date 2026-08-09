@@ -838,7 +838,7 @@ import mysql from "mysql2/promise";
 
 // チェックイン用カラムのマイグレーション（1回だけ実行）
 let _migrationDone = false;
-async function ensureCheckinColumns() {
+export async function ensureCheckinColumns() {
   if (_migrationDone) return;
   try {
     const pool = mysql.createPool(process.env.DATABASE_URL!);
@@ -849,3 +849,6 @@ async function ensureCheckinColumns() {
     _migrationDone = true;
   } catch (e) { _migrationDone = true; }
 }
+
+// サーバー起動時に即実行
+ensureCheckinColumns();
