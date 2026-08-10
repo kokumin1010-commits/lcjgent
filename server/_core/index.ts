@@ -618,7 +618,6 @@ async function startServer() {
   });
 
   // Brand file upload endpoint
-  app.post("/api/brand-file-upload", upload.single("file"), async (req, res) => {
   // Rundown product image upload endpoint
   app.post("/api/rundown-image-upload", upload.single("file"), async (req: any, res) => {
     try {
@@ -642,6 +641,7 @@ async function startServer() {
     }
   });
 
+  app.post("/api/brand-file-upload", upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
