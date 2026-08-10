@@ -268,46 +268,101 @@ function ApplicationsPanel() {
 
     return (
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-white/10 text-gray-400">
-              <th className="text-left p-3 whitespace-nowrap">名前</th>
-              {activeTab === "liver" && <th className="text-left p-3 whitespace-nowrap">ライバー名</th>}
-              {activeTab === "liver" && <th className="text-left p-3 whitespace-nowrap">事務所</th>}
-              <th className="text-left p-3 whitespace-nowrap">メール</th>
-              {activeTab === "liver" && <th className="text-left p-3 whitespace-nowrap">電話</th>}
-              {activeTab === "liver" && <th className="text-left p-3 whitespace-nowrap">アカウント</th>}
-              {activeTab === "liver" && <th className="text-left p-3 whitespace-nowrap">ジャンル</th>}
-              {activeTab === "liver" && <th className="text-left p-3 whitespace-nowrap">LINE/Lark</th>}
-              {activeTab === "liver" && <th className="text-left p-3 whitespace-nowrap">参加日程</th>}
-              {activeTab === "liver" && <th className="text-left p-3 whitespace-nowrap">マッチング</th>}
-              <th className="text-left p-3 whitespace-nowrap">ステータス</th>
-              <th className="text-left p-3 whitespace-nowrap">申込日</th>
-              <th className="text-right p-3 whitespace-nowrap">操作</th>
+              {/* 企業様 */}
+              {activeTab === "company" && <>
+                <th className="text-left p-2 whitespace-nowrap">会社名</th>
+                <th className="text-left p-2 whitespace-nowrap">担当者</th>
+                <th className="text-left p-2 whitespace-nowrap">部署</th>
+                <th className="text-left p-2 whitespace-nowrap">電話</th>
+                <th className="text-left p-2 whitespace-nowrap">メール</th>
+                <th className="text-left p-2 whitespace-nowrap">TikTok Shop</th>
+                <th className="text-left p-2 whitespace-nowrap">ブランド紹介</th>
+                <th className="text-left p-2 whitespace-nowrap">LINE/Lark</th>
+                <th className="text-left p-2 whitespace-nowrap">ステータス</th>
+                <th className="text-left p-2 whitespace-nowrap">申込日</th>
+                <th className="text-right p-2 whitespace-nowrap">操作</th>
+              </>}
+              {/* ライバー */}
+              {activeTab === "liver" && <>
+                <th className="text-left p-2 whitespace-nowrap">名前</th>
+                <th className="text-left p-2 whitespace-nowrap">ライバー名</th>
+                <th className="text-left p-2 whitespace-nowrap">事務所</th>
+                <th className="text-left p-2 whitespace-nowrap">メール</th>
+                <th className="text-left p-2 whitespace-nowrap">電話</th>
+                <th className="text-left p-2 whitespace-nowrap">アカウント</th>
+                <th className="text-left p-2 whitespace-nowrap">ジャンル</th>
+                <th className="text-left p-2 whitespace-nowrap">LINE/Lark</th>
+                <th className="text-left p-2 whitespace-nowrap">参加日程</th>
+                <th className="text-left p-2 whitespace-nowrap">マッチング</th>
+                <th className="text-left p-2 whitespace-nowrap">ステータス</th>
+                <th className="text-left p-2 whitespace-nowrap">申込日</th>
+                <th className="text-right p-2 whitespace-nowrap">操作</th>
+              </>}
+              {/* 一般参加 */}
+              {activeTab === "general" && <>
+                <th className="text-left p-2 whitespace-nowrap">名前</th>
+                <th className="text-left p-2 whitespace-nowrap">会社名</th>
+                <th className="text-left p-2 whitespace-nowrap">部署</th>
+                <th className="text-left p-2 whitespace-nowrap">メール</th>
+                <th className="text-left p-2 whitespace-nowrap">電話</th>
+                <th className="text-left p-2 whitespace-nowrap">参加形態</th>
+                <th className="text-left p-2 whitespace-nowrap">参加日程</th>
+                <th className="text-left p-2 whitespace-nowrap">来場目的</th>
+                <th className="text-left p-2 whitespace-nowrap">ステータス</th>
+                <th className="text-left p-2 whitespace-nowrap">申込日</th>
+                <th className="text-right p-2 whitespace-nowrap">操作</th>
+              </>}
             </tr>
           </thead>
           <tbody>
             {data.map((item: any) => (
               <tr key={item.id} className="border-b border-white/5 hover:bg-white/5">
-                <td className="p-3 font-medium text-white whitespace-nowrap">
-                  {activeTab === "company" ? item.companyName : item.name || item.liverName}
-                </td>
-                {activeTab === "liver" && <td className="p-3 text-gray-400 whitespace-nowrap">{item.liverName || "-"}</td>}
-                {activeTab === "liver" && <td className="p-3 text-gray-400 whitespace-nowrap">{item.agency || "-"}</td>}
-                <td className="p-3 text-gray-400 text-xs">{item.email}</td>
-                {activeTab === "liver" && <td className="p-3 text-gray-400 text-xs whitespace-nowrap">{item.phone || "-"}</td>}
-                {activeTab === "liver" && <td className="p-3 text-gray-400 text-xs max-w-[120px] truncate" title={item.accountInfo || ""}>{item.accountInfo || "-"}</td>}
-                {activeTab === "liver" && <td className="p-3 text-gray-400 text-xs whitespace-nowrap">{item.genre || "-"}</td>}
-                {activeTab === "liver" && <td className="p-3 text-gray-400 text-xs whitespace-nowrap">{item.lineOrLark || "-"}</td>}
-                {activeTab === "liver" && <td className="p-3 text-gray-400 text-xs whitespace-nowrap">{item.attendanceSchedule === "both" ? "両日" : item.attendanceSchedule === "day1" ? "8日のみ" : item.attendanceSchedule === "day2" ? "9日のみ" : item.attendanceSchedule || "-"}</td>}
-                {activeTab === "liver" && <td className="p-3 text-gray-400 text-xs whitespace-nowrap">{item.matchingPreference === "yes" ? "希望する" : "希望しない"}</td>}
-                <td className="p-3">
-                  <Badge className={STATUS_CONFIG[item.status as StatusType]?.color || "bg-gray-100"}>
+                {/* 企業様 */}
+                {activeTab === "company" && <>
+                  <td className="p-2 font-medium text-white whitespace-nowrap">{item.companyName}</td>
+                  <td className="p-2 text-gray-400 whitespace-nowrap">{item.contactName || "-"}</td>
+                  <td className="p-2 text-gray-400 whitespace-nowrap">{item.contactDepartment || "-"}</td>
+                  <td className="p-2 text-gray-400 whitespace-nowrap">{item.phone || "-"}</td>
+                  <td className="p-2 text-gray-400">{item.email}</td>
+                  <td className="p-2 text-gray-400 max-w-[120px] truncate" title={item.tiktokShopSellerName || ""}>{item.tiktokShopSellerName || "-"}</td>
+                  <td className="p-2 text-gray-400 max-w-[150px] truncate" title={item.brandIntro || ""}>{item.brandIntro || "-"}</td>
+                  <td className="p-2 text-gray-400 whitespace-nowrap">{item.lineOrLark || "-"}</td>
+                </>}
+                {/* ライバー */}
+                {activeTab === "liver" && <>
+                  <td className="p-2 font-medium text-white whitespace-nowrap">{item.name}</td>
+                  <td className="p-2 text-gray-400 whitespace-nowrap">{item.liverName || "-"}</td>
+                  <td className="p-2 text-gray-400 whitespace-nowrap">{item.agency || "-"}</td>
+                  <td className="p-2 text-gray-400">{item.email}</td>
+                  <td className="p-2 text-gray-400 whitespace-nowrap">{item.phone || "-"}</td>
+                  <td className="p-2 text-gray-400 max-w-[150px] truncate" title={item.accountInfo || ""}>{item.accountInfo || "-"}</td>
+                  <td className="p-2 text-gray-400 whitespace-nowrap">{item.genre || "-"}</td>
+                  <td className="p-2 text-gray-400 whitespace-nowrap">{item.lineOrLark || "-"}</td>
+                  <td className="p-2 text-gray-400 whitespace-nowrap">{item.attendanceSchedule === "both_days" ? "両日" : item.attendanceSchedule === "day1_only" ? "8日のみ" : item.attendanceSchedule === "day2_only" ? "9日のみ" : item.attendanceSchedule || "-"}</td>
+                  <td className="p-2 text-gray-400 whitespace-nowrap">{item.matchingPreference === "yes" ? "希望する" : "希望しない"}</td>
+                </>}
+                {/* 一般参加 */}
+                {activeTab === "general" && <>
+                  <td className="p-2 font-medium text-white whitespace-nowrap">{item.name}</td>
+                  <td className="p-2 text-gray-400 whitespace-nowrap">{item.companyName || "-"}</td>
+                  <td className="p-2 text-gray-400 whitespace-nowrap">{item.department || "-"}</td>
+                  <td className="p-2 text-gray-400">{item.email}</td>
+                  <td className="p-2 text-gray-400 whitespace-nowrap">{item.phone || "-"}</td>
+                  <td className="p-2 text-gray-400 whitespace-nowrap">{item.participationType === "corporate" ? "法人" : "個人"}</td>
+                  <td className="p-2 text-gray-400 whitespace-nowrap">{item.attendanceSchedule === "both_days" ? "両日" : item.attendanceSchedule === "day1_only" ? "8日のみ" : item.attendanceSchedule === "day2_only" ? "9日のみ" : item.attendanceSchedule || "-"}</td>
+                  <td className="p-2 text-gray-400 max-w-[150px] truncate" title={(item.visitPurposes || []).join(", ")}>{(item.visitPurposes || []).join(", ") || "-"}</td>
+                </>}
+                {/* 共通: ステータス・申込日・操作 */}
+                <td className="p-2">
+                  <Badge className={`text-[10px] ${STATUS_CONFIG[item.status as StatusType]?.color || "bg-gray-100"}`}>
                     {STATUS_CONFIG[item.status as StatusType]?.label || item.status}
                   </Badge>
                 </td>
-                <td className="p-3 text-gray-400">{new Date(item.createdAt).toLocaleDateString("ja-JP")}</td>
-                <td className="p-3 text-right space-x-2 whitespace-nowrap">
+                <td className="p-2 text-gray-400 whitespace-nowrap">{new Date(item.createdAt).toLocaleDateString("ja-JP")}</td>
+                <td className="p-2 text-right space-x-1 whitespace-nowrap">
                   <Button variant="ghost" size="sm" onClick={() => setDetailDialog({ type: activeTab, data: item })} className="text-gray-400 hover:text-white">
                     <Eye className="w-4 h-4" />
                   </Button>
