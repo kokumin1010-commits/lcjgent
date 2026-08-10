@@ -534,12 +534,16 @@ export default function LiverAiCoach() {
       {/* Quick Actions */}
       {messages.length <= 1 && (
         <div className="px-4 pb-2">
-          <div className="flex gap-2 overflow-x-auto pb-2">
+          <div className="flex flex-wrap gap-2 pb-2">
             {[
               "今月の売上を分析して",
               "時間単価を上げるには？",
               "おすすめのセット構成は？",
-              "配信時間帯のアドバイス",
+              "過去の売れ筋セットTOP10を教えて",
+              "他のライバーの成功セットを参考に提案して",
+              "次の配信の福袋5セット案を作って",
+              "全ライバーの売上ランキングで自分の位置は？",
+              "ブランド別の最適セット組みを教えて",
             ].map((suggestion) => (
               <button
                 key={suggestion}

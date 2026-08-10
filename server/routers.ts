@@ -17048,6 +17048,160 @@ ${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProduc
             }
           }
           
+          // 🧠 全ライバーのTOPセットデータ（クロスライバー参考）
+          let globalLiverRankingContext = '';
+          let globalSetsContext = '';
+          try {
+            // 全ライバーのGMV/売上ランキング（直近3ヶ月）
+            const now = new Date();
+            const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+            const startDateStr = `${threeMonthsAgo.getFullYear()}-${String(threeMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`;
+            const liverSalesRanking = await db.select({
+              liverId: brandLivestreams.liverId,
+              streamerName: brandLivestreams.streamerName,
+              totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+              totalGmv: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+              totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+              livestreamCount: sql<number>`COUNT(*)`,
+            })
+            .from(brandLivestreams)
+            .where(and(
+              isNull(brandLivestreams.deletedAt),
+              sql`${brandLivestreams.livestreamDate} >= ${startDateStr}`,
+            ))
+            .groupBy(brandLivestreams.liverId, brandLivestreams.streamerName)
+            .orderBy(desc(sql`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`))
+            .limit(15);
+
+            if (liverSalesRanking.length > 0) {
+              globalLiverRankingContext = `\n\n【📊 全ライバー売上ランキング（直近3ヶ月）】\n`;
+              liverSalesRanking.forEach((l, idx) => {
+                const hourlyRate = Number(l.totalDuration) > 0 ? Math.round(Number(l.totalSales) / (Number(l.totalDuration) / 60)) : 0;
+                const isMe = l.liverId === input.liverId;
+                globalLiverRankingContext += `${idx + 1}. ${l.streamerName || '不明'} ${isMe ? '⭐(自分)' : ''}: 売上¥${Number(l.totalSales).toLocaleString()} / GMV¥${Number(l.totalGmv).toLocaleString()} / ${l.livestreamCount}回 / 時間単価¥${hourlyRate.toLocaleString()}/h\n`;
+              });
+            }
+
+            const globalTopSets = await db.select({
+              id: livestreamSets.id,
+              setName: livestreamSets.setName,
+              setPrice: livestreamSets.setPrice,
+              quantitySold: livestreamSets.quantitySold,
+              totalOriginalPrice: livestreamSets.totalOriginalPrice,
+              discountRate: livestreamSets.discountRate,
+              totalRevenue: livestreamSets.totalRevenue,
+              streamerName: brandLivestreams.streamerName,
+              livestreamDate: brandLivestreams.livestreamDate,
+              brandName: brandLivestreams.brandName,
+              liverId: brandLivestreams.liverId,
+            })
+            .from(livestreamSets)
+            .innerJoin(brandLivestreams, eq(livestreamSets.livestreamId, brandLivestreams.id))
+            .where(isNull(brandLivestreams.deletedAt))
+            .orderBy(desc(livestreamSets.totalRevenue))
+            .limit(30);
+
+            if (globalTopSets.length > 0) {
+              // Get items for top sets
+              const globalSetIds = globalTopSets.map(s => s.id);
+              let globalSetItems: any[] = [];
+              for (let i = 0; i < globalSetIds.length; i += 20) {
+                const batch = globalSetIds.slice(i, i + 20);
+                const batchItems = await db.select().from(livestreamSetItems)
+                  .where(sqlTag`${livestreamSetItems.setId} IN (${sqlTag.join(batch.map(id => sqlTag`${id}`), sqlTag`, `)})`);
+                globalSetItems = globalSetItems.concat(batchItems);
+              }
+              const globalItemsBySetId: Record<number, any[]> = {};
+              globalSetItems.forEach((item: any) => {
+                if (!globalItemsBySetId[item.setId]) globalItemsBySetId[item.setId] = [];
+                globalItemsBySetId[item.setId].push(item);
+              });
+
+              globalSetsContext = `\n\n【🏆 全ライバーの売上TOP30セット（他ライバーの成功事例）】\n`;
+              globalTopSets.forEach((s, idx) => {
+                const date = s.livestreamDate ? new Date(s.livestreamDate).toLocaleDateString('ja-JP') : '';
+                const discount = s.discountRate ? `${s.discountRate}%OFF` : '';
+                const isOwnSet = s.liverId === input.liverId;
+                globalSetsContext += `${idx + 1}. ${s.setName} ${discount ? `(${discount})` : ''} ${isOwnSet ? '⭐自分' : `by ${s.streamerName || '不明'}`}\n`;
+                globalSetsContext += `   ¥${Number(s.setPrice).toLocaleString()} × ${s.quantitySold} = ¥${Number(s.totalRevenue || 0).toLocaleString()}`;
+                if (s.brandName) globalSetsContext += ` / ${s.brandName}`;
+                if (date) globalSetsContext += ` / ${date}`;
+                globalSetsContext += '\n';
+                const items = globalItemsBySetId[s.id] || [];
+                if (items.length > 0) {
+                  globalSetsContext += `   構成: ${items.map((item: any) => `${item.productName}(¥${Number(item.originalPrice).toLocaleString()})`).join('、')}\n`;
+                }
+              });
+
+              // ブランド別の成功セットパターン
+              const brandSetMap = new Map<string, { count: number; revenue: number; avgPrice: number; avgDiscount: number; topSet: string }>();
+              globalTopSets.forEach(s => {
+                const brand = s.brandName || '不明';
+                const existing = brandSetMap.get(brand) || { count: 0, revenue: 0, avgPrice: 0, avgDiscount: 0, topSet: '' };
+                existing.count++;
+                existing.revenue += Number(s.totalRevenue || 0);
+                existing.avgPrice += Number(s.setPrice);
+                existing.avgDiscount += Number(s.discountRate || 0);
+                if (!existing.topSet || Number(s.totalRevenue || 0) > 0) existing.topSet = s.setName;
+                brandSetMap.set(brand, existing);
+              });
+              globalSetsContext += `\n【ブランド別の成功パターン】\n`;
+              Array.from(brandSetMap.entries())
+                .sort((a, b) => b[1].revenue - a[1].revenue)
+                .slice(0, 10)
+                .forEach(([brand, stats]) => {
+                  const avgP = Math.round(stats.avgPrice / stats.count);
+                  const avgD = Math.round(stats.avgDiscount / stats.count);
+                  globalSetsContext += `${brand}: ${stats.count}セット / 売上¥${stats.revenue.toLocaleString()} / 平均¥${avgP.toLocaleString()} / 平均${avgD}%OFF / TOP: ${stats.topSet}\n`;
+                });
+
+              // ライバー別の成功パターン
+              const liverSetMap = new Map<string, { count: number; revenue: number; avgPrice: number }>();
+              globalTopSets.forEach(s => {
+                const name = s.streamerName || '不明';
+                const existing = liverSetMap.get(name) || { count: 0, revenue: 0, avgPrice: 0 };
+                existing.count++;
+                existing.revenue += Number(s.totalRevenue || 0);
+                existing.avgPrice += Number(s.setPrice);
+                liverSetMap.set(name, existing);
+              });
+              globalSetsContext += `\n【ライバー別のセット売上ランキング（TOP30内）】\n`;
+              Array.from(liverSetMap.entries())
+                .sort((a, b) => b[1].revenue - a[1].revenue)
+                .slice(0, 8)
+                .forEach(([name, stats]) => {
+                  const avgP = Math.round(stats.avgPrice / stats.count);
+                  globalSetsContext += `${name}: ${stats.count}セット / 売上¥${stats.revenue.toLocaleString()} / 平均¥${avgP.toLocaleString()}\n`;
+                });
+            }
+          } catch (e: any) {
+            console.error('[AI Coach] Failed to fetch global sets:', e.message);
+          }
+
+          // 商品マスター情報（利用可能な商品リスト）
+          let productMasterContext = '';
+          try {
+            const products = await db.select({
+              id: productMaster.id,
+              canonicalName: productMaster.canonicalName,
+              category: productMaster.category,
+            }).from(productMaster).limit(100);
+            if (products.length > 0) {
+              const byCategory = new Map<string, string[]>();
+              products.forEach(p => {
+                const cat = p.category || '未分類';
+                if (!byCategory.has(cat)) byCategory.set(cat, []);
+                byCategory.get(cat)!.push(p.canonicalName);
+              });
+              productMasterContext = `\n\n【📦 利用可能な商品マスター（${products.length}件）】\n`;
+              Array.from(byCategory.entries()).forEach(([cat, names]) => {
+                productMasterContext += `${cat}: ${names.slice(0, 15).join('、')}${names.length > 15 ? `...他${names.length - 15}件` : ''}\n`;
+              });
+            }
+          } catch (e: any) {
+            console.error('[AI Coach] Failed to fetch product master:', e.message);
+          }
+
           // Build chat history for context
           const chatHistory = recentHistory.reverse().map(m => ({
             role: m.role === 'ai' ? 'assistant' as const : 'user' as const,
@@ -17076,13 +17230,21 @@ ${salesContext}
 ${streamsContext}
 ${setsContext}
 
+${globalLiverRankingContext}
+${globalSetsContext}
+${productMasterContext}
+
 【ルール】
 - 必ず日本語で回答する
 - データに基づいた具体的なアドバイスをする
 - セット組みについて聞かれたら、過去の売れたセットデータを分析して具体的な提案をする
 - 売れたセットの特徴（価格帯、割引率、商品構成）を分析して、次のセット提案に活かす
+- 他のライバーの成功事例を参考にして、具体的なセット組み提案をする
+- 全ライバーのGMVランキングを参考に、このライバーの位置づけと成長目標を示す
+- 商品マスターの情報を活用して、実際に使える商品名で具体的な提案をする
+- セット提案時は必ず「セット名、構成商品、売値、元値合計、割引率」を含める
 - 「〇〇してみましょう！」のような前向きな提案をする
-- 長すぎない回答（200-400文字程度）を心がける
+- 長すぎない回答（300-600文字程度）を心がける
 - ライバーの名前「${liverName}さん」を使って呼びかける
 - カルテの目標や弱みに関連付けたアドバイスを心がける`;
           
