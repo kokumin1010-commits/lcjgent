@@ -549,7 +549,7 @@ export const cashflowRouter = router({
           FROM company_cashflows
           WHERE id IN (
             SELECT MAX(id) FROM company_cashflows
-            WHERE deletedAt IS NULL AND balance IS NOT NULL AND balance > 0 ${entityFilter}
+            WHERE deletedAt IS NULL AND balance IS NOT NULL ${entityFilter}
             GROUP BY LEFT(transactionDate, 7)
           )
           ORDER BY LEFT(transactionDate, 7) ASC
@@ -846,7 +846,7 @@ export const cashflowRouter = router({
         INNER JOIN (
           SELECT sourceAccount, MAX(id) as maxId
           FROM company_cashflows
-          WHERE deletedAt IS NULL AND sourceAccount IS NOT NULL AND sourceAccount != '' AND balance IS NOT NULL AND balance > 0
+          WHERE deletedAt IS NULL AND sourceAccount IS NOT NULL AND sourceAccount != '' AND balance IS NOT NULL
           GROUP BY sourceAccount
         ) t2 ON t1.id = t2.maxId
         WHERE t1.deletedAt IS NULL
@@ -1055,9 +1055,21 @@ export const cashflowRouter = router({
       const buffer = Buffer.from(input.fileData, 'base64');
       const fileKey = `cashflow-receipts/${input.id}/${Date.now()}-${input.fileName}`;
       const { url } = await storagePut(fileKey, buffer, input.mimeType);
+      // Support multiple receipts: append to existing JSON array
+      const [existing] = await pool.query(`SELECT receiptUrl FROM company_cashflows WHERE id = ?`, [input.id]) as any;
+      let urls: string[] = [];
+      if (existing[0]?.receiptUrl) {
+        try {
+          const parsed = JSON.parse(existing[0].receiptUrl);
+          urls = Array.isArray(parsed) ? parsed : [existing[0].receiptUrl];
+        } catch {
+          urls = [existing[0].receiptUrl];
+        }
+      }
+      urls.push(url);
       await pool.query(
         `UPDATE company_cashflows SET receiptUrl = ? WHERE id = ?`,
-        [url, input.id]
+        [JSON.stringify(urls), input.id]
       );
       return { success: true, url };
     }),

@@ -89,6 +89,8 @@ export default function CashflowTab() {
   const [csvStartDate, setCsvStartDate] = useState("");
   const [csvEndDate, setCsvEndDate] = useState("");
   const [csvCounterparty, setCsvCounterparty] = useState("");
+  const [csvSourceAccount, setCsvSourceAccount] = useState("");
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [pageInput, setPageInput] = useState("");
   const [editBalanceAccount, setEditBalanceAccount] = useState<string | null>(null);
   const [editBalanceValue, setEditBalanceValue] = useState("");
@@ -519,7 +521,7 @@ export default function CashflowTab() {
   }
 
   const exportQuery = trpc.cashflow.exportAll.useQuery(
-    { entity, type, startDate: csvStartDate || undefined, endDate: csvEndDate || undefined, counterparty: csvCounterparty || undefined, sourceAccount: csvCounterparty || undefined },
+    { entity, type, startDate: csvStartDate || undefined, endDate: csvEndDate || undefined, counterparty: csvCounterparty || undefined, sourceAccount: csvSourceAccount || undefined },
     { enabled: false }
   );
 
@@ -1143,6 +1145,28 @@ export default function CashflowTab() {
           <Download className="h-4 w-4 mr-1.5" />
           CSV
         </Button>
+        {selectedIds.length > 0 && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => {
+              if (confirm(`选中的 ${selectedIds.length} 条记录将被删除，确定吗？`)) {
+                Promise.all(selectedIds.map(id => deleteMutation.mutateAsync({ id })))
+                  .then(() => {
+                    toast.success(`${selectedIds.length}件を削除しました`);
+                    setSelectedIds([]);
+                    listQuery.refetch();
+                    summaryQuery.refetch();
+                    balanceQuery.refetch();
+                  })
+                  .catch(() => toast.error("一部の削除に失敗しました"));
+              }
+            }}
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            {selectedIds.length}件削除
+          </Button>
+        )}
         <span className="text-sm text-muted-foreground">{total}件</span>
       </div>
       {expandedCategory && (
@@ -1192,7 +1216,21 @@ export default function CashflowTab() {
               </tr>
             ) : (
               items.map((item: any) => (
-                <tr key={item.id} className="border-t hover:bg-muted/30 transition-colors">
+                <tr key={item.id} className={`border-t hover:bg-muted/30 transition-colors ${selectedIds.includes(item.id) ? 'bg-blue-50' : ''}`}>
+                  <td className="p-2 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(item.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedIds([...selectedIds, item.id]);
+                        } else {
+                          setSelectedIds(selectedIds.filter(id => id !== item.id));
+                        }
+                      }}
+                      className="rounded"
+                    />
+                  </td>
                   <td className="p-3 text-xs">{item.transactionDate}</td>
                   <td className="p-3 text-center">
                     <Badge variant="outline" className="text-xs">
@@ -1290,7 +1328,7 @@ export default function CashflowTab() {
                           updateMutation.mutate({ id: item.id, description: e.target.value, entity: item.entity, type: item.type, amount: item.amount, currency: item.currency, transactionDate: item.transactionDate, category: item.category, counterparty: item.counterparty });
                         }
                       }}
-                      className={`bg-transparent border-0 border-b border-dashed hover:border-primary cursor-pointer text-xs p-0 focus:ring-0 focus:border-primary min-w-[180px] ${(!item.description || item.description === '二代支付' || item.description === '银行收费') ? 'border-yellow-400 text-yellow-600 placeholder:text-yellow-400' : 'border-muted-foreground/30 text-muted-foreground'}`}
+                      className={`bg-transparent border-0 border-b border-dashed hover:border-primary cursor-pointer text-xs p-0 focus:ring-0 focus:border-primary w-full ${(!item.description || item.description === '二代支付' || item.description === '银行收费') ? 'border-yellow-400 text-yellow-600 placeholder:text-yellow-400' : 'border-muted-foreground/30 text-muted-foreground'}`}
                     />
                   </td>
                   <td className="p-3 text-xs">
@@ -1412,8 +1450,8 @@ export default function CashflowTab() {
             <div>
               <label className="text-sm font-medium">我方账户</label>
               <select
-                value={csvCounterparty}
-                onChange={(e) => setCsvCounterparty(e.target.value)}
+                value={csvSourceAccount}
+                onChange={(e) => setCsvSourceAccount(e.target.value)}
                 className="w-full mt-1 border rounded-md px-3 py-2 text-sm"
               >
                 <option value="">全部</option>
