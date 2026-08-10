@@ -54,6 +54,8 @@ export default function SetImageGenerator() {
   const [colorPreset, setColorPreset] = useState(COLOR_PRESETS[0].id);
   const [items, setItems] = useState<SetItem[]>([]);
   const [imageSize, setImageSize] = useState<"1:1" | "4:3" | "16:9">("1:1");
+  const [setPrice, setSetPrice] = useState("");
+  const [assetSearch, setAssetSearch] = useState("");
 
   // Preset
   const [presetName, setPresetName] = useState("");
@@ -192,6 +194,17 @@ export default function SetImageGenerator() {
   const selectedBg = COLOR_PRESETS.find(c => c.id === colorPreset)?.bg || COLOR_PRESETS[0].bg;
   const aspectRatio = imageSize === "1:1" ? "1/1" : imageSize === "4:3" ? "4/3" : "16/9";
 
+  // 自動計算: 元値合計・OFF金額・割引率
+  const totalOriginalPrice = items.reduce((sum, item) => {
+    const p = parseInt(String(item.price || "0").replace(/[^0-9]/g, ""), 10);
+    return sum + (isNaN(p) ? 0 : p);
+  }, 0);
+  const setPriceNum = parseInt(String(setPrice).replace(/[^0-9]/g, ""), 10) || 0;
+  const offAmount = totalOriginalPrice - setPriceNum;
+  const offPercent = totalOriginalPrice > 0 && setPriceNum > 0 ? Math.round((offAmount / totalOriginalPrice) * 100) : 0;
+  const autoCouponText = setPriceNum > 0 && offAmount > 0 ? `${offAmount.toLocaleString()}円OFFクーポン` : couponText;
+  const hasMissingPrice = items.some(item => !item.price || parseInt(String(item.price).replace(/[^0-9]/g, ""), 10) === 0);
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
@@ -242,6 +255,31 @@ export default function SetImageGenerator() {
                       <Input value={couponText} onChange={e => setCouponText(e.target.value)} placeholder="43,060円OFFクーポン" className="text-sm" />
                     </div>
                   </div>
+                  {/* セット售価 + 自動計算 */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-gray-500">セット售価</label>
+                      <Input value={setPrice} onChange={e => setSetPrice(e.target.value)} placeholder="例: 6980" className="text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">元値合計（自動）</label>
+                      <div className="text-sm font-bold mt-1 px-2 py-1.5 bg-gray-50 rounded border">
+                        ¥{totalOriginalPrice.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                  {setPriceNum > 0 && offAmount > 0 && (
+                    <div className="flex items-center gap-2 text-xs bg-red-50 border border-red-200 rounded p-2">
+                      <span className="font-bold text-red-600">OFF: ¥{offAmount.toLocaleString()}</span>
+                      <span className="text-red-500">(-{offPercent}%)</span>
+                      <span className="text-gray-500 ml-auto">横幅に自動反映</span>
+                    </div>
+                  )}
+                  {hasMissingPrice && items.length > 0 && (
+                    <div className="text-xs bg-yellow-50 border border-yellow-300 rounded p-2 text-yellow-700">
+                      ⚠️ 価格未設定の商品があります。正確な合計を計算するには全商品に価格を設定してください。
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -409,7 +447,19 @@ export default function SetImageGenerator() {
                       justifyContent: "space-between",
                     }}>
                       {bottomText && <div style={{ fontSize: "11px", fontWeight: 700, lineHeight: 1.3 }}>{bottomText}</div>}
-                      {couponText && <div style={{ fontSize: "20px", fontWeight: 900, letterSpacing: "1px" }}>{couponText}</div>}
+                      {autoCouponText && <div style={{ fontSize: "20px", fontWeight: 900, letterSpacing: "1px" }}>{autoCouponText}</div>}
+                    </div>
+                  )}
+                  {/* セット価格表示 */}
+                  {setPriceNum > 0 && (
+                    <div style={{ width: "100%", textAlign: "center", marginTop: "4px" }}>
+                      <span style={{ fontSize: "24px", fontWeight: 900, color: "#111" }}>¥{setPriceNum.toLocaleString()}</span>
+                      {totalOriginalPrice > 0 && (
+                        <>
+                          <span style={{ fontSize: "12px", color: "#999", textDecoration: "line-through", marginLeft: "8px" }}>¥{totalOriginalPrice.toLocaleString()}</span>
+                          {offPercent > 0 && <span style={{ fontSize: "12px", color: "#e53935", fontWeight: 700, marginLeft: "4px" }}>(-{offPercent}%)</span>}
+                        </>
+                      )}
                     </div>
                   )}
 
@@ -448,8 +498,15 @@ export default function SetImageGenerator() {
                 <Plus className="h-4 w-4 mr-1" />素材を追加
               </Button>
             </div>
+            {/* 素材検索 */}
+            <Input
+              value={assetSearch}
+              onChange={e => setAssetSearch(e.target.value)}
+              placeholder="素材名で検索..."
+              className="max-w-sm"
+            />
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
-              {(assetsQuery.data || []).map((asset: any) => (
+              {(assetsQuery.data || []).filter((asset: any) => !assetSearch || asset.name.toLowerCase().includes(assetSearch.toLowerCase()) || (asset.category || "").toLowerCase().includes(assetSearch.toLowerCase())).map((asset: any) => (
                 <Card key={asset.id} className="overflow-hidden">
                   <div className="aspect-square bg-gray-50 flex items-center justify-center p-2">
                     <img src={asset.imageUrl} alt={asset.name} className="max-w-full max-h-full object-contain" />
