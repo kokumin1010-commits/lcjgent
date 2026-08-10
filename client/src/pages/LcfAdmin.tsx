@@ -69,7 +69,7 @@ export default function LcfAdmin() {
     <div className="min-h-screen bg-[#0a0a0f] text-white">
       {/* Header */}
       <header className="border-b border-white/10 bg-[#0a0a0f]/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="w-full mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center">
               <span className="text-black font-bold text-sm">LCF</span>
@@ -89,7 +89,7 @@ export default function LcfAdmin() {
       </header>
 
       {/* Tab Navigation */}
-      <div className="max-w-7xl mx-auto px-4 py-4">
+      <div className="w-full mx-auto px-6 py-4">
         <div className="flex flex-wrap gap-2 border-b border-white/10 pb-3">
           {mainTabs.map((tab) => (
             <button
@@ -109,7 +109,7 @@ export default function LcfAdmin() {
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 pb-8">
+      <div className="w-full mx-auto px-6 pb-8">
         {mainTab === "dashboard" && <DashboardPanel />}
         {mainTab === "applications" && <ApplicationsPanel />}
         {mainTab === "event" && <EventPanel />}
