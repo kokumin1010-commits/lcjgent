@@ -29,6 +29,7 @@ type SetItem = {
   rotation: number; // degrees
   x: number; // % position from left
   y: number; // % position from top
+  qty: number; // 数量
 };
 
 export default function SetImageGenerator() {
@@ -106,10 +107,15 @@ export default function SetImageGenerator() {
 
   // Add item to set
   const addItemToSet = (asset: any) => {
-    if (items.find(i => i.assetId === asset.id)) return;
+    // 同じ商品が既にある場合は数量を+1
+    const existing = items.find(i => i.assetId === asset.id);
+    if (existing) {
+      setItems(items.map(i => i.assetId === asset.id ? { ...i, qty: i.qty + 1 } : i));
+      return;
+    }
     const col = items.length % 3;
     const row = Math.floor(items.length / 3);
-    setItems([...items, { assetId: asset.id, name: asset.name, imageUrl: asset.imageUrl, label: asset.name, size: 80, price: asset.category || "", rotation: 0, x: 15 + col * 30, y: 25 + row * 30 }]);
+    setItems([...items, { assetId: asset.id, name: asset.name, imageUrl: asset.imageUrl, label: asset.name, size: 80, price: asset.category || "", rotation: 0, x: 15 + col * 30, y: 25 + row * 30, qty: 1 }]);
   };
 
   // Remove item from set
@@ -197,7 +203,7 @@ export default function SetImageGenerator() {
   // 自動計算: 元値合計・OFF金額・割引率
   const totalOriginalPrice = items.reduce((sum, item) => {
     const p = parseInt(String(item.price || "0").replace(/[^0-9]/g, ""), 10);
-    return sum + (isNaN(p) ? 0 : p);
+    return sum + (isNaN(p) ? 0 : p * (item.qty || 1));
   }, 0);
   const setPriceNum = parseInt(String(setPrice).replace(/[^0-9]/g, ""), 10) || 0;
   const offAmount = totalOriginalPrice - setPriceNum;
@@ -317,8 +323,8 @@ export default function SetImageGenerator() {
                       <button
                         key={asset.id}
                         onClick={() => addItemToSet(asset)}
-                        disabled={!!items.find(i => i.assetId === asset.id)}
-                        className={`p-1 border rounded-lg text-center transition-all ${items.find(i => i.assetId === asset.id) ? "opacity-40 border-green-300 bg-green-50" : "hover:border-purple-300 hover:bg-purple-50"}`}
+                        
+                        className={`p-1 border rounded-lg text-center transition-all ${items.find(i => i.assetId === asset.id) ? "border-green-400 bg-green-50 ring-1 ring-green-300" : "hover:border-purple-300 hover:bg-purple-50"}`}
                       >
                         <img src={asset.imageUrl} alt={asset.name} className="w-full h-12 object-contain" />
                         <div className="text-[9px] truncate mt-0.5">{asset.name}</div>
@@ -354,6 +360,11 @@ export default function SetImageGenerator() {
                           <span className="text-xs text-gray-400">↻</span>
                           <input type="range" min="-45" max="45" value={item.rotation || 0} onChange={e => setItems(items.map(i => i.assetId === item.assetId ? { ...i, rotation: Number(e.target.value) } : i))} className="w-10" />
                           <span className="text-xs text-gray-500">{item.rotation || 0}°</span>
+                        </div>
+                        <div className="flex items-center gap-0.5 border rounded px-1">
+                          <button onClick={() => setItems(items.map(i => i.assetId === item.assetId ? { ...i, qty: Math.max(1, (i.qty || 1) - 1) } : i))} className="text-gray-500 hover:text-gray-800 text-xs font-bold px-0.5">-</button>
+                          <span className="text-xs font-bold min-w-[14px] text-center">{item.qty || 1}</span>
+                          <button onClick={() => setItems(items.map(i => i.assetId === item.assetId ? { ...i, qty: (i.qty || 1) + 1 } : i))} className="text-gray-500 hover:text-gray-800 text-xs font-bold px-0.5">+</button>
                         </div>
                         <button onClick={() => removeItem(item.assetId)} className="text-red-400 hover:text-red-600"><X className="h-4 w-4" /></button>
                       </div>
@@ -418,9 +429,14 @@ export default function SetImageGenerator() {
                           }}
                           onMouseDown={e => { e.preventDefault(); setDragId(item.assetId); setDragStart({ mx: e.clientX, my: e.clientY, ix: item.x, iy: item.y }); }}
                         >
-                          <img src={item.imageUrl} alt={item.label} style={{ width: imgSize, height: imgSize, objectFit: "contain", display: "block", pointerEvents: "none" }} draggable={false} />
-                          <div style={{ fontSize: "8px", fontWeight: 700, marginTop: "1px", color: "#333", lineHeight: 1.1, whiteSpace: "nowrap" }}>{item.label}</div>
-                          {item.price && <div style={{ fontSize: "9px", fontWeight: 900, color: "#e53935", marginTop: "0px" }}>{item.price}</div>}
+                          {/* 重なり合い画像（qty > 1） */}
+                          <div style={{ position: "relative", width: imgSize, height: imgSize }}>
+                            {(item.qty || 1) > 1 && <img src={item.imageUrl} alt="" style={{ position: "absolute", top: "4px", left: "4px", width: imgSize, height: imgSize, objectFit: "contain", opacity: 0.5, pointerEvents: "none" }} draggable={false} />}
+                            <img src={item.imageUrl} alt={item.label} style={{ position: "relative", width: imgSize, height: imgSize, objectFit: "contain", display: "block", pointerEvents: "none" }} draggable={false} />
+                            {(item.qty || 1) > 1 && <div style={{ position: "absolute", top: "-4px", right: "-4px", background: "#e53935", color: "white", borderRadius: "50%", width: "16px", height: "16px", fontSize: "9px", fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center" }}>×{item.qty}</div>}
+                          </div>
+                          <div style={{ fontSize: "8px", fontWeight: 700, marginTop: "1px", color: "#333", lineHeight: 1.1, whiteSpace: "nowrap" }}>{item.label}{(item.qty || 1) > 1 ? ` ×${item.qty}` : ""}</div>
+                          {item.price && <div style={{ fontSize: "9px", fontWeight: 900, color: "#e53935", marginTop: "0px" }}>¥{(parseInt(String(item.price).replace(/[^0-9]/g, ""), 10) * (item.qty || 1)).toLocaleString()}</div>}
                           {/* リサイズハンドル */}
                           <div
                             style={{ position: "absolute", bottom: -4, right: -4, width: 10, height: 10, background: "#7c3aed", borderRadius: "50%", cursor: "nwse-resize", opacity: 0.7 }}
