@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y python3 make g++ openssl && rm -rf /var
 RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
 
 # Increase Node.js memory for large builds
-ENV NODE_OPTIONS="--max-old-space-size=4096"
+ENV NODE_OPTIONS="--max-old-space-size=8192"
 
 WORKDIR /app
 

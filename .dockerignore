@@ -1,0 +1,10 @@
+node_modules
+.git
+dist
+*.xlsx
+*.xls
+*.csv
+*.pdf
+attached_assets
+.manus-logs
+*.log
