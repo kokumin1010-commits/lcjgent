@@ -517,12 +517,12 @@ function TopLiveCommercerSection() {
     },
     {
       name: '燕 咏靖',
-      title: 'Yonjin En',
+      title: '代表取締役CEO',
       stat: '',
       statValue: '',
       statUnit: '',
       image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/sJFtTAlIdyJMQeiv.webp',
-      bio: 'LCJ取締役。独自のファッションセンスとクリエイティブな発信力で、ライブコマース界に新たな風を吹き込む。',
+      bio: 'LCJ代表取締役CEO。独自のファッションセンスとクリエイティブな発信力で、ライブコマース界に新たな風を吹き込む。',
     },
   ];
 
