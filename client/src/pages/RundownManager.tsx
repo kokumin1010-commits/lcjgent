@@ -422,53 +422,63 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto border rounded-lg">
-        <table className="w-full text-sm">
-          <thead className="bg-blue-50 border-b">
+      <div className="overflow-x-auto border rounded-lg" style={{ maxHeight: "calc(100vh - 280px)" }}>
+        <table className="w-full text-xs border-collapse">
+          <thead className="bg-blue-600 text-white sticky top-0 z-10">
             <tr>
-              <th className="px-2 py-2 text-center w-8">#</th>
-              <th className="px-2 py-2 text-left">時段</th>
-              <th className="px-2 py-2 text-left">板块</th>
-              <th className="px-2 py-2 text-center w-16">図片</th>
-              <th className="px-2 py-2 text-left">主題/福袋組合</th>
-              <th className="px-2 py-2 text-left">品牌</th>
-              <th className="px-2 py-2 text-left">中文名</th>
-              <th className="px-2 py-2 text-right">挂価</th>
-              <th className="px-2 py-2 text-right">直播価格</th>
-              <th className="px-2 py-2 text-right">成本価</th>
-              <th className="px-2 py-2 text-right">佣金%</th>
-              <th className="px-2 py-2 text-left">福袋/歴史</th>
-              <th className="px-2 py-2 text-left">店舗形式</th>
-              <th className="px-2 py-2 text-right">予想GMV</th>
-              <th className="px-2 py-2 text-center w-24">操作</th>
+              <th className="px-1.5 py-2 text-center w-8 border border-blue-500">序号</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">时段</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500 w-14">图片</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">链接</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">主题/痛点</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">品牌</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">中文名</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">自制网站</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">定价</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">直播价格</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">成本价(含运费)</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">佣金比例</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">福袋价格/历史机制</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">上架店铺及形式</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">预估GMV</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">节奏/玩法</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">建议话术</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">备注</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">拿货价</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500 w-16">操作</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item: any, idx: number) => (
-              <tr key={item.id} className="border-b hover:bg-gray-50">
-                <td className="px-2 py-2 text-center">
+              <tr key={item.id} className="border-b hover:bg-yellow-50/50">
+                <td className="px-1.5 py-1.5 text-center border border-gray-200">
                   <div className="flex flex-col items-center gap-0.5">
                     <button onClick={() => moveItem(idx, "up")} className="text-gray-400 hover:text-gray-700" disabled={idx === 0}><ArrowUp className="h-3 w-3" /></button>
                     <span className="font-mono text-xs">{idx + 1}</span>
                     <button onClick={() => moveItem(idx, "down")} className="text-gray-400 hover:text-gray-700" disabled={idx === items.length - 1}><ArrowDown className="h-3 w-3" /></button>
                   </div>
                 </td>
-                <td className="px-2 py-2 text-xs">{item.timeSlot || "-"}</td>
-                <td className="px-2 py-2 text-xs">{item.section || "-"}</td>
-                <td className="px-2 py-2 text-center">
+                <td className="px-1.5 py-1.5 border border-gray-200">{item.timeSlot || ""}</td>
+                <td className="px-1.5 py-1.5 text-center border border-gray-200">
                   {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-10 h-10 object-cover rounded" /> : <Package className="h-5 w-5 text-gray-300 mx-auto" />}
                 </td>
-                <td className="px-2 py-2 text-xs max-w-[120px] truncate">{item.theme || item.bundleCombo || "-"}</td>
-                <td className="px-2 py-2 text-xs">{item.brandName || "-"}</td>
-                <td className="px-2 py-2 text-xs font-medium">{item.productNameCn || item.productName || "-"}</td>
-                <td className="px-2 py-2 text-right text-xs">{item.listPrice ? `¥${Number(item.listPrice).toLocaleString()}` : "-"}</td>
-                <td className="px-2 py-2 text-right text-xs font-medium text-red-600">{item.livePrice ? `¥${Number(item.livePrice).toLocaleString()}` : "-"}</td>
-                <td className="px-2 py-2 text-right text-xs">{item.costPrice ? `¥${Number(item.costPrice).toLocaleString()}` : "-"}</td>
-                <td className="px-2 py-2 text-right text-xs">{item.commissionRate ? `${item.commissionRate}%` : "-"}</td>
-                <td className="px-2 py-2 text-xs max-w-[100px] truncate">{item.bundlePrice || "-"}</td>
-                <td className="px-2 py-2 text-xs">{item.shopAndFormat || "-"}</td>
-                <td className="px-2 py-2 text-right text-xs font-medium text-green-600">{item.estimatedGmv ? `¥${Number(item.estimatedGmv).toLocaleString()}` : "-"}</td>
-                <td className="px-2 py-2 text-center">
+                <td className="px-1.5 py-1.5 border border-gray-200">{item.productLink ? <a href={item.productLink} target="_blank" className="text-blue-500 underline truncate block max-w-[60px]">链接</a> : ""}</td>
+                <td className="px-1.5 py-1.5 border border-gray-200">{item.theme || item.bundleCombo || ""}</td>
+                <td className="px-1.5 py-1.5 border border-gray-200">{item.brandName || ""}</td>
+                <td className="px-1.5 py-1.5 border border-gray-200 font-medium">{item.productNameCn || item.productName || ""}</td>
+                <td className="px-1.5 py-1.5 border border-gray-200">{item.selfSiteLink ? <a href={item.selfSiteLink} target="_blank" className="text-blue-500 underline truncate block max-w-[60px]">链接</a> : ""}</td>
+                <td className="px-1.5 py-1.5 border border-gray-200 text-right">{item.listPrice ? Number(item.listPrice).toLocaleString() : ""}</td>
+                <td className="px-1.5 py-1.5 border border-gray-200 text-right font-medium text-red-600">{item.livePrice ? Number(item.livePrice).toLocaleString() : ""}</td>
+                <td className="px-1.5 py-1.5 border border-gray-200 text-right">{item.costPrice ? Number(item.costPrice).toLocaleString() : ""}</td>
+                <td className="px-1.5 py-1.5 border border-gray-200 text-right">{item.commissionRate ? `${item.commissionRate}%` : ""}</td>
+                <td className="px-1.5 py-1.5 border border-gray-200">{item.bundlePrice || ""}</td>
+                <td className="px-1.5 py-1.5 border border-gray-200">{item.shopAndFormat || ""}</td>
+                <td className="px-1.5 py-1.5 border border-gray-200 text-right font-medium text-green-600">{item.estimatedGmv ? Number(item.estimatedGmv).toLocaleString() : ""}</td>
+                <td className="px-1.5 py-1.5 border border-gray-200">{item.playStrategy || ""}</td>
+                <td className="px-1.5 py-1.5 border border-gray-200">{item.recommendReason || ""}</td>
+                <td className="px-1.5 py-1.5 border border-gray-200">{item.notes || ""}</td>
+                <td className="px-1.5 py-1.5 border border-gray-200 text-right">{item.purchasePrice ? Number(item.purchasePrice).toLocaleString() : ""}</td>
+                <td className="px-1.5 py-1.5 text-center border border-gray-200">
                   <div className="flex items-center gap-1 justify-center">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
                       setEditingItem(item);
@@ -483,31 +493,36 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={15} className="text-center py-8 text-muted-foreground">商品がまだ追加されていません</td></tr>
+              <tr><td colSpan={20} className="text-center py-8 text-muted-foreground">商品がまだ追加されていません</td></tr>
             )}
             {/* インライン追加行 - 各列の下に直接入力 */}
-            <tr className="bg-blue-50/80 border-t-2 border-blue-200">
-              <td className="px-2 py-1.5 text-center text-xs text-blue-500 font-bold">+</td>
-              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.timeSlot || ""} onChange={(e) => setItemForm({ ...itemForm, timeSlot: e.target.value })} placeholder="20:30-20:45" /></td>
-              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.section || ""} onChange={(e) => setItemForm({ ...itemForm, section: e.target.value })} placeholder="板块" /></td>
-              <td className="px-1 py-1">
-                <label className="flex items-center justify-center h-7 text-xs border border-blue-200 rounded-md cursor-pointer hover:bg-blue-100 transition-colors px-1">
+            <tr className="bg-yellow-50 border-t-2 border-yellow-300">
+              <td className="px-1 py-1 text-center text-xs text-blue-600 font-bold border border-gray-200">+</td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.timeSlot || ""} onChange={(e) => setItemForm({ ...itemForm, timeSlot: e.target.value })} placeholder="20:00-20:05" /></td>
+              <td className="px-1 py-1 border border-gray-200">
+                <label className="flex items-center justify-center h-7 text-xs border rounded-md cursor-pointer hover:bg-blue-50 transition-colors">
                   {itemForm.imageUrl ? <img src={itemForm.imageUrl} alt="" className="h-6 w-6 object-cover rounded" /> : <span className="text-gray-400">📷</span>}
                   <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageUpload(f); }} onPaste={(e) => { const f = e.clipboardData?.files?.[0]; if (f) handleImageUpload(f); }} />
                 </label>
               </td>
-              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.theme || ""} onChange={(e) => setItemForm({ ...itemForm, theme: e.target.value })} placeholder="主題/福袋" /></td>
-              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.brandName || ""} onChange={(e) => setItemForm({ ...itemForm, brandName: e.target.value })} placeholder="品牌" /></td>
-              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.productNameCn || ""} onChange={(e) => setItemForm({ ...itemForm, productNameCn: e.target.value })} placeholder="中文名" /></td>
-              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200 w-16" type="number" value={itemForm.listPrice || ""} onChange={(e) => setItemForm({ ...itemForm, listPrice: e.target.value ? Number(e.target.value) : null })} placeholder="挂価" /></td>
-              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200 w-16" type="number" value={itemForm.livePrice || ""} onChange={(e) => setItemForm({ ...itemForm, livePrice: e.target.value ? Number(e.target.value) : null })} placeholder="直播価" /></td>
-              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200 w-16" type="number" value={itemForm.costPrice || ""} onChange={(e) => setItemForm({ ...itemForm, costPrice: e.target.value ? Number(e.target.value) : null })} placeholder="成本" /></td>
-              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200 w-14" type="number" value={itemForm.commissionRate || ""} onChange={(e) => setItemForm({ ...itemForm, commissionRate: e.target.value ? Number(e.target.value) : null })} placeholder="%" /></td>
-              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.bundlePrice || ""} onChange={(e) => setItemForm({ ...itemForm, bundlePrice: e.target.value })} placeholder="福袋" /></td>
-              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.shopAndFormat || ""} onChange={(e) => setItemForm({ ...itemForm, shopAndFormat: e.target.value })} placeholder="店舗" /></td>
-              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200 w-16" type="number" value={itemForm.estimatedGmv || ""} onChange={(e) => setItemForm({ ...itemForm, estimatedGmv: e.target.value ? Number(e.target.value) : null })} placeholder="GMV" /></td>
-              <td className="px-1 py-1 text-center">
-                <Button size="sm" className="h-7 text-xs px-3 bg-blue-600 hover:bg-blue-700" onClick={handleInlineAdd} disabled={inlineAddMutation.isPending}>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.productLink || ""} onChange={(e) => setItemForm({ ...itemForm, productLink: e.target.value })} placeholder="链接" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.theme || ""} onChange={(e) => setItemForm({ ...itemForm, theme: e.target.value })} placeholder="主题/痛点" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.brandName || ""} onChange={(e) => setItemForm({ ...itemForm, brandName: e.target.value })} placeholder="品牌" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.productNameCn || ""} onChange={(e) => setItemForm({ ...itemForm, productNameCn: e.target.value })} placeholder="中文名" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.selfSiteLink || ""} onChange={(e) => setItemForm({ ...itemForm, selfSiteLink: e.target.value })} placeholder="自制网站" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs w-16" type="number" value={itemForm.listPrice || ""} onChange={(e) => setItemForm({ ...itemForm, listPrice: e.target.value ? Number(e.target.value) : null })} placeholder="定价" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs w-16" type="number" value={itemForm.livePrice || ""} onChange={(e) => setItemForm({ ...itemForm, livePrice: e.target.value ? Number(e.target.value) : null })} placeholder="直播价" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs w-16" type="number" value={itemForm.costPrice || ""} onChange={(e) => setItemForm({ ...itemForm, costPrice: e.target.value ? Number(e.target.value) : null })} placeholder="成本" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs w-14" type="number" value={itemForm.commissionRate || ""} onChange={(e) => setItemForm({ ...itemForm, commissionRate: e.target.value ? Number(e.target.value) : null })} placeholder="%" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.bundlePrice || ""} onChange={(e) => setItemForm({ ...itemForm, bundlePrice: e.target.value })} placeholder="福袋/历史" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.shopAndFormat || ""} onChange={(e) => setItemForm({ ...itemForm, shopAndFormat: e.target.value })} placeholder="店铺/形式" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs w-16" type="number" value={itemForm.estimatedGmv || ""} onChange={(e) => setItemForm({ ...itemForm, estimatedGmv: e.target.value ? Number(e.target.value) : null })} placeholder="GMV" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.playStrategy || ""} onChange={(e) => setItemForm({ ...itemForm, playStrategy: e.target.value })} placeholder="节奏/玩法" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.recommendReason || ""} onChange={(e) => setItemForm({ ...itemForm, recommendReason: e.target.value })} placeholder="建议话术" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.notes || ""} onChange={(e) => setItemForm({ ...itemForm, notes: e.target.value })} placeholder="备注" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs w-16" type="number" value={itemForm.purchasePrice || ""} onChange={(e) => setItemForm({ ...itemForm, purchasePrice: e.target.value ? Number(e.target.value) : null })} placeholder="拿货价" /></td>
+              <td className="px-1 py-1 text-center border border-gray-200">
+                <Button size="sm" className="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700" onClick={handleInlineAdd} disabled={inlineAddMutation.isPending}>
                   追加
                 </Button>
               </td>
