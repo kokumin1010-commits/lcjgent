@@ -7,6 +7,14 @@ import { Badge } from '@/components/ui/badge';
 import { Mic, Square, Loader2, Calendar, Clock, Search, ChevronLeft, ChevronRight, Users, CheckCircle2, AlertCircle, Trash2 } from 'lucide-react';
 import { useAuth } from '@/_core/hooks/useAuth';
 
+// Web Speech API型定義
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
+
 type MeetingSummary = {
   overview: string;
   participants: Array<{
@@ -33,13 +41,18 @@ export default function MorningMeeting() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
 
+  const [liveTranscript, setLiveTranscript] = useState('');
+  const [interimText, setInterimText] = useState('');
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const transcriptRef = useRef('');
 
   const startRecordingMutation = trpc.morningMeeting.startRecording.useMutation();
-  const uploadAndProcessMutation = trpc.morningMeeting.uploadAndProcess.useMutation();
+  const saveTranscriptMutation = trpc.morningMeeting.saveTranscriptAndSummarize.useMutation();
   const deleteMutation = trpc.morningMeeting.delete.useMutation();
 
   const { data: historyData, refetch: refetchHistory } = trpc.morningMeeting.getHistory.useQuery({
@@ -110,6 +123,59 @@ export default function MorningMeeting() {
       mediaRecorder.start(1000); // Collect data every second
       setIsRecording(true);
       setRecordingTime(0);
+      setLiveTranscript('');
+      setInterimText('');
+      transcriptRef.current = '';
+
+      // Web Speech API でリアルタイム転写開始
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'ja-JP';
+        recognition.maxAlternatives = 1;
+
+        recognition.onresult = (event: any) => {
+          let interim = '';
+          let final = '';
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const result = event.results[i];
+            if (result.isFinal) {
+              final += result[0].transcript;
+            } else {
+              interim += result[0].transcript;
+            }
+          }
+          if (final) {
+            transcriptRef.current += final + '\n';
+            setLiveTranscript(transcriptRef.current);
+          }
+          setInterimText(interim);
+        };
+
+        recognition.onerror = (event: any) => {
+          console.warn('Speech recognition error:', event.error);
+          // network errorの場合は再起動を試みる
+          if (event.error === 'network' || event.error === 'no-speech') {
+            setTimeout(() => {
+              if (recognitionRef.current && isRecording) {
+                try { recognitionRef.current.start(); } catch(e) {}
+              }
+            }, 1000);
+          }
+        };
+
+        recognition.onend = () => {
+          // 録音中なら自動再開（ブラウザが自動停止することがあるため）
+          if (recognitionRef.current) {
+            try { recognition.start(); } catch(e) {}
+          }
+        };
+
+        recognition.start();
+        recognitionRef.current = recognition;
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : '録音の開始に失敗しました';
       setError(errorMsg);
@@ -121,7 +187,14 @@ export default function MorningMeeting() {
     if (!mediaRecorderRef.current || !currentMeetingId) return;
 
     setIsRecording(false);
-    setProcessingStep('音声データを処理中...');
+    setProcessingStep('AI要約を生成中...');
+
+    // Web Speech API停止
+    if (recognitionRef.current) {
+      recognitionRef.current.onend = null; // 自動再開を防止
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
 
     const mediaRecorder = mediaRecorderRef.current;
     
@@ -134,53 +207,42 @@ export default function MorningMeeting() {
         }
 
         try {
-          // Convert to base64
-          const blob = new Blob(chunksRef.current, { type: mediaRecorder.mimeType });
-          
-          // Check file size (16MB limit)
-          const sizeMB = blob.size / (1024 * 1024);
-          if (sizeMB > 16) {
-            setError(`音声ファイルが大きすぎます（${sizeMB.toFixed(1)}MB）。16MB以下にしてください。`);
+          const finalTranscript = transcriptRef.current.trim();
+
+          if (!finalTranscript) {
+            setError('音声が認識できませんでした。マイクの設定を確認してください。');
             setProcessingStep(null);
             resolve();
             return;
           }
 
-          setProcessingStep('音声をアップロード中...');
+          setProcessingStep('AI要約を生成中...');
 
-          // Convert blob to base64
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const base64 = (reader.result as string).split(',')[1];
-            
-            setProcessingStep('文字起こし中（Whisper AI）...');
+          try {
+            const result = await saveTranscriptMutation.mutateAsync({
+              meetingId: currentMeetingId,
+              transcript: finalTranscript,
+              durationSeconds: recordingTime,
+            });
 
-            try {
-              const result = await uploadAndProcessMutation.mutateAsync({
-                meetingId: currentMeetingId,
-                audioBase64: base64,
-                mimeType: mediaRecorder.mimeType,
-                durationSeconds: recordingTime,
-              });
-
-              if (result.success) {
-                setProcessingStep(null);
-                setCurrentMeetingId(null);
-                refetchHistory();
-                refetchToday();
-              } else {
-                setError(result.error || '処理に失敗しました');
-                setProcessingStep(null);
-              }
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '処理に失敗しました');
+            if (result.success) {
+              setProcessingStep(null);
+              setCurrentMeetingId(null);
+              setLiveTranscript('');
+              setInterimText('');
+              refetchHistory();
+              refetchToday();
+            } else {
+              setError(result.error || '処理に失敗しました');
               setProcessingStep(null);
             }
-            resolve();
-          };
-          reader.readAsDataURL(blob);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : '処理に失敗しました');
+            setProcessingStep(null);
+          }
+          resolve();
         } catch (err) {
-          setError(err instanceof Error ? err.message : '音声データの変換に失敗しました');
+          setError(err instanceof Error ? err.message : '処理に失敗しました');
           setProcessingStep(null);
           resolve();
         }
@@ -188,7 +250,7 @@ export default function MorningMeeting() {
 
       mediaRecorder.stop();
     });
-  }, [currentMeetingId, recordingTime, uploadAndProcessMutation, refetchHistory, refetchToday]);
+  }, [currentMeetingId, recordingTime, saveTranscriptMutation, refetchHistory, refetchToday]);
 
   const handleDelete = async (id: number) => {
     if (!confirm('この記録を削除しますか？')) return;
@@ -251,6 +313,17 @@ export default function MorningMeeting() {
                   <div className="text-center">
                     <p className="text-3xl font-mono font-bold text-red-600">{formatTime(recordingTime)}</p>
                     <p className="text-sm text-gray-500 mt-1">録音中...</p>
+                  </div>
+                  {/* リアルタイム転写表示 */}
+                  <div className="w-full max-w-2xl bg-white border border-gray-200 rounded-lg p-4 max-h-60 overflow-y-auto">
+                    <p className="text-xs text-gray-400 mb-2 font-medium">📝 リアルタイム文字起こし</p>
+                    <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                      {liveTranscript}
+                      {interimText && <span className="text-gray-400 italic">{interimText}</span>}
+                      {!liveTranscript && !interimText && (
+                        <span className="text-gray-400">話し始めると文字が表示されます...</span>
+                      )}
+                    </div>
                   </div>
                   <Button
                     onClick={stopRecording}

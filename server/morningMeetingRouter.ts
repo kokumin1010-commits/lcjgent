@@ -373,3 +373,55 @@ ${transcript}`;
     };
   }
 }
+  // Web Speech APIからのリアルタイム転写テキストを保存してAI要約
+  saveTranscriptAndSummarize: protectedProcedure
+    .input(z.object({
+      meetingId: z.number(),
+      transcript: z.string(),
+      durationSeconds: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB connection failed");
+
+      try {
+        // テキストを保存
+        await db.update(morningMeetings)
+          .set({
+            transcript: input.transcript,
+            durationSeconds: input.durationSeconds,
+            status: "summarizing",
+          })
+          .where(eq(morningMeetings.id, input.meetingId));
+
+        // AI要約
+        const summaryResult = await generateMeetingSummary(input.transcript);
+
+        await db.update(morningMeetings)
+          .set({
+            summary: summaryResult,
+            status: "completed",
+          })
+          .where(eq(morningMeetings.id, input.meetingId));
+
+        return {
+          success: true,
+          meetingId: input.meetingId,
+          summary: summaryResult,
+        };
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : "Unknown error";
+        await db.update(morningMeetings)
+          .set({
+            status: "failed",
+            errorMessage: errorMsg,
+          })
+          .where(eq(morningMeetings.id, input.meetingId));
+
+        return {
+          success: false,
+          error: errorMsg,
+          meetingId: input.meetingId,
+        };
+      }
+    }),
