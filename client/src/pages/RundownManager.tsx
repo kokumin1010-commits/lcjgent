@@ -432,6 +432,28 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
             {items.length === 0 && (
               <tr><td colSpan={15} className="text-center py-8 text-muted-foreground">商品がまだ追加されていません</td></tr>
             )}
+            {/* インライン追加行 - 各列の下に直接入力 */}
+            <tr className="bg-blue-50/80 border-t-2 border-blue-200">
+              <td className="px-2 py-1.5 text-center text-xs text-blue-500 font-bold">+</td>
+              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.timeSlot || ""} onChange={(e) => setItemForm({ ...itemForm, timeSlot: e.target.value })} placeholder="20:30-20:45" /></td>
+              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.section || ""} onChange={(e) => setItemForm({ ...itemForm, section: e.target.value })} placeholder="板块" /></td>
+              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.imageUrl || ""} onChange={(e) => setItemForm({ ...itemForm, imageUrl: e.target.value })} placeholder="画像URL" /></td>
+              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.theme || ""} onChange={(e) => setItemForm({ ...itemForm, theme: e.target.value })} placeholder="主題/福袋" /></td>
+              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.brandName || ""} onChange={(e) => setItemForm({ ...itemForm, brandName: e.target.value })} placeholder="品牌" /></td>
+              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.productNameCn || ""} onChange={(e) => setItemForm({ ...itemForm, productNameCn: e.target.value })} placeholder="中文名" /></td>
+              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200 w-16" type="number" value={itemForm.listPrice || ""} onChange={(e) => setItemForm({ ...itemForm, listPrice: e.target.value ? Number(e.target.value) : null })} placeholder="挂価" /></td>
+              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200 w-16" type="number" value={itemForm.livePrice || ""} onChange={(e) => setItemForm({ ...itemForm, livePrice: e.target.value ? Number(e.target.value) : null })} placeholder="直播価" /></td>
+              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200 w-16" type="number" value={itemForm.costPrice || ""} onChange={(e) => setItemForm({ ...itemForm, costPrice: e.target.value ? Number(e.target.value) : null })} placeholder="成本" /></td>
+              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200 w-14" type="number" value={itemForm.commissionRate || ""} onChange={(e) => setItemForm({ ...itemForm, commissionRate: e.target.value ? Number(e.target.value) : null })} placeholder="%" /></td>
+              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.bundlePrice || ""} onChange={(e) => setItemForm({ ...itemForm, bundlePrice: e.target.value })} placeholder="福袋" /></td>
+              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.shopAndFormat || ""} onChange={(e) => setItemForm({ ...itemForm, shopAndFormat: e.target.value })} placeholder="店舗" /></td>
+              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200 w-16" type="number" value={itemForm.estimatedGmv || ""} onChange={(e) => setItemForm({ ...itemForm, estimatedGmv: e.target.value ? Number(e.target.value) : null })} placeholder="GMV" /></td>
+              <td className="px-1 py-1 text-center">
+                <Button size="sm" className="h-7 text-xs px-3 bg-blue-600 hover:bg-blue-700" onClick={() => { addMutation.mutate(itemForm); resetForm(); }} disabled={addMutation.isPending}>
+                  追加
+                </Button>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
