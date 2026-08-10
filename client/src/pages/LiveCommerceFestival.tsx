@@ -515,6 +515,15 @@ function TopLiveCommercerSection() {
       image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/mQoydCcUKpcfxILK.webp',
       bio: '人気TikTokチャンネル「ぞうねこちゃんねる」の創始者。親しみやすいキャラクターと商品紹介力でファンを獲得。ライブコマース界の注目株。',
     },
+    {
+      name: 'ABI',
+      title: 'ABI TOKYO 創設者',
+      stat: '',
+      statValue: '',
+      statUnit: '',
+      image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/sJFtTAlIdyJMQeiv.webp',
+      bio: 'ABI TOKYO創設者。独自のファッションセンスとクリエイティブな発信力で、ライブコマース界に新たな風を吹き込む。',
+    },
   ];
 
   return (
@@ -526,7 +535,7 @@ function TopLiveCommercerSection() {
           <p className="text-gray-400 mt-2 text-sm">日本のライブコマース界を牽引するトッププレイヤー</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-5 md:gap-6">
           {topCommercers.map((c, i) => (
             <div
               key={i}
