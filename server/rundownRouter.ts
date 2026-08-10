@@ -53,14 +53,14 @@ async function initRundownTables() {
       selfSiteLink VARCHAR(1000) DEFAULT NULL,
       theme VARCHAR(500) DEFAULT NULL,
       bundleCombo TEXT DEFAULT NULL,
-      listPrice DECIMAL(10,2) DEFAULT NULL,
-      livePrice DECIMAL(10,2) DEFAULT NULL,
-      costPrice DECIMAL(10,2) DEFAULT NULL,
-      purchasePrice DECIMAL(10,2) DEFAULT NULL,
-      commissionRate DECIMAL(5,2) DEFAULT NULL,
+      listPrice DECIMAL(14,2) DEFAULT NULL,
+      livePrice DECIMAL(14,2) DEFAULT NULL,
+      costPrice DECIMAL(14,2) DEFAULT NULL,
+      purchasePrice DECIMAL(14,2) DEFAULT NULL,
+      commissionRate DECIMAL(10,2) DEFAULT NULL,
       bundlePrice VARCHAR(500) DEFAULT NULL,
       shopAndFormat VARCHAR(500) DEFAULT NULL,
-      estimatedGmv DECIMAL(12,2) DEFAULT NULL,
+      estimatedGmv DECIMAL(14,2) DEFAULT NULL,
       playStrategy TEXT DEFAULT NULL,
       recommendReason TEXT DEFAULT NULL,
       notes TEXT DEFAULT NULL,
@@ -122,6 +122,13 @@ async function initRundownTables() {
   }
   // Alter existing column to TEXT if needed
   try { await p.query('ALTER TABLE rundown_items MODIFY COLUMN imageUrl TEXT DEFAULT NULL'); } catch (e: any) { /* ignore */ }
+  // Expand DECIMAL columns to handle larger values
+  try { await p.query('ALTER TABLE rundown_items MODIFY COLUMN listPrice DECIMAL(14,2) DEFAULT NULL'); } catch (e: any) { /* ignore */ }
+  try { await p.query('ALTER TABLE rundown_items MODIFY COLUMN livePrice DECIMAL(14,2) DEFAULT NULL'); } catch (e: any) { /* ignore */ }
+  try { await p.query('ALTER TABLE rundown_items MODIFY COLUMN costPrice DECIMAL(14,2) DEFAULT NULL'); } catch (e: any) { /* ignore */ }
+  try { await p.query('ALTER TABLE rundown_items MODIFY COLUMN purchasePrice DECIMAL(14,2) DEFAULT NULL'); } catch (e: any) { /* ignore */ }
+  try { await p.query('ALTER TABLE rundown_items MODIFY COLUMN commissionRate DECIMAL(10,2) DEFAULT NULL'); } catch (e: any) { /* ignore */ }
+  try { await p.query('ALTER TABLE rundown_items MODIFY COLUMN estimatedGmv DECIMAL(14,2) DEFAULT NULL'); } catch (e: any) { /* ignore */ }
 }
 
 // Run init on import
