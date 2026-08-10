@@ -295,7 +295,10 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
   const [searchResults, setSearchResults] = useState<any[]>([]);
 
   const addMutation = trpc.rundown.addItem.useMutation({ onSuccess: () => { onRefresh(); setShowAdd(false); toast.success("追加完了"); } });
-  const inlineAddMutation = trpc.rundown.addItem.useMutation({ onSuccess: () => { onRefresh(); resetForm(); toast.success("追加完了"); } });
+  const inlineAddMutation = trpc.rundown.addItem.useMutation({ 
+    onSuccess: () => { onRefresh(); resetForm(); toast.success("追加完了"); },
+    onError: (err: any) => { toast.error("追加失敗: " + (err?.message || "不明なエラー")); console.error("[InlineAdd Error]", err); }
+  });
   const updateMutation = trpc.rundown.updateItem.useMutation({ onSuccess: () => { onRefresh(); setEditingItem(null); toast.success("更新完了"); } });
 
   // 画像アップロード処理
