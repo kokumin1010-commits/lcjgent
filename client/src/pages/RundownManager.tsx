@@ -290,6 +290,7 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
   
   const [showAdd, setShowAdd] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
 
@@ -302,24 +303,27 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const res = await fetch("/api/trpc/rundown.uploadImage", {
+      const res = await fetch("/api/rundown-image-upload", {
         method: "POST",
         body: formData,
+        credentials: "include",
       });
-      // Fallback: convert to base64 data URL for preview
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setItemForm({ ...itemForm, imageUrl: e.target?.result as string });
-      };
-      reader.readAsDataURL(file);
-    } catch {
-      // If upload fails, use data URL
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setItemForm({ ...itemForm, imageUrl: e.target?.result as string });
-      };
-      reader.readAsDataURL(file);
+      if (res.ok) {
+        const data = await res.json();
+        setItemForm({ ...itemForm, imageUrl: data.url });
+        return;
+      }
+    } catch (err) {
+      console.error("Image upload failed:", err);
     }
+    // Fallback: convert to base64 data URL (won't save to DB but shows preview)
+    try {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setItemForm({ ...itemForm, imageUrl: e.target?.result as string });
+      };
+      reader.readAsDataURL(file);
+    } catch {}
   };
 
   const handleInlineAdd = () => {
@@ -460,7 +464,7 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
                 </td>
                 <td className="px-1.5 py-1.5 border border-gray-200">{item.timeSlot || ""}</td>
                 <td className="px-1.5 py-1.5 text-center border border-gray-200">
-                  {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-10 h-10 object-cover rounded" /> : <Package className="h-5 w-5 text-gray-300 mx-auto" />}
+                  {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80" onClick={() => setPreviewImage(item.imageUrl)} /> : <Package className="h-5 w-5 text-gray-300 mx-auto" />}
                 </td>
                 <td className="px-1.5 py-1.5 border border-gray-200">{item.productLink ? <a href={item.productLink} target="_blank" className="text-blue-500 underline truncate block max-w-[60px]">链接</a> : ""}</td>
                 <td className="px-1.5 py-1.5 border border-gray-200">{item.theme || item.bundleCombo || ""}</td>
@@ -533,6 +537,14 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
 
       {/* Add/Edit Dialog */}
       <Dialog open={showAdd} onOpenChange={(open) => { if (!open) { setShowAdd(false); setEditingItem(null); } }}>
+      {/* 画像プレビューダイアログ */}
+      {previewImage && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setPreviewImage(null)}>
+          <img src={previewImage} alt="Preview" className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" />
+          <button className="absolute top-4 right-4 text-white text-3xl hover:text-gray-300" onClick={() => setPreviewImage(null)}>✕</button>
+        </div>
+      )}
+
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingItem ? "商品編集" : "商品追加"}</DialogTitle></DialogHeader>
           <div className="space-y-4">

@@ -619,6 +619,29 @@ async function startServer() {
 
   // Brand file upload endpoint
   app.post("/api/brand-file-upload", upload.single("file"), async (req, res) => {
+  // Rundown product image upload endpoint
+  app.post("/api/rundown-image-upload", upload.single("file"), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      const file = req.file as Express.Multer.File;
+      if (!file.mimetype.startsWith("image/")) {
+        return res.status(400).json({ error: "Only image files are allowed" });
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        return res.status(400).json({ error: "File size must be less than 10MB" });
+      }
+      const fileExtension = file.originalname.split(".").pop() || "jpg";
+      const fileKey = `rundown-images/${nanoid()}.${fileExtension}`;
+      const result = await storagePut(fileKey, file.buffer, file.mimetype);
+      res.json({ success: true, url: result.url, key: result.key });
+    } catch (error: any) {
+      console.error("[Rundown Image Upload Error]", error);
+      res.status(500).json({ error: "Failed to upload image" });
+    }
+  });
+
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
