@@ -271,27 +271,43 @@ function ApplicationsPanel() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-white/10 text-gray-400">
-              <th className="text-left p-3">名前</th>
-              <th className="text-left p-3">メール</th>
-              <th className="text-left p-3">ステータス</th>
-              <th className="text-left p-3">申込日</th>
-              <th className="text-right p-3">操作</th>
+              <th className="text-left p-3 whitespace-nowrap">名前</th>
+              {activeTab === "liver" && <th className="text-left p-3 whitespace-nowrap">ライバー名</th>}
+              {activeTab === "liver" && <th className="text-left p-3 whitespace-nowrap">事務所</th>}
+              <th className="text-left p-3 whitespace-nowrap">メール</th>
+              {activeTab === "liver" && <th className="text-left p-3 whitespace-nowrap">電話</th>}
+              {activeTab === "liver" && <th className="text-left p-3 whitespace-nowrap">アカウント</th>}
+              {activeTab === "liver" && <th className="text-left p-3 whitespace-nowrap">ジャンル</th>}
+              {activeTab === "liver" && <th className="text-left p-3 whitespace-nowrap">LINE/Lark</th>}
+              {activeTab === "liver" && <th className="text-left p-3 whitespace-nowrap">参加日程</th>}
+              {activeTab === "liver" && <th className="text-left p-3 whitespace-nowrap">マッチング</th>}
+              <th className="text-left p-3 whitespace-nowrap">ステータス</th>
+              <th className="text-left p-3 whitespace-nowrap">申込日</th>
+              <th className="text-right p-3 whitespace-nowrap">操作</th>
             </tr>
           </thead>
           <tbody>
             {data.map((item: any) => (
               <tr key={item.id} className="border-b border-white/5 hover:bg-white/5">
-                <td className="p-3 font-medium text-white">
+                <td className="p-3 font-medium text-white whitespace-nowrap">
                   {activeTab === "company" ? item.companyName : item.name || item.liverName}
                 </td>
-                <td className="p-3 text-gray-400">{item.email}</td>
+                {activeTab === "liver" && <td className="p-3 text-gray-400 whitespace-nowrap">{item.liverName || "-"}</td>}
+                {activeTab === "liver" && <td className="p-3 text-gray-400 whitespace-nowrap">{item.agency || "-"}</td>}
+                <td className="p-3 text-gray-400 text-xs">{item.email}</td>
+                {activeTab === "liver" && <td className="p-3 text-gray-400 text-xs whitespace-nowrap">{item.phone || "-"}</td>}
+                {activeTab === "liver" && <td className="p-3 text-gray-400 text-xs max-w-[120px] truncate" title={item.accountInfo || ""}>{item.accountInfo || "-"}</td>}
+                {activeTab === "liver" && <td className="p-3 text-gray-400 text-xs whitespace-nowrap">{item.genre || "-"}</td>}
+                {activeTab === "liver" && <td className="p-3 text-gray-400 text-xs whitespace-nowrap">{item.lineOrLark || "-"}</td>}
+                {activeTab === "liver" && <td className="p-3 text-gray-400 text-xs whitespace-nowrap">{item.attendanceSchedule === "both" ? "両日" : item.attendanceSchedule === "day1" ? "8日のみ" : item.attendanceSchedule === "day2" ? "9日のみ" : item.attendanceSchedule || "-"}</td>}
+                {activeTab === "liver" && <td className="p-3 text-gray-400 text-xs whitespace-nowrap">{item.matchingPreference === "yes" ? "希望する" : "希望しない"}</td>}
                 <td className="p-3">
                   <Badge className={STATUS_CONFIG[item.status as StatusType]?.color || "bg-gray-100"}>
                     {STATUS_CONFIG[item.status as StatusType]?.label || item.status}
                   </Badge>
                 </td>
                 <td className="p-3 text-gray-400">{new Date(item.createdAt).toLocaleDateString("ja-JP")}</td>
-                <td className="p-3 text-right space-x-2">
+                <td className="p-3 text-right space-x-2 whitespace-nowrap">
                   <Button variant="ghost" size="sm" onClick={() => setDetailDialog({ type: activeTab, data: item })} className="text-gray-400 hover:text-white">
                     <Eye className="w-4 h-4" />
                   </Button>
