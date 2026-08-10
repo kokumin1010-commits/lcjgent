@@ -516,13 +516,13 @@ function TopLiveCommercerSection() {
       bio: '人気TikTokチャンネル「ぞうねこちゃんねる」の創始者。親しみやすいキャラクターと商品紹介力でファンを獲得。ライブコマース界の注目株。',
     },
     {
-      name: 'ABI',
-      title: 'ABI TOKYO 創設者',
+      name: '燕 咏靖',
+      title: 'Yonjin En',
       stat: '',
       statValue: '',
       statUnit: '',
       image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/sJFtTAlIdyJMQeiv.webp',
-      bio: 'ABI TOKYO創設者。独自のファッションセンスとクリエイティブな発信力で、ライブコマース界に新たな風を吹き込む。',
+      bio: 'LCJ取締役。独自のファッションセンスとクリエイティブな発信力で、ライブコマース界に新たな風を吹き込む。',
     },
   ];
 
