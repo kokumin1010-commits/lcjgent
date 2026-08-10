@@ -331,7 +331,7 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
     const cleanData: any = { sessionId };
     if (itemForm.timeSlot) cleanData.timeSlot = itemForm.timeSlot;
     if (itemForm.section) cleanData.section = itemForm.section;
-    if (itemForm.imageUrl) cleanData.imageUrl = itemForm.imageUrl;
+    if (itemForm.imageUrl && !itemForm.imageUrl.startsWith("data:")) cleanData.imageUrl = itemForm.imageUrl;
     if (itemForm.theme) cleanData.theme = itemForm.theme;
     if (itemForm.brandName) cleanData.brandName = itemForm.brandName;
     if (itemForm.productName) cleanData.productName = itemForm.productName;

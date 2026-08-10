@@ -48,7 +48,7 @@ async function initRundownTables() {
       productName VARCHAR(500) DEFAULT NULL,
       productNameCn VARCHAR(500) DEFAULT NULL,
       brandName VARCHAR(255) DEFAULT NULL,
-      imageUrl VARCHAR(1000) DEFAULT NULL,
+      imageUrl TEXT DEFAULT NULL,
       productLink VARCHAR(1000) DEFAULT NULL,
       selfSiteLink VARCHAR(1000) DEFAULT NULL,
       theme VARCHAR(500) DEFAULT NULL,
@@ -120,6 +120,8 @@ async function initRundownTables() {
       if (!e.message?.includes('already exists')) console.error('rundown table init error:', e.message);
     }
   }
+  // Alter existing column to TEXT if needed
+  try { await p.query('ALTER TABLE rundown_items MODIFY COLUMN imageUrl TEXT DEFAULT NULL'); } catch (e: any) { /* ignore */ }
 }
 
 // Run init on import
