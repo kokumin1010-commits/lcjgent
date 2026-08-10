@@ -294,7 +294,60 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
   const [searchResults, setSearchResults] = useState<any[]>([]);
 
   const addMutation = trpc.rundown.addItem.useMutation({ onSuccess: () => { onRefresh(); setShowAdd(false); toast.success("追加完了"); } });
+  const inlineAddMutation = trpc.rundown.addItem.useMutation({ onSuccess: () => { onRefresh(); resetForm(); toast.success("追加完了"); } });
   const updateMutation = trpc.rundown.updateItem.useMutation({ onSuccess: () => { onRefresh(); setEditingItem(null); toast.success("更新完了"); } });
+
+  // 画像アップロード処理
+  const handleImageUpload = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch("/api/trpc/rundown.uploadImage", {
+        method: "POST",
+        body: formData,
+      });
+      // Fallback: convert to base64 data URL for preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setItemForm({ ...itemForm, imageUrl: e.target?.result as string });
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      // If upload fails, use data URL
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setItemForm({ ...itemForm, imageUrl: e.target?.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleInlineAdd = () => {
+    // null/undefined/空文字をフィルタリングしてAPIに送信
+    const cleanData: any = { sessionId };
+    if (itemForm.timeSlot) cleanData.timeSlot = itemForm.timeSlot;
+    if (itemForm.section) cleanData.section = itemForm.section;
+    if (itemForm.imageUrl) cleanData.imageUrl = itemForm.imageUrl;
+    if (itemForm.theme) cleanData.theme = itemForm.theme;
+    if (itemForm.brandName) cleanData.brandName = itemForm.brandName;
+    if (itemForm.productName) cleanData.productName = itemForm.productName;
+    if (itemForm.productNameCn) cleanData.productNameCn = itemForm.productNameCn;
+    if (itemForm.listPrice) cleanData.listPrice = Number(itemForm.listPrice);
+    if (itemForm.livePrice) cleanData.livePrice = Number(itemForm.livePrice);
+    if (itemForm.costPrice) cleanData.costPrice = Number(itemForm.costPrice);
+    if (itemForm.commissionRate) cleanData.commissionRate = Number(itemForm.commissionRate);
+    if (itemForm.bundlePrice) cleanData.bundlePrice = itemForm.bundlePrice;
+    if (itemForm.shopAndFormat) cleanData.shopAndFormat = itemForm.shopAndFormat;
+    if (itemForm.estimatedGmv) cleanData.estimatedGmv = Number(itemForm.estimatedGmv);
+    if (itemForm.productLink) cleanData.productLink = itemForm.productLink;
+    if (itemForm.selfSiteLink) cleanData.selfSiteLink = itemForm.selfSiteLink;
+    if (itemForm.purchasePrice) cleanData.purchasePrice = Number(itemForm.purchasePrice);
+    if (itemForm.bundleCombo) cleanData.bundleCombo = itemForm.bundleCombo;
+    if (itemForm.playStrategy) cleanData.playStrategy = itemForm.playStrategy;
+    if (itemForm.recommendReason) cleanData.recommendReason = itemForm.recommendReason;
+    if (itemForm.notes) cleanData.notes = itemForm.notes;
+    inlineAddMutation.mutate(cleanData);
+  };
   const deleteMutation = trpc.rundown.deleteItem.useMutation({ onSuccess: () => { onRefresh(); toast.success("削除完了"); } });
   const reorderMutation = trpc.rundown.reorderItems.useMutation({ onSuccess: onRefresh });
   const searchProductsQuery = trpc.rundown.searchProducts.useQuery(
@@ -437,7 +490,12 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
               <td className="px-2 py-1.5 text-center text-xs text-blue-500 font-bold">+</td>
               <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.timeSlot || ""} onChange={(e) => setItemForm({ ...itemForm, timeSlot: e.target.value })} placeholder="20:30-20:45" /></td>
               <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.section || ""} onChange={(e) => setItemForm({ ...itemForm, section: e.target.value })} placeholder="板块" /></td>
-              <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.imageUrl || ""} onChange={(e) => setItemForm({ ...itemForm, imageUrl: e.target.value })} placeholder="画像URL" /></td>
+              <td className="px-1 py-1">
+                <label className="flex items-center justify-center h-7 text-xs border border-blue-200 rounded-md cursor-pointer hover:bg-blue-100 transition-colors px-1">
+                  {itemForm.imageUrl ? <img src={itemForm.imageUrl} alt="" className="h-6 w-6 object-cover rounded" /> : <span className="text-gray-400">📷</span>}
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageUpload(f); }} onPaste={(e) => { const f = e.clipboardData?.files?.[0]; if (f) handleImageUpload(f); }} />
+                </label>
+              </td>
               <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.theme || ""} onChange={(e) => setItemForm({ ...itemForm, theme: e.target.value })} placeholder="主題/福袋" /></td>
               <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.brandName || ""} onChange={(e) => setItemForm({ ...itemForm, brandName: e.target.value })} placeholder="品牌" /></td>
               <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.productNameCn || ""} onChange={(e) => setItemForm({ ...itemForm, productNameCn: e.target.value })} placeholder="中文名" /></td>
@@ -449,7 +507,7 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
               <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200" value={itemForm.shopAndFormat || ""} onChange={(e) => setItemForm({ ...itemForm, shopAndFormat: e.target.value })} placeholder="店舗" /></td>
               <td className="px-1 py-1"><Input className="h-7 text-xs border-blue-200 w-16" type="number" value={itemForm.estimatedGmv || ""} onChange={(e) => setItemForm({ ...itemForm, estimatedGmv: e.target.value ? Number(e.target.value) : null })} placeholder="GMV" /></td>
               <td className="px-1 py-1 text-center">
-                <Button size="sm" className="h-7 text-xs px-3 bg-blue-600 hover:bg-blue-700" onClick={() => { addMutation.mutate(itemForm); resetForm(); }} disabled={addMutation.isPending}>
+                <Button size="sm" className="h-7 text-xs px-3 bg-blue-600 hover:bg-blue-700" onClick={handleInlineAdd} disabled={inlineAddMutation.isPending}>
                   追加
                 </Button>
               </td>
