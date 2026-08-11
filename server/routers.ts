@@ -3010,7 +3010,7 @@ export const appRouter = router({
         if (staffId > 0) {
           await createReportStaff({
             name: input.name,
-            country: input.country || "日本",
+            country: input.country || "中国",
             linkedStaffId: staffId,
           });
         }
@@ -3306,7 +3306,7 @@ export const appRouter = router({
         if (s.isActive === "active" && !linkedStaffIds.has(s.id)) {
           await createReportStaff({
             name: s.name,
-            country: s.country || "\u65e5\u672c",
+            country: s.country || "中国",
             linkedStaffId: s.id,
           });
           createdReportStaffCount++;
