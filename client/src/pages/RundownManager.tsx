@@ -301,16 +301,16 @@ function SessionDetail({ sessionId, onBack }: { sessionId: number; onBack: () =>
 
 
 // Excel風インライン編集セル
-function EditableCell({ item, field, fallback, onSave, isLink, isNumber, suffix, className }: {
+function EditableCell({ item, field, fallback, onSave, isLink,, suffix, className }: {
   item: any; field: string; fallback?: string; onSave: (value: string) => void;
-  isLink?: boolean; isNumber?: boolean; suffix?: string; className?: string;
+  isLink?: boolean;?: boolean; suffix?: string; className?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const displayValue = item[field] || fallback || '';
-  const formattedDisplay = isNumber && displayValue ? Number(displayValue).toLocaleString() + (suffix || '') : (suffix && displayValue ? displayValue + suffix : displayValue);
+  const formattedDisplay = && displayValue ? Number(displayValue).toLocaleString() + (suffix || '') : (suffix && displayValue ? displayValue + suffix : displayValue);
 
   useEffect(() => { if (editing && inputRef.current) inputRef.current.focus(); }, [editing]);
 
@@ -623,17 +623,17 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
                 <EditableCell item={item} field="productNameCn" onSave={(v) => updateMutation.mutate({ id: item.id, productNameCn: v || null })} />
                 <EditableCell item={item} field="deliveryTime" onSave={(v) => updateMutation.mutate({ id: item.id, deliveryTime: v || null })} />
                 <EditableCell item={item} field="selfSiteLink" onSave={(v) => updateMutation.mutate({ id: item.id, selfSiteLink: v || null })} isLink />
-                <EditableCell item={item} field="listPrice" onSave={(v) => updateMutation.mutate({ id: item.id, listPrice: v ? Number(v) : null })} isNumber />
-                <EditableCell item={item} field="livePrice" onSave={(v) => updateMutation.mutate({ id: item.id, livePrice: v ? Number(v) : null })} isNumber className="font-medium text-red-600" />
-                <EditableCell item={item} field="costPrice" onSave={(v) => updateMutation.mutate({ id: item.id, costPrice: v ? Number(v) : null })} isNumber />
-                <EditableCell item={item} field="commissionRate" onSave={(v) => updateMutation.mutate({ id: item.id, commissionRate: v ? Number(v) : null })} suffix="%" isNumber />
+                <EditableCell item={item} field="listPrice" onSave={(v) => updateMutation.mutate({ id: item.id, listPrice: v || null })} />
+                <EditableCell item={item} field="livePrice" onSave={(v) => updateMutation.mutate({ id: item.id, livePrice: v || null })} className="font-medium text-red-600" />
+                <EditableCell item={item} field="costPrice" onSave={(v) => updateMutation.mutate({ id: item.id, costPrice: v || null })} />
+                <EditableCell item={item} field="commissionRate" onSave={(v) => updateMutation.mutate({ id: item.id, commissionRate: v || null })} suffix="%" />
                 <EditableCell item={item} field="bundlePrice" onSave={(v) => updateMutation.mutate({ id: item.id, bundlePrice: v || null })} />
                 <EditableCell item={item} field="shopAndFormat" onSave={(v) => updateMutation.mutate({ id: item.id, shopAndFormat: v || null })} />
-                <EditableCell item={item} field="estimatedGmv" onSave={(v) => updateMutation.mutate({ id: item.id, estimatedGmv: v ? Number(v) : null })} isNumber className="font-medium text-green-600" />
+                <EditableCell item={item} field="estimatedGmv" onSave={(v) => updateMutation.mutate({ id: item.id, estimatedGmv: v || null })} className="font-medium text-green-600" />
                 <EditableCell item={item} field="playStrategy" onSave={(v) => updateMutation.mutate({ id: item.id, playStrategy: v || null })} />
                 <EditableCell item={item} field="recommendReason" onSave={(v) => updateMutation.mutate({ id: item.id, recommendReason: v || null })} />
                 <EditableCell item={item} field="notes" onSave={(v) => updateMutation.mutate({ id: item.id, notes: v || null })} />
-                <EditableCell item={item} field="purchasePrice" onSave={(v) => updateMutation.mutate({ id: item.id, purchasePrice: v ? Number(v) : null })} isNumber />
+                <EditableCell item={item} field="purchasePrice" onSave={(v) => updateMutation.mutate({ id: item.id, purchasePrice: v || null })} />
                 <td className="px-1 py-1 text-center border border-gray-200">
                   <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => {
                     if (confirm("削除しますか？")) deleteMutation.mutate({ id: item.id });
