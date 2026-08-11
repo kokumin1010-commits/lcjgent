@@ -595,14 +595,24 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
                 <EditableCell item={item} field="timeSlot" onSave={(v) => updateMutation.mutate({ id: item.id, timeSlot: v || null })} />
                 <EditableCell item={item} field="bundleCombo" onSave={(v) => updateMutation.mutate({ id: item.id, bundleCombo: v || null })} />
                 <td
-                  className={`px-1 py-1 text-center border cursor-pointer hover:bg-blue-50 ${pasteTargetId === item.id ? 'border-blue-500 bg-blue-50 border-2' : 'border-gray-200'}`}
-                  onClick={() => setPasteTargetId(item.id)} onDoubleClick={() => handleClickUploadImage(item.id)}
-                  title="クリック→Ctrl+V貼付 / ダブルクリック→ファイル選択"
+                  className={`px-1 py-1 text-center border relative group ${pasteTargetId === item.id ? 'border-blue-500 bg-blue-50 border-2' : 'border-gray-200'}`}
+                  onClick={() => { setPasteTargetId(item.id); if (item.imageUrl) setPreviewImage(item.imageUrl); }}
+                  title="クリック→プレビュー&粘贴選択 / ダブルクリック→ファイル選択"
                 >
                   {item.imageUrl ? (
-                    <img src={item.imageUrl} alt="" className="w-10 h-10 object-cover rounded hover:opacity-80" />
+                    <div className="relative inline-block">
+                      <img src={item.imageUrl} alt="" className="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80" />
+                      <button
+                        className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[10px] leading-none opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => { e.stopPropagation(); updateMutation.mutate({ id: item.id, imageUrl: null }); }}
+                        title="画像を削除"
+                      >✕</button>
+                    </div>
                   ) : (
-                    <span className={`text-xs ${pasteTargetId === item.id ? 'text-blue-500 font-bold' : 'text-gray-400'}`}>
+                    <span
+                      className={`text-xs cursor-pointer ${pasteTargetId === item.id ? 'text-blue-500 font-bold' : 'text-gray-400 hover:text-blue-400'}`}
+                      onDoubleClick={(e) => { e.stopPropagation(); handleClickUploadImage(item.id); }}
+                    >
                       {pasteTargetId === item.id ? '📋 Ctrl+V' : '📷'}
                     </span>
                   )}
