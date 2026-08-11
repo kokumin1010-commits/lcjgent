@@ -325,7 +325,6 @@ export default function MorningMeeting() {
                     <button onClick={() => { setSpeechLang("ja-JP"); if (recognitionRef.current) { recognitionRef.current.lang = "ja-JP"; recognitionRef.current.stop(); } }} className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${speechLang === "ja-JP" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600"}`}>🇯🇵 日本語</button>
                     <button onClick={() => { setSpeechLang("zh-CN"); if (recognitionRef.current) { recognitionRef.current.lang = "zh-CN"; recognitionRef.current.stop(); } }} className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${speechLang === "zh-CN" ? "bg-red-500 text-white" : "bg-gray-100 text-gray-600"}`}>🇨🇳 中文</button>
                   </div>
-                  </div>
                   <div className="w-full max-w-2xl bg-white border border-gray-200 rounded-lg p-4 max-h-60 overflow-y-auto">
                     <p className="text-xs text-gray-400 mb-2 font-medium">📝 リアルタイム文字起こし</p>
                     <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
