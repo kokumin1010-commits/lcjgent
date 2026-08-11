@@ -355,6 +355,56 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
   const [showAdd, setShowAdd] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  // 画像粘贴アップロード
+  const handlePasteImage = async (e: React.ClipboardEvent, itemId: number) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        e.preventDefault();
+        const file = items[i].getAsFile();
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('image', file);
+        try {
+          const res = await fetch('/api/rundown-image-upload', { method: 'POST', body: formData });
+          const data = await res.json();
+          if (data.url) {
+            updateMutation.mutate({ id: itemId, imageUrl: data.url });
+            toast.success("画像アップロード完了");
+          }
+        } catch (err) {
+          toast.error("画像アップロード失敗");
+        }
+        return;
+      }
+    }
+  };
+
+  // 画像クリックアップロード
+  const handleClickUploadImage = (itemId: number) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('image', file);
+      try {
+        const res = await fetch('/api/rundown-image-upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.url) {
+          updateMutation.mutate({ id: itemId, imageUrl: data.url });
+          toast.success("画像アップロード完了");
+        }
+      } catch (err) {
+        toast.error("画像アップロード失敗");
+      }
+    };
+    input.click();
+  };
+
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
 
@@ -535,8 +585,14 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
                 <EditableCell item={item} field="productName" onSave={(v) => updateMutation.mutate({ id: item.id, productName: v || null })} className="font-medium" />
                 <EditableCell item={item} field="timeSlot" onSave={(v) => updateMutation.mutate({ id: item.id, timeSlot: v || null })} />
                 <EditableCell item={item} field="bundleCombo" onSave={(v) => updateMutation.mutate({ id: item.id, bundleCombo: v || null })} />
-                <td className="px-1 py-1 text-center border border-gray-200">
-                  {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80" onClick={() => setPreviewImage(item.imageUrl)} /> : <Package className="h-4 w-4 text-gray-300 mx-auto" />}
+                <td
+                  className="px-1 py-1 text-center border border-gray-200 cursor-pointer hover:bg-blue-50"
+                  tabIndex={0}
+                  onPaste={(e) => handlePasteImage(e, item.id)}
+                  onClick={() => item.imageUrl ? setPreviewImage(item.imageUrl) : handleClickUploadImage(item.id)}
+                  title="クリックでアップロード / Ctrl+V で貼り付け"
+                >
+                  {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-10 h-10 object-cover rounded hover:opacity-80" /> : <span className="text-gray-400 text-xs">📷</span>}
                 </td>
                 <EditableCell item={item} field="productLink" onSave={(v) => updateMutation.mutate({ id: item.id, productLink: v || null })} isLink />
                 <EditableCell item={item} field="theme" onSave={(v) => updateMutation.mutate({ id: item.id, theme: v || null })} />
