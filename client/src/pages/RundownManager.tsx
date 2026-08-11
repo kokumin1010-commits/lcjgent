@@ -239,7 +239,7 @@ function SessionList({ onSelect }: { onSelect: (id: number) => void }) {
 // ============ SESSION DETAIL (Tabs: Rundown / Checklist / Review) ============
 function SessionDetail({ sessionId, onBack }: { sessionId: number; onBack: () => void }) {
   
-  const detailQuery = trpc.rundown.getSessionById.useQuery({ id: sessionId });
+  const detailQuery = trpc.rundown.getSessionById.useQuery({ id: sessionId }, { refetchInterval: 3000 });
   const updateSessionMutation = trpc.rundown.updateSession.useMutation({ onSuccess: () => detailQuery.refetch() });
 
   if (detailQuery.isLoading) return <div className="text-center py-12">読み込み中...</div>;
@@ -365,7 +365,7 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
         const file = items[i].getAsFile();
         if (!file) return;
         const formData = new FormData();
-        formData.append('image', file);
+        formData.append('file', file);
         try {
           const res = await fetch('/api/rundown-image-upload', { method: 'POST', body: formData });
           const data = await res.json();
@@ -390,7 +390,7 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
       const file = e.target.files?.[0];
       if (!file) return;
       const formData = new FormData();
-      formData.append('image', file);
+      formData.append('file', file);
       try {
         const res = await fetch('/api/rundown-image-upload', { method: 'POST', body: formData });
         const data = await res.json();
