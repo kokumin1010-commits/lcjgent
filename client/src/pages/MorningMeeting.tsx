@@ -33,6 +33,7 @@ type MeetingSummary = {
 export default function MorningMeeting() {
   const { user } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
+  const [speechLang, setSpeechLang] = useState<"ja-JP" | "zh-CN">("ja-JP");
   const [recordingTime, setRecordingTime] = useState(0);
   const [processingStep, setProcessingStep] = useState<string | null>(null);
   const [currentMeetingId, setCurrentMeetingId] = useState<number | null>(null);
@@ -133,7 +134,7 @@ export default function MorningMeeting() {
         const recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = true;
-        recognition.lang = 'ja-JP';
+        recognition.lang = speechLang;
         recognition.maxAlternatives = 1;
 
         recognition.onresult = (event: any) => {
@@ -181,7 +182,7 @@ export default function MorningMeeting() {
       setError(errorMsg);
       console.error('Recording start error:', err);
     }
-  }, [startRecordingMutation]);
+  }, [startRecordingMutation, speechLang]);
 
   const stopRecording = useCallback(async () => {
     if (!mediaRecorderRef.current || !currentMeetingId) return;
@@ -290,6 +291,11 @@ export default function MorningMeeting() {
                     <Mic className="w-12 h-12" />
                   </button>
                   <p className="text-gray-600 font-medium">タップして録音開始</p>
+                  {/* 言語切替 */}
+                  <div className="flex items-center gap-2 mt-2">
+                    <button onClick={() => setSpeechLang("ja-JP")} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${speechLang === "ja-JP" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>🇯🇵 日本語</button>
+                    <button onClick={() => setSpeechLang("zh-CN")} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${speechLang === "zh-CN" ? "bg-red-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>🇨🇳 中文</button>
+                  </div>
                   {todayMeeting && todayMeeting.status === 'completed' && (
                     <Badge variant="outline" className="text-green-600 border-green-300">
                       <CheckCircle2 className="w-3 h-3 mr-1" />
@@ -314,7 +320,12 @@ export default function MorningMeeting() {
                     <p className="text-3xl font-mono font-bold text-red-600">{formatTime(recordingTime)}</p>
                     <p className="text-sm text-gray-500 mt-1">録音中...</p>
                   </div>
-                  {/* リアルタイム転写表示 */}
+                  {/* 録音中の言語切替 */}
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => { setSpeechLang("ja-JP"); if (recognitionRef.current) { recognitionRef.current.lang = "ja-JP"; recognitionRef.current.stop(); } }} className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${speechLang === "ja-JP" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600"}`}>🇯🇵 日本語</button>
+                    <button onClick={() => { setSpeechLang("zh-CN"); if (recognitionRef.current) { recognitionRef.current.lang = "zh-CN"; recognitionRef.current.stop(); } }} className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${speechLang === "zh-CN" ? "bg-red-500 text-white" : "bg-gray-100 text-gray-600"}`}>🇨🇳 中文</button>
+                  </div>
+                  </div>
                   <div className="w-full max-w-2xl bg-white border border-gray-200 rounded-lg p-4 max-h-60 overflow-y-auto">
                     <p className="text-xs text-gray-400 mb-2 font-medium">📝 リアルタイム文字起こし</p>
                     <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
