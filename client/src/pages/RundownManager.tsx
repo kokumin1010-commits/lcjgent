@@ -299,6 +299,56 @@ function SessionDetail({ sessionId, onBack }: { sessionId: number; onBack: () =>
   );
 }
 
+
+// Excel風インライン編集セル
+function EditableCell({ item, field, fallback, onSave, isLink, isNumber, suffix, className }: {
+  item: any; field: string; fallback?: string; onSave: (value: string) => void;
+  isLink?: boolean; isNumber?: boolean; suffix?: string; className?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const displayValue = item[field] || fallback || '';
+  const formattedDisplay = isNumber && displayValue ? Number(displayValue).toLocaleString() + (suffix || '') : (suffix && displayValue ? displayValue + suffix : displayValue);
+
+  useEffect(() => { if (editing && inputRef.current) inputRef.current.focus(); }, [editing]);
+
+  const handleSave = () => {
+    setEditing(false);
+    const newVal = value.trim();
+    const oldVal = String(item[field] || '');
+    if (newVal !== oldVal) onSave(newVal);
+  };
+
+  if (editing) {
+    return (
+      <td className="px-0 py-0 border border-blue-400 bg-blue-50">
+        <input
+          ref={inputRef}
+          type={isNumber ? "number" : "text"}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false); }}
+          className="w-full min-w-[60px] px-1.5 py-1 text-xs border-0 outline-none bg-transparent"
+          style={{ minWidth: Math.max(60, (value.length + 2) * 8) + 'px' }}
+        />
+      </td>
+    );
+  }
+
+  return (
+    <td
+      className={`px-1.5 py-1 border border-gray-200 cursor-pointer hover:bg-blue-50 transition-colors text-xs ${className || ''} ${isNumber ? 'text-right' : ''}`}
+      onClick={() => { setValue(String(item[field] || '')); setEditing(true); }}
+      title="クリックして編集"
+    >
+      {isLink && displayValue ? <a href={displayValue} target="_blank" className="text-blue-500 underline truncate block max-w-[60px]" onClick={(e) => e.stopPropagation()}>链接</a> : (formattedDisplay || <span className="text-gray-300">-</span>)}
+    </td>
+  );
+}
+
 // ============ RUNDOWN TABLE ============
 function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; items: any[]; onRefresh: () => void }) {
   
@@ -471,45 +521,38 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
           </thead>
           <tbody>
             {items.map((item: any, idx: number) => (
-              <tr key={item.id} className="border-b hover:bg-yellow-50/50">
-                <td className="px-1.5 py-1.5 text-center border border-gray-200">
+              <tr key={item.id} className="border-b hover:bg-blue-50/30 group">
+                <td className="px-1 py-1 text-center border border-gray-200">
                   <div className="flex flex-col items-center gap-0.5">
                     <button onClick={() => moveItem(idx, "up")} className="text-gray-400 hover:text-gray-700" disabled={idx === 0}><ArrowUp className="h-3 w-3" /></button>
                     <span className="font-mono text-xs">{idx + 1}</span>
                     <button onClick={() => moveItem(idx, "down")} className="text-gray-400 hover:text-gray-700" disabled={idx === items.length - 1}><ArrowDown className="h-3 w-3" /></button>
                   </div>
                 </td>
-                <td className="px-1.5 py-1.5 border border-gray-200">{item.timeSlot || ""}</td>
-                <td className="px-1.5 py-1.5 text-center border border-gray-200">
-                  {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80" onClick={() => setPreviewImage(item.imageUrl)} /> : <Package className="h-5 w-5 text-gray-300 mx-auto" />}
+                <EditableCell item={item} field="timeSlot" onSave={(v) => updateMutation.mutate({ id: item.id, timeSlot: v || null })} />
+                <td className="px-1 py-1 text-center border border-gray-200">
+                  {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80" onClick={() => setPreviewImage(item.imageUrl)} /> : <Package className="h-4 w-4 text-gray-300 mx-auto" />}
                 </td>
-                <td className="px-1.5 py-1.5 border border-gray-200">{item.productLink ? <a href={item.productLink} target="_blank" className="text-blue-500 underline truncate block max-w-[60px]">链接</a> : ""}</td>
-                <td className="px-1.5 py-1.5 border border-gray-200">{item.theme || item.bundleCombo || ""}</td>
-                <td className="px-1.5 py-1.5 border border-gray-200">{item.brandName || ""}</td>
-                <td className="px-1.5 py-1.5 border border-gray-200 font-medium">{item.productNameCn || item.productName || ""}</td>
-                <td className="px-1.5 py-1.5 border border-gray-200">{item.selfSiteLink ? <a href={item.selfSiteLink} target="_blank" className="text-blue-500 underline truncate block max-w-[60px]">链接</a> : ""}</td>
-                <td className="px-1.5 py-1.5 border border-gray-200 text-right">{item.listPrice ? Number(item.listPrice).toLocaleString() : ""}</td>
-                <td className="px-1.5 py-1.5 border border-gray-200 text-right font-medium text-red-600">{item.livePrice ? Number(item.livePrice).toLocaleString() : ""}</td>
-                <td className="px-1.5 py-1.5 border border-gray-200 text-right">{item.costPrice ? Number(item.costPrice).toLocaleString() : ""}</td>
-                <td className="px-1.5 py-1.5 border border-gray-200 text-right">{item.commissionRate ? `${item.commissionRate}%` : ""}</td>
-                <td className="px-1.5 py-1.5 border border-gray-200">{item.bundlePrice || ""}</td>
-                <td className="px-1.5 py-1.5 border border-gray-200">{item.shopAndFormat || ""}</td>
-                <td className="px-1.5 py-1.5 border border-gray-200 text-right font-medium text-green-600">{item.estimatedGmv ? Number(item.estimatedGmv).toLocaleString() : ""}</td>
-                <td className="px-1.5 py-1.5 border border-gray-200">{item.playStrategy || ""}</td>
-                <td className="px-1.5 py-1.5 border border-gray-200">{item.recommendReason || ""}</td>
-                <td className="px-1.5 py-1.5 border border-gray-200">{item.notes || ""}</td>
-                <td className="px-1.5 py-1.5 border border-gray-200 text-right">{item.purchasePrice ? Number(item.purchasePrice).toLocaleString() : ""}</td>
-                <td className="px-1.5 py-1.5 text-center border border-gray-200">
-                  <div className="flex items-center gap-1 justify-center">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
-                      setEditingItem(item);
-                      setItemForm({ ...item, sessionId });
-                      setShowAdd(true);
-                    }}><Edit className="h-3.5 w-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => {
-                      if (confirm("削除しますか？")) deleteMutation.mutate({ id: item.id });
-                    }}><Trash2 className="h-3.5 w-3.5" /></Button>
-                  </div>
+                <EditableCell item={item} field="productLink" onSave={(v) => updateMutation.mutate({ id: item.id, productLink: v || null })} isLink />
+                <EditableCell item={item} field="theme" fallback={item.bundleCombo} onSave={(v) => updateMutation.mutate({ id: item.id, theme: v || null })} />
+                <EditableCell item={item} field="brandName" onSave={(v) => updateMutation.mutate({ id: item.id, brandName: v || null })} />
+                <EditableCell item={item} field="productNameCn" fallback={item.productName} onSave={(v) => updateMutation.mutate({ id: item.id, productNameCn: v || null })} className="font-medium" />
+                <EditableCell item={item} field="selfSiteLink" onSave={(v) => updateMutation.mutate({ id: item.id, selfSiteLink: v || null })} isLink />
+                <EditableCell item={item} field="listPrice" onSave={(v) => updateMutation.mutate({ id: item.id, listPrice: v ? Number(v) : null })} isNumber />
+                <EditableCell item={item} field="livePrice" onSave={(v) => updateMutation.mutate({ id: item.id, livePrice: v ? Number(v) : null })} isNumber className="font-medium text-red-600" />
+                <EditableCell item={item} field="costPrice" onSave={(v) => updateMutation.mutate({ id: item.id, costPrice: v ? Number(v) : null })} isNumber />
+                <EditableCell item={item} field="commissionRate" onSave={(v) => updateMutation.mutate({ id: item.id, commissionRate: v ? Number(v) : null })} suffix="%" isNumber />
+                <EditableCell item={item} field="bundlePrice" onSave={(v) => updateMutation.mutate({ id: item.id, bundlePrice: v || null })} />
+                <EditableCell item={item} field="shopAndFormat" onSave={(v) => updateMutation.mutate({ id: item.id, shopAndFormat: v || null })} />
+                <EditableCell item={item} field="estimatedGmv" onSave={(v) => updateMutation.mutate({ id: item.id, estimatedGmv: v ? Number(v) : null })} isNumber className="font-medium text-green-600" />
+                <EditableCell item={item} field="playStrategy" onSave={(v) => updateMutation.mutate({ id: item.id, playStrategy: v || null })} />
+                <EditableCell item={item} field="recommendReason" onSave={(v) => updateMutation.mutate({ id: item.id, recommendReason: v || null })} />
+                <EditableCell item={item} field="notes" onSave={(v) => updateMutation.mutate({ id: item.id, notes: v || null })} />
+                <EditableCell item={item} field="purchasePrice" onSave={(v) => updateMutation.mutate({ id: item.id, purchasePrice: v ? Number(v) : null })} isNumber />
+                <td className="px-1 py-1 text-center border border-gray-200">
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => {
+                    if (confirm("削除しますか？")) deleteMutation.mutate({ id: item.id });
+                  }}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </td>
               </tr>
             ))}
