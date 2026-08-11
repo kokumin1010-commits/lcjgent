@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Mic, Square, Loader2, Calendar, Clock, Search, ChevronLeft, ChevronRight, Users, CheckCircle2, AlertCircle, Trash2 } from 'lucide-react';
+import { Mic, Square, Loader2, Calendar, Clock, Search, ChevronLeft, ChevronRight, Users, CheckCircle2, AlertCircle, Trash2, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { useAuth } from '@/_core/hooks/useAuth';
 
 // Web Speech API型定義
@@ -260,6 +260,50 @@ export default function MorningMeeting() {
     if (selectedMeeting?.id === id) setSelectedMeeting(null);
   };
 
+
+  const exportMeetingMinutes = (meeting: any) => {
+    const summary = meeting.summary as MeetingSummary;
+    let text = `会議纪要 - ${meeting.date}\n`;
+    text += `=${'='.repeat(40)}\n\n`;
+    text += `時間: ${meeting.durationSeconds ? Math.floor(meeting.durationSeconds / 60) + '分' + (meeting.durationSeconds % 60) + '秒' : '不明'}\n`;
+    text += `参加者: ${summary?.participants?.length || 0}名\n\n`;
+    
+    if (summary?.overview) {
+      text += `【概要】\n${summary.overview}\n\n`;
+    }
+    
+    if (summary?.participants?.length) {
+      text += `【参加者報告】\n`;
+      summary.participants.forEach(p => {
+        text += `■ ${p.name}\n`;
+        text += `  今日のタスク: ${p.todayTask}\n`;
+        if (p.supportNeeded) text += `  サポート必要: ${p.supportNeeded}\n`;
+        text += `\n`;
+      });
+    }
+    
+    if (summary?.actionItems?.length) {
+      text += `【アクションアイテム】\n`;
+      summary.actionItems.forEach(a => {
+        text += `- ${a.person}: ${a.task}${a.deadline ? ` (期限: ${a.deadline})` : ''}\n`;
+      });
+      text += `\n`;
+    }
+    
+    if (meeting.transcript) {
+      text += `【原始转写内容】\n`;
+      text += `${meeting.transcript}\n`;
+    }
+    
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `会議纪要_${meeting.date}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -424,10 +468,9 @@ export default function MorningMeeting() {
                 {historyData.meetings.map((meeting) => (
                   <div
                     key={meeting.id}
-                    className={`p-4 rounded-lg border cursor-pointer transition-colors ${
-                      selectedMeeting?.id === meeting.id ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+                    className={`p-4 rounded-lg border transition-colors ${
+                      selectedMeeting?.id === meeting.id ? 'border-blue-300 bg-blue-50' : 'border-gray-200'
                     }`}
-                    onClick={() => setSelectedMeeting(selectedMeeting?.id === meeting.id ? null : meeting)}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -454,6 +497,22 @@ export default function MorningMeeting() {
                             {(meeting.summary as MeetingSummary).participants.length}名
                           </span>
                         )}
+                        {meeting.status === 'completed' && (
+                          <button
+                            onClick={() => exportMeetingMinutes(meeting)}
+                            className="text-gray-400 hover:text-blue-500 transition-colors"
+                            title="会議纪要を導出"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setSelectedMeeting(selectedMeeting?.id === meeting.id ? null : meeting)}
+                          className="text-gray-400 hover:text-blue-500 transition-colors"
+                          title={selectedMeeting?.id === meeting.id ? '収縮' : '展開'}
+                        >
+                          {selectedMeeting?.id === meeting.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                        </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDelete(meeting.id); }}
                           className="text-gray-400 hover:text-red-500 transition-colors"
@@ -468,14 +527,12 @@ export default function MorningMeeting() {
                       <div className="mt-4 pt-4 border-t">
                         <MeetingSummaryView summary={meeting.summary as MeetingSummary} />
                         {meeting.transcript && (
-                          <details className="mt-4">
-                            <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-700">
-                              文字起こし全文を表示
-                            </summary>
-                            <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-3 rounded">
+                          <div className="mt-4 pt-4 border-t">
+                            <p className="text-sm font-medium text-gray-700 mb-2">📝 原始转写内容</p>
+                            <div className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg max-h-96 overflow-y-auto leading-relaxed border">
                               {meeting.transcript}
-                            </p>
-                          </details>
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}
