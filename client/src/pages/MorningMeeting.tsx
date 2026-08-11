@@ -385,6 +385,18 @@ export default function MorningMeeting() {
             <CardContent>
               <MeetingSummaryView summary={todayMeeting.summary as MeetingSummary} />
             </CardContent>
+            {todayMeeting.transcript && (
+              <CardContent className="pt-0">
+                <details className="group">
+                  <summary className="text-sm text-blue-600 cursor-pointer hover:text-blue-800 font-medium flex items-center gap-1">
+                    📝 原始转写内容（点击展开）
+                  </summary>
+                  <div className="mt-3 text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 border rounded-lg p-4 max-h-96 overflow-y-auto leading-relaxed">
+                    {todayMeeting.transcript}
+                  </div>
+                </details>
+              </CardContent>
+            )}
           </Card>
         )}
 
