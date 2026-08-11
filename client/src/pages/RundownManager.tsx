@@ -355,31 +355,40 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
   const [showAdd, setShowAdd] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  // 画像粘贴アップロード
-  const handlePasteImage = async (e: React.ClipboardEvent, itemId: number) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.startsWith('image/')) {
-        e.preventDefault();
-        const file = items[i].getAsFile();
-        if (!file) return;
-        const formData = new FormData();
-        formData.append('file', file);
-        try {
-          const res = await fetch('/api/rundown-image-upload', { method: 'POST', body: formData });
-          const data = await res.json();
-          if (data.url) {
-            updateMutation.mutate({ id: itemId, imageUrl: data.url });
-            toast.success("画像アップロード完了");
+  // 画像粘贴対象のアイテムID
+  const [pasteTargetId, setPasteTargetId] = useState<number | null>(null);
+
+  // document-level paste listener for images
+  useEffect(() => {
+    const handleDocPaste = async (e: ClipboardEvent) => {
+      if (!pasteTargetId) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          e.preventDefault();
+          const file = items[i].getAsFile();
+          if (!file) return;
+          const formData = new FormData();
+          formData.append('file', file);
+          try {
+            const res = await fetch('/api/rundown-image-upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.url) {
+              updateMutation.mutate({ id: pasteTargetId, imageUrl: data.url });
+              toast.success("画像アップロード完了");
+            }
+          } catch (err) {
+            toast.error("画像アップロード失敗");
           }
-        } catch (err) {
-          toast.error("画像アップロード失敗");
+          setPasteTargetId(null);
+          return;
         }
-        return;
       }
-    }
-  };
+    };
+    document.addEventListener('paste', handleDocPaste);
+    return () => document.removeEventListener('paste', handleDocPaste);
+  }, [pasteTargetId]);
 
   // 画像クリックアップロード
   const handleClickUploadImage = (itemId: number) => {
@@ -586,13 +595,17 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
                 <EditableCell item={item} field="timeSlot" onSave={(v) => updateMutation.mutate({ id: item.id, timeSlot: v || null })} />
                 <EditableCell item={item} field="bundleCombo" onSave={(v) => updateMutation.mutate({ id: item.id, bundleCombo: v || null })} />
                 <td
-                  className="px-1 py-1 text-center border border-gray-200 cursor-pointer hover:bg-blue-50"
-                  tabIndex={0}
-                  onPaste={(e) => handlePasteImage(e, item.id)}
-                  onClick={() => item.imageUrl ? setPreviewImage(item.imageUrl) : handleClickUploadImage(item.id)}
-                  title="クリックでアップロード / Ctrl+V で貼り付け"
+                  className={`px-1 py-1 text-center border cursor-pointer hover:bg-blue-50 ${pasteTargetId === item.id ? 'border-blue-500 bg-blue-50 border-2' : 'border-gray-200'}`}
+                  onClick={() => setPasteTargetId(item.id)} onDoubleClick={() => handleClickUploadImage(item.id)}
+                  title="クリック→Ctrl+V貼付 / ダブルクリック→ファイル選択"
                 >
-                  {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-10 h-10 object-cover rounded hover:opacity-80" /> : <span className="text-gray-400 text-xs">📷</span>}
+                  {item.imageUrl ? (
+                    <img src={item.imageUrl} alt="" className="w-10 h-10 object-cover rounded hover:opacity-80" />
+                  ) : (
+                    <span className={`text-xs ${pasteTargetId === item.id ? 'text-blue-500 font-bold' : 'text-gray-400'}`}>
+                      {pasteTargetId === item.id ? '📋 Ctrl+V' : '📷'}
+                    </span>
+                  )}
                 </td>
                 <EditableCell item={item} field="productLink" onSave={(v) => updateMutation.mutate({ id: item.id, productLink: v || null })} isLink />
                 <EditableCell item={item} field="theme" onSave={(v) => updateMutation.mutate({ id: item.id, theme: v || null })} />
