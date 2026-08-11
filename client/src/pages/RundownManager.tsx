@@ -494,16 +494,19 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
 
       {/* Table */}
       <div className="overflow-x-auto border rounded-lg" style={{ maxHeight: "calc(100vh - 280px)" }}>
-        <table className="w-full text-xs border-collapse">
+        <table className="w-full text-xs border-collapse min-w-[1800px]">
           <thead className="bg-blue-600 text-white sticky top-0 z-10">
             <tr>
               <th className="px-1.5 py-2 text-center w-8 border border-blue-500">序号</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">产品名称</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">时段</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">板块</th>
               <th className="px-1.5 py-2 text-center border border-blue-500 w-14">图片</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">链接</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">主题/痛点</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">品牌</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">中文名</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">发货时间</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">自制网站</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">定价</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">直播价格</th>
@@ -529,14 +532,17 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
                     <button onClick={() => moveItem(idx, "down")} className="text-gray-400 hover:text-gray-700" disabled={idx === items.length - 1}><ArrowDown className="h-3 w-3" /></button>
                   </div>
                 </td>
+                <EditableCell item={item} field="productName" onSave={(v) => updateMutation.mutate({ id: item.id, productName: v || null })} className="font-medium" />
                 <EditableCell item={item} field="timeSlot" onSave={(v) => updateMutation.mutate({ id: item.id, timeSlot: v || null })} />
+                <EditableCell item={item} field="bundleCombo" onSave={(v) => updateMutation.mutate({ id: item.id, bundleCombo: v || null })} />
                 <td className="px-1 py-1 text-center border border-gray-200">
                   {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80" onClick={() => setPreviewImage(item.imageUrl)} /> : <Package className="h-4 w-4 text-gray-300 mx-auto" />}
                 </td>
                 <EditableCell item={item} field="productLink" onSave={(v) => updateMutation.mutate({ id: item.id, productLink: v || null })} isLink />
-                <EditableCell item={item} field="theme" fallback={item.bundleCombo} onSave={(v) => updateMutation.mutate({ id: item.id, theme: v || null })} />
+                <EditableCell item={item} field="theme" onSave={(v) => updateMutation.mutate({ id: item.id, theme: v || null })} />
                 <EditableCell item={item} field="brandName" onSave={(v) => updateMutation.mutate({ id: item.id, brandName: v || null })} />
-                <EditableCell item={item} field="productNameCn" fallback={item.productName} onSave={(v) => updateMutation.mutate({ id: item.id, productNameCn: v || null })} className="font-medium" />
+                <EditableCell item={item} field="productNameCn" onSave={(v) => updateMutation.mutate({ id: item.id, productNameCn: v || null })} />
+                <EditableCell item={item} field="deliveryTime" onSave={(v) => updateMutation.mutate({ id: item.id, deliveryTime: v || null })} />
                 <EditableCell item={item} field="selfSiteLink" onSave={(v) => updateMutation.mutate({ id: item.id, selfSiteLink: v || null })} isLink />
                 <EditableCell item={item} field="listPrice" onSave={(v) => updateMutation.mutate({ id: item.id, listPrice: v ? Number(v) : null })} isNumber />
                 <EditableCell item={item} field="livePrice" onSave={(v) => updateMutation.mutate({ id: item.id, livePrice: v ? Number(v) : null })} isNumber className="font-medium text-red-600" />
@@ -557,7 +563,7 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={20} className="text-center py-8 text-muted-foreground">商品がまだ追加されていません</td></tr>
+              <tr><td colSpan={23} className="text-center py-8 text-muted-foreground">商品がまだ追加されていません</td></tr>
             )}
             {/* インライン追加行 - 各列の下に直接入力 */}
             <tr className="bg-yellow-50 border-t-2 border-yellow-300">
@@ -573,6 +579,7 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.theme || ""} onChange={(e) => setItemForm({ ...itemForm, theme: e.target.value })} placeholder="主题/痛点" /></td>
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.brandName || ""} onChange={(e) => setItemForm({ ...itemForm, brandName: e.target.value })} placeholder="品牌" /></td>
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.productNameCn || ""} onChange={(e) => setItemForm({ ...itemForm, productNameCn: e.target.value })} placeholder="中文名" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.deliveryTime || ""} onChange={(e) => setItemForm({ ...itemForm, deliveryTime: e.target.value })} placeholder="发货时间" /></td>
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.selfSiteLink || ""} onChange={(e) => setItemForm({ ...itemForm, selfSiteLink: e.target.value })} placeholder="自制网站" /></td>
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs w-16" type="number" value={itemForm.listPrice || ""} onChange={(e) => setItemForm({ ...itemForm, listPrice: e.target.value ? Number(e.target.value) : null })} placeholder="定价" /></td>
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs w-16" type="number" value={itemForm.livePrice || ""} onChange={(e) => setItemForm({ ...itemForm, livePrice: e.target.value ? Number(e.target.value) : null })} placeholder="直播价" /></td>
