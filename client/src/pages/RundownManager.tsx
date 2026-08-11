@@ -301,16 +301,15 @@ function SessionDetail({ sessionId, onBack }: { sessionId: number; onBack: () =>
 
 
 // Excel風インライン編集セル
-function EditableCell({ item, field, fallback, onSave, isLink,, suffix, className }: {
+function EditableCell({ item, field, fallback, onSave, isLink, suffix, className }: {
   item: any; field: string; fallback?: string; onSave: (value: string) => void;
-  isLink?: boolean;?: boolean; suffix?: string; className?: string;
+  isLink?: boolean; suffix?: string; className?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-
   const displayValue = item[field] || fallback || '';
-  const formattedDisplay = && displayValue ? Number(displayValue).toLocaleString() + (suffix || '') : (suffix && displayValue ? displayValue + suffix : displayValue);
+  const formattedDisplay = suffix && displayValue ? displayValue + suffix : displayValue;
 
   useEffect(() => { if (editing && inputRef.current) inputRef.current.focus(); }, [editing]);
 
@@ -326,7 +325,7 @@ function EditableCell({ item, field, fallback, onSave, isLink,, suffix, classNam
       <td className="px-0 py-0 border border-blue-400 bg-blue-50">
         <input
           ref={inputRef}
-          type={isNumber ? "number" : "text"}
+          type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onBlur={handleSave}
@@ -340,7 +339,7 @@ function EditableCell({ item, field, fallback, onSave, isLink,, suffix, classNam
 
   return (
     <td
-      className={`px-1.5 py-1 border border-gray-200 cursor-pointer hover:bg-blue-50 transition-colors text-xs ${className || ''} ${isNumber ? 'text-right' : ''}`}
+      className={`px-1.5 py-1 border border-gray-200 cursor-pointer hover:bg-blue-50 transition-colors text-xs ${className || ''} `}
       onClick={() => { setValue(String(item[field] || '')); setEditing(true); }}
       title="クリックして編集"
     >
