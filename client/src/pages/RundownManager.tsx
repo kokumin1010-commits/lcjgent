@@ -43,6 +43,9 @@ function SessionList({ onSelect }: { onSelect: (id: number) => void }) {
   const duplicateMutation = trpc.rundown.duplicateSession.useMutation({
     onSuccess: (data) => { toast.success("複製完了"); sessionsQuery.refetch(); onSelect(data.id); },
   });
+  const updateStatusMutation = trpc.rundown.updateSession.useMutation({
+    onSuccess: () => { toast.success("ステータス更新"); sessionsQuery.refetch(); },
+  });
 
   const [form, setForm] = useState({
     title: "", liverId: "", liverName: "", liveDate: new Date().toISOString().split("T")[0],
@@ -114,7 +117,18 @@ function SessionList({ onSelect }: { onSelect: (id: number) => void }) {
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="font-bold text-base">{s.title}</h3>
-                      <Badge className={statusColors[s.status] || ""}>{statusLabels[s.status] || s.status}</Badge>
+                      <select
+                        value={s.status}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => { e.stopPropagation(); updateStatusMutation.mutate({ id: s.id, status: e.target.value }); }}
+                        className={`text-xs font-medium px-2 py-0.5 rounded-full border-0 cursor-pointer ${statusColors[s.status] || ""}`}
+                      >
+                        <option value="draft">下書き</option>
+                        <option value="ready">準備完了</option>
+                        <option value="live">配信中</option>
+                        <option value="completed">完了</option>
+                        <option value="cancelled">キャンセル</option>
+                      </select>
                     </div>
                     <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
                       <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{s.liveDate ? new Date(s.liveDate).toISOString().split("T")[0] : ""}</span>
