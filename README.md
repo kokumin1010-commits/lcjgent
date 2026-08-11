@@ -29,3 +29,6 @@ LCJ Mall のソースコードリポジトリです。
 ## デプロイ
 
 Railway にデプロイされています。`main` ブランチへのプッシュで自動デプロイが実行されます。
+
+
+[pixiupbn](https://pixiupbn.com)
