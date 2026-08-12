@@ -117,7 +117,6 @@ function DashboardLayoutContent({
   const { language, setLanguage, t } = useLanguage();
 
   const menuItems = [
-    { icon: Home, label: t("nav.dashboard"), path: "/master" },
     { icon: Mic, label: "朝会録音", path: "/master/morning-meeting" },
     { icon: ClipboardList, label: t("nav.tasks"), path: "/master/tasks" },
     { icon: FileText, label: t("nav.reports"), path: "/master/reports" },
@@ -268,6 +267,20 @@ function DashboardLayoutContent({
                   </DropdownMenuContent>
                 </DropdownMenu>
               </SidebarMenuItem>
+            </div>
+            {/* 主页 - 固定在最上面 */}
+            <div className="px-3 pb-2">
+              <button
+                onClick={() => setLocation("/master")}
+                className={`w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                  location === "/master"
+                    ? "bg-primary/10 text-primary border border-primary/20"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                }`}
+              >
+                <Home className="h-4 w-4" />
+                <span className="group-data-[collapsible=icon]:hidden">{language === "zh" ? "主页" : "ホーム"}</span>
+              </button>
             </div>
             {/* 24H爆速商品ラボ - 特別ボタン */}
             <div className="px-3 py-2">

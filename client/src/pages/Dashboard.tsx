@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClipboardList, Clock, CheckCircle2, Plus, AlertTriangle, FileText, ShoppingBag, Store, MessageCircle, Brain, Sparkles, Wallet, Palette, User, Send, Bug, Calendar, Briefcase, MapPin } from "lucide-react";
+import { ClipboardList, Clock, CheckCircle2, Plus, AlertTriangle, FileText, ShoppingBag, Store, MessageCircle, Brain, Sparkles, Wallet, Palette, User, Send, Bug, Calendar, Briefcase, MapPin , UserCog, Building2, Mic, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -149,38 +149,8 @@ export default function Dashboard() {
 
         {/* Right Column - 1/3 */}
         <div className="space-y-6">
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">クイックアクション</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-2">
-              <Button size="sm" variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => setLocation("/master/finance?tab=cashflow")}>
-                <Wallet className="h-4 w-4 text-emerald-500" />
-                <span className="text-[11px]">財務管理</span>
-              </Button>
-              <Button size="sm" variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => setLocation("/master/reports/chat")}>
-                <FileText className="h-4 w-4 text-blue-500" />
-                <span className="text-[11px]">日報</span>
-              </Button>
-              <Button size="sm" variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => setLocation("/master/selection-center")}>
-                <ShoppingBag className="h-4 w-4 text-pink-500" />
-                <span className="text-[11px]">選品中心</span>
-              </Button>
-              <Button size="sm" variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => setLocation("/master/product-lab")}>
-                <Store className="h-4 w-4 text-orange-500" />
-                <span className="text-[11px]">商品ラボ</span>
-              </Button>
-              <Button size="sm" variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => setLocation("/master/set-image-generator")}>
-                <Palette className="h-4 w-4 text-purple-500" />
-                <span className="text-[11px]">セット画像</span>
-              </Button>
-              <Button size="sm" variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => setLocation("/master/lcj-brain")}>
-                <Brain className="h-4 w-4 text-indigo-500" />
-                <span className="text-[11px]">LCJ Brain</span>
-              </Button>
-            </CardContent>
-          </Card>
+          {/* Quick Actions - Editable */}
+          <QuickActionsCard setLocation={setLocation} />
 
           {/* System Issues */}
           <SystemIssuesCard />
@@ -410,6 +380,95 @@ function ChatSection() {
           </div>
         ) : (
           <p className="text-sm text-muted-foreground text-center py-2">チャットルームがありません</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Available modules for quick actions
+const ALL_QUICK_MODULES = [
+  { id: "finance", label: "財務管理", path: "/master/finance?tab=cashflow", icon: "Wallet", color: "text-emerald-500" },
+  { id: "report", label: "日報", path: "/master/reports/chat", icon: "FileText", color: "text-blue-500" },
+  { id: "selection", label: "選品中心", path: "/master/selection-center", icon: "ShoppingBag", color: "text-pink-500" },
+  { id: "product-lab", label: "商品ラボ", path: "/master/product-lab", icon: "Store", color: "text-orange-500" },
+  { id: "set-image", label: "セット画像", path: "/master/set-image-generator", icon: "Palette", color: "text-purple-500" },
+  { id: "lcj-brain", label: "LCJ Brain", path: "/master/lcj-brain", icon: "Brain", color: "text-indigo-500" },
+  { id: "tasks", label: "タスク", path: "/master/tasks", icon: "ClipboardList", color: "text-amber-500" },
+  { id: "hr", label: "人事管理", path: "/master/hr", icon: "UserCog", color: "text-teal-500" },
+  { id: "brands", label: "ブランド", path: "/master/brands", icon: "Building2", color: "text-cyan-500" },
+  { id: "morning", label: "朝会", path: "/master/morning-meeting", icon: "Mic", color: "text-rose-500" },
+  { id: "rundown", label: "Rundown", path: "/master/rundown", icon: "FileSpreadsheet", color: "text-lime-600" },
+  { id: "chat", label: "チャット", path: "/master/chat", icon: "MessageCircle", color: "text-green-500" },
+];
+
+const ICON_MAP: Record<string, any> = { Wallet, FileText, ShoppingBag, Store, Palette, Brain, ClipboardList, UserCog, Building2, Mic, FileSpreadsheet, MessageCircle };
+
+const DEFAULT_QUICK_IDS = ["finance", "report", "selection", "product-lab", "set-image", "lcj-brain"];
+
+function QuickActionsCard({ setLocation }: { setLocation: (path: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("lcj_quick_actions");
+      return saved ? JSON.parse(saved) : DEFAULT_QUICK_IDS;
+    } catch { return DEFAULT_QUICK_IDS; }
+  });
+
+  const saveSelection = (ids: string[]) => {
+    setSelectedIds(ids);
+    localStorage.setItem("lcj_quick_actions", JSON.stringify(ids));
+  };
+
+  const toggleModule = (id: string) => {
+    const newIds = selectedIds.includes(id)
+      ? selectedIds.filter(i => i !== id)
+      : [...selectedIds, id];
+    saveSelection(newIds);
+  };
+
+  const activeModules = ALL_QUICK_MODULES.filter(m => selectedIds.includes(m.id));
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">クイックアクション</CardTitle>
+          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setEditing(!editing)}>
+            {editing ? "完了" : "編集"}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {editing ? (
+          <div className="grid grid-cols-3 gap-1.5">
+            {ALL_QUICK_MODULES.map(mod => {
+              const Icon = ICON_MAP[mod.icon] || Wallet;
+              const isSelected = selectedIds.includes(mod.id);
+              return (
+                <button
+                  key={mod.id}
+                  onClick={() => toggleModule(mod.id)}
+                  className={`p-2 rounded-lg border text-center transition-all ${isSelected ? "border-primary bg-primary/5" : "border-dashed border-muted-foreground/30 opacity-50"}`}
+                >
+                  <Icon className={`h-3.5 w-3.5 mx-auto ${mod.color}`} />
+                  <span className="text-[10px] block mt-0.5">{mod.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {activeModules.map(mod => {
+              const Icon = ICON_MAP[mod.icon] || Wallet;
+              return (
+                <Button key={mod.id} size="sm" variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => setLocation(mod.path)}>
+                  <Icon className={`h-4 w-4 ${mod.color}`} />
+                  <span className="text-[11px]">{mod.label}</span>
+                </Button>
+              );
+            })}
+          </div>
         )}
       </CardContent>
     </Card>
