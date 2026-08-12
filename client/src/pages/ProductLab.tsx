@@ -155,6 +155,9 @@ export default function ProductLab() {
           <TabsTrigger value="broadcast" className="flex items-center gap-1">
             <Megaphone className="h-4 w-4" /> 横推管理
           </TabsTrigger>
+          <TabsTrigger value="import1688" className="flex items-center gap-1">
+            <ShoppingCart className="h-4 w-4" /> 1688仕入れ
+          </TabsTrigger>
         </TabsList>
 
         {/* パイプラインタブ */}
@@ -330,6 +333,29 @@ export default function ProductLab() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* 1688仕入れ Tab */}
+        <TabsContent value="import1688" className="space-y-4">
+          <Import1688Section
+            onImport={(product) => {
+              setNewProduct({
+                name: product.title,
+                imageUrl: product.mainImage || product.imageUrl || "",
+                sourceUrl: product.url,
+                sourceType: "1688",
+                costPrice: product.price || "",
+                sellPrice: "",
+                category: "",
+                talkScript: "",
+                productDescription: "",
+                notes: "",
+              });
+              setShowCreateDialog(true);
+              setActiveTab("pipeline");
+              toast.success("商品情報を取り込みました。登録フォームを確認してください。");
+            }}
+          />
         </TabsContent>
       </Tabs>
 
@@ -682,5 +708,208 @@ function ProductCard({ product, onStatusChange, onAssign, onBroadcast, onDelete 
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * 1688仕入れセクション - 商品検索・インポート
+ */
+function Import1688Section({ onImport }: { onImport: (product: any) => void }) {
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [urlInput, setUrlInput] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [selectedDetail, setSelectedDetail] = useState<any>(null);
+  const [isSearching, setIsSearching] = useState(false);
+
+  const searchMutation = trpc.alibaba1688.searchProducts.useMutation({
+    onSuccess: (data) => {
+      setSearchResults(data.items);
+      if (data.items.length === 0) toast.info("検索結果がありません");
+    },
+    onError: (err) => toast.error(err.message),
+    onSettled: () => setIsSearching(false),
+  });
+
+  const detailMutation = trpc.alibaba1688.getProductDetail.useMutation({
+    onSuccess: (data) => {
+      setSelectedDetail(data);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const handleSearch = () => {
+    if (!searchKeyword.trim()) return;
+    setIsSearching(true);
+    setSelectedDetail(null);
+    searchMutation.mutate({ keyword: searchKeyword, page: 1, pageSize: 20 });
+  };
+
+  const handleUrlImport = () => {
+    if (!urlInput.trim()) return;
+    detailMutation.mutate({ offerIdOrUrl: urlInput });
+  };
+
+  const handleSelectProduct = (item: any) => {
+    detailMutation.mutate({ offerIdOrUrl: item.offerId });
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* URL直接入力 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Zap className="h-5 w-5 text-orange-500" />
+            1688リンクから直接取り込み
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            <Input
+              placeholder="1688商品リンクまたはIDを貼り付け（例: https://detail.1688.com/offer/925419987602.html）"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleUrlImport()}
+              className="flex-1"
+            />
+            <Button onClick={handleUrlImport} disabled={detailMutation.isPending || !urlInput.trim()}>
+              {detailMutation.isPending ? "取得中..." : "取り込み"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* キーワード検索 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Search className="h-5 w-5 text-blue-500" />
+            1688商品検索
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              placeholder="キーワードで検索（例: 洗面奶、美容液、スキンケア）"
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              className="flex-1"
+            />
+            <Button onClick={handleSearch} disabled={isSearching || !searchKeyword.trim()}>
+              {isSearching ? "検索中..." : "検索"}
+            </Button>
+          </div>
+
+          {/* 検索結果 */}
+          {searchResults.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-[600px] overflow-y-auto">
+              {searchResults.map((item) => (
+                <div
+                  key={item.offerId}
+                  className="border rounded-lg p-3 hover:border-orange-400 hover:shadow-md cursor-pointer transition-all"
+                  onClick={() => handleSelectProduct(item)}
+                >
+                  <div className="aspect-square mb-2 overflow-hidden rounded bg-gray-100">
+                    <img
+                      src={item.imageUrl}
+                      alt={item.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).src = ""; }}
+                    />
+                  </div>
+                  <p className="text-xs font-medium line-clamp-2 mb-1">{item.title}</p>
+                  {item.titleTranslated && (
+                    <p className="text-xs text-muted-foreground line-clamp-1 mb-1">{item.titleTranslated}</p>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-red-600">¥{item.price}</span>
+                    <span className="text-xs text-muted-foreground">月销{item.monthSold}</span>
+                  </div>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Badge variant="outline" className="text-[10px] px-1">复购{item.repurchaseRate}</Badge>
+                    {item.sellerIdentities?.includes("super_factory") && (
+                      <Badge className="text-[10px] px-1 bg-blue-100 text-blue-700">超级工厂</Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 商品詳細プレビュー */}
+      {selectedDetail && (
+        <Card className="border-orange-300 border-2">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-orange-500" />
+                商品詳細
+              </span>
+              <Button
+                onClick={() => onImport(selectedDetail)}
+                className="bg-orange-500 hover:bg-orange-600"
+              >
+                <Plus className="h-4 w-4 mr-1" /> パイプラインに追加
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* 画像 */}
+              <div className="space-y-2">
+                {selectedDetail.mainImage && (
+                  <img
+                    src={selectedDetail.mainImage}
+                    alt={selectedDetail.title}
+                    className="w-full rounded-lg border"
+                  />
+                )}
+                <div className="grid grid-cols-4 gap-1">
+                  {selectedDetail.images?.slice(0, 8).map((img: string, i: number) => (
+                    <img key={i} src={img} alt="" className="w-full aspect-square object-cover rounded border" />
+                  ))}
+                </div>
+              </div>
+              {/* 情報 */}
+              <div className="md:col-span-2 space-y-3">
+                <h3 className="font-bold text-lg">{selectedDetail.title}</h3>
+                {selectedDetail.titleTranslated && (
+                  <p className="text-sm text-muted-foreground">{selectedDetail.titleTranslated}</p>
+                )}
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-muted-foreground">価格:</span> <span className="font-bold text-red-600 text-lg">¥{selectedDetail.price}</span></div>
+                  <div><span className="text-muted-foreground">最低注文:</span> {selectedDetail.minOrderQuantity}個</div>
+                  <div><span className="text-muted-foreground">会社名:</span> {selectedDetail.companyName || "-"}</div>
+                  <div><span className="text-muted-foreground">ステータス:</span> {selectedDetail.status}</div>
+                </div>
+                {selectedDetail.attributes?.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium mb-1">属性:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedDetail.attributes.slice(0, 10).map((attr: any, i: number) => (
+                        <Badge key={i} variant="outline" className="text-xs">
+                          {attr.name}: {attr.value}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <a
+                  href={selectedDetail.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-500 hover:underline inline-block"
+                >
+                  1688で見る →
+                </a>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }

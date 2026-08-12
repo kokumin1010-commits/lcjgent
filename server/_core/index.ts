@@ -2727,6 +2727,12 @@ async function startServer() {
               console.error("[Migration] RBAC tables error:", err);
             });
           });
+          // Product Lab tables migration
+          import("../migrations/createProductLabTables").then(({ createProductLabTables }) => {
+            createProductLabTables(db).catch((err: unknown) => {
+              console.error("[Migration] Product Lab tables error:", err);
+            });
+          });
        }
      });
    });
